@@ -10,7 +10,6 @@ from agents import TContext
 from pydantic import BaseModel
 
 from src.memory.SystemContext import SystemContext
-from src.user_agents.examples.air_customer_agent import AirlineAgentContext
 from src.user_agents import agent_map
 
 # 泛型类型变量，用于表示不同类型的model_context
@@ -49,9 +48,6 @@ class Memory(BaseModel, Generic[T, TContext]):
         agent = agent_map[current_agent]
         # 直接创建SystemContext实例
         system_context = SystemContext(current_agent=agent)
-
-        if current_agent == "air_customer":
-            model_context = AirlineAgentContext()
             
         return cls(
             session_id=session_id,

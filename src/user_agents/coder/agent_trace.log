@@ -133,3 +133,104 @@ Invalid `path` parameter: /Users/yunan/code/copilot/siada-api/tests/tools. The p
   "ls: /Users/yunan/code/copilot/siada-api/: No such file or directory\n"
 ]
 ===============
+
+🚀 === TRACE STARTED ===
+Workflow: Agent workflow
+Trace ID: trace_79a3241653684ba0b79c0864e57e5dd6
+Started: 🕐 16:27:39 
+=========================
+
+
+🤖 === MODEL CALL 1 ===
+🕐 16:27:44 Model: claude-sonnet-4
+📥 New Input Messages:
+  [system]: 
+        你是一个专业的软件开发助手，可以帮助用户完成各种开发任务。
+        
+        你可以使用run_cmd工具执行命令行命令，帮助用户：
+        1. 编写、编译和运行代码
+        2. 管理项目和依赖
+        3. 执行构建和部署操作
+        4. 进行版本控制操作
+        5. 执行其他开发相关的命令行任务
+        
+        在执行命令前，请确保：
+        - 理解用户的需求和上下文
+        - 选择最合适的命令和参数
+        - 考虑命令执行的安全性和影响
+        - 清晰地解释你将要执行的命令及其目的
+        
+        执行命令后，请：
+        - 解释命令的输出结果
+        - 提供下一步的建议（如果适用）
+        - 回答用户可能的疑问
+        
+        请以专业、清晰的方式与用户交流，并提供有价值的技术建议。
+        
+  [user]: 
+           在/Users/yunan/code/copilot/siada-api/tests/tools 目录下创建一个文件， test_code.py
+           实现一个冒泡排序算法
+            
+📤 Model Output:
+  [unknown]: {
+  "content": "我来帮您在指定目录下创建一个包含冒泡排序算法的 `test_code.py` 文件。\n\n首先，让我检查一下目标目录是否存在：",
+  "role": "assistant",
+  "tool_calls": [
+    {
+      "function": {
+        "arguments": "{\"command\":\"view\",\"path\":\"/Users/yunan/code/copilot/siada-api/tests/tools\"}",
+        "name": "edit_file"
+      },
+      "id": "toolu_vrtx_01TgTZrTrvFLS23xMcuW8v38",
+      "type": "function"
+    }
+  ],
+  "function_call": null,
+  "reasoning_content": ""
+}
+📊 Usage: Input=2122, Output=243, Total=0
+===================
+
+🔧 === TOOL CALL 1 ===
+🕐 16:27:44 Function: edit_file
+📥 Input: {"command":"view","path":"/Users/yunan/code/copilot/siada-api/tests/tools"}
+📤 Output: ERROR:
+Invalid `path` parameter: /Users/yunan/code/copilot/siada-api/tests/tools. The path /Users/yunan/code/copilot/siada-api/tests/tools does not exist. Please provide a valid path.
+===============
+
+🤖 === MODEL CALL 2 ===
+🕐 16:27:48 Model: claude-sonnet-4
+📥 New Input Messages:
+  [assistant]: 我来帮您在指定目录下创建一个包含冒泡排序算法的 `test_code.py` 文件。
+
+首先，让我检查一下目标目录是否存在：
+  [tool]: ERROR:
+Invalid `path` parameter: /Users/yunan/code/copilot/siada-api/tests/tools. The path /Users/yunan/code/copilot/siada-api/tests/tools does not exist. Please provide a valid path.
+📤 Model Output:
+  [unknown]: {
+  "content": "让我先检查一下目录结构，看看这个路径是否存在：",
+  "role": "assistant",
+  "tool_calls": [
+    {
+      "function": {
+        "arguments": "{\"command\":\"ls -la /Users/yunan/code/copilot/siada-api/tests/\",\"verbose\":false,\"error_print\":\"print\"}",
+        "name": "run_cmd"
+      },
+      "id": "toolu_vrtx_01LiUfSzvVSbit4zK3DWpvGu",
+      "type": "function"
+    }
+  ],
+  "function_call": null,
+  "reasoning_content": ""
+}
+📊 Usage: Input=2285, Output=134, Total=0
+===================
+
+🔧 === TOOL CALL 2 ===
+🕐 16:27:48 Function: run_cmd
+📥 Input: {"command":"ls -la /Users/yunan/code/copilot/siada-api/tests/","verbose":false,"error_print":"print"}
+📤 Output: [
+  1,
+  "ls: /Users/yunan/code/copilot/siada-api/tests/: No such file or directory\n"
+]
+===============
