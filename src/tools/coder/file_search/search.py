@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+from agents import function_tool
+
 # 尝试导入 importlib.resources 用于打包环境
 try:
     from importlib import resources
@@ -254,8 +256,8 @@ class RipgrepSearcher:
             results.append(current_result)
         
         return results
-    
-    def search(
+
+    def search_in_files(
         self, 
         directory_path: str, 
         regex: str, 
@@ -366,6 +368,9 @@ class RipgrepSearcher:
         return '\n'.join(output_lines).rstrip()
 
 
+@function_tool(
+    name_override="regex_search_files"
+)
 def regex_search_files(
     cwd: str,
     directory_path: str,
@@ -388,4 +393,4 @@ def regex_search_files(
         RuntimeError: If ripgrep binary is not found
     """
     searcher = RipgrepSearcher()
-    return searcher.search(directory_path, regex, file_pattern, cwd)
+    return searcher.search_in_files(directory_path, regex, file_pattern, cwd)

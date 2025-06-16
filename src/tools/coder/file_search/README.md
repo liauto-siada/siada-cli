@@ -34,7 +34,7 @@ print(results)
 from file_search import RipgrepSearcher
 
 searcher = RipgrepSearcher()
-results = searcher.search(
+results = searcher.search_in_files(
     directory_path="./src",
     regex=r"def\s+\w+\(",
     file_pattern="*.py",

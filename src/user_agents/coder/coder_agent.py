@@ -3,6 +3,7 @@
 
 提供软件开发功能的Agent实现，可以执行命令行命令
 """
+
 from agents import Agent, RunConfig, MessageOutputItem, ItemHelpers, HandoffOutputItem, ToolCallItem, \
     ToolCallOutputItem, add_trace_processor
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from src.core.config import settings
 from src.services.agent_service import AgentService
 from src.tools.coder.file_operator import read, edit
+from src.tools.coder.file_search import regex_search_files
 from src.user_agents import agent_map
 from src.tools.coder.run_cmd import run_cmd
 import asyncio
@@ -58,7 +60,7 @@ def init_coder_agent():
         
         请以专业、清晰的方式与用户交流，并提供有价值的技术建议。
         """,
-        tools=[run_cmd, edit],
+        tools=[run_cmd, edit, regex_search_files],
         #tools=[run_cmd],
         model=model,
     )

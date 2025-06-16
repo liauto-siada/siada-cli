@@ -76,7 +76,7 @@ def test_basic_functionality():
         print("\n=== Test 2: Search for function definitions ===")
         try:
             searcher = RipgrepSearcher()
-            results = searcher.search(
+            results = searcher.search_in_files(
                 directory_path=str(test_dir),
                 regex=r"def\s+\w+\(|function\s+\w+\(",
                 file_pattern="*",
@@ -91,7 +91,7 @@ def test_basic_functionality():
         print("\n=== Test 3: Search for all TODO/FIXME comments ===")
         try:
             searcher = RipgrepSearcher()
-            results = searcher.search(
+            results = searcher.search_in_files(
                 directory_path=str(test_dir),
                 regex=r"TODO:|FIXME:",
                 file_pattern="*",
@@ -127,6 +127,9 @@ def test_binary_detection():
 
 
 if __name__ == "__main__":
+    """
+    运行测试用例需要先注释掉 search.py 中的 @function_tool注解
+    """
     print("File Search - Test Script")
     print("=" * 40)
     
