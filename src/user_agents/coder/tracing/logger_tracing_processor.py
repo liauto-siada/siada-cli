@@ -1,22 +1,3 @@
-"""
-LoggerTracingProcessor - 详细的推理过程日志记录器
-
-这个 TracingProcessor 提供了详细的推理过程可视化，包括：
-- 模型调用的增量输入和完整输出
-- 工具调用的输入输出详情
-- Agent 切换（handoff）的完整记录
-- 整个推理过程的生命周期跟踪
-
-使用方法：
-    from agents.tracing import add_trace_processor
-    from examples.tracing.logger_tracing_processor import LoggerTracingProcessor
-    
-    # 注册处理器
-    add_trace_processor(LoggerTracingProcessor())
-    
-    # 然后正常运行 Agent
-    result = await Runner.run(agent=your_agent, input="your input")
-"""
 
 import json
 from dataclasses import dataclass, field
@@ -39,7 +20,25 @@ class TraceState:
 
 
 class LoggerTracingProcessor(TracingProcessor):
-    """详细的推理过程日志记录器"""
+    """
+    详细的推理过程日志记录器
+
+    这个 TracingProcessor 提供了详细的推理过程可视化，包括：
+        - 模型调用的增量输入和完整输出
+        - 工具调用的输入输出详情
+        - Agent 切换（handoff）的完整记录
+        - 整个推理过程的生命周期跟踪
+
+    使用方法：
+        from agents.tracing import add_trace_processor
+        from examples.tracing.logger_tracing_processor import LoggerTracingProcessor
+
+        # 注册处理器
+        add_trace_processor(LoggerTracingProcessor())
+
+        # 然后正常运行 Agent
+        result = await Runner.run(agent=your_agent, input="your input")
+    """
     
     def __init__(
         self,
