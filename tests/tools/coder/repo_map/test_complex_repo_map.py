@@ -15,10 +15,10 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from src.tools.coder.repo_map.repo_map import RepoMap, Tag
-    from src.tools.coder.repo_map.dump import dump
-    from src.tools.coder.repo_map.special import filter_important_files
-    from src.tools.coder.repo_map.waiting import Spinner
+    from siada.tools.coder.repo_map.repo_map import RepoMap, Tag
+    from siada.tools.coder.repo_map.dump import dump
+    from siada.tools.coder.repo_map.special import filter_important_files
+    from siada.tools.coder.repo_map.waiting import Spinner
     import litellm
     DEPENDENCIES_OK = True
 except ImportError as e:

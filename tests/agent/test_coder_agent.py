@@ -7,10 +7,10 @@ import unittest
 
 from agents import RunConfig
 
-from src.models.provider import SiadaProvider
-from src.services.agent_service import AgentService
-from src.user_agents import agent_map
-from src.user_agents.coder.coder_agent import init_coder_agent
+from siada.models.provider import SiadaProvider
+from siada.services.agent_service import AgentService
+from siada.user_agents import agent_map
+from siada.user_agents.coder.coder_agent import init_coder_agent
 
 
 class TestCoderAgent(unittest.IsolatedAsyncioTestCase):

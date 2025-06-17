@@ -2,8 +2,8 @@ import unittest
 
 from agents import Agent, Runner, RunConfig
 
-from src.models.provider import SiadaProvider
-from src.tools.weather_tool import fetch_weather
+from siada.models.provider import SiadaProvider
+from siada.tools.weather_tool import fetch_weather
 
 
 class TestSiadaClient(unittest.IsolatedAsyncioTestCase):

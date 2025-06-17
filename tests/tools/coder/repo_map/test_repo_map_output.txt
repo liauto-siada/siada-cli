@@ -1,40 +1,304 @@
 
-src/__init__.py
+siada/__init__.py
 
-src/tools/__init__.py
+siada/tools/__init__.py
 
-src/tools/coder/__init__.py
+siada/tools/coder/__init__.py
 
-src/tools/coder/file_operator.py
+siada/tools/coder/action/__init__.py
 
-src/tools/coder/files.py
+siada/tools/coder/action/action.py:
+⋮
+│class ActionConfirmationStatus(str, Enum):
+⋮
+│class ActionSecurityRisk(int, Enum):
+⋮
+│class ActionType(str, Enum):
+⋮
 
-src/tools/coder/run_cmd.py
+siada/tools/coder/action/file_actions.py:
+⋮
+│@dataclass
+│class FileReadAction:
+│    """Reads a file from a given path.
+│    Can be set to read specific lines using start and end
+│    Default lines 0:-1 (whole file)
+⋮
+│    @property
+│    def message(self) -> str:
+⋮
+│@dataclass
+│class FileEditAction:
+│    """Edits a file using various commands including view, create, str_replace, insert, and undo_ed
+│
+│    This class supports two main modes of operation:
+│    1. LLM-based editing (impl_source = FileEditSource.LLM_BASED_EDIT)
+│    2. ACI-based editing (impl_source = FileEditSource.OH_ACI)
+│
+│    Attributes:
+│        path (str): The path to the file being edited. Works for both LLM-based and OH_ACI editing.
+│        OH_ACI only arguments:
+│            command (str): The editing command to be performed (view, create, str_replace, insert, 
+⋮
+│    def __repr__(self) -> str:
+⋮
 
-src/tools/coder/tool_docs.py
+siada/tools/coder/file_operator.py:
+⋮
+│@function_tool(
+│    name_override="read_file", description_override="Read the file."
+│)
+│async def read(
+│    context: RunContextWrapper[CoderAgentContext],
+│    path: str,
+│    start: int = 0,
+│    end: int = -1,
+│    impl_source: FileReadSource = FileReadSource.DEFAULT,
+│    view_range: list[int] | None = None
+⋮
+│@function_tool(
+│    name_override="edit_file", description_override=EDIT_DOCS
+│)
+│async def edit(
+│    context: RunContextWrapper[CoderAgentContext], 
+│    command: str,
+│    path: str,
+│    file_text: str | None = None,
+│    old_str: str | None = None,
+│    new_str: str | None = None,
+│    insert_line: int | None = None,
+│    view_range: list[int] | None = None
+⋮
+│def _execute_file_editor(
+│    editor: OHEditor,
+│    command: str,
+│    path: str,
+│    file_text: str | None = None,
+│    view_range: list[int] | None = None,
+│    old_str: str | None = None,
+│    new_str: str | None = None,
+│    insert_line: int | str | None = None,
+│    enable_linting: bool = False,
+⋮
+│def _resolve_path(path: str, working_dir: str) -> str:
+⋮
 
-src/tools/trouble_shooting/__init__.py
+siada/tools/coder/file_search/__init__.py:
+⋮
+│__all__ = ['RipgrepSearcher', 'SearchResult', 'regex_search_files']
+│__version__ = '1.0.0'
 
-src/tools/trouble_shooting/tools.py
+siada/tools/coder/file_search/search.py:
+⋮
+│@dataclass
+│class SearchResult:
+⋮
+│class RipgrepSearcher:
+│    """High-performance file search using ripgrep binary."""
+│    
+⋮
+│    def __init__(self):
+⋮
+│    def _find_ripgrep_binary(self) -> Optional[str]:
+⋮
+│    def _ensure_executable(self, binary_path: Path) -> None:
+⋮
+│    def _execute_ripgrep(self, args: List[str]) -> str:
+⋮
+│    def _parse_ripgrep_output(self, output: str) -> List[SearchResult]:
+⋮
+│    def search_in_files(
+│        self, 
+│        directory_path: str, 
+│        regex: str, 
+│        file_pattern: str = "*",
+│        cwd: Optional[str] = None
+⋮
+│    def _format_results(self, results: List[SearchResult], cwd: str) -> str:
+⋮
+│@function_tool(
+│    name_override="regex_search_files"
+│)
+│def regex_search_files(
+│    cwd: str,
+│    directory_path: str,
+│    regex: str,
+│    file_pattern: str = "*"
+⋮
 
-src/tools/weather_tool.py
+siada/tools/coder/file_search/setup_package.py:
+⋮
+│def setup_package_data():
+⋮
+│def ensure_binary_permissions():
+⋮
+│def get_pyproject_toml_config():
+⋮
+│def get_setup_py_config():
+⋮
+│def validate_package_structure():
+⋮
 
-src/utils.py
+siada/tools/coder/file_search/test_search.py:
+⋮
+│def create_test_files():
+⋮
+│def test_basic_functionality():
+⋮
+│def test_binary_detection():
+⋮
 
-tests/__init__.py
+siada/tools/coder/files.py:
+⋮
+│def resolve_path(
+│    file_path: str,
+│    working_directory: str,
+│    workspace_base: str,
+│    workspace_mount_path_in_sandbox: str,
+⋮
+│def read_lines(all_lines: list[str], start: int = 0, end: int = -1) -> list[str]:
+⋮
+│async def read_file(
+│    path: str,
+│    workdir: str,
+│    workspace_base: str,
+│    workspace_mount_path_in_sandbox: str,
+│    start: int = 0,
+│    end: int = -1,
+⋮
+│def insert_lines(
+│    to_insert: list[str], original: list[str], start: int = 0, end: int = -1
+⋮
+│async def write_file(
+│    path: str,
+│    workdir: str,
+│    workspace_base: str,
+│    workspace_mount_path_in_sandbox: str,
+│    content: str,
+│    start: int = 0,
+│    end: int = -1,
+⋮
 
-tests/agent/__init__.py
+siada/tools/coder/repo_map/__init__.py
 
-tests/test_llm_connection.py
+siada/tools/coder/repo_map/dump.py:
+⋮
+│def cvt(s):
+⋮
+│def dump(*vals):
+⋮
 
-tests/test_logging.py
+siada/tools/coder/run_cmd.py:
+⋮
+│@function_tool
+│def run_cmd(context: RunContextWrapper[CoderAgentContext], command, verbose=False, error_print=None
+⋮
+│def get_windows_parent_process_name():
+⋮
+│def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.encoding):
+⋮
+│def run_cmd_pexpect(command, verbose=False, cwd=None):
+│    """
+│    Run a shell command interactively using pexpect, capturing all output.
+│
+│    :param command: The command to run as a string.
+│    :param verbose: If True, print output in real-time.
+│    :return: A tuple containing (exit_status, output)
+⋮
+│    def output_callback(b):
+⋮
 
-tests/test_tool.py
+siada/tools/coder/tool_docs.py:
+│EDIT_DOCS= """Custom editing tool for viewing, creating and editing files in plain-text format
+⋮
 
-tests/tools/__init__.py
+siada/tools/trouble_shooting/__init__.py
 
-tests/tools/test_edit_function.py
+siada/tools/trouble_shooting/tools.py:
+⋮
+│@function_tool(name_override="finish")
+│def finish(conclusion: str) -> str:
+⋮
+│@function_tool
+│def analysis_jank_event(
+│    end_time: Optional[str] = None,
+│    start_time: Optional[str] = None,
+│    vin: Optional[str] = None,
+│    jank_event: Optional[str] = None,
+│    only_analysis: bool = True,
+│    top_pkg_num: int = 1
+⋮
+│@function_tool
+│def fetch_vehicle_event(
+│    end_time: Optional[str] = None,
+│    start_time: Optional[str] = None,
+│    vin: Optional[str] = None,
+│    problem_type: Optional[str] = None,
+│    page_no: int = 1,
+│    page_size: int = 10
+⋮
 
-tests/tools/test_file_operator.py
+siada/tools/weather_tool.py:
+⋮
+│class Location(TypedDict):
+⋮
+│@function_tool
+│async def fetch_weather(city: str) -> str:
+⋮
 
-tests/tools/test_read_function.py
+siada/utils.py:
+⋮
+│class JsonUtils:
+│    """JSON相关工具类"""
+│    
+│    @staticmethod
+│    def format_json(json_data: Union[str, Dict[str, Any]]) -> str:
+⋮
+│class SSEUtils:
+│    """Server-Sent Events (SSE)相关工具类"""
+│    
+│    @staticmethod
+│    async def format_sse(data):
+⋮
+│class AgentLogger:
+│    """Agent日志格式化助手类"""
+│    
+│    @staticmethod
+│    def format_start(agent_name: str) -> str:
+⋮
+│    @staticmethod
+│    def format_finished(agent_name: str) -> str:
+⋮
+│    @staticmethod
+│    def format_tool_call(tool_name: str, tool_args: Any) -> str:
+⋮
+│    @staticmethod
+│    def format_tool_output(output: str) -> str:
+⋮
+│    @staticmethod
+│    def format_action(thought: str, action: str) -> str:
+⋮
+│    @staticmethod
+│    def format_final_output(output: str) -> str:
+⋮
+│    @staticmethod
+│    def log_user_input(input_text: str) -> None:
+⋮
+│    @staticmethod
+│    def log_tool_output(output: str) -> None:
+⋮
+│    @staticmethod
+│    def log_action(message: str) -> None:
+⋮
+│    @staticmethod
+│    def log_final_output(message: str) -> None:
+⋮
+│    @staticmethod
+│    def format_observation(thought: str) -> str:
+⋮
+│    @staticmethod
+│    def format_msg_action(thought: str) -> str:
+⋮
+│    @staticmethod
+│    def log_observation(message: str) -> None:
+⋮

@@ -7,8 +7,8 @@ import tempfile
 import shutil
 import os
 
-from src.tools.coder.observation.file_observation import FileReadObservation
-from src.tools.coder.observation.observation import FileReadSource
+from siada.tools.coder.observation.file_observation import FileReadObservation
+from siada.tools.coder.observation.observation import FileReadSource
 
 
 class MockCoderAgentContext:
@@ -33,8 +33,8 @@ async def read_direct(
 ):
     """直接调用读取逻辑，不通过装饰器"""
     from binaryornot.check import is_binary
-    from src.tools.coder.observation.error import ErrorObservation
-    from src.tools.coder.files import read_lines
+    from siada.tools.coder.observation.error import ErrorObservation
+    from siada.tools.coder.files import read_lines
     from pathlib import Path
     
     # Cannot read binary files
@@ -136,7 +136,7 @@ class TestReadFunctionDirect(unittest.IsolatedAsyncioTestCase):
             path=nonexistent_file
         )
         
-        from src.tools.coder.observation.error import ErrorObservation
+        from siada.tools.coder.observation.error import ErrorObservation
         self.assertIsInstance(result, ErrorObservation)
         self.assertIn("File not found", result.content)
         print("✓ 不存在文件错误处理测试通过")

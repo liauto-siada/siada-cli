@@ -4,10 +4,10 @@ import json
 from agents import ItemHelpers
 from agents.run import RunConfig, Runner
 
-from src.models.provider import SiadaProvider
-from src.services.agent_service import AgentService
-import src.trace
-from src.tools.weather_tool import fetch_weather
+from siada.models.provider import SiadaProvider
+from siada.services.agent_service import AgentService
+import siada.trace
+from siada.tools.weather_tool import fetch_weather
 
 
 class TestAgentService(unittest.IsolatedAsyncioTestCase):        

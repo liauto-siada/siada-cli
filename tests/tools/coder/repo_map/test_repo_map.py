@@ -50,10 +50,10 @@ except ImportError:
 
 # 尝试导入 repo_map 模块
 try:
-    from src.tools.coder.repo_map.repo_map import RepoMap, Tag
-    from src.tools.coder.repo_map.dump import dump
-    from src.tools.coder.repo_map.special import filter_important_files
-    from src.tools.coder.repo_map.waiting import Spinner
+    from siada.tools.coder.repo_map.repo_map import RepoMap, Tag
+    from siada.tools.coder.repo_map.dump import dump
+    from siada.tools.coder.repo_map.special import filter_important_files
+    from siada.tools.coder.repo_map.waiting import Spinner
 except ImportError as e:
     print(f"导入 repo_map 模块失败: {e}")
     missing_deps.append("repo_map_modules")
@@ -469,7 +469,7 @@ class TestRepoMapRealProject(unittest.TestCase):
                 # 检查是否包含一些重要的项目文件（注意：chat_files 不会出现在 repo map 中）
                 # 由于 repo_map.py 是 chat_file，它不会出现在结果中，这是正常的
                 # 我们检查其他文件是否存在
-                self.assertIn("src/", result)  # 应该包含 src 目录下的文件
+                self.assertIn("siada/", result)  # 应该包含 siada 目录下的文件
                 
                 print("✓ 当前项目 Repo Map 生成成功")
             else:
@@ -558,7 +558,7 @@ class TestRepoMapPerformance(unittest.TestCase):
         )
         
         # 选择一个测试文件
-        test_file = self.project_root / "src" / "tools" / "coder" / "repo_map" / "repo_map.py"
+        test_file = self.project_root / "siada" / "tools" / "coder" / "repo_map" / "repo_map.py"
         if test_file.exists():
             rel_fname = repo_map.get_rel_fname(str(test_file))
             

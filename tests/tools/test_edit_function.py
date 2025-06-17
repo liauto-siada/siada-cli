@@ -7,8 +7,8 @@ import tempfile
 import shutil
 import os
 
-from src.tools.coder.observation.file_observation import FileEditObservation
-from src.tools.coder.observation.observation import FileEditSource
+from siada.tools.coder.observation.file_observation import FileEditObservation
+from siada.tools.coder.observation.observation import FileEditSource
 from openhands_aci.editor import OHEditor
 from openhands_aci.utils.diff import get_diff
 

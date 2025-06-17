@@ -4,8 +4,8 @@ from unittest.mock import patch, MagicMock, AsyncMock
 import json
 import uuid
 
-from src.models.llm_connection import SiadaClient
-from src.models.chat_complete import ChatCompletionChunk, Choice, ChoiceDelta
+from siada.models.llm_connection import SiadaClient
+from siada.models.chat_complete import ChatCompletionChunk, Choice, ChoiceDelta
 from openai import AsyncStream
 from openai.types.chat import ChatCompletion
 
