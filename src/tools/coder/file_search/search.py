@@ -378,19 +378,59 @@ def regex_search_files(
     file_pattern: str = "*"
 ) -> str:
     """
-    Convenience function that mimics the original TypeScript regexSearchFiles function.
+    Perform high-performance regex search across files using ripgrep.
+    
+    This function provides a convenient interface to search for patterns in files
+    within a specified directory. It uses ripgrep for fast searching and returns
+    formatted results with context lines for better readability.
     
     Args:
-        cwd: Current working directory for relative path calculation
-        directory_path: Directory to search in
-        regex: Regular expression pattern (Rust regex syntax)
-        file_pattern: Optional glob pattern to filter files (default: "*")
+        cwd (str): Current working directory used as the base for calculating
+                  relative file paths in the output. This helps make the results
+                  more readable by showing paths relative to the project root.
+        directory_path (str): The target directory to search in. Can be an absolute
+                             or relative path. All files matching the file_pattern
+                             within this directory (and subdirectories) will be searched.
+        regex (str): Regular expression pattern to search for. Uses Rust regex syntax
+                    which is similar to PCRE. Supports advanced features like lookahead,
+                    lookbehind, and Unicode character classes.
+        file_pattern (str, optional): Glob pattern to filter which files to search.
+                                     Defaults to "*" (all files). Examples:
+                                     - "*.py" for Python files only
+                                     - "*.{js,ts}" for JavaScript and TypeScript files
+                                     - "test_*.py" for Python test files
         
     Returns:
-        Formatted search results as string
+        str: Formatted search results containing:
+             - Summary line with total number of matches found
+             - For each file with matches:
+               - Relative file path
+               - Each match with surrounding context lines
+               - Line numbers and column positions
+             - Results are limited to MAX_RESULTS (300) for performance
+             - Returns "No results found" if no matches are discovered
         
     Raises:
-        RuntimeError: If ripgrep binary is not found
+        RuntimeError: If the ripgrep binary cannot be found or executed.
+                     This can happen if ripgrep is not installed or the binary
+                     path is not properly configured.
+        
+    Example:
+        >>> results = regex_search_files(
+        ...     cwd="/project/root",
+        ...     directory_path="src",
+        ...     regex=r"def\s+(\w+)",
+        ...     file_pattern="*.py"
+        ... )
+        >>> print(results)
+        Found 15 results.
+        
+        src/main.py
+        │----
+        │class MyClass:
+        │    def my_function(self):
+        │        pass
+        │----
     """
     searcher = RipgrepSearcher()
     return searcher.search_in_files(directory_path, regex, file_pattern, cwd)
