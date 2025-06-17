@@ -39,7 +39,7 @@ UPDATING_REPO_MAP_MESSAGE = "Updating repo map"
 
 
 class RepoMap:
-    TAGS_CACHE_DIR = f".aider.tags.cache.v{CACHE_VERSION}"
+    TAGS_CACHE_DIR = f".siada.tags.cache.v{CACHE_VERSION}"
 
     warned_files = set()
 

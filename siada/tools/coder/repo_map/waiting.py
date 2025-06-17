@@ -5,7 +5,7 @@ Thread-based, killable spinner utility.
 
 Use it like:
 
-    from aider.waiting import WaitingSpinner
+    from .waiting import WaitingSpinner
 
     spinner = WaitingSpinner("Waiting for LLM")
     spinner.start()
