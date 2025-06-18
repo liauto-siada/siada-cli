@@ -1,76 +1,76 @@
-# Agent配置文件使用说明
+# Agent Configuration File Usage Guide
 
-## 概述
+## Overview
 
-本项目使用配置文件 `agent_config.yaml` 来管理Agent的注册和配置，实现了灵活的Agent管理机制。
+This project uses the configuration file `agent_config.yaml` to manage agent registration and configuration, implementing a flexible agent management mechanism.
 
-## 配置文件结构
+## Configuration File Structure
 
-配置文件位于项目根目录：`agent_config.yaml`
+The configuration file is located in the project root directory: `agent_config.yaml`
 
 ```yaml
 agents:
-  # Agent名称（小写，支持下划线）
+  # Agent name (lowercase, supports underscores)
   agent_name:
-    class: "完整的类导入路径"
-    description: "Agent描述信息"
+    class: "full.class.import.path"
+    description: "Agent description"
     enabled: true/false
 ```
 
-## 当前支持的Agent
+## Currently Supported Agents
 
 ### BugFixAgent
-- **名称**: `bugfix`
-- **类路径**: `siada.agent_hub.coder.bug_fix_agent.BugFixAgent`
-- **描述**: 专门用于代码bug修复的Agent
-- **状态**: 已启用
+- **Name**: `bugfix`
+- **Class Path**: `siada.agent_hub.coder.bug_fix_agent.BugFixAgent`
+- **Description**: Specialized agent for code bug fixing
+- **Status**: Enabled
 
-### CoderAgent (计划中)
-- **名称**: `coder`
-- **类路径**: 暂未实现
-- **描述**: 通用代码开发Agent
-- **状态**: 已禁用
+### CoderAgent (Planned)
+- **Name**: `coder`
+- **Class Path**: Not implemented yet
+- **Description**: General-purpose code development agent
+- **Status**: Disabled
 
-## 使用方法
+## Usage
 
-### 基本用法
+### Basic Usage
 
 ```python
 from siada.services.siada_runner import SiadaRunner
 
-# 获取BugFixAgent实例
+# Get BugFixAgent instance
 agent = await SiadaRunner.get_agent("bugfix")
 
-# 支持多种名称格式
-agent = await SiadaRunner.get_agent("BugFix")    # 大写
-agent = await SiadaRunner.get_agent("bug_fix")   # 下划线
-agent = await SiadaRunner.get_agent("bug-fix")   # 连字符
+# Supports multiple name formats
+agent = await SiadaRunner.get_agent("BugFix")    # Uppercase
+agent = await SiadaRunner.get_agent("bug_fix")   # Underscore
+agent = await SiadaRunner.get_agent("bug-fix")   # Hyphen
 ```
 
-### 错误处理
+### Error Handling
 
 ```python
 try:
     agent = await SiadaRunner.get_agent("unknown")
 except ValueError as e:
-    print(f"Agent不存在: {e}")
+    print(f"Agent not found: {e}")
 
 try:
-    agent = await SiadaRunner.get_agent("coder")  # 禁用的Agent
+    agent = await SiadaRunner.get_agent("coder")  # Disabled agent
 except ValueError as e:
-    print(f"Agent已禁用: {e}")
+    print(f"Agent disabled: {e}")
 ```
 
-## 添加新Agent
+## Adding New Agents
 
-要添加新的Agent，只需要：
+To add a new agent, you only need to:
 
-1. **实现Agent类**：创建继承自 `Agent` 的新类
-2. **更新配置文件**：在 `agent_config.yaml` 中添加配置
+1. **Implement Agent Class**: Create a new class that inherits from `Agent`
+2. **Update Configuration File**: Add configuration in `agent_config.yaml`
 
-### 示例：添加新的Agent
+### Example: Adding a New Agent
 
-1. 创建Agent类文件：`siada/agent_hub/new_agent.py`
+1. Create agent class file: `siada/agent_hub/new_agent.py`
 ```python
 from agents import Agent
 
@@ -79,51 +79,70 @@ class NewAgent(Agent):
         super().__init__(name="NewAgent", ...)
 ```
 
-2. 更新 `agent_config.yaml`：
+2. Update `agent_config.yaml`:
 ```yaml
 agents:
   bugfix:
     class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
-    description: "专门用于代码bug修复的Agent"
+    description: "Specialized agent for code bug fixing"
     enabled: true
   
-  # 新增的Agent
+  # New agent
   newagent:
     class: "siada.agent_hub.new_agent.NewAgent"
-    description: "新功能Agent"
+    description: "New functionality agent"
     enabled: true
 ```
 
-3. 使用新Agent：
+3. Use the new agent:
 ```python
 agent = await SiadaRunner.get_agent("newagent")
 ```
 
-## 配置选项说明
+## Configuration Options
 
-- **class**: Agent类的完整导入路径
-  - 格式：`模块路径.类名`
-  - 如果为 `null`，表示Agent尚未实现
+- **class**: Full import path of the Agent class
+  - Format: `module.path.ClassName`
+  - If `null`, indicates the agent is not implemented yet
   
-- **description**: Agent的描述信息
-  - 用于文档和调试
+- **description**: Description of the agent
+  - Used for documentation and debugging
   
-- **enabled**: 是否启用该Agent
-  - `true`: 启用，可以通过 `get_agent()` 获取
-  - `false`: 禁用，调用时会抛出异常
+- **enabled**: Whether the agent is enabled
+  - `true`: Enabled, can be obtained via `get_agent()`
+  - `false`: Disabled, will throw an exception when called
 
-## 特性
+## Features
 
-- ✅ **动态加载**: 支持运行时动态导入Agent类
-- ✅ **名称灵活**: 支持多种名称格式（大小写、下划线、连字符）
-- ✅ **状态管理**: 支持启用/禁用Agent
-- ✅ **错误处理**: 完善的异常处理机制
-- ✅ **扩展性**: 易于添加新的Agent类型
-- ✅ **配置驱动**: 无需修改代码，只需更新配置文件
+- ✅ **Dynamic Loading**: Supports runtime dynamic import of agent classes
+- ✅ **Flexible Naming**: Supports multiple name formats (case-insensitive, underscores, hyphens)
+- ✅ **State Management**: Supports enabling/disabling agents
+- ✅ **Error Handling**: Comprehensive exception handling mechanism
+- ✅ **Extensibility**: Easy to add new agent types
+- ✅ **Configuration-Driven**: No code changes needed, just update configuration file
 
-## 注意事项
+## Notes
 
-1. **配置文件路径**: 配置文件必须位于项目根目录
-2. **类导入路径**: 确保Agent类的导入路径正确
-3. **依赖管理**: 新Agent的依赖需要正确安装
-4. **命名规范**: Agent名称建议使用小写字母和下划线
+1. **Configuration File Path**: Configuration file must be located in the project root directory
+2. **Class Import Path**: Ensure the agent class import path is correct
+3. **Dependency Management**: Dependencies for new agents need to be properly installed
+4. **Naming Convention**: Agent names should use lowercase letters and underscores
+
+## Testing
+
+Run the test suite to ensure everything works correctly:
+
+```bash
+# Run all agent tests
+python run_agent_tests.py
+
+# Run specific tests
+python -m pytest tests/agent/test_get_agent.py -v
+```
+
+The test suite includes 15 comprehensive test cases covering:
+- Basic functionality
+- Name variations and case sensitivity
+- Error handling for disabled/unknown agents
+- Configuration loading and validation
+- Dynamic class importing

@@ -26,7 +26,7 @@ class SiadaRunner:
         config_path = current_dir / "agent_config.yaml"
         
         if not config_path.exists():
-            raise FileNotFoundError(f"Agent配置文件不存在: {config_path}")
+            raise FileNotFoundError(f"Agent configuration file not found: {config_path}")
         
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
@@ -78,22 +78,22 @@ class SiadaRunner:
             supported_agents = [name for name, config in agent_configs.items() 
                               if config.get('enabled', False) and config.get('class')]
             raise ValueError(
-                f"不支持的Agent类型: '{agent_name}'. "
-                f"支持的Agent类型: {supported_agents}"
+                f"Unsupported agent type: '{agent_name}'. "
+                f"Supported agent types: {supported_agents}"
             )
         
         # 检查Agent是否启用
         if not agent_config.get('enabled', False):
-            raise ValueError(f"Agent '{agent_name}' 已被禁用")
+            raise ValueError(f"Agent '{agent_name}' is disabled")
         
         # 检查Agent类是否已实现
         class_path = agent_config.get('class')
         if not class_path:
-            raise ValueError(f"Agent '{agent_name}' 尚未实现")
+            raise ValueError(f"Agent '{agent_name}' is not implemented yet")
         
         # 动态导入并实例化Agent类
         try:
             agent_class = SiadaRunner._import_agent_class(class_path)
             return agent_class()
         except (ImportError, AttributeError) as e:
-            raise ImportError(f"无法导入Agent类 '{class_path}': {e}")
+            raise ImportError(f"Failed to import agent class '{class_path}': {e}")

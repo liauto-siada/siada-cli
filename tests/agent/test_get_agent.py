@@ -83,7 +83,7 @@ class TestGetAgent(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError) as context:
                 await SiadaRunner.get_agent("coder")
             
-            self.assertIn("已被禁用", str(context.exception))
+            self.assertIn("is disabled", str(context.exception))
 
     async def test_get_agent_disabled_agent_custom(self):
         """测试获取自定义禁用的Agent时抛出异常"""
@@ -93,7 +93,7 @@ class TestGetAgent(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError) as context:
                 await SiadaRunner.get_agent("testdisabled")
             
-            self.assertIn("已被禁用", str(context.exception))
+            self.assertIn("is disabled", str(context.exception))
 
     async def test_get_agent_unknown_agent(self):
         """测试获取不存在的Agent时抛出异常"""
@@ -103,8 +103,8 @@ class TestGetAgent(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError) as context:
                 await SiadaRunner.get_agent("unknown")
             
-            self.assertIn("不支持的Agent类型", str(context.exception))
-            self.assertIn("支持的Agent类型: ['bugfix']", str(context.exception))
+            self.assertIn("Unsupported agent type", str(context.exception))
+            self.assertIn("Supported agent types: ['bugfix']", str(context.exception))
 
     async def test_get_agent_empty_name(self):
         """测试空字符串Agent名称时抛出异常"""
@@ -114,7 +114,7 @@ class TestGetAgent(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError) as context:
                 await SiadaRunner.get_agent("")
             
-            self.assertIn("不支持的Agent类型", str(context.exception))
+            self.assertIn("Unsupported agent type", str(context.exception))
 
     async def test_get_agent_unimplemented_agent(self):
         """测试获取未实现的Agent时抛出异常"""
@@ -132,7 +132,7 @@ class TestGetAgent(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError) as context:
                 await SiadaRunner.get_agent("unimplemented")
             
-            self.assertIn("尚未实现", str(context.exception))
+            self.assertIn("is not implemented yet", str(context.exception))
 
     async def test_get_agent_import_error(self):
         """测试导入错误时抛出异常"""
@@ -150,7 +150,7 @@ class TestGetAgent(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ImportError) as context:
                 await SiadaRunner.get_agent("invalid")
             
-            self.assertIn("无法导入Agent类", str(context.exception))
+            self.assertIn("Failed to import agent class", str(context.exception))
 
     def test_load_agent_config_file_not_found(self):
         """测试配置文件不存在时抛出异常"""
@@ -158,7 +158,7 @@ class TestGetAgent(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(FileNotFoundError) as context:
                 SiadaRunner._load_agent_config()
             
-            self.assertIn("Agent配置文件不存在", str(context.exception))
+            self.assertIn("Agent configuration file not found", str(context.exception))
 
     def test_load_agent_config_success(self):
         """测试成功加载配置文件"""

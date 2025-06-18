@@ -1,20 +1,20 @@
-# Agent配置文件
-# 定义agent名称到Agent类的映射关系
+# Agent Configuration File
+# Defines the mapping from agent names to Agent classes
 
 agents:
-  # Bug修复Agent
+  # Bug Fix Agent
   bugfix:
     class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
-    description: "专门用于代码bug修复的Agent"
+    description: "Specialized agent for code bug fixing"
     enabled: true
   
-  # 代码开发Agent (暂未实现)
+  # Code Development Agent (not implemented yet)
   coder:
     class: null
-    description: "通用代码开发Agent"
+    description: "General-purpose code development agent"
     enabled: false
 
-# 配置说明:
-# - class: Agent类的完整导入路径，如果为null表示暂未实现
-# - description: Agent的描述信息
-# - enabled: 是否启用该Agent，false表示暂时禁用
+# Configuration Options:
+# - class: Full import path of the Agent class, null means not implemented yet
+# - description: Description of the agent
+# - enabled: Whether the agent is enabled, false means temporarily disabled
