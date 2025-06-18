@@ -12,7 +12,7 @@ from agents.run import RunConfig
 from siada.core.config import settings
 from siada.core.logging import logger
 from siada.memory.memory_service import MemoryService
-from siada.user_agents.coder.coder_context import CoderAgentContext
+from siada.agent_hub.coder.code_context import CodeAgentContext
 from siada.utils import JsonUtils, AgentLogger
 
 
@@ -22,36 +22,6 @@ class AgentService:
     
     封装OpenAI Agents SDK的功能，提供创建和运行Agent的方法
     """
-
-    @staticmethod
-    async def create_agent(
-        name: str,
-        instructions: str,
-        tools: Optional[List[Any]] = None,
-    ) -> Agent:
-        """
-        创建一个新的Agent
-        (无实际用处)
-
-        Args:
-            name: Agent的名称
-            instructions: Agent的指令
-            tools: Agent可以使用的工具列表
-            
-        Returns:
-            创建的Agent对象
-        """
-        # 使用SiadaProvider提供的默认模型
-        from siada.models.provider import SiadaProvider
-        provider = SiadaProvider()
-        model = provider.get_model(settings.DEFAULT_MODEL)
-
-        return Agent(
-            name=name,
-            instructions=instructions,
-            tools=tools or [],
-            model=model,
-        )
 
     @staticmethod
     async def stream_agent_events(

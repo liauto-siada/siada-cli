@@ -15,7 +15,7 @@ from agents.tracing import add_trace_processor
 
 from siada.core.config import settings
 from siada.models.provider import SiadaProvider
-from siada.user_agents.coder.tracing import create_simple_logger, create_detailed_logger, LoggerTracingProcessor
+from siada.agent_hub.coder.tracing import create_simple_logger, create_detailed_logger, LoggerTracingProcessor
 
 provider = SiadaProvider()
 model = provider.get_model(settings.Claude_4_0_SONNET)

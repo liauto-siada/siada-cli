@@ -8,11 +8,11 @@ import pexpect
 import psutil
 from agents import function_tool, RunContextWrapper
 
-from siada.user_agents.coder.coder_context import CoderAgentContext
+from siada.agent_hub.coder.code_context import CodeAgentContext
 
 
 @function_tool
-def run_cmd(context: RunContextWrapper[CoderAgentContext], command, verbose=False, error_print=None):
+def run_cmd(context: RunContextWrapper[CodeAgentContext], command, verbose=False, error_print=None):
     """Execute a shell command using the most appropriate method for the current environment.
     
     This function automatically selects between pexpect (for interactive terminals on Unix-like

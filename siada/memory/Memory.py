@@ -10,7 +10,7 @@ from agents import TContext
 from pydantic import BaseModel
 
 from siada.memory.SystemContext import SystemContext
-from siada.user_agents import agent_map
+from siada.agent_hub import agent_map
 
 # 泛型类型变量，用于表示不同类型的model_context
 T = TypeVar('T')

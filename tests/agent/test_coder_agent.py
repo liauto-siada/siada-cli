@@ -9,8 +9,8 @@ from agents import RunConfig
 
 from siada.models.provider import SiadaProvider
 from siada.services.agent_service import AgentService
-from siada.user_agents import agent_map
-from siada.user_agents.coder.coder_agent import init_coder_agent
+from siada.agent_hub import agent_map
+from siada.agent_hub.coder.coder_agent import init_coder_agent
 
 
 class TestCoderAgent(unittest.IsolatedAsyncioTestCase):

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
 
 
-class CoderAgentContext(BaseModel):
+class CodeAgentContext(BaseModel):
     root_dir: str | None = None

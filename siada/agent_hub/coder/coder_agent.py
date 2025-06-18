@@ -12,14 +12,14 @@ from siada.core.config import settings
 from siada.services.agent_service import AgentService
 from siada.tools.coder.file_operator import read, edit
 from siada.tools.coder.file_search import regex_search_files
-from siada.user_agents import agent_map
+from siada.agent_hub import agent_map
 from siada.tools.coder.run_cmd import run_cmd
 import asyncio
 from siada.models.provider import SiadaProvider
 
 import logging
 
-from siada.user_agents.coder.tracing import create_detailed_logger
+from siada.agent_hub.coder.tracing import create_detailed_logger
 
 #logging.getLogger("openai.agents").setLevel(logging.INFO)  # 或者 logging.WARNING
 logging.getLogger().setLevel(logging.INFO)

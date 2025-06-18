@@ -17,14 +17,14 @@ from siada.tools.coder.observation.observation import Observation, FileEditSourc
 from siada.tools.coder.observation.error import ErrorObservation
 from siada.tools.coder.observation.observation import FileReadSource
 from siada.tools.coder.tool_docs import EDIT_DOCS
-from siada.user_agents.coder.coder_context import CoderAgentContext
+from siada.agent_hub.coder.code_context import CodeAgentContext
 
 
 @function_tool(
     name_override="read_file", description_override="Read the file."
 )
 async def read(
-    context: RunContextWrapper[CoderAgentContext],
+    context: RunContextWrapper[CodeAgentContext],
     path: str,
     start: int = 0,
     end: int = -1,
@@ -139,7 +139,7 @@ async def read(
     name_override="edit_file", description_override=EDIT_DOCS
 )
 async def edit(
-    context: RunContextWrapper[CoderAgentContext], 
+    context: RunContextWrapper[CodeAgentContext], 
     command: str,
     path: str,
     file_text: str | None = None,
