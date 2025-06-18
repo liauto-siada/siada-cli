@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from agents import Agent, Runner, function_tool
 from agents.tracing import add_trace_processor
 
-from siada.core.config import settings
+from siada.foundation.config import settings
 from siada.models.provider import SiadaProvider
 from siada.agent_hub.coder.tracing import create_simple_logger, create_detailed_logger, LoggerTracingProcessor
 

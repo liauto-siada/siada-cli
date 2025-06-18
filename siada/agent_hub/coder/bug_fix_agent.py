@@ -12,7 +12,7 @@ from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
-from siada.core.config import settings
+from siada.foundation.config import settings
 from siada.models.provider import SiadaProvider
 from siada.agent_hub.coder.code_context import CodeAgentContext
 from siada.agent_hub.coder.prompt import bug_fix_prompt

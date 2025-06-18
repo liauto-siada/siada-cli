@@ -6,7 +6,7 @@
 import json
 from typing import Any, Dict, Union
 
-from siada.core.logging import logger
+from siada.foundation.logging import logger
 
 
 class JsonUtils:

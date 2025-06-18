@@ -2,7 +2,7 @@ import unittest
 import logging
 import sys
 
-from siada.core.logging import logger
+from siada.foundation.logging import logger
 
 class TestLogging(unittest.TestCase):
     @classmethod

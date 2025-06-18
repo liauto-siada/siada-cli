@@ -4,9 +4,9 @@ import uuid
 from typing import Any, Optional
 
 import httpx
-from siada.const.llm import LLM_API_CONNECT_TIMEOUT, LLM_API_READ_TIMEOUT
+from siada.foundation.constants import LLM_API_CONNECT_TIMEOUT, LLM_API_READ_TIMEOUT
 from litellm.types.utils import ModelResponse as LitellmModelResponse
-from siada.core.logging import logger
+from siada.foundation.logging import logger
 from siada.stream.__stream import AsyncStream
 from siada.models.chat_complete import ChatCompletionChunk
 

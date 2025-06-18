@@ -6,7 +6,7 @@ from agents import RunContextWrapper, function_tool
 from openhands_aci.editor import OHEditor, ToolResult, ToolError
 from openhands_aci.utils.diff import get_diff
 
-from siada.core.logging import logger
+from siada.foundation.logging import logger
 
 from binaryornot.check import is_binary
 
