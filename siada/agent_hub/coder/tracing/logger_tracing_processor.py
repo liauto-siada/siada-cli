@@ -177,8 +177,15 @@ class LoggerTracingProcessor(TracingProcessor):
         
         for item in output:
             if isinstance(item, dict):
-                item_type = item.get('type', 'unknown')
+                # 首先检查是否有 role 字段，这通常表示这是一个消息
+                if 'role' in item:
+                    role = item.get('role', 'assistant')
+                    content = item.get('content', '')
+                    self._print(f"  [{role}]: {self._truncate_content(str(content))}")
+                    continue
                 
+                # 检查是否有 type 字段
+                item_type = item.get('type')
                 if item_type == 'message':
                     # 消息输出
                     role = item.get('role', 'assistant')
@@ -191,9 +198,25 @@ class LoggerTracingProcessor(TracingProcessor):
                     args = item.get('arguments', {})
                     self._print(f"  🔧 Tool Call: {name}({self._format_json(args)})")
                 
-                else:
-                    # 其他类型
+                elif item_type:
+                    # 有明确类型的其他类型
                     self._print(f"  [{item_type}]: {self._format_json(item)}")
+                
+                else:
+                    # 没有 type 字段的情况，尝试智能识别
+                    if 'content' in item:
+                        # 看起来像消息
+                        role = item.get('role', 'assistant')
+                        content = item.get('content', '')
+                        self._print(f"  [{role}]: {self._truncate_content(str(content))}")
+                    elif 'name' in item and 'arguments' in item:
+                        # 看起来像函数调用
+                        name = item.get('name', 'unknown')
+                        args = item.get('arguments', {})
+                        self._print(f"  🔧 Tool Call: {name}({self._format_json(args)})")
+                    else:
+                        # 无法识别的结构，显示为数据
+                        self._print(f"  [data]: {self._format_json(item)}")
             else:
                 self._print(f"  {self._format_json(item)}")
     
