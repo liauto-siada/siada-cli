@@ -196,7 +196,7 @@ class AgentService:
         # 使用提供的run_config或默认配置
         effective_run_config = run_config or settings.DEFAULT_RUN_CONFIG
         current_working_dir = os.getcwd()
-        context = CoderAgentContext(root_dir=current_working_dir)
+        context = CodeAgentContext(root_dir=current_working_dir)
 
         result = await Runner.run(
             starting_agent=agent,
