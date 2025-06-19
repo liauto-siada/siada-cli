@@ -17,7 +17,7 @@ class TestSiadaRunnerRunAgent(unittest.IsolatedAsyncioTestCase):
 
     async def test_fegen_agent(self):
         user_input = """ 
-                     实现一个冒泡排序算法
+                     帮我创建一个显示公历、藏历、农历对应的网页卡片，必须是真实数据，包含：周的数据，农历节气，藏历中的各种吉日、凶日，以及吉日凶日的具体原因单次显示一个完整的月份，并可以前后查看每个月的数据。
                      """
         agent_name = "fegen"
         result = await SiadaRunner.run_agent(agent_name, user_input)
