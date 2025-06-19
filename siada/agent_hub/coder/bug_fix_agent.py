@@ -73,10 +73,10 @@ class BugFixAgent(SiadaAgent[CodeAgentContext]):
         config = RunConfig(tracing_disabled=False)
         add_trace_processor(create_detailed_logger(output_file="agent_trace.log"))
 
-        # input_with_env = self.assemble_user_input(user_input, context)
+        input_with_env = self.assemble_user_input(user_input, context)
         result = await Runner.run(
             starting_agent=self,
-            input=user_input,
+            input=input_with_env,
             max_turns=settings.MAX_TURNS,
             run_config=config,
             context=context
@@ -89,7 +89,79 @@ class BugFixAgent(SiadaAgent[CodeAgentContext]):
 
         task = f'<task>\n{user_input}\n</task>'
 
-        project_structure = None
+        # 生成 repo map
+        repo_map_content = self.generate_repo_map(context)
+        
+        # 构建项目结构信息
+        if repo_map_content:
+            project_structure = f"Repository Map:\n{repo_map_content}"
+        else:
+            project_structure = "Repository Map: 无法生成仓库地图"
+        
         environment_details = f'<environment_details>\n{project_structure}\n</environment_details>'
 
         return task + '\n' + environment_details
+
+    def generate_repo_map(self, context: CodeAgentContext) -> str:
+        """
+        生成仓库地图
+        
+        Args:
+            context: 代码上下文
+            
+        Returns:
+            str: 仓库地图内容
+        """
+        try:
+            if not context.root_dir:
+                return ""
+                
+            # 获取 RepoMap 实例
+            repo_map = self.get_repo_map_instance(context.root_dir)
+            if not repo_map:
+                return ""
+            
+            # 收集 Python 文件（参考测试用例的逻辑）
+            python_files = []
+            for root, dirs, files in os.walk(context.root_dir):
+                # 跳过不需要的目录
+                dirs[:] = [d for d in dirs if not d.startswith('.') and d not in [
+                    '__pycache__', 'node_modules', '.git', '.venv', 'venv', 'env'
+                ]]
+                
+                for file in files:
+                    if file.endswith('.py') and not file.startswith('.'):
+                        filepath = os.path.join(root, file)
+                        python_files.append(filepath)
+            
+            # 过滤出有实际内容的文件
+            substantial_files = []
+            for filepath in python_files:
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                        if len(content) > 100:
+                            lines = [line.strip() for line in content.split('\n') if line.strip()]
+                            non_comment_lines = [line for line in lines if not line.startswith('#')]
+                            if len(non_comment_lines) > 5:
+                                substantial_files.append(filepath)
+                except Exception:
+                    continue
+            
+            # 限制文件数量
+            if len(substantial_files) > 50:
+                substantial_files = substantial_files[:50]
+            
+            # 生成 repo map
+            result = repo_map.get_repo_map(
+                chat_files=[],  # 没有特定的聊天文件
+                other_files=substantial_files,
+                mentioned_fnames=set(),
+                mentioned_idents=set(['class', 'def', 'function'])
+            )
+            
+            return result or ""
+            
+        except Exception as e:
+            # 如果生成失败，返回错误信息但不中断流程
+            return f"生成仓库地图时出错: {str(e)}"

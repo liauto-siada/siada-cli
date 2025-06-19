@@ -3,3 +3,6 @@
 __pycache__
 logs/
 **/*.log
+
+# 忽略所有 .siada 目录及其内容
+**/.siada*

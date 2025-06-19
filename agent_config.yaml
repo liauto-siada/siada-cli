@@ -14,6 +14,13 @@ agents:
     description: "General-purpose code development agent"
     enabled: false
 
+# LLM Configuration
+llm_config:
+  model_name: "claude-sonnet-4"  # 用于 repo map 生成的模型
+  repo_map_tokens: 8192                     # repo map 的最大 token 数
+  repo_map_mul_no_files: 16                 # 无聊天文件时的倍数
+  repo_verbose: true                        # 是否启用详细输出
+
 # Configuration Options:
 # - class: Full import path of the Agent class, null means not implemented yet
 # - description: Description of the agent
