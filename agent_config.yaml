@@ -13,6 +13,18 @@ agents:
     class: null
     description: "General-purpose code development agent"
     enabled: false
+  
+  # Frontend Generation Agent
+  fegen:
+    class: "siada.agent_hub.coder.fe_gen_agent.FeGenAgent"
+    description: "Frontend code generation agent"
+    enabled: true
+  
+  # Test Bubble Sort Agent (for integration testing)
+  testbubblesort:
+    class: "siada.agent_hub.coder.test_bubble_sort_agent.TestBubbleSortAgent"
+    description: "Test agent for bubble sort implementation"
+    enabled: true
 
 # LLM Configuration
 llm_config:

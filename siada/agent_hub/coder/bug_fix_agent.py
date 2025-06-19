@@ -38,11 +38,20 @@ class BugFixAgent(SiadaAgent[CodeAgentContext]):
         provider = SiadaProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
         
+        # 如果没有传递name参数，则使用默认值
+        if 'name' not in kwargs:
+            kwargs['name'] = "BugFixAgent"
+        
+        # 如果没有传递tools参数，则使用默认值
+        if 'tools' not in kwargs:
+            kwargs['tools'] = [edit, regex_search_files, run_cmd]
+            
+        # 如果没有传递model参数，则使用默认值
+        if 'model' not in kwargs:
+            kwargs['model'] = model
+        
         # 设置Bug修复相关的指令和工具
         super().__init__(
-            name="BugFixAgent",
-            tools=[edit, regex_search_files, run_cmd],
-            model=model,
             *args,
             **kwargs
         )
