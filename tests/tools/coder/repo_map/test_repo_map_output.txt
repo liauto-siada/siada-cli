@@ -1,8 +1,6 @@
 
 siada/__init__.py
 
-siada/tools/__init__.py
-
 siada/tools/coder/__init__.py
 
 siada/tools/coder/action/__init__.py
@@ -49,7 +47,7 @@ siada/tools/coder/file_operator.py:
 │    name_override="read_file", description_override="Read the file."
 │)
 │async def read(
-│    context: RunContextWrapper[CoderAgentContext],
+│    context: RunContextWrapper[CodeAgentContext],
 │    path: str,
 │    start: int = 0,
 │    end: int = -1,
@@ -60,7 +58,7 @@ siada/tools/coder/file_operator.py:
 │    name_override="edit_file", description_override=EDIT_DOCS
 │)
 │async def edit(
-│    context: RunContextWrapper[CoderAgentContext], 
+│    context: RunContextWrapper[CodeAgentContext], 
 │    command: str,
 │    path: str,
 │    file_text: str | None = None,
@@ -179,7 +177,43 @@ siada/tools/coder/files.py:
 │    end: int = -1,
 ⋮
 
-siada/tools/coder/repo_map/__init__.py
+siada/tools/coder/repo_map/__init__.py:
+⋮
+│__all__ = [
+│    # 核心类
+│    'RepoMap',
+│    'Tag',
+│    
+│    # IO类
+│    'IO',
+│    'SilentIO', 
+│    'FileIO',
+│    
+⋮
+│__version__ = '1.0.0'
+│
+⋮
+│def create_repo_map(
+│    root_path: str,
+│    model_name: str = "claude-3-5-sonnet-20241022",
+│    verbose: bool = False,
+│    map_tokens: int = 1024,
+│    **kwargs
+⋮
+│def create_optimized_repo_map(
+│    root_path: str,
+│    model_name: str = "claude-3-5-sonnet-20241022",
+│    verbose: bool = False,
+│    map_tokens: int = 8192,
+│    sampling_threshold: int = 10000,
+│    **kwargs
+⋮
+│def create_silent_repo_map(
+│    root_path: str,
+│    model_name: str = "claude-3-5-sonnet-20241022",
+│    map_tokens: int = 1024,
+│    **kwargs
+⋮
 
 siada/tools/coder/repo_map/dump.py:
 ⋮
@@ -188,10 +222,170 @@ siada/tools/coder/repo_map/dump.py:
 │def dump(*vals):
 ⋮
 
+siada/tools/coder/repo_map/io.py:
+⋮
+│class IO:
+│    """
+│    标准IO类，提供文件读取和日志输出功能
+│    
+│    该类为RepoMap提供统一的IO接口，支持：
+│    - 多级别日志输出
+│    - 文件内容读取
+│    - 可配置的输出目标
+│    - 详细模式控制
+⋮
+│    def __init__(
+│        self, 
+│        verbose: bool = False,
+│        output_stream: Optional[TextIO] = None,
+│        error_stream: Optional[TextIO] = None
+⋮
+│    def tool_output(self, message: str) -> None:
+⋮
+│    def tool_warning(self, message: str) -> None:
+⋮
+│    def tool_error(self, message: str) -> None:
+⋮
+│    def read_text(self, filepath: str) -> str:
+⋮
+│    def clear_stats(self) -> None:
+⋮
+│    def get_stats(self) -> dict:
+⋮
+│    def set_verbose(self, verbose: bool) -> None:
+⋮
+│class SilentIO(IO):
+│    """
+│    静默IO类，不输出任何信息到控制台
+│    
+│    适用于测试或需要静默运行的场景
+⋮
+│    def __init__(self):
+⋮
+│    def tool_output(self, message: str) -> None:
+⋮
+│    def tool_warning(self, message: str) -> None:
+⋮
+│    def tool_error(self, message: str) -> None:
+⋮
+│class FileIO(IO):
+│    """
+│    文件IO类，将输出重定向到文件
+│    
+│    适用于需要将日志保存到文件的场景
+⋮
+│    def __init__(
+│        self, 
+│        log_file: str,
+│        verbose: bool = True,
+│        append: bool = True
+⋮
+│    def __del__(self):
+⋮
+│    def close(self):
+⋮
+
+siada/tools/coder/repo_map/special.py:
+⋮
+│ROOT_IMPORTANT_FILES = [
+│    # Version Control
+│    ".gitignore",
+│    ".gitattributes",
+│    # Documentation
+│    "README",
+│    "README.md",
+│    "README.txt",
+│    "README.rst",
+│    "CONTRIBUTING",
+⋮
+│NORMALIZED_ROOT_IMPORTANT_FILES = set(os.path.normpath(path) for path in ROOT_IMPORTANT_FILES)
+│
+⋮
+│def is_important(file_path):
+⋮
+│def filter_important_files(file_paths):
+⋮
+
+siada/tools/coder/repo_map/token_counter.py:
+⋮
+│class TokenCounterModel:
+│    """
+│    Token计数模型类 - 超级极简版本
+│    
+│    专注于核心功能：
+│    - 优先使用litellm进行精确计算
+│    - litellm不可用时使用简单估算（4字符≈1token）
+│    - 支持任何模型名称，零配置
+│    - 基础缓存机制
+⋮
+│    def __init__(self, model_name: str):
+⋮
+│    def token_count(self, text: str) -> int:
+⋮
+│    def _check_litellm_availability(self) -> bool:
+⋮
+│    def _count_with_litellm(self, text: str) -> int:
+⋮
+│    def _count_with_estimation(self, text: str) -> int:
+⋮
+│    def __str__(self) -> str:
+⋮
+│    def __repr__(self) -> str:
+⋮
+│class OptimizedTokenCounterModel(TokenCounterModel):
+│    """
+│    优化版本的Token计数模型
+│    
+│    针对长文本进行了优化，适用于处理大型代码库
+⋮
+│    def __init__(self, model_name: str, sampling_threshold: int = 10000):
+⋮
+│    def token_count(self, text: str) -> int:
+⋮
+│    def _count_with_sampling(self, text: str) -> int:
+⋮
+
+siada/tools/coder/repo_map/waiting.py:
+⋮
+│class Spinner:
+│    """
+│    Minimal spinner that scans a single marker back and forth across a line.
+│
+│    The animation is pre-rendered into a list of frames.  If the terminal
+│    cannot display unicode the frames are converted to plain ASCII.
+⋮
+│    def __init__(self, text: str, width: int = 7):
+⋮
+│    def _supports_unicode(self) -> bool:
+⋮
+│    def _next_frame(self) -> str:
+⋮
+│    def step(self, text: str = None) -> None:
+⋮
+│    def end(self) -> None:
+⋮
+│class WaitingSpinner:
+│    """Background spinner that can be started/stopped safely."""
+│
+│    def __init__(self, text: str = "Waiting for LLM", delay: float = 0.15):
+⋮
+│    def _spin(self):
+⋮
+│    def start(self):
+⋮
+│    def stop(self):
+⋮
+│    def __enter__(self):
+⋮
+│    def __exit__(self, exc_type, exc_val, exc_tb):
+⋮
+│def main():
+⋮
+
 siada/tools/coder/run_cmd.py:
 ⋮
 │@function_tool
-│def run_cmd(context: RunContextWrapper[CoderAgentContext], command, verbose=False, error_print=None
+│def run_cmd(context: RunContextWrapper[CodeAgentContext], command, verbose=False, error_print=None)
 ⋮
 │def get_windows_parent_process_name():
 ⋮
@@ -210,40 +404,6 @@ siada/tools/coder/run_cmd.py:
 
 siada/tools/coder/tool_docs.py:
 │EDIT_DOCS= """Custom editing tool for viewing, creating and editing files in plain-text format
-⋮
-
-siada/tools/trouble_shooting/__init__.py
-
-siada/tools/trouble_shooting/tools.py:
-⋮
-│@function_tool(name_override="finish")
-│def finish(conclusion: str) -> str:
-⋮
-│@function_tool
-│def analysis_jank_event(
-│    end_time: Optional[str] = None,
-│    start_time: Optional[str] = None,
-│    vin: Optional[str] = None,
-│    jank_event: Optional[str] = None,
-│    only_analysis: bool = True,
-│    top_pkg_num: int = 1
-⋮
-│@function_tool
-│def fetch_vehicle_event(
-│    end_time: Optional[str] = None,
-│    start_time: Optional[str] = None,
-│    vin: Optional[str] = None,
-│    problem_type: Optional[str] = None,
-│    page_no: int = 1,
-│    page_size: int = 10
-⋮
-
-siada/tools/weather_tool.py:
-⋮
-│class Location(TypedDict):
-⋮
-│@function_tool
-│async def fetch_weather(city: str) -> str:
 ⋮
 
 siada/utils.py:

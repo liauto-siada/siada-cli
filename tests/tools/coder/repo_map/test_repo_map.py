@@ -54,6 +54,8 @@ try:
     from siada.tools.coder.repo_map.dump import dump
     from siada.tools.coder.repo_map.special import filter_important_files
     from siada.tools.coder.repo_map.waiting import Spinner
+    from siada.tools.coder.repo_map.io import IO, SilentIO
+    from siada.tools.coder.repo_map.token_counter import TokenCounterModel
 except ImportError as e:
     print(f"导入 repo_map 模块失败: {e}")
     missing_deps.append("repo_map_modules")
@@ -78,56 +80,6 @@ try:
     import grep_ast
 except ImportError:
     missing_deps.append("grep_ast")
-
-
-class MockIO:
-    """模拟 IO 对象"""
-    def __init__(self):
-        self.outputs = []
-        self.warnings = []
-        self.errors = []
-
-    def tool_output(self, message):
-        self.outputs.append(message)
-        print(f"[OUTPUT] {message}")
-
-    def tool_warning(self, message):
-        self.warnings.append(message)
-        print(f"[WARNING] {message}")
-
-    def tool_error(self, message):
-        self.errors.append(message)
-        print(f"[ERROR] {message}")
-
-    def read_text(self, filepath):
-        """读取文件内容"""
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                return f.read()
-        except Exception as e:
-            print(f"读取文件失败 {filepath}: {e}")
-            return ""
-
-
-class MockClaudeModel:
-    """模拟 Claude Sonnet 3.7 模型"""
-    def __init__(self):
-        self.model_name = "claude-3-5-sonnet-20241022"
-        
-    def token_count(self, text):
-        """使用 litellm 计算 token 数量"""
-        try:
-            import litellm
-            # 使用 litellm 的 token 计算功能
-            response = litellm.token_counter(
-                model=self.model_name,
-                text=text
-            )
-            return response
-        except Exception as e:
-            print(f"Token 计算失败，使用估算: {e}")
-            # 如果 litellm 失败，使用简单估算：大约 4 个字符 = 1 个 token
-            return len(text) // 4
 
 
 class TestRepoMapDependencies(unittest.TestCase):
@@ -169,8 +121,8 @@ class TestRepoMapBasic(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.test_dir = tempfile.mkdtemp()
-        self.mock_io = MockIO()
-        self.mock_model = MockClaudeModel()
+        self.io = SilentIO()  # 使用静默IO避免测试输出干扰
+        self.model = TokenCounterModel("claude-3-5-sonnet-20241022")
         
         print(f"\n测试目录: {self.test_dir}")
 
@@ -186,15 +138,15 @@ class TestRepoMapBasic(unittest.TestCase):
         repo_map = RepoMap(
             map_tokens=1024,
             root=self.test_dir,
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=True
         )
         
         self.assertEqual(repo_map.root, self.test_dir)
         self.assertEqual(repo_map.max_map_tokens, 1024)
-        self.assertEqual(repo_map.main_model, self.mock_model)
-        self.assertEqual(repo_map.io, self.mock_io)
+        self.assertEqual(repo_map.main_model, self.model)
+        self.assertEqual(repo_map.io, self.io)
         self.assertTrue(repo_map.verbose)
         
         print("✓ RepoMap 初始化成功")
@@ -204,8 +156,8 @@ class TestRepoMapBasic(unittest.TestCase):
         print("\n=== 测试 Token 计算 ===")
         
         repo_map = RepoMap(
-            main_model=self.mock_model,
-            io=self.mock_io
+            main_model=self.model,
+            io=self.io
         )
         
         # 测试短文本
@@ -267,8 +219,8 @@ sum_result = calc.add(1, 2)
         
         repo_map = RepoMap(
             root=self.test_dir,
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=True
         )
         
@@ -297,8 +249,8 @@ sum_result = calc.add(1, 2)
         
         repo_map = RepoMap(
             root=self.test_dir,
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=True
         )
         
@@ -362,8 +314,8 @@ def get_config():
         
         repo_map = RepoMap(
             root=self.test_dir,
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=True,
             map_tokens=2048
         )
@@ -393,8 +345,8 @@ class TestRepoMapRealProject(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.project_root = Path(__file__).parent.parent.parent.parent.parent
-        self.mock_io = MockIO()
-        self.mock_model = MockClaudeModel()
+        self.io = SilentIO()  # 使用静默IO避免测试输出干扰
+        self.model = TokenCounterModel("claude-3-5-sonnet-20241022")
 
     def test_current_project_repo_map(self):
         """测试当前 siada-agenthub 项目的 repo map 生成"""
@@ -403,8 +355,8 @@ class TestRepoMapRealProject(unittest.TestCase):
         
         repo_map = RepoMap(
             root=str(self.project_root),
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=True,
             map_tokens=4096  # 增加 token 限制以获得更完整的 map
         )
@@ -487,8 +439,8 @@ class TestRepoMapRealProject(unittest.TestCase):
         
         repo_map = RepoMap(
             root=str(self.project_root),
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=True
         )
         
@@ -540,8 +492,8 @@ class TestRepoMapPerformance(unittest.TestCase):
     
     def setUp(self):
         self.project_root = Path(__file__).parent.parent.parent.parent.parent
-        self.mock_io = MockIO()
-        self.mock_model = MockClaudeModel()
+        self.io = SilentIO()  # 使用静默IO避免测试输出干扰
+        self.model = TokenCounterModel("claude-3-5-sonnet-20241022")
 
     @unittest.skipIf(missing_deps, f"缺失依赖: {missing_deps}")
     def test_performance_with_cache(self):
@@ -552,8 +504,8 @@ class TestRepoMapPerformance(unittest.TestCase):
         
         repo_map = RepoMap(
             root=str(self.project_root),
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=False  # 关闭详细输出以获得更准确的性能测试
         )
         

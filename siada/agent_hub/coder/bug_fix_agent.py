@@ -73,6 +73,7 @@ class BugFixAgent(SiadaAgent[CodeAgentContext]):
         config = RunConfig(tracing_disabled=False)
         add_trace_processor(create_detailed_logger(output_file="agent_trace.log"))
 
+        # input_with_env = self.assemble_user_input(user_input, context)
         result = await Runner.run(
             starting_agent=self,
             input=user_input,
@@ -82,3 +83,13 @@ class BugFixAgent(SiadaAgent[CodeAgentContext]):
         )
         
         return result
+
+
+    def assemble_user_input(self, user_input: str, context: CodeAgentContext) -> str:
+
+        task = f'<task>\n{user_input}\n</task>'
+
+        project_structure = None
+        environment_details = f'<environment_details>\n{project_structure}\n</environment_details>'
+
+        return task + '\n' + environment_details

@@ -19,60 +19,13 @@ try:
     from siada.tools.coder.repo_map.dump import dump
     from siada.tools.coder.repo_map.special import filter_important_files
     from siada.tools.coder.repo_map.waiting import Spinner
+    from siada.tools.coder.repo_map.io import IO, SilentIO
+    from siada.tools.coder.repo_map.token_counter import TokenCounterModel
     import litellm
     DEPENDENCIES_OK = True
 except ImportError as e:
     print(f"导入失败: {e}")
     DEPENDENCIES_OK = False
-
-
-class MockIO:
-    """模拟 IO 对象"""
-    def __init__(self):
-        self.outputs = []
-        self.warnings = []
-        self.errors = []
-
-    def tool_output(self, message):
-        self.outputs.append(message)
-        print(f"[OUTPUT] {message}")
-
-    def tool_warning(self, message):
-        self.warnings.append(message)
-        print(f"[WARNING] {message}")
-
-    def tool_error(self, message):
-        self.errors.append(message)
-        print(f"[ERROR] {message}")
-
-    def read_text(self, filepath):
-        """读取文件内容"""
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                return f.read()
-        except Exception as e:
-            print(f"读取文件失败 {filepath}: {e}")
-            return ""
-
-
-class MockClaudeModel:
-    """模拟 Claude Sonnet 3.7 模型"""
-    def __init__(self):
-        self.model_name = "claude-3-5-sonnet-20241022"
-        
-    def token_count(self, text):
-        """使用 litellm 计算 token 数量"""
-        try:
-            import litellm
-            response = litellm.token_counter(
-                model=self.model_name,
-                text=text
-            )
-            return response
-        except Exception as e:
-            print(f"Token 计算失败，使用估算: {e}")
-            # 如果 litellm 失败，使用简单估算：大约 4 个字符 = 1 个 token
-            return len(text) // 4
 
 
 @unittest.skipIf(not DEPENDENCIES_OK, "缺失依赖")
@@ -82,8 +35,8 @@ class TestComplexRepoMap(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.complex_repo_root = "/Users/yunan/code/copilot/siada"
-        self.mock_io = MockIO()
-        self.mock_model = MockClaudeModel()
+        self.io = SilentIO()  # 使用静默IO避免测试输出干扰
+        self.model = TokenCounterModel("claude-3-5-sonnet-20241022")
         
         # 检查目标仓库是否存在
         if not os.path.exists(self.complex_repo_root):
@@ -97,8 +50,8 @@ class TestComplexRepoMap(unittest.TestCase):
         # 创建 RepoMap 实例，使用更高的 token 限制
         repo_map = RepoMap(
             root=self.complex_repo_root,
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=True,
             map_tokens=8192,  # 增加 token 限制
             map_mul_no_files=16  # 增加无文件时的倍数
@@ -233,8 +186,8 @@ class TestComplexRepoMap(unittest.TestCase):
         
         repo_map = RepoMap(
             root=self.complex_repo_root,
-            main_model=self.mock_model,
-            io=self.mock_io,
+            main_model=self.model,
+            io=self.io,
             verbose=True
         )
         
