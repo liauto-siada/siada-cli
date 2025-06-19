@@ -4,7 +4,11 @@ import yaml
 import os
 
 from agents import Agent, RunResult, TContext
+from siada.tools.coder.repo_map.repo_map import RepoMap
+from siada.tools.coder.repo_map.token_counter import TokenCounterModel
+from siada.tools.coder.repo_map.io import SilentIO
 
+import logging
 
 class SiadaAgent(Agent[Generic[TContext]], ABC):
     
@@ -37,7 +41,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         获取用于 repo map 生成的模型名称
         
         Returns:
-            str: 模型名称，默认使用 claude-3-5-sonnet-20241022
+            str: 模型名称，默认使用 claude-sonnet-4
         """
         try:
             # 读取配置文件
@@ -46,13 +50,14 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = yaml.safe_load(f)
                     llm_config = config.get('llm_config', {})
-                    return llm_config.get('model_name', 'claude-3-5-sonnet-20241022')
-        except Exception:
-            pass
+                    return llm_config.get('model_name', 'claude-sonnet-4')
+        except Exception as e:
+            logging.warning(f"Failed to read agent config file for repo map model name: {str(e)}")
         
         # 如果读取配置失败，使用默认值
-        return 'claude-3-5-sonnet-20241022'
-    
+        return 'claude-sonnet-4'
+
+
     def get_repo_map_instance(self, root_dir: str):
         """
         获取 RepoMap 实例
@@ -64,9 +69,6 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             RepoMap: 配置好的 RepoMap 实例
         """
         try:
-            from siada.tools.coder.repo_map.repo_map import RepoMap
-            from siada.tools.coder.repo_map.token_counter import TokenCounterModel
-            from siada.tools.coder.repo_map.io import SilentIO
             
             # 读取配置
             config_path = os.path.join(os.getcwd(), "agent_config.yaml")
@@ -76,11 +78,11 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
                     with open(config_path, 'r', encoding='utf-8') as f:
                         config = yaml.safe_load(f)
                         llm_config = config.get('llm_config', {})
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.warning(f"Failed to read agent config file for repo map instance: {str(e)}")
             
             # 获取配置参数
-            model_name = llm_config.get('model_name', 'claude-3-5-sonnet-20241022')
+            model_name = llm_config.get('model_name', 'claude-sonnet-4')
             repo_map_tokens = llm_config.get('repo_map_tokens', 8192)
             repo_map_mul_no_files = llm_config.get('repo_map_mul_no_files', 16)
             repo_verbose = llm_config.get('repo_verbose', True)
@@ -98,5 +100,6 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
                 map_mul_no_files=repo_map_mul_no_files
             )
         except Exception as e:
+            logging.warning(f"Failed to create RepoMap instance for root directory '{root_dir}': {str(e)}")
             # 如果创建失败，返回 None
             return None

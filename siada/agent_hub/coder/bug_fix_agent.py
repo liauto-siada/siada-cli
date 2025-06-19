@@ -164,4 +164,4 @@ class BugFixAgent(SiadaAgent[CodeAgentContext]):
             
         except Exception as e:
             # 如果生成失败，返回错误信息但不中断流程
-            return f"生成仓库地图时出错: {str(e)}"
+            return f"Generate repo map failed: {str(e)}"
