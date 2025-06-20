@@ -19,10 +19,10 @@ def get_system_prompt(cwd: str = "/default/path") -> str:
     os_name = platform.system()
     home_dir = os.path.expanduser("~")
 
-    # Bug修复Agent的特定介绍
+    # 代码生成Agent的特定介绍
     intro = "You are Siada, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices."
     
-    # Bug修复Agent的特定目标
+    # 代码生成Agent的特定目标
     objective = """OBJECTIVE
 
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
@@ -42,4 +42,3 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 {get_rules_section(cwd, os_name, home_dir)}
 
 {objective}"""
-

@@ -15,7 +15,7 @@ from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.foundation.config import settings
 from siada.models.provider import SiadaProvider
-from siada.agent_hub.coder.prompt import bug_fix_prompt
+from siada.agent_hub.coder.prompt import bug_fix_prompt, code_gen_prompt
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import logging
 
@@ -54,7 +54,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
     async def get_system_prompt(self, run_context: RunContextWrapper[CodeAgentContext]) -> str | None:
         root_dir = run_context.context.root_dir
-        system_prompt = bug_fix_prompt.get_system_prompt(root_dir)
+        system_prompt = code_gen_prompt.get_system_prompt(root_dir)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
