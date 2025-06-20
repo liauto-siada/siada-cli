@@ -2,7 +2,7 @@ import argparse
 
 from agents.models.openai_provider import DEFAULT_MODEL
 
-from siada.swe.tools.config import SWE_DEFAULT_AGENT, SWE_MAX_AGENT_ITERATION
+from benchmark.swe.tools.config import SWE_DEFAULT_AGENT, SWE_MAX_AGENT_ITERATION
 
 
 def get_parser() -> argparse.ArgumentParser:

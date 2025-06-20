@@ -3,7 +3,7 @@ from typing import Optional, Any, Union
 
 from pydantic import BaseModel
 
-from siada.swe.tools.metadata import EvalMetadata
+from benchmark.swe.tools.metadata import EvalMetadata
 
 
 class EvalOutput(BaseModel):

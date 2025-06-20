@@ -8,7 +8,7 @@ import pandas as pd
 from datasets import load_dataset
 
 from siada.foundation.logging import logger
-from siada.swe.tools.gateway import set_huggingface_gateway, unset_huggingface_gateway
+from benchmark.swe.tools.gateway import set_huggingface_gateway, unset_huggingface_gateway
 
 
 def load_huggingface_swe_bench_dataset(dataset_name, dataset_split):

@@ -8,8 +8,8 @@ import pandas as pd
 from tqdm import tqdm
 
 from siada.foundation.logging import logger
-from siada.swe.tools.eval_output import EvalOutput
-from siada.swe.tools.metadata import EvalMetadata
+from benchmark.swe.tools.eval_output import EvalOutput
+from benchmark.swe.tools.metadata import EvalMetadata
 
 
 def run_evaluation(

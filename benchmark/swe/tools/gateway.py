@@ -1,6 +1,6 @@
 import os
 
-from siada.swe.tools.config import PROXY_FOR_HUGGINGFACE
+from benchmark.swe.tools.config import PROXY_FOR_HUGGINGFACE
 
 
 def set_huggingface_gateway():

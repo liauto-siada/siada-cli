@@ -1,7 +1,7 @@
 from dataclasses import dataclass, fields
 from typing import Union
 
-from siada.swe.tools.run_instance_config.config_utils import get_field_info
+from benchmark.swe.tools.run_instance_config.config_utils import get_field_info
 
 
 @dataclass

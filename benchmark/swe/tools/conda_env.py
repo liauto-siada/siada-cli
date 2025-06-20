@@ -6,9 +6,8 @@ import subprocess
 import pandas as pd
 
 from siada.foundation.logging import logger
-from siada.swe.tools.git_util import reset_git_changes, checkout_to_commit
-from siada.swe.tools.run_instance_config.app_config import AppConfig
-from siada.swe.tools.swe_const import MAP_REPO_VERSION_TO_SPECS
+from benchmark.swe.tools.git_util import reset_git_changes, checkout_to_commit
+from benchmark.swe.tools.swe_const import MAP_REPO_VERSION_TO_SPECS
 
 
 # TODO: 丑陋的代码

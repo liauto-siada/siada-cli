@@ -2,7 +2,7 @@ import os
 from dataclasses import dataclass, fields
 from typing import Union, Optional
 
-from siada.swe.tools.run_instance_config.config_utils import get_field_info
+from benchmark.swe.tools.run_instance_config.config_utils import get_field_info
 
 LLM_SENSITIVE_FIELDS = ['api_key', 'aws_access_key_id', 'aws_secret_access_key']
 # TODO: 这个地址可能需要调一下

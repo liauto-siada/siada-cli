@@ -3,12 +3,12 @@ from dataclasses import dataclass, field, fields, is_dataclass
 from typing import ClassVar, Union, Optional
 
 from siada.foundation.logging import logger
-from siada.swe.tools.config import SWE_DEFAULT_AGENT, SWE_MAX_AGENT_ITERATION
-from siada.swe.tools.run_instance_config.agent_config import AgentConfig
-from siada.swe.tools.run_instance_config.config_utils import get_field_info
-from siada.swe.tools.run_instance_config.llm_config import LLMConfig
-from siada.swe.tools.run_instance_config.sandbox_config import SandboxConfig
-from siada.swe.tools.run_instance_config.security_config import SecurityConfig
+from benchmark.swe.tools.config import SWE_DEFAULT_AGENT, SWE_MAX_AGENT_ITERATION
+from benchmark.swe.tools.run_instance_config.agent_config import AgentConfig
+from benchmark.swe.tools.run_instance_config.config_utils import get_field_info
+from benchmark.swe.tools.run_instance_config.llm_config import LLMConfig
+from benchmark.swe.tools.run_instance_config.sandbox_config import SandboxConfig
+from benchmark.swe.tools.run_instance_config.security_config import SecurityConfig
 
 
 @dataclass

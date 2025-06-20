@@ -1,12 +1,11 @@
 import os
 
-from siada.agent_hub import agent_map
 from siada.foundation.logging import logger
-from siada.swe.tools.dataset import load_huggingface_swe_bench_dataset, filter_dataset, prepare_dataset
-from siada.swe.tools.eval_framework import run_evaluation
-from siada.swe.tools.metadata import make_metadata
-from siada.swe.tools.parser import get_parser
-from siada.swe.tools.run_instance import process_instance
+from benchmark.swe.tools.dataset import load_huggingface_swe_bench_dataset, filter_dataset, prepare_dataset
+from benchmark.swe.tools.eval_framework import run_evaluation
+from benchmark.swe.tools.metadata import make_metadata
+from benchmark.swe.tools.parser import get_parser
+from benchmark.swe.tools.run_instance import process_instance
 
 if __name__ == '__main__':
     logger.info("Start ...")
