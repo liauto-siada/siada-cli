@@ -1,9 +1,13 @@
 [tool.poetry]
-name = "siada-api"
+name = "siada-agenthub"
 version = "0.1.0"
 description = "提供Siada agent对外的RPC能力"
 authors = ["Your Name <your.email@example.com>"]
-package-mode = false
+packages = [{include = "siada"}, {include = "agent_config.yaml"}]
+include = ["agent_config.yaml"]
+
+[tool.poetry.scripts]
+siadahub = "siada.entrypoint.cli:siadahub"
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -26,6 +30,9 @@ tqdm = "^4.67.1"
 pygments = "^2.19.1"
 grep-ast = "^0.9.0"
 scipy = "^1.15.3"
+click = "^8.2.1"
+patch-ng = "^1.18.1"
+datasets = "^3.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
