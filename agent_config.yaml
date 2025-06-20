@@ -20,6 +20,11 @@ agents:
     description: "Frontend code generation agent"
     enabled: true
 
+  bugreproduce:
+    class: "siada.agent_hub.coder.bug_reproduce_agent.BugReproduceAgent"
+    description: "Bug reproduction agent"
+    enabled: true
+
 # LLM Configuration
 llm_config:
   model_name: "claude-sonnet-4"
