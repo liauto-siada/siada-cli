@@ -1,7 +1,7 @@
 from agents import RunContextWrapper
 
-from siada.agent_hub.coder import BugFixAgent
-from siada.agent_hub.coder.code_context import CodeAgentContext
+from siada.foundation.code_agent_context import CodeAgentContext
+from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import fe_gen_prompt
 from siada.foundation.config import settings
 from siada.models.provider import SiadaProvider
@@ -10,13 +10,12 @@ from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 
 
-class FeGenAgent(BugFixAgent):
+class FeGenAgent(CodeGenAgent):
 
     def __init__(self, *args, **kwargs):
         provider = SiadaProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
 
-        # 设置Bug修复相关的指令和工具
         super().__init__(
             name="FeGenAgent",
             tools=[edit, regex_search_files, run_cmd],

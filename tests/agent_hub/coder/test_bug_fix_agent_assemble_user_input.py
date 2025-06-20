@@ -16,7 +16,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from siada.agent_hub.coder.bug_fix_agent import BugFixAgent
-from siada.agent_hub.coder.code_context import CodeAgentContext
+from siada.foundation.code_agent_context import CodeAgentContext
 
 
 class TestBugFixAgentAssembleUserInput(unittest.TestCase):

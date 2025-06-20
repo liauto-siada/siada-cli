@@ -10,28 +10,22 @@ agents:
   
   # Code Development Agent (not implemented yet)
   coder:
-    class: null
+    class: siada.agent_hub.coder.code_gen_agent.GodeGenAgen
     description: "General-purpose code development agent"
-    enabled: false
+    enabled: true
   
   # Frontend Generation Agent
   fegen:
     class: "siada.agent_hub.coder.fe_gen_agent.FeGenAgent"
     description: "Frontend code generation agent"
     enabled: true
-  
-  # Test Bubble Sort Agent (for integration testing)
-  testbubblesort:
-    class: "siada.agent_hub.coder.test_bubble_sort_agent.TestBubbleSortAgent"
-    description: "Test agent for bubble sort implementation"
-    enabled: true
 
 # LLM Configuration
 llm_config:
-  model_name: "claude-sonnet-4"  # 用于 repo map 生成的模型
-  repo_map_tokens: 8192                     # repo map 的最大 token 数
-  repo_map_mul_no_files: 16                 # 无聊天文件时的倍数
-  repo_verbose: true                        # 是否启用详细输出
+  model_name: "claude-sonnet-4"
+  repo_map_tokens: 8192                     # repo map max token
+  repo_map_mul_no_files: 16                 # Multiple without chat files
+  repo_verbose: true                        # Enable detailed output or not
 
 # Configuration Options:
 # - class: Full import path of the Agent class, null means not implemented yet

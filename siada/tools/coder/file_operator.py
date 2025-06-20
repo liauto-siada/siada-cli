@@ -17,7 +17,7 @@ from siada.tools.coder.observation.observation import Observation, FileEditSourc
 from siada.tools.coder.observation.error import ErrorObservation
 from siada.tools.coder.observation.observation import FileReadSource
 from siada.tools.coder.tool_docs import EDIT_DOCS
-from siada.agent_hub.coder.code_context import CodeAgentContext
+from siada.foundation.code_agent_context import CodeAgentContext
 
 
 @function_tool(

@@ -8,7 +8,7 @@ import pexpect
 import psutil
 from agents import function_tool, RunContextWrapper
 
-from siada.agent_hub.coder.code_context import CodeAgentContext
+from siada.foundation.code_agent_context import CodeAgentContext
 
 
 @function_tool
