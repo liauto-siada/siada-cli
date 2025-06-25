@@ -10,32 +10,29 @@ from benchmark.swe.tools.git_util import reset_git_changes, checkout_to_commit
 from benchmark.swe.tools.swe_const import MAP_REPO_VERSION_TO_SPECS
 
 
-# TODO: 丑陋的代码
-def create_env(instance: pd.Series, details: dict):
+def create_env(instance: pd.Series):
     absolute_workspace, _, _ = _get_swebench_workspace_dir_name(instance)
     instance_id = instance.instance_id
 
-    if details['create_env'] == 'true':
-        # 1. 删除仓库的所有变更内容
-        reset_git_changes(absolute_workspace)
+    # 1. 删除仓库的所有变更内容
+    reset_git_changes(absolute_workspace)
 
-        # 2. 切换至当前issue的指针
-        checkout_to_commit(absolute_workspace, instance.base_commit)
+    # 2. 切换至当前issue的指针
+    checkout_to_commit(absolute_workspace, instance.base_commit)
 
-        # 3. 应用测试patch
-        # apply_patch(absolute_workspace, instance.test_patch)
-        # 应用原始patch
+    # 3. 应用测试patch
+    # apply_patch(absolute_workspace, instance.test_patch)
+    # 应用原始patch
 
-        logger.info("Start to create conda env")
-        is_create_new = create_conda_env(instance_id=instance_id, repo=instance.repo, version=instance.version, is_delete_old=False)
-        logger.info("complete to create conda env")
-        if is_create_new:
-            # 安装依赖
-            logger.info("Start to install requirements")
-            install_requirements(instance_id, absolute_workspace, repo=instance.repo, version=instance.version)
-            logger.info("Complete to install requirements")
-    else:
-        logger.info("Use existed conda env")
+    logger.info("Start to create conda env")
+    is_create_new = create_conda_env(instance_id=instance_id, repo=instance.repo, version=instance.version, is_delete_old=False)
+    logger.info("complete to create conda env")
+    if is_create_new:
+        # 安装依赖
+        logger.info("Start to install requirements")
+        install_requirements(instance_id, absolute_workspace, repo=instance.repo, version=instance.version)
+        logger.info("Complete to install requirements")
+
     return instance_id
 
 

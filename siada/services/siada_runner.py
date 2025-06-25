@@ -14,10 +14,12 @@ import logging
 class SiadaRunner:
 
     @staticmethod
-    async def run_agent(agent_name : str, user_input: str) -> RunResult:
+    async def run_agent(agent_name : str, user_input: str, workspace: str = None) -> RunResult:
 
         agent = await SiadaRunner.get_agent(agent_name)
         context = await agent.get_context()
+        if workspace:
+            context.root_dir = workspace
         result = await agent.run(user_input, context)
         return result
 
