@@ -45,7 +45,7 @@ class SiadaModel(Model):
             tracing: ModelTracing,
             *,
             previous_response_id: str | None,
-            prompt: Any | None = None,
+            
     ) -> ModelResponse:
         """Get a response from the model.
 
