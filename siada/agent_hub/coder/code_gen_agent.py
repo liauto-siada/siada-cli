@@ -76,7 +76,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
         config = RunConfig(tracing_disabled=False)
         # add_trace_processor(create_detailed_logger(output_file="agent_trace.log"))
-        set_trace_processors(create_detailed_logger(output_file="agent_trace.log"))
+        set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
 
         input_with_env = self.assemble_user_input(user_input, context)
         result = await Runner.run(
