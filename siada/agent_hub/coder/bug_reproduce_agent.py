@@ -1,6 +1,7 @@
 import os
 
 from agents import RunContextWrapper
+from agents.agent import StopAtTools
 
 from siada.agent_hub.coder import CodeGenAgent
 from siada.agent_hub.coder.prompt import bug_reproduce_prompt
@@ -9,6 +10,7 @@ from siada.foundation.config import settings
 from siada.models.provider import SiadaProvider
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
+from siada.tools.coder.reproduce_completion import reproduce_completion
 from siada.tools.coder.run_cmd import run_cmd
 
 
@@ -16,12 +18,11 @@ class BugReproduceAgent(CodeGenAgent):
 
     def __init__(self, *args, **kwargs):
         provider = SiadaProvider()
-        model = provider.get_model(settings.Claude_4_0_SONNET)
 
         super().__init__(
             name="BugReproduceAgent",
-            tools=[edit, regex_search_files, run_cmd],
-            model=model,
+            tools=[edit, regex_search_files, run_cmd, reproduce_completion],
+            tool_use_behavior=StopAtTools(stop_at_tool_names=['reproduce_completion']),
             *args,
             **kwargs
         )
@@ -35,4 +36,3 @@ class BugReproduceAgent(CodeGenAgent):
         current_working_dir = os.getcwd()
         context = CodeAgentContext(root_dir=current_working_dir)
         return context
-

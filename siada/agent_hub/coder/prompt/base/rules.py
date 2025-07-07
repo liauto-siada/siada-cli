@@ -12,6 +12,7 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str) -> str:
     """
     return f"""RULES
 
+- Before starting the actual work, please first understand the user's task and make a plan.
 - Your current working directory is: {cwd}
 - You cannot cd into a different directory to complete a task. You are stuck operating from '{cwd}', so be sure to pass in the correct 'path' parameter when using tools that require a path.
 - Do not use the ~ character or $HOME to refer to the home directory.
