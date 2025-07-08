@@ -20,6 +20,11 @@ agents:
     description: "Frontend code generation agent"
     enabled: true
 
+  test:
+    class: "siada.agent_hub.coder.test_agent.TestAgent"
+    description: "Test agent"
+    enabled: true
+
   bugreproduce:
     class: "siada.agent_hub.coder.bug_reproduce_agent.BugReproduceAgent"
     description: "Bug reproduction agent"
