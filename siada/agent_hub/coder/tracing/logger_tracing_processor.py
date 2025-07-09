@@ -8,34 +8,34 @@ from agents.tracing import TracingProcessor
 
 @dataclass
 class TraceState:
-    """跟踪单个 Trace 的状态信息"""
+    """Track state information for a single Trace"""
     trace_id: str
-    message_count: int = 0  # 已打印的消息数量
-    agent_history: List[str] = field(default_factory=list)  # Agent 切换历史
+    message_count: int = 0  # Number of printed messages
+    agent_history: List[str] = field(default_factory=list)  # Agent switching history
     start_time: datetime = field(default_factory=datetime.now)
-    handoff_count: int = 0  # Handoff 次数
-    model_call_count: int = 0  # 模型调用次数
-    tool_call_count: int = 0  # 工具调用次数
+    handoff_count: int = 0  # Number of handoffs
+    model_call_count: int = 0  # Number of model calls
+    tool_call_count: int = 0  # Number of tool calls
 
 
 class LoggerTracingProcessor(TracingProcessor):
     """
-    详细的推理过程日志记录器
+    Detailed reasoning process logger
 
-    这个 TracingProcessor 提供了详细的推理过程可视化，包括：
-        - 模型调用的增量输入和完整输出
-        - 工具调用的输入输出详情
-        - Agent 切换（handoff）的完整记录
-        - 整个推理过程的生命周期跟踪
+    This TracingProcessor provides detailed visualization of the reasoning process, including:
+        - Incremental input and complete output of model calls
+        - Input/output details of tool calls
+        - Complete record of Agent handoffs
+        - Lifecycle tracking of the entire reasoning process
 
-    使用方法：
+    Usage:
         from agents.tracing import add_trace_processor
         from examples.tracing.logger_tracing_processor import LoggerTracingProcessor
 
-        # 注册处理器
+        # Register the processor
         add_trace_processor(LoggerTracingProcessor())
 
-        # 然后正常运行 Agent
+        # Then run the Agent normally
         result = await Runner.run(agent=your_agent, input="your input")
     """
     
@@ -52,18 +52,18 @@ class LoggerTracingProcessor(TracingProcessor):
         indent_level: int = 0
     ):
         """
-        初始化日志记录器
+        Initialize the logger
         
         Args:
-            show_model_calls: 是否显示模型调用
-            show_tool_calls: 是否显示工具调用
-            show_handoffs: 是否显示 Agent 切换
-            show_trace_lifecycle: 是否显示 Trace 生命周期
-            max_content_length: 内容最大显示长度
-            show_timestamps: 是否显示时间戳
-            use_colors: 是否使用颜色输出
-            output_file: 可选的输出文件路径
-            indent_level: 缩进级别
+            show_model_calls: Whether to show model calls
+            show_tool_calls: Whether to show tool calls
+            show_handoffs: Whether to show Agent handoffs
+            show_trace_lifecycle: Whether to show Trace lifecycle
+            max_content_length: Maximum content display length
+            show_timestamps: Whether to show timestamps
+            use_colors: Whether to use colored output
+            output_file: Optional output file path
+            indent_level: Indentation level
         """
         self.show_model_calls = show_model_calls
         self.show_tool_calls = show_tool_calls
@@ -75,23 +75,23 @@ class LoggerTracingProcessor(TracingProcessor):
         self.output_file = output_file
         self.indent_level = indent_level
         
-        # 状态跟踪
+        # State tracking
         self.trace_states: Dict[str, TraceState] = {}
         
-        # 颜色定义
+        # Color definitions
         self.colors = {
-            'trace': '\033[95m',      # 紫色
-            'model': '\033[94m',      # 蓝色
-            'tool': '\033[92m',       # 绿色
-            'handoff': '\033[93m',    # 黄色
-            'input': '\033[96m',      # 青色
-            'output': '\033[91m',     # 红色
-            'reset': '\033[0m',       # 重置
-            'bold': '\033[1m',        # 粗体
+            'trace': '\033[95m',      # Purple
+            'model': '\033[94m',      # Blue
+            'tool': '\033[92m',       # Green
+            'handoff': '\033[93m',    # Yellow
+            'input': '\033[96m',      # Cyan
+            'output': '\033[91m',     # Red
+            'reset': '\033[0m',       # Reset
+            'bold': '\033[1m',        # Bold
         } if use_colors else {k: '' for k in ['trace', 'model', 'tool', 'handoff', 'input', 'output', 'reset', 'bold']}
     
     def _print(self, message: str) -> None:
-        """打印消息，支持文件输出"""
+        """Print message with file output support"""
         indent = "  " * self.indent_level
         full_message = f"{indent}{message}"
         
@@ -100,7 +100,7 @@ class LoggerTracingProcessor(TracingProcessor):
         if self.output_file:
             try:
                 with open(self.output_file, 'a', encoding='utf-8') as f:
-                    # 移除颜色代码用于文件输出
+                    # Remove color codes for file output
                     clean_message = full_message
                     for color in self.colors.values():
                         clean_message = clean_message.replace(color, '')
@@ -109,19 +109,19 @@ class LoggerTracingProcessor(TracingProcessor):
                 print(f"Warning: Failed to write to file {self.output_file}: {e}")
     
     def _format_timestamp(self) -> str:
-        """格式化时间戳"""
+        """Format timestamp"""
         if not self.show_timestamps:
             return ""
         return f"🕐 {datetime.now().strftime('%H:%M:%S')} "
     
     def _truncate_content(self, content: str) -> str:
-        """截断过长的内容"""
+        """Truncate overly long content"""
         if len(content) <= self.max_content_length:
             return content
         return content[:self.max_content_length] + "..."
     
     def _format_json(self, data: Any) -> str:
-        """格式化 JSON 数据"""
+        """Format JSON data"""
         try:
             if isinstance(data, str):
                 return self._truncate_content(data)
@@ -130,7 +130,7 @@ class LoggerTracingProcessor(TracingProcessor):
             return self._truncate_content(str(data))
     
     def _print_incremental_messages(self, trace_id: str, messages: List[Dict[str, Any]]) -> None:
-        """增量打印消息列表"""
+        """Print message list incrementally"""
         if not messages:
             return
             
@@ -138,7 +138,7 @@ class LoggerTracingProcessor(TracingProcessor):
         if not state:
             return
         
-        # 只打印新增的消息
+        # Only print new messages
         new_messages = messages[state.message_count:]
         if not new_messages:
             return
@@ -149,9 +149,9 @@ class LoggerTracingProcessor(TracingProcessor):
             role = msg.get('role', 'unknown')
             content = msg.get('content', '')
             
-            # 处理不同类型的内容
+            # Handle different types of content
             if isinstance(content, list):
-                # 多模态内容
+                # Multimodal content
                 content_summary = []
                 for item in content:
                     if isinstance(item, dict):
@@ -167,64 +167,64 @@ class LoggerTracingProcessor(TracingProcessor):
             
             self._print(f"  [{role}]: {content_str}")
         
-        # 更新已打印的消息数量
+        # Update the count of printed messages
         state.message_count = len(messages)
     
     def _format_model_output(self, output: List[Dict[str, Any]]) -> None:
-        """格式化模型输出"""
+        """Format model output"""
         self._print(f"{self.colors['output']}📤 Model Output:{self.colors['reset']}")
         
         for item in output:
             if isinstance(item, dict):
-                # 首先检查是否有 role 字段，这通常表示这是一个消息
+                # First check if there's a role field, which usually indicates a message
                 if 'role' in item:
                     role = item.get('role', 'assistant')
                     content = item.get('content', '')
                     self._print(f"  [{role}]: {self._truncate_content(str(content))}")
                     continue
                 
-                # 检查是否有 type 字段
+                # Check if there's a type field
                 item_type = item.get('type')
                 if item_type == 'message':
-                    # 消息输出
+                    # Message output
                     role = item.get('role', 'assistant')
                     content = item.get('content', '')
                     self._print(f"  [{role}]: {self._truncate_content(str(content))}")
                 
                 elif item_type == 'function_call':
-                    # 工具调用
+                    # Tool call
                     name = item.get('name', 'unknown')
                     args = item.get('arguments', {})
                     self._print(f"  🔧 Tool Call: {name}({self._format_json(args)})")
                 
                 elif item_type:
-                    # 有明确类型的其他类型
+                    # Other types with explicit type
                     self._print(f"  [{item_type}]: {self._format_json(item)}")
                 
                 else:
-                    # 没有 type 字段的情况，尝试智能识别
+                    # No type field, try to identify intelligently
                     if 'content' in item:
-                        # 看起来像消息
+                        # Looks like a message
                         role = item.get('role', 'assistant')
                         content = item.get('content', '')
                         self._print(f"  [{role}]: {self._truncate_content(str(content))}")
                     elif 'name' in item and 'arguments' in item:
-                        # 看起来像函数调用
+                        # Looks like a function call
                         name = item.get('name', 'unknown')
                         args = item.get('arguments', {})
                         self._print(f"  🔧 Tool Call: {name}({self._format_json(args)})")
                     else:
-                        # 无法识别的结构，显示为数据
+                        # Unrecognized structure, display as data
                         self._print(f"  [data]: {self._format_json(item)}")
             else:
                 self._print(f"  {self._format_json(item)}")
     
     def on_trace_start(self, trace) -> None:
-        """Trace 开始时的回调"""
+        """Callback when Trace starts"""
         if not self.show_trace_lifecycle:
             return
         
-        # 记录 Trace 状态
+        # Record Trace state
         self.trace_states[trace.trace_id] = TraceState(
             trace_id=trace.trace_id,
             start_time=datetime.now()
@@ -239,7 +239,7 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"{self.colors['trace']}========================={self.colors['reset']}\n")
     
     def on_trace_end(self, trace) -> None:
-        """Trace 结束时的回调"""
+        """Callback when Trace ends"""
         if not self.show_trace_lifecycle:
             return
         
@@ -255,43 +255,38 @@ class LoggerTracingProcessor(TracingProcessor):
             self._print(f"{self.colors['trace']}Handoffs: {state.handoff_count}{self.colors['reset']}")
             self._print(f"{self.colors['trace']}======================{self.colors['reset']}\n")
             
-            # 清理状态
+            # Clean up state
             del self.trace_states[trace.trace_id]
     
     def on_span_start(self, span) -> None:
-        """Span 开始时的回调"""
+        """Callback when Span starts"""
         span_type = span.span_data.type
         trace_id = span.trace_id
         
         if span_type == "generation" and self.show_model_calls:
             state = self.trace_states.get(trace_id)
             
-            # 如果 state 不存在，创建一个临时的 state
-            if not state:
-                self._print(f"{self.colors['trace']}⚠️  Warning: Trace state not found for {trace_id}, creating temporary state{self.colors['reset']}")
-                state = TraceState(trace_id=trace_id)
-                self.trace_states[trace_id] = state
             
-            # 在 span 开始时就更新计数
+            # Update count when span starts
             state.model_call_count += 1
             
-            # 处理模型生成 Span 的开始
+            # Handle the start of model generation Span
             data = span.span_data
             call_num = state.model_call_count
             
             self._print(f"\n{self.colors['model']}{self.colors['bold']}🤖 === MODEL CALL {call_num} ==={self.colors['reset']}")
             self._print(f"{self.colors['model']}{self._format_timestamp()}Model: {data.model or 'unknown'}{self.colors['reset']}")
             
-            # 打印增量输入消息
+            # Print incremental input messages
             if data.input and state:
                 self._print_incremental_messages(span.trace_id, data.input)
     
     def on_span_end(self, span) -> None:
-        """Span 结束时的回调"""
+        """Callback when Span ends"""
         span_type = span.span_data.type
         trace_id = span.trace_id
         
-        # 更新状态计数（注意：generation 的计数已经在 on_span_start 中更新）
+        # Update state counts (note: generation count is already updated in on_span_start)
         state = self.trace_states.get(trace_id)
         if state:
             if span_type == "function":
@@ -307,16 +302,16 @@ class LoggerTracingProcessor(TracingProcessor):
             self._handle_handoff_span(span, state)
     
     def _handle_generation_span(self, span, state: Optional[TraceState]) -> None:
-        """处理模型生成 Span 结束时的输出"""
+        """Handle output when model generation Span ends"""
         data = span.span_data
         
-        # 注意：输入已经在 on_span_start 中打印，这里只处理输出
+        # Note: Input has already been printed in on_span_start, only handle output here
         
-        # 打印模型输出
+        # Print model output
         if data.output:
             self._format_model_output(data.output)
         
-        # 打印使用统计
+        # Print usage statistics
         if data.usage:
             usage = data.usage
             self._print(f"{self.colors['model']}📊 Usage: Input={usage.get('input_tokens', 0)}, Output={usage.get('output_tokens', 0)}, Total={usage.get('total_tokens', 0)}{self.colors['reset']}")
@@ -324,29 +319,29 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"{self.colors['model']}==================={self.colors['reset']}")
     
     def _handle_function_span(self, span, state: Optional[TraceState]) -> None:
-        """处理函数调用 Span"""
+        """Handle function call Span"""
         data = span.span_data
         
         call_num = state.tool_call_count if state else "?"
         self._print(f"\n{self.colors['tool']}{self.colors['bold']}🔧 === TOOL CALL {call_num} ==={self.colors['reset']}")
         self._print(f"{self.colors['tool']}{self._format_timestamp()}Function: {data.name}{self.colors['reset']}")
         
-        # 打印输入
+        # Print input
         if data.input:
             self._print(f"{self.colors['input']}📥 Input: {self._format_json(data.input)}{self.colors['reset']}")
         
-        # 打印输出
+        # Print output
         if data.output is not None:
             self._print(f"{self.colors['output']}📤 Output: {self._format_json(data.output)}{self.colors['reset']}")
         
-        # 打印 MCP 数据（如果有）
+        # Print MCP data (if any)
         if data.mcp_data:
             self._print(f"{self.colors['tool']}🔗 MCP Data: {self._format_json(data.mcp_data)}{self.colors['reset']}")
         
         self._print(f"{self.colors['tool']}==============={self.colors['reset']}")
     
     def _handle_handoff_span(self, span, state: Optional[TraceState]) -> None:
-        """处理 Handoff Span"""
+        """Handle Handoff Span"""
         data = span.span_data
         
         handoff_num = state.handoff_count if state else "?"
@@ -359,7 +354,7 @@ class LoggerTracingProcessor(TracingProcessor):
         if data.to_agent:
             self._print(f"{self.colors['handoff']}📥 To Agent: {data.to_agent}{self.colors['reset']}")
             
-            # 更新 Agent 历史
+            # Update Agent history
             if state:
                 if data.to_agent not in state.agent_history:
                     state.agent_history.append(data.to_agent)
@@ -367,20 +362,20 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"{self.colors['handoff']}=================={self.colors['reset']}")
     
     def shutdown(self) -> None:
-        """关闭处理器"""
+        """Shutdown the processor"""
         if self.trace_states:
             self._print("Warning: Some traces were not properly ended")
         self.trace_states.clear()
     
     def force_flush(self) -> None:
-        """强制刷新缓冲区"""
-        # 对于控制台输出，通常不需要特殊处理
+        """Force flush the buffer"""
+        # For console output, usually no special handling is needed
         pass
 
 
-# 便捷的工厂函数
+# Convenient factory functions
 def create_simple_logger() -> LoggerTracingProcessor:
-    """创建一个简单的日志记录器"""
+    """Create a simple logger"""
     return LoggerTracingProcessor(
         show_model_calls=True,
         show_tool_calls=True,
@@ -392,17 +387,17 @@ def create_simple_logger() -> LoggerTracingProcessor:
 
 
 def create_detailed_logger(output_file: Optional[str] = None) -> LoggerTracingProcessor:
-    """创建一个详细的日志记录器"""
-    # 如果没有指定输出文件，使用默认的日志文件路径
+    """Create a detailed logger"""
+    # If no output file is specified, use the default log file path
     if output_file is None:
         import os
         from datetime import datetime
         
-        # 创建日志目录
+        # Create log directory
         log_dir = os.path.expanduser("~/.siadahub/logs")
         os.makedirs(log_dir, exist_ok=True)
         
-        # 生成日志文件名
+        # Generate log file name
         date_str = datetime.now().strftime("%Y%m%d")
         output_file = os.path.join(log_dir, f"agent_trace-{date_str}.log")
     
@@ -419,7 +414,7 @@ def create_detailed_logger(output_file: Optional[str] = None) -> LoggerTracingPr
 
 
 def create_minimal_logger() -> LoggerTracingProcessor:
-    """创建一个最小化的日志记录器"""
+    """Create a minimal logger"""
     return LoggerTracingProcessor(
         show_model_calls=True,
         show_tool_calls=False,
