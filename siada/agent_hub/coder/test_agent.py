@@ -82,7 +82,7 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
         """
 
         config = RunConfig(tracing_disabled=False)
-        add_trace_processor(create_detailed_logger(output_file="agent_trace.log"))
+        add_trace_processor(create_detailed_logger())
 
         result = await Runner.run(
             starting_agent=self,

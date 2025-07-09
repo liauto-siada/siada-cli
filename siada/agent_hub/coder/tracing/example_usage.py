@@ -104,7 +104,6 @@ async def example_detailed_logging():
     )
     
     print(f"\n最终结果: {result.final_output}")
-    print("详细日志已保存到 agent_trace.log 文件")
     print("详细日志已保存到 ~/.siadahub/logs/agent_trace-yyyymmdd.log 文件")
 
 
