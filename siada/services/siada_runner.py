@@ -114,9 +114,10 @@ class SiadaRunner:
 
 async def main():
     user_input = """
-                生成一个微博热门卡
+                在/Users/yunan/code/copilot/siada-agenthub/tests/tools 目录下创建一个文件: test_code.py,
+                实现一个冒泡排序算法
                 """
-    agent_name = "test"
+    agent_name = "bugfix"
     result = await SiadaRunner.run_agent(agent_name, user_input)
     print(result)
 
