@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = "claude-3-7-sonnet"
     Claude_4_0_SONNET: str = "claude-sonnet-4"
     O1_MINI: str = "o1-mini"
-    MAX_TURNS: int = 60
+    MAX_TURNS: int = 100
 
     # 将RunConfig设置为ClassVar，这样它不会被包含在模型验证中
     _DEFAULT_RUN_CONFIG: ClassVar[agents.RunConfig] = None
