@@ -1,6 +1,6 @@
 """
-打包配置辅助脚本
-用于确保 ripgrep 二进制文件在打包时被正确包含
+Package configuration helper script.
+Ensures ripgrep binary files are properly included during packaging.
 """
 
 import os
@@ -10,8 +10,8 @@ from pathlib import Path
 
 def setup_package_data():
     """
-    设置打包所需的数据文件配置
-    返回用于 setup.py 或 pyproject.toml 的配置
+    Setup package data configuration for distribution.
+    Returns configuration for setup.py or pyproject.toml.
     """
     package_data = {
         'siada.tools.coder.file_search': [
@@ -25,13 +25,13 @@ def setup_package_data():
 
 def ensure_binary_permissions():
     """
-    确保所有二进制文件有正确的执行权限
-    在打包前调用此函数
+    Ensure all binary files have correct execution permissions.
+    Call this function before packaging.
     """
     bin_dir = Path(__file__).parent / "bin"
     
     if not bin_dir.exists():
-        print(f"警告: bin 目录不存在: {bin_dir}")
+        print(f"Warning: bin directory does not exist: {bin_dir}")
         return
     
     binary_files = [
@@ -46,20 +46,19 @@ def ensure_binary_permissions():
         binary_path = bin_dir / binary_name
         if binary_path.exists():
             try:
-                # 设置执行权限
                 current_mode = binary_path.stat().st_mode
                 new_mode = current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
                 os.chmod(binary_path, new_mode)
-                print(f"✓ 设置执行权限: {binary_path}")
+                print(f"✓ Set execution permissions: {binary_path}")
             except (OSError, PermissionError) as e:
-                print(f"✗ 无法设置权限 {binary_path}: {e}")
+                print(f"✗ Failed to set permissions for {binary_path}: {e}")
         else:
-            print(f"⚠ 二进制文件不存在: {binary_path}")
+            print(f"⚠ Binary file not found: {binary_path}")
 
 
 def get_pyproject_toml_config():
     """
-    返回用于 pyproject.toml 的配置片段
+    Returns configuration snippet for pyproject.toml.
     """
     config = '''
 [tool.setuptools.package-data]
@@ -74,7 +73,7 @@ include = ["siada.tools.coder.file_search*"]
 
 def get_setup_py_config():
     """
-    返回用于 setup.py 的配置片段
+    Returns configuration snippet for setup.py.
     """
     config = '''
 package_data={
@@ -90,7 +89,7 @@ include_package_data=True,
 
 def validate_package_structure():
     """
-    验证包结构是否正确
+    Validate package structure is correct.
     """
     base_dir = Path(__file__).parent
     required_files = [
@@ -103,54 +102,49 @@ def validate_package_structure():
         "bin",
     ]
     
-    print("验证包结构...")
+    print("Validating package structure...")
     
-    # 检查必需文件
     for file_name in required_files:
         file_path = base_dir / file_name
         if file_path.exists():
             print(f"✓ {file_name}")
         else:
-            print(f"✗ 缺少文件: {file_name}")
+            print(f"✗ Missing file: {file_name}")
     
-    # 检查必需目录
     for dir_name in required_dirs:
         dir_path = base_dir / dir_name
         if dir_path.exists() and dir_path.is_dir():
             print(f"✓ {dir_name}/")
-            # 检查 bin 目录中的文件
             if dir_name == "bin":
                 bin_files = list(dir_path.glob("*"))
                 if bin_files:
-                    print(f"  包含 {len(bin_files)} 个二进制文件")
+                    print(f"  Contains {len(bin_files)} binary files")
                     for bin_file in bin_files:
                         if bin_file.is_file():
                             print(f"    - {bin_file.name}")
                 else:
-                    print(f"  ⚠ bin 目录为空")
+                    print(f"  ⚠ bin directory is empty")
         else:
-            print(f"✗ 缺少目录: {dir_name}/")
+            print(f"✗ Missing directory: {dir_name}/")
 
 
 if __name__ == "__main__":
-    print("File Search - 打包配置检查")
+    print("File Search - Package Configuration Check")
     print("=" * 40)
     
-    # 验证包结构
     validate_package_structure()
     
     print("\n" + "=" * 40)
     
-    # 设置二进制文件权限
     ensure_binary_permissions()
     
     print("\n" + "=" * 40)
-    print("打包配置信息:")
-    print("\n1. pyproject.toml 配置:")
+    print("Package configuration info:")
+    print("\n1. pyproject.toml config:")
     print(get_pyproject_toml_config())
     
-    print("\n2. setup.py 配置:")
+    print("\n2. setup.py config:")
     print(get_setup_py_config())
     
-    print("\n3. 包数据配置:")
+    print("\n3. Package data config:")
     print(setup_package_data())

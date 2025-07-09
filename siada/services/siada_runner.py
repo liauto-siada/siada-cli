@@ -29,27 +29,27 @@ class SiadaRunner:
     @staticmethod
     async def get_agent(agent_name: str) -> SiadaAgent:
         """
-        根据agent名称获取对应的Agent实例
+        Get the corresponding Agent instance based on agent name
         
         Args:
-            agent_name: Agent名称，支持大小写不敏感匹配
-                       例如: 'bugfix', 'BugFix', 'bug_fix' 等
+            agent_name: Agent name, supports case-insensitive matching
+                       e.g.: 'bugfix', 'BugFix', 'bug_fix', etc.
         
         Returns:
-            Agent: 对应的Agent实例
+            Agent: The corresponding Agent instance
             
         Raises:
-            ValueError: 当找不到对应的Agent类型时抛出异常
-            FileNotFoundError: 当配置文件不存在时抛出异常
-            ImportError: 当无法导入Agent类时抛出异常
+            ValueError: Raised when the corresponding Agent type is not found
+            FileNotFoundError: Raised when the configuration file does not exist
+            ImportError: Raised when unable to import Agent class
         """
-        # 标准化agent名称：转小写并移除下划线和连字符
+        # Normalize agent name: convert to lowercase and remove underscores and hyphens
         normalized_name = agent_name.lower().replace('_', '').replace('-', '')
         
-        # 从配置文件加载Agent映射
+        # Load Agent mapping from configuration file
         agent_configs = SiadaRunner._load_agent_config()
         
-        # 查找对应的Agent配置
+        # Find the corresponding Agent configuration
         agent_config = agent_configs.get(normalized_name)
         
         if agent_config is None:
@@ -60,16 +60,16 @@ class SiadaRunner:
                 f"Supported agent types: {supported_agents}"
             )
         
-        # 检查Agent是否启用
+        # Check if Agent is enabled
         if not agent_config.get('enabled', False):
             raise ValueError(f"Agent '{agent_name}' is disabled")
         
-        # 检查Agent类是否已实现
+        # Check if Agent class is implemented
         class_path = agent_config.get('class')
         if not class_path:
             raise ValueError(f"Agent '{agent_name}' is not implemented yet")
         
-        # 动态导入并实例化Agent类
+        # Dynamically import and instantiate Agent class
         try:
             agent_class = SiadaRunner._import_agent_class(class_path)
             return agent_class()
@@ -79,13 +79,13 @@ class SiadaRunner:
     @staticmethod
     def _load_agent_config() -> Dict[str, Dict]:
         """
-        从配置文件加载Agent配置
+        Load Agent configuration from configuration file
 
         Returns:
-            Dict[str, Dict]: Agent配置字典
+            Dict[str, Dict]: Agent configuration dictionary
         """
-        # 获取项目根目录下的配置文件路径
-        current_dir = Path(__file__).parent.parent.parent  # 回到项目根目录
+        # Get the configuration file path in the project root directory
+        current_dir = Path(__file__).parent.parent.parent  # Go back to project root directory
         config_path = current_dir / "agent_config.yaml"
 
         if not config_path.exists():
@@ -99,13 +99,13 @@ class SiadaRunner:
     @staticmethod
     def _import_agent_class(class_path: str) -> Type[Agent]:
         """
-        动态导入Agent类
+        Dynamically import Agent class
 
         Args:
-            class_path: Agent类的完整导入路径，如 'siada.agent_hub.coder.bug_fix_agent.BugFixAgent'
+            class_path: Complete import path of Agent class, e.g. 'siada.agent_hub.coder.bug_fix_agent.BugFixAgent'
 
         Returns:
-            Type[Agent]: Agent类
+            Type[Agent]: Agent class
         """
         module_path, class_name = class_path.rsplit('.', 1)
         module = importlib.import_module(module_path)
@@ -114,10 +114,9 @@ class SiadaRunner:
 
 async def main():
     user_input = """
-                在/Users/yunan/code/copilot/siada-agenthub/tests/tools 目录下创建一个文件: test_code.py,
-                实现一个冒泡排序算法
+                Generate a Weibo trending card
                 """
-    agent_name = "bugfix"
+    agent_name = "test"
     result = await SiadaRunner.run_agent(agent_name, user_input)
     print(result)
 

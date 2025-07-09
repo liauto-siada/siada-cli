@@ -1,24 +1,24 @@
-# File Search - 高性能文件搜索工具
+# File Search - High-Performance File Search Tool
 
-基于 ripgrep 的 Python 文件搜索模块，提供快速、准确的代码搜索功能。
+A Python file search module based on ripgrep, providing fast and accurate code search functionality.
 
-## 功能特性
+## Features
 
-- **高性能搜索**: 使用 ripgrep 工具，比传统正则搜索快数倍
-- **上下文信息**: 提供匹配行前后的上下文
-- **文件过滤**: 支持 glob 模式过滤特定类型文件
-- **跨平台支持**: 支持 Windows、macOS、Linux
-- **打包友好**: 支持开发环境和打包分发
-- **自动降级**: 优先使用内置二进制文件，可降级到系统安装
+- **High-Performance Search**: Uses ripgrep tool, several times faster than traditional regex search
+- **Context Information**: Provides context around matching lines
+- **File Filtering**: Supports glob pattern filtering for specific file types
+- **Cross-Platform Support**: Supports Windows, macOS, Linux
+- **Package-Friendly**: Supports both development environment and packaged distribution
+- **Auto Fallback**: Prioritizes built-in binary files, can fallback to system installation
 
-## 快速开始
+## Quick Start
 
-### 基本用法
+### Basic Usage
 
 ```python
 from file_search import regex_search_files
 
-# 搜索 TODO 注释
+# Search for TODO comments
 results = regex_search_files(
     cwd="/path/to/project",
     directory_path="/path/to/search", 
@@ -28,7 +28,7 @@ results = regex_search_files(
 print(results)
 ```
 
-### 类接口
+### Class Interface
 
 ```python
 from file_search import RipgrepSearcher
@@ -42,61 +42,61 @@ results = searcher.search_in_files(
 )
 ```
 
-## 安装配置
+## Installation and Configuration
 
-### 自动配置（推荐）
+### Automatic Configuration (Recommended)
 
-工具会自动查找 ripgrep 二进制文件，按以下优先级：
+The tool automatically searches for ripgrep binary files in the following priority order:
 
-1. `RIPGREP_BINARY_PATH` 环境变量
-2. 内置二进制文件（开发/打包环境）
-3. 系统 PATH 中的 ripgrep
+1. `RIPGREP_BINARY_PATH` environment variable
+2. Built-in binary files (development/packaging environment)
+3. ripgrep in system PATH
 
-### 手动配置
+### Manual Configuration
 
-如需指定特定的 ripgrep 路径：
+To specify a specific ripgrep path:
 
 ```bash
 export RIPGREP_BINARY_PATH="/path/to/rg"
 ```
 
-### 二进制文件
+### Binary Files
 
-内置支持以下平台的二进制文件：
+Built-in support for binary files on the following platforms:
 - Windows: `rg.exe`
 - macOS Intel: `rg-macos-x64`
 - macOS Apple Silicon: `rg-macos-arm64`
 - Linux x64: `rg-linux-x64`
 - Linux ARM64: `rg-linux-arm64`
 
-## 使用示例
+## Usage Examples
 
-### 搜索代码注释
+### Search Code Comments
 ```python
-# 搜索 TODO/FIXME 注释
+# Search for TODO/FIXME comments
 regex_search_files(".", ".", r"TODO:|FIXME:|HACK:", "*.py")
 ```
 
-### 搜索函数和类
+### Search Functions and Classes
 ```python
-# 搜索函数定义
+# Search for function definitions
 regex_search_files(".", ".", r"def\s+\w+\(", "*.py")
 
-# 搜索类定义
+# Search for class definitions
 regex_search_files(".", ".", r"class\s+\w+", "*.py")
 ```
 
-### 搜索导入语句
+### Search Import Statements
 ```python
 regex_search_files(".", ".", r"^import\s+|^from\s+\w+\s+import", "*.py")
 ```
 
-### 多文件类型搜索
+### Multi-File Type Search
 ```python
 regex_search_files(".", ".", r"console\.log", "*.{js,ts}")
 ```
 
-## 输出格式
+## Output Format
 
 ```
 Found 2 results.
@@ -117,32 +117,32 @@ src/utils.py
 │----
 ```
 
-## 参数说明
+## Parameter Description
 
-- **cwd**: 当前工作目录，用于计算相对路径
-- **directory_path**: 要搜索的目录路径
-- **regex**: 正则表达式模式（Rust 语法）
-- **file_pattern**: 文件模式过滤器（如 "*.py", "*.js", "*"）
+- **cwd**: Current working directory, used to calculate relative paths
+- **directory_path**: Directory path to search
+- **regex**: Regular expression pattern (Rust syntax)
+- **file_pattern**: File pattern filter (e.g., "*.py", "*.js", "*")
 
-## 正则表达式语法
+## Regular Expression Syntax
 
-使用 Rust 正则表达式语法，主要特性：
-- 支持 Unicode
-- 默认多行模式
-- 支持前瞻和后顾断言
-- 详细语法：https://docs.rs/regex/latest/regex/#syntax
+Uses Rust regular expression syntax with main features:
+- Unicode support
+- Multi-line mode by default
+- Supports lookahead and lookbehind assertions
+- Detailed syntax: https://docs.rs/regex/latest/regex/#syntax
 
-## 性能特性
+## Performance Characteristics
 
-- **结果限制**: 最多返回 300 个结果
-- **输出限制**: 防止内存占用过大
-- **上下文控制**: 每个匹配提供前后各 1 行上下文
+- **Result Limit**: Returns maximum 300 results
+- **Output Limit**: Prevents excessive memory usage
+- **Context Control**: Provides 1 line of context before and after each match
 
-## 打包分发
+## Package Distribution
 
-### 打包配置
+### Package Configuration
 
-在 `pyproject.toml` 中添加：
+Add to `pyproject.toml`:
 
 ```toml
 [tool.setuptools.package-data]
@@ -153,32 +153,32 @@ where = ["src"]
 include = ["src.tools.coder.file_search*"]
 ```
 
-### 验证打包
+### Verify Packaging
 
 ```bash
-# 运行打包检查
+# Run packaging check
 python siada/tools/coder/file_search/setup_package.py
 
-# 测试功能
+# Test functionality
 python siada/tools/coder/file_search/test_search.py
 ```
 
-## 故障排除
+## Troubleshooting
 
-### 常见问题
+### Common Issues
 
-**找不到 ripgrep 二进制文件**
-- 设置环境变量：`export RIPGREP_BINARY_PATH="/path/to/rg"`
-- 安装系统 ripgrep：`brew install ripgrep` (macOS) 或 `apt install ripgrep` (Ubuntu)
+**Cannot find ripgrep binary file**
+- Set environment variable: `export RIPGREP_BINARY_PATH="/path/to/rg"`
+- Install system ripgrep: `brew install ripgrep` (macOS) or `apt install ripgrep` (Ubuntu)
 
-**权限错误**
-- Unix 系统：`chmod +x file_search/bin/rg-*`
+**Permission errors**
+- Unix systems: `chmod +x file_search/bin/rg-*`
 
-**搜索无结果**
-- 检查搜索路径和正则表达式语法
-- 确认文件模式匹配目标文件
+**No search results**
+- Check search path and regular expression syntax
+- Confirm file pattern matches target files
 
-### 调试
+### Debugging
 
 ```python
 from file_search.search import RipgrepSearcher
@@ -190,34 +190,34 @@ except RuntimeError as e:
     print(f"Error: {e}")
 ```
 
-## Docker 环境
+## Docker Environment
 
 ```dockerfile
-# 安装系统 ripgrep
+# Install system ripgrep
 RUN apt-get update && apt-get install -y ripgrep
 
-# 或设置环境变量
+# Or set environment variable
 ENV RIPGREP_BINARY_PATH=/usr/bin/rg
 ```
 
-## 测试
+## Testing
 
-运行测试用例：
+Run test cases:
 
 ```bash
 python siada/tools/coder/file_search/test_search.py
 ```
 
-测试包括：
-- 二进制文件检测
-- 基本搜索功能
-- 文件类型过滤
-- 错误处理机制
+Tests include:
+- Binary file detection
+- Basic search functionality
+- File type filtering
+- Error handling mechanisms
 
-## 技术细节
+## Technical Details
 
-- 基于 ripgrep 高性能搜索引擎
-- 支持开发和打包环境的自动适配
-- 自动权限修复机制
-- 多路径搜索策略
-- 优雅的错误处理和降级机制
+- Based on ripgrep high-performance search engine
+- Supports automatic adaptation for development and packaging environments
+- Automatic permission repair mechanism
+- Multi-path search strategy
+- Graceful error handling and fallback mechanisms

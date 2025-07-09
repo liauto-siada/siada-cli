@@ -19,10 +19,6 @@ class  BugFixAgent(CodeGenAgent):
         provider = SiadaProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
 
-        # reproduce_tool = reproduce_agent.as_tool(
-        #             tool_name="reproduce_bug_tool",
-        #             tool_description="According to the issue description, generate executable test cases to reproduce the issue.",
-        #         )
         super().__init__(
             name="BugFixAgent",
             tools=[edit, regex_search_files, run_cmd],
@@ -44,14 +40,14 @@ class  BugFixAgent(CodeGenAgent):
 
     async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
         """
-        执行Bug修复任务
-        使用reproduce_agent 复现任务， 然后使用当前Agent进行修复。
+        Execute bug fixing task.
+        Use reproduce_agent to reproduce the issue, then use current Agent to fix it.
 
         Args:
-            user_input: 用户描述的Bug问题，包括错误信息、相关文件路径等
-            context: 用于提供上下文信息的上下文对象
+            user_input: User-described bug problem, including error messages, related file paths, etc.
+            context: Context object for providing contextual information
         Returns:
-            修复结果，包含最终输出、执行轮数等信息
+            Fix result, including final output, execution rounds, and other information
         """
         config = RunConfig(tracing_disabled=False)
         input_with_env = self.assemble_user_input(user_input, context)

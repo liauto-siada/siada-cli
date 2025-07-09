@@ -1,7 +1,7 @@
 """
-Bug修复Agent模块
+Code Generation Agent Module
 
-提供专门用于代码bug修复的Agent实现
+Provides specialized Agent implementation for code generation tasks.
 """
 import os
 
@@ -20,29 +20,24 @@ logging.getLogger().setLevel(logging.INFO)
 
 class CodeGenAgent(SiadaAgent[CodeAgentContext]):
     """
-    代码生成Agent
-
-    专门用于代码生成的Agent实现
+    Code Generation Agent
+    
+    Specialized Agent implementation for code generation tasks.
     """
 
     def __init__(self, *args, **kwargs):
-        # 使用SiadaProvider提供的默认模型
         provider = SiadaProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
         
-        # 如果没有传递name参数，则使用默认值
         if 'name' not in kwargs:
             kwargs['name'] = "CodeGenAgent"
         
-        # 如果没有传递tools参数，则使用默认值
         if 'tools' not in kwargs:
             kwargs['tools'] = [edit, regex_search_files, run_cmd]
             
-        # 如果没有传递model参数，则使用默认值
         if 'model' not in kwargs:
             kwargs['model'] = model
         
-        # 设置Bug修复相关的指令和工具
         super().__init__(
             *args,
             **kwargs
@@ -62,15 +57,14 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
     async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
         """
-        执行Bug修复任务
+        Execute code generation task.
         
         Args:
-            user_input: 用户描述的Bug问题，包括错误信息、相关文件路径等
-            context: 用于提供上下文信息的上下文对象
+            user_input: User's code generation request with requirements and specifications
+            context: Context object providing project information
         Returns:
-            修复结果，包含最终输出、执行轮数等信息
+            Generation result containing final output and execution details
         """
-
         config = RunConfig(tracing_disabled=False)
         input_with_env = self.assemble_user_input(user_input, context)
         result = await Runner.run(
@@ -85,45 +79,37 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
 
     def assemble_user_input(self, user_input: str, context: CodeAgentContext) -> str:
-
         task = f'<task>\n{user_input}\n</task>'
-
-        # 生成 repo map
         repo_map_content = self.generate_repo_map(context)
         
-        # 构建项目结构信息
         if repo_map_content:
             project_structure = f"Repository Map:\n{repo_map_content}"
         else:
-            project_structure = "Repository Map: 无法生成仓库地图"
+            project_structure = "Repository Map: Unable to generate repository map"
         
         environment_details = f'<environment_details>\n{project_structure}\n</environment_details>'
-
         return task + '\n' + environment_details
 
     def generate_repo_map(self, context: CodeAgentContext) -> str:
         """
-        生成仓库地图
+        Generate repository map for project structure analysis.
         
         Args:
-            context: 代码上下文
+            context: Code agent context containing project information
             
         Returns:
-            str: 仓库地图内容
+            Repository map content as string
         """
         try:
             if not context.root_dir:
                 return ""
                 
-            # 获取 RepoMap 实例
             repo_map = self.get_repo_map_instance(context.root_dir)
             if not repo_map:
                 return ""
             
-            # 收集 Python 文件（参考测试用例的逻辑）
             python_files = []
             for root, dirs, files in os.walk(context.root_dir):
-                # 跳过不需要的目录
                 dirs[:] = [d for d in dirs if not d.startswith('.') and d not in [
                     '__pycache__', 'node_modules', '.git', '.venv', 'venv', 'env'
                 ]]
@@ -133,7 +119,6 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
                         filepath = os.path.join(root, file)
                         python_files.append(filepath)
             
-            # 过滤出有实际内容的文件
             substantial_files = []
             for filepath in python_files:
                 try:
@@ -147,13 +132,11 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
                 except Exception:
                     continue
             
-            # 限制文件数量
             if len(substantial_files) > 50:
                 substantial_files = substantial_files[:50]
             
-            # 生成 repo map
             result = repo_map.get_repo_map(
-                chat_files=[],  # 没有特定的聊天文件
+                chat_files=[],
                 other_files=substantial_files,
                 mentioned_fnames=set(),
                 mentioned_idents=set(['class', 'def', 'function'])
@@ -162,5 +145,4 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             return result or ""
             
         except Exception as e:
-            # 如果生成失败，返回错误信息但不中断流程
             return f"Generate repo map failed: {str(e)}"
