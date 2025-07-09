@@ -75,7 +75,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         """
 
         config = RunConfig(tracing_disabled=False)
-        # 使用默认的日志路径 ~/.siadahub/logs/agent_trace-yyyymmdd.log
+        #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
         set_trace_processors([create_detailed_logger()])
 
         input_with_env = self.assemble_user_input(user_input, context)
