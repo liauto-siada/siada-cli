@@ -63,13 +63,21 @@ class SiadaModel(Model):
         Returns:
             The full model response.
         """
+        # 先转换消息格式
+        converted_messages = Converter.items_to_messages(input)
+        if system_instructions:
+            converted_messages.insert(0, {
+                "content": system_instructions,
+                "role": "system",
+            })
+        
         with generation_span(
+                input=converted_messages if tracing.include_data() else None,  # 使用转换后的消息
                 model=str(self.model),
                 model_config=model_settings.to_json_dict()
                              | {"model_impl": "siada_llm"},
                 disabled=tracing.is_disabled(),
         ) as span_generation:
-
             response = await self._fetch_response(
                 system_instructions,
                 input,
@@ -151,7 +159,16 @@ class SiadaModel(Model):
         Returns:
             An iterator of response stream events, in OpenAI Responses format.
         """
+        # 先转换消息格式
+        converted_messages = Converter.items_to_messages(input)
+        if system_instructions:
+            converted_messages.insert(0, {
+                "content": system_instructions,
+                "role": "system",
+            })
+        
         with generation_span(
+                input=converted_messages if tracing.include_data() else None,  # 使用转换后的消息
                 model=str(self.model),
                 model_config=model_settings.to_json_dict()
                              | {"model_impl": "siadallm"},
@@ -226,18 +243,22 @@ class SiadaModel(Model):
         tracing: ModelTracing,
         stream: bool = False,
     ) -> LitellmModelResponse | tuple[Response, AsyncStream[ChatCompletionChunk]]:
-        converted_messages = Converter.items_to_messages(input)
-
-        if system_instructions:
-            converted_messages.insert(
-                0,
-                {
-                    "content": system_instructions,
-                    "role": "system",
-                },
-            )
-        if tracing.include_data():
-            span.span_data.input = converted_messages
+        # 检查是否已经在 span 中设置了转换后的消息
+        if span.span_data.input:
+            converted_messages = span.span_data.input
+        else:
+            # 如果没有，才进行转换
+            converted_messages = Converter.items_to_messages(input)
+            if system_instructions:
+                converted_messages.insert(
+                    0,
+                    {
+                        "content": system_instructions,
+                        "role": "system",
+                    },
+                )
+            if tracing.include_data():
+                span.span_data.input = converted_messages
 
         parallel_tool_calls = (
             True

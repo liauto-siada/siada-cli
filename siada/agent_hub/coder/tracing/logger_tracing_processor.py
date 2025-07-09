@@ -1,4 +1,3 @@
-
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -261,20 +260,41 @@ class LoggerTracingProcessor(TracingProcessor):
     
     def on_span_start(self, span) -> None:
         """Span 开始时的回调"""
-        # 这里可以记录 Span 开始的信息，如果需要的话
-        pass
+        span_type = span.span_data.type
+        trace_id = span.trace_id
+        
+        if span_type == "generation" and self.show_model_calls:
+            state = self.trace_states.get(trace_id)
+            
+            # 如果 state 不存在，创建一个临时的 state
+            if not state:
+                self._print(f"{self.colors['trace']}⚠️  Warning: Trace state not found for {trace_id}, creating temporary state{self.colors['reset']}")
+                state = TraceState(trace_id=trace_id)
+                self.trace_states[trace_id] = state
+            
+            # 在 span 开始时就更新计数
+            state.model_call_count += 1
+            
+            # 处理模型生成 Span 的开始
+            data = span.span_data
+            call_num = state.model_call_count
+            
+            self._print(f"\n{self.colors['model']}{self.colors['bold']}🤖 === MODEL CALL {call_num} ==={self.colors['reset']}")
+            self._print(f"{self.colors['model']}{self._format_timestamp()}Model: {data.model or 'unknown'}{self.colors['reset']}")
+            
+            # 打印增量输入消息
+            if data.input and state:
+                self._print_incremental_messages(span.trace_id, data.input)
     
     def on_span_end(self, span) -> None:
         """Span 结束时的回调"""
         span_type = span.span_data.type
         trace_id = span.trace_id
         
-        # 更新状态计数
+        # 更新状态计数（注意：generation 的计数已经在 on_span_start 中更新）
         state = self.trace_states.get(trace_id)
         if state:
-            if span_type == "generation":
-                state.model_call_count += 1
-            elif span_type == "function":
+            if span_type == "function":
                 state.tool_call_count += 1
             elif span_type == "handoff":
                 state.handoff_count += 1
@@ -287,16 +307,10 @@ class LoggerTracingProcessor(TracingProcessor):
             self._handle_handoff_span(span, state)
     
     def _handle_generation_span(self, span, state: Optional[TraceState]) -> None:
-        """处理模型生成 Span"""
+        """处理模型生成 Span 结束时的输出"""
         data = span.span_data
         
-        call_num = state.model_call_count if state else "?"
-        self._print(f"\n{self.colors['model']}{self.colors['bold']}🤖 === MODEL CALL {call_num} ==={self.colors['reset']}")
-        self._print(f"{self.colors['model']}{self._format_timestamp()}Model: {data.model or 'unknown'}{self.colors['reset']}")
-        
-        # 打印增量输入消息
-        if data.input and state:
-            self._print_incremental_messages(span.trace_id, data.input)
+        # 注意：输入已经在 on_span_start 中打印，这里只处理输出
         
         # 打印模型输出
         if data.output:
@@ -379,6 +393,19 @@ def create_simple_logger() -> LoggerTracingProcessor:
 
 def create_detailed_logger(output_file: Optional[str] = None) -> LoggerTracingProcessor:
     """创建一个详细的日志记录器"""
+    # 如果没有指定输出文件，使用默认的日志文件路径
+    if output_file is None:
+        import os
+        from datetime import datetime
+        
+        # 创建日志目录
+        log_dir = os.path.expanduser("~/.siadahub/logs")
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # 生成日志文件名
+        date_str = datetime.now().strftime("%Y%m%d")
+        output_file = os.path.join(log_dir, f"agent_trace-{date_str}.log")
+    
     return LoggerTracingProcessor(
         show_model_calls=True,
         show_tool_calls=True,

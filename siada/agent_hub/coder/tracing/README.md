@@ -49,7 +49,7 @@ logger = LoggerTracingProcessor(
     max_content_length=500,     # 内容最大长度
     show_timestamps=True,       # 显示时间戳
     use_colors=True,           # 使用彩色输出
-    output_file="trace.log"    # 保存到文件
+    output_file=None          # 使用默认路径 ~/.siadahub/logs/agent_trace-yyyymmdd.log
 )
 
 add_trace_processor(logger)

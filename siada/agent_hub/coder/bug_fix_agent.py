@@ -10,6 +10,7 @@ from siada.models.provider import SiadaProvider
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
+from siada.tools.coder.fix_attempt_completion import fix_attempt_completion
 
 
 class  BugFixAgent(CodeGenAgent):
@@ -20,8 +21,11 @@ class  BugFixAgent(CodeGenAgent):
 
         super().__init__(
             name="BugFixAgent",
-            tools=[edit, regex_search_files, run_cmd],
+            tools=[edit, regex_search_files, run_cmd,fix_attempt_completion],
             model=model,
+            tool_use_behavior={
+                "stop_at_tool_names": ["fix_attempt_completion"],
+            },
             *args,
             **kwargs
         )
