@@ -7,13 +7,16 @@ Use this tool to submit your work results to the user whenever the ISSUE has bee
 IMPORTANT NOTE: Do not invoke this tool unless the issue has been confirmed as reproduced.
 Args:
     test_case: The full path of the test case used to reproduce the issue in the task.
-    reproduce_summary: Summary of the issue reproduction process.
+    bug_analysis: Analysis of the cause of the bug, including the involved code files, methods, and other relevant components.
 """
 
 
 @function_tool(
     name_override="reproduce_completion", description_override=REPRODUCE_COMPLETION_DOCS, failure_error_function=None
 )
-async def reproduce_completion(context: RunContextWrapper[CodeAgentContext], test_case: str, reproduce_summary: str) -> str:
+async def reproduce_completion(context: RunContextWrapper[CodeAgentContext], test_case: str, bug_analysis: str) -> str:
     # 获取 session_id
-    return f"Issue reproduction completed by test case: {test_case}.\nSummary: {reproduce_summary}"
+    return (f"====\n"
+            f"This issue can be reproduced using test case : {test_case}.\n Analysis of the issue: {bug_analysis} \n"
+            f"When you start fixing the issue, you must thoroughly refer to this information."
+            f"\n====")

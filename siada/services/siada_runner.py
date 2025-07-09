@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Dict, Type, Optional
 
 import yaml
-from agents import RunResult, Agent
+from agents import RunResult, Agent, set_trace_processors
 
+from siada.agent_hub.coder.tracing import create_detailed_logger
 from siada.agent_hub.siada_agent import SiadaAgent
 
 import logging
@@ -20,6 +21,8 @@ class SiadaRunner:
         context = await agent.get_context()
         if workspace:
             context.root_dir = workspace
+
+        set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
         result = await agent.run(user_input, context)
         return result
 

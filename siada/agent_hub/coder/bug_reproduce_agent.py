@@ -3,10 +3,9 @@ import os
 from agents import RunContextWrapper
 from agents.agent import StopAtTools
 
-from siada.agent_hub.coder import CodeGenAgent
+from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import bug_reproduce_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.foundation.config import settings
 from siada.models.provider import SiadaProvider
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files

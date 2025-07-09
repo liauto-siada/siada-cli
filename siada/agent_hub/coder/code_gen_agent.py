@@ -4,10 +4,8 @@ Bug修复Agent模块
 提供专门用于代码bug修复的Agent实现
 """
 import os
-from typing import Any
 
-from agents import RunContextWrapper, RunResult, Runner, RunConfig, add_trace_processor, TContext
-from agents import set_trace_processors
+from agents import RunContextWrapper, RunResult, Runner, RunConfig
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.coder.file_operator import edit
@@ -15,8 +13,7 @@ from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.foundation.config import settings
 from siada.models.provider import SiadaProvider
-from siada.agent_hub.coder.prompt import bug_fix_prompt, code_gen_prompt
-from siada.agent_hub.coder.tracing import create_detailed_logger
+from siada.agent_hub.coder.prompt import code_gen_prompt
 import logging
 
 logging.getLogger().setLevel(logging.INFO)
@@ -75,9 +72,6 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         """
 
         config = RunConfig(tracing_disabled=False)
-        # add_trace_processor(create_detailed_logger(output_file="agent_trace.log"))
-        set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
-
         input_with_env = self.assemble_user_input(user_input, context)
         result = await Runner.run(
             starting_agent=self,
