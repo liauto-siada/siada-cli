@@ -11,7 +11,6 @@ from siada.tools.coder.observation.file_observation import FileReadObservation
 async def fix_attempt_completion(
     context: RunContextWrapper[CodeAgentContext],
     result: str,
-    command: str = ""
 ) -> Observation:
     """
     Complete the bug fix task and mark it as finished.
@@ -24,16 +23,13 @@ async def fix_attempt_completion(
                 - What bug was fixed
                 - What changes were made
                 - What files were modified
-                - Any testing or verification performed
-        command: Optional verification command to demonstrate the fix (e.g., test command, run command)
-        
+                - Any testing or verification performed        
     Returns:
         Observation: A completion observation with the fix summary
         
     Example:
         fix_attempt_completion(
             result="Successfully fixed the login authentication bug. Modified auth.py to properly validate user credentials and updated the password hashing algorithm. All tests are now passing.",
-            command="python -m pytest tests/test_auth.py"
         )
     """
     
@@ -42,12 +38,6 @@ async def fix_attempt_completion(
 === Bug Fix Completed ===
 
 {result}
-
-"""
-    
-    if command:
-        completion_message += f"""
-Verification Command: {command}
 
 """
     
