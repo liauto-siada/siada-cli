@@ -1,4 +1,5 @@
 import time
+import asyncio
 from typing import Any, AsyncIterator, Literal, cast, overload
 
 import litellm
@@ -20,6 +21,7 @@ from siada.models.llm_connection import SiadaClient
 from litellm.types.utils import ModelResponse as LitellmModelResponse
 
 from siada.stream.siada_provider_stream_handler import StreamHandler
+from siada.foundation.logging import logger
 
 
 class SiadaModel(Model):
@@ -300,12 +302,25 @@ class SiadaModel(Model):
             "extra_query": model_settings.extra_query,
             "extra_body": model_settings.extra_body,
         }
-
+        
         if stream:
             ret = await self._client.chat_complete_stream(**complete_kwargs)
         else:
-            ret = await self._client.chat_complete(**complete_kwargs)
-
+            max_retries = 3
+            retry_delay = 30
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    ret = await self._client.chat_complete(**complete_kwargs)
+                    break
+                except Exception as e:
+                    if attempt < max_retries:
+                        logger.warning(f"chat_complete failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
+                        logger.info(f"Waiting {retry_delay} seconds before retry...")
+                        await asyncio.sleep(retry_delay)
+                    else:
+                        logger.error(f"chat_complete failed after maximum retries: {str(e)}")
+                        raise
         if isinstance(ret, LitellmModelResponse):
             return ret
 

@@ -140,7 +140,6 @@ async def example_custom_configuration():
         show_tool_calls=True,
         show_handoffs=True,
         show_trace_lifecycle=True,
-        max_content_length=200,  # 较短的内容长度
         show_timestamps=True,
         use_colors=True,
         output_file=None
@@ -199,7 +198,6 @@ if __name__ == "__main__":
    - show_model_calls: 控制是否显示模型调用
    - show_tool_calls: 控制是否显示工具调用  
    - show_handoffs: 控制是否显示 Agent 切换
-   - max_content_length: 控制内容显示长度
    - use_colors: 控制是否使用彩色输出
    - output_file: 指定日志文件路径
 """

@@ -45,7 +45,6 @@ class LoggerTracingProcessor(TracingProcessor):
         show_tool_calls: bool = True,
         show_handoffs: bool = True,
         show_trace_lifecycle: bool = True,
-        max_content_length: int = 500,
         show_timestamps: bool = True,
         use_colors: bool = True,
         output_file: Optional[str] = None,
@@ -59,7 +58,6 @@ class LoggerTracingProcessor(TracingProcessor):
             show_tool_calls: Whether to show tool calls
             show_handoffs: Whether to show Agent handoffs
             show_trace_lifecycle: Whether to show Trace lifecycle
-            max_content_length: Maximum content display length
             show_timestamps: Whether to show timestamps
             use_colors: Whether to use colored output
             output_file: Optional output file path
@@ -69,7 +67,6 @@ class LoggerTracingProcessor(TracingProcessor):
         self.show_tool_calls = show_tool_calls
         self.show_handoffs = show_handoffs
         self.show_trace_lifecycle = show_trace_lifecycle
-        self.max_content_length = max_content_length
         self.show_timestamps = show_timestamps
         self.use_colors = use_colors
         self.output_file = output_file
@@ -108,26 +105,27 @@ class LoggerTracingProcessor(TracingProcessor):
             except Exception as e:
                 print(f"Warning: Failed to write to file {self.output_file}: {e}")
     
-    def _format_timestamp(self) -> str:
-        """Format timestamp"""
-        if not self.show_timestamps:
-            return ""
-        return f"🕐 {datetime.now().strftime('%H:%M:%S')} "
-    
     def _truncate_content(self, content: str) -> str:
         """Truncate overly long content"""
         if len(content) <= self.max_content_length:
             return content
         return content[:self.max_content_length] + "..."
     
+    def _format_timestamp(self) -> str:
+        """Format timestamp"""
+        if not self.show_timestamps:
+            return ""
+        return f"🕐 {datetime.now().strftime('%H:%M:%S')} "
+    
+    
     def _format_json(self, data: Any) -> str:
         """Format JSON data"""
         try:
             if isinstance(data, str):
-                return self._truncate_content(data)
-            return self._truncate_content(json.dumps(data, ensure_ascii=False, indent=2))
+                return data
+            return json.dumps(data, ensure_ascii=False, indent=2)
         except Exception:
-            return self._truncate_content(str(data))
+            return data
     
     def _print_incremental_messages(self, trace_id: str, messages: List[Dict[str, Any]]) -> None:
         """Print message list incrementally"""
@@ -156,14 +154,15 @@ class LoggerTracingProcessor(TracingProcessor):
                 for item in content:
                     if isinstance(item, dict):
                         if item.get('type') == 'text':
-                            content_summary.append(f"text: {self._truncate_content(item.get('text', ''))}")
+                            content_summary.append(f"text: {item.get('text', '')}")
+
                         elif item.get('type') == 'image_url':
                             content_summary.append("image: [image data]")
                         else:
                             content_summary.append(f"{item.get('type', 'unknown')}: [data]")
                 content_str = " | ".join(content_summary)
             else:
-                content_str = self._truncate_content(str(content))
+                content_str = content
             
             self._print(f"  [{role}]: {content_str}")
         
@@ -180,7 +179,7 @@ class LoggerTracingProcessor(TracingProcessor):
                 if 'role' in item:
                     role = item.get('role', 'assistant')
                     content = item.get('content', '')
-                    self._print(f"  [{role}]: {self._truncate_content(str(content))}")
+                    self._print(f"  [{role}]: {content}")
                     continue
                 
                 # Check if there's a type field
@@ -189,7 +188,7 @@ class LoggerTracingProcessor(TracingProcessor):
                     # Message output
                     role = item.get('role', 'assistant')
                     content = item.get('content', '')
-                    self._print(f"  [{role}]: {self._truncate_content(str(content))}")
+                    self._print(f"  [{role}]: {content}")
                 
                 elif item_type == 'function_call':
                     # Tool call
@@ -207,7 +206,7 @@ class LoggerTracingProcessor(TracingProcessor):
                         # Looks like a message
                         role = item.get('role', 'assistant')
                         content = item.get('content', '')
-                        self._print(f"  [{role}]: {self._truncate_content(str(content))}")
+                        self._print(f"  [{role}]: {content}")
                     elif 'name' in item and 'arguments' in item:
                         # Looks like a function call
                         name = item.get('name', 'unknown')
@@ -262,17 +261,16 @@ class LoggerTracingProcessor(TracingProcessor):
         """Callback when Span starts"""
         span_type = span.span_data.type
         trace_id = span.trace_id
+        state = self.trace_states.get(trace_id)
         
         if span_type == "generation" and self.show_model_calls:
-            state = self.trace_states.get(trace_id)
-            
-            
             # Update count when span starts
-            state.model_call_count += 1
+            if state:
+                state.model_call_count += 1
             
             # Handle the start of model generation Span
             data = span.span_data
-            call_num = state.model_call_count
+            call_num = state.model_call_count if state else "?"
             
             self._print(f"\n{self.colors['model']}{self.colors['bold']}🤖 === MODEL CALL {call_num} ==={self.colors['reset']}")
             self._print(f"{self.colors['model']}{self._format_timestamp()}Model: {data.model or 'unknown'}{self.colors['reset']}")
@@ -280,19 +278,46 @@ class LoggerTracingProcessor(TracingProcessor):
             # Print incremental input messages
             if data.input and state:
                 self._print_incremental_messages(span.trace_id, data.input)
+        
+        elif span_type == "function" and self.show_tool_calls:
+            # Update count when span starts
+            if state:
+                state.tool_call_count += 1
+            
+            # Handle the start of function call Span
+            data = span.span_data
+            call_num = state.tool_call_count if state else "?"
+            
+            self._print(f"\n{self.colors['tool']}{self.colors['bold']}🔧 === TOOL CALL {call_num} ==={self.colors['reset']}")
+            self._print(f"{self.colors['tool']}{self._format_timestamp()}Function: {data.name}{self.colors['reset']}")
+            
+            # Print input
+            if data.input:
+                self._print(f"{self.colors['input']}📥 Input: {self._format_json(data.input)}{self.colors['reset']}")
+        
+        elif span_type == "handoff" and self.show_handoffs:
+            # Update count when span starts
+            if state:
+                state.handoff_count += 1
+            
+            # Handle the start of handoff Span
+            data = span.span_data
+            handoff_num = state.handoff_count if state else "?"
+            
+            self._print(f"\n{self.colors['handoff']}{self.colors['bold']}🔄 === HANDOFF {handoff_num} ==={self.colors['reset']}")
+            self._print(f"{self.colors['handoff']}{self._format_timestamp()}{self.colors['reset']}")
+            
+            if data.from_agent:
+                self._print(f"{self.colors['handoff']}📤 From Agent: {data.from_agent}{self.colors['reset']}")
+            
+            if data.to_agent:
+                self._print(f"{self.colors['handoff']}📥 To Agent: {data.to_agent}{self.colors['reset']}")
     
     def on_span_end(self, span) -> None:
         """Callback when Span ends"""
         span_type = span.span_data.type
         trace_id = span.trace_id
-        
-        # Update state counts (note: generation count is already updated in on_span_start)
         state = self.trace_states.get(trace_id)
-        if state:
-            if span_type == "function":
-                state.tool_call_count += 1
-            elif span_type == "handoff":
-                state.handoff_count += 1
         
         if span_type == "generation" and self.show_model_calls:
             self._handle_generation_span(span, state)
@@ -304,9 +329,7 @@ class LoggerTracingProcessor(TracingProcessor):
     def _handle_generation_span(self, span, state: Optional[TraceState]) -> None:
         """Handle output when model generation Span ends"""
         data = span.span_data
-        
-        # Note: Input has already been printed in on_span_start, only handle output here
-        
+                
         # Print model output
         if data.output:
             self._format_model_output(data.output)
@@ -319,20 +342,11 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"{self.colors['model']}==================={self.colors['reset']}")
     
     def _handle_function_span(self, span, state: Optional[TraceState]) -> None:
-        """Handle function call Span"""
+        """Handle function call Span end"""
         data = span.span_data
         
         call_num = state.tool_call_count if state else "?"
-        self._print(f"\n{self.colors['tool']}{self.colors['bold']}🔧 === TOOL CALL {call_num} ==={self.colors['reset']}")
-        self._print(f"{self.colors['tool']}{self._format_timestamp()}Function: {data.name}{self.colors['reset']}")
-        
-        # Print input
-        if data.input:
-            self._print(f"{self.colors['input']}📥 Input: {self._format_json(data.input)}{self.colors['reset']}")
-        
-        # Print output
-        if data.output is not None:
-            self._print(f"{self.colors['output']}📤 Output: {self._format_json(data.output)}{self.colors['reset']}")
+        self._print(f"{self.colors['output']}📤 Output: {data.name}{self.colors['reset']}")
         
         # Print MCP data (if any)
         if data.mcp_data:
@@ -341,23 +355,15 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"{self.colors['tool']}==============={self.colors['reset']}")
     
     def _handle_handoff_span(self, span, state: Optional[TraceState]) -> None:
-        """Handle Handoff Span"""
+        """Handle Handoff Span end"""
         data = span.span_data
         
         handoff_num = state.handoff_count if state else "?"
-        self._print(f"\n{self.colors['handoff']}{self.colors['bold']}🔄 === HANDOFF {handoff_num} ==={self.colors['reset']}")
-        self._print(f"{self.colors['handoff']}{self._format_timestamp()}{self.colors['reset']}")
-        
-        if data.from_agent:
-            self._print(f"{self.colors['handoff']}📤 From Agent: {data.from_agent}{self.colors['reset']}")
-        
-        if data.to_agent:
-            self._print(f"{self.colors['handoff']}📥 To Agent: {data.to_agent}{self.colors['reset']}")
-            
-            # Update Agent history
-            if state:
-                if data.to_agent not in state.agent_history:
-                    state.agent_history.append(data.to_agent)
+                
+        # Update Agent history
+        if state and data.to_agent:
+            if data.to_agent not in state.agent_history:
+                state.agent_history.append(data.to_agent)
         
         self._print(f"{self.colors['handoff']}=================={self.colors['reset']}")
     
@@ -381,7 +387,6 @@ def create_simple_logger() -> LoggerTracingProcessor:
         show_tool_calls=True,
         show_handoffs=True,
         show_trace_lifecycle=True,
-        max_content_length=300,
         use_colors=True
     )
 
@@ -406,7 +411,6 @@ def create_detailed_logger(output_file: Optional[str] = None) -> LoggerTracingPr
         show_tool_calls=True,
         show_handoffs=True,
         show_trace_lifecycle=True,
-        max_content_length=1000,
         show_timestamps=True,
         use_colors=True,
         output_file=output_file
@@ -420,6 +424,5 @@ def create_minimal_logger() -> LoggerTracingProcessor:
         show_tool_calls=False,
         show_handoffs=True,
         show_trace_lifecycle=False,
-        max_content_length=200,
         use_colors=False
     )

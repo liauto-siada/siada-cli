@@ -12,6 +12,10 @@ from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.tools.coder.fix_attempt_completion import fix_attempt_completion
+from agents import set_trace_processors
+from siada.agent_hub.coder.tracing import create_detailed_logger
+
+
 
 
 class  BugFixAgent(CodeGenAgent):
@@ -54,6 +58,7 @@ class  BugFixAgent(CodeGenAgent):
             Fix result, including final output, execution rounds, and other information
         """
         config = RunConfig(tracing_disabled=False)
+        set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
         reproduce_agent = BugReproduceAgent()
