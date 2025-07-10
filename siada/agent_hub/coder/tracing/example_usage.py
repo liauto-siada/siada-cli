@@ -94,7 +94,8 @@ async def example_detailed_logging():
     print("\n\n=== 详细日志记录示例 ===\n")
     
     # 注册详细的日志处理器，同时输出到文件
-    add_trace_processor(create_detailed_logger(output_file="agent_trace.log"))
+    add_trace_processor(create_detailed_logger())
+
     
     # 运行 Agent
     result = await Runner.run(
@@ -103,7 +104,8 @@ async def example_detailed_logging():
     )
     
     print(f"\n最终结果: {result.final_output}")
-    print("详细日志已保存到 agent_trace.log 文件")
+    print("详细日志已保存到 ~/.siadahub/logs/agent_trace-yyyymmdd.log 文件")
+
 
 
 async def example_single_agent():

@@ -15,6 +15,10 @@ from siada.foundation.config import settings
 from siada.models.provider import SiadaProvider
 from siada.agent_hub.coder.prompt import code_gen_prompt
 import logging
+from siada.agent_hub.coder.tracing import create_detailed_logger
+from agents import set_trace_processors
+
+
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -66,6 +70,9 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             Generation result containing final output and execution details
         """
         config = RunConfig(tracing_disabled=False)
+        #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
+        set_trace_processors([create_detailed_logger()])
+
         input_with_env = self.assemble_user_input(user_input, context)
         result = await Runner.run(
             starting_agent=self,
