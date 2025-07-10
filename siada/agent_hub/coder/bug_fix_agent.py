@@ -61,23 +61,21 @@ class  BugFixAgent(CodeGenAgent):
         set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
-        reproduce_agent = BugReproduceAgent()
-        reproduce_result = await Runner.run(
-            starting_agent=reproduce_agent,
-            input=input_with_env,
-            max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context
-        )
-
-        reproduce_message = {"content": reproduce_result.final_output, "role": "user"}
-        user_message = {"content": input_with_env, "role": "user"}
-
-        input_list = [user_message, reproduce_message]
+        # reproduce_agent = BugReproduceAgent()
+        # reproduce_result = await Runner.run(
+        #     starting_agent=reproduce_agent,
+        #     input=input_with_env,
+        #     max_turns=settings.MAX_TURNS,
+        #     run_config=config,
+        #     context=context
+        # )
+        # reproduce_message = {"content": reproduce_result.final_output, "role": "user"}
+        # user_message = {"content": input_with_env, "role": "user"}
+        #input_list = [user_message, reproduce_message]
 
         result = await Runner.run(
             starting_agent=self,
-            input=input_list,
+            input=input_with_env,
             max_turns=settings.MAX_TURNS,
             run_config=config,
             context=context
