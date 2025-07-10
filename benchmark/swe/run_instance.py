@@ -44,6 +44,18 @@ def process_instance_test(instance: pd.Series) -> EvalOutput:
         logger.error(f"Error occurred: {e}")
         raise e
 
+def process_instance_reproduce(instance: pd.Series) -> EvalOutput:
+    instruction, absolute_workspace = get_instruction(instance)
+    # Here's how you can run the agent (similar to the `main` function) and get the final task state
+    asyncio.run(run_agent("bugreproduce", instruction, absolute_workspace))
+
+    output = EvalOutput(
+        instance_id=instance.instance_id,
+        instance=instance.to_dict(),  # SWE Bench specific
+        test_result={},
+    )
+    return output
+
 
 def get_instruction(instance: pd.Series):
     absolute_workspace, parent_path, work_space = _get_swebench_workspace_dir_name(instance)

@@ -20,12 +20,13 @@ def get_system_prompt(cwd: str = "/default/path") -> str:
     home_dir = os.path.expanduser("~")
 
     # Bug修复Agent的特定介绍
-    intro = "You are Siada, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices."
+    intro = "You are Siada, a bug fix agent with extensive knowledge in many programming languages, frameworks, design patterns, and best practices."
     
     # Bug修复Agent的特定目标
     objective = """OBJECTIVE
 
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
+Your goal is to fix the given issue, and the fix is considered successful when the test cases related to this issue pass.
 
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order.
 2. Work through these goals sequentially, utilizing available tools one at a time as necessary. Each goal should correspond to a distinct step in your problem-solving process. 

@@ -1,7 +1,8 @@
 import os
 
-from agents import RunContextWrapper
+from agents import RunContextWrapper, RunConfig, RunResult, Runner
 
+from siada.agent_hub.coder.bug_reproduce_agent import BugReproduceAgent
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import bug_fix_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
@@ -40,3 +41,41 @@ class  BugFixAgent(CodeGenAgent):
         current_working_dir = os.getcwd()
         context = CodeAgentContext(root_dir=current_working_dir)
         return context
+
+    async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
+        """
+        Execute bug fixing task.
+        Use reproduce_agent to reproduce the issue, then use current Agent to fix it.
+
+        Args:
+            user_input: User-described bug problem, including error messages, related file paths, etc.
+            context: Context object for providing contextual information
+        Returns:
+            Fix result, including final output, execution rounds, and other information
+        """
+        config = RunConfig(tracing_disabled=False)
+        input_with_env = self.assemble_user_input(user_input, context)
+
+        reproduce_agent = BugReproduceAgent()
+        reproduce_result = await Runner.run(
+            starting_agent=reproduce_agent,
+            input=input_with_env,
+            max_turns=settings.MAX_TURNS,
+            run_config=config,
+            context=context
+        )
+
+        reproduce_message = {"content": reproduce_result.final_output, "role": "user"}
+        user_message = {"content": input_with_env, "role": "user"}
+
+        input_list = [user_message, reproduce_message]
+
+        result = await Runner.run(
+            starting_agent=self,
+            input=input_list,
+            max_turns=settings.MAX_TURNS,
+            run_config=config,
+            context=context
+        )
+
+        return result

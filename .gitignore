@@ -5,7 +5,6 @@ logs/
 **/*.log
 *.pyc
 dist/
-.DS_Store
 
 # 忽略所有 .siada 目录及其内容
 **/.siada*

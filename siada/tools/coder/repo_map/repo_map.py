@@ -56,18 +56,18 @@ class RepoMap:
         refresh="auto",
     ):
         """
-        初始化 RepoMap 实例
+        Initialize RepoMap instance
         
         Args:
-            map_tokens (int): 仓库地图的最大token数量，默认1024
-            root (str): 仓库根目录路径，如果为None则使用当前工作目录
-            main_model: 主要的语言模型实例，用于token计算
-            io: 输入输出处理器，用于文件读取和日志输出
-            repo_content_prefix (str): 仓库内容的前缀模板
-            verbose (bool): 是否启用详细输出模式
-            max_context_window (int): 最大上下文窗口大小
-            map_mul_no_files (int): 当没有聊天文件时的地图token倍数，默认8
-            refresh (str): 缓存刷新策略，可选值: "auto", "always", "files", "manual"
+            map_tokens (int): Maximum token count for repository map, default 1024
+            root (str): Repository root directory path, uses current working directory if None
+            main_model: Main language model instance for token calculation
+            io: Input/output processor for file reading and logging
+            repo_content_prefix (str): Prefix template for repository content
+            verbose (bool): Whether to enable verbose output mode
+            max_context_window (int): Maximum context window size
+            map_mul_no_files (int): Map token multiplier when no chat files, default 8
+            refresh (str): Cache refresh strategy, options: "auto", "always", "files", "manual"
         """
         self.io = io
         self.verbose = verbose
@@ -122,27 +122,28 @@ class RepoMap:
         force_refresh=False,
     ):
         """
-        生成仓库地图，包含文件结构和重要的代码定义
+        Generate repository map containing file structure and important code definitions
         
-        该方法通过分析代码文件中的定义和引用关系，生成一个包含重要代码结构的仓库地图。
-        地图会根据PageRank算法对文件和标识符进行排序，优先显示最相关的内容。
+        This method analyzes definitions and references in code files to generate a repository map
+        containing important code structures. The map uses PageRank algorithm to rank files and
+        identifiers, prioritizing the most relevant content.
         
-        需要在每个代码任务之前调用此方法，以确保生成最新的仓库地图。
+        This method should be called before each coding task to ensure the latest repository map.
         Args:
-            chat_files (list): 当前聊天中涉及的文件列表，这些文件会被赋予更高的权重
-            other_files (list): 其他需要分析的文件列表
-            mentioned_fnames (set, optional): 在对话中提到的文件名集合
-            mentioned_idents (set, optional): 在对话中提到的标识符集合
-            force_refresh (bool): 是否强制刷新缓存，默认False
+            chat_files (list): List of files involved in current chat, these files get higher weight
+            other_files (list): List of other files to analyze
+            mentioned_fnames (set, optional): Set of filenames mentioned in conversation
+            mentioned_idents (set, optional): Set of identifiers mentioned in conversation
+            force_refresh (bool): Whether to force refresh cache, default False
             
         Returns:
-            str: 格式化的仓库地图字符串，包含文件路径和重要的代码定义，
-                 如果无法生成地图则返回None
+            str: Formatted repository map string containing file paths and important code definitions,
+                 returns None if map cannot be generated
                  
         Note:
-            - 当没有聊天文件时，会扩大地图的token限制以提供更全面的仓库视图
-            - 使用缓存机制提高性能，避免重复计算
-            - 如果仓库过大导致递归错误，会自动禁用仓库地图功能
+            - When no chat files exist, expands map token limit to provide comprehensive repo view
+            - Uses caching mechanism to improve performance and avoid redundant computation
+            - Automatically disables repo map functionality if repo is too large causing recursion errors
         """
         if self.max_map_tokens <= 0:
             return
