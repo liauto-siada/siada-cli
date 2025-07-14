@@ -105,11 +105,11 @@ class LoggerTracingProcessor(TracingProcessor):
             except Exception as e:
                 print(f"Warning: Failed to write to file {self.output_file}: {e}")
     
-    def _truncate_content(self, content: str) -> str:
+    def _truncate_content(self, content: str, max_length: int = 500) -> str:
         """Truncate overly long content"""
-        if len(content) <= self.max_content_length:
+        if len(content) <= max_length:
             return content
-        return content[:self.max_content_length] + "..."
+        return content[:max_length] + "..."
     
     def _format_timestamp(self) -> str:
         """Format timestamp"""
@@ -258,7 +258,7 @@ class LoggerTracingProcessor(TracingProcessor):
             del self.trace_states[trace.trace_id]
     
     def on_span_start(self, span) -> None:
-        """Callback when Span starts"""
+        """Span 开始时的回调"""
         span_type = span.span_data.type
         trace_id = span.trace_id
         state = self.trace_states.get(trace_id)
@@ -278,46 +278,22 @@ class LoggerTracingProcessor(TracingProcessor):
             # Print incremental input messages
             if data.input and state:
                 self._print_incremental_messages(span.trace_id, data.input)
-        
-        elif span_type == "function" and self.show_tool_calls:
-            # Update count when span starts
-            if state:
-                state.tool_call_count += 1
-            
-            # Handle the start of function call Span
-            data = span.span_data
-            call_num = state.tool_call_count if state else "?"
-            
-            self._print(f"\n{self.colors['tool']}{self.colors['bold']}🔧 === TOOL CALL {call_num} ==={self.colors['reset']}")
-            self._print(f"{self.colors['tool']}{self._format_timestamp()}Function: {data.name}{self.colors['reset']}")
-            
-            # Print input
-            if data.input:
-                self._print(f"{self.colors['input']}📥 Input: {self._format_json(data.input)}{self.colors['reset']}")
-        
-        elif span_type == "handoff" and self.show_handoffs:
-            # Update count when span starts
-            if state:
-                state.handoff_count += 1
-            
-            # Handle the start of handoff Span
-            data = span.span_data
-            handoff_num = state.handoff_count if state else "?"
-            
-            self._print(f"\n{self.colors['handoff']}{self.colors['bold']}🔄 === HANDOFF {handoff_num} ==={self.colors['reset']}")
-            self._print(f"{self.colors['handoff']}{self._format_timestamp()}{self.colors['reset']}")
-            
-            if data.from_agent:
-                self._print(f"{self.colors['handoff']}📤 From Agent: {data.from_agent}{self.colors['reset']}")
-            
-            if data.to_agent:
-                self._print(f"{self.colors['handoff']}📥 To Agent: {data.to_agent}{self.colors['reset']}")
     
     def on_span_end(self, span) -> None:
-        """Callback when Span ends"""
+        """Span 结束时的回调"""
         span_type = span.span_data.type
         trace_id = span.trace_id
+        
+        # 更新状态计数
         state = self.trace_states.get(trace_id)
+        if state:
+            if span_type == "generation":
+                # generation 的计数已在 on_span_start 中更新
+                pass
+            elif span_type == "function":
+                state.tool_call_count += 1
+            elif span_type == "handoff":
+                state.handoff_count += 1
         
         if span_type == "generation" and self.show_model_calls:
             self._handle_generation_span(span, state)
@@ -342,13 +318,22 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"{self.colors['model']}==================={self.colors['reset']}")
     
     def _handle_function_span(self, span, state: Optional[TraceState]) -> None:
-        """Handle function call Span end"""
+        """处理函数调用 Span"""
         data = span.span_data
         
         call_num = state.tool_call_count if state else "?"
-        self._print(f"{self.colors['output']}📤 Output: {data.name}{self.colors['reset']}")
+        self._print(f"\n{self.colors['tool']}{self.colors['bold']}🔧 === TOOL CALL {call_num} ==={self.colors['reset']}")
+        self._print(f"{self.colors['tool']}{self._format_timestamp()}Function: {data.name}{self.colors['reset']}")
         
-        # Print MCP data (if any)
+        # 打印输入
+        if data.input:
+            self._print(f"{self.colors['input']}📥 Input: {self._format_json(data.input)}{self.colors['reset']}")
+        
+        # 打印输出
+        if data.output is not None:
+            self._print(f"{self.colors['output']}📤 Output: {self._format_json(data.output)}{self.colors['reset']}")
+        
+        # 打印 MCP 数据（如果有）
         if data.mcp_data:
             self._print(f"{self.colors['tool']}🔗 MCP Data: {self._format_json(data.mcp_data)}{self.colors['reset']}")
         
