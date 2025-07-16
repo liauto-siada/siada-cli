@@ -7,7 +7,7 @@ import unittest
 
 from agents import RunConfig
 
-from siada.models.provider import SiadaProvider
+from siada.provider.li.li_provider import SiadaProvider
 from siada.services.agent_service import AgentService
 from siada.agent_hub import agent_map
 from siada.agent_hub.coder.coder_agent import init_coder_agent

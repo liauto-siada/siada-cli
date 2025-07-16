@@ -1,13 +1,13 @@
 import os
 
-from agents import RunContextWrapper, RunConfig, RunResult, Runner
+from agents import RunContextWrapper, RunConfig, RunResult, RunResultStreaming, Runner, add_trace_processor
 
 from siada.agent_hub.coder.bug_reproduce_agent import BugReproduceAgent
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import bug_fix_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.config import settings
-from siada.models.provider import SiadaProvider
+from siada.provider.li.li_provider import SiadaProvider
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
@@ -84,3 +84,15 @@ class  BugFixAgent(CodeGenAgent):
         )
 
         return result
+
+    def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
+        """
+        执行Bug修复任务
+
+        Args:
+            user_input: 用户描述的Bug问题，包括错误信息、相关文件路径等
+            context: 用于提供上下文信息的上下文对象
+        Returns:
+            修复结果，包含最终输出、执行轮数等信息
+        """
+        pass
