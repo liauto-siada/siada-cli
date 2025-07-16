@@ -18,7 +18,6 @@ from siada.agent_hub.coder.tracing import create_detailed_logger
 class BugReproduceAgent(CodeGenAgent):
 
     def __init__(self, *args, **kwargs):
-        provider = SiadaProvider()
 
         super().__init__(
             name="BugReproduceAgent",
