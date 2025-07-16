@@ -6,7 +6,7 @@ Bug修复Agent模块
 import os
 from dataclasses import dataclass
 
-from agents import RunContextWrapper, RunResult, Runner, RunConfig, add_trace_processor, TContext, AgentOutputSchema
+from agents import RunContextWrapper, RunResult, RunResultStreaming, Runner, RunConfig, add_trace_processor, TContext, AgentOutputSchema
 
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
@@ -14,7 +14,7 @@ from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.foundation.config import settings
-from siada.models.provider import SiadaProvider
+from siada.provider.li.li_provider import SiadaProvider
 from siada.agent_hub.coder.prompt import bug_fix_prompt, code_gen_prompt
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import logging
@@ -39,7 +39,7 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
     def __init__(self, *args, **kwargs):
         # 使用SiadaProvider提供的默认模型
         provider = SiadaProvider()
-        model = provider.get_model("deepseek-v3-0324")
+        model = provider.get_model("claude-sonnet-4")
 
         # 如果没有传递name参数，则使用默认值
         if 'name' not in kwargs:
@@ -82,9 +82,34 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
         """
 
         config = RunConfig(tracing_disabled=False)
-        add_trace_processor(create_detailed_logger())
+       # add_trace_processor(create_detailed_logger())
 
         result = await Runner.run(
+            starting_agent=self,
+            input=user_input,
+            max_turns=settings.MAX_TURNS,
+            run_config=config,
+            context=context
+        )
+
+        return result
+    
+
+    async def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
+        """
+        执行Bug修复任务
+
+        Args:
+            user_input: 用户描述的Bug问题，包括错误信息、相关文件路径等
+            context: 用于提供上下文信息的上下文对象
+        Returns:
+            修复结果，包含最终输出、执行轮数等信息
+        """
+
+        config = RunConfig(tracing_disabled=False)
+        add_trace_processor(create_detailed_logger())
+
+        result = Runner.run_streamed(
             starting_agent=self,
             input=user_input,
             max_turns=settings.MAX_TURNS,

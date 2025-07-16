@@ -3,7 +3,7 @@ from typing import Generic
 import yaml
 import os
 
-from agents import Agent, RunResult, TContext
+from agents import Agent, RunResult, RunResultStreaming, TContext
 from siada.tools.coder.repo_map.repo_map import RepoMap
 from siada.tools.coder.repo_map.token_counter import TokenCounterModel
 from siada.tools.coder.repo_map.io import SilentIO
@@ -33,6 +33,21 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             
         Returns:
             RunResult: The result of the agent's execution.
+        """
+        pass
+
+
+    @abstractmethod
+    def run_streamed(self, user_input: str, context: TContext) -> RunResultStreaming:
+        """
+        Execute Streamed the agent with the given user input and context
+                
+        Args:
+            user_input (str): The input provided by the user.
+            context (TContext): The context object containing relevant information for execution.
+            
+        Returns:
+            RunResultStreaming: The stream result of the agent's execution.
         """
         pass
     

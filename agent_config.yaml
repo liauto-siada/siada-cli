@@ -10,7 +10,7 @@ agents:
   
   # Code Development Agent (not implemented yet)
   coder:
-    class: siada.agent_hub.coder.code_gen_agent.GodeGenAgen
+    class: "siada.agent_hub.coder.code_gen_agent.CodeGenAgent"
     description: "General-purpose code development agent"
     enabled: true
   
@@ -27,7 +27,7 @@ agents:
 
 # LLM Configuration
 llm_config:
-  model_name: "claude-sonnet-4"
+  model_name: "claude-3-7-sonnet"
   repo_map_tokens: 8192                     # repo map max token
   repo_map_mul_no_files: 16                 # Multiple without chat files
   repo_verbose: true                        # Enable detailed output or not

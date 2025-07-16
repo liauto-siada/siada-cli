@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # Agent配置
     DEFAULT_MODEL: str = "claude-3-7-sonnet"
     Claude_4_0_SONNET: str = "claude-sonnet-4"
+    Gemini_2_5_PRO: str = "Gemini-2.5-pro"
+    Deepseek_V3_0324: str = "deepseek-v3-0324"
+    Deepseek_R1_0528: str = "deepseek-r1-0528"
     O1_MINI: str = "o1-mini"
     MAX_TURNS: int = 100
 
@@ -57,7 +60,7 @@ class Settings(BaseSettings):
         """
         if self._DEFAULT_RUN_CONFIG is None:
             # 在这里导入SiadaProvider，避免循环导入
-            from siada.models.provider import SiadaProvider
+            from siada.provider.li.li_provider import SiadaProvider
             self.__class__._DEFAULT_RUN_CONFIG = agents.RunConfig(model=self.DEFAULT_MODEL,
                                                                   tracing_disabled=True,
                                                                   model_provider=SiadaProvider())

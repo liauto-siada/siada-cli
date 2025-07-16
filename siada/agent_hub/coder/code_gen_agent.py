@@ -5,14 +5,14 @@ Provides specialized Agent implementation for code generation tasks.
 """
 import os
 
-from agents import RunContextWrapper, RunResult, Runner, RunConfig
+from agents import RunContextWrapper, RunResult, RunResultStreaming, Runner, RunConfig, add_trace_processor
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.foundation.config import settings
-from siada.models.provider import SiadaProvider
+from siada.provider.li.li_provider import SiadaProvider
 from siada.agent_hub.coder.prompt import code_gen_prompt
 import logging
 from siada.agent_hub.coder.tracing import create_detailed_logger
@@ -82,6 +82,31 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             context=context
         )
         
+        return result
+
+    def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
+        """
+        执行代码生成任务
+
+        Args:
+            user_input: 用户的代码生成请求，包含需求和规格说明
+            context: 用于提供上下文信息的上下文对象
+        Returns:
+            生成结果，包含最终输出、执行轮数等信息
+        """
+        config = RunConfig(tracing_disabled=False)
+        #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
+        set_trace_processors([create_detailed_logger()])
+
+        input_with_env = self.assemble_user_input(user_input, context)
+        result = Runner.run_streamed(
+            starting_agent=self,
+            input=input_with_env,
+            max_turns=settings.MAX_TURNS,
+            run_config=config,
+            context=context
+        )
+
         return result
 
 

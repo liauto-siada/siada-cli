@@ -1,3 +1,4 @@
+from siada.provider.li.domian.li_chat_complete_chunk import LiChatCompletionChunk
 import time
 import asyncio
 from typing import Any, AsyncIterator, Literal, cast, overload
@@ -11,20 +12,20 @@ from agents.extensions.models.litellm_model import LitellmConverter
 from agents.items import TResponseStreamEvent
 from agents.tracing.create import generation_span
 from openai.types.responses import Response
-from openai import NOT_GIVEN, AsyncStream
-from openai.types.chat import ChatCompletionChunk
+from openai import NOT_GIVEN
 from agents.models.chatcmpl_converter import Converter
 from agents.models.fake_id import FAKE_RESPONSES_ID
 
-from siada.models.llm_connection import SiadaClient
+from siada.provider.li.llm_connection import SiadaClient
 
 from litellm.types.utils import ModelResponse as LitellmModelResponse
 
-from siada.stream.siada_provider_stream_handler import StreamHandler
 from siada.foundation.logging import logger
+from siada.provider.li.stream.__stream import AsyncStream
+from siada.provider.li.stream._stream_handler import ChatCmplStreamHandler as StreamHandler
 
 
-class SiadaModel(Model):
+class LiModel(Model):
 
 
     def __init__(self, model: str):
@@ -216,7 +217,7 @@ class SiadaModel(Model):
         span: Span[GenerationSpanData],
         tracing: ModelTracing,
         stream: Literal[True],
-    ) -> tuple[Response, AsyncStream[ChatCompletionChunk]]: ...
+    ) -> tuple[Response, AsyncStream[LiChatCompletionChunk]]: ...
 
     @overload
     async def _fetch_response(
@@ -244,7 +245,7 @@ class SiadaModel(Model):
         span: Span[GenerationSpanData],
         tracing: ModelTracing,
         stream: bool = False,
-    ) -> LitellmModelResponse | tuple[Response, AsyncStream[ChatCompletionChunk]]:
+    ) -> LitellmModelResponse | tuple[Response, AsyncStream[LiChatCompletionChunk]]:
         # 检查是否已经在 span 中设置了转换后的消息
         if span.span_data.input:
             converted_messages = span.span_data.input
@@ -359,4 +360,4 @@ class SiadaProvider(ModelProvider):
         Returns:
             The model.
         """
-        return SiadaModel(model=model_name)
+        return LiModel(model=model_name)

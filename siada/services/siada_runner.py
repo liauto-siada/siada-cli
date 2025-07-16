@@ -2,10 +2,10 @@ import asyncio
 import importlib
 import os
 from pathlib import Path
-from typing import Dict, Type, Optional
+from typing import Dict, Type, Optional, Union, Literal, overload
 
 import yaml
-from agents import RunResult, Agent, set_trace_processors
+from agents import RunResult, RunResultStreaming, Agent, set_trace_processors
 
 from siada.agent_hub.coder.tracing import create_detailed_logger
 from siada.agent_hub.siada_agent import SiadaAgent
@@ -14,16 +14,42 @@ import logging
 
 class SiadaRunner:
 
+    @overload
     @staticmethod
-    async def run_agent(agent_name : str, user_input: str, workspace: str = None) -> RunResult:
+    async def run_agent(agent_name: str, user_input: str, workspace: str = None, *, stream: Literal[True]) -> RunResultStreaming: ...
 
+    @overload
+    @staticmethod
+    async def run_agent(agent_name: str, user_input: str, workspace: str = None, *, stream: Literal[False]) -> RunResult: ...
+
+    @staticmethod
+    async def run_agent(agent_name: str, user_input: str, workspace: str = None, stream: bool = False) -> RunResult | RunResultStreaming:
+        """
+        运行指定的Agent
+        
+        Args:
+            agent_name: Agent名称
+            user_input: 用户输入
+            workspace: 工作空间路径，可选
+            stream: 是否启用流式输出，默认为False
+            
+        Returns:
+            Union[RunResult, RunResultStreaming]: 根据stream参数返回普通结果或流式结果
+        """
         agent = await SiadaRunner.get_agent(agent_name)
         context = await agent.get_context()
         if workspace:
             context.root_dir = workspace
 
         set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
-        result = await agent.run(user_input, context)
+        
+        if stream:
+            # 流式执行
+            result = agent.run_streamed(user_input, context)
+        else:
+            # 普通执行
+            result = await agent.run(user_input, context)
+            
         return result
 
     @staticmethod
@@ -114,11 +140,23 @@ class SiadaRunner:
 
 async def main():
     user_input = """
-                Generate a Weibo trending card
+                execute the command : ls -l
                 """
-    agent_name = "test"
-    result = await SiadaRunner.run_agent(agent_name, user_input)
+    agent_name = "coder"
+    
+    # 普通执行
+    print("=== 普通执行 ===")
+    result = await SiadaRunner.run_agent(agent_name, user_input, stream=False)
     print(result)
+    
+    # # 流式执行
+    # print("\n=== 流式执行 ===")
+    # stream_result = await SiadaRunner.run_agent(agent_name, user_input, stream=True)
+    # ## 仅消费流
+    # async for event in stream_result.stream_events():
+    #     ...
+    #
+    # print(stream_result.final_output)
 
 
 if __name__ == "__main__":

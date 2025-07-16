@@ -14,7 +14,7 @@ from agents import Agent, Runner, function_tool
 from agents.tracing import add_trace_processor
 
 from siada.foundation.config import settings
-from siada.models.provider import SiadaProvider
+from siada.provider.li.li_provider import SiadaProvider
 from siada.agent_hub.coder.tracing import create_simple_logger, create_detailed_logger, LoggerTracingProcessor
 
 provider = SiadaProvider()
