@@ -4,7 +4,7 @@ from agents import RunContextWrapper, RunConfig, RunResult, RunResultStreaming, 
 
 from siada.agent_hub.coder.bug_reproduce_agent import BugReproduceAgent
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
-from siada.agent_hub.coder.prompt import bug_fix_prompt
+from siada.agent_hub.coder.prompt.base.bug_prompt import bug_fix_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.config import settings
 from siada.provider.li.li_provider import SiadaProvider
@@ -61,23 +61,21 @@ class  BugFixAgent(CodeGenAgent):
         set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
-        reproduce_agent = BugReproduceAgent()
-        reproduce_result = await Runner.run(
-            starting_agent=reproduce_agent,
-            input=input_with_env,
-            max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context
-        )
-
-        reproduce_message = {"content": reproduce_result.final_output, "role": "user"}
-        user_message = {"content": input_with_env, "role": "user"}
-
-        input_list = [user_message, reproduce_message]
+        # reproduce_agent = BugReproduceAgent()
+        # reproduce_result = await Runner.run(
+        #     starting_agent=reproduce_agent,
+        #     input=input_with_env,
+        #     max_turns=settings.MAX_TURNS,
+        #     run_config=config,
+        #     context=context
+        # )
+        # reproduce_message = {"content": reproduce_result.final_output, "role": "user"}
+        # user_message = {"content": input_with_env, "role": "user"}
+        #input_list = [user_message, reproduce_message]
 
         result = await Runner.run(
             starting_agent=self,
-            input=input_list,
+            input=input_with_env,
             max_turns=settings.MAX_TURNS,
             run_config=config,
             context=context
