@@ -9,4 +9,5 @@ dist/
 
 # 忽略所有 .siada 目录及其内容
 **/.siada*
-
+.cca
+.DS_Store
