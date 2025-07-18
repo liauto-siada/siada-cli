@@ -22,9 +22,31 @@ from grep_ast.tsl import USING_TSL_PACK, get_language, get_parser  # noqa: E402
 
 
 @function_tool(name_override="list_code_definition_names")
-def list_code_definition_names(fname: str, rel_fname: Optional[str] = None) -> str:
-    pass
+def list_code_definition_names(file_name: str, rel_file_name: Optional[str] = None) -> str:
+    """
+    Analyze a source code file and extract its structural definitions.
 
+    This function performs static code analysis to identify and extract code definitions
+    such as functions, classes, methods, and variables from a source file. It uses
+    tree-sitter parsing technology to build an Abstract Syntax Tree (AST) and then
+    queries the tree to locate definition nodes. The extracted information is formatted
+    into a human-readable tree structure that shows the code organization and hierarchy.
+
+    The implementation follows a two-phase approach: first, it parses the source code
+    to extract both definitions and references using language-specific query patterns;
+    second, it formats the definitions into a contextual tree view that preserves the
+    original code structure and provides line number information for easy navigation.
+
+    Args:
+        file_name: Absolute path to the source file to analyze
+        rel_file_name: Relative path to the source file (optional, defaults to filename)
+
+    Returns:
+        Formatted string containing:
+        - File summary with definition and reference counts
+        - Hierarchical tree view of code definitions with context
+    """
+    return _list_code_definition_names(file_name, rel_file_name)
 
 def get_scm_fname(lang: str) -> Optional[Path]:
     """
