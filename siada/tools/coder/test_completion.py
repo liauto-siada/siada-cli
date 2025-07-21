@@ -16,8 +16,10 @@ Args:
 )
 async def test_completion(context: RunContextWrapper[CodeAgentContext], is_passed: int, test_detail: str) -> str:
     # 获取 session_id
-    status = "passed" if is_passed == 1 else "failed"
-    return (f"====\n"
-            f"Test task completed. Test status: {status}.\n"
-            f"Test details: {test_detail}\n"
-            f"\n====")
+    test_result = "Tests passed" if is_passed == 1 else "Tests failed"
+
+    return {
+        "is_passed": is_passed,
+        "test_detail": test_result + ":" + test_detail
+    }
+

@@ -20,6 +20,8 @@ from siada.foundation.config import settings
 from siada.agent_hub.coder.prompt import test_prompt
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import logging
+from siada.foundation.config import settings
+from siada.provider.li.li_provider import SiadaProvider
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -30,11 +32,13 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
     """
 
     def __init__(self, *args, **kwargs):
+        provider = SiadaProvider()
+        model = provider.get_model(settings.Claude_4_0_SONNET)
         super().__init__(
             name="TestAgent",
-            handoff_description="A helpful agent that can test whether a bug has been fixed.",
             tools=[edit, regex_search_files, run_cmd, test_completion],
             tool_use_behavior=StopAtTools(stop_at_tool_names=['test_completion']),
+            model=model,
             *args,
             **kwargs
         )

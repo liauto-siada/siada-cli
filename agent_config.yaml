@@ -25,6 +25,11 @@ agents:
     description: "Bug reproduction agent"
     enabled: true
 
+  test:
+    class: "siada.agent_hub.coder.test_agent.TestAgent"
+    description: "Test agent"
+    enabled: true
+
 # LLM Configuration
 llm_config:
   model_name: "claude-3-7-sonnet"

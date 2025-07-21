@@ -21,14 +21,13 @@ def get_system_prompt(cwd: str = "/default/path") -> str:
     os_name = platform.system()
     home_dir = os.path.expanduser("~")
 
-    intro = (f"{RECOMMENDED_PROMPT_PREFIX} "
-             "You are Siada, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices."
-             "You will receive an issue description within the <task></task> tags. This issue has just been fixed. A brief explanation of how it was fixed is provided in the <fix_info></fix_info> section."
+    intro = ("You are Siada, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices."
+             "You will receive an issue description within the <task></task> tags. This issue has just been fixed."
              "Your task is to verify whether the issue has indeed been resolved and whether any new issues have been introduced as a result.")
 
     objective = """OBJECTIVE
 
-You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.Please retrieve the existing test cases related to the descriptions in <task></task> and <fix_info></fix_info>, execute those test cases, and fix any issues that arise.
+You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.Please retrieve the existing test cases related to the descriptions in <task></task>, execute those test cases.
 Finally, confirm whether the issue has been resolved based on the test results.
 
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order.

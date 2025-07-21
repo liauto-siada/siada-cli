@@ -16,15 +16,17 @@ from siada.tools.coder.run_cmd import run_cmd
 from siada.tools.coder.fix_attempt_completion import fix_attempt_completion
 from agents import set_trace_processors
 from siada.agent_hub.coder.tracing import create_detailed_logger
+import json
 
 
-
-
-class  BugFixAgent(CodeGenAgent):
+class BugFixAgent(CodeGenAgent):
+    test_agent: TestAgent
 
     def __init__(self, *args, **kwargs):
         provider = SiadaProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
+
+        self.test_agent = TestAgent()
 
         super().__init__(
             name="BugFixAgent",
@@ -63,36 +65,71 @@ class  BugFixAgent(CodeGenAgent):
         set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
-        # reproduce_agent = BugReproduceAgent()
-        # reproduce_result = await Runner.run(
-        #     starting_agent=reproduce_agent,
-        #     input=input_with_env,
-        #     max_turns=settings.MAX_TURNS,
-        #     run_config=config,
-        #     context=context
-        # )
-        # reproduce_message = {"content": reproduce_result.final_output, "role": "user"}
-        # user_message = {"content": input_with_env, "role": "user"}
-        #input_list = [user_message, reproduce_message]
+        max_turns = 3
+        current_turn = 0
+        current_agent_name = self.name
+        task_message = {"content": input_with_env, "role": "user"}
+        input_list = [task_message]
 
-        result = await Runner.run(
-            starting_agent=self,
-            input=input_with_env,
-            max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context
-        )
+        while current_turn < max_turns:
+            # Run BugFixAgent for fixing
+            result = await Runner.run(
+                starting_agent=self,
+                input=input_list,
+                max_turns=settings.MAX_TURNS,
+                run_config=config,
+                context=context
+            )
+
+            input_list = result.to_input_list()
+
+            if current_agent_name == self.name:
+                # Run TestAgent for testing
+                test_result = await Runner.run(
+                    starting_agent=self.test_agent,
+                    input=input_list,
+                    max_turns=settings.MAX_TURNS,
+                    run_config=config,
+                    context=context
+                )
+
+                # Parse test results
+                try:
+                    # test_result.final_output should contain JSON data returned by test_completion
+                    if isinstance(test_result.final_output, dict):
+                        test_output = test_result.final_output
+                    else:
+                        test_output = json.loads(test_result.final_output)
+
+                    is_passed = test_output.get("is_passed", 0)
+                    test_detail = test_output.get("test_detail", "")
+
+                    if is_passed == 1:
+                        # Test passed, break the loop
+                        print(f"Test passed: {test_detail}")
+                        break
+                    else:
+                        # Test failed, continue to next round of fixing
+                        print(f"Test failed, continue fixing (round {current_turn + 1}): {test_detail}")
+                        # Update input with test failure information for next round of fixing
+                        input_list = result.to_input_list()
+
+                except (json.JSONDecodeError, KeyError, TypeError) as e:
+                    # Parsing failed, log error and continue to next round
+                    print(f"Failed to parse test results: {e}, continue to next round of fixing")
+
+            current_turn += 1
 
         return result
 
     def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
         """
-        执行Bug修复任务
+        Execute bug fixing task in streaming mode
 
         Args:
-            user_input: 用户描述的Bug问题，包括错误信息、相关文件路径等
-            context: 用于提供上下文信息的上下文对象
+            user_input: User-described bug problem, including error messages, related file paths, etc.
+            context: Context object for providing contextual information
         Returns:
-            修复结果，包含最终输出、执行轮数等信息
+            Fix result, including final output, execution rounds, and other information
         """
         pass
