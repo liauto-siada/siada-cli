@@ -24,13 +24,6 @@ import logging
 logging.getLogger().setLevel(logging.INFO)
 
 
-@dataclass
-class CCAOutput:
-    type_of_card: str
-    topic_of_card: str
-    content_of_card: list[str]
-
-
 class TestAgent(SiadaAgent[CodeAgentContext]):
     """
     Test Execution Agent: an agent dedicated to running test cases.
