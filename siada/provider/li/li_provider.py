@@ -48,6 +48,7 @@ class LiModel(Model):
             tracing: ModelTracing,
             *,
             previous_response_id: str | None,
+            prompt: Any | None
             
     ) -> ModelResponse:
         """Get a response from the model.
@@ -62,6 +63,7 @@ class LiModel(Model):
             tracing: Tracing configuration.
             previous_response_id: the ID of the previous response. Generally not used by the model,
                 except for the OpenAI Responses API.
+            prompt: The prompt config to use for the model.
 
         Returns:
             The full model response.
@@ -145,6 +147,7 @@ class LiModel(Model):
             tracing: ModelTracing,
             *,
             previous_response_id: str | None,
+            prompt: Any | None
     ) -> AsyncIterator[TResponseStreamEvent]:
         """Stream a response from the model.
 
@@ -158,6 +161,7 @@ class LiModel(Model):
             tracing: Tracing configuration.
             previous_response_id: the ID of the previous response. Generally not used by the model,
                 except for the OpenAI Responses API.
+            prompt: The prompt config to use for the model.
 
         Returns:
             An iterator of response stream events, in OpenAI Responses format.

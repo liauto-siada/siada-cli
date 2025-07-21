@@ -136,7 +136,23 @@
         "documentation": {}
     },
     {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
         "label": "field",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
         "importPath": "dataclasses",
         "description": "dataclasses",
         "isExtraImport": true,
@@ -752,6 +768,14 @@
         "documentation": {}
     },
     {
+        "label": "Literal",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Any",
         "importPath": "typing",
         "description": "typing",
@@ -769,6 +793,14 @@
     },
     {
         "label": "Union",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -1429,6 +1461,38 @@
         "documentation": {}
     },
     {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
         "label": "argparse",
         "kind": 6,
         "isExtraImport": true,
@@ -1634,14 +1698,6 @@
     },
     {
         "label": "run_cmd_subprocess",
-        "importPath": "siada.tools.coder.run_cmd",
-        "description": "siada.tools.coder.run_cmd",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.run_cmd",
-        "documentation": {}
-    },
-    {
-        "label": "run_cmd",
         "importPath": "siada.tools.coder.run_cmd",
         "description": "siada.tools.coder.run_cmd",
         "isExtraImport": true,
@@ -1922,70 +1978,6 @@
         "documentation": {}
     },
     {
-        "label": "RunContextWrapper",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "RunResult",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "RunResultStreaming",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "Runner",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "RunConfig",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "add_trace_processor",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "TContext",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "AgentOutputSchema",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
         "label": "Agent",
         "importPath": "agents",
         "description": "agents",
@@ -2178,7 +2170,71 @@
         "documentation": {}
     },
     {
+        "label": "function_tool",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "RunConfig",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunResult",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunResultStreaming",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "Runner",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunConfig",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "add_trace_processor",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2354,6 +2410,14 @@
         "documentation": {}
     },
     {
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
         "label": "BugReproduceAgent",
         "importPath": "siada.agent_hub.coder.bug_reproduce_agent",
         "description": "siada.agent_hub.coder.bug_reproduce_agent",
@@ -2387,50 +2451,18 @@
     },
     {
         "label": "bug_fix_prompt",
-        "importPath": "siada.agent_hub.coder.prompt",
-        "description": "siada.agent_hub.coder.prompt",
+        "importPath": "siada.agent_hub.coder.prompt.base.bug_prompt",
+        "description": "siada.agent_hub.coder.prompt.base.bug_prompt",
         "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.prompt",
+        "detail": "siada.agent_hub.coder.prompt.base.bug_prompt",
         "documentation": {}
     },
     {
-        "label": "bug_reproduce_prompt",
-        "importPath": "siada.agent_hub.coder.prompt",
-        "description": "siada.agent_hub.coder.prompt",
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
         "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.prompt",
-        "documentation": {}
-    },
-    {
-        "label": "code_gen_prompt",
-        "importPath": "siada.agent_hub.coder.prompt",
-        "description": "siada.agent_hub.coder.prompt",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.prompt",
-        "documentation": {}
-    },
-    {
-        "label": "fe_gen_prompt",
-        "importPath": "siada.agent_hub.coder.prompt",
-        "description": "siada.agent_hub.coder.prompt",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.prompt",
-        "documentation": {}
-    },
-    {
-        "label": "bug_fix_prompt",
-        "importPath": "siada.agent_hub.coder.prompt",
-        "description": "siada.agent_hub.coder.prompt",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.prompt",
-        "documentation": {}
-    },
-    {
-        "label": "code_gen_prompt",
-        "importPath": "siada.agent_hub.coder.prompt",
-        "description": "siada.agent_hub.coder.prompt",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.prompt",
+        "detail": "siada.foundation.code_agent_context",
         "documentation": {}
     },
     {
@@ -2551,22 +2583,6 @@
         "description": "siada.tools.coder.file_operator",
         "isExtraImport": true,
         "detail": "siada.tools.coder.file_operator",
-        "documentation": {}
-    },
-    {
-        "label": "edit",
-        "importPath": "siada.tools.coder.file_operator",
-        "description": "siada.tools.coder.file_operator",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.file_operator",
-        "documentation": {}
-    },
-    {
-        "label": "regex_search_files",
-        "importPath": "siada.tools.coder.file_search",
-        "description": "siada.tools.coder.file_search",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.file_search",
         "documentation": {}
     },
     {
@@ -2615,6 +2631,30 @@
         "description": "agents.agent",
         "isExtraImport": true,
         "detail": "agents.agent",
+        "documentation": {}
+    },
+    {
+        "label": "bug_reproduce_prompt",
+        "importPath": "siada.agent_hub.coder.prompt",
+        "description": "siada.agent_hub.coder.prompt",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.prompt",
+        "documentation": {}
+    },
+    {
+        "label": "code_gen_prompt",
+        "importPath": "siada.agent_hub.coder.prompt",
+        "description": "siada.agent_hub.coder.prompt",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.prompt",
+        "documentation": {}
+    },
+    {
+        "label": "fe_gen_prompt",
+        "importPath": "siada.agent_hub.coder.prompt",
+        "description": "siada.agent_hub.coder.prompt",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.prompt",
         "documentation": {}
     },
     {
@@ -2757,6 +2797,668 @@
         "documentation": {}
     },
     {
+        "label": "io",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "io",
+        "description": "io",
+        "detail": "io",
+        "documentation": {}
+    },
+    {
+        "label": "StringIO",
+        "importPath": "io",
+        "description": "io",
+        "isExtraImport": true,
+        "detail": "io",
+        "documentation": {}
+    },
+    {
+        "label": "BytesIO",
+        "importPath": "io",
+        "description": "io",
+        "isExtraImport": true,
+        "detail": "io",
+        "documentation": {}
+    },
+    {
+        "label": "StringIO",
+        "importPath": "io",
+        "description": "io",
+        "isExtraImport": true,
+        "detail": "io",
+        "documentation": {}
+    },
+    {
+        "label": "box",
+        "importPath": "rich",
+        "description": "rich",
+        "isExtraImport": true,
+        "detail": "rich",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Live",
+        "importPath": "rich.live",
+        "description": "rich.live",
+        "isExtraImport": true,
+        "detail": "rich.live",
+        "documentation": {}
+    },
+    {
+        "label": "CodeBlock",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "Heading",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "Markdown",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "Markdown",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "Panel",
+        "importPath": "rich.panel",
+        "description": "rich.panel",
+        "isExtraImport": true,
+        "detail": "rich.panel",
+        "documentation": {}
+    },
+    {
+        "label": "Syntax",
+        "importPath": "rich.syntax",
+        "description": "rich.syntax",
+        "isExtraImport": true,
+        "detail": "rich.syntax",
+        "documentation": {}
+    },
+    {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
+        "label": "Style",
+        "importPath": "rich.style",
+        "description": "rich.style",
+        "isExtraImport": true,
+        "detail": "rich.style",
+        "documentation": {}
+    },
+    {
+        "label": "Style",
+        "importPath": "rich.style",
+        "description": "rich.style",
+        "isExtraImport": true,
+        "detail": "rich.style",
+        "documentation": {}
+    },
+    {
+        "label": "ColorUtils",
+        "importPath": "siada.io.color_utils",
+        "description": "siada.io.color_utils",
+        "isExtraImport": true,
+        "detail": "siada.io.color_utils",
+        "documentation": {}
+    },
+    {
+        "label": "ColorUtils",
+        "importPath": "siada.io.color_utils",
+        "description": "siada.io.color_utils",
+        "isExtraImport": true,
+        "detail": "siada.io.color_utils",
+        "documentation": {}
+    },
+    {
+        "label": "ColorUtils",
+        "importPath": "siada.io.color_utils",
+        "description": "siada.io.color_utils",
+        "isExtraImport": true,
+        "detail": "siada.io.color_utils",
+        "documentation": {}
+    },
+    {
+        "label": "base64",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "base64",
+        "description": "base64",
+        "detail": "base64",
+        "documentation": {}
+    },
+    {
+        "label": "functools",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "functools",
+        "description": "functools",
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "shutil",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "shutil",
+        "description": "shutil",
+        "detail": "shutil",
+        "documentation": {}
+    },
+    {
+        "label": "signal",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "signal",
+        "description": "signal",
+        "detail": "signal",
+        "documentation": {}
+    },
+    {
+        "label": "webbrowser",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "webbrowser",
+        "description": "webbrowser",
+        "detail": "webbrowser",
+        "documentation": {}
+    },
+    {
+        "label": "defaultdict",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "OrderedDict",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "defaultdict",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "Counter",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "defaultdict",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "namedtuple",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "Completer",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "Completion",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "ThreadedCompleter",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "Completion",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "PathCompleter",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "Completer",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "Completion",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "ModalCursorShapeConfig",
+        "importPath": "prompt_toolkit.cursor_shapes",
+        "description": "prompt_toolkit.cursor_shapes",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.cursor_shapes",
+        "documentation": {}
+    },
+    {
+        "label": "EditingMode",
+        "importPath": "prompt_toolkit.enums",
+        "description": "prompt_toolkit.enums",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.enums",
+        "documentation": {}
+    },
+    {
+        "label": "EditingMode",
+        "importPath": "prompt_toolkit.enums",
+        "description": "prompt_toolkit.enums",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.enums",
+        "documentation": {}
+    },
+    {
+        "label": "Condition",
+        "importPath": "prompt_toolkit.filters",
+        "description": "prompt_toolkit.filters",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.filters",
+        "documentation": {}
+    },
+    {
+        "label": "is_searching",
+        "importPath": "prompt_toolkit.filters",
+        "description": "prompt_toolkit.filters",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.filters",
+        "documentation": {}
+    },
+    {
+        "label": "Condition",
+        "importPath": "prompt_toolkit.filters",
+        "description": "prompt_toolkit.filters",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.filters",
+        "documentation": {}
+    },
+    {
+        "label": "is_searching",
+        "importPath": "prompt_toolkit.filters",
+        "description": "prompt_toolkit.filters",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.filters",
+        "documentation": {}
+    },
+    {
+        "label": "FileHistory",
+        "importPath": "prompt_toolkit.history",
+        "description": "prompt_toolkit.history",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.history",
+        "documentation": {}
+    },
+    {
+        "label": "KeyBindings",
+        "importPath": "prompt_toolkit.key_binding",
+        "description": "prompt_toolkit.key_binding",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.key_binding",
+        "documentation": {}
+    },
+    {
+        "label": "KeyBindings",
+        "importPath": "prompt_toolkit.key_binding",
+        "description": "prompt_toolkit.key_binding",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.key_binding",
+        "documentation": {}
+    },
+    {
+        "label": "InputMode",
+        "importPath": "prompt_toolkit.key_binding.vi_state",
+        "description": "prompt_toolkit.key_binding.vi_state",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.key_binding.vi_state",
+        "documentation": {}
+    },
+    {
+        "label": "InputMode",
+        "importPath": "prompt_toolkit.key_binding.vi_state",
+        "description": "prompt_toolkit.key_binding.vi_state",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.key_binding.vi_state",
+        "documentation": {}
+    },
+    {
+        "label": "Keys",
+        "importPath": "prompt_toolkit.keys",
+        "description": "prompt_toolkit.keys",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.keys",
+        "documentation": {}
+    },
+    {
+        "label": "Keys",
+        "importPath": "prompt_toolkit.keys",
+        "description": "prompt_toolkit.keys",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.keys",
+        "documentation": {}
+    },
+    {
+        "label": "PygmentsLexer",
+        "importPath": "prompt_toolkit.lexers",
+        "description": "prompt_toolkit.lexers",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.lexers",
+        "documentation": {}
+    },
+    {
+        "label": "is_dumb_terminal",
+        "importPath": "prompt_toolkit.output.vt100",
+        "description": "prompt_toolkit.output.vt100",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.output.vt100",
+        "documentation": {}
+    },
+    {
+        "label": "CompleteStyle",
+        "importPath": "prompt_toolkit.shortcuts",
+        "description": "prompt_toolkit.shortcuts",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.shortcuts",
+        "documentation": {}
+    },
+    {
+        "label": "PromptSession",
+        "importPath": "prompt_toolkit.shortcuts",
+        "description": "prompt_toolkit.shortcuts",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.shortcuts",
+        "documentation": {}
+    },
+    {
+        "label": "Style",
+        "importPath": "prompt_toolkit.styles",
+        "description": "prompt_toolkit.styles",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.styles",
+        "documentation": {}
+    },
+    {
+        "label": "MarkdownLexer",
+        "importPath": "pygments.lexers",
+        "description": "pygments.lexers",
+        "isExtraImport": true,
+        "detail": "pygments.lexers",
+        "documentation": {}
+    },
+    {
+        "label": "guess_lexer_for_filename",
+        "importPath": "pygments.lexers",
+        "description": "pygments.lexers",
+        "isExtraImport": true,
+        "detail": "pygments.lexers",
+        "documentation": {}
+    },
+    {
+        "label": "guess_lexer_for_filename",
+        "importPath": "pygments.lexers",
+        "description": "pygments.lexers",
+        "isExtraImport": true,
+        "detail": "pygments.lexers",
+        "documentation": {}
+    },
+    {
+        "label": "guess_lexer_for_filename",
+        "importPath": "pygments.lexers",
+        "description": "pygments.lexers",
+        "isExtraImport": true,
+        "detail": "pygments.lexers",
+        "documentation": {}
+    },
+    {
+        "label": "Token",
+        "importPath": "pygments.token",
+        "description": "pygments.token",
+        "isExtraImport": true,
+        "detail": "pygments.token",
+        "documentation": {}
+    },
+    {
+        "label": "Token",
+        "importPath": "pygments.token",
+        "description": "pygments.token",
+        "isExtraImport": true,
+        "detail": "pygments.token",
+        "documentation": {}
+    },
+    {
+        "label": "Token",
+        "importPath": "pygments.token",
+        "description": "pygments.token",
+        "isExtraImport": true,
+        "detail": "pygments.token",
+        "documentation": {}
+    },
+    {
+        "label": "ColorParseError",
+        "importPath": "rich.color",
+        "description": "rich.color",
+        "isExtraImport": true,
+        "detail": "rich.color",
+        "documentation": {}
+    },
+    {
+        "label": "Columns",
+        "importPath": "rich.columns",
+        "description": "rich.columns",
+        "isExtraImport": true,
+        "detail": "rich.columns",
+        "documentation": {}
+    },
+    {
+        "label": "AutoCompleter",
+        "importPath": "siada.support.completer",
+        "description": "siada.support.completer",
+        "isExtraImport": true,
+        "detail": "siada.support.completer",
+        "documentation": {}
+    },
+    {
+        "label": "CommandCompletionException",
+        "importPath": "siada.support.completer",
+        "description": "siada.support.completer",
+        "isExtraImport": true,
+        "detail": "siada.support.completer",
+        "documentation": {}
+    },
+    {
+        "label": "pipe_editor",
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "isExtraImport": true,
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "pipe_editor",
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "isExtraImport": true,
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "pipe_editor",
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "isExtraImport": true,
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "MarkdownStream",
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "isExtraImport": true,
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "ConsolePrinter",
+        "importPath": "siada.io.console_printer",
+        "description": "siada.io.console_printer",
+        "isExtraImport": true,
+        "detail": "siada.io.console_printer",
+        "documentation": {}
+    },
+    {
+        "label": "NotificationCommandUtil",
+        "importPath": "siada.io.notification_command",
+        "description": "siada.io.notification_command",
+        "isExtraImport": true,
+        "detail": "siada.io.notification_command",
+        "documentation": {}
+    },
+    {
+        "label": "DebugUtils",
+        "importPath": "siada.utils",
+        "description": "siada.utils",
+        "isExtraImport": true,
+        "detail": "siada.utils",
+        "documentation": {}
+    },
+    {
+        "label": "ImageUtils",
+        "importPath": "siada.utils",
+        "description": "siada.utils",
+        "isExtraImport": true,
+        "detail": "siada.utils",
+        "documentation": {}
+    },
+    {
         "label": "LiCompletionUsage",
         "importPath": "siada.provider.li.domian.complete_usage",
         "description": "siada.provider.li.domian.complete_usage",
@@ -2794,6 +3496,14 @@
         "isExtraImport": true,
         "importPath": "inspect",
         "description": "inspect",
+        "detail": "inspect",
+        "documentation": {}
+    },
+    {
+        "label": "stack",
+        "importPath": "inspect",
+        "description": "inspect",
+        "isExtraImport": true,
         "detail": "inspect",
         "documentation": {}
     },
@@ -3361,6 +4071,91 @@
         "documentation": {}
     },
     {
+        "label": "glob",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "glob",
+        "description": "glob",
+        "detail": "glob",
+        "documentation": {}
+    },
+    {
+        "label": "re",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "sys",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "sys",
+        "description": "sys",
+        "detail": "sys",
+        "documentation": {}
+    },
+    {
+        "label": "tempfile",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "tempfile",
+        "description": "tempfile",
+        "detail": "tempfile",
+        "documentation": {}
+    },
+    {
+        "label": "expanduser",
+        "importPath": "os.path",
+        "description": "os.path",
+        "isExtraImport": true,
+        "detail": "os.path",
+        "documentation": {}
+    },
+    {
+        "label": "pyperclip",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pyperclip",
+        "description": "pyperclip",
+        "detail": "pyperclip",
+        "documentation": {}
+    },
+    {
+        "label": "Image",
+        "importPath": "PIL",
+        "description": "PIL",
+        "isExtraImport": true,
+        "detail": "PIL",
+        "documentation": {}
+    },
+    {
+        "label": "ImageGrab",
+        "importPath": "PIL",
+        "description": "PIL",
+        "isExtraImport": true,
+        "detail": "PIL",
+        "documentation": {}
+    },
+    {
+        "label": "Document",
+        "importPath": "prompt_toolkit.document",
+        "description": "prompt_toolkit.document",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.document",
+        "documentation": {}
+    },
+    {
+        "label": "do_run_cmd",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
+        "documentation": {}
+    },
+    {
         "label": "Enum",
         "importPath": "enum",
         "description": "enum",
@@ -3489,6 +4284,14 @@
         "documentation": {}
     },
     {
+        "label": "Observation",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
         "label": "FileEditSource",
         "importPath": "siada.tools.coder.observation.observation",
         "description": "siada.tools.coder.observation.observation",
@@ -3513,30 +4316,12 @@
         "documentation": {}
     },
     {
-        "label": "sys",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "sys",
-        "description": "sys",
-        "detail": "sys",
-        "documentation": {}
-    },
-    {
         "label": "stat",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "stat",
         "description": "stat",
         "detail": "stat",
-        "documentation": {}
-    },
-    {
-        "label": "tempfile",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "tempfile",
-        "description": "tempfile",
-        "detail": "tempfile",
         "documentation": {}
     },
     {
@@ -3575,15 +4360,6 @@
         "documentation": {}
     },
     {
-        "label": "shutil",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "shutil",
-        "description": "shutil",
-        "detail": "shutil",
-        "documentation": {}
-    },
-    {
         "label": "sqlite3",
         "kind": 6,
         "isExtraImport": true,
@@ -3599,30 +4375,6 @@
         "importPath": "warnings",
         "description": "warnings",
         "detail": "warnings",
-        "documentation": {}
-    },
-    {
-        "label": "Counter",
-        "importPath": "collections",
-        "description": "collections",
-        "isExtraImport": true,
-        "detail": "collections",
-        "documentation": {}
-    },
-    {
-        "label": "defaultdict",
-        "importPath": "collections",
-        "description": "collections",
-        "isExtraImport": true,
-        "detail": "collections",
-        "documentation": {}
-    },
-    {
-        "label": "namedtuple",
-        "importPath": "collections",
-        "description": "collections",
-        "isExtraImport": true,
-        "detail": "collections",
         "documentation": {}
     },
     {
@@ -3647,22 +4399,6 @@
         "description": "grep_ast",
         "isExtraImport": true,
         "detail": "grep_ast",
-        "documentation": {}
-    },
-    {
-        "label": "guess_lexer_for_filename",
-        "importPath": "pygments.lexers",
-        "description": "pygments.lexers",
-        "isExtraImport": true,
-        "detail": "pygments.lexers",
-        "documentation": {}
-    },
-    {
-        "label": "Token",
-        "importPath": "pygments.token",
-        "description": "pygments.token",
-        "isExtraImport": true,
-        "detail": "pygments.token",
         "documentation": {}
     },
     {
@@ -3696,23 +4432,6 @@
         "importPath": "threading",
         "description": "threading",
         "detail": "threading",
-        "documentation": {}
-    },
-    {
-        "label": "Console",
-        "importPath": "rich.console",
-        "description": "rich.console",
-        "isExtraImport": true,
-        "detail": "rich.console",
-        "documentation": {}
-    },
-    {
-        "label": "base64",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "base64",
-        "description": "base64",
-        "detail": "base64",
         "documentation": {}
     },
     {
@@ -3877,14 +4596,6 @@
         "documentation": {}
     },
     {
-        "label": "BytesIO",
-        "importPath": "io",
-        "description": "io",
-        "isExtraImport": true,
-        "detail": "io",
-        "documentation": {}
-    },
-    {
         "label": "pexpect",
         "kind": 6,
         "isExtraImport": true,
@@ -3900,6 +4611,40 @@
         "importPath": "psutil",
         "description": "psutil",
         "detail": "psutil",
+        "documentation": {}
+    },
+    {
+        "label": "trafilatura",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "trafilatura",
+        "description": "trafilatura",
+        "detail": "trafilatura",
+        "documentation": {}
+    },
+    {
+        "label": "requests",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "requests",
+        "description": "requests",
+        "detail": "requests",
+        "documentation": {}
+    },
+    {
+        "label": "urlparse",
+        "importPath": "urllib.parse",
+        "description": "urllib.parse",
+        "isExtraImport": true,
+        "detail": "urllib.parse",
+        "documentation": {}
+    },
+    {
+        "label": "indent",
+        "importPath": "textwrap",
+        "description": "textwrap",
+        "isExtraImport": true,
+        "detail": "textwrap",
         "documentation": {}
     },
     {
@@ -4037,6 +4782,30 @@
         "description": "siada.agent_hub.coder.bug_fix_agent",
         "isExtraImport": true,
         "detail": "siada.agent_hub.coder.bug_fix_agent",
+        "documentation": {}
+    },
+    {
+        "label": "web_crawl",
+        "importPath": "siada.tools.web_crawl",
+        "description": "siada.tools.web_crawl",
+        "isExtraImport": true,
+        "detail": "siada.tools.web_crawl",
+        "documentation": {}
+    },
+    {
+        "label": "ColorSettings",
+        "importPath": "siada.io.color_settings",
+        "description": "siada.io.color_settings",
+        "isExtraImport": true,
+        "detail": "siada.io.color_settings",
+        "documentation": {}
+    },
+    {
+        "label": "InputOutput",
+        "importPath": "siada.io.io",
+        "description": "siada.io.io",
+        "isExtraImport": true,
+        "detail": "siada.io.io",
         "documentation": {}
     },
     {
@@ -4858,6 +5627,24 @@
         "documentation": {}
     },
     {
+        "label": "get_system_prompt",
+        "kind": 2,
+        "importPath": "siada.agent_hub.coder.prompt.base.bug_prompt.bug_fix_prompt",
+        "description": "siada.agent_hub.coder.prompt.base.bug_prompt.bug_fix_prompt",
+        "peekOfCode": "def get_system_prompt(cwd: str = \"/default/path\") -> str:\n    \"\"\"\n    生成系统提示词\n    Args:\n        cwd: 当前工作目录路径\n    Returns:\n        格式化后的系统提示词\n    \"\"\"\n    # 获取系统信息\n    os_name = platform.system()",
+        "detail": "siada.agent_hub.coder.prompt.base.bug_prompt.bug_fix_prompt",
+        "documentation": {}
+    },
+    {
+        "label": "get_rules_section",
+        "kind": 2,
+        "importPath": "siada.agent_hub.coder.prompt.base.bug_prompt.rules",
+        "description": "siada.agent_hub.coder.prompt.base.bug_prompt.rules",
+        "peekOfCode": "def get_rules_section(cwd: str, os_name: str, home_dir: str) -> str:\n    \"\"\"\n    获取 RULES 部分的内容\n    Args:\n        cwd: 当前工作目录路径\n        os_name: 操作系统名称\n        home_dir: 用户主目录路径\n    Returns:\n        str: RULES 部分的文本内容\n    \"\"\"",
+        "detail": "siada.agent_hub.coder.prompt.base.bug_prompt.rules",
+        "documentation": {}
+    },
+    {
         "label": "get_capabilities_section",
         "kind": 2,
         "importPath": "siada.agent_hub.coder.prompt.base.capabilities",
@@ -4882,15 +5669,6 @@
         "description": "siada.agent_hub.coder.prompt.base.tool_use",
         "peekOfCode": "def get_tool_use_section() -> str:\n    \"\"\"\n    获取 TOOL USE 部分的内容\n    Returns:\n        str: TOOL USE 部分的文本内容\n    \"\"\"\n    return \"\"\"====\nTOOL USE\nYou have access to a set of tools. You can use one tool per message, and will receive the execution results of the tool. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.\n====\"\"\"",
         "detail": "siada.agent_hub.coder.prompt.base.tool_use",
-        "documentation": {}
-    },
-    {
-        "label": "get_system_prompt",
-        "kind": 2,
-        "importPath": "siada.agent_hub.coder.prompt.bug_fix_prompt",
-        "description": "siada.agent_hub.coder.prompt.bug_fix_prompt",
-        "peekOfCode": "def get_system_prompt(cwd: str = \"/default/path\") -> str:\n    \"\"\"\n    生成系统提示词\n    Args:\n        cwd: 当前工作目录路径\n    Returns:\n        格式化后的系统提示词\n    \"\"\"\n    # 获取系统信息\n    os_name = platform.system()",
-        "detail": "siada.agent_hub.coder.prompt.bug_fix_prompt",
         "documentation": {}
     },
     {
@@ -5093,24 +5871,6 @@
         "description": "siada.agent_hub.coder.fe_gen_agent",
         "peekOfCode": "class FeGenAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"FeGenAgent\",\n            tools=[edit, regex_search_files, run_cmd],\n            model=model,\n            *args,\n            **kwargs",
         "detail": "siada.agent_hub.coder.fe_gen_agent",
-        "documentation": {}
-    },
-    {
-        "label": "CCAOutput",
-        "kind": 6,
-        "importPath": "siada.agent_hub.coder.test_agent",
-        "description": "siada.agent_hub.coder.test_agent",
-        "peekOfCode": "class CCAOutput:\n    type_of_card: str\n    topic_of_card: str\n    content_of_card: list[str]\nclass TestAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    代码生成Agent\n    专门用于代码生成的Agent实现\n    \"\"\"\n    def __init__(self, *args, **kwargs):",
-        "detail": "siada.agent_hub.coder.test_agent",
-        "documentation": {}
-    },
-    {
-        "label": "TestAgent",
-        "kind": 6,
-        "importPath": "siada.agent_hub.coder.test_agent",
-        "description": "siada.agent_hub.coder.test_agent",
-        "peekOfCode": "class TestAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    代码生成Agent\n    专门用于代码生成的Agent实现\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        # 使用SiadaProvider提供的默认模型\n        provider = SiadaProvider()\n        model = provider.get_model(\"claude-sonnet-4\")\n        # 如果没有传递name参数，则使用默认值",
-        "detail": "siada.agent_hub.coder.test_agent",
         "documentation": {}
     },
     {
@@ -5402,6 +6162,114 @@
         "documentation": {}
     },
     {
+        "label": "NoInsetCodeBlock",
+        "kind": 6,
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "peekOfCode": "class NoInsetCodeBlock(CodeBlock):\n    \"\"\"A code block with syntax highlighting and no padding.\"\"\"\n    def __rich_console__(self, console, options):\n        code = str(self.text).rstrip()\n        syntax = Syntax(code, self.lexer_name, theme=self.theme, word_wrap=True, padding=(1, 0))\n        yield syntax\nclass LeftHeading(Heading):\n    \"\"\"A heading class that renders left-justified.\"\"\"\n    def __rich_console__(self, console, options):\n        text = self.text",
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "LeftHeading",
+        "kind": 6,
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "peekOfCode": "class LeftHeading(Heading):\n    \"\"\"A heading class that renders left-justified.\"\"\"\n    def __rich_console__(self, console, options):\n        text = self.text\n        text.justify = \"left\"  # Override justification\n        if self.tag == \"h1\":\n            # Draw a border around h1s, but keep text left-aligned\n            yield Panel(\n                text,\n                box=box.HEAVY,",
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "NoInsetMarkdown",
+        "kind": 6,
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "peekOfCode": "class NoInsetMarkdown(Markdown):\n    \"\"\"Markdown with code blocks that have no padding and left-justified headings.\"\"\"\n    elements = {\n        **Markdown.elements,\n        \"fence\": NoInsetCodeBlock,\n        \"code_block\": NoInsetCodeBlock,\n        \"heading_open\": LeftHeading,\n    }\nclass MarkdownStream:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.",
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "MarkdownStream",
+        "kind": 6,
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "peekOfCode": "class MarkdownStream:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.\n    Uses rich.console and rich.live to render markdown content with smooth scrolling\n    and partial updates. Maintains a sliding window of visible content while streaming\n    in new markdown text.\n    \"\"\"\n    live = None  # Rich Live display instance\n    when = 0  # Timestamp of last update\n    min_delay = 1.0 / 20  # Minimum time between updates (20fps)\n    live_window = 6  # Number of lines to keep visible at bottom during streaming",
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "ColorSettings",
+        "kind": 6,
+        "importPath": "siada.io.color_settings",
+        "description": "siada.io.color_settings",
+        "peekOfCode": "class ColorSettings:\n    user_input_color: str = \"blue\"\n    tool_output_color: str = None\n    tool_error_color: str = \"red\"\n    tool_warning_color: str = \"#FFA500\"\n    assistant_output_color: str = \"blue\"\n    completion_menu_color: str = None\n    completion_menu_bg_color: str = None\n    completion_menu_current_color: str = None\n    completion_menu_current_bg_color: str = None",
+        "detail": "siada.io.color_settings",
+        "documentation": {}
+    },
+    {
+        "label": "ColorUtils",
+        "kind": 6,
+        "importPath": "siada.io.color_utils",
+        "description": "siada.io.color_utils",
+        "peekOfCode": "class ColorUtils:\n    \"\"\"A utility class for color-related operations.\"\"\"\n    @staticmethod\n    def ensure_hash_prefix(color: str) -> str:\n        \"\"\"Ensure hex color values have a # prefix.\"\"\"\n        if not color:\n            return color\n        if isinstance(color, str) and color.strip() and not color.startswith(\"#\"):\n            # Check if it's a valid hex color (3 or 6 hex digits)\n            if all(c in \"0123456789ABCDEFabcdef\" for c in color) and len(color) in (",
+        "detail": "siada.io.color_utils",
+        "documentation": {}
+    },
+    {
+        "label": "ConsolePrinter",
+        "kind": 6,
+        "importPath": "siada.io.console_printer",
+        "description": "siada.io.console_printer",
+        "peekOfCode": "class ConsolePrinter:\n    \"\"\"A utility class for handling styled console output.\"\"\"\n    def __init__(self, console: Console, pretty: bool = True, colors: dict = None):\n        \"\"\"\n        Initializes the ConsolePrinter.\n        :param console: The rich Console object.\n        :param pretty: Whether to use pretty output with colors and styles.\n        :param colors: A dictionary mapping message types to color strings.\n                       Expected keys: 'error', 'warning', 'output'.\n        \"\"\"",
+        "detail": "siada.io.console_printer",
+        "documentation": {}
+    },
+    {
+        "label": "ConfirmGroup",
+        "kind": 6,
+        "importPath": "siada.io.io",
+        "description": "siada.io.io",
+        "peekOfCode": "class ConfirmGroup:\n    preference: str = None\n    show_group: bool = True\n    def __init__(self, items=None):\n        if items is not None:\n            self.show_group = len(items) > 1\nclass InputOutput:\n    num_error_outputs = 0\n    num_user_asks = 0\n    clipboard_watcher = None",
+        "detail": "siada.io.io",
+        "documentation": {}
+    },
+    {
+        "label": "InputOutput",
+        "kind": 6,
+        "importPath": "siada.io.io",
+        "description": "siada.io.io",
+        "peekOfCode": "class InputOutput:\n    num_error_outputs = 0\n    num_user_asks = 0\n    clipboard_watcher = None\n    bell_on_next_input = False\n    notifications_command = None\n    @staticmethod\n    def _restore_multiline(func):\n        \"\"\"Decorator to restore multiline mode after function execution\"\"\"\n        @functools.wraps(func)",
+        "detail": "siada.io.io",
+        "documentation": {}
+    },
+    {
+        "label": "NOTIFICATION_MESSAGE",
+        "kind": 5,
+        "importPath": "siada.io.io",
+        "description": "siada.io.io",
+        "peekOfCode": "NOTIFICATION_MESSAGE = \"Siada is waiting for your input\"\nfrom siada.io.color_utils import ColorUtils\n@dataclass\nclass ConfirmGroup:\n    preference: str = None\n    show_group: bool = True\n    def __init__(self, items=None):\n        if items is not None:\n            self.show_group = len(items) > 1\nclass InputOutput:",
+        "detail": "siada.io.io",
+        "documentation": {}
+    },
+    {
+        "label": "KeyBindingsFactory",
+        "kind": 6,
+        "importPath": "siada.io.key_bindings",
+        "description": "siada.io.key_bindings",
+        "peekOfCode": "class KeyBindingsFactory:\n    \"\"\"A factory for creating key bindings for the IO instance.\"\"\"\n    def __init__(self, io_instance):\n        self.io = io_instance\n    def create_key_bindings(self):\n        kb = KeyBindings()\n        def suspend_to_bg(event):\n            \"\"\"Suspend currently running application.\"\"\"\n            event.app.suspend_to_background()\n        @kb.add(Keys.ControlZ, filter=Condition(lambda: hasattr(signal, \"SIGTSTP\")))",
+        "detail": "siada.io.key_bindings",
+        "documentation": {}
+    },
+    {
+        "label": "NotificationCommandUtil",
+        "kind": 6,
+        "importPath": "siada.io.notification_command",
+        "description": "siada.io.notification_command",
+        "peekOfCode": "class NotificationCommandUtil:\n    \"\"\"A utility class for handling notification commands.\"\"\"\n    NOTIFICATION_MESSAGE = \"Siada is waiting for your input\"\n    @staticmethod\n    def get_default_notification_command():\n        \"\"\"Return a default notification command based on the operating system.\"\"\"\n        system = platform.system()\n        if system == \"Darwin\":  # macOS\n            # Check for terminal-notifier first\n            if shutil.which(\"terminal-notifier\"):",
+        "detail": "siada.io.notification_command",
+        "documentation": {}
+    },
+    {
         "label": "Tool",
         "kind": 6,
         "importPath": "siada.models.agent",
@@ -5687,6 +6555,159 @@
         "description": "siada.services.siada_runner",
         "peekOfCode": "class SiadaRunner:\n    @overload\n    @staticmethod\n    async def run_agent(agent_name: str, user_input: str, workspace: str = None, *, stream: Literal[True]) -> RunResultStreaming: ...\n    @overload\n    @staticmethod\n    async def run_agent(agent_name: str, user_input: str, workspace: str = None, *, stream: Literal[False]) -> RunResult: ...\n    @staticmethod\n    async def run_agent(agent_name: str, user_input: str, workspace: str = None, stream: bool = False) -> RunResult | RunResultStreaming:\n        \"\"\"",
         "detail": "siada.services.siada_runner",
+        "documentation": {}
+    },
+    {
+        "label": "SwitchCoder",
+        "kind": 6,
+        "importPath": "siada.support.commands",
+        "description": "siada.support.commands",
+        "peekOfCode": "class SwitchCoder(Exception):\n    def __init__(self, placeholder=None, **kwargs):\n        self.kwargs = kwargs\n        self.placeholder = placeholder\nclass SlashCommands:\n    voice = None\n    scraper = None\n    def clone(self):\n        return SlashCommands(\n            self.io,",
+        "detail": "siada.support.commands",
+        "documentation": {}
+    },
+    {
+        "label": "SlashCommands",
+        "kind": 6,
+        "importPath": "siada.support.commands",
+        "description": "siada.support.commands",
+        "peekOfCode": "class SlashCommands:\n    voice = None\n    scraper = None\n    def clone(self):\n        return SlashCommands(\n            self.io,\n            None,\n            voice_language=self.voice_language,\n            verify_ssl=self.verify_ssl,\n            args=self.args,",
+        "detail": "siada.support.commands",
+        "documentation": {}
+    },
+    {
+        "label": "expand_subdir",
+        "kind": 2,
+        "importPath": "siada.support.commands",
+        "description": "siada.support.commands",
+        "peekOfCode": "def expand_subdir(file_path):\n    if file_path.is_file():\n        yield file_path\n        return\n    if file_path.is_dir():\n        for file in file_path.rglob(\"*\"):\n            if file.is_file():\n                yield file\ndef parse_quoted_filenames(args):\n    filenames = re.findall(r\"\\\"(.+?)\\\"|(\\S+)\", args)",
+        "detail": "siada.support.commands",
+        "documentation": {}
+    },
+    {
+        "label": "parse_quoted_filenames",
+        "kind": 2,
+        "importPath": "siada.support.commands",
+        "description": "siada.support.commands",
+        "peekOfCode": "def parse_quoted_filenames(args):\n    filenames = re.findall(r\"\\\"(.+?)\\\"|(\\S+)\", args)\n    filenames = [name for sublist in filenames for name in sublist if name]\n    return filenames\ndef get_help_md():\n    md = SlashCommands(None, None).get_help_md()\n    return md\ndef main():\n    md = get_help_md()\n    print(md)",
+        "detail": "siada.support.commands",
+        "documentation": {}
+    },
+    {
+        "label": "get_help_md",
+        "kind": 2,
+        "importPath": "siada.support.commands",
+        "description": "siada.support.commands",
+        "peekOfCode": "def get_help_md():\n    md = SlashCommands(None, None).get_help_md()\n    return md\ndef main():\n    md = get_help_md()\n    print(md)\nif __name__ == \"__main__\":\n    status = main()\n    sys.exit(status)",
+        "detail": "siada.support.commands",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "siada.support.commands",
+        "description": "siada.support.commands",
+        "peekOfCode": "def main():\n    md = get_help_md()\n    print(md)\nif __name__ == \"__main__\":\n    status = main()\n    sys.exit(status)",
+        "detail": "siada.support.commands",
+        "documentation": {}
+    },
+    {
+        "label": "CommandCompletionException",
+        "kind": 6,
+        "importPath": "siada.support.completer",
+        "description": "siada.support.completer",
+        "peekOfCode": "class CommandCompletionException(Exception):\n    \"\"\"Raised when a command should use the normal autocompleter instead of\n    command-specific completion.\"\"\"\n    pass\nclass AutoCompleter(Completer):\n    def __init__(\n        self, root, rel_fnames, addable_rel_fnames, commands, encoding, abs_read_only_fnames=None\n    ):\n        self.addable_rel_fnames = addable_rel_fnames\n        self.rel_fnames = rel_fnames",
+        "detail": "siada.support.completer",
+        "documentation": {}
+    },
+    {
+        "label": "AutoCompleter",
+        "kind": 6,
+        "importPath": "siada.support.completer",
+        "description": "siada.support.completer",
+        "peekOfCode": "class AutoCompleter(Completer):\n    def __init__(\n        self, root, rel_fnames, addable_rel_fnames, commands, encoding, abs_read_only_fnames=None\n    ):\n        self.addable_rel_fnames = addable_rel_fnames\n        self.rel_fnames = rel_fnames\n        self.encoding = encoding\n        self.abs_read_only_fnames = abs_read_only_fnames or []\n        fname_to_rel_fnames = defaultdict(list)\n        for rel_fname in addable_rel_fnames:",
+        "detail": "siada.support.completer",
+        "documentation": {}
+    },
+    {
+        "label": "print_status_message",
+        "kind": 2,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "def print_status_message(success, message, style=None):\n    \"\"\"\n    Print a status message with appropriate styling.\n    :param success: Whether the operation was successful\n    :param message: The message to display\n    :param style: Optional style override. If None, uses green for success and red for failure\n    \"\"\"\n    if style is None:\n        style = \"bold green\" if success else \"bold red\"\n    console.print(message, style=style)",
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "write_temp_file",
+        "kind": 2,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "def write_temp_file(\n    input_data=\"\",\n    suffix=None,\n    prefix=None,\n    dir=None,\n):\n    \"\"\"\n    Create a temporary file with the given input data.\n    :param input_data: Content to write to the temporary file\n    :param suffix: Optional file extension (without the dot)",
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "get_environment_editor",
+        "kind": 2,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "def get_environment_editor(default=None):\n    \"\"\"\n    Fetches the preferred editor from the environment variables.\n    This function checks the following environment variables in order to\n    determine the user's preferred editor:\n     - VISUAL\n     - EDITOR\n    :param default: The default editor to return if no environment variable is set.\n    :type default: str or None\n    :return: The preferred editor as specified by environment variables or the default value.",
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "discover_editor",
+        "kind": 2,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "def discover_editor(editor_override=None):\n    \"\"\"\n    Discovers and returns the appropriate editor command.\n    Handles cases where the editor command includes arguments, including quoted arguments\n    with spaces (e.g. 'vim -c \"set noswapfile\"').\n    :return: The editor command as a string\n    :rtype: str\n    \"\"\"\n    system = platform.system()\n    if system == \"Windows\":",
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "pipe_editor",
+        "kind": 2,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "def pipe_editor(input_data=\"\", suffix=None, editor=None):\n    \"\"\"\n    Opens the system editor with optional input data and returns the edited content.\n    This function creates a temporary file with the provided input data, opens it in\n    the system editor, waits for the user to make changes and close the editor, then\n    reads and returns the modified content. The temporary file is deleted afterwards.\n    :param input_data: Initial content to populate the editor with\n    :type input_data: str\n    :param suffix: Optional file extension for the temporary file (e.g. '.txt', '.md')\n    :type suffix: str or None",
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "DEFAULT_EDITOR_NIX",
+        "kind": 5,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "DEFAULT_EDITOR_NIX = \"vi\"\nDEFAULT_EDITOR_OS_X = \"vim\"\nDEFAULT_EDITOR_WINDOWS = \"notepad\"\nconsole = Console()\ndef print_status_message(success, message, style=None):\n    \"\"\"\n    Print a status message with appropriate styling.\n    :param success: Whether the operation was successful\n    :param message: The message to display\n    :param style: Optional style override. If None, uses green for success and red for failure",
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "DEFAULT_EDITOR_OS_X",
+        "kind": 5,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "DEFAULT_EDITOR_OS_X = \"vim\"\nDEFAULT_EDITOR_WINDOWS = \"notepad\"\nconsole = Console()\ndef print_status_message(success, message, style=None):\n    \"\"\"\n    Print a status message with appropriate styling.\n    :param success: Whether the operation was successful\n    :param message: The message to display\n    :param style: Optional style override. If None, uses green for success and red for failure\n    \"\"\"",
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "DEFAULT_EDITOR_WINDOWS",
+        "kind": 5,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "DEFAULT_EDITOR_WINDOWS = \"notepad\"\nconsole = Console()\ndef print_status_message(success, message, style=None):\n    \"\"\"\n    Print a status message with appropriate styling.\n    :param success: Whether the operation was successful\n    :param message: The message to display\n    :param style: Optional style override. If None, uses green for success and red for failure\n    \"\"\"\n    if style is None:",
+        "detail": "siada.support.editor",
+        "documentation": {}
+    },
+    {
+        "label": "console",
+        "kind": 5,
+        "importPath": "siada.support.editor",
+        "description": "siada.support.editor",
+        "peekOfCode": "console = Console()\ndef print_status_message(success, message, style=None):\n    \"\"\"\n    Print a status message with appropriate styling.\n    :param success: Whether the operation was successful\n    :param message: The message to display\n    :param style: Optional style override. If None, uses green for success and red for failure\n    \"\"\"\n    if style is None:\n        style = \"bold green\" if success else \"bold red\"",
+        "detail": "siada.support.editor",
         "documentation": {}
     },
     {
@@ -6203,6 +7224,15 @@
         "documentation": {}
     },
     {
+        "label": "do_run_cmd",
+        "kind": 2,
+        "importPath": "siada.tools.coder.run_cmd",
+        "description": "siada.tools.coder.run_cmd",
+        "peekOfCode": "def do_run_cmd(command, verbose=False, cwd=None, error_print=None):\n    try:\n        if sys.stdin.isatty() and hasattr(pexpect, \"spawn\") and platform.system() != \"Windows\":\n            return run_cmd_pexpect(command, verbose, cwd)\n        return run_cmd_subprocess(command, verbose, cwd)\n    except OSError as e:\n        error_message = f\"Error occurred while running command '{command}': {str(e)}\"\n        if error_print is None:\n            print(error_message)\n        else:",
+        "detail": "siada.tools.coder.run_cmd",
+        "documentation": {}
+    },
+    {
         "label": "get_windows_parent_process_name",
         "kind": 2,
         "importPath": "siada.tools.coder.run_cmd",
@@ -6227,6 +7257,33 @@
         "description": "siada.tools.coder.run_cmd",
         "peekOfCode": "def run_cmd_pexpect(command, verbose=False, cwd=None):\n    \"\"\"\n    Run a shell command interactively using pexpect, capturing all output.\n    :param command: The command to run as a string.\n    :param verbose: If True, print output in real-time.\n    :return: A tuple containing (exit_status, output)\n    \"\"\"\n    if verbose:\n        print(\"Using run_cmd_pexpect:\", command)\n    output = BytesIO()",
         "detail": "siada.tools.coder.run_cmd",
+        "documentation": {}
+    },
+    {
+        "label": "WebCrawlObservation",
+        "kind": 6,
+        "importPath": "siada.tools.web_crawl",
+        "description": "siada.tools.web_crawl",
+        "peekOfCode": "class WebCrawlObservation(Observation):\n    \"\"\"Web crawling result observation\"\"\"\n    def __init__(self, url: str, content: str, format: str, success: bool = True, error: str = None):\n        self.url = url\n        self.content = content\n        self.format = format\n        self.success = success\n        self.error = error\n    def __str__(self) -> str:\n        if not self.success:",
+        "detail": "siada.tools.web_crawl",
+        "documentation": {}
+    },
+    {
+        "label": "web_crawl",
+        "kind": 2,
+        "importPath": "siada.tools.web_crawl",
+        "description": "siada.tools.web_crawl",
+        "peekOfCode": "def web_crawl(\n        context: RunContextWrapper[CodeAgentContext],\n        url: str,\n        format: Literal[\"markdown\", \"text\", \"json\", \"html\"] = \"text\"\n) -> WebCrawlObservation:\n    \"\"\"\n    Crawl web content and return content in specified format\n    Args:\n        context: Runtime context wrapper\n        url: URL of the webpage to crawl",
+        "detail": "siada.tools.web_crawl",
+        "documentation": {}
+    },
+    {
+        "label": "WEB_CRAWL_DOCS",
+        "kind": 5,
+        "importPath": "siada.tools.web_crawl",
+        "description": "siada.tools.web_crawl",
+        "peekOfCode": "WEB_CRAWL_DOCS = \"\"\"Web content crawling tool for fetching and extracting content from web pages\n* Uses trafilatura library to intelligently extract clean content from web pages\n* Supports multiple output formats: text, markdown, JSON, and raw HTML\n* Handles various web page types including articles, blogs, documentation, and news sites\n* Automatically validates URLs and provides detailed error messages for troubleshooting\n* Returns structured observation objects with success status and extracted content\nSUPPORTED OUTPUT FORMATS:\n- `text`: Clean plain text content without HTML tags (default)\n- `markdown`: Content formatted as Markdown with preserved structure\n- `json`: Structured JSON format with metadata including title, author, date, etc.",
+        "detail": "siada.tools.web_crawl",
         "documentation": {}
     },
     {
@@ -6257,6 +7314,24 @@
         "documentation": {}
     },
     {
+        "label": "DebugUtils",
+        "kind": 6,
+        "importPath": "siada.utils",
+        "description": "siada.utils",
+        "peekOfCode": "class DebugUtils:\n    \"Debug Utils\"\n    @staticmethod\n    def _cvt(s: Any):\n        if isinstance(s, str):\n            return s\n        try:\n            return json.dumps(s, indent=4)\n        except TypeError:\n            return str(s)",
+        "detail": "siada.utils",
+        "documentation": {}
+    },
+    {
+        "label": "ImageUtils",
+        "kind": 6,
+        "importPath": "siada.utils",
+        "description": "siada.utils",
+        "peekOfCode": "class ImageUtils:\n    \"\"\"Image Utils\"\"\"\n    IMAGE_EXTENSIONS = [\".png\", \".jpg\", \".jpeg\", \".gif\", \".bmp\", \".tiff\", \".webp\", \".pdf\"]\n    @staticmethod\n    def is_image_file(filename: str) -> bool:\n        \"\"\"Check if a file is an image file\"\"\"\n        file_name = str(filename)  # Convert file_name to string\n        return any(file_name.endswith(ext) for ext in ImageUtils.IMAGE_EXTENSIONS)",
+        "detail": "siada.utils",
+        "documentation": {}
+    },
+    {
         "label": "TestCoderAgent",
         "kind": 6,
         "importPath": "tests.agent.test_coder_agent",
@@ -6272,6 +7347,24 @@
         "description": "tests.agent.test_get_agent",
         "peekOfCode": "class TestGetAgent(unittest.IsolatedAsyncioTestCase):\n    \"\"\"测试 SiadaRunner.get_agent 方法\"\"\"\n    def setUp(self):\n        \"\"\"测试前准备\"\"\"\n        # 创建测试用的配置内容\n        self.valid_config = {\n            'agents': {\n                'bugfix': {\n                    'class': 'siada.agent_hub.coder.bug_fix_agent.BugFixAgent',\n                    'description': '专门用于代码bug修复的Agent',",
         "detail": "tests.agent.test_get_agent",
+        "documentation": {}
+    },
+    {
+        "label": "WebAnalysisOutput",
+        "kind": 6,
+        "importPath": "tests.agent.test_web_analysis",
+        "description": "tests.agent.test_web_analysis",
+        "peekOfCode": "class WebAnalysisOutput:\n    url: str\n    title: str\n    main_content_summary: str\n    key_topics: list[str]\n    content_type: str\n    analysis_result: str\nclass TestWebAnalysisAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Web Content Analysis Agent",
+        "detail": "tests.agent.test_web_analysis",
+        "documentation": {}
+    },
+    {
+        "label": "TestWebAnalysisAgent",
+        "kind": 6,
+        "importPath": "tests.agent.test_web_analysis",
+        "description": "tests.agent.test_web_analysis",
+        "peekOfCode": "class TestWebAnalysisAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Web Content Analysis Agent\n    Test agent implementation for web content analysis functionality\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        # Use default model provided by SiadaProvider\n        provider = SiadaProvider()\n        model = provider.get_model(\"claude-sonnet-4\")\n        # Use default value if name parameter is not passed",
+        "detail": "tests.agent.test_web_analysis",
         "documentation": {}
     },
     {
@@ -6371,6 +7464,15 @@
         "description": "tests.agent_hub.coder.test_bug_fix_agent_assemble_user_input",
         "peekOfCode": "project_root = Path(__file__).parent.parent.parent.parent\nsys.path.insert(0, str(project_root))\nfrom siada.agent_hub.coder.bug_fix_agent import BugFixAgent\nfrom siada.foundation.code_agent_context import CodeAgentContext\nclass TestBugFixAgentAssembleUserInput(unittest.TestCase):\n    \"\"\"测试 BugFixAgent 的 assemble_user_input 方法\"\"\"\n    def setUp(self):\n        \"\"\"设置测试环境\"\"\"\n        self.test_dir = tempfile.mkdtemp()\n        self.agent = BugFixAgent()",
         "detail": "tests.agent_hub.coder.test_bug_fix_agent_assemble_user_input",
+        "documentation": {}
+    },
+    {
+        "label": "TestDisplayUserInput",
+        "kind": 6,
+        "importPath": "tests.io.test_io",
+        "description": "tests.io.test_io",
+        "peekOfCode": "class TestDisplayUserInput(unittest.TestCase):\n    def test_display_with_pretty_and_color(self):\n        \"\"\"Demonstrates display_user_input with pretty=True and a color.\"\"\"\n        print(f\"\\n--- Running: {self.test_display_with_pretty_and_color.__doc__} ---\")\n        color_settings = ColorSettings(user_input_color=\"#123456\")\n        io = InputOutput(pretty=True, color_settings=color_settings)\n        # The console needs to support colors for this test.\n        # It will print directly to the terminal.\n        io.console = Console(force_terminal=True, color_system=\"truecolor\")\n        io.display_user_input(\"This is a colored test input.\")",
+        "detail": "tests.io.test_io",
         "documentation": {}
     },
     {
@@ -6767,6 +7869,24 @@
         "description": "tests.tools.test_read_function",
         "peekOfCode": "class TestReadFunctionDirect(unittest.IsolatedAsyncioTestCase):\n    \"\"\"直接测试 read 函数的核心逻辑\"\"\"\n    def setUp(self):\n        \"\"\"设置测试环境\"\"\"\n        self.test_dir = tempfile.mkdtemp()\n        self.context = MockRunContextWrapper(MockCoderAgentContext(self.test_dir))\n    def tearDown(self):\n        \"\"\"清理测试环境\"\"\"\n        shutil.rmtree(self.test_dir, ignore_errors=True)\n    def _create_test_file(self, filename: str, content: str) -> str:",
         "detail": "tests.tools.test_read_function",
+        "documentation": {}
+    },
+    {
+        "label": "IgnorantTemporaryDirectory",
+        "kind": 6,
+        "importPath": "tests.test_base",
+        "description": "tests.test_base",
+        "peekOfCode": "class IgnorantTemporaryDirectory:\n    def __init__(self):\n        if sys.version_info >= (3, 10):\n            self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)\n        else:\n            self.temp_dir = tempfile.TemporaryDirectory()\n    def __enter__(self):\n        return self.temp_dir.__enter__()\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        self.cleanup()",
+        "detail": "tests.test_base",
+        "documentation": {}
+    },
+    {
+        "label": "ChdirTemporaryDirectory",
+        "kind": 6,
+        "importPath": "tests.test_base",
+        "description": "tests.test_base",
+        "peekOfCode": "class ChdirTemporaryDirectory(IgnorantTemporaryDirectory):\n    def __init__(self):\n        try:\n            self.cwd = os.getcwd()\n        except FileNotFoundError:\n            self.cwd = None\n        super().__init__()\n    def __enter__(self):\n        res = super().__enter__()\n        os.chdir(Path(self.temp_dir.name).resolve())",
+        "detail": "tests.test_base",
         "documentation": {}
     },
     {

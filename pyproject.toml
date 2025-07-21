@@ -15,7 +15,7 @@ fastapi = "^0.110.0"
 uvicorn = "^0.27.0"
 pydantic = "^2.6.0"
 pydantic-settings = "^2.2.0"
-openai-agents = "^0.0.17"
+openai-agents = "^0.2.2"
 openai = "^1.66.5"
 litellm={extras = ["all"], version = "^1.72.6"}
 openhands-aci = "0.3.0"
@@ -34,6 +34,7 @@ click = "^8.2.1"
 patch-ng = "^1.18.1"
 datasets = "^3.6.0"
 trafilatura = "^2.0.0"
+prompt-toolkit = "^3.0.51"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

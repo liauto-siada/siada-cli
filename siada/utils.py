@@ -4,7 +4,10 @@
 提供项目中通用的工具函数
 """
 import json
-from typing import Any, Dict, Union
+import traceback
+from inspect import stack
+from textwrap import indent
+from typing import Any, Dict, Union, List
 
 from siada.foundation.logging import logger
 
@@ -131,3 +134,42 @@ class AgentLogger:
     def log_observation(message: str) -> None:
         """记录观察内容"""
         logger.info(message, extra={'msg_type': 'MESSAGE'})
+
+
+class DebugUtils:
+    "Debug Utils"
+
+    @staticmethod
+    def _cvt(s: Any):
+        if isinstance(s, str):
+            return s
+        try:
+            return json.dumps(s, indent=4)
+        except TypeError:
+            return str(s)
+
+    def dump(*args):
+        stack = traceback.extract_stack()
+        vars = stack[-2][-3]
+
+        vars = "(".join(vars.split("(")[1:])
+        vars = ")".join(vars.split(")")[:-1])
+
+        args = [DebugUtils._cvt(v) for v in args]
+        has_newline = sum(1 for v in vars if "\n" in v)
+        if has_newline:
+            print("%s:" % vars)
+            print(",".join(args))
+        else:
+            print("%s:" % vars, ", ".join(args))
+
+
+class ImageUtils:
+    """Image Utils"""
+    IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp", ".pdf"]
+
+    @staticmethod
+    def is_image_file(filename: str) -> bool:
+        """Check if a file is an image file"""
+        file_name = str(filename)  # Convert file_name to string
+        return any(file_name.endswith(ext) for ext in ImageUtils.IMAGE_EXTENSIONS)

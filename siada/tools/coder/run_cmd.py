@@ -28,6 +28,14 @@ def run_cmd(context: RunContextWrapper[CodeAgentContext], command, verbose=False
             a single string argument. Defaults to None.
     """
     cwd = context.context.root_dir
+    return do_run_cmd(command, verbose, cwd, error_print)
+
+
+
+
+
+
+def do_run_cmd(command, verbose=False, cwd=None, error_print=None):
     try:
         if sys.stdin.isatty() and hasattr(pexpect, "spawn") and platform.system() != "Windows":
             return run_cmd_pexpect(command, verbose, cwd)
@@ -40,6 +48,7 @@ def run_cmd(context: RunContextWrapper[CodeAgentContext], command, verbose=False
         else:
             error_print(error_message)
         return 1, error_message
+
 
 
 def get_windows_parent_process_name():
