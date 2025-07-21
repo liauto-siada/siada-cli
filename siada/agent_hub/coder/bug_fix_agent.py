@@ -4,7 +4,7 @@ from agents import RunContextWrapper, RunConfig, RunResult, RunResultStreaming, 
 
 from siada.agent_hub.coder.bug_reproduce_agent import BugReproduceAgent
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
-from siada.agent_hub.coder.prompt.base.bug_prompt import bug_fix_prompt
+from siada.agent_hub.coder.prompt.bug_prompt_base import bug_fix_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.config import settings
 from siada.provider.li.li_provider import SiadaProvider
