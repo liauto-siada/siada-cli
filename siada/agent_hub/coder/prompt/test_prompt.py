@@ -1,5 +1,8 @@
 import os
 import platform
+
+from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
+
 from .base.tool_use import get_tool_use_section
 from .base.capabilities import get_capabilities_section
 from .base.rules import get_rules_section
@@ -18,10 +21,10 @@ def get_system_prompt(cwd: str = "/default/path") -> str:
     os_name = platform.system()
     home_dir = os.path.expanduser("~")
 
-    intro = ("You are Siada, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices."
+    intro = (f"{RECOMMENDED_PROMPT_PREFIX} "
+             "You are Siada, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices."
              "You will receive an issue description within the <task></task> tags. This issue has just been fixed. A brief explanation of how it was fixed is provided in the <fix_info></fix_info> section."
-             "Your task is to verify whether the issue has indeed been resolved and whether any new issues have been introduced as a result."
-             "If new issues have been introduced, you need to fix them.")
+             "Your task is to verify whether the issue has indeed been resolved and whether any new issues have been introduced as a result.")
 
     objective = """OBJECTIVE
 

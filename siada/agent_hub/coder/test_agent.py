@@ -6,15 +6,17 @@ Bug修复Agent模块
 import os
 from dataclasses import dataclass
 
-from agents import RunContextWrapper, RunResult, Runner, RunConfig, add_trace_processor, TContext, AgentOutputSchema
+from agents import RunContextWrapper, RunResult, Runner, RunConfig, add_trace_processor, TContext, AgentOutputSchema, \
+    RunResultStreaming
+from agents.agent import StopAtTools
 
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
+from siada.tools.coder.test_completion import test_completion
 from siada.foundation.config import settings
-from siada.models.provider import SiadaProvider
 from siada.agent_hub.coder.prompt import test_prompt
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import logging
@@ -31,21 +33,18 @@ class CCAOutput:
 
 class TestAgent(SiadaAgent[CodeAgentContext]):
     """
-    代码生成Agent
-
-    专门用于代码生成的Agent实现
+    Test Execution Agent: an agent dedicated to running test cases.
     """
 
     def __init__(self, *args, **kwargs):
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(
-                name="TestAgent",
-                tools=[edit, regex_search_files, run_cmd, fix_attempt_completion],
-                tool_use_behavior=StopAtTools(stop_at_tool_names=['fix_attempt_completion']),
-                *args,
-                **kwargs
-            )
+        super().__init__(
+            name="TestAgent",
+            handoff_description="A helpful agent that can test whether a bug has been fixed.",
+            tools=[edit, regex_search_files, run_cmd, test_completion],
+            tool_use_behavior=StopAtTools(stop_at_tool_names=['test_completion']),
+            *args,
+            **kwargs
+        )
 
     async def get_system_prompt(self, run_context: RunContextWrapper[CodeAgentContext]) -> str | None:
         root_dir = run_context.context.root_dir
@@ -58,15 +57,6 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
         return context
 
     async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
-        """
-        执行Bug修复任务
-
-        Args:
-            user_input: 用户描述的Bug问题，包括错误信息、相关文件路径等
-            context: 用于提供上下文信息的上下文对象
-        Returns:
-            修复结果，包含最终输出、执行轮数等信息
-        """
 
         config = RunConfig(tracing_disabled=False)
         add_trace_processor(create_detailed_logger())
@@ -80,3 +70,7 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
         )
 
         return result
+
+    def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
+
+        pass
