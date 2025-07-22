@@ -120,6 +120,14 @@
         "documentation": {}
     },
     {
+        "label": "fields",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
         "label": "dataclass",
         "importPath": "dataclasses",
         "description": "dataclasses",
@@ -129,6 +137,62 @@
     },
     {
         "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "fields",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "fields",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "field",
         "importPath": "dataclasses",
         "description": "dataclasses",
         "isExtraImport": true,
@@ -528,6 +592,46 @@
         "documentation": {}
     },
     {
+        "label": "Union",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Optional",
         "importPath": "typing",
         "description": "typing",
@@ -713,6 +817,38 @@
     },
     {
         "label": "overload",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -909,6 +1045,22 @@
         "isExtraImport": true,
         "importPath": "uuid",
         "description": "uuid",
+        "detail": "uuid",
+        "documentation": {}
+    },
+    {
+        "label": "uuid4",
+        "importPath": "uuid",
+        "description": "uuid",
+        "isExtraImport": true,
+        "detail": "uuid",
+        "documentation": {}
+    },
+    {
+        "label": "uuid4",
+        "importPath": "uuid",
+        "description": "uuid",
+        "isExtraImport": true,
         "detail": "uuid",
         "documentation": {}
     },
@@ -1332,11 +1484,43 @@
         "documentation": {}
     },
     {
+        "label": "__version__",
+        "importPath": "siada",
+        "description": "siada",
+        "isExtraImport": true,
+        "detail": "siada",
+        "documentation": {}
+    },
+    {
         "label": "pathlib",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "pathlib",
         "description": "pathlib",
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
         "detail": "pathlib",
         "documentation": {}
     },
@@ -1630,6 +1814,14 @@
         "importPath": "asyncio",
         "description": "asyncio",
         "detail": "asyncio",
+        "documentation": {}
+    },
+    {
+        "label": "SiadaRunner",
+        "importPath": "siada.services.siada_runner",
+        "description": "siada.services.siada_runner",
+        "isExtraImport": true,
+        "detail": "siada.services.siada_runner",
         "documentation": {}
     },
     {
@@ -2098,6 +2290,14 @@
         "documentation": {}
     },
     {
+        "label": "SQLiteSession",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "function_tool",
         "importPath": "agents",
         "description": "agents",
@@ -2399,6 +2599,22 @@
         "description": "siada.agent_hub.coder.tracing",
         "isExtraImport": true,
         "detail": "siada.agent_hub.coder.tracing",
+        "documentation": {}
+    },
+    {
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
         "documentation": {}
     },
     {
@@ -2739,6 +2955,33 @@
         "documentation": {}
     },
     {
+        "label": "sys",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "sys",
+        "description": "sys",
+        "detail": "sys",
+        "documentation": {}
+    },
+    {
+        "label": "configargparse",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "configargparse",
+        "description": "configargparse",
+        "detail": "configargparse",
+        "documentation": {}
+    },
+    {
+        "label": "shtab",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "shtab",
+        "description": "shtab",
+        "detail": "shtab",
+        "documentation": {}
+    },
+    {
         "label": "click",
         "kind": 6,
         "isExtraImport": true,
@@ -2761,6 +3004,370 @@
         "description": "importlib.metadata",
         "isExtraImport": true,
         "detail": "importlib.metadata",
+        "documentation": {}
+    },
+    {
+        "label": "re",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "threading",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "threading",
+        "description": "threading",
+        "detail": "threading",
+        "documentation": {}
+    },
+    {
+        "label": "webbrowser",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "webbrowser",
+        "description": "webbrowser",
+        "detail": "webbrowser",
+        "documentation": {}
+    },
+    {
+        "label": "get_parser",
+        "importPath": "siada.entrypoint.args_parser.args",
+        "description": "siada.entrypoint.args_parser.args",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.args_parser.args",
+        "documentation": {}
+    },
+    {
+        "label": "Model",
+        "importPath": "siada.models.model_setting",
+        "description": "siada.models.model_setting",
+        "isExtraImport": true,
+        "detail": "siada.models.model_setting",
+        "documentation": {}
+    },
+    {
+        "label": "Model",
+        "importPath": "siada.models.model_setting",
+        "description": "siada.models.model_setting",
+        "isExtraImport": true,
+        "detail": "siada.models.model_setting",
+        "documentation": {}
+    },
+    {
+        "label": "ModelSettings",
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "isExtraImport": true,
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "ModelSettings",
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "isExtraImport": true,
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "get_model_config",
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "isExtraImport": true,
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "ModelSettings",
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "isExtraImport": true,
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "ModelSettings",
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "isExtraImport": true,
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "ModelSettings",
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "isExtraImport": true,
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "get_model_config",
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "isExtraImport": true,
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "SlashCommands",
+        "importPath": "siada.support.commands",
+        "description": "siada.support.commands",
+        "isExtraImport": true,
+        "detail": "siada.support.commands",
+        "documentation": {}
+    },
+    {
+        "label": "SwitchEvent",
+        "importPath": "siada.support.commands",
+        "description": "siada.support.commands",
+        "isExtraImport": true,
+        "detail": "siada.support.commands",
+        "documentation": {}
+    },
+    {
+        "label": "importlib_resources",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "importlib_resources",
+        "description": "importlib_resources",
+        "detail": "importlib_resources",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv",
+        "importPath": "dotenv",
+        "description": "dotenv",
+        "isExtraImport": true,
+        "detail": "dotenv",
+        "documentation": {}
+    },
+    {
+        "label": "EditingMode",
+        "importPath": "prompt_toolkit.enums",
+        "description": "prompt_toolkit.enums",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.enums",
+        "documentation": {}
+    },
+    {
+        "label": "EditingMode",
+        "importPath": "prompt_toolkit.enums",
+        "description": "prompt_toolkit.enums",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.enums",
+        "documentation": {}
+    },
+    {
+        "label": "EditingMode",
+        "importPath": "prompt_toolkit.enums",
+        "description": "prompt_toolkit.enums",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.enums",
+        "documentation": {}
+    },
+    {
+        "label": "__version__",
+        "importPath": "aider",
+        "description": "aider",
+        "isExtraImport": true,
+        "detail": "aider",
+        "documentation": {}
+    },
+    {
+        "label": "models",
+        "importPath": "aider",
+        "description": "aider",
+        "isExtraImport": true,
+        "detail": "aider",
+        "documentation": {}
+    },
+    {
+        "label": "urls",
+        "importPath": "aider",
+        "description": "aider",
+        "isExtraImport": true,
+        "detail": "aider",
+        "documentation": {}
+    },
+    {
+        "label": "utils",
+        "importPath": "aider",
+        "description": "aider",
+        "isExtraImport": true,
+        "detail": "aider",
+        "documentation": {}
+    },
+    {
+        "label": "__version__",
+        "importPath": "aider",
+        "description": "aider",
+        "isExtraImport": true,
+        "detail": "aider",
+        "documentation": {}
+    },
+    {
+        "label": "Analytics",
+        "importPath": "aider.analytics",
+        "description": "aider.analytics",
+        "isExtraImport": true,
+        "detail": "aider.analytics",
+        "documentation": {}
+    },
+    {
+        "label": "Coder",
+        "importPath": "aider.coders",
+        "description": "aider.coders",
+        "isExtraImport": true,
+        "detail": "aider.coders",
+        "documentation": {}
+    },
+    {
+        "label": "UnknownEditFormat",
+        "importPath": "aider.coders.base_coder",
+        "description": "aider.coders.base_coder",
+        "isExtraImport": true,
+        "detail": "aider.coders.base_coder",
+        "documentation": {}
+    },
+    {
+        "label": "ClipboardWatcher",
+        "importPath": "aider.copypaste",
+        "description": "aider.copypaste",
+        "isExtraImport": true,
+        "detail": "aider.copypaste",
+        "documentation": {}
+    },
+    {
+        "label": "handle_deprecated_model_args",
+        "importPath": "aider.deprecated",
+        "description": "aider.deprecated",
+        "isExtraImport": true,
+        "detail": "aider.deprecated",
+        "documentation": {}
+    },
+    {
+        "label": "format_settings",
+        "importPath": "aider.format_settings",
+        "description": "aider.format_settings",
+        "isExtraImport": true,
+        "detail": "aider.format_settings",
+        "documentation": {}
+    },
+    {
+        "label": "scrub_sensitive_info",
+        "importPath": "aider.format_settings",
+        "description": "aider.format_settings",
+        "isExtraImport": true,
+        "detail": "aider.format_settings",
+        "documentation": {}
+    },
+    {
+        "label": "ChatSummary",
+        "importPath": "aider.history",
+        "description": "aider.history",
+        "isExtraImport": true,
+        "detail": "aider.history",
+        "documentation": {}
+    },
+    {
+        "label": "InputOutput",
+        "importPath": "aider.io",
+        "description": "aider.io",
+        "isExtraImport": true,
+        "detail": "aider.io",
+        "documentation": {}
+    },
+    {
+        "label": "litellm",
+        "importPath": "aider.llm",
+        "description": "aider.llm",
+        "isExtraImport": true,
+        "detail": "aider.llm",
+        "documentation": {}
+    },
+    {
+        "label": "litellm",
+        "importPath": "aider.llm",
+        "description": "aider.llm",
+        "isExtraImport": true,
+        "detail": "aider.llm",
+        "documentation": {}
+    },
+    {
+        "label": "offer_openrouter_oauth",
+        "importPath": "aider.onboarding",
+        "description": "aider.onboarding",
+        "isExtraImport": true,
+        "detail": "aider.onboarding",
+        "documentation": {}
+    },
+    {
+        "label": "select_default_model",
+        "importPath": "aider.onboarding",
+        "description": "aider.onboarding",
+        "isExtraImport": true,
+        "detail": "aider.onboarding",
+        "documentation": {}
+    },
+    {
+        "label": "ANY_GIT_ERROR",
+        "importPath": "aider.repo",
+        "description": "aider.repo",
+        "isExtraImport": true,
+        "detail": "aider.repo",
+        "documentation": {}
+    },
+    {
+        "label": "GitRepo",
+        "importPath": "aider.repo",
+        "description": "aider.repo",
+        "isExtraImport": true,
+        "detail": "aider.repo",
+        "documentation": {}
+    },
+    {
+        "label": "report_uncaught_exceptions",
+        "importPath": "aider.report",
+        "description": "aider.report",
+        "isExtraImport": true,
+        "detail": "aider.report",
+        "documentation": {}
+    },
+    {
+        "label": "check_version",
+        "importPath": "aider.versioncheck",
+        "description": "aider.versioncheck",
+        "isExtraImport": true,
+        "detail": "aider.versioncheck",
+        "documentation": {}
+    },
+    {
+        "label": "install_from_main_branch",
+        "importPath": "aider.versioncheck",
+        "description": "aider.versioncheck",
+        "isExtraImport": true,
+        "detail": "aider.versioncheck",
+        "documentation": {}
+    },
+    {
+        "label": "install_upgrade",
+        "importPath": "aider.versioncheck",
+        "description": "aider.versioncheck",
+        "isExtraImport": true,
+        "detail": "aider.versioncheck",
+        "documentation": {}
+    },
+    {
+        "label": "FileWatcher",
+        "importPath": "aider.watch",
+        "description": "aider.watch",
+        "isExtraImport": true,
+        "detail": "aider.watch",
         "documentation": {}
     },
     {
@@ -3042,15 +3649,6 @@
         "documentation": {}
     },
     {
-        "label": "webbrowser",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "webbrowser",
-        "description": "webbrowser",
-        "detail": "webbrowser",
-        "documentation": {}
-    },
-    {
         "label": "defaultdict",
         "importPath": "collections",
         "description": "collections",
@@ -3160,22 +3758,6 @@
         "description": "prompt_toolkit.cursor_shapes",
         "isExtraImport": true,
         "detail": "prompt_toolkit.cursor_shapes",
-        "documentation": {}
-    },
-    {
-        "label": "EditingMode",
-        "importPath": "prompt_toolkit.enums",
-        "description": "prompt_toolkit.enums",
-        "isExtraImport": true,
-        "detail": "prompt_toolkit.enums",
-        "documentation": {}
-    },
-    {
-        "label": "EditingMode",
-        "importPath": "prompt_toolkit.enums",
-        "description": "prompt_toolkit.enums",
-        "isExtraImport": true,
-        "detail": "prompt_toolkit.enums",
         "documentation": {}
     },
     {
@@ -3456,6 +4038,115 @@
         "description": "siada.utils",
         "isExtraImport": true,
         "detail": "siada.utils",
+        "documentation": {}
+    },
+    {
+        "label": "SettingsUtils",
+        "importPath": "siada.utils",
+        "description": "siada.utils",
+        "isExtraImport": true,
+        "detail": "siada.utils",
+        "documentation": {}
+    },
+    {
+        "label": "difflib",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "difflib",
+        "description": "difflib",
+        "detail": "difflib",
+        "documentation": {}
+    },
+    {
+        "label": "SequenceMatcher",
+        "importPath": "difflib",
+        "description": "difflib",
+        "isExtraImport": true,
+        "detail": "difflib",
+        "documentation": {}
+    },
+    {
+        "label": "hashlib",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "hashlib",
+        "description": "hashlib",
+        "detail": "hashlib",
+        "documentation": {}
+    },
+    {
+        "label": "importlib.resources",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "importlib.resources",
+        "description": "importlib.resources",
+        "detail": "importlib.resources",
+        "documentation": {}
+    },
+    {
+        "label": "math",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "math",
+        "description": "math",
+        "detail": "math",
+        "documentation": {}
+    },
+    {
+        "label": "json5",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "json5",
+        "description": "json5",
+        "detail": "json5",
+        "documentation": {}
+    },
+    {
+        "label": "Image",
+        "importPath": "PIL",
+        "description": "PIL",
+        "isExtraImport": true,
+        "detail": "PIL",
+        "documentation": {}
+    },
+    {
+        "label": "dump",
+        "importPath": "aider.dump",
+        "description": "aider.dump",
+        "isExtraImport": true,
+        "detail": "aider.dump",
+        "documentation": {}
+    },
+    {
+        "label": "OpenRouterModelManager",
+        "importPath": "aider.openrouter",
+        "description": "aider.openrouter",
+        "isExtraImport": true,
+        "detail": "aider.openrouter",
+        "documentation": {}
+    },
+    {
+        "label": "ensure_alternating_roles",
+        "importPath": "aider.sendchat",
+        "description": "aider.sendchat",
+        "isExtraImport": true,
+        "detail": "aider.sendchat",
+        "documentation": {}
+    },
+    {
+        "label": "sanity_check_messages",
+        "importPath": "aider.sendchat",
+        "description": "aider.sendchat",
+        "isExtraImport": true,
+        "detail": "aider.sendchat",
+        "documentation": {}
+    },
+    {
+        "label": "check_pip_install_extra",
+        "importPath": "aider.utils",
+        "description": "aider.utils",
+        "isExtraImport": true,
+        "detail": "aider.utils",
         "documentation": {}
     },
     {
@@ -4080,24 +4771,6 @@
         "documentation": {}
     },
     {
-        "label": "re",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "re",
-        "description": "re",
-        "detail": "re",
-        "documentation": {}
-    },
-    {
-        "label": "sys",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "sys",
-        "description": "sys",
-        "detail": "sys",
-        "documentation": {}
-    },
-    {
         "label": "tempfile",
         "kind": 6,
         "isExtraImport": true,
@@ -4112,31 +4785,6 @@
         "description": "os.path",
         "isExtraImport": true,
         "detail": "os.path",
-        "documentation": {}
-    },
-    {
-        "label": "pyperclip",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "pyperclip",
-        "description": "pyperclip",
-        "detail": "pyperclip",
-        "documentation": {}
-    },
-    {
-        "label": "Image",
-        "importPath": "PIL",
-        "description": "PIL",
-        "isExtraImport": true,
-        "detail": "PIL",
-        "documentation": {}
-    },
-    {
-        "label": "ImageGrab",
-        "importPath": "PIL",
-        "description": "PIL",
-        "isExtraImport": true,
-        "detail": "PIL",
         "documentation": {}
     },
     {
@@ -4325,29 +4973,12 @@
         "documentation": {}
     },
     {
-        "label": "SequenceMatcher",
-        "importPath": "difflib",
-        "description": "difflib",
-        "isExtraImport": true,
-        "detail": "difflib",
-        "documentation": {}
-    },
-    {
         "label": "colorsys",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "colorsys",
         "description": "colorsys",
         "detail": "colorsys",
-        "documentation": {}
-    },
-    {
-        "label": "math",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "math",
-        "description": "math",
-        "detail": "math",
         "documentation": {}
     },
     {
@@ -4423,15 +5054,6 @@
         "description": "grep_ast.tsl",
         "isExtraImport": true,
         "detail": "grep_ast.tsl",
-        "documentation": {}
-    },
-    {
-        "label": "threading",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "threading",
-        "description": "threading",
-        "detail": "threading",
         "documentation": {}
     },
     {
@@ -5883,6 +6505,33 @@
         "documentation": {}
     },
     {
+        "label": "resolve_aiderignore_path",
+        "kind": 2,
+        "importPath": "siada.entrypoint.args_parser.args",
+        "description": "siada.entrypoint.args_parser.args",
+        "peekOfCode": "def resolve_aiderignore_path(path_str, git_root=None):\n    path = Path(path_str)\n    if path.is_absolute():\n        return str(path)\n    elif git_root:\n        return str(Path(git_root) / path)\n    return str(path)\ndef default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser(default_config_files, git_root):",
+        "detail": "siada.entrypoint.args_parser.args",
+        "documentation": {}
+    },
+    {
+        "label": "default_env_file",
+        "kind": 2,
+        "importPath": "siada.entrypoint.args_parser.args",
+        "description": "siada.entrypoint.args_parser.args",
+        "peekOfCode": "def default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser(default_config_files, git_root):\n    parser = configargparse.ArgumentParser(\n        description=\"Siada-CLI is AI pair programming in your terminal\",\n        add_config_file_help=True,\n        default_config_files=default_config_files,\n        config_file_parser_class=configargparse.YAMLConfigFileParser,\n        auto_env_var_prefix=\"SIADA_\",\n    )",
+        "detail": "siada.entrypoint.args_parser.args",
+        "documentation": {}
+    },
+    {
+        "label": "get_parser",
+        "kind": 2,
+        "importPath": "siada.entrypoint.args_parser.args",
+        "description": "siada.entrypoint.args_parser.args",
+        "peekOfCode": "def get_parser(default_config_files, git_root):\n    parser = configargparse.ArgumentParser(\n        description=\"Siada-CLI is AI pair programming in your terminal\",\n        add_config_file_help=True,\n        default_config_files=default_config_files,\n        config_file_parser_class=configargparse.YAMLConfigFileParser,\n        auto_env_var_prefix=\"SIADA_\",\n    )\n    # Load agent configurations from config file\n    try:",
+        "detail": "siada.entrypoint.args_parser.args",
+        "documentation": {}
+    },
+    {
         "label": "get_version",
         "kind": 2,
         "importPath": "siada.entrypoint.cli",
@@ -5934,6 +6583,141 @@
         "description": "siada.entrypoint.cli",
         "peekOfCode": "def create_agent_command(agent_type):\n    \"\"\"Create agent command function\"\"\"\n    def agent_command(user_input):\n        if not user_input:\n            click.echo(\"Error: user_input cannot be empty\", err=True)\n            return\n        try:\n            result = asyncio.run(SiadaRunner.run_agent(agent_type, user_input))\n            click.echo(result)\n        except Exception as e:",
         "detail": "siada.entrypoint.cli",
+        "documentation": {}
+    },
+    {
+        "label": "check_config_files_for_yes",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def check_config_files_for_yes(config_files):\n    found = False\n    for config_file in config_files:\n        if Path(config_file).exists():\n            try:\n                with open(config_file, \"r\") as f:\n                    for line in f:\n                        if line.strip().startswith(\"yes:\"):\n                            print(\"Configuration error detected.\")\n                            print(f\"The file {config_file} contains a line starting with 'yes:'\")",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "get_git_root",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def get_git_root():\n    \"\"\"Try and guess the git repo, since the conf.yml can be at the repo root\"\"\"\n    try:\n        repo = git.Repo(search_parent_directories=True)\n        return repo.working_tree_dir\n    except (git.InvalidGitRepositoryError, FileNotFoundError):\n        return None\ndef guessed_wrong_repo(io, git_root, fnames, git_dname):\n    \"\"\"After we parse the args, we can determine the real repo. Did we guess wrong?\"\"\"\n    try:",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "guessed_wrong_repo",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def guessed_wrong_repo(io, git_root, fnames, git_dname):\n    \"\"\"After we parse the args, we can determine the real repo. Did we guess wrong?\"\"\"\n    try:\n        check_repo = Path(GitRepo(io, fnames, git_dname).root).resolve()\n    except (OSError,) + ANY_GIT_ERROR:\n        return\n    # we had no guess, rely on the \"true\" repo result\n    if not git_root:\n        return str(check_repo)\n    git_root = Path(git_root).resolve()",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "make_new_repo",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def make_new_repo(git_root, io):\n    try:\n        repo = git.Repo.init(git_root)\n        check_gitignore(git_root, io, False)\n    except ANY_GIT_ERROR as err:  # issue #1233\n        io.tool_error(f\"Unable to create git repo in {git_root}\")\n        io.tool_output(str(err))\n        return\n    io.tool_output(f\"Git repository created in {git_root}\")\n    return repo",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "setup_git",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def setup_git(git_root, io):\n    if git is None:\n        return\n    try:\n        cwd = Path.cwd()\n    except OSError:\n        cwd = None\n    repo = None\n    if git_root:\n        try:",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "check_gitignore",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def check_gitignore(git_root, io, ask=True):\n    if not git_root:\n        return\n    try:\n        repo = git.Repo(git_root)\n        patterns_to_add = []\n        if not repo.ignored(\".aider\"):\n            patterns_to_add.append(\".aider*\")\n        env_path = Path(git_root) / \".env\"\n        if env_path.exists() and not repo.ignored(\".env\"):",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "check_streamlit_install",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def check_streamlit_install(io):\n    return utils.check_pip_install_extra(\n        io,\n        \"streamlit\",\n        \"You need to install the aider browser feature\",\n        [\"aider-chat[browser]\"],\n    )\ndef write_streamlit_credentials():\n    from streamlit.file_util import get_streamlit_file_path\n    # See https://github.com/Aider-AI/aider/issues/772",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "write_streamlit_credentials",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def write_streamlit_credentials():\n    from streamlit.file_util import get_streamlit_file_path\n    # See https://github.com/Aider-AI/aider/issues/772\n    credential_path = Path(get_streamlit_file_path()) / \"credentials.toml\"\n    if not os.path.exists(credential_path):\n        empty_creds = '[general]\\nemail = \"\"\\n'\n        os.makedirs(os.path.dirname(credential_path), exist_ok=True)\n        with open(credential_path, \"w\") as f:\n            f.write(empty_creds)\n    else:",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "launch_gui",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def launch_gui(args):\n    from streamlit.web import cli\n    from aider import gui\n    print()\n    print(\"CONTROL-C to exit...\")\n    # Necessary so streamlit does not prompt the user for an email address.\n    write_streamlit_credentials()\n    target = gui.__file__\n    st_args = [\"run\", target]\n    st_args += [",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "parse_lint_cmds",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def parse_lint_cmds(lint_cmds, io):\n    err = False\n    res = dict()\n    for lint_cmd in lint_cmds:\n        if re.match(r\"^[a-z]+:.*\", lint_cmd):\n            pieces = lint_cmd.split(\":\")\n            lang = pieces[0]\n            cmd = lint_cmd[len(lang) + 1 :]\n            lang = lang.strip()\n        else:",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "generate_search_path_list",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def generate_search_path_list(default_file, git_root, command_line_file):\n    files = []\n    files.append(Path.home() / default_file)  # homedir\n    if git_root:\n        files.append(Path(git_root) / default_file)  # git root\n    files.append(default_file)\n    if command_line_file:\n        files.append(command_line_file)\n    resolved_files = []\n    for fn in files:",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv_files",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def load_dotenv_files(git_root, dotenv_fname, encoding=\"utf-8\"):\n    # Standard .env file search path\n    dotenv_files = generate_search_path_list(\n        \".env\",\n        git_root,\n        dotenv_fname,\n    )\n    # Explicitly add the OAuth keys file to the beginning of the list\n    oauth_keys_file = Path.home() / \".siadahub\" / \"oauth-keys.env\"\n    if oauth_keys_file.exists():",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "register_litellm_models",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def register_litellm_models(git_root, model_metadata_fname, io, verbose=False):\n    model_metadata_files = []\n    # Add the resource file path\n    resource_metadata = importlib_resources.files(\"aider.resources\").joinpath(\"model-metadata.json\")\n    model_metadata_files.append(str(resource_metadata))\n    model_metadata_files += generate_search_path_list(\n        \".aider.model.metadata.json\", git_root, model_metadata_fname\n    )\n    try:\n        model_metadata_files_loaded = models.register_litellm_models(model_metadata_files)",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "sanity_check_repo",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def sanity_check_repo(repo, io):\n    if not repo:\n        return True\n    if not repo.repo.working_tree_dir:\n        io.tool_error(\"The git repo does not seem to have a working tree?\")\n        return False\n    bad_ver = False\n    try:\n        repo.get_tracked_files()\n        if not repo.git_repo_error:",
+        "detail": "siada.entrypoint.cli_new",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "siada.entrypoint.cli_new",
+        "description": "siada.entrypoint.cli_new",
+        "peekOfCode": "def main(argv=None, input=None, output=None, return_coder=False):\n    if argv is None:\n        argv = sys.argv[1:]\n    if git is None:\n        git_root = None\n    else:\n        git_root = get_git_root()\n    conf_fname = Path(\".aider.conf.yml\")\n    parser = get_parser(git_root=git_root)\n    try:",
+        "detail": "siada.entrypoint.cli_new",
         "documentation": {}
     },
     {
@@ -6315,6 +7099,51 @@
         "documentation": {}
     },
     {
+        "label": "ModelInfoManager",
+        "kind": 6,
+        "importPath": "siada.models.model_info_manager",
+        "description": "siada.models.model_info_manager",
+        "peekOfCode": "class ModelInfoManager:\n    MODEL_INFO_URL = (\n        \"https://raw.githubusercontent.com/BerriAI/litellm/main/\"\n        \"model_prices_and_context_window.json\"\n    )\n    CACHE_TTL = 60 * 60 * 24  # 24 hours\n    def __init__(self):\n        self.cache_dir = Path.home() / \".siada-cli\" / \"caches\"\n        self.cache_file = self.cache_dir / \"model_prices_and_context_window.json\"\n        self.content = None",
+        "detail": "siada.models.model_info_manager",
+        "documentation": {}
+    },
+    {
+        "label": "model_info_manager",
+        "kind": 5,
+        "importPath": "siada.models.model_info_manager",
+        "description": "siada.models.model_info_manager",
+        "peekOfCode": "model_info_manager = ModelInfoManager()",
+        "detail": "siada.models.model_info_manager",
+        "documentation": {}
+    },
+    {
+        "label": "Model",
+        "kind": 6,
+        "importPath": "siada.models.model_setting",
+        "description": "siada.models.model_setting",
+        "peekOfCode": "class Model(ModelSettings):\n    def __init__(self, model): \n        self.configure_model_settings(model)\n    def _copy_fields(self, source):\n        \"\"\"Helper to copy fields from a ModelSettings instance to self\"\"\"\n        for field in fields(ModelSettings):\n            val = getattr(source, field.name)\n            setattr(self, field.name, val)\n    def configure_model_settings(self, model):\n        # Look for exact model match",
+        "detail": "siada.models.model_setting",
+        "documentation": {}
+    },
+    {
+        "label": "ModelSettings",
+        "kind": 6,
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "peekOfCode": "class ModelSettings:\n    \"\"\"\n    Represents the configuration for a specific language model.\n    \"\"\"\n    model_name: str\n    context_window: int\n    max_tokens: Optional[int] = None\n    temperature: Optional[float] = None\n    supports_images: bool = False\n    supports_prompt_cache: bool = False",
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "get_model_config",
+        "kind": 2,
+        "importPath": "siada.models.model_settings",
+        "description": "siada.models.model_settings",
+        "peekOfCode": "def get_model_config(model_name: str) -> Optional[ModelSettings]:\n    \"\"\"\n    Retrieves the configuration for a given model name.\n    Args:\n        model_name: The name of the model to retrieve.\n    Returns:\n        A ModelSettings instance if the model is found, otherwise None.\n    \"\"\"\n    # Exact match first\n    for model_config in MODEL_SETTING:",
+        "detail": "siada.models.model_settings",
+        "documentation": {}
+    },
+    {
         "label": "LiCompletionTokensDetails",
         "kind": 6,
         "importPath": "siada.provider.li.domian.complete_usage",
@@ -6558,11 +7387,65 @@
         "documentation": {}
     },
     {
-        "label": "SwitchCoder",
+        "label": "InteractionSessionManager",
+        "kind": 6,
+        "importPath": "siada.session.session_manager",
+        "description": "siada.session.session_manager",
+        "peekOfCode": "class InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        config: Optional[ModelSettings] = None,\n        session_id: Optional[str] = None,\n        db_path: Optional[str] = None\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:",
+        "detail": "siada.session.session_manager",
+        "documentation": {}
+    },
+    {
+        "label": "logger",
+        "kind": 5,
+        "importPath": "siada.session.session_manager",
+        "description": "siada.session.session_manager",
+        "peekOfCode": "logger = logging.getLogger(__name__)\nclass InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        config: Optional[ModelSettings] = None,\n        session_id: Optional[str] = None,\n        db_path: Optional[str] = None\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session",
+        "detail": "siada.session.session_manager",
+        "documentation": {}
+    },
+    {
+        "label": "SessionState",
+        "kind": 6,
+        "importPath": "siada.session.session_models",
+        "description": "siada.session.session_models",
+        "peekOfCode": "class SessionState:\n    \"\"\"\n    Interaction session state data model\n    Stores state information during user interactions, complementing OpenAI Agents' SQLiteSession:\n    - SQLiteSession: Stores large language model conversation history\n    - SessionState: Stores interaction state and context information\n    \"\"\"\n    # Core state fields\n    context_vars: Dict[str, Any] = field(default_factory=dict)\n    \"\"\"Context variables, works with foundation.context module\"\"\"",
+        "detail": "siada.session.session_models",
+        "documentation": {}
+    },
+    {
+        "label": "Session",
+        "kind": 6,
+        "importPath": "siada.session.session_models",
+        "description": "siada.session.session_models",
+        "peekOfCode": "class Session:\n    \"\"\"\n    Interaction session model\n    Manages user interaction sessions, working together with OpenAI Agents' session system:\n    - OpenAI SQLiteSession: Manages large language model conversation history and memory\n    - Our Session: Manages interaction state, context and business logic\n    \"\"\"\n    # Basic information\n    session_id: str = field(default_factory=lambda: str(uuid4()))\n    \"\"\"Unique session identifier\"\"\"",
+        "detail": "siada.session.session_models",
+        "documentation": {}
+    },
+    {
+        "label": "TestInteractionSessionSystem",
+        "kind": 6,
+        "importPath": "siada.session.test_interaction_session",
+        "description": "siada.session.test_interaction_session",
+        "peekOfCode": "class TestInteractionSessionSystem:\n    \"\"\"Interaction Session system test class\"\"\"\n    def setup_method(self):\n        \"\"\"Setup before each test method\"\"\"\n        # No longer need instance since create_session is static\n        pass\n    def test_create_session_with_uuid(self):\n        \"\"\"Test creating session (using auto-generated UUID)\"\"\"\n        model_config = get_model_config(\"claude-3-7-sonnet\")\n        session = InteractionSessionManager.create_session(config=model_config)",
+        "detail": "siada.session.test_interaction_session",
+        "documentation": {}
+    },
+    {
+        "label": "run_all_tests",
+        "kind": 2,
+        "importPath": "siada.session.test_interaction_session",
+        "description": "siada.session.test_interaction_session",
+        "peekOfCode": "def run_all_tests():\n    \"\"\"Run all tests\"\"\"\n    print(\"Starting simplified interaction session management system tests...\\n\")\n    test_instance = TestInteractionSessionSystem()\n    test_methods = [\n        test_instance.test_create_session_with_uuid,\n        test_instance.test_create_session_with_custom_id,\n        test_instance.test_create_session_without_config,\n        test_instance.test_create_session_with_custom_db_path,\n        test_instance.test_model_specific_db_path,",
+        "detail": "siada.session.test_interaction_session",
+        "documentation": {}
+    },
+    {
+        "label": "SwitchEvent",
         "kind": 6,
         "importPath": "siada.support.commands",
         "description": "siada.support.commands",
-        "peekOfCode": "class SwitchCoder(Exception):\n    def __init__(self, placeholder=None, **kwargs):\n        self.kwargs = kwargs\n        self.placeholder = placeholder\nclass SlashCommands:\n    voice = None\n    scraper = None\n    def clone(self):\n        return SlashCommands(\n            self.io,",
+        "peekOfCode": "class SwitchEvent(Exception):\n    def __init__(self, placeholder=None, **kwargs):\n        self.kwargs = kwargs\n        self.placeholder = placeholder\nclass SlashCommands:\n    voice = None\n    scraper = None\n    def clone(self):\n        return SlashCommands(\n            self.io,",
         "detail": "siada.support.commands",
         "documentation": {}
     },
@@ -6571,34 +7454,7 @@
         "kind": 6,
         "importPath": "siada.support.commands",
         "description": "siada.support.commands",
-        "peekOfCode": "class SlashCommands:\n    voice = None\n    scraper = None\n    def clone(self):\n        return SlashCommands(\n            self.io,\n            None,\n            voice_language=self.voice_language,\n            verify_ssl=self.verify_ssl,\n            args=self.args,",
-        "detail": "siada.support.commands",
-        "documentation": {}
-    },
-    {
-        "label": "expand_subdir",
-        "kind": 2,
-        "importPath": "siada.support.commands",
-        "description": "siada.support.commands",
-        "peekOfCode": "def expand_subdir(file_path):\n    if file_path.is_file():\n        yield file_path\n        return\n    if file_path.is_dir():\n        for file in file_path.rglob(\"*\"):\n            if file.is_file():\n                yield file\ndef parse_quoted_filenames(args):\n    filenames = re.findall(r\"\\\"(.+?)\\\"|(\\S+)\", args)",
-        "detail": "siada.support.commands",
-        "documentation": {}
-    },
-    {
-        "label": "parse_quoted_filenames",
-        "kind": 2,
-        "importPath": "siada.support.commands",
-        "description": "siada.support.commands",
-        "peekOfCode": "def parse_quoted_filenames(args):\n    filenames = re.findall(r\"\\\"(.+?)\\\"|(\\S+)\", args)\n    filenames = [name for sublist in filenames for name in sublist if name]\n    return filenames\ndef get_help_md():\n    md = SlashCommands(None, None).get_help_md()\n    return md\ndef main():\n    md = get_help_md()\n    print(md)",
-        "detail": "siada.support.commands",
-        "documentation": {}
-    },
-    {
-        "label": "get_help_md",
-        "kind": 2,
-        "importPath": "siada.support.commands",
-        "description": "siada.support.commands",
-        "peekOfCode": "def get_help_md():\n    md = SlashCommands(None, None).get_help_md()\n    return md\ndef main():\n    md = get_help_md()\n    print(md)\nif __name__ == \"__main__\":\n    status = main()\n    sys.exit(status)",
+        "peekOfCode": "class SlashCommands:\n    voice = None\n    scraper = None\n    def clone(self):\n        return SlashCommands(\n            self.io,\n            None,\n            verify_ssl=self.verify_ssl,\n            args=self.args,\n            parser=self.parser,",
         "detail": "siada.support.commands",
         "documentation": {}
     },
@@ -6607,7 +7463,7 @@
         "kind": 2,
         "importPath": "siada.support.commands",
         "description": "siada.support.commands",
-        "peekOfCode": "def main():\n    md = get_help_md()\n    print(md)\nif __name__ == \"__main__\":\n    status = main()\n    sys.exit(status)",
+        "peekOfCode": "def main():\n    md = SlashCommands(None, None).get_help_md()\n    print(md)\nif __name__ == \"__main__\":\n    status = main()\n    sys.exit(status)",
         "detail": "siada.support.commands",
         "documentation": {}
     },
@@ -7327,7 +8183,16 @@
         "kind": 6,
         "importPath": "siada.utils",
         "description": "siada.utils",
-        "peekOfCode": "class ImageUtils:\n    \"\"\"Image Utils\"\"\"\n    IMAGE_EXTENSIONS = [\".png\", \".jpg\", \".jpeg\", \".gif\", \".bmp\", \".tiff\", \".webp\", \".pdf\"]\n    @staticmethod\n    def is_image_file(filename: str) -> bool:\n        \"\"\"Check if a file is an image file\"\"\"\n        file_name = str(filename)  # Convert file_name to string\n        return any(file_name.endswith(ext) for ext in ImageUtils.IMAGE_EXTENSIONS)",
+        "peekOfCode": "class ImageUtils:\n    \"\"\"Image Utils\"\"\"\n    IMAGE_EXTENSIONS = [\".png\", \".jpg\", \".jpeg\", \".gif\", \".bmp\", \".tiff\", \".webp\", \".pdf\"]\n    @staticmethod\n    def is_image_file(filename: str) -> bool:\n        \"\"\"Check if a file is an image file\"\"\"\n        file_name = str(filename)  # Convert file_name to string\n        return any(file_name.endswith(ext) for ext in ImageUtils.IMAGE_EXTENSIONS)\nclass SettingsUtils:\n    @staticmethod",
+        "detail": "siada.utils",
+        "documentation": {}
+    },
+    {
+        "label": "SettingsUtils",
+        "kind": 6,
+        "importPath": "siada.utils",
+        "description": "siada.utils",
+        "peekOfCode": "class SettingsUtils:\n    @staticmethod\n    def scrub_sensitive_info(args, text):\n        \"\"\"Scrub sensitive information from text\"\"\"\n        # Replace sensitive information with last 4 characters\n        if text and args.openai_api_key:\n            last_4 = args.openai_api_key[-4:]\n            text = text.replace(args.openai_api_key, f\"...{last_4}\")\n        if text and args.anthropic_api_key:\n            last_4 = args.anthropic_api_key[-4:]",
         "detail": "siada.utils",
         "documentation": {}
     },
