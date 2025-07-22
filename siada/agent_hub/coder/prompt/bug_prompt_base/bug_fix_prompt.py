@@ -1,8 +1,8 @@
 import os
 import platform
-from ..tool_use import get_tool_use_section
-from ..capabilities import get_capabilities_section
-from ..rules import get_rules_section
+from ..base.tool_use import get_tool_use_section
+from ..base.capabilities import get_capabilities_section
+from .rules import get_rules_section
 
 
 def get_system_prompt(cwd: str = "/default/path") -> str:
