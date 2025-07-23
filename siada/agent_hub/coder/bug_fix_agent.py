@@ -62,7 +62,7 @@ class BugFixAgent(CodeGenAgent):
             Fix result, including final output, execution rounds, and other information
         """
         config = RunConfig(tracing_disabled=False)
-        set_trace_processors([create_detailed_logger()])
+        #set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
         max_turns = 3

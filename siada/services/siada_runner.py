@@ -12,6 +12,8 @@ from siada.agent_hub.siada_agent import SiadaAgent
 
 import logging
 
+from siada.services.code_context_manager import ContextTracingProcessor
+
 class SiadaRunner:
 
     @overload
@@ -41,7 +43,9 @@ class SiadaRunner:
         if workspace:
             context.root_dir = workspace
 
-        set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
+        context_tracing_processor = ContextTracingProcessor(context)
+
+        set_trace_processors([create_detailed_logger(output_file="agent_trace.log"), context_tracing_processor])
         
         if stream:
             # 流式执行
