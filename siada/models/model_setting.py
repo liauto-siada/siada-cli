@@ -6,7 +6,7 @@ from siada.models.model_settings import ModelSettings, get_model_config
 
 
 
-class Model(ModelSettings):
+class ModelConfig(ModelSettings):
 
     def __init__(self, model): 
         self.configure_model_settings(model)

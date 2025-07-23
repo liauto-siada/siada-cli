@@ -35,15 +35,3 @@ class FeGenAgent(CodeGenAgent):
         current_working_dir = "/Users/yunan/code/test/fe_gen"
         context = CodeAgentContext(root_dir=current_working_dir)
         return context
-
-    def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
-        """
-        执行前端代码生成任务
-
-        Args:
-            user_input: 用户的前端代码生成请求，包含需求和规格说明
-            context: 用于提供上下文信息的上下文对象
-        Returns:
-            生成结果，包含最终输出、执行轮数等信息
-        """
-        pass

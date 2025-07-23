@@ -4,8 +4,10 @@ from typing import Dict, Any, Optional
 from uuid import uuid4
 
 from agents import SQLiteSession
-from siada.models.model_settings import ModelSettings
-
+from siada.entrypoint.interaction.interaction_controller import InteractionConfig
+from siada.io.io import InputOutput
+from siada.models.model_setting import ModelConfig
+from siada.support.commands import SlashCommands
 
 @dataclass
 class SessionState:
@@ -30,22 +32,9 @@ class SessionState:
 
 @dataclass  
 class Session:
-    """
-    Interaction session model
     
-    Manages user interaction sessions, working together with OpenAI Agents' session system:
-    - OpenAI SQLiteSession: Manages large language model conversation history and memory
-    - Our Session: Manages interaction state, context and business logic
-    """
-    
-    # Basic information
     session_id: str = field(default_factory=lambda: str(uuid4()))
-    """Unique session identifier"""
+
+    interaction_config: InteractionConfig
     
-    # Model configuration
-    config: Optional[ModelSettings] = None
-    """Model configuration information using ModelSettings structure"""
-    
-    # Interaction state data
     state: SessionState = field(default_factory=SessionState)
-    """Session state object"""

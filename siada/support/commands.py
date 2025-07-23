@@ -1,6 +1,7 @@
 import glob
 import os
 import re
+import siada.io.io
 import subprocess
 import sys
 import tempfile
@@ -10,11 +11,12 @@ from pathlib import Path
 from prompt_toolkit.completion import Completion, PathCompleter
 from prompt_toolkit.document import Document
 
-from siada.models.model_setting import Model
+from siada.models.model_setting import ModelConfig
 from siada.support.completer import CommandCompletionException
 from siada.support.editor import pipe_editor
 from siada.tools.coder import do_run_cmd as run_cmd
 from siada.utils import SettingsUtils
+from siada.provider.lazy_lite_llm import litellm
 
 
 class SwitchEvent(Exception):
@@ -40,7 +42,7 @@ class SlashCommands:
 
     def __init__(
         self,
-        io,
+        io : siada.io.io.InputOutput,
         session,
         verify_ssl=True,
         args=None,
@@ -64,10 +66,10 @@ class SlashCommands:
 
         model_name = args.strip()
         if not model_name:
-            self.io.tool_output("No model name provided")
+            self.io.print_info("No model name provided")
             return
 
-        model = Model(model_name)
+        model = ModelConfig(model_name)
         raise SwitchEvent(main_model=model)
 
     def cmd_chat_mode(self, args):
@@ -106,18 +108,18 @@ class SlashCommands:
 
         if ef not in valid_formats and ef not in show_formats:
             if ef:
-                self.io.tool_error(f'Chat mode "{ef}" should be one of these:\n')
+                self.io.print_error(f'Chat mode "{ef}" should be one of these:\n')
             else:
-                self.io.tool_output("Chat mode should be one of these:\n")
+                self.io.print_info("Chat mode should be one of these:\n")
 
             max_format_length = max(len(format) for format in valid_formats.keys())
             for format, description in show_formats.items():
-                self.io.tool_output(f"- {format:<{max_format_length}} : {description}")
+                self.io.print_info(f"- {format:<{max_format_length}} : {description}")
 
-            self.io.tool_output("\nOr a valid edit format:\n")
+            self.io.print_info("\nOr a valid edit format:\n")
             for format, description in valid_formats.items():
                 if format not in show_formats:
-                    self.io.tool_output(f"- {format:<{max_format_length}} : {description}")
+                    self.io.print_info(f"- {format:<{max_format_length}} : {description}")
 
             return
 
@@ -145,9 +147,10 @@ class SlashCommands:
         args = args.strip()
 
         if args:
-            models.print_matching_models(self.io, args)
+            # models.print_matching_models(self.io, args)
+            pass
         else:
-            self.io.tool_output("Please provide a partial model name to search for.")
+            self.io.print_info("Please provide a partial model name to search for.")
 
     def is_command(self, inp):
         return inp[0] in "/!"
@@ -186,13 +189,13 @@ class SlashCommands:
         cmd_method_name = f"cmd_{cmd_name}"
         cmd_method = getattr(self, cmd_method_name, None)
         if not cmd_method:
-            self.io.tool_output(f"Error: Command {cmd_name} not found.")
+            self.io.print_info(f"Error: Command {cmd_name} not found.")
             return
 
         try:
             return cmd_method(args)
         except Exception as err:
-            self.io.tool_error(f"Unable to complete {cmd_name}: {err}")
+            self.io.print_error(f"Unable to complete {cmd_name}: {err}")
 
     def matching_commands(self, inp):
         words = inp.strip().split()
@@ -214,7 +217,6 @@ class SlashCommands:
         each one must take an args param.
         """
         if inp.startswith("!"):
-            self.coder.event("command_run")
             return self.do_run("run", inp[1:])
 
         res = self.matching_commands(inp)
@@ -223,16 +225,14 @@ class SlashCommands:
         matching_commands, first_word, rest_inp = res
         if len(matching_commands) == 1:
             command = matching_commands[0][1:]
-            self.coder.event(f"command_{command}")
             return self.do_run(command, rest_inp)
         elif first_word in matching_commands:
             command = first_word[1:]
-            self.coder.event(f"command_{command}")
             return self.do_run(command, rest_inp)
         elif len(matching_commands) > 1:
-            self.io.tool_error(f"Ambiguous command: {', '.join(matching_commands)}")
+            self.io.print_error(f"Ambiguous command: {', '.join(matching_commands)}")
         else:
-            self.io.tool_error(f"Invalid command: {first_word}")
+            self.io.print_error(f"Invalid command: {first_word}")
 
     
 
@@ -240,7 +240,7 @@ class SlashCommands:
         "Clear the chat history"
 
         self._clear_chat_history()
-        self.io.tool_output("All chat history cleared.")
+        self.io.print_info("All chat history cleared.")
 
     def _clear_chat_history(self):
         self.coder.done_messages = []
@@ -308,12 +308,6 @@ class SlashCommands:
         for completion in sorted_completions:
             yield completion
 
-    def completions_add(self):
-        files = set(self.coder.get_all_relative_files())
-        files = files - set(self.coder.get_inchat_relative_files())
-        files = [self.quote_fname(fn) for fn in files]
-        return files
-
     def glob_filtered_to_repo(self, pattern):
 
         def expand_subdir(file_path):
@@ -338,7 +332,7 @@ class SlashCommands:
                 except (IndexError, AttributeError):
                     raw_matched_files = []
         except ValueError as err:
-            self.io.tool_error(f"Error matching {pattern}: {err}")
+            self.io.print_error(f"Error matching {pattern}: {err}")
             raw_matched_files = []
 
         matched_files = []
@@ -360,30 +354,10 @@ class SlashCommands:
         return res
 
 
-    def cmd_test(self, args):
-        "Run a shell command and add the output to the chat on non-zero exit code"
-        if not args and self.coder.test_cmd:
-            args = self.coder.test_cmd
-
-        if not args:
-            return
-
-        if not callable(args):
-            if type(args) is not str:
-                raise ValueError(repr(args))
-            return self.cmd_run(args, True)
-
-        errors = args()
-        if not errors:
-            return
-
-        self.io.tool_output(errors)
-        return errors
-
     def cmd_run(self, args, add_on_nonzero_exit=False):
         "Run a shell command and optionally add the output to the chat (alias: !)"
         exit_status, combined_output = run_cmd(
-            args, verbose=self.verbose, error_print=self.io.tool_error, cwd=self.coder.root
+            args, verbose=self.verbose, error_print=self.io.print_error, cwd=self.coder.root
         )
 
         if combined_output is None:
@@ -401,7 +375,7 @@ class SlashCommands:
         if add:
             num_lines = len(combined_output.strip().splitlines())
             line_plural = "line" if num_lines == 1 else "lines"
-            self.io.tool_output(f"Added {num_lines} {line_plural} of output to the chat.")
+            self.io.print_info(f"Added {num_lines} {line_plural} of output to the chat.")
 
             msg = prompts.run_output.format(
                 command=args,
@@ -441,65 +415,11 @@ class SlashCommands:
             cmd = pad.format(cmd=cmd)
             if cmd_method:
                 description = cmd_method.__doc__
-                self.io.tool_output(f"{cmd} {description}")
+                self.io.print_info(f"{cmd} {description}")
             else:
-                self.io.tool_output(f"{cmd} No description available.")
-        self.io.tool_output()
-        self.io.tool_output("Use `/help <question>` to ask questions about how to use aider.")
-
-    def completions_ask(self):
-        raise CommandCompletionException()
-
-    def completions_code(self):
-        raise CommandCompletionException()
-
-    def completions_architect(self):
-        raise CommandCompletionException()
-
-    def completions_context(self):
-        raise CommandCompletionException()
-
-    def cmd_ask(self, args):
-        """Ask questions about the code base without editing any files. If no prompt provided, switches to ask mode."""  # noqa
-        return self._generic_chat_command(args, "ask")
-
-    def cmd_code(self, args):
-        """Ask for changes to your code. If no prompt provided, switches to code mode."""  # noqa
-        return self._generic_chat_command(args, self.coder.main_model.edit_format)
-
-    def cmd_architect(self, args):
-        """Enter architect/editor mode using 2 different models. If no prompt provided, switches to architect/editor mode."""  # noqa
-        return self._generic_chat_command(args, "architect")
-
-    def cmd_context(self, args):
-        """Enter context mode to see surrounding code context. If no prompt provided, switches to context mode."""  # noqa
-        return self._generic_chat_command(args, "context", placeholder=args.strip() or None)
-
-    def _generic_chat_command(self, args, edit_format, placeholder=None):
-        if not args.strip():
-            # Switch to the corresponding chat mode if no args provided
-            return self.cmd_chat_mode(edit_format)
-
-        from aider.coders.base_coder import Coder
-
-        coder = Coder.create(
-            io=self.io,
-            from_coder=self.coder,
-            edit_format=edit_format,
-            summarize_from_coder=False,
-        )
-
-        user_msg = args
-        coder.run(user_msg)
-
-        # Use the provided placeholder if any
-        raise SwitchEvent(
-            edit_format=self.coder.edit_format,
-            summarize_from_coder=False,
-            from_coder=coder,
-            show_announcements=False,
-            placeholder=placeholder,
-        )
+                self.io.print_info(f"{cmd} No description available.")
+        self.io.print_info()
+        self.io.print_info("Use `/help <question>` to ask questions about how to use aider.")
 
     def get_help_md(self):
         "Show help about all commands in markdown"
@@ -525,15 +445,15 @@ class SlashCommands:
         "Print out the current repository map"
         repo_map = self.coder.get_repo_map()
         if repo_map:
-            self.io.tool_output(repo_map)
+            self.io.print_info(repo_map)
         else:
-            self.io.tool_output("No repository map available.")
+            self.io.print_info("No repository map available.")
 
     def cmd_map_refresh(self, args):
         "Force a refresh of the repository map"
         repo_map = self.coder.get_repo_map(force_refresh=True)
         if repo_map:
-            self.io.tool_output("The repo map has been refreshed, use /map to view it.")
+            self.io.print_info("The repo map has been refreshed, use /map to view it.")
 
     def cmd_settings(self, args):
         "Print out the current settings"
@@ -563,7 +483,7 @@ class SlashCommands:
         output = f"{announcements}\n{settings}"
         if model_metadata:
             output += "\n" + model_metadata
-        self.io.tool_output(output)
+        self.io.print_info(output)
 
     def completions_raw_load(self, document, complete_event):
         return self.completions_raw_read_only(document, complete_event)
@@ -571,17 +491,17 @@ class SlashCommands:
     def cmd_load(self, args):
         "Load and execute commands from a file"
         if not args.strip():
-            self.io.tool_error("Please provide a filename containing commands to load.")
+            self.io.print_error("Please provide a filename containing commands to load.")
             return
 
         try:
             with open(args.strip(), "r", encoding=self.io.encoding, errors="replace") as f:
                 commands = f.readlines()
         except FileNotFoundError:
-            self.io.tool_error(f"File not found: {args}")
+            self.io.print_error(f"File not found: {args}")
             return
         except Exception as e:
-            self.io.tool_error(f"Error reading file: {e}")
+            self.io.print_error(f"Error reading file: {e}")
             return
 
         for cmd in commands:
@@ -589,11 +509,11 @@ class SlashCommands:
             if not cmd or cmd.startswith("#"):
                 continue
 
-            self.io.tool_output(f"\nExecuting: {cmd}")
+            self.io.print_info(f"\nExecuting: {cmd}")
             try:
                 self.run(cmd)
             except SwitchEvent:
-                self.io.tool_error(
+                self.io.print_error(
                     f"Command '{cmd}' is only supported in interactive mode, skipping."
                 )
 
@@ -621,10 +541,10 @@ class SlashCommands:
         #     # Display current value if no args are provided
         #     formatted_budget = model.get_thinking_tokens()
         #     if formatted_budget is None:
-        #         self.io.tool_output("Thinking tokens are not currently set.")
+        #         self.io.print_info("Thinking tokens are not currently set.")
         #     else:
         #         budget = model.get_raw_thinking_tokens()
-        #         self.io.tool_output(
+        #         self.io.print_info(
         #             f"Current thinking token budget: {budget:,} tokens ({formatted_budget})."
         #         )
         #     return
@@ -634,19 +554,19 @@ class SlashCommands:
 
         # # Handle the special case of 0 to disable thinking tokens
         # if value == "0":
-        #     self.io.tool_output("Thinking tokens disabled.")
+        #     self.io.print_info("Thinking tokens disabled.")
         # else:
         #     formatted_budget = model.get_thinking_tokens()
         #     budget = model.get_raw_thinking_tokens()
-        #     self.io.tool_output(
+        #     self.io.print_info(
         #         f"Set thinking token budget to {budget:,} tokens ({formatted_budget})."
         #     )
 
-        # self.io.tool_output()
+        # self.io.print_info()
 
         # # Output announcements
         # announcements = "\n".join(self.coder.get_announcements())
-        # self.io.tool_output(announcements)
+        # self.io.print_info(announcements)
         pass
 
     def cmd_reasoning_effort(self, args):
@@ -657,20 +577,20 @@ class SlashCommands:
         #     # Display current value if no args are provided
         #     reasoning_value = model.get_reasoning_effort()
         #     if reasoning_value is None:
-        #         self.io.tool_output("Reasoning effort is not currently set.")
+        #         self.io.print_info("Reasoning effort is not currently set.")
         #     else:
-        #         self.io.tool_output(f"Current reasoning effort: {reasoning_value}")
+        #         self.io.print_info(f"Current reasoning effort: {reasoning_value}")
         #     return
 
         # value = args.strip()
         # model.set_reasoning_effort(value)
         # reasoning_value = model.get_reasoning_effort()
-        # self.io.tool_output(f"Set reasoning effort to {reasoning_value}")
-        # self.io.tool_output()
+        # self.io.print_info(f"Set reasoning effort to {reasoning_value}")
+        # self.io.print_info()
 
         # # Output announcements
         # announcements = "\n".join(self.coder.get_announcements())
-        # self.io.tool_output(announcements)
+        # self.io.print_info(announcements)
         pass
 
 

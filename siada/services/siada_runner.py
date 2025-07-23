@@ -2,6 +2,7 @@ import asyncio
 import importlib
 import os
 from pathlib import Path
+from siada.session.session_models import Session
 from typing import Dict, Type, Optional, Union, Literal, overload
 
 import yaml
@@ -16,23 +17,43 @@ class SiadaRunner:
 
     @overload
     @staticmethod
-    async def run_agent(agent_name: str, user_input: str, workspace: str = None, *, stream: Literal[True]) -> RunResultStreaming: ...
+    async def run_agent(
+        agent_name: str,
+        user_input: str,
+        workspace: str = None,
+        session: Session = None,
+        *,
+        stream: Literal[True],
+    ) -> RunResultStreaming: ...
 
     @overload
     @staticmethod
-    async def run_agent(agent_name: str, user_input: str, workspace: str = None, *, stream: Literal[False]) -> RunResult: ...
+    async def run_agent(
+        agent_name: str,
+        user_input: str,
+        workspace: str = None,
+        session: Session = None,
+        *,
+        stream: Literal[False],
+    ) -> RunResult: ...
 
     @staticmethod
-    async def run_agent(agent_name: str, user_input: str, workspace: str = None, stream: bool = False) -> RunResult | RunResultStreaming:
+    async def run_agent(
+        agent_name: str,
+        user_input: str,
+        workspace: str = None,
+        session: Session = None,
+        stream: bool = False,
+    ) -> RunResult | RunResultStreaming:
         """
         运行指定的Agent
-        
+
         Args:
             agent_name: Agent名称
             user_input: 用户输入
             workspace: 工作空间路径，可选
             stream: 是否启用流式输出，默认为False
-            
+
         Returns:
             Union[RunResult, RunResultStreaming]: 根据stream参数返回普通结果或流式结果
         """
@@ -42,14 +63,14 @@ class SiadaRunner:
             context.root_dir = workspace
 
         set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
-        
+
         if stream:
             # 流式执行
             result = agent.run_streamed(user_input, context)
         else:
             # 普通执行
             result = await agent.run(user_input, context)
-            
+
         return result
 
     @staticmethod
@@ -71,13 +92,13 @@ class SiadaRunner:
         """
         # Normalize agent name: convert to lowercase and remove underscores and hyphens
         normalized_name = agent_name.lower().replace('_', '').replace('-', '')
-        
+
         # Load Agent mapping from configuration file
         agent_configs = SiadaRunner._load_agent_config()
-        
+
         # Find the corresponding Agent configuration
         agent_config = agent_configs.get(normalized_name)
-        
+
         if agent_config is None:
             supported_agents = [name for name, config in agent_configs.items() 
                               if config.get('enabled', False) and config.get('class')]
@@ -85,16 +106,16 @@ class SiadaRunner:
                 f"Unsupported agent type: '{agent_name}'. "
                 f"Supported agent types: {supported_agents}"
             )
-        
+
         # Check if Agent is enabled
         if not agent_config.get('enabled', False):
             raise ValueError(f"Agent '{agent_name}' is disabled")
-        
+
         # Check if Agent class is implemented
         class_path = agent_config.get('class')
         if not class_path:
             raise ValueError(f"Agent '{agent_name}' is not implemented yet")
-        
+
         # Dynamically import and instantiate Agent class
         try:
             agent_class = SiadaRunner._import_agent_class(class_path)

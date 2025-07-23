@@ -11,3 +11,4 @@ dist/
 **/.siada*
 .cca
 .DS_Store
+.aider*

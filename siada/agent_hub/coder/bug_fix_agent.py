@@ -78,19 +78,8 @@ class  BugFixAgent(CodeGenAgent):
             input=input_with_env,
             max_turns=settings.MAX_TURNS,
             run_config=config,
-            context=context
+            context=context,
+            session=context.session.openai_session
         )
 
         return result
-
-    def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
-        """
-        执行Bug修复任务
-
-        Args:
-            user_input: 用户描述的Bug问题，包括错误信息、相关文件路径等
-            context: 用于提供上下文信息的上下文对象
-        Returns:
-            修复结果，包含最终输出、执行轮数等信息
-        """
-        pass

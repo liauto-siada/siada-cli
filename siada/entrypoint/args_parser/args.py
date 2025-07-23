@@ -170,27 +170,10 @@ def get_parser(default_config_files, git_root):
     ##########
     group = parser.add_argument_group("Output settings")
     group.add_argument(
-        "--dark-mode",
-        action="store_true",
-        help="Use colors suitable for a dark terminal background (default: False)",
-        default=False,
-    )
-    group.add_argument(
-        "--light-mode",
-        action="store_true",
-        help="Use colors suitable for a light terminal background (default: False)",
-        default=False,
-    )
-    
-
-    group.add_argument(
-        "--code-theme",
-        default="default",
-        help=(
-            "Set the markdown code theme (default: default, other options include monokai,"
-            " solarized-dark, solarized-light, or a Pygments builtin style,"
-            " see https://pygments.org/styles for available themes)"
-        ),
+        "--theme",
+        choices=["default", "dark", "light"],
+        default=None,
+        help="Select color theme: default, dark, or light (default: None, auto-detect or use individual mode flags)",
     )
 
     ##########
@@ -201,38 +184,6 @@ def get_parser(default_config_files, git_root):
         default=True,
         help="Enable/disable looking for a git repo (default: True)",
     )
-    group.add_argument(
-        "--gitignore",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable/disable adding .aider* to .gitignore (default: True)",
-    )
-
-    group.add_argument(
-        "--add-gitignore-files",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Enable/disable the addition of files listed in .gitignore to Aider's editing scope.",
-    )
-
-    default_aiderignore_file = (
-        os.path.join(git_root, ".aiderignore") if git_root else ".aiderignore"
-    )
-
-    group.add_argument(
-        "--aiderignore",
-        metavar="AIDERIGNORE",
-        type=lambda path_str: resolve_aiderignore_path(path_str, git_root),
-        default=default_aiderignore_file,
-        help="Specify the aider ignore file (default: .aiderignore in git root)",
-    ).complete = shtab.FILE
-
-    group.add_argument(
-        "--subtree-only",
-        action="store_true",
-        help="Only consider files in the current subtree of the git repository",
-        default=False,
-    )
 
     #########
     group = parser.add_argument_group("Upgrading")
@@ -242,18 +193,22 @@ def get_parser(default_config_files, git_root):
         help="Check for updates and return status in the exit code",
         default=False,
     )
+
+
     group.add_argument(
         "--check-update",
         action=argparse.BooleanOptionalAction,
         help="Check for new aider versions on launch",
         default=True,
     )
+
     group.add_argument(
         "--show-release-notes",
         action=argparse.BooleanOptionalAction,
         help="Show release notes on first run of new version (default: None, ask user)",
         default=None,
     )
+
     group.add_argument(
         "--install-main-branch",
         action="store_true",
@@ -280,12 +235,6 @@ def get_parser(default_config_files, git_root):
         "--show-repo-map",
         action="store_true",
         help="Print the repo map and exit (debug)",
-        default=False,
-    )
-    group.add_argument(
-        "--show-prompts",
-        action="store_true",
-        help="Print the system prompts and exit (debug)",
         default=False,
     )
 
@@ -344,6 +293,7 @@ def get_parser(default_config_files, git_root):
         default=False,
         help="Enable/disable multi-line input mode with Meta-Enter to submit (default: False)",
     )
+
     group.add_argument(
         "--notifications",
         action=argparse.BooleanOptionalAction,

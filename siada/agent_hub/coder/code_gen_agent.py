@@ -79,7 +79,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             input=input_with_env,
             max_turns=settings.MAX_TURNS,
             run_config=config,
-            context=context
+            context=context.session.openai_session
         )
         
         return result
@@ -104,7 +104,8 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             input=input_with_env,
             max_turns=settings.MAX_TURNS,
             run_config=config,
-            context=context
+            context=context,
+            session=context.session.openai_session
         )
 
         return result

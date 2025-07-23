@@ -33,6 +33,7 @@ from rich.markdown import Markdown
 from rich.style import Style as RichStyle
 from rich.text import Text
 
+from siada.support.commands import SlashCommands
 from siada.support.completer import AutoCompleter
 from siada.support.editor import pipe_editor
 from siada.io.components.mdstream import MarkdownStream
@@ -202,12 +203,12 @@ class InputOutput:
             except Exception as err:
                 self.console = Console(force_terminal=False, no_color=True)
                 self._initialize_printer()
-                self.tool_error(f"Can't initialize prompt toolkit: {err}")  # non-pretty
+                self.print_error(f"Can't initialize prompt toolkit: {err}")  # non-pretty
         else:
             self.console = Console(force_terminal=False, no_color=True)  # non-pretty
             self._initialize_printer()
             if self.is_dumb_terminal:
-                self.tool_output("Detected dumb terminal, disabling fancy input and pretty output.")
+                self.print_info("Detected dumb terminal, disabling fancy input and pretty output.")
 
         self.root = root
 
@@ -220,6 +221,8 @@ class InputOutput:
             "error": self.tool_error_color,
             "warning": self.tool_warning_color,
             "output": self.tool_output_color,
+            "result": self.tool_result_color,
+            "call": self.tool_call_color,
         }
         self.printer = ConsolePrinter(self.console, self.pretty, colors=printer_colors)
 
@@ -300,17 +303,9 @@ class InputOutput:
 
     def get_input(
         self,
-        root,
-        rel_fnames,
-        addable_rel_fnames,
-        commands,
-        abs_read_only_fnames=None
+        root: str,
+        commands: SlashCommands,
     ):
-        def get_rel_fname(fname, root):
-            try:
-                return os.path.relpath(fname, root)
-            except ValueError:
-                return fname
         self.rule()
 
         # Ring the bell if needed
@@ -339,12 +334,9 @@ class InputOutput:
 
         completer_instance = ThreadedCompleter(
             AutoCompleter(
-                root,
-                rel_fnames,
-                addable_rel_fnames,
-                commands,
-                self.encoding,
-                abs_read_only_fnames=abs_read_only_fnames,
+                root=root,
+                commands=commands,
+                encoding=self.encoding,
             )
         )
 
@@ -392,11 +384,11 @@ class InputOutput:
             except Exception as err:
                 import traceback
 
-                self.tool_error(str(err))
-                self.tool_error(traceback.format_exc())
+                self.print_error(str(err))
+                self.print_error(traceback.format_exc())
                 return ""
             except UnicodeEncodeError as err:
-                self.tool_error(str(err))
+                self.print_error(str(err))
                 return ""
             finally:
                 if self.clipboard_watcher:
@@ -504,15 +496,15 @@ class InputOutput:
             question += options + f" [{default}]: "
 
         if subject:
-            self.tool_output()
+            self.print_info()
             if "\n" in subject:
                 lines = subject.splitlines()
                 max_length = max(len(line) for line in lines)
                 padded_lines = [line.ljust(max_length) for line in lines]
                 padded_subject = "\n".join(padded_lines)
-                self.tool_output(padded_subject, bold=True)
+                self.print_info(padded_subject, bold=True)
             else:
-                self.tool_output(subject, bold=True)
+                self.print_info(subject, bold=True)
 
         style = self._get_style()
 
@@ -553,7 +545,7 @@ class InputOutput:
                     break
 
                 error_message = f"Please answer with one of: {', '.join(valid_responses)}"
-                self.tool_error(error_message)
+                self.print_error(error_message)
 
         res = res.lower()[0]
 
@@ -588,8 +580,8 @@ class InputOutput:
         self.ring_bell()
 
         if subject:
-            self.tool_output()
-            self.tool_output(subject, bold=True)
+            self.print_info()
+            self.print_info(subject, bold=True)
 
         style = self._get_style()
 
@@ -614,18 +606,25 @@ class InputOutput:
 
         hist = f"{question.strip()} {res.strip()}"
         if self.yes in (True, False):
-            self.tool_output(hist)
+            self.print_info(hist)
 
         return res
 
-    def tool_error(self, message="", strip=True):
+    def print_error(self, message="", strip=True):
         self.num_error_outputs += 1
         self.printer.error(message)
 
-    def tool_warning(self, message="", strip=True):
+    def print_warning(self, message="", strip=True):
         self.printer.warning(message)
 
-    def tool_output(self, *messages, log_only=False, bold=False):
+
+    def print_tool_result(self, message="", strip=True):
+        self.printer.result(message)
+
+    def print_tool_call(self, message="", strip=True):
+        self.printer.call(message)
+
+    def print_info(self, *messages, log_only=False, bold=False):
         if log_only:
             return
         self.printer.output(*messages, bold=bold)
@@ -641,7 +640,7 @@ class InputOutput:
 
     def assistant_output(self, message, pretty=None):
         if not message:
-            self.tool_warning("Empty response received from LLM. Check your provider account?")
+            self.print_warning("Empty response received from LLM. Check your provider account?")
             return
 
         show_resp = message
@@ -680,9 +679,9 @@ class InputOutput:
                     )
                     if result.returncode != 0 and result.stderr:
                         error_msg = result.stderr.decode("utf-8", errors="replace")
-                        self.tool_warning(f"Failed to run notifications command: {error_msg}")
+                        self.print_warning(f"Failed to run notifications command: {error_msg}")
                 except Exception as e:
-                    self.tool_warning(f"Failed to run notifications command: {e}")
+                    self.print_warning(f"Failed to run notifications command: {e}")
             else:
                 print("\a", end="", flush=True)  # Ring the bell
             self.bell_on_next_input = False  # Clear the flag
@@ -691,10 +690,10 @@ class InputOutput:
         """Toggle between normal and multiline input modes"""
         self.multiline_mode = not self.multiline_mode
         if self.multiline_mode:
-            self.tool_output(
+            self.print_info(
                 "Multiline mode: Enabled. Enter inserts newline, Alt-Enter submits text"
             )
         else:
-            self.tool_output(
+            self.print_info(
                 "Multiline mode: Disabled. Alt-Enter inserts newline, Enter submits text"
             )

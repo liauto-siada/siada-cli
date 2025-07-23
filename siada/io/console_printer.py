@@ -20,28 +20,8 @@ class ConsolePrinter:
         self.pretty = pretty
         self.colors = colors if colors else {}
 
-    def _print_single_message(self, message, color_name: str = None):
-        """Internal method to print a single styled message to the console."""
-        if not isinstance(message, Text):
-            message = Text(str(message))
-
-        color = self.colors.get(color_name)
-        style_dict = {}
-
-        if self.pretty and color:
-            style_dict["color"] = ColorUtils.ensure_hash_prefix(color)
-        
-        style = RichStyle(**style_dict) if style_dict else None
-
-        try:
-            self.console.print(message, style=style)
-        except UnicodeEncodeError:
-            # Fallback to ASCII-safe output
-            safe_message = message.plain.encode("ascii", errors="replace").decode("ascii")
-            self.console.print(safe_message, style=style)
-
-    def _print_output_messages(self, *messages, color_name: str = None, bold: bool = False):
-        """Internal method to print styled messages to the console for tool output."""
+    def print_messages(self, *messages, color_name: str = None, bold: bool = False):
+        """Internal method to print styled messages to the console."""
         color = self.colors.get(color_name)
         
         text_messages = list(map(Text, messages))
@@ -63,14 +43,14 @@ class ConsolePrinter:
             safe_messages = [str(m).encode("ascii", errors="replace").decode("ascii") for m in plain_messages]
             self.console.print(*safe_messages, style=style)
 
-    def error(self, message: str = ""):
-        """Prints an error message."""
-        self._print_single_message(message, color_name='error')
+    def error(self, *messages):
+        """Prints error messages."""
+        self.print_messages(*messages, color_name='error')
 
-    def warning(self, message: str = ""):
-        """Prints a warning message."""
-        self._print_single_message(message, color_name='warning')
+    def warning(self, *messages):
+        """Prints warning messages."""
+        self.print_messages(*messages, color_name='warning')
 
     def output(self, *messages, bold: bool = False):
         """Prints standard tool output."""
-        self._print_output_messages(*messages, color_name='output', bold=bold) 
+        self.print_messages(*messages, color_name='output', bold=bold) 

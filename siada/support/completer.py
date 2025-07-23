@@ -3,9 +3,6 @@ from collections import defaultdict
 from pathlib import Path
 
 from prompt_toolkit.completion import Completer, Completion
-from pygments.lexers import guess_lexer_for_filename
-from pygments.token import Token
-
 
 
 class CommandCompletionException(Exception):
@@ -18,19 +15,9 @@ class CommandCompletionException(Exception):
 
 class AutoCompleter(Completer):
     def __init__(
-        self, root, rel_fnames, addable_rel_fnames, commands, encoding, abs_read_only_fnames=None
+        self, root, commands, encoding
     ):
-        self.addable_rel_fnames = addable_rel_fnames
-        self.rel_fnames = rel_fnames
         self.encoding = encoding
-        self.abs_read_only_fnames = abs_read_only_fnames or []
-
-        fname_to_rel_fnames = defaultdict(list)
-        for rel_fname in addable_rel_fnames:
-            fname = os.path.basename(rel_fname)
-            if fname != rel_fname:
-                fname_to_rel_fnames[fname].append(rel_fname)
-        self.fname_to_rel_fnames = fname_to_rel_fnames
 
         self.words = set()
 
@@ -39,39 +26,7 @@ class AutoCompleter(Completer):
         if commands:
             self.command_names = self.commands.get_commands()
 
-        for rel_fname in addable_rel_fnames:
-            self.words.add(rel_fname)
-
-        for rel_fname in rel_fnames:
-            self.words.add(rel_fname)
-
-        all_fnames = [Path(root) / rel_fname for rel_fname in rel_fnames]
-        if abs_read_only_fnames:
-            all_fnames.extend(abs_read_only_fnames)
-
-        self.all_fnames = all_fnames
         self.tokenized = False
-
-    def tokenize(self):
-        if self.tokenized:
-            return
-        self.tokenized = True
-
-        for fname in self.all_fnames:
-            try:
-                with open(fname, "r", encoding=self.encoding) as f:
-                    content = f.read()
-            except (FileNotFoundError, UnicodeDecodeError, IsADirectoryError):
-                continue
-            try:
-                lexer = guess_lexer_for_filename(fname, content)
-            except Exception:  # On Windows, bad ref to time.clock which is deprecated
-                continue
-
-            tokens = list(lexer.get_tokens(content))
-            self.words.update(
-                (token[1], f"`{token[1]}`") for token in tokens if token[0] in Token.Name
-            )
 
     def get_command_completions(self, document, complete_event, text, words):
         if len(words) == 1 and not text[-1].isspace():
@@ -132,7 +87,6 @@ class AutoCompleter(Completer):
                 pass
 
         candidates = self.words
-        candidates.update(set(self.fname_to_rel_fnames))
         candidates = [word if type(word) is tuple else (word, word) for word in candidates]
 
         last_word = words[-1]
@@ -145,11 +99,6 @@ class AutoCompleter(Completer):
         for word_match, word_insert in candidates:
             if word_match.lower().startswith(last_word.lower()):
                 completions.append((word_insert, -len(last_word), word_match))
-
-                rel_fnames = self.fname_to_rel_fnames.get(word_match, [])
-                if rel_fnames:
-                    for rel_fname in rel_fnames:
-                        completions.append((rel_fname, -len(last_word), rel_fname))
 
         for ins, pos, match in sorted(completions):
             yield Completion(ins, start_position=pos, display=match)
