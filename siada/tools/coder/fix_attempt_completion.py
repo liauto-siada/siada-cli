@@ -49,12 +49,7 @@ The bug fix task has been successfully completed. All necessary changes have bee
     
     # Show system notification (simulated)
     notification_message = result.replace('\n', ' ')
-    print(f"""
-showSystemNotification({{
-    subtitle: "Fix Completed",
-    message: "{notification_message}",
-}})
-""")
+    #print(f""" showSystemNotification({{ subtitle: "Fix Completed",message: "{notification_message}",}})""")
     
     return FileReadObservation(
         content=completion_message,
