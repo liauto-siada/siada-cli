@@ -16,6 +16,9 @@ class TraceState:
     handoff_count: int = 0  # Number of handoffs
     model_call_count: int = 0  # Number of model calls
     tool_call_count: int = 0  # Number of tool calls
+    total_input_tokens: int = 0  # Total input tokens
+    total_output_tokens: int = 0  # Total output tokens
+    total_tokens: int = 0 
 
 
 class LoggerTracingProcessor(TracingProcessor):
@@ -252,6 +255,8 @@ class LoggerTracingProcessor(TracingProcessor):
             self._print(f"{self.colors['trace']}Model Calls: {state.model_call_count}{self.colors['reset']}")
             self._print(f"{self.colors['trace']}Tool Calls: {state.tool_call_count}{self.colors['reset']}")
             self._print(f"{self.colors['trace']}Handoffs: {state.handoff_count}{self.colors['reset']}")
+            self._print(f"{self.colors['trace']}Tokens: Input={state.total_input_tokens}, Output={state.total_output_tokens}, Total={state.total_tokens}{self.colors['reset']}")
+
             self._print(f"{self.colors['trace']}======================{self.colors['reset']}\n")
             
             # Clean up state
@@ -313,8 +318,14 @@ class LoggerTracingProcessor(TracingProcessor):
         # Print usage statistics
         if data.usage:
             usage = data.usage
+            input_tokens = usage.get('input_tokens', 0)
+            output_tokens = usage.get('output_tokens', 0)
+            total_tokens = usage.get('total_tokens', 0)
             self._print(f"{self.colors['model']}📊 Usage: Input={usage.get('input_tokens', 0)}, Output={usage.get('output_tokens', 0)}, Total={usage.get('total_tokens', 0)}{self.colors['reset']}")
-        
+            if state:
+                state.total_input_tokens += input_tokens
+                state.total_output_tokens += output_tokens
+                state.total_tokens += total_tokens
         self._print(f"{self.colors['model']}==================={self.colors['reset']}")
     
     def _handle_function_span(self, span, state: Optional[TraceState]) -> None:

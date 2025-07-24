@@ -8,7 +8,7 @@ import pexpect
 import psutil
 
 
-def do_run_cmd(command, verbose=False, cwd=None, error_print=None):
+def run_cmd_impl(command, verbose=False, cwd=None, error_print=None):
     try:
         if sys.stdin.isatty() and hasattr(pexpect, "spawn") and platform.system() != "Windows":
             return run_cmd_pexpect(command, verbose, cwd)
@@ -24,7 +24,6 @@ def do_run_cmd(command, verbose=False, cwd=None, error_print=None):
 
 
 def get_windows_parent_process_name():
-    """Get the name of the parent process on Windows."""
     try:
         current_process = psutil.Process()
         while True:
@@ -78,7 +77,7 @@ def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.enc
             chunk = process.stdout.read(1)
             if not chunk:
                 break
-            print(chunk, end="", flush=True)  # Print the chunk in real-time
+            # print(chunk, end="", flush=True)  # Print the chunk in real-time
             output.append(chunk)  # Store the chunk for later use
 
         process.wait()
@@ -130,4 +129,4 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
 
     except (pexpect.ExceptionPexpect, TypeError, ValueError) as e:
         error_msg = f"Error running command {command}: {e}"
-        return 1, error_msg 
+        return 1, error_msgs

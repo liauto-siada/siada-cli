@@ -22,7 +22,9 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str) -> str:
 - When you want to modify a file, use the str_replace or insert command of the edit_file tool directly with the desired changes. You do not need to display the changes before using the tool.
 - You are not allowed to ask questions to the user, generate commands requiring user input, or any other similar interactions. Each task must be completed independently. 
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. 
-- When using the commad str_replace of the edit_file tool, if you use multiple old_str/new_str blocks, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the old_str/new_str block for line 10, followed by the the old_str/new_str block for line 50.
+- When using the command str_replace of the edit_file tool, if you use multiple old_str/new_str blocks, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the old_str/new_str block for line 10, followed by the the old_str/new_str block for line 50.
+- Please fix the bug while simultaneously performing comprehensive edge testing to identify and address all boundary conditions, extreme scenarios, exceptional cases, null/empty inputs, maximum/minimum values, invalid data types, concurrent access issues, and resource constraints, ensuring your fix handles not only the reported issue but also all discovered edge cases properly.
+- After completing the fix, validate that the entire system works correctly under all conditions by running thorough tests on both the original bug and all identified edge cases, providing test results that demonstrate everything functions as expected without breaking any existing functionality.
 - When ANY bug fixing task is complete, you MUST call the fix_attempt_completion tool. This applies to ALL tasks, even simple ones. This is the ONLY way to properly finish and exit the execution loop. Do NOT end your response without calling this tool.
 
 ====

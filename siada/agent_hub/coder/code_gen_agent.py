@@ -8,6 +8,7 @@ import os
 from agents import RunContextWrapper, RunResult, RunResultStreaming, Runner, RunConfig, add_trace_processor
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
+from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
@@ -37,7 +38,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             kwargs['name'] = "CodeGenAgent"
         
         if 'tools' not in kwargs:
-            kwargs['tools'] = [edit, regex_search_files, run_cmd]
+            kwargs['tools'] = [edit, regex_search_files, run_cmd, list_code_definition_names]
             
         if 'model' not in kwargs:
             kwargs['model'] = model

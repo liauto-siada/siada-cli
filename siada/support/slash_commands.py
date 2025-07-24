@@ -8,7 +8,7 @@ import siada.io.io
 from siada.models.model_setting import ModelConfig
 from siada.provider.lazy_lite_llm import litellm
 from siada.support.editor import pipe_editor
-from siada.tools.coder.cmd_runner import do_run_cmd as run_cmd
+from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
 
 
 class SwitchEvent:

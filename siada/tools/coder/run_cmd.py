@@ -1,14 +1,7 @@
-import os
-import platform
-import subprocess
-import sys
-from io import BytesIO
-
-import pexpect
-import psutil
 from agents import function_tool, RunContextWrapper
 
 from siada.foundation.code_agent_context import CodeAgentContext
+from siada.tools.coder.cmd_runner import run_cmd_impl
 
 
 @function_tool
@@ -28,11 +21,4 @@ def run_cmd(context: RunContextWrapper[CodeAgentContext], command, verbose=False
             a single string argument. Defaults to None.
     """
     cwd = context.context.root_dir
-    return do_run_cmd(command, verbose, cwd, error_print)
-
-
-
-
-
-# These functions have been moved to cmd_runner.py to avoid circular imports
-from siada.tools.coder.cmd_runner import do_run_cmd, run_cmd_subprocess, run_cmd_pexpect
+    return run_cmd_impl(command, verbose, cwd, error_print)
