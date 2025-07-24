@@ -136,7 +136,7 @@ def main():
         io.print_info(show)
 
     cmd_line = " ".join(sys.argv)
-    io.print_info(cmd_line, log_only=True)
+    io.print_info(cmd_line)
 
     if args.list_models:
         # TODO: Implement this
@@ -182,6 +182,7 @@ def main():
     )
 
     controller = InteractionController(interaction_config)
+    controller.show_announcements()
     controller.run()
 
 

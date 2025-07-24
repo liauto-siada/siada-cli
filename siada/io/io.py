@@ -597,9 +597,7 @@ class InputOutput:
     def print_tool_call(self, message="", strip=True):
         self.printer.call(message)
 
-    def print_info(self, *messages, log_only=False, bold=False):
-        if log_only:
-            return
+    def print_info(self, *messages, bold=False):
         self.printer.output(*messages, bold=bold)
 
     def get_assistant_mdstream(self):

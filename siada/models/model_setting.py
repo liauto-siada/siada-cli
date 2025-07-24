@@ -126,7 +126,7 @@ class ModelConfig(ModelSettings):
 
     @staticmethod
     def get_default_model():
-        return get_model_config(DEFAULT_MODEL)
+        return ModelConfig(DEFAULT_MODEL)
 
 
 
