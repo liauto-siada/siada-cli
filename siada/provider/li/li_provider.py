@@ -33,11 +33,11 @@ from siada.provider.li.stream._stream_handler import ChatCmplStreamHandler as St
 
 class LiModel(Model):
 
-
     def __init__(self, model: str):
         super().__init__()
         self._client = SiadaClient()
         self.model = model
+        self.context = None  # 添加 context 变量
         
 
     def _non_null_or_not_given(self, value: Any) -> Any:

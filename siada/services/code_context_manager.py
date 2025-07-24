@@ -32,20 +32,8 @@ class ContextHooks(AgentHooks[CodeAgentContext]):
             context: RunContextWrapper[CodeAgentContext],
             agent: Agent[CodeAgentContext]
     ) -> None:
-        """Agent开始执行前的处理"""
-        if context.context:
-            print(f"🚀 Agent '{agent.name}' 开始执行")
-            print(f"📊 当前消息历史: {context.context.get_history_summary()}")
-
-            # 检查是否有待处理的压缩
-            if context.context.compression_pending:
-                print(f"🔄 检测到待处理的压缩操作")
-                if context.context.compression_summary and context.context.messages_to_remove_count > 0:
-                    context.context.apply_compression(
-                        context.context.compression_summary,
-                        context.context.messages_to_remove_count
-                    )
-                    print(f"✅ 压缩已应用，当前历史: {context.context.get_history_summary()}")
+        pass
+        
 
     async def on_end(
             self,
@@ -53,22 +41,7 @@ class ContextHooks(AgentHooks[CodeAgentContext]):
             agent: Agent[CodeAgentContext],
             output: Any
     ) -> None:
-        """Agent执行完成后的处理 - 更新消息历史"""
-        if not context.context:
-            return
-
-        print(f"🏁 Agent '{agent.name}' 执行完成")
-        print(f"📤 输出内容: {str(output)[:100]}...")
-
-        # 将助手的回复添加到历史
-        if isinstance(output, str):
-            assistant_message: TResponseInputItem = {
-                "role": "assistant",
-                "content": output
-            }
-            context.context.add_message(assistant_message)
-            print(f"📝 已添加助手回复到历史")
-            print(f"📊 更新后历史: {context.context.get_history_summary()}")
+        pass
 
     async def on_tool_start(
             self,
@@ -76,11 +49,7 @@ class ContextHooks(AgentHooks[CodeAgentContext]):
             agent: Agent[CodeAgentContext],
             tool: Tool
     ) -> None:
-        """工具开始执行前的处理"""
-        if tool.name == "compress_context_tool":
-            print(f"🛠️ 开始执行上下文压缩工具")
-            if context.context:
-                print(f"📊 压缩前历史: {context.context.get_history_summary()}")
+       pass
 
     async def on_tool_end(
             self,
@@ -89,41 +58,73 @@ class ContextHooks(AgentHooks[CodeAgentContext]):
             tool: Tool,
             result: str
     ) -> None:
-        """工具执行完成后的处理"""
         if tool.name == "compress_context_tool" and context.context:
-            print(f"🎯 上下文压缩工具执行完成")
-
-            # 检查压缩是否已标记
-            if context.context.compression_pending:
-                print(f"✅ 压缩已标记，将在下次Agent开始时应用")
-                print(f"📝 待删除消息数: {context.context.messages_to_remove_count}")
-            else:
-                print(f"ℹ️ 无需压缩或压缩条件不满足")
+            try:
+                # 解析工具返回的结果
+                import json
+                compression_result = json.loads(result)
+                
+                # 检查压缩是否成功
+                if compression_result.get("status") == 1:
+                    start_index = compression_result.get("start_index")
+                    end_index = compression_result.get("end_index")
+                    summary = compression_result.get("summary")
+                    
+                    # 验证索引有效性
+                    if (start_index is not None and end_index is not None and 
+                        0 <= start_index < end_index <= len(context.context.message_history)):
+                        
+                        # 删除被压缩的消息范围
+                        del context.context.message_history[start_index:end_index]
+                        
+                        # 在删除位置插入压缩摘要作为新消息
+                        summary_message = {
+                            "role": "system",
+                            "content": summary
+                        }
+                        context.context.message_history.insert(start_index, summary_message)
+                        
+                        print(f"✅ 成功压缩消息 [{start_index}:{end_index}]，替换为摘要")
+                    else:
+                        print(f"❌ 压缩索引无效: start_index={start_index}, end_index={end_index}")
+                else:
+                    print(f"❌ 压缩失败: {compression_result.get('summary', '未知错误')}")
+                    
+            except json.JSONDecodeError as e:
+                print(f"❌ 解析压缩工具结果失败: {e}")
+            except Exception as e:
+                print(f"❌ 处理压缩结果时发生错误: {e}")
 
 
 class ContextTracingProcessor(TracingProcessor):
-    """混合TracingProcessor
 
-    主要用于捕获工具调用和其他tracing事件
-    """
 
     def __init__(self, context: CodeAgentContext):
         self.context = context
-        print("🔧 HybridTracingProcessor 初始化完成")
 
     def on_trace_start(self, trace: "Trace") -> None:
         pass
 
     def on_span_start(self, span: "Span[Any]") -> None:
 
-        span_type = span.span_data.type
-        if span_type == "generation" or span_type == "function" or span_type == "handoff":
-            self.context.message_history = span.span_data.input
+
+        if hasattr(span.span_data, "input") and span.span_data.input:
+            if isinstance(span.span_data.input, list):
+                self.context.message_history = span.span_data.input
+            else:
+                self.context.add_message(span.span_data.input)
+
 
     def on_span_end(self, span: "Span[Any]") -> None:
 
-        if span_type == "generation" or span_type == "function" or span_type == "handoff":
-            self.context.message_history = span.span_data.output
+        if hasattr(span.span_data, "output"):
+            output = span.span_data.output
+            if output:
+                if isinstance(output, list):
+                    self.context.add_messages(output)
+                else:
+                    self.context.add_message(output)
+
 
     def on_trace_end(self, trace: "Trace") -> None:
         pass
@@ -132,21 +133,4 @@ class ContextTracingProcessor(TracingProcessor):
         pass
 
     def force_flush(self) -> None:
-        """强制刷新所有队列的spans/traces"""
         pass
-
-
-def create_context_with_user_message(user_input: str) -> CodeAgentContext:
-    """创建包含用户消息的上下文"""
-    context = CodeAgentContext()
-
-    # 添加用户消息到历史
-    user_message: TResponseInputItem = {
-        "role": "user",
-        "content": user_input
-    }
-    context.add_message(user_message)
-
-    print(f"🆕 创建新的上下文，用户输入: {user_input}")
-    print(f"📊 初始历史: {context.get_history_summary()}")
-    return context

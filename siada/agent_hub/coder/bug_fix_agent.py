@@ -18,6 +18,8 @@ from agents import set_trace_processors
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import json
 
+from siada.tools.compression_tool import compress_context_tool
+
 
 class BugFixAgent(CodeGenAgent):
     test_agent: TestAgent
@@ -30,7 +32,7 @@ class BugFixAgent(CodeGenAgent):
 
         super().__init__(
             name="BugFixAgent",
-            tools=[edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names],
+            tools=[edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names, compress_context_tool],
             model=model,
             tool_use_behavior={
                 "stop_at_tool_names": ["fix_attempt_completion"],
@@ -48,6 +50,11 @@ class BugFixAgent(CodeGenAgent):
     async def get_context(self) -> CodeAgentContext:
         current_working_dir = os.getcwd()
         context = CodeAgentContext(root_dir=current_working_dir)
+        
+        # 将 context 值赋给 model 对象
+        if hasattr(self, 'model') and hasattr(self.model, 'context'):
+            self.model.context = context
+        
         return context
 
     async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
