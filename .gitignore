@@ -6,6 +6,7 @@ logs/
 *.pyc
 dist/
 *.tag.gz
+launch.json
 
 # 忽略所有 .siada 目录及其内容
 **/.siada*
