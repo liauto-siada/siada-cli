@@ -90,13 +90,20 @@ def main():
             notifications_command=getattr(args, "notifications_command", None),
         )
 
-    io = get_io(pretty=True)
+    io = get_io(args.pretty)
+    
+    # Show SIADA HUB banner with gradient effect
+    from siada.io.banner import show_siada_banner
+    
     try:
         io.rule()
+        show_siada_banner(pretty=io.pretty, console=io.console)
     except UnicodeEncodeError as err:
         if not io.pretty:
             raise err
         io = get_io(False)
+        # Re-show banner in plain mode if we fall back to non-pretty
+        show_siada_banner(pretty=False)
         io.print_warning("Terminal does not support pretty output (UnicodeDecodeError)")
 
     if args.set_env:
@@ -134,9 +141,10 @@ def main():
     if args.verbose:
         show = SettingsUtils.format_settings(parser, args)
         io.print_info(show)
-
-    cmd_line = " ".join(sys.argv)
-    io.print_info(cmd_line)
+        
+        # Show command line in verbose mode only
+        cmd_line = " ".join(sys.argv)
+        io.print_info(f"Command: {cmd_line}")
 
     if args.list_models:
         # TODO: Implement this

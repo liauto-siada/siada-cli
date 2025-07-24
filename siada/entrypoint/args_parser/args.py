@@ -183,6 +183,19 @@ def get_parser(default_config_files, git_root):
         help="Select color theme: default, dark, or light (default: None, auto-detect or use individual mode flags)",
     )
 
+    group.add_argument(
+        "--pretty",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable pretty, colorized output (default: True)",
+    )
+    group.add_argument(
+        "--stream",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable streaming responses (default: True)",
+    )
+
     ##########
     group = parser.add_argument_group("Git settings")
     group.add_argument(

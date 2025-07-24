@@ -24,7 +24,8 @@ class ConsolePrinter:
         """Internal method to print styled messages to the console."""
         color = self.colors.get(color_name)
         
-        text_messages = list(map(Text, messages))
+        # Convert each message to Text, treating each message as a whole unit
+        text_messages = [Text(str(msg)) for msg in messages]
         style_dict = {}
 
         if self.pretty:

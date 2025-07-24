@@ -19,7 +19,6 @@ class InteractionSessionManager:
     def create_session(
         interaction_config: InteractionConfig,
         session_id: Optional[str] = None,
-        db_path: Optional[str] = None,
     ) -> Session:
         """
         Create a new interaction session
@@ -49,7 +48,6 @@ class InteractionSessionManager:
         # Create OpenAI Session
         openai_session = SQLiteSession(
             session_id=session_id,  # Use same ID
-            db_path=db_path
         )
         session.state.openai_session = openai_session
         return session

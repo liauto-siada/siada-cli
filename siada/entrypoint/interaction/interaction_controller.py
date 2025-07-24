@@ -69,7 +69,8 @@ class InteractionController:
         if reasoning_effort:
             output += f", reasoning {reasoning_effort}"
 
-        return output
+        lines.append(output)
+        return lines
 
     def show_announcements(self):
         for line in self.get_announcements():
