@@ -1,14 +1,9 @@
-import os
-from collections import defaultdict
-from pathlib import Path
-
 from prompt_toolkit.completion import Completer, Completion
 
 
 class CommandCompletionException(Exception):
     """Raised when a command should use the normal autocompleter instead of
     command-specific completion."""
-
     pass
 
 
@@ -25,8 +20,6 @@ class AutoCompleter(Completer):
         self.command_completions = dict()
         if commands:
             self.command_names = self.commands.get_commands()
-
-        self.tokenized = False
 
     def get_command_completions(self, document, complete_event, text, words):
         if len(words) == 1 and not text[-1].isspace():
@@ -67,7 +60,6 @@ class AutoCompleter(Completer):
             yield Completion(candidate, start_position=-len(words[-1]))
 
     def get_completions(self, document, complete_event):
-        self.tokenize()
 
         text = document.text_before_cursor
         words = text.split()
@@ -90,15 +82,3 @@ class AutoCompleter(Completer):
         candidates = [word if type(word) is tuple else (word, word) for word in candidates]
 
         last_word = words[-1]
-
-        # Only provide completions if the user has typed at least 3 characters
-        if len(last_word) < 3:
-            return
-
-        completions = []
-        for word_match, word_insert in candidates:
-            if word_match.lower().startswith(last_word.lower()):
-                completions.append((word_insert, -len(last_word), word_match))
-
-        for ins, pos, match in sorted(completions):
-            yield Completion(ins, start_position=pos, display=match)

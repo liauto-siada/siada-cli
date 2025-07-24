@@ -2,10 +2,10 @@ from typing import Optional
 import logging
 from uuid import uuid4
 
-from siada.entrypoint.interaction.interaction_controller import InteractionConfig
+from siada.entrypoint.interaction.config import InteractionConfig
 from siada.io.io import InputOutput
 from siada.models.model_setting import ModelConfig
-from siada.support.commands import SlashCommands
+from siada.support.slash_commands import SlashCommands
 
 from .session_models import Session, SessionState
 from siada.models.model_settings import ModelSettings

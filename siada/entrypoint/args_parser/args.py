@@ -59,7 +59,7 @@ def get_parser(default_config_files, git_root):
         "--agent",
         metavar="AGENT",
         choices=agent_choices,
-        default="bugfix",
+        default="coder",
         help=f"Specify the agent type to use (choices: {', '.join(agent_choices)}, default: bugfix)",
     )
 
@@ -78,6 +78,13 @@ def get_parser(default_config_files, git_root):
 
     ##########
     group = parser.add_argument_group("API Keys and settings")
+    group.add_argument(
+        "--env-file",
+        metavar="ENV_FILE",
+        default=default_env_file(git_root),
+        help="Specify the .env file to load (default: .env in git root)",
+    ).complete = shtab.FILE
+
     group.add_argument(
         "--set-env",
         action="append",
@@ -172,7 +179,7 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--theme",
         choices=["default", "dark", "light"],
-        default=None,
+        default="dark",
         help="Select color theme: default, dark, or light (default: None, auto-detect or use individual mode flags)",
     )
 

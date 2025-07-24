@@ -1,52 +1,30 @@
-import base64
 import functools
 import os
-import shutil
-import signal
 import subprocess
-import time
 import webbrowser
-from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
-from io import StringIO
-from pathlib import Path
 
-from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
+from prompt_toolkit.completion import Completer, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
 from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.filters import Condition, is_searching
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.key_binding.vi_state import InputMode
-from prompt_toolkit.keys import Keys
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.output.vt100 import is_dumb_terminal
 from prompt_toolkit.shortcuts import CompleteStyle, PromptSession
 from prompt_toolkit.styles import Style
-from pygments.lexers import MarkdownLexer, guess_lexer_for_filename
-from pygments.token import Token
+from pygments.lexers import MarkdownLexer
 from rich.color import ColorParseError
-from rich.columns import Columns
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.style import Style as RichStyle
 from rich.text import Text
 
-from siada.support.commands import SlashCommands
-from siada.support.completer import AutoCompleter
-from siada.support.editor import pipe_editor
 from siada.io.components.mdstream import MarkdownStream
 from siada.io.console_printer import ConsolePrinter
 from siada.io.notification_command import NotificationCommandUtil
-from siada.utils import DebugUtils
-from siada.io.color_utils import ColorUtils
-
-# from .editor import pipe_editor
-from siada.utils import ImageUtils
-
 from .color_settings import ColorSettings
 from .key_bindings import KeyBindingsFactory
+
+# from .editor import pipe_editor
 
 # Constants
 NOTIFICATION_MESSAGE = "Siada is waiting for your input"
@@ -100,7 +78,6 @@ class InputOutput:
         editingmode=EditingMode.EMACS,
         fancy_input=True,
         multiline_mode=False,
-        root=".",
         notifications=False,
         notifications_command=None,
     ):
@@ -134,6 +111,12 @@ class InputOutput:
         )
         self.tool_warning_color = (
             ColorUtils.ensure_hash_prefix(self.color_settings.tool_warning_color) if pretty else None
+        )
+        self.tool_result_color = (
+            ColorUtils.ensure_hash_prefix(self.color_settings.tool_result_color) if pretty else None
+        )
+        self.tool_call_color = (
+            ColorUtils.ensure_hash_prefix(self.color_settings.tool_call_color) if pretty else None
         )
         self.assistant_output_color = ColorUtils.ensure_hash_prefix(
             self.color_settings.assistant_output_color
@@ -209,8 +192,6 @@ class InputOutput:
             self._initialize_printer()
             if self.is_dumb_terminal:
                 self.print_info("Detected dumb terminal, disabling fancy input and pretty output.")
-
-        self.root = root
 
         # Validate color settings after console is initialized
         self._validate_color_settings()
@@ -304,14 +285,13 @@ class InputOutput:
     def get_input(
         self,
         root: str,
-        commands: SlashCommands,
+        completer: Completer
     ):
         self.rule()
 
         # Ring the bell if needed
         self.ring_bell()
 
-        rel_fnames = list(rel_fnames)
         show = ""
         # if rel_fnames:
         #     rel_read_only_fnames = [
@@ -332,13 +312,7 @@ class InputOutput:
 
         style = self._get_style()
 
-        completer_instance = ThreadedCompleter(
-            AutoCompleter(
-                root=root,
-                commands=commands,
-                encoding=self.encoding,
-            )
-        )
+        completer_instance = ThreadedCompleter(completer=completer)
 
         kb_factory = KeyBindingsFactory(self)
         kb = kb_factory.create_key_bindings()
@@ -616,7 +590,6 @@ class InputOutput:
 
     def print_warning(self, message="", strip=True):
         self.printer.warning(message)
-
 
     def print_tool_result(self, message="", strip=True):
         self.printer.result(message)

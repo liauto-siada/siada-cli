@@ -9,7 +9,6 @@ class ModelSettings:
     model_name: str
     context_window: int
     max_tokens: Optional[int] = None
-    temperature: Optional[float] = None
     supports_images: bool = False
     supports_prompt_cache: bool = False
 

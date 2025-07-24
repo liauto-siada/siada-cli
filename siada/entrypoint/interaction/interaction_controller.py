@@ -5,35 +5,25 @@ Manages the AI coding interaction lifecycle and controls the main interaction fl
 Separates core interaction logic from main entry point for better code organization.
 """
 
-from siada.io.io import InputOutput
-from siada.services.siada_runner import SiadaRunner
-from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
-from abc import ABC, abstractmethod
 
+import siada.support.completer
+from siada import __version__
+from siada.entrypoint.interaction.config import InteractionConfig
+from siada.entrypoint.interaction.run_turn import TurnFactory
+from siada.io.io import InputOutput
 from siada.models.model_setting import ModelConfig
 from siada.session.session_manager import InteractionSessionManager
-from siada.support.commands import SlashCommands
-
-
-@dataclass
-class InteractionConfig:
-    """Configuration data class for interaction controller"""
-    
-    # Model and IO
-    model: ModelConfig
-    io: InputOutput
-    workspace: str
-    agent_name: str
-    slash_commands: SlashCommands
-    args: Any
+from siada.support.slash_commands import SlashCommands, SwitchEvent
 
 
 class InteractionController:
     """Controls user-AI coding interactions and manages coder lifecycle"""
 
+
     def __init__(self, config: InteractionConfig):
         self.config = config
+
 
     def run(self) -> int:
         session = InteractionSessionManager.create_session(
@@ -43,127 +33,44 @@ class InteractionController:
             try:
                 user_input = self.config.io.get_input(
                     root=self.config.workspace,
-                    commands=self.config.slash_commands,
+                    completer=self.config.completer,
                 )
-                result = SiadaRunner.run_agent(
-                    agent_name=self.config.agent_name,
-                    user_input=user_input,
-                    workspace=self.config.workspace,
-                    session=session,
-                    stream=True,
-                )
-                self.config.io.print_info(result)
+                turn = TurnFactory.create_turn(self.config, session, user_input)
+                turn_output = turn.execute(user_input)
+
+                if isinstance(turn_output.output, SwitchEvent):
+                    if turn_output.output.kwargs.get("agent"):
+
+                        self.config.agent_name = turn_output.output.kwargs.get("agent")
+                        # clear the session to avoid the previous agent's messages
+                        session.state.openai_session.clear_session()
+
+                    elif turn_output.output.kwargs.get("model"):
+                        self.config.model = turn_output.output.kwargs.get("model")
+                    # show the announcements in every switch event
+                    self.show_announcements()
             except Exception as e:
                 self.config.io.print_error(e)
                 break
 
-        pass
+    def get_announcements(self):
+        lines = []
+        lines.append(f"SiadaHub v{__version__}")
 
-    def _handle_interaction_error(self, error: Exception) -> int:
-        """Handle errors during interaction
-        
-        Args:
-            error: Exception that occurred during interaction
-            
-        Returns:
-            int: Appropriate exit code based on error type
-        """
-        pass
+        output = f"Agent: {self.config.agent_name}"
 
-    def _run_main_loop(self) -> int:
-        """Run the main interaction loop
-        
-        Returns:
-            int: Exit code from the interaction
-        """
-        pass
+        # Check for thinking token budget
+        thinking_tokens = self.config.model.get_thinking_tokens()
+        if thinking_tokens:
+            output += f", {thinking_tokens} think tokens"
 
-    def _cleanup_resources(self) -> None:
-        """Cleanup any resources used during interaction"""
-        pass
+        # Check for reasoning effort
+        reasoning_effort = self.config.model.get_reasoning_effort()
+        if reasoning_effort:
+            output += f", reasoning {reasoning_effort}"
 
+        return output
 
-class InteractionErrorHandler:
-    """Handles various types of errors during interaction"""
-    
-    @staticmethod
-    def handle_switch_event(event, current_coder, io) -> Dict[str, Any]:
-        """Handle coder switch events
-        
-        Args:
-            event: Switch event object
-            current_coder: Currently active coder
-            io: IO handler
-            
-        Returns:
-            dict: Parameters for creating new coder
-        """
-        pass
-    
-    @staticmethod
-    def handle_generic_error(error: Exception, io) -> int:
-        """Handle any other unexpected errors
-        
-        Args:
-            error: Exception that occurred
-            io: IO handler for error output
-            
-        Returns:
-            int: Exit code for generic errors
-        """
-        pass
-
-
-class InteractionFactory:
-    """Factory for creating configured InteractionController instances"""
-    
-    @staticmethod
-    def create_from_args(args, io, model, **kwargs) -> InteractionController:
-        """Create interaction controller from parsed arguments
-        
-        Args:
-            args: Parsed command line arguments
-            io: IO handler instance
-            model: Model instance
-            **kwargs: Additional configuration parameters (repo, fnames, etc.)
-            
-        Returns:
-            InteractionController: Configured interaction controller
-        """
-        pass
-    
-    @staticmethod
-    def build_interaction_config(args, io, model, **kwargs) -> InteractionConfig:
-        """Build InteractionConfig from arguments and parameters
-        
-        Args:
-            args: Parsed command line arguments
-            io: IO handler instance
-            model: Model instance
-            **kwargs: Additional configuration parameters
-            
-        Returns:
-            InteractionConfig: Complete configuration object
-        """
-        pass
-
-
-# Exception classes for interaction-specific errors
-class InteractionError(Exception):
-    """Base exception for interaction-related errors"""
-    pass
-
-
-class InteractionConfigError(InteractionError):
-    """Exception for configuration-related errors"""
-    pass
-
-
-class InteractionInitializationError(InteractionError):
-    """Exception for initialization failures"""
-    pass
-
-
-class CoderCreationError(InteractionError):
-    """Exception for coder creation failures"""
-    pass 
+    def show_announcements(self):
+        for line in self.get_announcements():
+            self.config.io.print_info(line)
