@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     Deepseek_V3_0324: str = "deepseek-v3-0324"
     Deepseek_R1_0528: str = "deepseek-r1-0528"
     O1_MINI: str = "o1-mini"
-    MAX_TURNS: int = 100
+    MAX_TURNS: int = 200
 
     # 将RunConfig设置为ClassVar，这样它不会被包含在模型验证中
     _DEFAULT_RUN_CONFIG: ClassVar[agents.RunConfig] = None
