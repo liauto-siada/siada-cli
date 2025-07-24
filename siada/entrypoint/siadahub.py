@@ -189,7 +189,7 @@ def main():
         completer=completer,
     )
 
-    controller = InteractionController(interaction_config)
+    controller = InteractionController(interaction_config, commands)
     controller.show_announcements()
     controller.run()
 

@@ -38,7 +38,6 @@ class TurnInput:
     """Input data for a turn"""
 
     use_input: str  # Raw user input
-    turn_type: TurnType  # Type of this turn
 
 
 @dataclass
@@ -53,7 +52,7 @@ class TurnOutput:
 class RunTurn(ABC):
     """Abstract base class for interaction turns"""
 
-    def __init__(self, config: InteractionConfig, session: Any):
+    def __init__(self, config: InteractionConfig, session: Any, slash_commands: Any):
         """Initialize turn with configuration and session
 
         Args:
@@ -62,6 +61,7 @@ class RunTurn(ABC):
         """
         self.config = config
         self.session = session
+        self.slash_commands = slash_commands
 
         # Data tracking
         self.input_data: Optional[TurnInput] = None
@@ -133,11 +133,11 @@ class RunTurn(ABC):
             TurnOutput: Error response
         """
         self.error = error
+        self.config.io.print_error(str(error))
 
         return TurnOutput(
             output=f"Error: {str(error)}",
             metadata={"error_type": type(error).__name__},
-            artifacts=[],
         )
 
     def _get_timestamp(self) -> float:
@@ -319,7 +319,7 @@ class CommandTurn(RunTurn):
 
     def can_handle(self, user_input: str) -> bool:
         """Handle slash commands"""
-        return self.config.slash_commands.is_command(user_input)
+        return self.slash_commands.is_command(user_input)
 
     def execute(self, turn_input: TurnInput) -> TurnOutput:
         """Execute slash command
@@ -334,7 +334,7 @@ class CommandTurn(RunTurn):
         self.start_time = self._get_timestamp()
 
         try:
-            result = self.config.slash_commands.run(self.session, turn_input.use_input)
+            result = self.slash_commands.run(self.session, turn_input.use_input)
             self.end_time = self._get_timestamp()
 
             output = TurnOutput(
@@ -355,7 +355,7 @@ class TurnFactory:
 
     @staticmethod
     def create_turn(
-        config: InteractionConfig, session: Any, user_input: str
+        config: InteractionConfig, session: Any, slash_commands: Any, user_input: str
     ) -> RunTurn:
         """Create appropriate turn for user input
 
@@ -373,7 +373,7 @@ class TurnFactory:
 
         for turn_class in turn_types:
             # Create a temporary instance to test if it can handle the input
-            temp_turn = turn_class(config, session)
+            temp_turn = turn_class(config, session, slash_commands)
             if temp_turn.can_handle(user_input):
                 return temp_turn
 

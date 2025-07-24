@@ -407,7 +407,7 @@ class InputOutput:
                 break
 
         print()
-        self.user_input(inp)
+        self.display_user_input(inp)
         return inp
 
     def display_user_input(self, inp):

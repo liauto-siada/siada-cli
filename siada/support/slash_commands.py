@@ -271,7 +271,6 @@ class SlashCommands:
 
     def cmd_exit(self, args):
         "Exit the application"
-        self.coder.event("exit", reason="/exit")
         sys.exit()
 
     def cmd_quit(self, args):

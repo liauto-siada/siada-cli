@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import siada.support.completer
 from siada import __version__
 from siada.entrypoint.interaction.config import InteractionConfig
-from siada.entrypoint.interaction.run_turn import TurnFactory
+from siada.entrypoint.interaction.run_turn import TurnFactory, TurnInput
 from siada.io.io import InputOutput
 from siada.models.model_setting import ModelConfig
 from siada.session.session_manager import InteractionSessionManager
@@ -21,8 +21,9 @@ class InteractionController:
     """Controls user-AI coding interactions and manages coder lifecycle"""
 
 
-    def __init__(self, config: InteractionConfig):
+    def __init__(self, config: InteractionConfig, slash_commands: SlashCommands):
         self.config = config
+        self.slash_commands = slash_commands
 
 
     def run(self) -> int:
@@ -35,8 +36,8 @@ class InteractionController:
                     root=self.config.workspace,
                     completer=self.config.completer,
                 )
-                turn = TurnFactory.create_turn(self.config, session, user_input)
-                turn_output = turn.execute(user_input)
+                turn = TurnFactory.create_turn(self.config, session, self.slash_commands, user_input)
+                turn_output = turn.execute(TurnInput(use_input=user_input))
 
                 if isinstance(turn_output.output, SwitchEvent):
                     if turn_output.output.kwargs.get("agent"):
