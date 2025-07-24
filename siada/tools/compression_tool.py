@@ -14,8 +14,7 @@ from siada.foundation.code_agent_context import CodeAgentContext
 from siada.provider.li.llm_connection import SiadaClient
 from siada.foundation.config import settings
 
-COMPRESS_DOCS = """
-    Intelligently compress or summarize the conversation history within a specified range.
+COMPRESS_DOCS = """Intelligently compress or summarize the conversation history within a specified range.
 
     This tool should be called when the following situations occur:
     1. The conversation history is too long and needs to be partially archived.
@@ -23,6 +22,11 @@ COMPRESS_DOCS = """
     3. Some messages are no longer important for resolving the current main task and need to be cleared.
     4. The current conversation has deviated from the original topic and needs to be refocused.
     5. The message list contains a lot of redundant information, which reduces the efficiency of accessing important content.
+    6. If the test required multiple steps to complete — or was not completed — you need to summarize the testing process.
+    7. If the search involved multiple steps — or returned too many results — you need to summarize the search process.
+    ===
+
+    After summarizing, you must provide a recommendation for the next step.
 
     Args:
         reason: The reason why context compression is needed (required).
@@ -36,6 +40,34 @@ COMPRESS_DOCS = """
         - start_index (int): The starting index of the compression.
         - end_index (int): The ending index of the compression.
         - summary (str): The compression summary or error/status information.
+
+    Example Usage:
+    
+    Original conversation history (messages 1-6):
+    [1] assistant: Search for files containing "config" keyword to find configuration files.
+    [2] tool: {"status": "success", "results": ["config.py", "app_config.py", "db_config.py", "test_config.py", "config.yaml", "nginx.conf", "docker-compose.yml"], "total": 47}
+    [3] assistant: Too many results. Search for "database config" specifically.
+    [4] tool: {"status": "success", "results": ["db_config.py", "database.conf", "config/db.yaml", "tests/db_config_test.py", "migrations/config.py"], "total": 23}
+    [5] assistant: Still too broad. Search for "database connection" in Python files only.
+    [6] tool: {"status": "success", "results": ["db_config.py", "models/base.py", "utils/db_helper.py", "services/db_service.py"], "total": 18}
+    [7] assistant: The search results are still not specific enough. Let me try a different approach.
+    [8] tool: {"status": "success", "message": "Search strategy needs refinement - too many generic matches"}
+
+    Compression call:
+    compress_context_tool(
+        reason="Search attempts yielded too many results, need to restart with better strategy",
+        start_index=1,
+        end_index=7,
+        compression_strategy="summary"
+    )
+
+    Compressed result:
+    {
+        "status": 1,
+        "start_index": 1,
+        "end_index": 7,
+        "summary": "[Smart Compression Summary]\nReason for compression: Search attempts yielded too many results, need to restart with better strategy\nMultiple search attempts for configuration files returned excessive results (47, 23, 18 matches respectively), indicating search terms were too broad and strategy needs refinement."
+    }
     """
 
 @function_tool(
