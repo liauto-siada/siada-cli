@@ -32,7 +32,6 @@ COMPRESS_DOCS = """Intelligently compress or summarize the conversation history 
         reason: The reason why context compression is needed (required).
         start_index: The starting index of the compression range (inclusive).
         end_index: The ending index of the compression range (exclusive).
-        compression_strategy: The compression strategy, currently supports "summary".
 
     Returns:
         A dictionary containing:
@@ -58,7 +57,6 @@ COMPRESS_DOCS = """Intelligently compress or summarize the conversation history 
         reason="Search attempts yielded too many results, need to restart with better strategy",
         start_index=1,
         end_index=7,
-        compression_strategy="summary"
     )
 
     Compressed result:
@@ -78,15 +76,13 @@ async def compress_context_tool(
     reason: str,
     start_index: int,
     end_index: int,
-    compression_strategy: str = "summary"
 ) -> dict[str, Any]:
 
     return await _compress_context_tool(
         context=context,
         reason=reason,
         start_index=start_index,
-        end_index=end_index,
-        compression_strategy=compression_strategy
+        end_index=end_index
     )
 
 async def _compress_messages_with_model(messages: list[TResponseInputItem], reason: str) -> str:
@@ -159,7 +155,6 @@ async def _compress_context_tool(
     reason: str,
     start_index: int,
     end_index: int,
-    compression_strategy: str = "summary"
 ) -> dict[str, Any]:
     if not context.context:
         return _create_failure_response(start_index, end_index, "Error: Unable to get context information")
