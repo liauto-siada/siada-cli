@@ -6,6 +6,12 @@ logs/
 *.pyc
 dist/
 *.tag.gz
+# 忽略测试文件
+test_get_git_diff.py
+# 忽略vscode 配置文件夹
+.vscode/
+# 忽略运行结果日志
+output.jsonl
 launch.json
 
 # 忽略所有 .siada 目录及其内容
