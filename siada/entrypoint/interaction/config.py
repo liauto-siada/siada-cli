@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from rlcompleter import Completer
 
 from siada.io.io import InputOutput
-from siada.models.model_setting import ModelConfig
+from siada.models.model_setting import ModelRunConfig
 
 
 @dataclass
@@ -14,7 +14,7 @@ class InteractionConfig:
     """Configuration data class for interaction controller"""
 
     # Model and IO
-    model: ModelConfig
+    model: ModelRunConfig
     io: InputOutput
     workspace: str
     agent_name: str

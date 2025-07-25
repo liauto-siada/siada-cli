@@ -1,13 +1,113 @@
 import os
 import logging
+import tempfile
+from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
 from typing import Literal, Mapping, Optional
 from termcolor import colored
-# 确保日志目录存在
-log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
-os.makedirs(log_dir, exist_ok=True)
 
-# 日志文件路径
+
+def get_log_directory():
+    """
+    Get log directory with the following priority:
+    - Development mode: Project root ./logs (detected by pyproject.toml)
+    - 1. Environment variable SIADAHUB_LOG_DIR
+    - 2. User home directory ~/.siadahub/logs
+    - 3. XDG cache directory ~/.cache/siadahub/logs  
+    - 4. System temp directory /tmp/siadahub/logs
+    - 5. Current working directory ./logs (fallback)
+    """
+    # Check if in development mode first
+    if _is_development_mode():
+        dev_log_dir = _get_development_log_dir()
+        if dev_log_dir and _ensure_log_dir(Path(dev_log_dir)):
+            return dev_log_dir
+    
+    # 1. Check environment variable
+    if env_log_dir := os.getenv('SIADAHUB_LOG_DIR'):
+        log_dir = Path(env_log_dir)
+        if _ensure_log_dir(log_dir):
+            return str(log_dir)
+    
+    # 2. User home directory ~/.siadahub/logs
+    home_log_dir = Path.home() / '.siadahub' / 'logs'
+    if _ensure_log_dir(home_log_dir):
+        return str(home_log_dir)
+    
+    # 3. XDG cache directory ~/.cache/siadahub/logs
+    cache_dir = os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))
+    xdg_log_dir = Path(cache_dir) / 'siadahub' / 'logs'
+    if _ensure_log_dir(xdg_log_dir):
+        return str(xdg_log_dir)
+    
+    # 4. System temp directory
+    temp_log_dir = Path(tempfile.gettempdir()) / 'siadahub' / 'logs'
+    if _ensure_log_dir(temp_log_dir):
+        return str(temp_log_dir)
+    
+    # 5. Fallback: current directory
+    fallback_log_dir = Path('./logs')
+    _ensure_log_dir(fallback_log_dir)
+    return str(fallback_log_dir)
+
+
+def _is_development_mode():
+    """
+    Detect if running in development mode by checking environment variables:
+    - SIADAHUB_ENV=development
+    - SIADA_ENV=dev/development
+    - DEVELOPMENT=true/1/yes
+    """
+    # Check specific environment variables
+    env_vars = [
+        ('SIADAHUB_ENV', ['development', 'dev']),
+        ('SIADA_ENV', ['development', 'dev']),
+        ('DEVELOPMENT', ['true', '1', 'yes']),
+    ]
+    
+    for env_var, valid_values in env_vars:
+        env_value = os.getenv(env_var, '').lower()
+        if env_value in valid_values:
+            return True
+    
+    return False
+
+
+def _get_development_log_dir():
+    """Get development mode log directory - try current working directory first"""
+    try:
+        # Try current working directory first (for project root)
+        current_dir = Path.cwd()
+        if (current_dir / 'pyproject.toml').exists():
+            return str(current_dir / 'logs')
+        
+        # Fallback: use module location to find project root
+        module_file = Path(__file__).resolve()
+        project_root = module_file.parent.parent.parent
+        if (project_root / 'pyproject.toml').exists():
+            return str(project_root / 'logs')
+            
+    except Exception:
+        pass
+    
+    return None
+
+
+def _ensure_log_dir(log_dir: Path) -> bool:
+    """Ensure log directory exists and is writable, return success status"""
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        # Test write permissions
+        test_file = log_dir / '.write_test'
+        test_file.touch()
+        test_file.unlink()
+        return True
+    except (PermissionError, OSError):
+        return False
+
+
+# Get log directory and file path
+log_dir = get_log_directory()
 log_file = os.path.join(log_dir, 'siada_api.log')
 
 
@@ -139,6 +239,18 @@ def get_console_handler(log_level=logging.INFO, extra_info: Optional[str] = None
     return console_handler
 
 
+def configure_third_party_loggers():
+    """
+    配置第三方库的日志级别，减少冗余日志输出
+    """
+    # 设置httpx日志级别为ERROR，避免过多的网络请求日志
+    logging.getLogger('httpx').setLevel(logging.ERROR)
+    
+    # 可以根据需要添加其他第三方库的日志配置
+    # logging.getLogger('urllib3').setLevel(logging.WARNING)
+    # logging.getLogger('requests').setLevel(logging.WARNING)
+
+
 def setup_logger():
     """
     设置并返回siada.api的logger
@@ -161,7 +273,68 @@ def setup_logger():
     setup_logger.addHandler(file_handler)
     setup_logger.propagate = False
 
+    # 配置第三方库的日志级别
+    configure_third_party_loggers()
+
     return setup_logger
+
+
+
+def remove_console_handler(target_logger=None):
+    """
+    Remove console handler from logger, keeping only file handler
+    
+    Args:
+        target_logger: Logger instance to modify. If None, uses the global logger.
+    """
+    if target_logger is None:
+        target_logger = logging.getLogger('siada.api')
+    
+    # Find and remove console handlers
+    handlers_to_remove = []
+    for handler in target_logger.handlers:
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, TimedRotatingFileHandler):
+            handlers_to_remove.append(handler)
+    
+    for handler in handlers_to_remove:
+        target_logger.removeHandler(handler)
+        handler.close()
+
+
+def add_console_handler(target_logger=None, log_level=logging.INFO):
+    """
+    Add console handler back to logger
+    
+    Args:
+        target_logger: Logger instance to modify. If None, uses the global logger.
+        log_level: Log level for console handler
+    """
+    if target_logger is None:
+        target_logger = logging.getLogger('siada.api')
+    
+    # Check if console handler already exists
+    has_console_handler = any(
+        isinstance(handler, logging.StreamHandler) and not isinstance(handler, TimedRotatingFileHandler)
+        for handler in target_logger.handlers
+    )
+    
+    if not has_console_handler:
+        console_handler = get_console_handler(log_level)
+        target_logger.addHandler(console_handler)
+
+
+def toggle_console_output(enable: bool = True, target_logger=None):
+    """
+    Toggle console output on/off
+    
+    Args:
+        enable: True to enable console output, False to disable
+        target_logger: Logger instance to modify. If None, uses the global logger.
+    """
+    if enable:
+        add_console_handler(target_logger)
+    else:
+        remove_console_handler(target_logger)
 
 
 # 全局可访问的logger实例

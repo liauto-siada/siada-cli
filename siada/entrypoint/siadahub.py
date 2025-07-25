@@ -4,17 +4,19 @@ import sys
 from dataclasses import fields
 from pathlib import Path
 
+from prompt_toolkit.completion import Completer
+
 from siada.entrypoint.args_parser.args import get_parser
 from siada.entrypoint.interaction.config import InteractionConfig
 from siada.entrypoint.interaction.interaction_controller import InteractionController
-from siada.models.model_setting import ModelConfig
+from siada.foundation.logging import toggle_console_output, logger
+from siada.models.model_setting import ModelRunConfig
 from siada.models.model_settings import ModelSettings
 from siada.support.completer import AutoCompleter
 from siada.support.slash_commands import SlashCommands, SwitchEvent
 from siada.support.envprocessor import load_dotenv_files
 from siada.support.repo import get_git_root
 from siada.utils import SettingsUtils
-from siada.provider.lazy_lite_llm import litellm
 from siada.io.io import InputOutput
 
 try:
@@ -27,14 +29,64 @@ from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
 
 
+def _configure_litellm_logging():
+    """配置LiteLLM的全局日志设置，抑制调试日志"""
+    try:
+        import litellm      
+
+        
+        # 配置litellm全局属性
+        litellm.set_verbose = False
+        litellm.turn_off_message_logging = True
+        litellm.suppress_debug_info = True
+        litellm.drop_params = True
+        
+        
+        # 尝试禁用内部调试日志
+        try:
+            litellm._logging._disable_debugging()
+        except Exception:
+            pass  # 如果方法不存在就忽略
+        
+        # 禁用消息日志和跟踪
+        litellm.turn_off_message_logging = True
+        litellm.success_callback = []
+        litellm.failure_callback = []
+        
+        logger.de("LiteLLM 日志配置完成")
+        
+    except ImportError:
+        logger.debug("LiteLLM 未安装，跳过日志配置")
+    except Exception as e:
+        logger.debug(f"配置 LiteLLM 日志时出错: {e}")
+
+
 def main():
+    # Configure litellm globally to suppress debug logs
+    _configure_litellm_logging()
 
     argv = sys.argv[1:]
 
+    # workspace and disable-console-output are sepcific for development
+    import argparse
+
+    temp_parser = argparse.ArgumentParser(add_help=False)
+    temp_parser.add_argument("--workspace", default=None)
+    temp_parser.add_argument(
+        "--enable-console-output", action="store_true", default=False
+    )
+    temp_args, _ = temp_parser.parse_known_args(argv)
+
+    if temp_args.enable_console_output:
+        toggle_console_output(True)
+    else:
+        toggle_console_output(False)
+
+    # Now get git root from the specified workspace or current directory
     if git is None:
         git_root = None
     else:
-        git_root = get_git_root()
+        git_root = get_git_root(temp_args.workspace)
 
     parser = get_parser(git_root=git_root, default_config_files=[])
     try:
@@ -91,10 +143,10 @@ def main():
         )
 
     io = get_io(args.pretty)
-    
+
     # Show SIADA HUB banner with gradient effect
     from siada.io.banner import show_siada_banner
-    
+
     try:
         io.rule()
         show_siada_banner(pretty=io.pretty, console=io.console)
@@ -131,9 +183,23 @@ def main():
         for fname in loaded_dotenvs:
             io.print_info(f"Loaded {fname}")
 
-    # Set workspace - use current directory or git root if available
-    workspace = git_root if git_root else os.getcwd()
-    
+    # Set workspace - prioritize user-specified workspace, then git root, then current directory
+    if temp_args.workspace:
+        workspace = os.path.abspath(temp_args.workspace)
+        # Ensure the workspace directory exists
+        if not os.path.exists(workspace):
+            logger.error(f"Workspace directory does not exist: {workspace}")
+            return 1
+        if not os.path.isdir(workspace):
+            logger.error(f"Workspace path is not a directory: {workspace}")
+            return 1
+        # Change to the specified workspace directory
+        os.chdir(workspace)
+        logger.debug(f"Changed to workspace directory: {workspace}")
+    else:
+        workspace = git_root if git_root else os.getcwd()
+        logger.debug(f"Using default workspace: {workspace}")
+
     if args.verbose:
         io.print_info(f"Using agent: {args.agent}")
         io.print_info(f"Workspace: {workspace}")
@@ -141,7 +207,7 @@ def main():
     if args.verbose:
         show = SettingsUtils.format_settings(parser, args)
         io.print_info(show)
-        
+
         # Show command line in verbose mode only
         cmd_line = " ".join(sys.argv)
         io.print_info(f"Command: {cmd_line}")
@@ -151,9 +217,9 @@ def main():
         return 0
 
     if args.model is None:
-        model = ModelConfig.get_default_model()
+        model = ModelRunConfig.get_default_model()
     else:
-        model = ModelConfig(args.model)
+        model = ModelRunConfig(args.model)
 
     # Set reasoning effort and thinking tokens if specified
     if args.reasoning_effort is not None:
@@ -164,18 +230,18 @@ def main():
 
     if args.verbose:
         io.print_info("Model settings:")
-        for attr in sorted(fields(ModelConfig), key=lambda x: x.name):
+        for attr in sorted(fields(ModelRunConfig), key=lambda x: x.name):
             val = getattr(model, attr.name)
             val = json.dumps(val, indent=4)
             io.print_info(f"{attr.name}: {val}")
 
     commands = SlashCommands(
-        io = io,
+        io=io,
         verbose=args.verbose,
         editor=args.editor,
     )
 
-    completer = AutoCompleter(
+    completer: Completer = AutoCompleter(
         root=workspace,
         commands=commands,
         encoding=args.encoding,

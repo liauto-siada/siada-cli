@@ -1,4 +1,3 @@
-import agents
 from dataclasses import dataclass, fields
 from typing import Optional
 
@@ -6,8 +5,8 @@ from siada.models.model_settings import ModelSettings, get_model_config
 
 DEFAULT_MODEL = "claude-sonnet-4"
 
-
-class ModelConfig(ModelSettings):
+@dataclass()
+class ModelRunConfig(ModelSettings):
     
     reasoning_effort : Optional[str] = None
     thinking_tokens : Optional[int] = None
@@ -126,7 +125,7 @@ class ModelConfig(ModelSettings):
 
     @staticmethod
     def get_default_model():
-        return ModelConfig(DEFAULT_MODEL)
+        return ModelRunConfig(DEFAULT_MODEL)
 
 
 

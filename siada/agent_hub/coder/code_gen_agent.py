@@ -70,7 +70,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         Returns:
             Generation result containing final output and execution details
         """
-        config = RunConfig(tracing_disabled=False)
+        config = RunConfig(tracing_disabled=True)
         #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
         set_trace_processors([create_detailed_logger()])
 
@@ -95,7 +95,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         Returns:
             生成结果，包含最终输出、执行轮数等信息
         """
-        config = RunConfig(tracing_disabled=False)
+        config = RunConfig(tracing_disabled=True)
         #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
         set_trace_processors([create_detailed_logger()])
 
@@ -106,7 +106,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             max_turns=settings.MAX_TURNS,
             run_config=config,
             context=context,
-            session=context.session.openai_session
+            session=context.session.state.openai_session
         )
 
         return result

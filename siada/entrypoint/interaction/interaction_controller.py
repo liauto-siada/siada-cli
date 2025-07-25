@@ -12,7 +12,7 @@ from siada import __version__
 from siada.entrypoint.interaction.config import InteractionConfig
 from siada.entrypoint.interaction.run_turn import TurnFactory, TurnInput
 from siada.io.io import InputOutput
-from siada.models.model_setting import ModelConfig
+from siada.models.model_setting import ModelRunConfig
 from siada.session.session_manager import InteractionSessionManager
 from siada.support.slash_commands import SlashCommands, SwitchEvent
 
@@ -40,6 +40,7 @@ class InteractionController:
                 turn_output = turn.execute(TurnInput(use_input=user_input))
 
                 if isinstance(turn_output.output, SwitchEvent):
+
                     if turn_output.output.kwargs.get("agent"):
 
                         self.config.agent_name = turn_output.output.kwargs.get("agent")

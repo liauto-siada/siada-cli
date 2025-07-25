@@ -1,0 +1,55 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Siada Hub - Default",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--pretty"
+            ]
+        },
+        {
+            "name": "Siada Hub - Verbose Mode",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--verbose",
+                "--agent", "coder"
+            ]
+        },
+        {
+            "name": "Siada Hub - Custom Agent",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--agent", "bugfix",
+                "--model", "claude-sonnet-4",
+                "--thinking-tokens", "8k"
+            ]
+        },
+        {
+            "name": "Siada Hub - Debug Mode",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--verbose",
+                "--fancy-input",
+                "--agent", "coder",
+                "--pretty", "false"
+            ]
+        }
+    ]
+} 

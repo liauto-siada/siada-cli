@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from siada.entrypoint.interaction.config import InteractionConfig
 from siada.io.io import InputOutput
-from siada.models.model_setting import ModelConfig
+from siada.models.model_setting import ModelRunConfig
 from siada.support.slash_commands import SlashCommands
 
 from .session_models import Session, SessionState

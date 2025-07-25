@@ -152,14 +152,6 @@
         "documentation": {}
     },
     {
-        "label": "fields",
-        "importPath": "dataclasses",
-        "description": "dataclasses",
-        "isExtraImport": true,
-        "detail": "dataclasses",
-        "documentation": {}
-    },
-    {
         "label": "dataclass",
         "importPath": "dataclasses",
         "description": "dataclasses",
@@ -169,22 +161,6 @@
     },
     {
         "label": "dataclass",
-        "importPath": "dataclasses",
-        "description": "dataclasses",
-        "isExtraImport": true,
-        "detail": "dataclasses",
-        "documentation": {}
-    },
-    {
-        "label": "dataclass",
-        "importPath": "dataclasses",
-        "description": "dataclasses",
-        "isExtraImport": true,
-        "detail": "dataclasses",
-        "documentation": {}
-    },
-    {
-        "label": "fields",
         "importPath": "dataclasses",
         "description": "dataclasses",
         "isExtraImport": true,
@@ -241,6 +217,22 @@
     },
     {
         "label": "field",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
         "importPath": "dataclasses",
         "description": "dataclasses",
         "isExtraImport": true,
@@ -680,22 +672,6 @@
         "documentation": {}
     },
     {
-        "label": "Union",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Optional",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
         "label": "Optional",
         "importPath": "typing",
         "description": "typing",
@@ -944,6 +920,46 @@
         "documentation": {}
     },
     {
+        "label": "Generator",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Generator",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "ClassVar",
         "importPath": "typing",
         "description": "typing",
@@ -1025,6 +1041,86 @@
     },
     {
         "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Union",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Union",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -1210,6 +1306,30 @@
     },
     {
         "label": "logger",
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "isExtraImport": true,
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
+        "label": "logger",
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "isExtraImport": true,
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
+        "label": "logger",
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "isExtraImport": true,
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
+        "label": "toggle_console_output",
         "importPath": "siada.foundation.logging",
         "description": "siada.foundation.logging",
         "isExtraImport": true,
@@ -1490,6 +1610,14 @@
     },
     {
         "label": "BaseModel",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "ConfigDict",
         "importPath": "pydantic",
         "description": "pydantic",
         "isExtraImport": true,
@@ -1781,6 +1909,22 @@
         "documentation": {}
     },
     {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
         "label": "argparse",
         "kind": 6,
         "isExtraImport": true,
@@ -1918,6 +2062,14 @@
         "importPath": "asyncio",
         "description": "asyncio",
         "detail": "asyncio",
+        "documentation": {}
+    },
+    {
+        "label": "SiadaRunner",
+        "importPath": "siada.services.siada_runner",
+        "description": "siada.services.siada_runner",
+        "isExtraImport": true,
+        "detail": "siada.services.siada_runner",
         "documentation": {}
     },
     {
@@ -2450,31 +2602,7 @@
         "documentation": {}
     },
     {
-        "label": "RunContextWrapper",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
         "label": "function_tool",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "function_tool",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "RunContextWrapper",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2514,6 +2642,22 @@
         "documentation": {}
     },
     {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "function_tool",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "function_tool",
         "importPath": "agents",
         "description": "agents",
@@ -2530,7 +2674,15 @@
         "documentation": {}
     },
     {
-        "label": "RunConfig",
+        "label": "function_tool",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2666,14 +2818,6 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
-        "importPath": "siada.provider.li.li_provider",
-        "description": "siada.provider.li.li_provider",
-        "isExtraImport": true,
-        "detail": "siada.provider.li.li_provider",
-        "documentation": {}
-    },
-    {
         "label": "create_simple_logger",
         "importPath": "siada.agent_hub.coder.tracing",
         "description": "siada.agent_hub.coder.tracing",
@@ -2747,9 +2891,10 @@
     },
     {
         "label": "datetime",
+        "kind": 6,
+        "isExtraImport": true,
         "importPath": "datetime",
         "description": "datetime",
-        "isExtraImport": true,
         "detail": "datetime",
         "documentation": {}
     },
@@ -2795,10 +2940,10 @@
     },
     {
         "label": "bug_fix_prompt",
-        "importPath": "siada.agent_hub.coder.prompt.base.bug_prompt",
-        "description": "siada.agent_hub.coder.prompt.base.bug_prompt",
+        "importPath": "siada.agent_hub.coder.prompt.bug_prompt",
+        "description": "siada.agent_hub.coder.prompt.bug_prompt",
         "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.prompt.base.bug_prompt",
+        "detail": "siada.agent_hub.coder.prompt.bug_prompt",
         "documentation": {}
     },
     {
@@ -2887,6 +3032,30 @@
         "description": "siada.foundation.code_agent_context",
         "isExtraImport": true,
         "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "list_code_definition_names",
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "isExtraImport": true,
+        "detail": "siada.tools.ast.ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "list_code_definition_names",
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "isExtraImport": true,
+        "detail": "siada.tools.ast.ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "_list_code_definition_names",
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "isExtraImport": true,
+        "detail": "siada.tools.ast.ast_tool",
         "documentation": {}
     },
     {
@@ -3066,6 +3235,38 @@
         "documentation": {}
     },
     {
+        "label": "ABC",
+        "importPath": "abc",
+        "description": "abc",
+        "isExtraImport": true,
+        "detail": "abc",
+        "documentation": {}
+    },
+    {
+        "label": "abstractmethod",
+        "importPath": "abc",
+        "description": "abc",
+        "isExtraImport": true,
+        "detail": "abc",
+        "documentation": {}
+    },
+    {
+        "label": "ABC",
+        "importPath": "abc",
+        "description": "abc",
+        "isExtraImport": true,
+        "detail": "abc",
+        "documentation": {}
+    },
+    {
+        "label": "abstractmethod",
+        "importPath": "abc",
+        "description": "abc",
+        "isExtraImport": true,
+        "detail": "abc",
+        "documentation": {}
+    },
+    {
         "label": "yaml",
         "kind": 6,
         "isExtraImport": true,
@@ -3183,15 +3384,7 @@
         "documentation": {}
     },
     {
-        "label": "InputOutput",
-        "importPath": "siada.io.io",
-        "description": "siada.io.io",
-        "isExtraImport": true,
-        "detail": "siada.io.io",
-        "documentation": {}
-    },
-    {
-        "label": "ModelConfig",
+        "label": "ModelRunConfig",
         "importPath": "siada.models.model_setting",
         "description": "siada.models.model_setting",
         "isExtraImport": true,
@@ -3199,7 +3392,7 @@
         "documentation": {}
     },
     {
-        "label": "ModelConfig",
+        "label": "ModelRunConfig",
         "importPath": "siada.models.model_setting",
         "description": "siada.models.model_setting",
         "isExtraImport": true,
@@ -3207,7 +3400,7 @@
         "documentation": {}
     },
     {
-        "label": "ModelConfig",
+        "label": "ModelRunConfig",
         "importPath": "siada.models.model_setting",
         "description": "siada.models.model_setting",
         "isExtraImport": true,
@@ -3215,7 +3408,7 @@
         "documentation": {}
     },
     {
-        "label": "ModelConfig",
+        "label": "ModelRunConfig",
         "importPath": "siada.models.model_setting",
         "description": "siada.models.model_setting",
         "isExtraImport": true,
@@ -3223,15 +3416,7 @@
         "documentation": {}
     },
     {
-        "label": "ModelConfig",
-        "importPath": "siada.models.model_setting",
-        "description": "siada.models.model_setting",
-        "isExtraImport": true,
-        "detail": "siada.models.model_setting",
-        "documentation": {}
-    },
-    {
-        "label": "ModelConfig",
+        "label": "ModelRunConfig",
         "importPath": "siada.models.model_setting",
         "description": "siada.models.model_setting",
         "isExtraImport": true,
@@ -3244,14 +3429,6 @@
         "isExtraImport": true,
         "importPath": "siada.support.completer",
         "description": "siada.support.completer",
-        "detail": "siada.support.completer",
-        "documentation": {}
-    },
-    {
-        "label": "AutoCompleter",
-        "importPath": "siada.support.completer",
-        "description": "siada.support.completer",
-        "isExtraImport": true,
         "detail": "siada.support.completer",
         "documentation": {}
     },
@@ -3304,6 +3481,14 @@
         "documentation": {}
     },
     {
+        "label": "TurnInput",
+        "importPath": "siada.entrypoint.interaction.run_turn",
+        "description": "siada.entrypoint.interaction.run_turn",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.run_turn",
+        "documentation": {}
+    },
+    {
         "label": "InteractionSessionManager",
         "importPath": "siada.session.session_manager",
         "description": "siada.session.session_manager",
@@ -3321,22 +3506,6 @@
     },
     {
         "label": "SwitchEvent",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "SwitchEvent",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "SlashCommands",
         "importPath": "siada.support.slash_commands",
         "description": "siada.support.slash_commands",
         "isExtraImport": true,
@@ -3402,6 +3571,22 @@
         "documentation": {}
     },
     {
+        "label": "MarkdownStream",
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "isExtraImport": true,
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "MarkdownStream",
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "isExtraImport": true,
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
         "label": "Enum",
         "importPath": "enum",
         "description": "enum",
@@ -3451,11 +3636,59 @@
         "documentation": {}
     },
     {
-        "label": "get_parser",
-        "importPath": "siada.entrypoint.args_parser.args",
-        "description": "siada.entrypoint.args_parser.args",
+        "label": "Completer",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
         "isExtraImport": true,
-        "detail": "siada.entrypoint.args_parser.args",
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "Completer",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "ThreadedCompleter",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "Completer",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "Completion",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "Completion",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
+        "documentation": {}
+    },
+    {
+        "label": "PathCompleter",
+        "importPath": "prompt_toolkit.completion",
+        "description": "prompt_toolkit.completion",
+        "isExtraImport": true,
+        "detail": "prompt_toolkit.completion",
         "documentation": {}
     },
     {
@@ -3467,35 +3700,11 @@
         "documentation": {}
     },
     {
-        "label": "InteractionConfig",
-        "importPath": "siada.entrypoint.interaction.interaction_controller",
-        "description": "siada.entrypoint.interaction.interaction_controller",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.interaction_controller",
-        "documentation": {}
-    },
-    {
         "label": "InteractionController",
         "importPath": "siada.entrypoint.interaction.interaction_controller",
         "description": "siada.entrypoint.interaction.interaction_controller",
         "isExtraImport": true,
         "detail": "siada.entrypoint.interaction.interaction_controller",
-        "documentation": {}
-    },
-    {
-        "label": "InteractionController",
-        "importPath": "siada.entrypoint.interaction.interaction_controller",
-        "description": "siada.entrypoint.interaction.interaction_controller",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.interaction_controller",
-        "documentation": {}
-    },
-    {
-        "label": "ModelSettings",
-        "importPath": "siada.models.model_settings",
-        "description": "siada.models.model_settings",
-        "isExtraImport": true,
-        "detail": "siada.models.model_settings",
         "documentation": {}
     },
     {
@@ -3539,22 +3748,6 @@
         "documentation": {}
     },
     {
-        "label": "load_dotenv_files",
-        "importPath": "siada.support.envprocessor",
-        "description": "siada.support.envprocessor",
-        "isExtraImport": true,
-        "detail": "siada.support.envprocessor",
-        "documentation": {}
-    },
-    {
-        "label": "get_git_root",
-        "importPath": "siada.support.repo",
-        "description": "siada.support.repo",
-        "isExtraImport": true,
-        "detail": "siada.support.repo",
-        "documentation": {}
-    },
-    {
         "label": "get_git_root",
         "importPath": "siada.support.repo",
         "description": "siada.support.repo",
@@ -3571,46 +3764,6 @@
         "documentation": {}
     },
     {
-        "label": "SettingsUtils",
-        "importPath": "siada.utils",
-        "description": "siada.utils",
-        "isExtraImport": true,
-        "detail": "siada.utils",
-        "documentation": {}
-    },
-    {
-        "label": "litellm",
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "isExtraImport": true,
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "litellm",
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "isExtraImport": true,
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "litellm",
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "isExtraImport": true,
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "load_dotenv",
-        "importPath": "dotenv",
-        "description": "dotenv",
-        "isExtraImport": true,
-        "detail": "dotenv",
-        "documentation": {}
-    },
-    {
         "label": "load_dotenv",
         "importPath": "dotenv",
         "description": "dotenv",
@@ -3651,11 +3804,12 @@
         "documentation": {}
     },
     {
-        "label": "EditingMode",
-        "importPath": "prompt_toolkit.enums",
-        "description": "prompt_toolkit.enums",
+        "label": "siada.session.session_models",
+        "kind": 6,
         "isExtraImport": true,
-        "detail": "prompt_toolkit.enums",
+        "importPath": "siada.session.session_models",
+        "description": "siada.session.session_models",
+        "detail": "siada.session.session_models",
         "documentation": {}
     },
     {
@@ -3692,6 +3846,15 @@
         "documentation": {}
     },
     {
+        "label": "tempfile",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "tempfile",
+        "description": "tempfile",
+        "detail": "tempfile",
+        "documentation": {}
+    },
+    {
         "label": "TimedRotatingFileHandler",
         "importPath": "logging.handlers",
         "description": "logging.handlers",
@@ -3725,14 +3888,6 @@
         "documentation": {}
     },
     {
-        "label": "BytesIO",
-        "importPath": "io",
-        "description": "io",
-        "isExtraImport": true,
-        "detail": "io",
-        "documentation": {}
-    },
-    {
         "label": "StringIO",
         "importPath": "io",
         "description": "io",
@@ -3746,6 +3901,22 @@
         "description": "rich",
         "isExtraImport": true,
         "detail": "rich",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
+        "documentation": {}
+    },
+    {
+        "label": "Console",
+        "importPath": "rich.console",
+        "description": "rich.console",
+        "isExtraImport": true,
+        "detail": "rich.console",
         "documentation": {}
     },
     {
@@ -3877,6 +4048,14 @@
         "documentation": {}
     },
     {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
         "label": "Style",
         "importPath": "rich.style",
         "description": "rich.style",
@@ -3924,54 +4103,6 @@
         "importPath": "webbrowser",
         "description": "webbrowser",
         "detail": "webbrowser",
-        "documentation": {}
-    },
-    {
-        "label": "Completer",
-        "importPath": "prompt_toolkit.completion",
-        "description": "prompt_toolkit.completion",
-        "isExtraImport": true,
-        "detail": "prompt_toolkit.completion",
-        "documentation": {}
-    },
-    {
-        "label": "ThreadedCompleter",
-        "importPath": "prompt_toolkit.completion",
-        "description": "prompt_toolkit.completion",
-        "isExtraImport": true,
-        "detail": "prompt_toolkit.completion",
-        "documentation": {}
-    },
-    {
-        "label": "Completer",
-        "importPath": "prompt_toolkit.completion",
-        "description": "prompt_toolkit.completion",
-        "isExtraImport": true,
-        "detail": "prompt_toolkit.completion",
-        "documentation": {}
-    },
-    {
-        "label": "Completion",
-        "importPath": "prompt_toolkit.completion",
-        "description": "prompt_toolkit.completion",
-        "isExtraImport": true,
-        "detail": "prompt_toolkit.completion",
-        "documentation": {}
-    },
-    {
-        "label": "Completion",
-        "importPath": "prompt_toolkit.completion",
-        "description": "prompt_toolkit.completion",
-        "isExtraImport": true,
-        "detail": "prompt_toolkit.completion",
-        "documentation": {}
-    },
-    {
-        "label": "PathCompleter",
-        "importPath": "prompt_toolkit.completion",
-        "description": "prompt_toolkit.completion",
-        "isExtraImport": true,
-        "detail": "prompt_toolkit.completion",
         "documentation": {}
     },
     {
@@ -4024,6 +4155,14 @@
     },
     {
         "label": "MarkdownLexer",
+        "importPath": "pygments.lexers",
+        "description": "pygments.lexers",
+        "isExtraImport": true,
+        "detail": "pygments.lexers",
+        "documentation": {}
+    },
+    {
+        "label": "guess_lexer_for_filename",
         "importPath": "pygments.lexers",
         "description": "pygments.lexers",
         "isExtraImport": true,
@@ -4137,120 +4276,19 @@
         "documentation": {}
     },
     {
-        "label": "difflib",
-        "kind": 6,
+        "label": "show_siada_banner",
+        "importPath": "siada.io.banner",
+        "description": "siada.io.banner",
         "isExtraImport": true,
-        "importPath": "difflib",
-        "description": "difflib",
-        "detail": "difflib",
+        "detail": "siada.io.banner",
         "documentation": {}
     },
     {
-        "label": "SequenceMatcher",
-        "importPath": "difflib",
-        "description": "difflib",
+        "label": "get_banner_text",
+        "importPath": "siada.io.banner",
+        "description": "siada.io.banner",
         "isExtraImport": true,
-        "detail": "difflib",
-        "documentation": {}
-    },
-    {
-        "label": "hashlib",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "hashlib",
-        "description": "hashlib",
-        "detail": "hashlib",
-        "documentation": {}
-    },
-    {
-        "label": "importlib.resources",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "importlib.resources",
-        "description": "importlib.resources",
-        "detail": "importlib.resources",
-        "documentation": {}
-    },
-    {
-        "label": "math",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "math",
-        "description": "math",
-        "detail": "math",
-        "documentation": {}
-    },
-    {
-        "label": "json5",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "json5",
-        "description": "json5",
-        "detail": "json5",
-        "documentation": {}
-    },
-    {
-        "label": "Image",
-        "importPath": "PIL",
-        "description": "PIL",
-        "isExtraImport": true,
-        "detail": "PIL",
-        "documentation": {}
-    },
-    {
-        "label": "__version__",
-        "importPath": "aider",
-        "description": "aider",
-        "isExtraImport": true,
-        "detail": "aider",
-        "documentation": {}
-    },
-    {
-        "label": "dump",
-        "importPath": "aider.dump",
-        "description": "aider.dump",
-        "isExtraImport": true,
-        "detail": "aider.dump",
-        "documentation": {}
-    },
-    {
-        "label": "litellm",
-        "importPath": "aider.llm",
-        "description": "aider.llm",
-        "isExtraImport": true,
-        "detail": "aider.llm",
-        "documentation": {}
-    },
-    {
-        "label": "OpenRouterModelManager",
-        "importPath": "aider.openrouter",
-        "description": "aider.openrouter",
-        "isExtraImport": true,
-        "detail": "aider.openrouter",
-        "documentation": {}
-    },
-    {
-        "label": "ensure_alternating_roles",
-        "importPath": "aider.sendchat",
-        "description": "aider.sendchat",
-        "isExtraImport": true,
-        "detail": "aider.sendchat",
-        "documentation": {}
-    },
-    {
-        "label": "sanity_check_messages",
-        "importPath": "aider.sendchat",
-        "description": "aider.sendchat",
-        "isExtraImport": true,
-        "detail": "aider.sendchat",
-        "documentation": {}
-    },
-    {
-        "label": "check_pip_install_extra",
-        "importPath": "aider.utils",
-        "description": "aider.utils",
-        "isExtraImport": true,
-        "detail": "aider.utils",
+        "detail": "siada.io.banner",
         "documentation": {}
     },
     {
@@ -4882,29 +4920,27 @@
         "documentation": {}
     },
     {
-        "label": "warnings",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "warnings",
-        "description": "warnings",
-        "detail": "warnings",
-        "documentation": {}
-    },
-    {
-        "label": "tempfile",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "tempfile",
-        "description": "tempfile",
-        "detail": "tempfile",
-        "documentation": {}
-    },
-    {
         "label": "contextlib",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "contextlib",
         "description": "contextlib",
+        "detail": "contextlib",
+        "documentation": {}
+    },
+    {
+        "label": "contextmanager",
+        "importPath": "contextlib",
+        "description": "contextlib",
+        "isExtraImport": true,
+        "detail": "contextlib",
+        "documentation": {}
+    },
+    {
+        "label": "contextmanager",
+        "importPath": "contextlib",
+        "description": "contextlib",
+        "isExtraImport": true,
         "detail": "contextlib",
         "documentation": {}
     },
@@ -4917,7 +4953,7 @@
         "documentation": {}
     },
     {
-        "label": "do_run_cmd",
+        "label": "run_cmd_impl",
         "importPath": "siada.tools.coder.cmd_runner",
         "description": "siada.tools.coder.cmd_runner",
         "isExtraImport": true,
@@ -4925,7 +4961,7 @@
         "documentation": {}
     },
     {
-        "label": "do_run_cmd",
+        "label": "run_cmd_impl",
         "importPath": "siada.tools.coder.cmd_runner",
         "description": "siada.tools.coder.cmd_runner",
         "isExtraImport": true,
@@ -4933,19 +4969,140 @@
         "documentation": {}
     },
     {
-        "label": "run_cmd_subprocess",
-        "importPath": "siada.tools.coder.cmd_runner",
-        "description": "siada.tools.coder.cmd_runner",
+        "label": "warnings",
+        "kind": 6,
         "isExtraImport": true,
-        "detail": "siada.tools.coder.cmd_runner",
+        "importPath": "warnings",
+        "description": "warnings",
+        "detail": "warnings",
         "documentation": {}
     },
     {
-        "label": "run_cmd_pexpect",
-        "importPath": "siada.tools.coder.cmd_runner",
-        "description": "siada.tools.coder.cmd_runner",
+        "label": "TreeContext",
+        "importPath": "grep_ast",
+        "description": "grep_ast",
         "isExtraImport": true,
-        "detail": "siada.tools.coder.cmd_runner",
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
+        "label": "filename_to_lang",
+        "importPath": "grep_ast",
+        "description": "grep_ast",
+        "isExtraImport": true,
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
+        "label": "TreeContext",
+        "importPath": "grep_ast",
+        "description": "grep_ast",
+        "isExtraImport": true,
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
+        "label": "filename_to_lang",
+        "importPath": "grep_ast",
+        "description": "grep_ast",
+        "isExtraImport": true,
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
+        "label": "Token",
+        "importPath": "pygments.token",
+        "description": "pygments.token",
+        "isExtraImport": true,
+        "detail": "pygments.token",
+        "documentation": {}
+    },
+    {
+        "label": "Token",
+        "importPath": "pygments.token",
+        "description": "pygments.token",
+        "isExtraImport": true,
+        "detail": "pygments.token",
+        "documentation": {}
+    },
+    {
+        "label": "USING_TSL_PACK",
+        "importPath": "grep_ast.tsl",
+        "description": "grep_ast.tsl",
+        "isExtraImport": true,
+        "detail": "grep_ast.tsl",
+        "documentation": {}
+    },
+    {
+        "label": "get_language",
+        "importPath": "grep_ast.tsl",
+        "description": "grep_ast.tsl",
+        "isExtraImport": true,
+        "detail": "grep_ast.tsl",
+        "documentation": {}
+    },
+    {
+        "label": "get_parser",
+        "importPath": "grep_ast.tsl",
+        "description": "grep_ast.tsl",
+        "isExtraImport": true,
+        "detail": "grep_ast.tsl",
+        "documentation": {}
+    },
+    {
+        "label": "USING_TSL_PACK",
+        "importPath": "grep_ast.tsl",
+        "description": "grep_ast.tsl",
+        "isExtraImport": true,
+        "detail": "grep_ast.tsl",
+        "documentation": {}
+    },
+    {
+        "label": "get_language",
+        "importPath": "grep_ast.tsl",
+        "description": "grep_ast.tsl",
+        "isExtraImport": true,
+        "detail": "grep_ast.tsl",
+        "documentation": {}
+    },
+    {
+        "label": "get_parser",
+        "importPath": "grep_ast.tsl",
+        "description": "grep_ast.tsl",
+        "isExtraImport": true,
+        "detail": "grep_ast.tsl",
+        "documentation": {}
+    },
+    {
+        "label": "namedtuple",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "Counter",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "defaultdict",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
+        "documentation": {}
+    },
+    {
+        "label": "namedtuple",
+        "importPath": "collections",
+        "description": "collections",
+        "isExtraImport": true,
+        "detail": "collections",
         "documentation": {}
     },
     {
@@ -5102,12 +5259,29 @@
         "documentation": {}
     },
     {
+        "label": "SequenceMatcher",
+        "importPath": "difflib",
+        "description": "difflib",
+        "isExtraImport": true,
+        "detail": "difflib",
+        "documentation": {}
+    },
+    {
         "label": "colorsys",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "colorsys",
         "description": "colorsys",
         "detail": "colorsys",
+        "documentation": {}
+    },
+    {
+        "label": "math",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "math",
+        "description": "math",
+        "detail": "math",
         "documentation": {}
     },
     {
@@ -5129,83 +5303,11 @@
         "documentation": {}
     },
     {
-        "label": "Counter",
-        "importPath": "collections",
-        "description": "collections",
-        "isExtraImport": true,
-        "detail": "collections",
-        "documentation": {}
-    },
-    {
-        "label": "defaultdict",
-        "importPath": "collections",
-        "description": "collections",
-        "isExtraImport": true,
-        "detail": "collections",
-        "documentation": {}
-    },
-    {
-        "label": "namedtuple",
-        "importPath": "collections",
-        "description": "collections",
-        "isExtraImport": true,
-        "detail": "collections",
-        "documentation": {}
-    },
-    {
         "label": "Cache",
         "importPath": "diskcache",
         "description": "diskcache",
         "isExtraImport": true,
         "detail": "diskcache",
-        "documentation": {}
-    },
-    {
-        "label": "TreeContext",
-        "importPath": "grep_ast",
-        "description": "grep_ast",
-        "isExtraImport": true,
-        "detail": "grep_ast",
-        "documentation": {}
-    },
-    {
-        "label": "filename_to_lang",
-        "importPath": "grep_ast",
-        "description": "grep_ast",
-        "isExtraImport": true,
-        "detail": "grep_ast",
-        "documentation": {}
-    },
-    {
-        "label": "Token",
-        "importPath": "pygments.token",
-        "description": "pygments.token",
-        "isExtraImport": true,
-        "detail": "pygments.token",
-        "documentation": {}
-    },
-    {
-        "label": "USING_TSL_PACK",
-        "importPath": "grep_ast.tsl",
-        "description": "grep_ast.tsl",
-        "isExtraImport": true,
-        "detail": "grep_ast.tsl",
-        "documentation": {}
-    },
-    {
-        "label": "get_language",
-        "importPath": "grep_ast.tsl",
-        "description": "grep_ast.tsl",
-        "isExtraImport": true,
-        "detail": "grep_ast.tsl",
-        "documentation": {}
-    },
-    {
-        "label": "get_parser",
-        "importPath": "grep_ast.tsl",
-        "description": "grep_ast.tsl",
-        "isExtraImport": true,
-        "detail": "grep_ast.tsl",
         "documentation": {}
     },
     {
@@ -5457,30 +5559,6 @@
         "documentation": {}
     },
     {
-        "label": "AgentService",
-        "importPath": "siada.services.agent_service",
-        "description": "siada.services.agent_service",
-        "isExtraImport": true,
-        "detail": "siada.services.agent_service",
-        "documentation": {}
-    },
-    {
-        "label": "agent_map",
-        "importPath": "siada.agent_hub",
-        "description": "siada.agent_hub",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub",
-        "documentation": {}
-    },
-    {
-        "label": "init_coder_agent",
-        "importPath": "siada.agent_hub.coder.coder_agent",
-        "description": "siada.agent_hub.coder.coder_agent",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.coder_agent",
-        "documentation": {}
-    },
-    {
         "label": "patch",
         "importPath": "unittest.mock",
         "description": "unittest.mock",
@@ -5514,6 +5592,38 @@
     },
     {
         "label": "MagicMock",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "patch",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "MagicMock",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "patch",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "mock_open",
         "importPath": "unittest.mock",
         "description": "unittest.mock",
         "isExtraImport": true,
@@ -5585,11 +5695,35 @@
         "documentation": {}
     },
     {
-        "label": "ColorSettings",
-        "importPath": "siada.io.color_settings",
-        "description": "siada.io.color_settings",
+        "label": "SiadaAgent",
+        "importPath": "siada.agent_hub",
+        "description": "siada.agent_hub",
         "isExtraImport": true,
-        "detail": "siada.io.color_settings",
+        "detail": "siada.agent_hub",
+        "documentation": {}
+    },
+    {
+        "label": "edit",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
+        "documentation": {}
+    },
+    {
+        "label": "search",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
+        "documentation": {}
+    },
+    {
+        "label": "run_cmd",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
         "documentation": {}
     },
     {
@@ -5607,6 +5741,57 @@
         "importPath": "pytest",
         "description": "pytest",
         "detail": "pytest",
+        "documentation": {}
+    },
+    {
+        "label": "concurrent.futures",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "concurrent.futures",
+        "description": "concurrent.futures",
+        "detail": "concurrent.futures",
+        "documentation": {}
+    },
+    {
+        "label": "aiohttp",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "aiohttp",
+        "description": "aiohttp",
+        "detail": "aiohttp",
+        "documentation": {}
+    },
+    {
+        "label": "BeautifulSoup",
+        "importPath": "bs4",
+        "description": "bs4",
+        "isExtraImport": true,
+        "detail": "bs4",
+        "documentation": {}
+    },
+    {
+        "label": "BeautifulSoup",
+        "importPath": "bs4",
+        "description": "bs4",
+        "isExtraImport": true,
+        "detail": "bs4",
+        "documentation": {}
+    },
+    {
+        "label": "numpy",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "numpy",
+        "description": "numpy",
+        "detail": "numpy",
+        "documentation": {}
+    },
+    {
+        "label": "Tag",
+        "importPath": "siada.tools.ast.models",
+        "description": "siada.tools.ast.models",
+        "isExtraImport": true,
+        "detail": "siada.tools.ast.models",
         "documentation": {}
     },
     {
@@ -6419,24 +6604,6 @@
         "documentation": {}
     },
     {
-        "label": "get_system_prompt",
-        "kind": 2,
-        "importPath": "siada.agent_hub.coder.prompt.base.bug_prompt.bug_fix_prompt",
-        "description": "siada.agent_hub.coder.prompt.base.bug_prompt.bug_fix_prompt",
-        "peekOfCode": "def get_system_prompt(cwd: str = \"/default/path\") -> str:\n    \"\"\"\n    生成系统提示词\n    Args:\n        cwd: 当前工作目录路径\n    Returns:\n        格式化后的系统提示词\n    \"\"\"\n    # 获取系统信息\n    os_name = platform.system()",
-        "detail": "siada.agent_hub.coder.prompt.base.bug_prompt.bug_fix_prompt",
-        "documentation": {}
-    },
-    {
-        "label": "get_rules_section",
-        "kind": 2,
-        "importPath": "siada.agent_hub.coder.prompt.base.bug_prompt.rules",
-        "description": "siada.agent_hub.coder.prompt.base.bug_prompt.rules",
-        "peekOfCode": "def get_rules_section(cwd: str, os_name: str, home_dir: str) -> str:\n    \"\"\"\n    获取 RULES 部分的内容\n    Args:\n        cwd: 当前工作目录路径\n        os_name: 操作系统名称\n        home_dir: 用户主目录路径\n    Returns:\n        str: RULES 部分的文本内容\n    \"\"\"",
-        "detail": "siada.agent_hub.coder.prompt.base.bug_prompt.rules",
-        "documentation": {}
-    },
-    {
         "label": "get_capabilities_section",
         "kind": 2,
         "importPath": "siada.agent_hub.coder.prompt.base.capabilities",
@@ -6461,6 +6628,24 @@
         "description": "siada.agent_hub.coder.prompt.base.tool_use",
         "peekOfCode": "def get_tool_use_section() -> str:\n    \"\"\"\n    获取 TOOL USE 部分的内容\n    Returns:\n        str: TOOL USE 部分的文本内容\n    \"\"\"\n    return \"\"\"====\nTOOL USE\nYou have access to a set of tools. You can use one tool per message, and will receive the execution results of the tool. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.\n====\"\"\"",
         "detail": "siada.agent_hub.coder.prompt.base.tool_use",
+        "documentation": {}
+    },
+    {
+        "label": "get_system_prompt",
+        "kind": 2,
+        "importPath": "siada.agent_hub.coder.prompt.bug_prompt.bug_fix_prompt",
+        "description": "siada.agent_hub.coder.prompt.bug_prompt.bug_fix_prompt",
+        "peekOfCode": "def get_system_prompt(cwd: str = \"/default/path\") -> str:\n    \"\"\"\n    生成系统提示词\n    Args:\n        cwd: 当前工作目录路径\n    Returns:\n        格式化后的系统提示词\n    \"\"\"\n    # 获取系统信息\n    os_name = platform.system()",
+        "detail": "siada.agent_hub.coder.prompt.bug_prompt.bug_fix_prompt",
+        "documentation": {}
+    },
+    {
+        "label": "get_rules_section",
+        "kind": 2,
+        "importPath": "siada.agent_hub.coder.prompt.bug_prompt.rules",
+        "description": "siada.agent_hub.coder.prompt.bug_prompt.rules",
+        "peekOfCode": "def get_rules_section(cwd: str, os_name: str, home_dir: str) -> str:\n    \"\"\"\n    获取 RULES 部分的内容\n    Args:\n        cwd: 当前工作目录路径\n        os_name: 操作系统名称\n        home_dir: 用户主目录路径\n    Returns:\n        str: RULES 部分的文本内容\n    \"\"\"",
+        "detail": "siada.agent_hub.coder.prompt.bug_prompt.rules",
         "documentation": {}
     },
     {
@@ -6585,7 +6770,7 @@
         "kind": 6,
         "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
-        "peekOfCode": "class TraceState:\n    \"\"\"Track state information for a single Trace\"\"\"\n    trace_id: str\n    message_count: int = 0  # Number of printed messages\n    agent_history: List[str] = field(default_factory=list)  # Agent switching history\n    start_time: datetime = field(default_factory=datetime.now)\n    handoff_count: int = 0  # Number of handoffs\n    model_call_count: int = 0  # Number of model calls\n    tool_call_count: int = 0  # Number of tool calls\nclass LoggerTracingProcessor(TracingProcessor):",
+        "peekOfCode": "class TraceState:\n    \"\"\"Track state information for a single Trace\"\"\"\n    trace_id: str\n    message_count: int = 0  # Number of printed messages\n    agent_history: List[str] = field(default_factory=list)  # Agent switching history\n    start_time: datetime = field(default_factory=datetime.now)\n    handoff_count: int = 0  # Number of handoffs\n    model_call_count: int = 0  # Number of model calls\n    tool_call_count: int = 0  # Number of tool calls\n    total_input_tokens: int = 0  # Total input tokens",
         "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "documentation": {}
     },
@@ -6603,7 +6788,7 @@
         "kind": 2,
         "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
-        "peekOfCode": "def create_simple_logger() -> LoggerTracingProcessor:\n    \"\"\"Create a simple logger\"\"\"\n    return LoggerTracingProcessor(\n        show_model_calls=True,\n        show_tool_calls=True,\n        show_handoffs=True,\n        show_trace_lifecycle=True,\n        use_colors=True\n    )\ndef create_detailed_logger(output_file: Optional[str] = None) -> LoggerTracingProcessor:",
+        "peekOfCode": "def create_simple_logger(console_output: bool = True) -> LoggerTracingProcessor:\n    \"\"\"Create a simple logger\"\"\"\n    return LoggerTracingProcessor(\n        show_model_calls=True,\n        show_tool_calls=True,\n        show_handoffs=True,\n        show_trace_lifecycle=True,\n        use_colors=True,\n        console_output=console_output\n    )",
         "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "documentation": {}
     },
@@ -6612,7 +6797,16 @@
         "kind": 2,
         "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
-        "peekOfCode": "def create_detailed_logger(output_file: Optional[str] = None) -> LoggerTracingProcessor:\n    \"\"\"Create a detailed logger\"\"\"\n    # If no output file is specified, use the default log file path\n    if output_file is None:\n        import os\n        from datetime import datetime\n        # Create log directory\n        log_dir = os.path.expanduser(\"~/.siadahub/logs\")\n        os.makedirs(log_dir, exist_ok=True)\n        # Generate log file name",
+        "peekOfCode": "def create_detailed_logger(output_file: Optional[str] = None, console_output: bool = True) -> LoggerTracingProcessor:\n    \"\"\"Create a detailed logger\"\"\"\n    # If no output file is specified, use the default log file path\n    if output_file is None:\n        import os\n        from datetime import datetime\n        # Create log directory\n        log_dir = os.path.expanduser(\"~/.siadahub/logs\")\n        os.makedirs(log_dir, exist_ok=True)\n        # Generate log file name",
+        "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "documentation": {}
+    },
+    {
+        "label": "create_file_only_logger",
+        "kind": 2,
+        "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "peekOfCode": "def create_file_only_logger(output_file: Optional[str] = None) -> LoggerTracingProcessor:\n    \"\"\"Create a logger that only writes to file (no console output)\"\"\"\n    return create_detailed_logger(output_file=output_file, console_output=False)\ndef create_minimal_logger(console_output: bool = True) -> LoggerTracingProcessor:\n    \"\"\"Create a minimal logger\"\"\"\n    return LoggerTracingProcessor(\n        show_model_calls=True,\n        show_tool_calls=False,\n        show_handoffs=True,\n        show_trace_lifecycle=False,",
         "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "documentation": {}
     },
@@ -6621,7 +6815,7 @@
         "kind": 2,
         "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
-        "peekOfCode": "def create_minimal_logger() -> LoggerTracingProcessor:\n    \"\"\"Create a minimal logger\"\"\"\n    return LoggerTracingProcessor(\n        show_model_calls=True,\n        show_tool_calls=False,\n        show_handoffs=True,\n        show_trace_lifecycle=False,\n        use_colors=False\n    )",
+        "peekOfCode": "def create_minimal_logger(console_output: bool = True) -> LoggerTracingProcessor:\n    \"\"\"Create a minimal logger\"\"\"\n    return LoggerTracingProcessor(\n        show_model_calls=True,\n        show_tool_calls=False,\n        show_handoffs=True,\n        show_trace_lifecycle=False,\n        use_colors=False,\n        console_output=console_output\n    )",
         "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "documentation": {}
     },
@@ -6629,12 +6823,12 @@
         "label": {
             "name": "",
             "kind": 6,
-            "peekOfCode": "class  BugFixAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"BugFixAgent\",\n            tools=[edit, regex_search_files, run_cmd,fix_attempt_completion],\n            model=model,\n            tool_use_behavior={\n                \"stop_at_tool_names\": [\"fix_attempt_completion\"],"
+            "peekOfCode": "class  BugFixAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"BugFixAgent\",\n            tools=[edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names],\n            model=model,\n            tool_use_behavior={\n                \"stop_at_tool_names\": [\"fix_attempt_completion\"],"
         },
         "kind": 6,
         "importPath": "siada.agent_hub.coder.bug_fix_agent",
         "description": "siada.agent_hub.coder.bug_fix_agent",
-        "peekOfCode": "class  BugFixAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"BugFixAgent\",\n            tools=[edit, regex_search_files, run_cmd,fix_attempt_completion],\n            model=model,\n            tool_use_behavior={\n                \"stop_at_tool_names\": [\"fix_attempt_completion\"],",
+        "peekOfCode": "class  BugFixAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"BugFixAgent\",\n            tools=[edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names],\n            model=model,\n            tool_use_behavior={\n                \"stop_at_tool_names\": [\"fix_attempt_completion\"],",
         "detail": "siada.agent_hub.coder.bug_fix_agent",
         "documentation": {}
     },
@@ -6706,7 +6900,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.config",
         "description": "siada.entrypoint.interaction.config",
-        "peekOfCode": "class InteractionConfig:\n    \"\"\"Configuration data class for interaction controller\"\"\"\n    # Model and IO\n    model: ModelConfig\n    io: InputOutput\n    workspace: str\n    agent_name: str\n    completer: Completer",
+        "peekOfCode": "class InteractionConfig:\n    \"\"\"Configuration data class for interaction controller\"\"\"\n    # Model and IO\n    model: ModelRunConfig\n    io: InputOutput\n    workspace: str\n    agent_name: str\n    completer: Completer",
         "detail": "siada.entrypoint.interaction.config",
         "documentation": {}
     },
@@ -6715,7 +6909,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.interaction_controller",
         "description": "siada.entrypoint.interaction.interaction_controller",
-        "peekOfCode": "class InteractionController:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: InteractionConfig):\n        self.config = config\n    def run(self) -> int:\n        session = InteractionSessionManager.create_session(\n            interaction_config=self.config,\n        )\n        while True:\n            try:",
+        "peekOfCode": "class InteractionController:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: InteractionConfig, slash_commands: SlashCommands):\n        self.config = config\n        self.slash_commands = slash_commands\n    def run(self) -> int:\n        session = InteractionSessionManager.create_session(\n            interaction_config=self.config,\n        )\n        while True:",
         "detail": "siada.entrypoint.interaction.interaction_controller",
         "documentation": {}
     },
@@ -6724,7 +6918,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnType(Enum):\n    \"\"\"Types of interaction turns\"\"\"\n    COMMAND = \"command\"  # Slash commands (/help, /edit, etc.)\n    CONVERSATION = \"conversation\"  # Regular AI conversation\n@dataclass\nclass TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n    turn_type: TurnType  # Type of this turn\n@dataclass",
+        "peekOfCode": "class TurnType(Enum):\n    \"\"\"Types of interaction turns\"\"\"\n    COMMAND = \"command\"  # Slash commands (/help, /edit, etc.)\n    CONVERSATION = \"conversation\"  # Regular AI conversation\n@dataclass\nclass TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n@dataclass\nclass TurnOutput:",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6733,7 +6927,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n    turn_type: TurnType  # Type of this turn\n@dataclass\nclass TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action",
+        "peekOfCode": "class TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n@dataclass\nclass TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action\nclass RunTurn(ABC):",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6742,7 +6936,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action\nclass RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: InteractionConfig, session: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:",
+        "peekOfCode": "class TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action\nclass RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: InteractionConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6751,7 +6945,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: InteractionConfig, session: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:\n            config: InteractionConfig with execution parameters\n            session: Current session instance\n        \"\"\"\n        self.config = config\n        self.session = session",
+        "peekOfCode": "class RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: InteractionConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:\n            config: InteractionConfig with execution parameters\n            session: Current session instance\n        \"\"\"\n        self.config = config\n        self.session = session",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6760,7 +6954,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    def get_turn_type(self) -> TurnType:\n        return TurnType.CONVERSATION\n    def can_handle(self, user_input: str) -> bool:",
+        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    # Class-level dedicated event loop and thread, shared by all instances\n    _dedicated_loop = None\n    _dedicated_thread = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6769,7 +6963,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class CommandTurn(RunTurn):\n    \"\"\"Handles slash command turns\"\"\"\n    def get_turn_type(self) -> TurnType:\n        return TurnType.COMMAND\n    def can_handle(self, user_input: str) -> bool:\n        \"\"\"Handle slash commands\"\"\"\n        return self.config.slash_commands.is_command(user_input)\n    def execute(self, turn_input: TurnInput) -> TurnOutput:\n        \"\"\"Execute slash command\n        Args:",
+        "peekOfCode": "class CommandTurn(RunTurn):\n    \"\"\"Handles slash command turns\"\"\"\n    def get_turn_type(self) -> TurnType:\n        return TurnType.COMMAND\n    def can_handle(self, user_input: str) -> bool:\n        \"\"\"Handle slash commands\"\"\"\n        return self.slash_commands.is_command(user_input)\n    def execute(self, turn_input: TurnInput) -> TurnOutput:\n        \"\"\"Execute slash command\n        Args:",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6778,7 +6972,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnFactory:\n    \"\"\"Factory for creating appropriate turn instances\"\"\"\n    @staticmethod\n    def create_turn(\n        config: InteractionConfig, session: Any, user_input: str\n    ) -> RunTurn:\n        \"\"\"Create appropriate turn for user input\n        Args:\n            user_input: Raw user input\n        Returns:",
+        "peekOfCode": "class TurnFactory:\n    \"\"\"Factory for creating appropriate turn instances\"\"\"\n    @staticmethod\n    def create_turn(\n        config: InteractionConfig, session: Any, slash_commands: Any, user_input: str\n    ) -> RunTurn:\n        \"\"\"Create appropriate turn for user input\n        Args:\n            user_input: Raw user input\n        Returns:",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6787,7 +6981,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6796,7 +6990,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    def get_turn_type(self) -> TurnType:",
+        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6805,7 +6999,16 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    def get_turn_type(self) -> TurnType:\n        return TurnType.CONVERSATION",
+        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    # Class-level dedicated event loop and thread, shared by all instances",
+        "detail": "siada.entrypoint.interaction.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "DEFAULT_REASONING_TAG",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.run_turn",
+        "description": "siada.entrypoint.interaction.run_turn",
+        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    # Class-level dedicated event loop and thread, shared by all instances\n    _dedicated_loop = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6866,18 +7069,9 @@
     {
         "label": "main",
         "kind": 2,
-        "importPath": "siada.entrypoint.cli_new",
-        "description": "siada.entrypoint.cli_new",
-        "peekOfCode": "def main(argv=None):\n    if argv is None:\n        argv = sys.argv[1:]\n    if git is None:\n        git_root = None\n    else:\n        git_root = get_git_root()\n    parser = get_parser(git_root=git_root)\n    try:\n        args, unknown = parser.parse_known_args(argv)",
-        "detail": "siada.entrypoint.cli_new",
-        "documentation": {}
-    },
-    {
-        "label": "main",
-        "kind": 2,
         "importPath": "siada.entrypoint.siadahub",
         "description": "siada.entrypoint.siadahub",
-        "peekOfCode": "def main():\n    argv = sys.argv[1:]\n    if git is None:\n        git_root = None\n    else:\n        git_root = get_git_root()\n    parser = get_parser(git_root=git_root, default_config_files=[])\n    try:\n        args, unknown = parser.parse_known_args(argv)\n    except AttributeError as e:",
+        "peekOfCode": "def main():\n    # Configure litellm globally to suppress debug logs\n    _configure_litellm_logging()\n    argv = sys.argv[1:]\n    # workspace and disable-console-output are sepcific for development\n    import argparse\n    temp_parser = argparse.ArgumentParser(add_help=False)\n    temp_parser.add_argument(\"--workspace\", default=None)\n    temp_parser.add_argument(\n        \"--enable-console-output\", action=\"store_true\", default=False",
         "detail": "siada.entrypoint.siadahub",
         "documentation": {}
     },
@@ -6886,7 +7080,7 @@
         "kind": 6,
         "importPath": "siada.foundation.code_agent_context",
         "description": "siada.foundation.code_agent_context",
-        "peekOfCode": "class CodeAgentContext(BaseModel):\n    root_dir: Optional[str] = None\n    session: Optional[Session] = None",
+        "peekOfCode": "class CodeAgentContext(BaseModel):\n    model_config = ConfigDict(arbitrary_types_allowed=True)\n    root_dir: Optional[str] = None\n    session: Optional[Session] = None",
         "detail": "siada.foundation.code_agent_context",
         "documentation": {}
     },
@@ -7008,6 +7202,15 @@
         "documentation": {}
     },
     {
+        "label": "get_log_directory",
+        "kind": 2,
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "peekOfCode": "def get_log_directory():\n    \"\"\"\n    Get log directory with the following priority:\n    - Development mode: Project root ./logs (detected by pyproject.toml)\n    - 1. Environment variable SIADAHUB_LOG_DIR\n    - 2. User home directory ~/.siadahub/logs\n    - 3. XDG cache directory ~/.cache/siadahub/logs  \n    - 4. System temp directory /tmp/siadahub/logs\n    - 5. Current working directory ./logs (fallback)\n    \"\"\"",
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
         "label": "format_log_line",
         "kind": 2,
         "importPath": "siada.foundation.logging",
@@ -7030,7 +7233,16 @@
         "kind": 2,
         "importPath": "siada.foundation.logging",
         "description": "siada.foundation.logging",
-        "peekOfCode": "def get_console_handler(log_level=logging.INFO, extra_info: Optional[str] = None):\n    \"\"\"Returns a console handler for logging.\"\"\"\n    console_handler = logging.StreamHandler()\n    console_handler.setLevel(log_level)\n    formatter_str = '\\033[92m%(asctime)s - %(name)s:%(levelname)s\\033[0m: %(filename)s:%(lineno)s - %(message)s'\n    if extra_info:\n        formatter_str = f'{extra_info} - ' + formatter_str\n    console_handler.setFormatter(ColoredFormatter(formatter_str, datefmt='%H:%M:%S'))\n    return console_handler\ndef setup_logger():",
+        "peekOfCode": "def get_console_handler(log_level=logging.INFO, extra_info: Optional[str] = None):\n    \"\"\"Returns a console handler for logging.\"\"\"\n    console_handler = logging.StreamHandler()\n    console_handler.setLevel(log_level)\n    formatter_str = '\\033[92m%(asctime)s - %(name)s:%(levelname)s\\033[0m: %(filename)s:%(lineno)s - %(message)s'\n    if extra_info:\n        formatter_str = f'{extra_info} - ' + formatter_str\n    console_handler.setFormatter(ColoredFormatter(formatter_str, datefmt='%H:%M:%S'))\n    return console_handler\ndef configure_third_party_loggers():",
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
+        "label": "configure_third_party_loggers",
+        "kind": 2,
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "peekOfCode": "def configure_third_party_loggers():\n    \"\"\"\n    配置第三方库的日志级别，减少冗余日志输出\n    \"\"\"\n    # 设置httpx日志级别为ERROR，避免过多的网络请求日志\n    logging.getLogger('httpx').setLevel(logging.ERROR)\n    # 可以根据需要添加其他第三方库的日志配置\n    # logging.getLogger('urllib3').setLevel(logging.WARNING)\n    # logging.getLogger('requests').setLevel(logging.WARNING)\ndef setup_logger():",
         "detail": "siada.foundation.logging",
         "documentation": {}
     },
@@ -7044,11 +7256,38 @@
         "documentation": {}
     },
     {
+        "label": "remove_console_handler",
+        "kind": 2,
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "peekOfCode": "def remove_console_handler(target_logger=None):\n    \"\"\"\n    Remove console handler from logger, keeping only file handler\n    Args:\n        target_logger: Logger instance to modify. If None, uses the global logger.\n    \"\"\"\n    if target_logger is None:\n        target_logger = logging.getLogger('siada.api')\n    # Find and remove console handlers\n    handlers_to_remove = []",
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
+        "label": "add_console_handler",
+        "kind": 2,
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "peekOfCode": "def add_console_handler(target_logger=None, log_level=logging.INFO):\n    \"\"\"\n    Add console handler back to logger\n    Args:\n        target_logger: Logger instance to modify. If None, uses the global logger.\n        log_level: Log level for console handler\n    \"\"\"\n    if target_logger is None:\n        target_logger = logging.getLogger('siada.api')\n    # Check if console handler already exists",
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
+        "label": "toggle_console_output",
+        "kind": 2,
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "peekOfCode": "def toggle_console_output(enable: bool = True, target_logger=None):\n    \"\"\"\n    Toggle console output on/off\n    Args:\n        enable: True to enable console output, False to disable\n        target_logger: Logger instance to modify. If None, uses the global logger.\n    \"\"\"\n    if enable:\n        add_console_handler(target_logger)\n    else:",
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
         "label": "log_dir",
         "kind": 5,
         "importPath": "siada.foundation.logging",
         "description": "siada.foundation.logging",
-        "peekOfCode": "log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')\nos.makedirs(log_dir, exist_ok=True)\n# 日志文件路径\nlog_file = os.path.join(log_dir, 'siada_api.log')\nDEBUG = os.getenv('DEBUG', 'False').lower() in ['true', '1', 'yes']\nif DEBUG:\n    LOG_LEVEL = 'DEBUG'\nColorType = Literal[\n    'red',\n    'green',",
+        "peekOfCode": "log_dir = get_log_directory()\nlog_file = os.path.join(log_dir, 'siada_api.log')\nDEBUG = os.getenv('DEBUG', 'False').lower() in ['true', '1', 'yes']\nif DEBUG:\n    LOG_LEVEL = 'DEBUG'\nColorType = Literal[\n    'red',\n    'green',\n    'yellow',\n    'blue',",
         "detail": "siada.foundation.logging",
         "documentation": {}
     },
@@ -7138,8 +7377,35 @@
         "kind": 6,
         "importPath": "siada.io.components.mdstream",
         "description": "siada.io.components.mdstream",
-        "peekOfCode": "class MarkdownStream:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.\n    Uses rich.console and rich.live to render markdown content with smooth scrolling\n    and partial updates. Maintains a sliding window of visible content while streaming\n    in new markdown text.\n    \"\"\"\n    live = None  # Rich Live display instance\n    when = 0  # Timestamp of last update\n    min_delay = 1.0 / 20  # Minimum time between updates (20fps)\n    live_window = 6  # Number of lines to keep visible at bottom during streaming",
+        "peekOfCode": "class MarkdownStream:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.\n    Uses rich.console and rich.live to render markdown content with smooth scrolling\n    and partial updates. Maintains a sliding window of visible content while streaming\n    in new markdown text.\n    \"\"\"\n    live = None  # Rich Live display instance\n    when = 0  # Timestamp of last update\n    min_delay = 1.0 / 20  # Minimum time between updates (20fps)\n    live_window = 2  # Number of lines to keep visible at bottom during streaming",
         "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "BannerDisplay",
+        "kind": 6,
+        "importPath": "siada.io.banner",
+        "description": "siada.io.banner",
+        "peekOfCode": "class BannerDisplay:\n    \"\"\"Handle ASCII art banner display with color gradients.\"\"\"\n    # ASCII art for SIADA HUB\n    BANNER_LINES = [\n        \"  ███████╗██╗ █████╗ ██████╗  █████╗     ██╗  ██╗██╗   ██╗██████╗ \",\n        \"  ██╔════╝██║██╔══██╗██╔══██╗██╔══██╗    ██║  ██║██║   ██║██╔══██╗\",\n        \"  ███████╗██║███████║██║  ██║███████║    ███████║██║   ██║██████╔╝\",\n        \"  ╚════██║██║██╔══██║██║  ██║██╔══██║    ██╔══██║██║   ██║██╔══██╗\",\n        \"  ███████║██║██║  ██║██████╔╝██║  ██║    ██║  ██║╚██████╔╝██████╔╝\",\n        \"  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ \"",
+        "detail": "siada.io.banner",
+        "documentation": {}
+    },
+    {
+        "label": "show_siada_banner",
+        "kind": 2,
+        "importPath": "siada.io.banner",
+        "description": "siada.io.banner",
+        "peekOfCode": "def show_siada_banner(pretty: bool = True, console: Console = None):\n    \"\"\"\n    Convenience function to display SIADA HUB banner.\n    Args:\n        pretty: Whether to use colorful output\n        console: Rich console instance (optional)\n    \"\"\"\n    BannerDisplay.show_banner(pretty, console)\ndef get_banner_text() -> str:\n    \"\"\"",
+        "detail": "siada.io.banner",
+        "documentation": {}
+    },
+    {
+        "label": "get_banner_text",
+        "kind": 2,
+        "importPath": "siada.io.banner",
+        "description": "siada.io.banner",
+        "peekOfCode": "def get_banner_text() -> str:\n    \"\"\"\n    Get the plain text version of the banner.\n    Returns:\n        String containing the ASCII art banner\n    \"\"\"\n    return BannerDisplay.get_simple_banner()",
+        "detail": "siada.io.banner",
         "documentation": {}
     },
     {
@@ -7215,6 +7481,42 @@
         "documentation": {}
     },
     {
+        "label": "test_pretty_banner",
+        "kind": 2,
+        "importPath": "siada.io.test_banner",
+        "description": "siada.io.test_banner",
+        "peekOfCode": "def test_pretty_banner():\n    \"\"\"Test colorful banner with gradient.\"\"\"\n    print(\"=== PRETTY BANNER (Left-to-Right Gradient) ===\")\n    show_siada_banner(pretty=True)\n    print()\ndef test_plain_banner():\n    \"\"\"Test plain text banner.\"\"\"\n    print(\"=== PLAIN BANNER ===\")\n    show_siada_banner(pretty=False)\n    print()",
+        "detail": "siada.io.test_banner",
+        "documentation": {}
+    },
+    {
+        "label": "test_plain_banner",
+        "kind": 2,
+        "importPath": "siada.io.test_banner",
+        "description": "siada.io.test_banner",
+        "peekOfCode": "def test_plain_banner():\n    \"\"\"Test plain text banner.\"\"\"\n    print(\"=== PLAIN BANNER ===\")\n    show_siada_banner(pretty=False)\n    print()\ndef test_text_banner():\n    \"\"\"Test banner as string.\"\"\"\n    print(\"=== BANNER AS TEXT ===\")\n    print(get_banner_text())\ndef main():",
+        "detail": "siada.io.test_banner",
+        "documentation": {}
+    },
+    {
+        "label": "test_text_banner",
+        "kind": 2,
+        "importPath": "siada.io.test_banner",
+        "description": "siada.io.test_banner",
+        "peekOfCode": "def test_text_banner():\n    \"\"\"Test banner as string.\"\"\"\n    print(\"=== BANNER AS TEXT ===\")\n    print(get_banner_text())\ndef main():\n    parser = argparse.ArgumentParser(description=\"Test SIADA HUB banner display\")\n    parser.add_argument(\"--pretty\", action=\"store_true\", help=\"Show only pretty banner\")\n    parser.add_argument(\"--plain\", action=\"store_true\", help=\"Show only plain banner\")\n    parser.add_argument(\"--both\", action=\"store_true\", help=\"Show both versions\")\n    args = parser.parse_args()",
+        "detail": "siada.io.test_banner",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "siada.io.test_banner",
+        "description": "siada.io.test_banner",
+        "peekOfCode": "def main():\n    parser = argparse.ArgumentParser(description=\"Test SIADA HUB banner display\")\n    parser.add_argument(\"--pretty\", action=\"store_true\", help=\"Show only pretty banner\")\n    parser.add_argument(\"--plain\", action=\"store_true\", help=\"Show only plain banner\")\n    parser.add_argument(\"--both\", action=\"store_true\", help=\"Show both versions\")\n    args = parser.parse_args()\n    if args.pretty:\n        test_pretty_banner()\n    elif args.plain:\n        test_plain_banner()",
+        "detail": "siada.io.test_banner",
+        "documentation": {}
+    },
+    {
         "label": "Tool",
         "kind": 6,
         "importPath": "siada.models.agent",
@@ -7260,29 +7562,11 @@
         "documentation": {}
     },
     {
-        "label": "ModelInfoManager",
-        "kind": 6,
-        "importPath": "siada.models.model_info_manager",
-        "description": "siada.models.model_info_manager",
-        "peekOfCode": "class ModelInfoManager:\n    MODEL_INFO_URL = (\n        \"https://raw.githubusercontent.com/BerriAI/litellm/main/\"\n        \"model_prices_and_context_window.json\"\n    )\n    CACHE_TTL = 60 * 60 * 24  # 24 hours\n    def __init__(self):\n        self.cache_dir = Path.home() / \".siada-cli\" / \"caches\"\n        self.cache_file = self.cache_dir / \"model_prices_and_context_window.json\"\n        self.content = None",
-        "detail": "siada.models.model_info_manager",
-        "documentation": {}
-    },
-    {
-        "label": "model_info_manager",
-        "kind": 5,
-        "importPath": "siada.models.model_info_manager",
-        "description": "siada.models.model_info_manager",
-        "peekOfCode": "model_info_manager = ModelInfoManager()",
-        "detail": "siada.models.model_info_manager",
-        "documentation": {}
-    },
-    {
-        "label": "ModelConfig",
+        "label": "ModelRunConfig",
         "kind": 6,
         "importPath": "siada.models.model_setting",
         "description": "siada.models.model_setting",
-        "peekOfCode": "class ModelConfig(ModelSettings):\n    reasoning_effort : Optional[str] = None\n    thinking_tokens : Optional[int] = None\n    temperature : Optional[float] = None\n    extra_params : Optional[dict] = None\n    def __init__(self, model): \n        self.configure_model_settings(model)\n    def _copy_fields(self, source):\n        \"\"\"Helper to copy fields from a ModelSettings instance to self\"\"\"\n        for field in fields(ModelSettings):",
+        "peekOfCode": "class ModelRunConfig(ModelSettings):\n    reasoning_effort : Optional[str] = None\n    thinking_tokens : Optional[int] = None\n    temperature : Optional[float] = None\n    extra_params : Optional[dict] = None\n    def __init__(self, model): \n        self.configure_model_settings(model)\n    def _copy_fields(self, source):\n        \"\"\"Helper to copy fields from a ModelSettings instance to self\"\"\"\n        for field in fields(ModelSettings):",
         "detail": "siada.models.model_setting",
         "documentation": {}
     },
@@ -7291,7 +7575,7 @@
         "kind": 5,
         "importPath": "siada.models.model_setting",
         "description": "siada.models.model_setting",
-        "peekOfCode": "DEFAULT_MODEL = \"claude-sonnet-4\"\nclass ModelConfig(ModelSettings):\n    reasoning_effort : Optional[str] = None\n    thinking_tokens : Optional[int] = None\n    temperature : Optional[float] = None\n    extra_params : Optional[dict] = None\n    def __init__(self, model): \n        self.configure_model_settings(model)\n    def _copy_fields(self, source):\n        \"\"\"Helper to copy fields from a ModelSettings instance to self\"\"\"",
+        "peekOfCode": "DEFAULT_MODEL = \"claude-sonnet-4\"\n@dataclass()\nclass ModelRunConfig(ModelSettings):\n    reasoning_effort : Optional[str] = None\n    thinking_tokens : Optional[int] = None\n    temperature : Optional[float] = None\n    extra_params : Optional[dict] = None\n    def __init__(self, model): \n        self.configure_model_settings(model)\n    def _copy_fields(self, source):",
         "detail": "siada.models.model_setting",
         "documentation": {}
     },
@@ -7548,87 +7832,6 @@
         "documentation": {}
     },
     {
-        "label": "LazyLiteLLM",
-        "kind": 6,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "class LazyLiteLLM:\n    _lazy_module = None\n    def __getattr__(self, name):\n        if name == \"_lazy_module\":\n            return super()\n        self._load_litellm()\n        return getattr(self._lazy_module, name)\n    def _load_litellm(self):\n        if self._lazy_module is not None:\n            return",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "SIADA_SITE_URL",
-        "kind": 5,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "SIADA_SITE_URL = \"https://aider.chat\"\nSIADA_APP_NAME = \"Aider\"\nos.environ[\"OR_SITE_URL\"] = SIADA_SITE_URL\nos.environ[\"OR_APP_NAME\"] = SIADA_APP_NAME\nos.environ[\"LITELLM_MODE\"] = \"PRODUCTION\"\nVERBOSE = False\nclass LazyLiteLLM:\n    _lazy_module = None\n    def __getattr__(self, name):\n        if name == \"_lazy_module\":",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "SIADA_APP_NAME",
-        "kind": 5,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "SIADA_APP_NAME = \"Aider\"\nos.environ[\"OR_SITE_URL\"] = SIADA_SITE_URL\nos.environ[\"OR_APP_NAME\"] = SIADA_APP_NAME\nos.environ[\"LITELLM_MODE\"] = \"PRODUCTION\"\nVERBOSE = False\nclass LazyLiteLLM:\n    _lazy_module = None\n    def __getattr__(self, name):\n        if name == \"_lazy_module\":\n            return super()",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "os.environ[\"OR_SITE_URL\"]",
-        "kind": 5,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "os.environ[\"OR_SITE_URL\"] = SIADA_SITE_URL\nos.environ[\"OR_APP_NAME\"] = SIADA_APP_NAME\nos.environ[\"LITELLM_MODE\"] = \"PRODUCTION\"\nVERBOSE = False\nclass LazyLiteLLM:\n    _lazy_module = None\n    def __getattr__(self, name):\n        if name == \"_lazy_module\":\n            return super()\n        self._load_litellm()",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "os.environ[\"OR_APP_NAME\"]",
-        "kind": 5,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "os.environ[\"OR_APP_NAME\"] = SIADA_APP_NAME\nos.environ[\"LITELLM_MODE\"] = \"PRODUCTION\"\nVERBOSE = False\nclass LazyLiteLLM:\n    _lazy_module = None\n    def __getattr__(self, name):\n        if name == \"_lazy_module\":\n            return super()\n        self._load_litellm()\n        return getattr(self._lazy_module, name)",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "os.environ[\"LITELLM_MODE\"]",
-        "kind": 5,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "os.environ[\"LITELLM_MODE\"] = \"PRODUCTION\"\nVERBOSE = False\nclass LazyLiteLLM:\n    _lazy_module = None\n    def __getattr__(self, name):\n        if name == \"_lazy_module\":\n            return super()\n        self._load_litellm()\n        return getattr(self._lazy_module, name)\n    def _load_litellm(self):",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "VERBOSE",
-        "kind": 5,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "VERBOSE = False\nclass LazyLiteLLM:\n    _lazy_module = None\n    def __getattr__(self, name):\n        if name == \"_lazy_module\":\n            return super()\n        self._load_litellm()\n        return getattr(self._lazy_module, name)\n    def _load_litellm(self):\n        if self._lazy_module is not None:",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "litellm",
-        "kind": 5,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "litellm = LazyLiteLLM()\n__all__ = [litellm]",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
-        "label": "__all__",
-        "kind": 5,
-        "importPath": "siada.provider.lazy_lite_llm",
-        "description": "siada.provider.lazy_lite_llm",
-        "peekOfCode": "__all__ = [litellm]",
-        "detail": "siada.provider.lazy_lite_llm",
-        "documentation": {}
-    },
-    {
         "label": "SiadaRunner",
         "kind": 6,
         "importPath": "siada.services.siada_runner",
@@ -7642,7 +7845,7 @@
         "kind": 6,
         "importPath": "siada.session.session_manager",
         "description": "siada.session.session_manager",
-        "peekOfCode": "class InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: InteractionConfig,\n        session_id: Optional[str] = None,\n        db_path: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:",
+        "peekOfCode": "class InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: InteractionConfig,\n        session_id: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:\n            config: Model configuration using ModelSettings structure",
         "detail": "siada.session.session_manager",
         "documentation": {}
     },
@@ -7651,7 +7854,7 @@
         "kind": 5,
         "importPath": "siada.session.session_manager",
         "description": "siada.session.session_manager",
-        "peekOfCode": "logger = logging.getLogger(__name__)\nclass InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: InteractionConfig,\n        session_id: Optional[str] = None,\n        db_path: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session",
+        "peekOfCode": "logger = logging.getLogger(__name__)\nclass InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: InteractionConfig,\n        session_id: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:",
         "detail": "siada.session.session_manager",
         "documentation": {}
     },
@@ -7795,7 +7998,7 @@
         "kind": 2,
         "importPath": "siada.support.repo",
         "description": "siada.support.repo",
-        "peekOfCode": "def get_git_root():\n    \"\"\"Try and guess the git repo, since the conf.yml can be at the repo root\"\"\"\n    try:\n        repo = git.Repo(search_parent_directories=True)\n        return repo.working_tree_dir\n    except (git.InvalidGitRepositoryError, FileNotFoundError):\n        return None",
+        "peekOfCode": "def get_git_root(path=None):\n    \"\"\"Try and guess the git repo, since the conf.yml can be at the repo root\n    Args:\n        path: Optional path to start searching from. If None, uses current directory.\n    Returns:\n        str or None: Path to git repository root, or None if not found\n    \"\"\"\n    try:\n        # If path is provided, start search from that directory\n        if path:",
         "detail": "siada.support.repo",
         "documentation": {}
     },
@@ -7804,7 +8007,7 @@
         "kind": 5,
         "importPath": "siada.support.repo",
         "description": "siada.support.repo",
-        "peekOfCode": "ANY_GIT_ERROR = tuple(ANY_GIT_ERROR)\ndef get_git_root():\n    \"\"\"Try and guess the git repo, since the conf.yml can be at the repo root\"\"\"\n    try:\n        repo = git.Repo(search_parent_directories=True)\n        return repo.working_tree_dir\n    except (git.InvalidGitRepositoryError, FileNotFoundError):\n        return None",
+        "peekOfCode": "ANY_GIT_ERROR = tuple(ANY_GIT_ERROR)\ndef get_git_root(path=None):\n    \"\"\"Try and guess the git repo, since the conf.yml can be at the repo root\n    Args:\n        path: Optional path to start searching from. If None, uses current directory.\n    Returns:\n        str or None: Path to git repository root, or None if not found\n    \"\"\"\n    try:\n        # If path is provided, start search from that directory",
         "detail": "siada.support.repo",
         "documentation": {}
     },
@@ -7833,6 +8036,60 @@
         "description": "siada.support.slash_commands",
         "peekOfCode": "def main():\n    md = SlashCommands(None, None).get_help_md()\n    print(md)\nif __name__ == \"__main__\":\n    status = main()\n    sys.exit(status)",
         "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "list_code_definition_names",
+        "kind": 2,
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "peekOfCode": "def list_code_definition_names(file_name: str, rel_file_name: Optional[str] = None) -> str:\n    \"\"\"\n    Analyze a source code file and extract its structural definitions.\n    This function performs static code analysis to identify and extract code definitions\n    such as functions, classes, methods, and variables from a source file. It uses\n    tree-sitter parsing technology to build an Abstract Syntax Tree (AST) and then\n    queries the tree to locate definition nodes. The extracted information is formatted\n    into a human-readable tree structure that shows the code organization and hierarchy.\n    The implementation follows a two-phase approach: first, it parses the source code\n    to extract both definitions and references using language-specific query patterns;",
+        "detail": "siada.tools.ast.ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "get_scm_fname",
+        "kind": 2,
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "peekOfCode": "def get_scm_fname(lang: str) -> Optional[Path]:\n    \"\"\"\n    Get the path to the tree-sitter query file for a given language.\n    Args:\n        lang: Programming language identifier\n    Returns:\n        Path to the .scm query file, or None if not found\n    \"\"\"\n    # Find the project root by looking for the queries directory\n    current_file = Path(__file__)",
+        "detail": "siada.tools.ast.ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "get_tags_raw",
+        "kind": 2,
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "peekOfCode": "def get_tags_raw(fname: str, rel_fname: str) -> Generator[Tag, None, None]:\n    \"\"\"\n    Extract code tags (definitions and references) from a source file.\n    This function uses tree-sitter to parse source code and extract identifiers,\n    with pygments as a fallback for reference extraction when tree-sitter\n    queries only provide definitions.\n    Args:\n        fname: Absolute path to the source file\n        rel_fname: Relative path to the source file\n    Yields:",
+        "detail": "siada.tools.ast.ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "to_tree",
+        "kind": 2,
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "peekOfCode": "def to_tree(tags: List[Tag]) -> str:\n    \"\"\"\n    Convert a list of tags to a formatted code tree structure (single file scenario).\n    This function is optimized for single file analysis, without caching mechanisms.\n    It focuses on definitions and provides code context using TreeContext.\n    Args:\n        tags: List of Tag objects from a single file\n    Returns:\n        Formatted string containing code structure with context\n    \"\"\"",
+        "detail": "siada.tools.ast.ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "Tag",
+        "kind": 5,
+        "importPath": "siada.tools.ast.models",
+        "description": "siada.tools.ast.models",
+        "peekOfCode": "Tag = namedtuple(\"Tag\", \"rel_fname fname line name kind\".split())\n__all__ = [\"Tag\"]",
+        "detail": "siada.tools.ast.models",
+        "documentation": {}
+    },
+    {
+        "label": "__all__",
+        "kind": 5,
+        "importPath": "siada.tools.ast.models",
+        "description": "siada.tools.ast.models",
+        "peekOfCode": "__all__ = [\"Tag\"]",
+        "detail": "siada.tools.ast.models",
         "documentation": {}
     },
     {
@@ -8304,11 +8561,11 @@
         "documentation": {}
     },
     {
-        "label": "do_run_cmd",
+        "label": "run_cmd_impl",
         "kind": 2,
         "importPath": "siada.tools.coder.cmd_runner",
         "description": "siada.tools.coder.cmd_runner",
-        "peekOfCode": "def do_run_cmd(command, verbose=False, cwd=None, error_print=None):\n    try:\n        if sys.stdin.isatty() and hasattr(pexpect, \"spawn\") and platform.system() != \"Windows\":\n            return run_cmd_pexpect(command, verbose, cwd)\n        return run_cmd_subprocess(command, verbose, cwd)\n    except OSError as e:\n        error_message = f\"Error occurred while running command '{command}': {str(e)}\"\n        if error_print is None:\n            print(error_message)\n        else:",
+        "peekOfCode": "def run_cmd_impl(command, verbose=False, cwd=None, error_print=None):\n    try:\n        if sys.stdin.isatty() and hasattr(pexpect, \"spawn\") and platform.system() != \"Windows\":\n            return run_cmd_pexpect(command, verbose, cwd)\n        return run_cmd_subprocess(command, verbose, cwd)\n    except OSError as e:\n        error_message = f\"Error occurred while running command '{command}': {str(e)}\"\n        if error_print is None:\n            print(error_message)\n        else:",
         "detail": "siada.tools.coder.cmd_runner",
         "documentation": {}
     },
@@ -8317,7 +8574,7 @@
         "kind": 2,
         "importPath": "siada.tools.coder.cmd_runner",
         "description": "siada.tools.coder.cmd_runner",
-        "peekOfCode": "def get_windows_parent_process_name():\n    \"\"\"Get the name of the parent process on Windows.\"\"\"\n    try:\n        current_process = psutil.Process()\n        while True:\n            parent = current_process.parent()\n            if parent is None:\n                break\n            parent_name = parent.name().lower()\n            if parent_name in [\"powershell.exe\", \"cmd.exe\"]:",
+        "peekOfCode": "def get_windows_parent_process_name():\n    try:\n        current_process = psutil.Process()\n        while True:\n            parent = current_process.parent()\n            if parent is None:\n                break\n            parent_name = parent.name().lower()\n            if parent_name in [\"powershell.exe\", \"cmd.exe\"]:\n                return parent_name",
         "detail": "siada.tools.coder.cmd_runner",
         "documentation": {}
     },
@@ -8466,15 +8723,6 @@
         "documentation": {}
     },
     {
-        "label": "TestCoderAgent",
-        "kind": 6,
-        "importPath": "tests.agent.test_coder_agent",
-        "description": "tests.agent.test_coder_agent",
-        "peekOfCode": "class TestCoderAgent(unittest.IsolatedAsyncioTestCase):\n    \"\"\"测试Coder Agent\"\"\"\n    async def test_coder_agent_run_cmd(self):\n        \"\"\"测试Coder Agent是否能正常使用run_cmd工具执行实际命令\"\"\"\n        # 初始化coder_agent\n        init_coder_agent()\n        agent = agent_map[\"coder\"]\n        # 准备测试任务 - 使用安全的命令\n        task = \"\"\"\n        请执行以下命令：",
-        "detail": "tests.agent.test_coder_agent",
-        "documentation": {}
-    },
-    {
         "label": "TestGetAgent",
         "kind": 6,
         "importPath": "tests.agent.test_get_agent",
@@ -8486,19 +8734,19 @@
     {
         "label": "WebAnalysisOutput",
         "kind": 6,
-        "importPath": "tests.agent.test_web_analysis",
-        "description": "tests.agent.test_web_analysis",
+        "importPath": "tests.agent.web_analysis",
+        "description": "tests.agent.web_analysis",
         "peekOfCode": "class WebAnalysisOutput:\n    url: str\n    title: str\n    main_content_summary: str\n    key_topics: list[str]\n    content_type: str\n    analysis_result: str\nclass TestWebAnalysisAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Web Content Analysis Agent",
-        "detail": "tests.agent.test_web_analysis",
+        "detail": "tests.agent.web_analysis",
         "documentation": {}
     },
     {
         "label": "TestWebAnalysisAgent",
         "kind": 6,
-        "importPath": "tests.agent.test_web_analysis",
-        "description": "tests.agent.test_web_analysis",
+        "importPath": "tests.agent.web_analysis",
+        "description": "tests.agent.web_analysis",
         "peekOfCode": "class TestWebAnalysisAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Web Content Analysis Agent\n    Test agent implementation for web content analysis functionality\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        # Use default model provided by SiadaProvider\n        provider = SiadaProvider()\n        model = provider.get_model(\"claude-sonnet-4\")\n        # Use default value if name parameter is not passed",
-        "detail": "tests.agent.test_web_analysis",
+        "detail": "tests.agent.web_analysis",
         "documentation": {}
     },
     {
@@ -8601,12 +8849,237 @@
         "documentation": {}
     },
     {
+        "label": "MyAgent",
+        "kind": 6,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "class MyAgent(SiadaAgent):\n    def __init__(self):\n        super().__init__(\n            name=\"智能编程助手\",\n            tools=[edit, search, run_cmd],\n            model=\"claude-sonnet-4\"\n        )\n    async def solve_problem(self, user_input: str):\n        # 智能分析用户需求\n        context = await self.get_context()",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "demo_basic_usage",
+        "kind": 2,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "def demo_basic_usage():\n    \"\"\"演示基本使用\"\"\"\n    print(\"🔄 演示 1: 基本 MarkdownStream 使用\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    # 模拟逐步构建内容\n    content_steps = [\n        \"# 欢迎使用 MarkdownStream\",\n        \"# 欢迎使用 MarkdownStream\\n\\n这是一个实时 Markdown 渲染工具。\",\n        \"# 欢迎使用 MarkdownStream\\n\\n这是一个实时 Markdown 渲染工具。\\n\\n## 主要特性\",",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "demo_ai_conversation",
+        "kind": 2,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "def demo_ai_conversation():\n    \"\"\"演示 AI 对话场景\"\"\"\n    print(\"🤖 演示 2: AI 对话场景\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    # 模拟 AI 助手回复的逐步生成\n    ai_chunks = [\n        \"# AI 助手回复\\n\\n\",\n        \"我理解您的问题。让我为您提供一个详细的解决方案。\\n\\n\",\n        \"## 问题分析\\n\\n\",",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "demo_code_explanation",
+        "kind": 2,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "def demo_code_explanation():\n    \"\"\"演示代码解释场景\"\"\"\n    print(\"💻 演示 3: 代码解释场景\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    # 模拟代码解释的逐步生成\n    explanation_parts = [\n        \"# 代码解释\\n\\n\",\n        \"让我来解释这段 Python 代码的工作原理：\\n\\n\",\n        \"```python\\ndef fibonacci(n):\\n    if n <= 1:\\n        return n\\n    return fibonacci(n-1) + fibonacci(n-2)\\n```\\n\\n\",",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "demo_performance_test",
+        "kind": 2,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "def demo_performance_test():\n    \"\"\"演示性能测试\"\"\"\n    print(\"⚡ 演示 4: 性能测试\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    print(\"🔄 生成大量内容进行性能测试...\")\n    # 生成大量内容\n    large_content = \"# 性能测试报告\\n\\n\"\n    large_content += \"这是一个包含大量内容的 Markdown 文档，用于测试 MarkdownStream 的性能。\\n\\n\"\n    for i in range(50):",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "demo_thinking_answer_format",
+        "kind": 2,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "def demo_thinking_answer_format():\n    \"\"\"演示包含 thinking 和 answer 格式的内容\"\"\"\n    print(\"🧠 演示 5: Thinking + Answer 格式\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    # 完整的 thinking + answer 格式内容\n    thinking_answer_content = \"\"\"► **ANSWER**\n<thinking>\nThe user said \"你好\" which means \"Hello\" in Chinese. They are simply greeting me. Since this is a greeting and not a \nspecific task, I should respond appropriately in Chinese and let them know I'm ready to help with any tasks they might ",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "def main():\n    \"\"\"主演示函数\"\"\"\n    print(\"🎯 MarkdownStream 功能全面演示\")\n    print(\"=\" * 60)\n    print(\"这个演示将展示 MarkdownStream 在各种场景下的使用效果\")\n    print(\"请注意观察内容的实时渲染效果！\\n\")\n    demos = [\n        (\"基本使用\", demo_basic_usage),\n        (\"AI 对话场景\", demo_ai_conversation),\n        (\"代码解释场景\", demo_code_explanation),",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "agent",
+        "kind": 5,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "agent = MyAgent()\nresult = await agent.solve_problem(\"帮我优化这段代码\")\nprint(f\"解决方案: {result}\")\n```\n> **核心特性**: Thinking + Answer 格式完美支持 ✅\n---\n**演示完成** - MarkdownStream 支持完整的 AI 交互格式！🎉\n\"\"\"\n    # 分步展示内容\n    parts = [",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "result",
+        "kind": 5,
+        "importPath": "tests.io.demo_mdstream",
+        "description": "tests.io.demo_mdstream",
+        "peekOfCode": "result = await agent.solve_problem(\"帮我优化这段代码\")\nprint(f\"解决方案: {result}\")\n```\n> **核心特性**: Thinking + Answer 格式完美支持 ✅\n---\n**演示完成** - MarkdownStream 支持完整的 AI 交互格式！🎉\n\"\"\"\n    # 分步展示内容\n    parts = [\n        \"► **ANSWER**\\n\\n<thinking>\",",
+        "detail": "tests.io.demo_mdstream",
+        "documentation": {}
+    },
+    {
         "label": "TestDisplayUserInput",
         "kind": 6,
         "importPath": "tests.io.test_io",
         "description": "tests.io.test_io",
         "peekOfCode": "class TestDisplayUserInput(unittest.TestCase):\n    def test_display_with_pretty_and_color(self):\n        \"\"\"Demonstrates display_user_input with pretty=True and a color.\"\"\"\n        print(f\"\\n--- Running: {self.test_display_with_pretty_and_color.__doc__} ---\")\n        color_settings = ColorSettings(user_input_color=\"#123456\")\n        io = InputOutput(pretty=True, color_settings=color_settings)\n        # The console needs to support colors for this test.\n        # It will print directly to the terminal.\n        io.console = Console(force_terminal=True, color_system=\"truecolor\")\n        io.display_user_input(\"This is a colored test input.\")",
         "detail": "tests.io.test_io",
+        "documentation": {}
+    },
+    {
+        "label": "TestMarkdownStream",
+        "kind": 6,
+        "importPath": "tests.io.test_mdstream",
+        "description": "tests.io.test_mdstream",
+        "peekOfCode": "class TestMarkdownStream:\n    \"\"\"MarkdownStream 测试类\"\"\"\n    def setup_method(self):\n        \"\"\"每个测试方法的设置\"\"\"\n        self.mdstream = MarkdownStream()\n    def teardown_method(self):\n        \"\"\"每个测试方法的清理\"\"\"\n        if self.mdstream and self.mdstream.live:\n            self.mdstream.live.stop()\n    def test_basic_markdown_rendering(self):",
+        "detail": "tests.io.test_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "hello",
+        "kind": 2,
+        "importPath": "tests.io.test_mdstream",
+        "description": "tests.io.test_mdstream",
+        "peekOfCode": "def hello():\n    print(\"Hello, World!\")\n```\n**粗体文本** 和 *斜体文本*\n\"\"\"\n        # 模拟控制台输出\n        with patch('siada.io.components.mdstream.Live') as mock_live:\n            mock_live_instance = MagicMock()\n            mock_live.return_value = mock_live_instance\n            # 测试更新",
+        "detail": "tests.io.test_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "greet_user",
+        "kind": 2,
+        "importPath": "tests.io.test_mdstream",
+        "description": "tests.io.test_mdstream",
+        "peekOfCode": "def greet_user():\n    return \"你好，欢迎使用 Siada!\"\n```\n> **提示**: 完整格式内容测试 ✅\n\"\"\"\n        with patch('siada.io.components.mdstream.Live') as mock_live:\n            mock_live_instance = MagicMock()\n            mock_live.return_value = mock_live_instance\n            # 测试完整格式内容的渲染\n            self.mdstream.update(full_content, final=True)",
+        "detail": "tests.io.test_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "multilingual_greeting",
+        "kind": 2,
+        "importPath": "tests.io.test_mdstream",
+        "description": "tests.io.test_mdstream",
+        "peekOfCode": "def multilingual_greeting():\n    greetings = {\n        \"中文\": \"你好世界！\",\n        \"English\": \"Hello World!\",\n        \"日本語\": \"こんにちは世界！\"\n    }\n    for lang, text in greetings.items():\n        print(f\"{lang}: {text}\")\n# 测试函数\nmultilingual_greeting()",
+        "detail": "tests.io.test_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "test_markdown_stream_integration",
+        "kind": 2,
+        "importPath": "tests.io.test_mdstream",
+        "description": "tests.io.test_mdstream",
+        "peekOfCode": "def test_markdown_stream_integration():\n    \"\"\"集成测试：模拟真实使用场景\"\"\"\n    # 模拟流式接收 AI 响应的场景\n    ai_response_chunks = [\n        \"# AI 助手回复\\n\\n\",\n        \"我来帮您解决这个问题。\\n\\n\",\n        \"## 解决方案\\n\\n\",\n        \"1. 首先，我们需要分析问题\\n\",\n        \"2. 然后制定解决策略\\n\",\n        \"3. 最后实施解决方案\\n\\n\",",
+        "detail": "tests.io.test_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "demo",
+        "kind": 2,
+        "importPath": "tests.io.test_mdstream",
+        "description": "tests.io.test_mdstream",
+        "peekOfCode": "def demo():\n    stream = MarkdownStream()\n    stream.update(\"# Hello World\")\n    stream.update(\"# Hello World\\n\\n更多内容...\")\n    stream.update(final_content, final=True)\n```\n## 结束\n演示完成！\n\"\"\"\n    # 模拟逐步更新",
+        "detail": "tests.io.test_mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "DataModel",
+        "kind": 6,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "class DataModel:\n    \"\"\"数据模型类\"\"\"\n    name: str\n    value: int\n    metadata: Optional[Dict[str, Any]] = None\nclass BaseProcessor(ABC):\n    \"\"\"抽象基类\"\"\"\n    @abstractmethod\n    async def process(self, data: DataModel) -> Dict[str, Any]:\n        \"\"\"抽象方法\"\"\"",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "BaseProcessor",
+        "kind": 6,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "class BaseProcessor(ABC):\n    \"\"\"抽象基类\"\"\"\n    @abstractmethod\n    async def process(self, data: DataModel) -> Dict[str, Any]:\n        \"\"\"抽象方法\"\"\"\n        pass\n    @abstractmethod\n    def validate(self, data: Any) -> bool:\n        \"\"\"验证方法\"\"\"\n        pass",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "DataAnalyzer",
+        "kind": 6,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "class DataAnalyzer:\n    \"\"\"数据分析器类\"\"\"\n    def __init__(self, config: Dict[str, Any]):\n        self.config = config\n        self.logger = self._setup_logger()\n        self._cache = {}\n    def complex_data_processing_method(self, dataset: List[Dict], filters: Dict, \n                                     aggregations: List[str], \n                                     transformations: Optional[Dict] = None) -> Dict:\n        \"\"\"",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "MLModelTrainer",
+        "kind": 6,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "class MLModelTrainer:\n    \"\"\"机器学习模型训练器\"\"\"\n    def __init__(self, model_config: Dict[str, Any]):\n        self.model_config = model_config\n        self.logger = self._create_logger()\n        self.model_save_path = \"models/best_model.pkl\"\n    def train_complex_model(self, training_data: np.ndarray, labels: np.ndarray,\n                          validation_data: Optional[np.ndarray] = None,\n                          validation_labels: Optional[np.ndarray] = None,\n                          hyperparameters: Dict = None,",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "WebCrawler",
+        "kind": 6,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "class WebCrawler:\n    \"\"\"网络爬虫类\"\"\"\n    def __init__(self, config: Dict[str, Any]):\n        self.config = config\n        self.logger = self._setup_logger()\n    async def crawl_website_comprehensive(self, base_url: str, max_pages: int = 100,\n                                        crawl_rules: Dict = None,\n                                        rate_limit: float = 1.0,\n                                        retry_config: Dict = None) -> Dict:\n        \"\"\"",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "FileProcessor",
+        "kind": 6,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "class FileProcessor:\n    \"\"\"文件处理器类\"\"\"\n    def __init__(self, config: Dict[str, Any]):\n        self.config = config\n        self.logger = self._setup_logger()\n    def process_large_file_batch(self, file_paths: List[str], \n                               processing_config: Dict,\n                               output_directory: str,\n                               parallel_workers: int = 4) -> Dict:\n        \"\"\"",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "generator_function",
+        "kind": 2,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "def generator_function(items: List[Any]):\n    \"\"\"生成器函数\"\"\"\n    for item in items:\n        yield item * 2\nasync def async_main():\n    \"\"\"异步主函数\"\"\"\n    analyzer = DataAnalyzer({\"debug\": True})\n    data = [{\"name\": \"test\", \"value\": 42}]\n    result = analyzer.complex_data_processing_method(\n        data, {\"name\": \"test\"}, [\"count\", \"sum\"]",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "utility_function",
+        "kind": 2,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "def utility_function(x: int, y: int = 10) -> int:\n    \"\"\"工具函数\"\"\"\n    def inner_function(a: int) -> int:\n        \"\"\"内嵌函数\"\"\"\n        return a * 2\n    return inner_function(x) + y\n# 全局变量\nGLOBAL_CONFIG = {\n    \"version\": \"1.0.0\",\n    \"debug\": False",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "GLOBAL_CONFIG",
+        "kind": 5,
+        "importPath": "tests.services.test_data.complex_python_file",
+        "description": "tests.services.test_data.complex_python_file",
+        "peekOfCode": "GLOBAL_CONFIG = {\n    \"version\": \"1.0.0\",\n    \"debug\": False\n}\nif __name__ == \"__main__\":\n    # 主程序入口\n    result = asyncio.run(async_main())\n    print(f\"Result: {result}\")",
+        "detail": "tests.services.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "tests.services.run_codegen_by_runner",
+        "description": "tests.services.run_codegen_by_runner",
+        "peekOfCode": "def main():\n    \"\"\"Main function to run the codegen test.\"\"\"\n    asyncio.run(run_codegen())\nif __name__ == \"__main__\":\n    main()",
+        "detail": "tests.services.run_codegen_by_runner",
         "documentation": {}
     },
     {
@@ -8661,6 +9134,285 @@
         "description": "tests.swe.test_dataset",
         "peekOfCode": "class TestDatasetDownload(IsolatedAsyncioTestCase):\n    def test_download_swe_bench_dataset(self):\n        from benchmark.swe import load_hugginface_swe_bench_dataset\n        dataset = load_hugginface_swe_bench_dataset(\"princeton-nlp/SWE-bench_Lite\", \"test\")\n        print(dataset)",
         "detail": "tests.swe.test_dataset",
+        "documentation": {}
+    },
+    {
+        "label": "DataModel",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "class DataModel:\n    \"\"\"数据模型类\"\"\"\n    name: str\n    value: int\n    metadata: Optional[Dict[str, Any]] = None\nclass BaseProcessor(ABC):\n    \"\"\"抽象基类\"\"\"\n    @abstractmethod\n    async def process(self, data: DataModel) -> Dict[str, Any]:\n        \"\"\"抽象方法\"\"\"",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "BaseProcessor",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "class BaseProcessor(ABC):\n    \"\"\"抽象基类\"\"\"\n    @abstractmethod\n    async def process(self, data: DataModel) -> Dict[str, Any]:\n        \"\"\"抽象方法\"\"\"\n        pass\n    @abstractmethod\n    def validate(self, data: Any) -> bool:\n        \"\"\"验证方法\"\"\"\n        pass",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "DataAnalyzer",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "class DataAnalyzer:\n    \"\"\"数据分析器类\"\"\"\n    def __init__(self, config: Dict[str, Any]):\n        self.config = config\n        self.logger = self._setup_logger()\n        self._cache = {}\n    def complex_data_processing_method(self, dataset: List[Dict], filters: Dict, \n                                     aggregations: List[str], \n                                     transformations: Optional[Dict] = None) -> Dict:\n        \"\"\"",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "MLModelTrainer",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "class MLModelTrainer:\n    \"\"\"机器学习模型训练器\"\"\"\n    def __init__(self, model_config: Dict[str, Any]):\n        self.model_config = model_config\n        self.logger = self._create_logger()\n        self.model_save_path = \"models/best_model.pkl\"\n    def train_complex_model(self, training_data: np.ndarray, labels: np.ndarray,\n                          validation_data: Optional[np.ndarray] = None,\n                          validation_labels: Optional[np.ndarray] = None,\n                          hyperparameters: Dict = None,",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "WebCrawler",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "class WebCrawler:\n    \"\"\"网络爬虫类\"\"\"\n    def __init__(self, config: Dict[str, Any]):\n        self.config = config\n        self.logger = self._setup_logger()\n    async def crawl_website_comprehensive(self, base_url: str, max_pages: int = 100,\n                                        crawl_rules: Dict = None,\n                                        rate_limit: float = 1.0,\n                                        retry_config: Dict = None) -> Dict:\n        \"\"\"",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "FileProcessor",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "class FileProcessor:\n    \"\"\"文件处理器类\"\"\"\n    def __init__(self, config: Dict[str, Any]):\n        self.config = config\n        self.logger = self._setup_logger()\n    def process_large_file_batch(self, file_paths: List[str], \n                               processing_config: Dict,\n                               output_directory: str,\n                               parallel_workers: int = 4) -> Dict:\n        \"\"\"",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "generator_function",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "def generator_function(items: List[Any]):\n    \"\"\"生成器函数\"\"\"\n    for item in items:\n        yield item * 2\nasync def async_main():\n    \"\"\"异步主函数\"\"\"\n    analyzer = DataAnalyzer({\"debug\": True})\n    data = [{\"name\": \"test\", \"value\": 42}]\n    result = analyzer.complex_data_processing_method(\n        data, {\"name\": \"test\"}, [\"count\", \"sum\"]",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "utility_function",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "def utility_function(x: int, y: int = 10) -> int:\n    \"\"\"工具函数\"\"\"\n    def inner_function(a: int) -> int:\n        \"\"\"内嵌函数\"\"\"\n        return a * 2\n    return inner_function(x) + y\n# 全局变量\nGLOBAL_CONFIG = {\n    \"version\": \"1.0.0\",\n    \"debug\": False",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "GLOBAL_CONFIG",
+        "kind": 5,
+        "importPath": "tests.tools.ast.test_data.complex_python_file",
+        "description": "tests.tools.ast.test_data.complex_python_file",
+        "peekOfCode": "GLOBAL_CONFIG = {\n    \"version\": \"1.0.0\",\n    \"debug\": False\n}\nif __name__ == \"__main__\":\n    # 主程序入口\n    result = asyncio.run(async_main())\n    print(f\"Result: {result}\")",
+        "detail": "tests.tools.ast.test_data.complex_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "SimpleClass",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_data.simple_python_file",
+        "description": "tests.tools.ast.test_data.simple_python_file",
+        "peekOfCode": "class SimpleClass:\n    \"\"\"简单类\"\"\"\n    def __init__(self, value):\n        self.value = value\n    def get_value(self):\n        \"\"\"获取值\"\"\"\n        return self.value\n    def set_value(self, value):\n        \"\"\"设置值\"\"\"\n        self.value = value",
+        "detail": "tests.tools.ast.test_data.simple_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "simple_function",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_data.simple_python_file",
+        "description": "tests.tools.ast.test_data.simple_python_file",
+        "peekOfCode": "def simple_function(x, y):\n    \"\"\"简单函数\"\"\"\n    return x + y\nclass SimpleClass:\n    \"\"\"简单类\"\"\"\n    def __init__(self, value):\n        self.value = value\n    def get_value(self):\n        \"\"\"获取值\"\"\"\n        return self.value",
+        "detail": "tests.tools.ast.test_data.simple_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "another_function",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_data.simple_python_file",
+        "description": "tests.tools.ast.test_data.simple_python_file",
+        "peekOfCode": "def another_function():\n    \"\"\"另一个函数\"\"\"\n    pass",
+        "detail": "tests.tools.ast.test_data.simple_python_file",
+        "documentation": {}
+    },
+    {
+        "label": "TestListCodeDefinitionNames",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "class TestListCodeDefinitionNames:\n    \"\"\"测试 _list_code_definition_names 方法的完整功能\"\"\"\n    @pytest.fixture\n    def test_data_dir(self):\n        \"\"\"获取测试数据目录路径\"\"\"\n        current_file = Path(__file__)\n        return current_file.parent / \"test_data\"\n    @pytest.fixture\n    def temp_dir(self):\n        \"\"\"创建临时测试目录\"\"\"",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "Class_{i}",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "class Class_{i}:\n    '''Class number {i}'''\n    def __init__(self):\n        self.value = {i}\n    def get_value(self):\n        return self.value\n\"\"\"\n        large_file = os.path.join(temp_dir, \"large_file.py\")\n        with open(large_file, 'w', encoding='utf-8') as f:\n            f.write(large_file_content)",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "中文类名",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "class 中文类名:\n    '''包含中文的类'''\n    pass\n\"\"\"\n        with open(special_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        result = _list_code_definition_names(special_file)\n        # 验证特殊字符文件名能被正确处理\n        assert f\"File: {special_filename}\" in result\n        # 验证中文定义能被识别",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "ValidClass",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "class ValidClass:\n    def method(self):\n        return \"valid\"\n# 语法错误：缩进错误\nclass InvalidClass:\ndef method(self):\n    return \"invalid\"\n\"\"\"\n        with open(syntax_error_file, 'w', encoding='utf-8') as f:\n            f.write(content)",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "InvalidClass",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "class InvalidClass:\ndef method(self):\n    return \"invalid\"\n\"\"\"\n        with open(syntax_error_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        result = _list_code_definition_names(syntax_error_file)\n        # 验证即使有语法错误，仍能处理有效部分\n        assert \"File: syntax_error.py\" in result\n        # tree-sitter通常能容忍一些语法错误，所以可能仍能找到一些定义",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "日本語クラス",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "class 日本語クラス:\n    '''日语类名'''\n    def メソッド(self):\n        return \"こんにちは世界\"\ndef emoji_function_🎉():\n    '''包含emoji的函数名'''\n    return \"🎊 Party! 🎊\"\n\"\"\"\n        with open(unicode_file, 'w', encoding='utf-8') as f:\n            f.write(content)",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "TestClass",
+        "kind": 6,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "class TestClass:\n    def method(self):\n        pass\n\"\"\"\n        with open(simple_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        # 模拟to_tree返回空字符串的情况\n        with patch('siada.tools.ast.ast_tool.to_tree', return_value=\"\"):\n            result = _list_code_definition_names(simple_file)\n            # 验证回退到简单列表格式",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "function_{i}",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def function_{i}():\n    '''Function number {i}'''\n    return {i}\nclass Class_{i}:\n    '''Class number {i}'''\n    def __init__(self):\n        self.value = {i}\n    def get_value(self):\n        return self.value\n\"\"\"",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "中文函数名",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def 中文函数名():\n    '''包含中文的函数'''\n    return \"测试\"\nclass 中文类名:\n    '''包含中文的类'''\n    pass\n\"\"\"\n        with open(special_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        result = _list_code_definition_names(special_file)",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "valid_function",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def valid_function():\n    return \"valid\"\n# 语法错误：缺少冒号\ndef invalid_function()\n    return \"invalid\"\nclass ValidClass:\n    def method(self):\n        return \"valid\"\n# 语法错误：缩进错误\nclass InvalidClass:",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "invalid_function",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def invalid_function()\n    return \"invalid\"\nclass ValidClass:\n    def method(self):\n        return \"valid\"\n# 语法错误：缩进错误\nclass InvalidClass:\ndef method(self):\n    return \"invalid\"\n\"\"\"",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "method",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def method(self):\n    return \"invalid\"\n\"\"\"\n        with open(syntax_error_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        result = _list_code_definition_names(syntax_error_file)\n        # 验证即使有语法错误，仍能处理有效部分\n        assert \"File: syntax_error.py\" in result\n        # tree-sitter通常能容忍一些语法错误，所以可能仍能找到一些定义\n        print(f\"✓ 语法错误文件处理完成\")",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "функция_на_русском",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def функция_на_русском():\n    '''俄语函数名'''\n    return \"Привет мир\"\ndef función_en_español():\n    '''西班牙语函数名'''\n    return \"Hola mundo\"\nclass 日本語クラス:\n    '''日语类名'''\n    def メソッド(self):\n        return \"こんにちは世界\"",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "función_en_español",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def función_en_español():\n    '''西班牙语函数名'''\n    return \"Hola mundo\"\nclass 日本語クラス:\n    '''日语类名'''\n    def メソッド(self):\n        return \"こんにちは世界\"\ndef emoji_function_🎉():\n    '''包含emoji的函数名'''\n    return \"🎊 Party! 🎊\"",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "emoji_function_🎉",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def emoji_function_🎉():\n    '''包含emoji的函数名'''\n    return \"🎊 Party! 🎊\"\n\"\"\"\n        with open(unicode_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        result = _list_code_definition_names(unicode_file)\n        # 验证Unicode内容能被正确处理\n        assert \"File: unicode_test.py\" in result\n        # 验证能识别Unicode函数名（如果tree-sitter支持）",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "test_function",
+        "kind": 2,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "def test_function():\n    pass\nclass TestClass:\n    def method(self):\n        pass\n\"\"\"\n        with open(simple_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        # 模拟to_tree返回空字符串的情况\n        with patch('siada.tools.ast.ast_tool.to_tree', return_value=\"\"):",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "x",
+        "kind": 5,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "x = 1\ny = \"hello\"\nz = [1, 2, 3]\n# 更多注释\n\"\"\"\n        with open(no_def_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        result = _list_code_definition_names(no_def_file)\n        # 验证文件被正确处理（tree-sitter可能将变量赋值识别为定义）\n        assert \"File: no_definitions.py\" in result",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "y",
+        "kind": 5,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "y = \"hello\"\nz = [1, 2, 3]\n# 更多注释\n\"\"\"\n        with open(no_def_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        result = _list_code_definition_names(no_def_file)\n        # 验证文件被正确处理（tree-sitter可能将变量赋值识别为定义）\n        assert \"File: no_definitions.py\" in result\n        assert \"Definitions:\" in result",
+        "detail": "tests.tools.ast.test_ast_tool",
+        "documentation": {}
+    },
+    {
+        "label": "z",
+        "kind": 5,
+        "importPath": "tests.tools.ast.test_ast_tool",
+        "description": "tests.tools.ast.test_ast_tool",
+        "peekOfCode": "z = [1, 2, 3]\n# 更多注释\n\"\"\"\n        with open(no_def_file, 'w', encoding='utf-8') as f:\n            f.write(content)\n        result = _list_code_definition_names(no_def_file)\n        # 验证文件被正确处理（tree-sitter可能将变量赋值识别为定义）\n        assert \"File: no_definitions.py\" in result\n        assert \"Definitions:\" in result\n        # 验证包含变量赋值（被tree-sitter识别为定义）",
+        "detail": "tests.tools.ast.test_ast_tool",
         "documentation": {}
     },
     {
@@ -9039,24 +9791,6 @@
         "description": "tests.test_logging",
         "peekOfCode": "class TestLogging(unittest.TestCase):\n    @classmethod\n    def setUpClass(cls):\n        # 确保日志在PyCharm测试环境中显示\n        # 添加一个专门的处理器将日志输出到stderr\n        test_handler = logging.StreamHandler(sys.stderr)\n        test_handler.setLevel(logging.INFO)\n        test_formatter = logging.Formatter('%(message)s')\n        test_handler.setFormatter(test_formatter)\n        logger.addHandler(test_handler)",
         "detail": "tests.test_logging",
-        "documentation": {}
-    },
-    {
-        "label": "demo_new_colors",
-        "kind": 2,
-        "importPath": "color_demo",
-        "description": "color_demo",
-        "peekOfCode": "def demo_new_colors():\n    \"\"\"演示新的工具颜色配置\"\"\"\n    print(\"=== 新增颜色配置演示 ===\\n\")\n    # 获取所有主题\n    themes = ColorSettings.get_available_themes()\n    for theme_name in themes:\n        print(f\"--- {theme_name.upper()} 主题 ---\")\n        # 创建主题配置\n        color_config = ColorSettings.from_theme(theme_name)\n        # 显示新增的颜色配置",
-        "detail": "color_demo",
-        "documentation": {}
-    },
-    {
-        "label": "demo_color_application",
-        "kind": 2,
-        "importPath": "color_demo",
-        "description": "color_demo",
-        "peekOfCode": "def demo_color_application():\n    \"\"\"演示颜色应用到参数对象\"\"\"\n    print(\"\\n=== 参数应用演示 ===\")\n    class MockArgs:\n        \"\"\"模拟参数对象\"\"\"\n        def __init__(self):\n            self.tool_call_color = None\n            self.tool_result_color = None\n    # 应用深色主题\n    args = MockArgs()",
-        "detail": "color_demo",
         "documentation": {}
     }
 ]

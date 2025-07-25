@@ -53,7 +53,6 @@ def get_parser(default_config_files, git_root):
         default=None,
         help="Specify the model to use for the main chat",
     )
-
     # Add agent selection argument
     group.add_argument(
         "--agent",
@@ -324,7 +323,6 @@ def get_parser(default_config_files, git_root):
         ),
     )
 
-
     group.add_argument(
         "--editor",
         help="Specify which editor to use for the /editor command",
@@ -337,7 +335,7 @@ def get_parser(default_config_files, git_root):
         choices=supported_shells_list,
         help=(
             "Print shell completion script for the specified SHELL and exit. Supported shells:"
-            f" {', '.join(supported_shells_list)}. Example: aider --shell-completions bash"
+            f" {', '.join(supported_shells_list)}. Example: siadahub --shell-completions bash"
         ),
     )
 

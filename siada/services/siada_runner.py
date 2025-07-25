@@ -61,6 +61,8 @@ class SiadaRunner:
         context = await agent.get_context()
         if workspace:
             context.root_dir = workspace
+        if session:
+            context.session = session
 
         set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
 

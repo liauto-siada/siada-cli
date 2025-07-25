@@ -54,4 +54,12 @@ class ConsolePrinter:
 
     def output(self, *messages, bold: bool = False):
         """Prints standard tool output."""
-        self.print_messages(*messages, color_name='output', bold=bold) 
+        self.print_messages(*messages, color_name='output', bold=bold)
+
+    def result(self, *messages):
+        """Prints tool result messages."""
+        self.print_messages(*messages, color_name='result')
+
+    def call(self, *messages):
+        """Prints tool call messages."""
+        self.print_messages(*messages, color_name='call') 

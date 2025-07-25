@@ -1,12 +1,13 @@
 import inspect
+import siada.session.session_models
 import sys
 
+import litellm
 from prompt_toolkit.completion import Completion, PathCompleter
 from prompt_toolkit.document import Document
 
 import siada.io.io
-from siada.models.model_setting import ModelConfig
-from siada.provider.lazy_lite_llm import litellm
+from siada.models.model_setting import ModelRunConfig
 from siada.support.editor import pipe_editor
 from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
 
@@ -43,7 +44,7 @@ class SlashCommands:
             self.io.print_info("No model name provided")
             return
 
-        model = ModelConfig(model_name)
+        model = ModelRunConfig(model_name)
         return SwitchEvent(model=model)
 
     def cmd_agent(self, args):
@@ -259,13 +260,13 @@ class SlashCommands:
         for completion in sorted_completions:
             yield completion
 
-    def cmd_run(self, args, add_on_nonzero_exit=False):
+    def cmd_run(self, session, args, add_on_nonzero_exit=False):
         "Run a shell command (alias: !)"
         exit_status, combined_output = run_cmd(
             args,
             verbose=self.verbose,
             error_print=self.io.print_error,
-            cwd=self.session.interaction_config.workspace,
+            cwd=session.interaction_config.workspace,
         )
         return combined_output
 
@@ -291,7 +292,7 @@ class SlashCommands:
             else:
                 self.io.print_info(f"{cmd} No description available.")
         self.io.print_info()
-        self.io.print_info("Use `/help <question>` to ask questions about how to use aider.")
+        self.io.print_info("Use `/help <question>` to ask questions about how to use siadahub.")
 
     def get_help_md(self):
         "Show help about all commands in markdown"

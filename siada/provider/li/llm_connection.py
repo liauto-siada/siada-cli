@@ -10,6 +10,7 @@ from siada.foundation.logging import logger
 from siada.provider.li.domian.li_chat_complete_chunk import LiChatCompletionChunk
 from siada.provider.li.stream.__stream import AsyncStream
 
+
 class SiadaClient:
     """连接Siada LLM服务的客户端类"""
 
@@ -48,6 +49,7 @@ class SiadaClient:
 
     @classmethod
     def get_async_client(cls) -> httpx.AsyncClient:
+        """获取单例AsyncClient，现在可以安全使用因为有了专用事件循环"""
         if cls._async_client is None:
             cls._async_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(
@@ -232,18 +234,35 @@ class SiadaClient:
         # 使用httpx直接发送请求，避免OpenAI客户端的封装可能造成的问题
         async_client = self.get_async_client()
 
-        # 发送请求
-        response = await async_client.post(
+        # 发送真正的流式请求
+        headers = self.get_header()
+        headers.update({
+            "Accept": "text/event-stream",
+            "Cache-Control": "no-cache",
+        })
+        
+        # 使用正确的流式请求方式
+        request = async_client.build_request(
+            'POST',
             "http://li-mate-codegen.lixiang.com/llmproxy/callLLMStream",
-            headers=self.get_header(),
+            headers=headers,
             json=llm_request_body,
-            timeout=None  # 使用客户端默认超时
+            timeout=None,
         )
-
+        
+        response = await async_client.send(request, stream=True)
+        
         # 检查状态码
         if response.status_code != httpx.codes.OK:
-            error_msg = f"request failed: HTTP {response.status_code} - {response.text}"
+            error_msg = f"request failed: HTTP {response.status_code}"
             logger.error(error_msg)
+            # 需要手动读取错误响应内容
+            try:
+                error_content = await response.aread()
+                logger.error(f"Error content: {error_content.decode()}")
+            except Exception:
+                pass
+            await response.aclose()
             raise Exception(error_msg)
 
         # 创建AsyncStream处理响应
