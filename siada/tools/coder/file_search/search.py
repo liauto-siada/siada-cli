@@ -14,6 +14,8 @@ from typing import List, Optional
 
 from agents import function_tool
 
+from siada.tools.coder.observation.observation import FunctionCallResult
+
 # Try to import importlib.resources for packaged environments
 try:
     from importlib import resources
@@ -33,6 +35,29 @@ class SearchResult:
     match: str
     before_context: List[str]
     after_context: List[str]
+
+
+class RipgrepSearchResult(FunctionCallResult):
+    """Represents a single search result with context."""
+    search_results: List[SearchResult]
+    cwd: str
+
+    def __init__(self, search_results: List[SearchResult], cwd: str):
+        self.search_results = search_results
+        self.cwd = cwd
+
+    def format_for_display(self):
+        if self.search_results:
+            match_term = "match" if len(self.search_results) == 1 else "matches"
+            return f"Found {len(self.search_results)} {match_term}."
+        else:
+            return "No results found"
+
+    def __str__(self):
+        if self.search_results:
+            return RipgrepSearcher.format_results(self.search_results, self.cwd)
+        else:
+            return "No results found"
 
 
 class RipgrepSearcher:
@@ -246,7 +271,7 @@ class RipgrepSearcher:
         regex: str, 
         file_pattern: str = "*",
         cwd: Optional[str] = None
-    ) -> str:
+    ) -> RipgrepSearchResult:
         """
         Perform regex search in files and return formatted results.
         
@@ -276,22 +301,20 @@ class RipgrepSearcher:
             
             results = self._parse_ripgrep_output(output)
             
-            if not results:
-                return "No results found"
-            
-            return self._format_results(results, cwd or os.getcwd())
-            
+            return RipgrepSearchResult(results, cwd or os.getcwd())
+        
         except Exception:
-            return "No results found"
+            return RipgrepSearchResult([], cwd or os.getcwd())
     
-    def _format_results(self, results: List[SearchResult], cwd: str) -> str:
+    @staticmethod
+    def format_results(results: List[SearchResult], cwd: str) -> str:
         """
         Format search results into readable string output.
         Mimics the original TypeScript formatting.
         """
         grouped_results = {}
         
-        for result in results[:self.MAX_RESULTS]:
+        for result in results[:RipgrepSearcher.MAX_RESULTS]:
             try:
                 relative_path = os.path.relpath(result.file_path, cwd)
             except ValueError:
@@ -307,8 +330,8 @@ class RipgrepSearcher:
         output_lines = []
         
         total_results = len(results)
-        if total_results >= self.MAX_RESULTS:
-            output_lines.append(f"Showing first {self.MAX_RESULTS} of {self.MAX_RESULTS}+ results. Use a more specific search if necessary.")
+        if total_results >= RipgrepSearcher.MAX_RESULTS:
+            output_lines.append(f"Showing first {RipgrepSearcher.MAX_RESULTS} of {RipgrepSearcher.MAX_RESULTS}+ results. Use a more specific search if necessary.")
         else:
             result_word = "result" if total_results == 1 else "results"
             output_lines.append(f"Found {total_results:,} {result_word}.")

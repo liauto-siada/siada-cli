@@ -96,7 +96,7 @@ def main():
 
     loaded_dotenvs = load_dotenv_files(git_root, args.env_file, args.encoding)
 
-    args = parser.parse_args(argv)
+    args , _= parser.parse_known_args(argv)
 
     if args.shell_completions:
         parser.prog = "siadahub"

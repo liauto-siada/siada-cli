@@ -129,4 +129,4 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
 
     except (pexpect.ExceptionPexpect, TypeError, ValueError) as e:
         error_msg = f"Error running command {command}: {e}"
-        return 1, error_msgs
+        return 1, error_msg

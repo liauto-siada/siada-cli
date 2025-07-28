@@ -1,6 +1,6 @@
 from agents import function_tool, RunContextWrapper
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.tools.coder.observation.observation import Observation
+from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.tools.coder.observation.file_observation import FileReadObservation
 
 
@@ -11,7 +11,7 @@ from siada.tools.coder.observation.file_observation import FileReadObservation
 async def fix_attempt_completion(
     context: RunContextWrapper[CodeAgentContext],
     result: str,
-) -> Observation:
+) -> FunctionCallResult:
     """
     Complete the bug fix task and mark it as finished.
     

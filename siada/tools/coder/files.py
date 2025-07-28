@@ -3,7 +3,7 @@ from pathlib import Path
 
 from siada.tools.coder.observation.error import ErrorObservation
 from siada.tools.coder.observation.file_observation import FileReadObservation, FileWriteObservation
-from siada.tools.coder.observation.observation import Observation
+from siada.tools.coder.observation.observation import FunctionCallResult
 
 
 def resolve_path(
@@ -72,7 +72,7 @@ async def read_file(
     workspace_mount_path_in_sandbox: str,
     start: int = 0,
     end: int = -1,
-) -> Observation:
+) -> FunctionCallResult:
     try:
         whole_path = resolve_path(
             path, workdir, workspace_base, workspace_mount_path_in_sandbox
@@ -113,7 +113,7 @@ async def write_file(
     content: str,
     start: int = 0,
     end: int = -1,
-) -> Observation:
+) -> FunctionCallResult:
     insert = content.split('\n')
 
     try:

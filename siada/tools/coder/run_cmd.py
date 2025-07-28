@@ -2,6 +2,29 @@ from agents import function_tool, RunContextWrapper
 
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.tools.coder.cmd_runner import run_cmd_impl
+from siada.tools.coder.observation.observation import FunctionCallResult
+
+
+class RunCmdResult(FunctionCallResult):
+    """This data class represents the output of a command."""
+
+    def __init__(self, command: str, output: str, code: int):
+        self.command = command
+        self.output = output
+        self.code = code if code is not None else 1
+
+    def format_for_display(self) -> str:
+        if self.code == 0 and self.output:
+            return self.output
+        elif self.code == 0 and not self.output:
+            return f"Command exited with code: {self.code}"
+        elif self.code != 0 and self.output:
+            return f"Command failed: {self.output}"
+        else:
+            return f"Command failed with code: {self.code}"
+
+    def __str__(self):
+        return str(self.format_for_display())
 
 
 @function_tool
@@ -21,4 +44,5 @@ def run_cmd(context: RunContextWrapper[CodeAgentContext], command, verbose=False
             a single string argument. Defaults to None.
     """
     cwd = context.context.root_dir
-    return run_cmd_impl(command, verbose, cwd, error_print)
+    code, output = run_cmd_impl(command, verbose, cwd, error_print)
+    return RunCmdResult(command, output, code)

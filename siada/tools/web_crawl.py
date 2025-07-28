@@ -71,10 +71,10 @@ from urllib.parse import urlparse
 from agents import function_tool, RunContextWrapper
 
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.tools.coder.observation.observation import Observation
+from siada.tools.coder.observation.observation import FunctionCallResult
 
 
-class WebCrawlObservation(Observation):
+class WebCrawlObservation(FunctionCallResult):
     """Web crawling result observation"""
 
     def __init__(self, url: str, content: str, format: str, success: bool = True, error: str = None):

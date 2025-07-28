@@ -9,7 +9,8 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "--pretty"
+                "--pretty",
+                "--workspace", "/Users/zhangmeng20/vscodeProject/test"
             ]
         },
         {

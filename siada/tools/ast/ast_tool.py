@@ -14,12 +14,26 @@ from grep_ast import TreeContext, filename_to_lang
 from pygments.lexers import guess_lexer_for_filename
 from pygments.token import Token
 
+from siada.tools.coder.observation.observation import FunctionCallResult
+
 from .models import Tag
 
 # tree_sitter is throwing a FutureWarning
 warnings.simplefilter("ignore", category=FutureWarning)
 from grep_ast.tsl import USING_TSL_PACK, get_language, get_parser  # noqa: E402
 
+class ListCodeDefinitionNamesResult(FunctionCallResult):
+    """This data class represents the output of a list code definition names operation."""
+
+    def __init__(self, content: str):
+        self.content = content
+
+    def format_for_display(self):
+        return str(self)
+
+    def __str__(self):
+        return self.content
+    
 
 @function_tool(name_override="list_code_definition_names")
 def list_code_definition_names(file_name: str, rel_file_name: Optional[str] = None) -> str:
@@ -46,7 +60,8 @@ def list_code_definition_names(file_name: str, rel_file_name: Optional[str] = No
         - File summary with definition and reference counts
         - Hierarchical tree view of code definitions with context
     """
-    return _list_code_definition_names(file_name, rel_file_name)
+    content = _list_code_definition_names(file_name, rel_file_name)
+    return ListCodeDefinitionNamesResult(content)
 
 def get_scm_fname(lang: str) -> Optional[Path]:
     """

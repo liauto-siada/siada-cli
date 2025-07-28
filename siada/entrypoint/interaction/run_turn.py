@@ -170,6 +170,8 @@ class ConversationTurn(RunTurn):
     tool_call: str = None
     tool_call_output: str = None
     got_tool_call_arguments: bool = False
+    got_content_part: bool = False
+    got_reasoning_part: bool = False
     
     # Class-level dedicated event loop and thread, shared by all instances
     _dedicated_loop = None
@@ -272,33 +274,39 @@ class ConversationTurn(RunTurn):
                         self.tool_call = ""
                         self.tool_call_output = ""
                         self.got_tool_call_arguments = False
+                        self.got_content_part = False
+                        self.got_reasoning_part = False
 
                     elif isinstance(stream_data, ResponseReasoningSummaryPartAddedEvent):
-                        delta_text = f"\n{REASONING_START}\n\n"
-                        self.response_content += delta_text
-
-                        self._live_incremental_response(delta_text, self.response_content)
+                        continue
 
                     elif isinstance(stream_data, ResponseReasoningSummaryTextDeltaEvent):
-                        delta_text = stream_data.delta
-                        self.response_content += delta_text
+                        if not self.got_reasoning_part and stream_data.delta:
+                            self.got_reasoning_part = True
+                            delta_text = f"\n{REASONING_START}\n\n{stream_data.delta}"
+                            self.response_content += delta_text
+                        else:
+                            delta_text = stream_data.delta
+                            self.response_content += delta_text
                         self._live_incremental_response(delta_text, self.response_content)
 
                     elif isinstance(stream_data, ResponseContentPartAddedEvent):
-                        delta_text = f"\n\n{REASONING_END}\n\n"
-                        self.response_content += delta_text
-                        self._live_incremental_response(delta_text, self.response_content)
+                        continue
 
                     elif isinstance(stream_data, ResponseTextDeltaEvent):
-                        self.response_content += stream_data.delta
-                        self._live_incremental_response(
-                            stream_data.delta, self.response_content
-                        )
+                        if not self.got_content_part and stream_data.delta:
+                            self.got_content_part = True
+                            delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}" 
+                            self.response_content += delta_text
+                        else:
+                            delta_text = stream_data.delta
+                            self.response_content += delta_text
+                        self._live_incremental_response(delta_text, self.response_content)
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
                             self.tool_call = f"Siadahub wants to call the following function:  {stream_data.item.name}\n"
-                            self._live_incremental_response(self.tool_call, self.tool_call)
+                            self.config.io.print_tool_call(self.tool_call)
 
                     elif isinstance(stream_data, ResponseFunctionCallArgumentsDeltaEvent):
                         delta_text = ""
@@ -307,7 +315,7 @@ class ConversationTurn(RunTurn):
                             self.got_tool_call_arguments = True
                         else:
                             delta_text = stream_data.delta
-                        self._live_incremental_response(delta_text, self.tool_call)
+                        self.config.io.print_tool_call(delta_text)
 
                     # elif isinstance(stream_data, ResponseOutputItemDoneEvent):
                     #     if isinstance(stream_data.item, ResponseFunctionToolCall):
@@ -320,6 +328,8 @@ class ConversationTurn(RunTurn):
                         self.tool_call = None
                         self.tool_call_output = None
                         self.got_tool_call_arguments = False
+                        self.got_content_part = False
+                        self.got_reasoning_part = False
 
                 elif isinstance(event, RunItemStreamEvent):
                     stream_data = event.item

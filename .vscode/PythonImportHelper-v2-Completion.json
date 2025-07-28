@@ -5026,6 +5026,158 @@
         "documentation": {}
     },
     {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "ObservationType",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
         "label": "USING_TSL_PACK",
         "importPath": "grep_ast.tsl",
         "description": "grep_ast.tsl",
@@ -5119,134 +5271,6 @@
         "description": "siada.tools.coder.action.action",
         "isExtraImport": true,
         "detail": "siada.tools.coder.action.action",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "Observation",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "Observation",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "ObservationType",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "Observation",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "Observation",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "Observation",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "Observation",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
     {
@@ -6954,7 +6978,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    # Class-level dedicated event loop and thread, shared by all instances\n    _dedicated_loop = None\n    _dedicated_thread = None",
+        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    # Class-level dedicated event loop and thread, shared by all instances",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -6999,7 +7023,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    # Class-level dedicated event loop and thread, shared by all instances",
+        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7008,7 +7032,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    # Class-level dedicated event loop and thread, shared by all instances\n    _dedicated_loop = None",
+        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -8039,6 +8063,15 @@
         "documentation": {}
     },
     {
+        "label": "ListCodeDefinitionNamesResult",
+        "kind": 6,
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "peekOfCode": "class ListCodeDefinitionNamesResult(FunctionCallResult):\n    \"\"\"This data class represents the output of a list code definition names operation.\"\"\"\n    def __init__(self, content: str):\n        self.content = content\n    def format_for_display(self):\n        return str(self)\n    def __str__(self):\n        return self.content\n@function_tool(name_override=\"list_code_definition_names\")\ndef list_code_definition_names(file_name: str, rel_file_name: Optional[str] = None) -> str:",
+        "detail": "siada.tools.ast.ast_tool",
+        "documentation": {}
+    },
+    {
         "label": "list_code_definition_names",
         "kind": 2,
         "importPath": "siada.tools.ast.ast_tool",
@@ -8142,7 +8175,16 @@
         "kind": 6,
         "importPath": "siada.tools.coder.file_search.search",
         "description": "siada.tools.coder.file_search.search",
-        "peekOfCode": "class SearchResult:\n    \"\"\"Represents a single search result with context.\"\"\"\n    file_path: str\n    line: int\n    column: int\n    match: str\n    before_context: List[str]\n    after_context: List[str]\nclass RipgrepSearcher:\n    \"\"\"High-performance file search using ripgrep binary.\"\"\"",
+        "peekOfCode": "class SearchResult:\n    \"\"\"Represents a single search result with context.\"\"\"\n    file_path: str\n    line: int\n    column: int\n    match: str\n    before_context: List[str]\n    after_context: List[str]\nclass RipgrepSearchResult(FunctionCallResult):\n    \"\"\"Represents a single search result with context.\"\"\"",
+        "detail": "siada.tools.coder.file_search.search",
+        "documentation": {}
+    },
+    {
+        "label": "RipgrepSearchResult",
+        "kind": 6,
+        "importPath": "siada.tools.coder.file_search.search",
+        "description": "siada.tools.coder.file_search.search",
+        "peekOfCode": "class RipgrepSearchResult(FunctionCallResult):\n    \"\"\"Represents a single search result with context.\"\"\"\n    search_results: List[SearchResult]\n    cwd: str\n    def __init__(self, search_results: List[SearchResult], cwd: str):\n        self.search_results = search_results\n        self.cwd = cwd\n    def format_for_display(self):\n        if self.search_results:\n            match_term = \"match\" if len(self.search_results) == 1 else \"matches\"",
         "detail": "siada.tools.coder.file_search.search",
         "documentation": {}
     },
@@ -8286,7 +8328,7 @@
         "kind": 6,
         "importPath": "siada.tools.coder.observation.error",
         "description": "siada.tools.coder.observation.error",
-        "peekOfCode": "class ErrorObservation(Observation):\n    \"\"\"This data class represents an error encountered by the agent.\n    This is the type of error that LLM can recover from.\n    E.g., Linter error after editing a file.\n    \"\"\"\n    observation: str = 'error'\n    error_id: str = ''\n    @property\n    def message(self) -> str:\n        return self.content",
+        "peekOfCode": "class ErrorObservation(FunctionCallResult):\n    \"\"\"This data class represents an error encountered by the agent.\n    This is the type of error that LLM can recover from.\n    E.g., Linter error after editing a file.\n    \"\"\"\n    observation: str = 'error'\n    error_id: str = ''\n    @property\n    def message(self) -> str:\n        return self.content",
         "detail": "siada.tools.coder.observation.error",
         "documentation": {}
     },
@@ -8295,7 +8337,7 @@
         "kind": 6,
         "importPath": "siada.tools.coder.observation.file_observation",
         "description": "siada.tools.coder.observation.file_observation",
-        "peekOfCode": "class FileReadObservation(Observation):\n    \"\"\"This data class represents the content of a file.\"\"\"\n    path: str\n    observation: str = ObservationType.READ\n    impl_source: FileReadSource = FileReadSource.DEFAULT\n    @property\n    def message(self) -> str:\n        \"\"\"Get a human-readable message describing the file read operation.\"\"\"\n        return f'I read the file {self.path}.'\n    def __str__(self) -> str:",
+        "peekOfCode": "class FileReadObservation(FunctionCallResult):\n    \"\"\"This data class represents the content of a file.\"\"\"\n    path: str\n    observation: str = ObservationType.READ\n    impl_source: FileReadSource = FileReadSource.DEFAULT\n    @property\n    def message(self) -> str:\n        \"\"\"Get a human-readable message describing the file read operation.\"\"\"\n        return f'I read the file {self.path}.'\n    def __str__(self) -> str:",
         "detail": "siada.tools.coder.observation.file_observation",
         "documentation": {}
     },
@@ -8304,7 +8346,7 @@
         "kind": 6,
         "importPath": "siada.tools.coder.observation.file_observation",
         "description": "siada.tools.coder.observation.file_observation",
-        "peekOfCode": "class FileWriteObservation(Observation):\n    \"\"\"This data class represents a file write operation.\"\"\"\n    path: str\n    observation: str = ObservationType.WRITE\n    @property\n    def message(self) -> str:\n        \"\"\"Get a human-readable message describing the file write operation.\"\"\"\n        return f'I wrote to the file {self.path}.'\n    def __str__(self) -> str:\n        \"\"\"Get a string representation of the file write observation.\"\"\"",
+        "peekOfCode": "class FileWriteObservation(FunctionCallResult):\n    \"\"\"This data class represents a file write operation.\"\"\"\n    path: str\n    observation: str = ObservationType.WRITE\n    @property\n    def message(self) -> str:\n        \"\"\"Get a human-readable message describing the file write operation.\"\"\"\n        return f'I wrote to the file {self.path}.'\n    def format_for_display(self) -> str:\n        return self.message",
         "detail": "siada.tools.coder.observation.file_observation",
         "documentation": {}
     },
@@ -8313,7 +8355,7 @@
         "kind": 6,
         "importPath": "siada.tools.coder.observation.file_observation",
         "description": "siada.tools.coder.observation.file_observation",
-        "peekOfCode": "class FileEditObservation(Observation):\n    \"\"\"This data class represents a file edit operation.\n    The observation includes both the old and new content of the file, and can\n    generate a diff visualization showing the changes. The diff is computed lazily\n    and cached to improve performance.\n    The .content property can either be:\n      - Git diff in LLM-based editing mode\n      - the rendered message sent to the LLM in OH_ACI mode (e.g., \"The file /path/to/file.txt is created with the provided content.\")\n    \"\"\"\n    path: str = ''",
+        "peekOfCode": "class FileEditObservation(FunctionCallResult):\n    \"\"\"This data class represents a file edit operation.\n    The observation includes both the old and new content of the file, and can\n    generate a diff visualization showing the changes. The diff is computed lazily\n    and cached to improve performance.\n    The .content property can either be:\n      - Git diff in LLM-based editing mode\n      - the rendered message sent to the LLM in OH_ACI mode (e.g., \"The file /path/to/file.txt is created with the provided content.\")\n    \"\"\"\n    path: str = ''",
         "detail": "siada.tools.coder.observation.file_observation",
         "documentation": {}
     },
@@ -8331,7 +8373,7 @@
         "kind": 6,
         "importPath": "siada.tools.coder.observation.observation",
         "description": "siada.tools.coder.observation.observation",
-        "peekOfCode": "class FileReadSource(str, Enum):\n    OH_ACI = 'oh_aci'  # openhands-aci\n    DEFAULT = 'default'\nclass FileEditSource(str, Enum):\n    LLM_BASED_EDIT = 'llm_based_edit'\n    OH_ACI = 'oh_aci'  # openhands-aci\n@dataclass\nclass Observation:\n    content: str",
+        "peekOfCode": "class FileReadSource(str, Enum):\n    OH_ACI = 'oh_aci'  # openhands-aci\n    DEFAULT = 'default'\nclass FileEditSource(str, Enum):\n    LLM_BASED_EDIT = 'llm_based_edit'\n    OH_ACI = 'oh_aci'  # openhands-aci\n@dataclass\nclass FunctionCallResult:\n    content: str\n    def format_for_display(self) -> str:",
         "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
@@ -8340,16 +8382,16 @@
         "kind": 6,
         "importPath": "siada.tools.coder.observation.observation",
         "description": "siada.tools.coder.observation.observation",
-        "peekOfCode": "class FileEditSource(str, Enum):\n    LLM_BASED_EDIT = 'llm_based_edit'\n    OH_ACI = 'oh_aci'  # openhands-aci\n@dataclass\nclass Observation:\n    content: str",
+        "peekOfCode": "class FileEditSource(str, Enum):\n    LLM_BASED_EDIT = 'llm_based_edit'\n    OH_ACI = 'oh_aci'  # openhands-aci\n@dataclass\nclass FunctionCallResult:\n    content: str\n    def format_for_display(self) -> str:\n        return str(self)",
         "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
     {
-        "label": "Observation",
+        "label": "FunctionCallResult",
         "kind": 6,
         "importPath": "siada.tools.coder.observation.observation",
         "description": "siada.tools.coder.observation.observation",
-        "peekOfCode": "class Observation:\n    content: str",
+        "peekOfCode": "class FunctionCallResult:\n    content: str\n    def format_for_display(self) -> str:\n        return str(self)",
         "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
@@ -8633,6 +8675,15 @@
         "documentation": {}
     },
     {
+        "label": "RunCmdResult",
+        "kind": 6,
+        "importPath": "siada.tools.coder.run_cmd",
+        "description": "siada.tools.coder.run_cmd",
+        "peekOfCode": "class RunCmdResult(FunctionCallResult):\n    \"\"\"This data class represents the output of a command.\"\"\"\n    def __init__(self, command: str, output: str, code: int):\n        self.command = command\n        self.output = output\n        self.code = code if code is not None else 1\n    def format_for_display(self) -> str:\n        if self.code == 0 and self.output:\n            return self.output\n        elif self.code == 0 and not self.output:",
+        "detail": "siada.tools.coder.run_cmd",
+        "documentation": {}
+    },
+    {
         "label": "run_cmd",
         "kind": 2,
         "importPath": "siada.tools.coder.run_cmd",
@@ -8646,7 +8697,7 @@
         "kind": 6,
         "importPath": "siada.tools.web_crawl",
         "description": "siada.tools.web_crawl",
-        "peekOfCode": "class WebCrawlObservation(Observation):\n    \"\"\"Web crawling result observation\"\"\"\n    def __init__(self, url: str, content: str, format: str, success: bool = True, error: str = None):\n        self.url = url\n        self.content = content\n        self.format = format\n        self.success = success\n        self.error = error\n    def __str__(self) -> str:\n        if not self.success:",
+        "peekOfCode": "class WebCrawlObservation(FunctionCallResult):\n    \"\"\"Web crawling result observation\"\"\"\n    def __init__(self, url: str, content: str, format: str, success: bool = True, error: str = None):\n        self.url = url\n        self.content = content\n        self.format = format\n        self.success = success\n        self.error = error\n    def __str__(self) -> str:\n        if not self.success:",
         "detail": "siada.tools.web_crawl",
         "documentation": {}
     },

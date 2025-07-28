@@ -63,5 +63,8 @@ class FileEditSource(str, Enum):
     OH_ACI = 'oh_aci'  # openhands-aci
 
 @dataclass
-class Observation:
+class FunctionCallResult:
     content: str
+
+    def format_for_display(self) -> str:
+        return str(self)
