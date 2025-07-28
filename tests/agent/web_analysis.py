@@ -10,7 +10,7 @@ from agents import RunContextWrapper, RunResult, RunResultStreaming, Runner, Run
 
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
-from siada.tools.web_crawl import web_crawl
+from siada.tools.web import web_crawl
 from siada.foundation.config import settings
 from siada.provider.li.li_provider import SiadaProvider
 from siada.agent_hub.coder.tracing import create_detailed_logger

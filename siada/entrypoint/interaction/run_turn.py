@@ -23,6 +23,8 @@ from agents import (
     ToolCallOutputItem,
 )
 
+from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
+
 # Import existing InteractionConfig
 from .config import InteractionConfig
 
@@ -159,6 +161,8 @@ REASONING_TAG = "thinking-content-" + "7bbeb8e1441453ad999a0bbba8a46d4b"
 REASONING_START = "--------------\n► **THINKING**"
 REASONING_END = "------------\n► **ANSWER**"
 
+TOOL_CALL_START = "--------------\n► **TOOL USE**"
+
 DEFAULT_REASONING_TAG = "thinking"
 
 
@@ -166,13 +170,14 @@ class ConversationTurn(RunTurn):
     """Handles regular AI conversation turns"""
 
     mdstream: siada.io.components.mdstream.MarkdownStream = None
+    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None
     response_content: str = None
     tool_call: str = None
     tool_call_output: str = None
     got_tool_call_arguments: bool = False
     got_content_part: bool = False
     got_reasoning_part: bool = False
-    
+
     # Class-level dedicated event loop and thread, shared by all instances
     _dedicated_loop = None
     _dedicated_thread = None
@@ -184,27 +189,27 @@ class ConversationTurn(RunTurn):
         if cls._dedicated_loop is None or cls._dedicated_loop.is_closed():
             import threading
             import asyncio
-            
+
             # Detect if main thread has a running event loop (prompt_toolkit might be using it)
             try:
                 main_loop = asyncio.get_running_loop()
                 logger.info(f"📋 Detected main thread event loop: {id(main_loop)}")
             except RuntimeError:
                 logger.info("📋 No event loop in main thread")  # Normal case
-            
+
             # Create event for synchronization
             cls._loop_ready = threading.Event()
-            
+
             def run_dedicated_loop():
                 """Run event loop in dedicated thread"""
                 # Create new event loop
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 cls._dedicated_loop = loop
-                
+
                 # Notify main thread that loop is ready
                 cls._loop_ready.set()
-                
+
                 try:
                     # Run event loop until stopped
                     loop.run_forever()
@@ -212,7 +217,7 @@ class ConversationTurn(RunTurn):
                     # Cleanup
                     loop.close()
                     cls._dedicated_loop = None
-            
+
             # Start dedicated thread
             cls._dedicated_thread = threading.Thread(
                 target=run_dedicated_loop, 
@@ -220,10 +225,10 @@ class ConversationTurn(RunTurn):
                 name="ConversationTurn-AsyncLoop"
             )
             cls._dedicated_thread.start()
-            
+
             # Wait for event loop to be ready
             cls._loop_ready.wait()
-    
+
     @classmethod
     def _cleanup_dedicated_loop(cls):
         """Cleanup dedicated event loop (optional, mainly for testing or graceful shutdown)"""
@@ -251,6 +256,7 @@ class ConversationTurn(RunTurn):
             ResponseCreatedEvent,
             ResponseReasoningSummaryPartAddedEvent,
             ResponseFunctionToolCall,
+            ResponseOutputItemDoneEvent,
         )
 
         stream_iterator = None
@@ -305,21 +311,34 @@ class ConversationTurn(RunTurn):
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
-                            self.tool_call = f"Siadahub wants to call the following function:  {stream_data.item.name}\n"
-                            self.config.io.print_tool_call(self.tool_call)
+                            self.config.io.print_tool_call(
+                                f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {stream_data.item.name}"
+                            )
 
                     elif isinstance(stream_data, ResponseFunctionCallArgumentsDeltaEvent):
-                        delta_text = ""
                         if not self.got_tool_call_arguments:
-                            delta_text = f"Arguments: \n{stream_data.delta}\n"
                             self.got_tool_call_arguments = True
-                        else:
-                            delta_text = stream_data.delta
-                        self.config.io.print_tool_call(delta_text)
 
-                    # elif isinstance(stream_data, ResponseOutputItemDoneEvent):
-                    #     if isinstance(stream_data.item, ResponseFunctionToolCall):
-                    #         self.config.io.print_tool_call(self.tool_call)
+                        # 1. 获取tool_call_formatter
+                        tool_call_formatter = ToolCallFormatterFactory.get_formatter(
+                            stream_data.item.name
+                        )
+                        # 2. 格式化参数
+                        type, content = tool_call_formatter.format_input(
+                            stream_data.item.id,
+                            stream_data.item.name,
+                            stream_data.delta,
+                        )
+                        # 3. 打印格式化后的参数
+                        if type == "text":
+                            self.config.io.print_tool_call(content)
+                        elif type == "markdown":
+                            self.tool_call_mdstream = self.config.io.get_assistant_mdstream()
+                            self.tool_call_mdstream.update(content, final=True)
+
+                    elif isinstance(stream_data, ResponseOutputItemDoneEvent):
+                        if isinstance(stream_data.item, ResponseFunctionToolCall):
+                            self.tool_call_mdstream = None
 
                     elif isinstance(stream_data, ResponseCompletedEvent):
                         self._live_incremental_response("", self.response_content, final=True)
@@ -388,7 +407,7 @@ class ConversationTurn(RunTurn):
 
             # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
             self._ensure_dedicated_loop()
-            
+
             # Execute async task in dedicated loop
             future = asyncio.run_coroutine_threadsafe(_async_execute(), self._dedicated_loop)
             result = future.result()
@@ -409,7 +428,7 @@ class ConversationTurn(RunTurn):
 
         except Exception as e:
             self.end_time = self._get_timestamp()
-            
+
             # Clean up MarkdownStream if it exists
             if hasattr(self, 'mdstream') and self.mdstream is not None:
                 try:
@@ -419,9 +438,8 @@ class ConversationTurn(RunTurn):
                     self.mdstream = None
                 except Exception:
                     pass  # Ignore cleanup errors
-            
+
             return self.handle_error(e)
-        
 
     def replace_reasoning_tag(self, text, tag_name):
         """

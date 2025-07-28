@@ -1008,6 +1008,62 @@
         "documentation": {}
     },
     {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Type",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Literal",
         "importPath": "typing",
         "description": "typing",
@@ -2610,6 +2666,22 @@
         "documentation": {}
     },
     {
+        "label": "function_tool",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "RunContextWrapper",
         "importPath": "agents",
         "description": "agents",
@@ -3035,6 +3107,14 @@
         "documentation": {}
     },
     {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
         "label": "list_code_definition_names",
         "importPath": "siada.tools.ast.ast_tool",
         "description": "siada.tools.ast.ast_tool",
@@ -3200,6 +3280,22 @@
         "description": "siada.agent_hub.siada_agent",
         "isExtraImport": true,
         "detail": "siada.agent_hub.siada_agent",
+        "documentation": {}
+    },
+    {
+        "label": "ABC",
+        "importPath": "abc",
+        "description": "abc",
+        "isExtraImport": true,
+        "detail": "abc",
+        "documentation": {}
+    },
+    {
+        "label": "abstractmethod",
+        "importPath": "abc",
+        "description": "abc",
+        "isExtraImport": true,
+        "detail": "abc",
         "documentation": {}
     },
     {
@@ -3608,6 +3704,14 @@
         "description": "enum",
         "isExtraImport": true,
         "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "ToolCallFormatterFactory",
+        "importPath": "siada.tools.tool_call_format.formatter_factory",
+        "description": "siada.tools.tool_call_format.formatter_factory",
+        "isExtraImport": true,
+        "detail": "siada.tools.tool_call_format.formatter_factory",
         "documentation": {}
     },
     {
@@ -5106,6 +5210,14 @@
         "documentation": {}
     },
     {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
         "label": "FileEditSource",
         "importPath": "siada.tools.coder.observation.observation",
         "description": "siada.tools.coder.observation.observation",
@@ -5532,6 +5644,22 @@
         "documentation": {}
     },
     {
+        "label": "DefaultFormatter",
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "isExtraImport": true,
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "ToolCallFormatter",
+        "importPath": "siada.tools.tool_call_format.tool_call_formatter",
+        "description": "siada.tools.tool_call_format.tool_call_formatter",
+        "isExtraImport": true,
+        "detail": "siada.tools.tool_call_format.tool_call_formatter",
+        "documentation": {}
+    },
+    {
         "label": "trafilatura",
         "kind": 6,
         "isExtraImport": true,
@@ -5712,10 +5840,10 @@
     },
     {
         "label": "web_crawl",
-        "importPath": "siada.tools.web_crawl",
-        "description": "siada.tools.web_crawl",
+        "importPath": "siada.tools.web",
+        "description": "siada.tools.web",
         "isExtraImport": true,
-        "detail": "siada.tools.web_crawl",
+        "detail": "siada.tools.web",
         "documentation": {}
     },
     {
@@ -6978,7 +7106,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    # Class-level dedicated event loop and thread, shared by all instances",
+        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7005,7 +7133,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7014,7 +7142,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False",
+        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7023,7 +7151,16 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False",
+        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None",
+        "detail": "siada.entrypoint.interaction.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "TOOL_CALL_START",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.run_turn",
+        "description": "siada.entrypoint.interaction.run_turn",
+        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7032,7 +7169,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
+        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -8603,6 +8740,15 @@
         "documentation": {}
     },
     {
+        "label": "ASK_FOLLOWUP_QUESTION_DOCS",
+        "kind": 5,
+        "importPath": "siada.tools.coder.ask_followup_question",
+        "description": "siada.tools.coder.ask_followup_question",
+        "peekOfCode": "ASK_FOLLOWUP_QUESTION_DOCS = \"\"\"Ask Follow-up Question Tool\nAsk the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.\nArgs:\n    question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.\n\"\"\"\n@function_tool(\n    name_override=\"ask_followup_question\",\n    description_override=ASK_FOLLOWUP_QUESTION_DOCS\n)\nasync def ask_followup_question(",
+        "detail": "siada.tools.coder.ask_followup_question",
+        "documentation": {}
+    },
+    {
         "label": "run_cmd_impl",
         "kind": 2,
         "importPath": "siada.tools.coder.cmd_runner",
@@ -8693,30 +8839,120 @@
         "documentation": {}
     },
     {
+        "label": "ToolCallFormatterFactory",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatter_factory",
+        "description": "siada.tools.tool_call_format.formatter_factory",
+        "peekOfCode": "class ToolCallFormatterFactory:\n    \"\"\"\n    Tool call formatter 工厂类\n    根据函数名创建相应的formatter实例\n    \"\"\"\n    _formatters: Dict[str, Type[ToolCallFormatter]] = {}\n    _instances: Dict[str, ToolCallFormatter] = {}\n    @classmethod\n    def register_formatter(cls, formatter_class: Type[ToolCallFormatter]) -> None:\n        \"\"\"",
+        "detail": "siada.tools.tool_call_format.formatter_factory",
+        "documentation": {}
+    },
+    {
+        "label": "DefaultFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class DefaultFormatter(ToolCallFormatter):\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", arguments\n    @property\n    def supported_function(self) -> str:\n        return \"\"\nclass FileOperationFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "FileOperationFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class FileOperationFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", \"\"\n    @property\n    def supported_function(self) -> str:\n        return \"file_operation\"\nclass SearchFormatter(ToolCallFormatter):",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "SearchFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class SearchFormatter(ToolCallFormatter):\n    \"\"\"\n    搜索格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            query = args.get(\"query\", \"\")\n            return \"text\", f\"Searching for: {query}\"\n        except json.JSONDecodeError:",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "CommandFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class CommandFormatter(ToolCallFormatter):\n    \"\"\"\n    命令格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            command = args.get(\"command\", \"\")\n            return \"text\", f\"Running command: {command}\"\n        except json.JSONDecodeError:",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "FixAttemptCompletionFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class FixAttemptCompletionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the fix_attempt_completion function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            result = args.get(\"result\", \"\")\n            content = f\"### Bug Fix Attempt Summary\\n\\n**Result:**\\n{result}\"\n            return \"markdown\", content",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "ReproduceCompletionFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class ReproduceCompletionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the reproduce_completion function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            test_case = args.get(\"test_case\", \"\")\n            bug_analysis = args.get(\"bug_analysis\", \"\")\n            content = f\"### Issue Reproduction Summary\\n\\n**Test Case:**\\n`{test_case}`\\n\\n**Bug Analysis:**\\n{bug_analysis}\"",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "WebCrawlFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class WebCrawlFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the web_crawl function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            url = args.get(\"url\", \"\")\n            crawl_format = args.get(\"format\", \"text\")\n            return \"text\", f\"Crawling {url} with format {crawl_format}\"",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "AskFollowupQuestionFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class AskFollowupQuestionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the ask_followup_question function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            question = args.get(\"question\", \"\")\n            return \"text\", f\"Asking question: {question}\"\n        except json.JSONDecodeError:",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "ToolCallFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.tool_call_formatter",
+        "description": "siada.tools.tool_call_format.tool_call_formatter",
+        "peekOfCode": "class ToolCallFormatter(ABC):\n    \"\"\"\n    Tool call formatter 接口\n    用于格式化不同函数的输入参数\n    \"\"\"\n    @abstractmethod\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        \"\"\"\n        格式化函数输入参数\n        Args:",
+        "detail": "siada.tools.tool_call_format.tool_call_formatter",
+        "documentation": {}
+    },
+    {
         "label": "WebCrawlObservation",
         "kind": 6,
-        "importPath": "siada.tools.web_crawl",
-        "description": "siada.tools.web_crawl",
+        "importPath": "siada.tools.web.web_crawl",
+        "description": "siada.tools.web.web_crawl",
         "peekOfCode": "class WebCrawlObservation(FunctionCallResult):\n    \"\"\"Web crawling result observation\"\"\"\n    def __init__(self, url: str, content: str, format: str, success: bool = True, error: str = None):\n        self.url = url\n        self.content = content\n        self.format = format\n        self.success = success\n        self.error = error\n    def __str__(self) -> str:\n        if not self.success:",
-        "detail": "siada.tools.web_crawl",
+        "detail": "siada.tools.web.web_crawl",
         "documentation": {}
     },
     {
         "label": "web_crawl",
         "kind": 2,
-        "importPath": "siada.tools.web_crawl",
-        "description": "siada.tools.web_crawl",
+        "importPath": "siada.tools.web.web_crawl",
+        "description": "siada.tools.web.web_crawl",
         "peekOfCode": "def web_crawl(\n        context: RunContextWrapper[CodeAgentContext],\n        url: str,\n        format: Literal[\"markdown\", \"text\", \"json\", \"html\"] = \"text\"\n) -> WebCrawlObservation:\n    \"\"\"\n    Crawl web content and return content in specified format\n    Args:\n        context: Runtime context wrapper\n        url: URL of the webpage to crawl",
-        "detail": "siada.tools.web_crawl",
+        "detail": "siada.tools.web.web_crawl",
         "documentation": {}
     },
     {
         "label": "WEB_CRAWL_DOCS",
         "kind": 5,
-        "importPath": "siada.tools.web_crawl",
-        "description": "siada.tools.web_crawl",
+        "importPath": "siada.tools.web.web_crawl",
+        "description": "siada.tools.web.web_crawl",
         "peekOfCode": "WEB_CRAWL_DOCS = \"\"\"Web content crawling tool for fetching and extracting content from web pages\n* Uses trafilatura library to intelligently extract clean content from web pages\n* Supports multiple output formats: text, markdown, JSON, and raw HTML\n* Handles various web page types including articles, blogs, documentation, and news sites\n* Automatically validates URLs and provides detailed error messages for troubleshooting\n* Returns structured observation objects with success status and extracted content\nSUPPORTED OUTPUT FORMATS:\n- `text`: Clean plain text content without HTML tags (default)\n- `markdown`: Content formatted as Markdown with preserved structure\n- `json`: Structured JSON format with metadata including title, author, date, etc.",
-        "detail": "siada.tools.web_crawl",
+        "detail": "siada.tools.web.web_crawl",
         "documentation": {}
     },
     {
