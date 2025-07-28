@@ -8,7 +8,9 @@ from siada.agent_hub.coder.test_agent import TestAgent
 from siada.agent_hub.coder.prompt.bug_prompt import bug_fix_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.config import settings
+from siada.foundation.tools.get_git_diff import GitDiffUtil
 from siada.provider.li.li_provider import SiadaProvider
+from siada.services.fix_result_check import FixResultChecker
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
@@ -16,19 +18,21 @@ from siada.tools.coder.run_cmd import run_cmd
 from siada.tools.coder.fix_attempt_completion import fix_attempt_completion
 from agents import set_trace_processors
 from siada.agent_hub.coder.tracing import create_detailed_logger
-import json
 
 from siada.tools.compression_tool import compress_context_tool
 
 
 class BugFixAgent(CodeGenAgent):
     test_agent: TestAgent
+    fix_result_checker: FixResultChecker
+
 
     def __init__(self, *args, **kwargs):
         provider = SiadaProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
 
         self.test_agent = TestAgent()
+        self.fix_result_checker = FixResultChecker()
 
         super().__init__(
             name="BugFixAgent",
@@ -74,7 +78,6 @@ class BugFixAgent(CodeGenAgent):
 
         max_turns = 3
         current_turn = 0
-        current_agent_name = self.name
         task_message = {"content": input_with_env, "role": "user"}
         input_list = [task_message]
 
@@ -90,44 +93,46 @@ class BugFixAgent(CodeGenAgent):
 
             input_list = result.to_input_list()
 
-            if current_agent_name == self.name:
-                # Run TestAgent for testing
-                test_result = await Runner.run(
-                    starting_agent=self.test_agent,
-                    input=input_list,
-                    max_turns=settings.MAX_TURNS,
-                    run_config=config,
-                    context=context
-                )
-
-                # Parse test results
-                try:
-                    # test_result.final_output should contain JSON data returned by test_completion
-                    if isinstance(test_result.final_output, dict):
-                        test_output = test_result.final_output
-                    else:
-                        test_output = json.loads(test_result.final_output)
-
-                    is_passed = test_output.get("is_passed", 0)
-                    test_detail = test_output.get("test_detail", "")
-
-                    if is_passed == 1:
-                        # Test passed, break the loop
-                        print(f"Test passed: {test_detail}")
-                        break
-                    else:
-                        # Test failed, continue to next round of fixing
-                        print(f"Test failed, continue fixing (round {current_turn + 1}): {test_detail}")
-                        # Update input with test failure information for next round of fixing
-                        input_list = result.to_input_list()
-
-                except (json.JSONDecodeError, KeyError, TypeError) as e:
-                    # Parsing failed, log error and continue to next round
-                    print(f"Failed to parse test results: {e}, continue to next round of fixing")
+            # Check if the issue is fixed using run_checker
+            try:
+                check_result = await self.run_checker(user_input, context)
+                
+                if check_result.get("is_fixed", False):
+                    # Issue is fixed, break the loop
+                    print(f"Issue fixed: {check_result.get('reason', 'Fix verified')}")
+                    break
+                else:
+                    # Issue not fixed, add the reason to input_list for next iteration
+                    reason = check_result.get("reason", "Fix verification failed")
+                    print(f"Issue not fixed, continue fixing (round {current_turn + 1}): {reason}")
+                    
+                    # Add the unfixed reason to input_list for next round
+                    feedback_message = {
+                        "content": f"Previous fix attempt was not sufficient. Reason: {reason}. Please continue fixing.",
+                        "role": "user"
+                    }
+                    input_list.append(feedback_message)
+            except Exception as e:
+                # If checker fails, log error and continue to next round
+                print(f"Fix result checker failed: {e}, stopping verification.")
+                break
 
             current_turn += 1
 
         return result
+
+    async def run_checker(self, user_input: str, context: CodeAgentContext) -> dict:
+
+        diff_patch = GitDiffUtil.get_git_diff_exclude_test_files(context.root_dir)
+
+        check_result = await self.fix_result_checker.check(
+            issue_desc=user_input,
+            fix_code=diff_patch,
+        )
+
+        return check_result
+
+
 
     def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
         """
