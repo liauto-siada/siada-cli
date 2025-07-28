@@ -66,6 +66,8 @@ class FixResultChecker:
             {"role": "user", "content": user_task},
         ]
         
+        print("checking fix task :", user_task)
+
         # 调用模型
         complete_kwargs = {
             "model": settings.Claude_4_0_SONNET,
@@ -73,7 +75,7 @@ class FixResultChecker:
             "stream": False,
             "temperature": 0.2,  # 较低温度确保分析的准确性和一致性
         }
-        
+
         response = await self.client.chat_complete(**complete_kwargs)
         
         # 提取分析结果
