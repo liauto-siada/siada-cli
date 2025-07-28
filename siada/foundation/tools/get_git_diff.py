@@ -54,7 +54,7 @@ class GitDiffUtil:
             repo_path = Path.cwd()
         else:
             repo_path = Path(repo_path).resolve()
-        
+        print(f"try to get git diff from {repo_path}\n")
         if not (repo_path / ".git").exists():
             git_dir = GitDiffUtil._find_git_root(repo_path)
             if git_dir:
@@ -94,3 +94,12 @@ class GitDiffUtil:
         
         return None
 
+if __name__ == "__main__":
+    # from siada.foundation.tools.get_git_diff import GitDiffUtil
+    # 示例用法
+    try:
+        diff = GitDiffUtil.get_git_diff_exclude_test_files(repo_path="/Users/caoxin/Projects/AgentHub/siada-agenthub")
+        print("Git diff (excluding test files):")
+        print(diff)
+    except Exception as e:
+        print(f"Error: {e}")
