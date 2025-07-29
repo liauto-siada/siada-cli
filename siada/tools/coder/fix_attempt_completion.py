@@ -1,7 +1,18 @@
 from agents import function_tool, RunContextWrapper
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.tools.coder.observation.observation import FunctionCallResult
-from siada.tools.coder.observation.file_observation import FileReadObservation
+
+
+class FixAttemptCompletionResult(FunctionCallResult):
+
+    def __init__(self, content: str):
+        super().__init__(content=content)
+
+    def __str__(self):
+        return self.content
+
+    def format_for_display(self):
+        return "Bug Fix Task Status: COMPLETED"
 
 
 @function_tool(
@@ -51,8 +62,6 @@ The bug fix task has been successfully completed. All necessary changes have bee
     notification_message = result.replace('\n', ' ')
     #print(f""" showSystemNotification({{ subtitle: "Fix Completed",message: "{notification_message}",}})""")
     
-    return FileReadObservation(
+    return FixAttemptCompletionResult(
         content=completion_message,
-        path="fix_completion_summary",
-        impl_source="fix_attempt_completion"
     )

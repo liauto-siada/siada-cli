@@ -4548,6 +4548,14 @@
         "documentation": {}
     },
     {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
         "label": "FileEditSource",
         "importPath": "siada.tools.coder.observation.observation",
         "description": "siada.tools.coder.observation.observation",
@@ -6173,14 +6181,6 @@
     },
     {
         "label": "FileWriteObservation",
-        "importPath": "siada.tools.coder.observation.file_observation",
-        "description": "siada.tools.coder.observation.file_observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.file_observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadObservation",
         "importPath": "siada.tools.coder.observation.file_observation",
         "description": "siada.tools.coder.observation.file_observation",
         "isExtraImport": true,
@@ -9524,11 +9524,29 @@
         "documentation": {}
     },
     {
+        "label": "FixAttemptCompletionResult",
+        "kind": 6,
+        "importPath": "siada.tools.coder.fix_attempt_completion",
+        "description": "siada.tools.coder.fix_attempt_completion",
+        "peekOfCode": "class FixAttemptCompletionResult(FunctionCallResult):\n    def __init__(self, content: str):\n        super().__init__(content=content)\n    def __str__(self):\n        return self.content\n    def format_for_display(self):\n        return \"Bug Fix Task Status: COMPLETED\"\n@function_tool(\n    name_override=\"fix_attempt_completion\",\n    description_override=\"Complete the bug fix task and mark it as finished. This tool MUST be called to properly complete any bug fix task. Failure to call this tool means the bug fix task is incomplete and unacceptable.\"",
+        "detail": "siada.tools.coder.fix_attempt_completion",
+        "documentation": {}
+    },
+    {
+        "label": "ReproduceCompletionResult",
+        "kind": 6,
+        "importPath": "siada.tools.coder.reproduce_completion",
+        "description": "siada.tools.coder.reproduce_completion",
+        "peekOfCode": "class ReproduceCompletionResult(FunctionCallResult):\n    def __init__(self, content: str):\n        super().__init__(content=content)\n    def __str__(self):\n        return self.content\n    def format_for_display(self):   \n        return \"Reproduction Completed\"\n@function_tool(\n    name_override=\"reproduce_completion\", description_override=REPRODUCE_COMPLETION_DOCS, failure_error_function=None\n)",
+        "detail": "siada.tools.coder.reproduce_completion",
+        "documentation": {}
+    },
+    {
         "label": "REPRODUCE_COMPLETION_DOCS",
         "kind": 5,
         "importPath": "siada.tools.coder.reproduce_completion",
         "description": "siada.tools.coder.reproduce_completion",
-        "peekOfCode": "REPRODUCE_COMPLETION_DOCS = f\"\"\"ISSUE Reproduction Completion Tool\nUse this tool to submit your work results to the user whenever the ISSUE has been successfully reproduced—that is, when executing the test cases you generated can reliably reproduce the ISSUE. Include a brief description of your reproduction process.\nIMPORTANT NOTE: Do not invoke this tool unless the issue has been confirmed as reproduced.\nArgs:\n    test_case: The full path of the test case used to reproduce the issue in the task.\n    bug_analysis: Analysis of the cause of the bug, including the involved code files, methods, and other relevant components.\n\"\"\"\n@function_tool(\n    name_override=\"reproduce_completion\", description_override=REPRODUCE_COMPLETION_DOCS, failure_error_function=None\n)",
+        "peekOfCode": "REPRODUCE_COMPLETION_DOCS = f\"\"\"ISSUE Reproduction Completion Tool\nUse this tool to submit your work results to the user whenever the ISSUE has been successfully reproduced—that is, when executing the test cases you generated can reliably reproduce the ISSUE. Include a brief description of your reproduction process.\nIMPORTANT NOTE: Do not invoke this tool unless the issue has been confirmed as reproduced.\nArgs:\n    test_case: The full path of the test case used to reproduce the issue in the task.\n    bug_analysis: Analysis of the cause of the bug, including the involved code files, methods, and other relevant components.\n\"\"\"\nclass ReproduceCompletionResult(FunctionCallResult):\n    def __init__(self, content: str):\n        super().__init__(content=content)",
         "detail": "siada.tools.coder.reproduce_completion",
         "documentation": {}
     },
@@ -9546,7 +9564,16 @@
         "kind": 2,
         "importPath": "siada.tools.coder.run_cmd",
         "description": "siada.tools.coder.run_cmd",
-        "peekOfCode": "def run_cmd(context: RunContextWrapper[CodeAgentContext], command, verbose=False, error_print=None):\n    \"\"\"Execute a shell command using the most appropriate method for the current environment.\n    This function automatically selects between pexpect (for interactive terminals on Unix-like\n    systems) and subprocess (for Windows or non-interactive environments) to execute shell\n    commands. It provides real-time output streaming and proper error handling.\n    Args:\n        command (str): The shell command to execute as a string.\n        verbose (bool, optional): If True, prints detailed execution information including\n            the execution method used, shell information, and command details. Defaults to False.\n        error_print (callable, optional): Custom error printing function. If provided, errors",
+        "peekOfCode": "def run_cmd(context: RunContextWrapper[CodeAgentContext], command):\n    \"\"\"Execute a shell command using the most appropriate method for the current environment.\n    This function automatically selects between pexpect (for interactive terminals on Unix-like\n    systems) and subprocess (for Windows or non-interactive environments) to execute shell\n    commands. It provides real-time output streaming and proper error handling.\n    Args:\n        command (str): The shell command to execute as a string.\n        verbose (bool, optional): If True, prints detailed execution information including\n            the execution method used, shell information, and command details. Defaults to False.\n        error_print (callable, optional): Custom error printing function. If provided, errors",
+        "detail": "siada.tools.coder.run_cmd",
+        "documentation": {}
+    },
+    {
+        "label": "RUN_CMD_DOCS",
+        "kind": 5,
+        "importPath": "siada.tools.coder.run_cmd",
+        "description": "siada.tools.coder.run_cmd",
+        "peekOfCode": "RUN_CMD_DOCS = \"\"\"Execute a shell command using the most appropriate method for the current environment.\n    This function automatically selects between pexpect (for interactive terminals on Unix-like\n    systems) and subprocess (for Windows or non-interactive environments) to execute shell\n    commands. It provides real-time output streaming and proper error handling.\n    Args:\n        command (str): The shell command to execute as a string.\n\"\"\"\nclass RunCmdResult(FunctionCallResult):\n    \"\"\"This data class represents the output of a command.\"\"\"\n    def __init__(self, command: str, output: str, code: int):",
         "detail": "siada.tools.coder.run_cmd",
         "documentation": {}
     },
@@ -9564,16 +9591,16 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class DefaultFormatter(ToolCallFormatter):\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", arguments\n    @property\n    def supported_function(self) -> str:\n        return \"\"\nclass FileOperationFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"",
+        "peekOfCode": "class DefaultFormatter(ToolCallFormatter):\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", arguments\n    @property\n    def supported_function(self) -> str:\n        return \"\"\nclass FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
     {
-        "label": "FileOperationFormatter",
+        "label": "FileEditFormatter",
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class FileOperationFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", \"\"\n    @property\n    def supported_function(self) -> str:\n        return \"file_operation\"\nclass SearchFormatter(ToolCallFormatter):",
+        "peekOfCode": "class FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            path = args.get(\"path\", \"\")\n            command = args.get(\"command\", \"\")\n            file_text = args.get(\"file_text\", \"\")",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9582,7 +9609,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class SearchFormatter(ToolCallFormatter):\n    \"\"\"\n    搜索格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            query = args.get(\"query\", \"\")\n            return \"text\", f\"Searching for: {query}\"\n        except json.JSONDecodeError:",
+        "peekOfCode": "class SearchFormatter(ToolCallFormatter):\n    \"\"\"\n    搜索格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            cwd = args.get(\"cwd\", os.getcwd())\n            directory_path = args.get(\"directory_path\", \"\")\n            regex = args.get(\"regex\", \"\")",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9591,7 +9618,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class CommandFormatter(ToolCallFormatter):\n    \"\"\"\n    命令格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            command = args.get(\"command\", \"\")\n            return \"text\", f\"Running command: {command}\"\n        except json.JSONDecodeError:",
+        "peekOfCode": "class CommandFormatter(ToolCallFormatter):\n    \"\"\"\n    命令格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            command = args.get(\"command\", \"\")\n            return \"text\", f\"I will run the following command: {command}\"\n        except json.JSONDecodeError:",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9600,7 +9627,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class FixAttemptCompletionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the fix_attempt_completion function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            result = args.get(\"result\", \"\")\n            content = f\"### Bug Fix Attempt Summary\\n\\n**Result:**\\n{result}\"\n            return \"markdown\", content",
+        "peekOfCode": "class FixAttemptCompletionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the fix_attempt_completion function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            result = args.get(\"result\", \"\")\n            content = f\"The bug fix task has been successfully completed. see the result below\\n {result}\"\n            return \"text\", content",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9609,7 +9636,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class ReproduceCompletionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the reproduce_completion function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            test_case = args.get(\"test_case\", \"\")\n            bug_analysis = args.get(\"bug_analysis\", \"\")\n            content = f\"### Issue Reproduction Summary\\n\\n**Test Case:**\\n`{test_case}`\\n\\n**Bug Analysis:**\\n{bug_analysis}\"",
+        "peekOfCode": "class ReproduceCompletionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the reproduce_completion function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            test_case = args.get(\"test_case\", \"\")\n            bug_analysis = args.get(\"bug_analysis\", \"\")\n            content = f\"This issue can be reproduced using test case : {test_case}.\\n Analysis of the issue: {bug_analysis}\"",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9618,7 +9645,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class WebCrawlFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the web_crawl function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            url = args.get(\"url\", \"\")\n            crawl_format = args.get(\"format\", \"text\")\n            return \"text\", f\"Crawling {url} with format {crawl_format}\"",
+        "peekOfCode": "class WebCrawlFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the web_crawl function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            url = args.get(\"url\", \"\")\n            crawl_format = args.get(\"format\", \"text\")\n            return \"text\", f\"I will crawl the url: {url} with format {crawl_format}\"",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9627,7 +9654,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class AskFollowupQuestionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the ask_followup_question function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            question = args.get(\"question\", \"\")\n            return \"text\", f\"Asking question: {question}\"\n        except json.JSONDecodeError:",
+        "peekOfCode": "class AskFollowupQuestionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the ask_followup_question function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            question = args.get(\"question\", \"\")\n            return \"text\", f\"{question}\"\n        except json.JSONDecodeError:",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },

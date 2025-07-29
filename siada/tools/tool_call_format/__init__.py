@@ -12,14 +12,12 @@ from .tool_call_formatter import ToolCallFormatter
 from .formatter_factory import ToolCallFormatterFactory
 from .formatters import (
     DefaultFormatter,
-    FileOperationFormatter,
     SearchFormatter,
     CommandFormatter,
-)
-from .parameter_interceptor import (
-    ParameterInterceptor,
-    parameter_interceptor,
-    simple_interceptor,
+    FixAttemptCompletionFormatter,
+    ReproduceCompletionFormatter,
+    FileEditFormatter,
+    AskFollowupQuestionFormatter,
 )
 
 # 自动注册所有formatter
@@ -27,9 +25,12 @@ def _register_all_formatters():
     """自动注册所有可用的formatter"""
     formatters = [
         DefaultFormatter,
-        FileOperationFormatter,
         SearchFormatter,
         CommandFormatter,
+        FixAttemptCompletionFormatter,
+        ReproduceCompletionFormatter,
+        FileEditFormatter,
+        AskFollowupQuestionFormatter,
     ]
     
     for formatter_class in formatters:
@@ -43,7 +44,7 @@ __all__ = [
     'ToolCallFormatter',
     'ToolCallFormatterFactory',
     'DefaultFormatter',
-    'FileOperationFormatter',
+    'FileReadFormatter',
     'SearchFormatter',
     'CommandFormatter',
     'ParameterInterceptor',
