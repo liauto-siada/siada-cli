@@ -97,12 +97,12 @@ class BugFixAgent(CodeGenAgent):
                 
                 if check_result.get("is_fixed", False):
                     # Issue is fixed, break the loop
-                    print(f"Issue fixed: {check_result.get('reason', 'Fix verified')}")
+                    print(f"Fix_check_result, Issue fixed: {check_result.get('reason', 'Fix verified')}")
                     break
                 else:
                     # Issue not fixed, add the reason to input_list for next iteration
                     reason = check_result.get("reason", "Fix verification failed")
-                    print(f"Issue not fixed, continue fixing (round {current_turn + 1}): {reason}")
+                    print(f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {reason}")
                     
                     # Add the unfixed reason to input_list for next round
                     feedback_message = {
