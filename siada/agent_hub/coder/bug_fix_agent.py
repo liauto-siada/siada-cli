@@ -23,7 +23,6 @@ from siada.tools.compression_tool import compress_context_tool
 
 
 class BugFixAgent(CodeGenAgent):
-    test_agent: TestAgent
     fix_result_checker: FixResultChecker
 
 
@@ -31,7 +30,6 @@ class BugFixAgent(CodeGenAgent):
         provider = SiadaProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
 
-        self.test_agent = TestAgent()
         self.fix_result_checker = FixResultChecker()
 
         super().__init__(
@@ -91,7 +89,7 @@ class BugFixAgent(CodeGenAgent):
                 context=context
             )
 
-            input_list = result.to_input_list()
+            # input_list = result.to_input_list()
 
             # Check if the issue is fixed using run_checker
             try:
@@ -108,7 +106,10 @@ class BugFixAgent(CodeGenAgent):
                     
                     # Add the unfixed reason to input_list for next round
                     feedback_message = {
-                        "content": f"Previous fix attempt was not sufficient. Reason: {reason}. Please continue fixing.",
+                        "content": f"Here is the previous fix logic:\n{result.final_output}"
+                                   f"Here is the current code diff:\n{check_result.get('code_diff', '')}"
+                                   f"But previous fix attempt was not sufficient. Reason: {reason}.\n"
+                                   f"**Please continue fixing.**",
                         "role": "user"
                     }
                     input_list.append(feedback_message)
@@ -129,8 +130,15 @@ class BugFixAgent(CodeGenAgent):
             issue_desc=user_input,
             fix_code=diff_patch,
         )
-
         return check_result
+
+        # return {
+        #     "is_fixed": False,
+        #     "reason": "没有考虑长字符串场景",
+        #     "analysis": "未提供分析说明",
+        #     "code_diff": diff_patch
+        # }
+
 
 
 

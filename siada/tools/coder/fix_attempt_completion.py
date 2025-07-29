@@ -11,7 +11,7 @@ from siada.tools.coder.observation.file_observation import FileReadObservation
 async def fix_attempt_completion(
     context: RunContextWrapper[CodeAgentContext],
     result: str,
-) -> Observation:
+) -> str:
     """
     Complete the bug fix task and mark it as finished.
     
@@ -20,7 +20,7 @@ async def fix_attempt_completion(
     Args:
         context: The run context wrapper containing agent context
         result: (required) A detailed summary of the bug fix work completed, including:
-                - What bug was fixed
+                - Summary of the bug fix logic
                 - What changes were made
                 - What files were modified
                 - Any testing or verification performed        
@@ -40,19 +40,6 @@ async def fix_attempt_completion(
 {result}
 
 """
-    
-    completion_message += """
-Task Status: COMPLETED ✓
 
-The bug fix task has been successfully completed. All necessary changes have been made and the issue should now be resolved.
-"""
-    
-    # Show system notification (simulated)
-    notification_message = result.replace('\n', ' ')
-    #print(f""" showSystemNotification({{ subtitle: "Fix Completed",message: "{notification_message}",}})""")
-    
-    return FileReadObservation(
-        content=completion_message,
-        path="fix_completion_summary",
-        impl_source="fix_attempt_completion"
-    )
+
+    return completion_message

@@ -1,6 +1,7 @@
 issue_desc = """
 ## Issue Description
 
+In validators.py
 Email verification function incorrectly accepts email addresses with purely numeric domain names as valid.
 
 ## Affected Email Formats
