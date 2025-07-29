@@ -91,61 +91,88 @@ class FixResultChecker:
         return f"""**Please systematically analyze whether the code modification truly resolves the issue by following the steps below and return your analysis in JSON format:**
 
 ---
+Please systematically analyze whether the code modifications truly fix the problem by following these steps:
 
-## **Analysis Steps**
+## Step 1: Deep Root Cause Analysis
+1. **Core Problem Identification**: Extract the fundamental cause of the problem from the issue description, distinguishing between symptoms and true root causes
+2. **Problem Impact Scope**: List all affected code paths, usage scenarios, and boundary conditions
+3. **Problem Trigger Conditions**: Clarify under what conditions this problem will be triggered, with special attention to edge cases
+4. **Expected Behavior Definition**: Based on the problem description, clearly define the specific behavior that should be achieved after the fix
+5. **Reverse Logic Check**: Confirm whether the fix direction is correct, avoiding going in the opposite direction of expectations
 
-### **Step 1: Problem Scope Analysis**
-1. **Identify the core nature of the issue**: Extract the root cause and impact from the issue description.
-2. **List all affected scenarios**: Identify all code paths and usage cases that could trigger the issue.
-3. **Define the problem boundaries**: Clearly determine what operations, conditions, or states cause the issue to occur. Pay special attention to which edge cases might trigger the issue.
+## Step 2: Fix Strategy Rationality Assessment
+1. **Fix Type Classification**:
+   - Fundamental fix: Directly addresses the root cause
+   - Symptomatic fix: Only masks or bypasses the error phenomenon
+   - Compensatory fix: Avoids the problem through other mechanisms
+2. **Solution Alignment**: Whether the fix solution directly targets the root cause
+3. **Complexity Rationality**: Assess whether there is over-complication or over-engineering
+4. **Minimal Intrusion Principle**: Whether it follows the principle of minimal changes, avoiding unnecessary modifications
 
-### **Step 2: Fix Coverage Evaluation**
-1. **Map code changes to problem cases**: Match each code change to specific problem scenarios.
-2. **Check coverage scope**: Verify whether the changes address all the scenarios identified in Step 1.
-3. **Identify missing scenarios**: Highlight any possible scenarios where the issue may still exist but are not covered by the fix.
+## Step 3: Fix Code Implementation Quality Analysis
+### 3.1 Coverage Assessment
+1. **Modification Point Mapping**: Map each code modification point to specific problem scenarios
+2. **Coverage Range Check**: Verify whether modifications cover all problem scenarios
+3. **Missing Scenario Identification**: Identify uncovered scenarios that may have the same problem
 
-### **Step 3: Test Case Completeness Validation**
-1. **Compare test scenarios**: Match the test cases against the actual impact range of the issue.
-2. **Analyze failed cases**: If any tests fail, analyze whether the failure indicates an incomplete fix.
-3. **Check boundary cases**: Confirm whether edge cases and exception scenarios are covered in testing.
+### 3.2 Implementation Detail Analysis
+1. **API Usage Appropriateness**: Verify whether the APIs used are the most direct and standard methods
+2. **Code Execution Path**: Analyze whether there are unnecessary intermediate steps or roundabout implementations
+3. **Error Handling Completeness**: Check whether all possible exception situations are correctly handled
+4. **Performance Impact Assessment**: Analyze whether the fix introduces unnecessary performance overhead
 
-### **Step 4: Logical Consistency Check**
-1. **Validate fix logic**: Ensure that the fix correctly addresses the root cause of the issue.
-2. **Assess side effects**: Evaluate whether the code changes may introduce new problems.
-3. **Check design pattern alignment**: Verify whether the fix aligns with the overall design patterns and architectural conventions of the codebase.
+## Step 4: Data Security and System Stability Check
+1. **Data Security Risk**: Whether modifications may lead to data loss or inconsistency
+2. **State Consistency**: Whether system state remains consistent after modifications
+3. **Side Effect Assessment**: Evaluate whether modifications may introduce new problems
+4. **Backward Compatibility**: Whether modifications maintain backward compatibility
+5. **Rollback Safety**: Whether modifications support safe rollback
 
-### **Step 5: Final Assessment**
-* Based on the above analysis, provide a clear conclusion:
-* If the issue is not fully resolved, explain in detail the reasons why it remains unresolved, using the check_summary field to describe them.
+## Step 5: Design Principles and Architecture Consistency
+1. **Architecture Alignment**: Whether modifications align with existing architecture and design patterns
+2. **Framework Best Practices**: Whether they conform to the design philosophy and best practices of relevant frameworks
+3. **Code Simplicity**: Whether the solution is concise, clear, easy to understand and maintain
+4. **Maintainability Assessment**: Analyze the long-term maintainability and extensibility of the fix code
 
+## Step 6: Test Verification Completeness
+1. **Test Scenario Coverage**: Whether test cases cover all problem scenarios and boundary conditions
+2. **Failed Case Analysis**: If there are test failures, analyze whether they indicate incomplete fixes
+3. **Regression Test Verification**: Whether it's verified that modifications don't break existing functionality
+4. **Performance Test Consideration**: Assess whether performance-related tests are needed to verify fix quality
+
+## Step 7: Comprehensive Judgment and Recommendations
+Based on the above analysis, provide clear conclusions:
+
+### Required Output Fields:
+1. **is_fixed**: true/false (partial fixes count as false)
+2. **check_summary**: Detailed analysis summary, must include:
+   - Specific basis for fix status judgment
+   - If not fixed, clearly explain reasons for non-fix
+   - If fixed, assess implementation quality and potential risks
+   - Specific improvement suggestions or alternative solutions
+
+## Key Analysis Focus:
+- Whether the fundamental problem is truly solved rather than just making errors disappear
+- Whether the fix direction is correct, avoiding directional errors
+- Whether there's a tendency toward over-engineering
+- Whether API usage is appropriate, avoiding roundabout or inefficient implementations
+- Whether data security and system stability are ensured
+- Long-term maintainability and extensibility of the code
 ---
 
 ## **Required JSON Output Format**
 
-You must return your analysis in the following JSON format,  the check_summary field is a consolidated summary of the analysis field：
+You must return your analysis in the following JSON format：
 
 ```json
 {{
-  "analysis": {{
-    "step1_problem_scope": "Detailed analysis of problem scope including core nature, affected scenarios, and problem boundaries",
-    "step2_fix_coverage": "Detailed evaluation of fix coverage including mapping to problem cases, coverage scope, and missing scenarios",
-    "step3_test_validation": "Detailed test case completeness validation including scenario comparison, failed case analysis, and boundary cases",
-    "step4_logical_consistency": "Detailed logical consistency check including fix logic validation, side effects assessment, and design pattern alignment",
-    "step5_final_assessment": "Final assessment with clear conclusion on fix status"
-  }},
+  "analysis": "The analysis results of each step",
   "result": {{
-    "is_fixed": true/false,
+    "is_fixed": True,
     "check_summary": "Summary of each step of the analysis"
   }}
 }}
 ```
-
-**Important**: 
-- Return ONLY the JSON object, no additional text before or after
-- Ensure the JSON is valid and properly formatted
-- The "is_fixed" field should be false for partial fixes
-- Provide detailed analysis in each step field
-
 ---
 
 **Problem Description:**
@@ -194,12 +221,12 @@ You must return your analysis in the following JSON format,  the check_summary f
             analysis = parsed_json.get("analysis", {})
             
             # 构建完整的分析文本
-            analysis_text = self._build_analysis_text(analysis)
+            # analysis_text = self._build_analysis_text(analysis)
             
             return {
                 "is_fixed": result.get("is_fixed", False),
                 "check_summary": result.get("check_summary", "未提供原因说明"),
-                "analysis": analysis_text
+                "analysis": analysis
             }
             
         except (json.JSONDecodeError, ValueError, KeyError) as e:
