@@ -74,7 +74,7 @@ class BugFixAgent(CodeGenAgent):
         #set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
-        max_turns = 3
+        max_turns = 5
         current_turn = 0
         task_message = {"content": input_with_env, "role": "user"}
         input_list = [task_message]
@@ -112,7 +112,7 @@ class BugFixAgent(CodeGenAgent):
                                    f"**Please continue fixing.**",
                         "role": "user"
                     }
-                    input_list.append(feedback_message)
+                    input_list = [task_message, feedback_message]
             except Exception as e:
                 # If checker fails, log error and continue to next round
                 print(f"Fix result checker failed: {e}, stopping verification.")
