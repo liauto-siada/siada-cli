@@ -95,14 +95,14 @@ class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):
                 result_data = parsed_json["result"]
                 self.assertIsInstance(result_data, dict)
                 self.assertIn("is_fixed", result_data)
-                self.assertIn("reason", result_data)
+                self.assertIn("check_summary", result_data)
                 self.assertIsInstance(result_data["is_fixed"], bool)
-                self.assertIsInstance(result_data["reason"], str)
-                self.assertTrue(len(result_data["reason"].strip()) > 0)
+                self.assertIsInstance(result_data["check_summary"], str)
+                self.assertTrue(len(result_data["check_summary"].strip()) > 0)
                 
                 print(f"✅ JSON格式验证通过")
                 print(f"📊 分析结果: is_fixed={result_data['is_fixed']}")
-                print(f"📝 原因: {result_data['reason']}")
+                print(f"📝 原因: {result_data['check_summary']}")
                 
             except json.JSONDecodeError as e:
                 # 如果不是有效JSON，打印原始响应用于调试
@@ -130,9 +130,9 @@ class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):
             
             # 尝试解析JSON
             try:
-                parsed_json = json.loads(result.strip())
+                parsed_json = self.checker._parse_analysis_result(result.strip())
                 self.assertIn("analysis", parsed_json)
-                self.assertIn("result", parsed_json)
+                self.assertIn("is_fixed", parsed_json)
                 
                 print(f"✅ 简单案例测试通过")
                 
@@ -156,16 +156,16 @@ class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):
             # 验证返回结构
             self.assertIsInstance(result, dict)
             self.assertIn("is_fixed", result)
-            self.assertIn("reason", result) 
+            self.assertIn("check_summary", result)
             self.assertIn("analysis", result)
             
             # 验证数据类型
             self.assertIsInstance(result["is_fixed"], bool)
-            self.assertIsInstance(result["reason"], str)
+            self.assertIsInstance(result["check_summary"], str)
             self.assertIsInstance(result["analysis"], str)
             
             # 验证内容不为空
-            self.assertTrue(len(result["reason"].strip()) > 0)
+            self.assertTrue(len(result["check_summary"].strip()) > 0)
             self.assertTrue(len(result["analysis"].strip()) > 0)
             
             print(f"✅ 端到端测试通过")
@@ -192,7 +192,7 @@ class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Step 5: Final Assessment", prompt)
         self.assertIn("step1_problem_scope", prompt)
         self.assertIn("is_fixed", prompt)
-        self.assertIn("reason", prompt)
+        self.assertIn("check_summary", prompt)
 
     async def test_parse_analysis_result_valid_json(self):
         """测试 _parse_analysis_result 方法解析有效JSON"""
@@ -207,7 +207,7 @@ class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):
             },
             "result": {
                 "is_fixed": True,
-                "reason": "问题已修复"
+                "check_summary": "问题已修复"
             }
         })
         
@@ -215,7 +215,7 @@ class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):
         
         # 验证解析结果
         self.assertTrue(result["is_fixed"])
-        self.assertEqual(result["reason"], "问题已修复")
+        self.assertEqual(result["check_summary"], "问题已修复")
         self.assertIn("问题分析内容", result["analysis"])
         self.assertIn("Step 1: Problem Scope Analysis", result["analysis"])
 

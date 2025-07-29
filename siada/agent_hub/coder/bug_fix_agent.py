@@ -97,18 +97,18 @@ class BugFixAgent(CodeGenAgent):
                 
                 if check_result.get("is_fixed", False):
                     # Issue is fixed, break the loop
-                    print(f"Fix_check_result, Issue fixed: {check_result.get('reason', 'Fix verified')}")
+                    print(f"Fix_check_result, Issue fixed: {check_result.get('check_summary', 'Fix verified')}")
                     break
                 else:
-                    # Issue not fixed, add the reason to input_list for next iteration
-                    reason = check_result.get("reason", "Fix verification failed")
-                    print(f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {reason}")
+                    # Issue not fixed, add the check_summary to input_list for next iteration
+                    check_summary = check_result.get("check_summary", "Fix verification failed")
+                    print(f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}")
                     
-                    # Add the unfixed reason to input_list for next round
+                    # Add the unfixed check_summary to input_list for next round
                     feedback_message = {
                         "content": f"Here is the previous fix logic:\n{result.final_output}"
                                    f"Here is the current code diff:\n{check_result.get('code_diff', '')}"
-                                   f"But previous fix attempt was not sufficient. Reason: {reason}.\n"
+                                   f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n"
                                    f"**Please continue fixing.**",
                         "role": "user"
                     }
@@ -136,7 +136,7 @@ class BugFixAgent(CodeGenAgent):
 
         # return {
         #     "is_fixed": False,
-        #     "reason": "没有考虑长字符串场景",
+        #     "check_summary": "没有考虑长字符串场景",
         #     "analysis": "未提供分析说明",
         #     "code_diff": diff_patch
         # }

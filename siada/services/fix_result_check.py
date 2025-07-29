@@ -33,7 +33,7 @@ class FixResultChecker:
             Dict[str, Any]: 包含检查结果的字典
             {
                 "is_fixed": bool,      # 是否修复（部分修复算作未修复）
-                "reason": str,         # 如果未修复，说明原因
+                "check_summary": str,         # 如果未修复，说明原因
                 "analysis": str        # 完整的分析过程
             }
         """
@@ -43,7 +43,7 @@ class FixResultChecker:
         except Exception as e:
             return {
                 "is_fixed": False,
-                "reason": f"分析过程中发生错误: {str(e)}",
+                "check_summary": f"分析过程中发生错误: {str(e)}",
                 "analysis": f"错误详情: {str(e)}"
             }
     
@@ -97,7 +97,7 @@ class FixResultChecker:
 ### **Step 1: Problem Scope Analysis**
 1. **Identify the core nature of the issue**: Extract the root cause and impact from the issue description.
 2. **List all affected scenarios**: Identify all code paths and usage cases that could trigger the issue.
-3. **Define the problem boundaries**: Clearly determine what operations, conditions, or states cause the issue to occur.
+3. **Define the problem boundaries**: Clearly determine what operations, conditions, or states cause the issue to occur. Pay special attention to which edge cases might trigger the issue.
 
 ### **Step 2: Fix Coverage Evaluation**
 1. **Map code changes to problem cases**: Match each code change to specific problem scenarios.
@@ -115,16 +115,14 @@ class FixResultChecker:
 3. **Check design pattern alignment**: Verify whether the fix aligns with the overall design patterns and architectural conventions of the codebase.
 
 ### **Step 5: Final Assessment**
-Based on the above analysis, provide a clear conclusion:
-* **Fully Fixed**: The issue has been thoroughly resolved and all scenarios are covered.
-* **Partially Fixed**: The main problem is addressed, but some scenarios remain uncovered. Clearly describe the uncovered parts.
-* **Not Fixed**: The changes did not resolve the issue. Provide specific reasons.
+* Based on the above analysis, provide a clear conclusion:
+* If the issue is not fully resolved, explain in detail the reasons why it remains unresolved, using the check_summary field to describe them.
 
 ---
 
 ## **Required JSON Output Format**
 
-You must return your analysis in the following JSON format:
+You must return your analysis in the following JSON format,  the check_summary field is a consolidated summary of the analysis field：
 
 ```json
 {{
@@ -137,7 +135,7 @@ You must return your analysis in the following JSON format:
   }},
   "result": {{
     "is_fixed": true/false,
-    "reason": "Specific reason if not fixed, or confirmation if fixed"
+    "check_summary": "Summary of each step of the analysis"
   }}
 }}
 ```
@@ -200,7 +198,7 @@ You must return your analysis in the following JSON format:
             
             return {
                 "is_fixed": result.get("is_fixed", False),
-                "reason": result.get("reason", "未提供原因说明"),
+                "check_summary": result.get("check_summary", "未提供原因说明"),
                 "analysis": analysis_text
             }
             
@@ -244,14 +242,14 @@ You must return your analysis in the following JSON format:
         """
         # 使用原有的文本解析方法作为回退
         is_fixed = self._extract_fix_status(analysis_result)
-        reason = self._extract_reason(analysis_result, is_fixed)
+        check_summary = self._extract_check_summary(analysis_result, is_fixed)
         
         # 在分析文本中添加解析错误信息
         analysis_with_error = f"[JSON解析失败: {error_msg}]\n\n{analysis_result}"
         
         return {
             "is_fixed": is_fixed,
-            "reason": reason,
+            "check_summary": check_summary,
             "analysis": analysis_with_error
         }
     
@@ -292,7 +290,7 @@ You must return your analysis in the following JSON format:
         # 默认情况下，如果有正面指示且没有明确的负面结论，认为已修复
         return positive_count > 0
     
-    def _extract_reason(self, analysis: str, is_fixed: bool) -> str:
+    def _extract_check_summary(self, analysis: str, is_fixed: bool) -> str:
         """提取未修复的原因
         
         Args:
@@ -307,18 +305,18 @@ You must return your analysis in the following JSON format:
         
         # 尝试提取原因
         lines = analysis.split('\n')
-        reason_lines = []
+        check_summary_lines = []
         
         # 查找包含原因的行
         for line in lines:
             line_lower = line.lower().strip()
             if any(keyword in line_lower for keyword in [
-                "reason", "because", "however", "but", "missing", 
+                "check_summary", "because", "however", "but", "missing",
                 "not covered", "incomplete", "still exists"
             ]):
-                reason_lines.append(line.strip())
+                check_summary_lines.append(line.strip())
         
-        if reason_lines:
-            return " ".join(reason_lines)
+        if check_summary_lines:
+            return " ".join(check_summary_lines)
         
         return "分析表明问题未完全修复，但未明确说明具体原因"
