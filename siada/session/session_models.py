@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from agents import SQLiteSession
 
-from siada.entrypoint.interaction.config import InteractionConfig
+from siada.entrypoint.interaction.config import RunningConfig
 
 
 @dataclass
@@ -30,7 +30,8 @@ class SessionState:
 
 @dataclass
 class Session:
-    interaction_config: InteractionConfig
+    
+    running_config: RunningConfig
 
     session_id: str = field(default_factory=lambda: str(uuid4()))
 

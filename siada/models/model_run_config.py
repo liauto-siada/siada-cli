@@ -1,17 +1,18 @@
 from dataclasses import dataclass, fields
 from typing import Optional
 
-from siada.models.model_settings import ModelSettings, get_model_config
+from siada.models.model_base_config import ModelBaseConfig, get_model_config
 
 DEFAULT_MODEL = "claude-sonnet-4"
 
 @dataclass()
-class ModelRunConfig(ModelSettings):
+class ModelRunConfig(ModelBaseConfig):
     
     reasoning_effort : Optional[str] = None
     thinking_tokens : Optional[int] = None
     temperature : Optional[float] = None
     extra_params : Optional[dict] = None
+    provider: Optional[str] = None
 
 
 
@@ -21,7 +22,7 @@ class ModelRunConfig(ModelSettings):
 
     def _copy_fields(self, source):
         """Helper to copy fields from a ModelSettings instance to self"""
-        for field in fields(ModelSettings):
+        for field in fields(ModelBaseConfig):
             val = getattr(source, field.name)
             setattr(self, field.name, val)
 

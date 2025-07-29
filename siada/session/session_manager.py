@@ -2,13 +2,13 @@ from typing import Optional
 import logging
 from uuid import uuid4
 
-from siada.entrypoint.interaction.config import InteractionConfig
+from siada.entrypoint.interaction.config import RunningConfig
 from siada.io.io import InputOutput
-from siada.models.model_setting import ModelRunConfig
+from siada.models.model_run_config import ModelRunConfig
 from siada.support.slash_commands import SlashCommands
 
 from .session_models import Session, SessionState
-from siada.models.model_settings import ModelSettings
+from siada.models.model_base_config import ModelBaseConfig
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class InteractionSessionManager:
     
     @staticmethod
     def create_session(
-        interaction_config: InteractionConfig,
+        interaction_config: RunningConfig,
         session_id: Optional[str] = None,
     ) -> Session:
         """
@@ -39,7 +39,7 @@ class InteractionSessionManager:
         # Create interaction session
         session = Session(
             session_id=session_id,
-            interaction_config= interaction_config,
+            config= interaction_config,
         )
         
         # Create associated OpenAI SQLiteSession with same ID

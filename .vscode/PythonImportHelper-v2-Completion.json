@@ -144,30 +144,6 @@
         "documentation": {}
     },
     {
-        "label": "fields",
-        "importPath": "dataclasses",
-        "description": "dataclasses",
-        "isExtraImport": true,
-        "detail": "dataclasses",
-        "documentation": {}
-    },
-    {
-        "label": "dataclass",
-        "importPath": "dataclasses",
-        "description": "dataclasses",
-        "isExtraImport": true,
-        "detail": "dataclasses",
-        "documentation": {}
-    },
-    {
-        "label": "dataclass",
-        "importPath": "dataclasses",
-        "description": "dataclasses",
-        "isExtraImport": true,
-        "detail": "dataclasses",
-        "documentation": {}
-    },
-    {
         "label": "dataclass",
         "importPath": "dataclasses",
         "description": "dataclasses",
@@ -185,6 +161,38 @@
     },
     {
         "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "fields",
         "importPath": "dataclasses",
         "description": "dataclasses",
         "isExtraImport": true,
@@ -520,6 +528,46 @@
         "documentation": {}
     },
     {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Dict",
         "importPath": "typing",
         "description": "typing",
@@ -537,6 +585,38 @@
     },
     {
         "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -672,7 +752,7 @@
         "documentation": {}
     },
     {
-        "label": "Optional",
+        "label": "List",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -680,7 +760,7 @@
         "documentation": {}
     },
     {
-        "label": "List",
+        "label": "Optional",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -1338,6 +1418,14 @@
     },
     {
         "label": "ColoredFormatter",
+        "importPath": "siada.foundation.logging",
+        "description": "siada.foundation.logging",
+        "isExtraImport": true,
+        "detail": "siada.foundation.logging",
+        "documentation": {}
+    },
+    {
+        "label": "logger",
         "importPath": "siada.foundation.logging",
         "description": "siada.foundation.logging",
         "isExtraImport": true,
@@ -2185,6 +2273,14 @@
         "documentation": {}
     },
     {
+        "label": "SiadaRunner",
+        "importPath": "siada.services.siada_runner",
+        "description": "siada.services.siada_runner",
+        "isExtraImport": true,
+        "detail": "siada.services.siada_runner",
+        "documentation": {}
+    },
+    {
         "label": "create_env",
         "importPath": "benchmark.swe.tools.conda_env",
         "description": "benchmark.swe.tools.conda_env",
@@ -2490,6 +2586,70 @@
         "documentation": {}
     },
     {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunHooks",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "Runner",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "TContext",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "Tool",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "Agent",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunConfig",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunHooks",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "RunResult",
         "importPath": "agents",
         "description": "agents",
@@ -2506,7 +2666,63 @@
         "documentation": {}
     },
     {
+        "label": "Runner",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "TContext",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "TResponseInputItem",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "set_trace_processors",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RawResponsesStreamEvent",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunItemStreamEvent",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunResultStreaming",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "ToolCallOutputItem",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2547,6 +2763,14 @@
     },
     {
         "label": "ToolCallOutputItem",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "ModelSettings",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2603,6 +2827,14 @@
     },
     {
         "label": "\\",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "ModelProvider",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2890,6 +3122,14 @@
         "documentation": {}
     },
     {
+        "label": "SiadaProvider",
+        "importPath": "siada.provider.li.li_provider",
+        "description": "siada.provider.li.li_provider",
+        "isExtraImport": true,
+        "detail": "siada.provider.li.li_provider",
+        "documentation": {}
+    },
+    {
         "label": "create_simple_logger",
         "importPath": "siada.agent_hub.coder.tracing",
         "description": "siada.agent_hub.coder.tracing",
@@ -3016,6 +3256,22 @@
         "description": "siada.agent_hub.coder.prompt.bug_prompt",
         "isExtraImport": true,
         "detail": "siada.agent_hub.coder.prompt.bug_prompt",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
         "documentation": {}
     },
     {
@@ -3363,12 +3619,84 @@
         "documentation": {}
     },
     {
+        "label": "ABC",
+        "importPath": "abc",
+        "description": "abc",
+        "isExtraImport": true,
+        "detail": "abc",
+        "documentation": {}
+    },
+    {
+        "label": "abstractmethod",
+        "importPath": "abc",
+        "description": "abc",
+        "isExtraImport": true,
+        "detail": "abc",
+        "documentation": {}
+    },
+    {
         "label": "yaml",
         "kind": 6,
         "isExtraImport": true,
         "importPath": "yaml",
         "description": "yaml",
         "detail": "yaml",
+        "documentation": {}
+    },
+    {
+        "label": "create_detailed_logger",
+        "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "documentation": {}
+    },
+    {
+        "label": "ModelSettingsConverter",
+        "importPath": "siada.models.converter",
+        "description": "siada.models.converter",
+        "isExtraImport": true,
+        "detail": "siada.models.converter",
+        "documentation": {}
+    },
+    {
+        "label": "get_provider",
+        "importPath": "siada.provider.provider_factory",
+        "description": "siada.provider.provider_factory",
+        "isExtraImport": true,
+        "detail": "siada.provider.provider_factory",
+        "documentation": {}
+    },
+    {
+        "label": "ask_followup_question",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
+        "documentation": {}
+    },
+    {
+        "label": "edit",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
+        "documentation": {}
+    },
+    {
+        "label": "search",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
+        "documentation": {}
+    },
+    {
+        "label": "run_cmd",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
         "documentation": {}
     },
     {
@@ -3420,6 +3748,150 @@
         "importPath": "shtab",
         "description": "shtab",
         "detail": "shtab",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfig",
+        "importPath": "siada.entrypoint.interaction.config",
+        "description": "siada.entrypoint.interaction.config",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.config",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfig",
+        "importPath": "siada.entrypoint.interaction.config",
+        "description": "siada.entrypoint.interaction.config",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.config",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfig",
+        "importPath": "siada.entrypoint.interaction.config",
+        "description": "siada.entrypoint.interaction.config",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.config",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfig",
+        "importPath": "siada.entrypoint.interaction.config",
+        "description": "siada.entrypoint.interaction.config",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.config",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfig",
+        "importPath": "siada.entrypoint.interaction.config",
+        "description": "siada.entrypoint.interaction.config",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.config",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfig",
+        "importPath": "siada.entrypoint.interaction.config",
+        "description": "siada.entrypoint.interaction.config",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.config",
+        "documentation": {}
+    },
+    {
+        "label": "TurnInput",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnOutput",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnType",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnInput",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnOutput",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnType",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnInput",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnOutput",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnType",
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "RunTurn",
+        "importPath": "siada.entrypoint.interaction.base_turn",
+        "description": "siada.entrypoint.interaction.base_turn",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.base_turn",
+        "documentation": {}
+    },
+    {
+        "label": "RunTurn",
+        "importPath": "siada.entrypoint.interaction.base_turn",
+        "description": "siada.entrypoint.interaction.base_turn",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.base_turn",
+        "documentation": {}
+    },
+    {
+        "label": "RunTurn",
+        "importPath": "siada.entrypoint.interaction.base_turn",
+        "description": "siada.entrypoint.interaction.base_turn",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.base_turn",
         "documentation": {}
     },
     {
@@ -3481,42 +3953,50 @@
     },
     {
         "label": "ModelRunConfig",
-        "importPath": "siada.models.model_setting",
-        "description": "siada.models.model_setting",
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_setting",
+        "detail": "siada.models.model_run_config",
         "documentation": {}
     },
     {
         "label": "ModelRunConfig",
-        "importPath": "siada.models.model_setting",
-        "description": "siada.models.model_setting",
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_setting",
+        "detail": "siada.models.model_run_config",
         "documentation": {}
     },
     {
         "label": "ModelRunConfig",
-        "importPath": "siada.models.model_setting",
-        "description": "siada.models.model_setting",
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_setting",
+        "detail": "siada.models.model_run_config",
         "documentation": {}
     },
     {
         "label": "ModelRunConfig",
-        "importPath": "siada.models.model_setting",
-        "description": "siada.models.model_setting",
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_setting",
+        "detail": "siada.models.model_run_config",
         "documentation": {}
     },
     {
         "label": "ModelRunConfig",
-        "importPath": "siada.models.model_setting",
-        "description": "siada.models.model_setting",
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_setting",
+        "detail": "siada.models.model_run_config",
+        "documentation": {}
+    },
+    {
+        "label": "ModelRunConfig",
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
+        "isExtraImport": true,
+        "detail": "siada.models.model_run_config",
         "documentation": {}
     },
     {
@@ -3534,38 +4014,6 @@
         "description": "siada.support.completer",
         "isExtraImport": true,
         "detail": "siada.support.completer",
-        "documentation": {}
-    },
-    {
-        "label": "InteractionConfig",
-        "importPath": "siada.entrypoint.interaction.config",
-        "description": "siada.entrypoint.interaction.config",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.config",
-        "documentation": {}
-    },
-    {
-        "label": "InteractionConfig",
-        "importPath": "siada.entrypoint.interaction.config",
-        "description": "siada.entrypoint.interaction.config",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.config",
-        "documentation": {}
-    },
-    {
-        "label": "InteractionConfig",
-        "importPath": "siada.entrypoint.interaction.config",
-        "description": "siada.entrypoint.interaction.config",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.config",
-        "documentation": {}
-    },
-    {
-        "label": "InteractionConfig",
-        "importPath": "siada.entrypoint.interaction.config",
-        "description": "siada.entrypoint.interaction.config",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.config",
         "documentation": {}
     },
     {
@@ -3594,6 +4042,14 @@
     },
     {
         "label": "SlashCommands",
+        "importPath": "siada.support.slash_commands",
+        "description": "siada.support.slash_commands",
+        "isExtraImport": true,
+        "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "SwitchEvent",
         "importPath": "siada.support.slash_commands",
         "description": "siada.support.slash_commands",
         "isExtraImport": true,
@@ -3650,6 +4106,263 @@
         "documentation": {}
     },
     {
+        "label": "threading",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "threading",
+        "description": "threading",
+        "detail": "threading",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseTextDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningSummaryTextDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseFunctionCallArgumentsDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseContentPartAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputItemAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseCompletedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseCreatedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningSummaryPartAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseFunctionToolCall",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputItemDoneEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "Response",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseCompletedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseContentPartAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseContentPartDoneEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseCreatedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseFunctionCallArgumentsDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseFunctionToolCall",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputItem",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputItemAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputItemDoneEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputMessage",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputRefusal",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputText",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningItem",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningSummaryPartAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningSummaryPartDoneEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningSummaryTextDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseRefusalDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseTextDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseUsage",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "Response",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
         "label": "siada.io.components.mdstream",
         "kind": 6,
         "isExtraImport": true,
@@ -3683,27 +4396,179 @@
         "documentation": {}
     },
     {
-        "label": "Enum",
-        "importPath": "enum",
-        "description": "enum",
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
         "isExtraImport": true,
-        "detail": "enum",
+        "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
     {
-        "label": "Enum",
-        "importPath": "enum",
-        "description": "enum",
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
         "isExtraImport": true,
-        "detail": "enum",
+        "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
     {
-        "label": "Enum",
-        "importPath": "enum",
-        "description": "enum",
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
         "isExtraImport": true,
-        "detail": "enum",
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "ObservationType",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
     {
@@ -3712,6 +4577,62 @@
         "description": "siada.tools.tool_call_format.formatter_factory",
         "isExtraImport": true,
         "detail": "siada.tools.tool_call_format.formatter_factory",
+        "documentation": {}
+    },
+    {
+        "label": "ToolCallFormatterFactory",
+        "importPath": "siada.tools.tool_call_format.formatter_factory",
+        "description": "siada.tools.tool_call_format.formatter_factory",
+        "isExtraImport": true,
+        "detail": "siada.tools.tool_call_format.formatter_factory",
+        "documentation": {}
+    },
+    {
+        "label": "Enum",
+        "importPath": "enum",
+        "description": "enum",
+        "isExtraImport": true,
+        "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "Enum",
+        "importPath": "enum",
+        "description": "enum",
+        "isExtraImport": true,
+        "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "Enum",
+        "importPath": "enum",
+        "description": "enum",
+        "isExtraImport": true,
+        "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "Enum",
+        "importPath": "enum",
+        "description": "enum",
+        "isExtraImport": true,
+        "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "CommandTurn",
+        "importPath": "siada.entrypoint.interaction.command_turn",
+        "description": "siada.entrypoint.interaction.command_turn",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.command_turn",
+        "documentation": {}
+    },
+    {
+        "label": "ConversationTurn",
+        "importPath": "siada.entrypoint.interaction.conversation_turn",
+        "description": "siada.entrypoint.interaction.conversation_turn",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
     {
@@ -3804,43 +4725,43 @@
         "documentation": {}
     },
     {
-        "label": "InteractionController",
-        "importPath": "siada.entrypoint.interaction.interaction_controller",
-        "description": "siada.entrypoint.interaction.interaction_controller",
+        "label": "Controller",
+        "importPath": "siada.entrypoint.interaction.controller",
+        "description": "siada.entrypoint.interaction.controller",
         "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.interaction_controller",
+        "detail": "siada.entrypoint.interaction.controller",
         "documentation": {}
     },
     {
-        "label": "ModelSettings",
-        "importPath": "siada.models.model_settings",
-        "description": "siada.models.model_settings",
+        "label": "ModelBaseConfig",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_settings",
+        "detail": "siada.models.model_base_config",
         "documentation": {}
     },
     {
-        "label": "ModelSettings",
-        "importPath": "siada.models.model_settings",
-        "description": "siada.models.model_settings",
+        "label": "ModelBaseConfig",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_settings",
+        "detail": "siada.models.model_base_config",
         "documentation": {}
     },
     {
         "label": "get_model_config",
-        "importPath": "siada.models.model_settings",
-        "description": "siada.models.model_settings",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_settings",
+        "detail": "siada.models.model_base_config",
         "documentation": {}
     },
     {
-        "label": "ModelSettings",
-        "importPath": "siada.models.model_settings",
-        "description": "siada.models.model_settings",
+        "label": "ModelBaseConfig",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
         "isExtraImport": true,
-        "detail": "siada.models.model_settings",
+        "detail": "siada.models.model_base_config",
         "documentation": {}
     },
     {
@@ -4396,6 +5317,23 @@
         "documentation": {}
     },
     {
+        "label": "litellm",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "litellm",
+        "description": "litellm",
+        "detail": "litellm",
+        "documentation": {}
+    },
+    {
+        "label": "Reasoning",
+        "importPath": "litellm",
+        "description": "litellm",
+        "isExtraImport": true,
+        "detail": "litellm",
+        "documentation": {}
+    },
+    {
         "label": "LiCompletionUsage",
         "importPath": "siada.provider.li.domian.complete_usage",
         "description": "siada.provider.li.domian.complete_usage",
@@ -4598,174 +5536,6 @@
         "documentation": {}
     },
     {
-        "label": "Response",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseCompletedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseContentPartAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseContentPartDoneEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseCreatedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseFunctionCallArgumentsDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseFunctionToolCall",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputItem",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputItemAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputItemDoneEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputMessage",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputRefusal",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputText",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningItem",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningSummaryPartAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningSummaryPartDoneEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningSummaryTextDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseRefusalDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseTextDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseUsage",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "Response",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
         "label": "Summary",
         "importPath": "openai.types.responses.response_reasoning_item",
         "description": "openai.types.responses.response_reasoning_item",
@@ -4891,15 +5661,6 @@
         "description": "agents.models.fake_id",
         "isExtraImport": true,
         "detail": "agents.models.fake_id",
-        "documentation": {}
-    },
-    {
-        "label": "litellm",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "litellm",
-        "description": "litellm",
-        "detail": "litellm",
         "documentation": {}
     },
     {
@@ -5130,166 +5891,6 @@
         "documentation": {}
     },
     {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "ObservationType",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
         "label": "USING_TSL_PACK",
         "importPath": "grep_ast.tsl",
         "description": "grep_ast.tsl",
@@ -5444,15 +6045,6 @@
         "description": "diskcache",
         "isExtraImport": true,
         "detail": "diskcache",
-        "documentation": {}
-    },
-    {
-        "label": "threading",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "threading",
-        "description": "threading",
-        "detail": "threading",
         "documentation": {}
     },
     {
@@ -5852,30 +6444,6 @@
         "description": "siada.agent_hub",
         "isExtraImport": true,
         "detail": "siada.agent_hub",
-        "documentation": {}
-    },
-    {
-        "label": "edit",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
-        "documentation": {}
-    },
-    {
-        "label": "search",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
-        "documentation": {}
-    },
-    {
-        "label": "run_cmd",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
         "documentation": {}
     },
     {
@@ -7012,6 +7580,15 @@
         "documentation": {}
     },
     {
+        "label": "IoRunHooks",
+        "kind": 6,
+        "importPath": "siada.agent_hub.hooks.io_hooks",
+        "description": "siada.agent_hub.hooks.io_hooks",
+        "peekOfCode": "class IoRunHooks(RunHooks):\n    def __init__(self):\n        super().__init__()\n    async def on_tool_start(\n        self,\n        context: RunContextWrapper[CodeAgentContext],\n        agent: Agent[TContext],\n        tool: Tool,\n    ) -> None:\n        ## implements until this function args contains arguments",
+        "detail": "siada.agent_hub.hooks.io_hooks",
+        "documentation": {}
+    },
+    {
         "label": "SiadaAgent",
         "kind": 6,
         "importPath": "siada.agent_hub.siada_agent",
@@ -7048,21 +7625,93 @@
         "documentation": {}
     },
     {
-        "label": "InteractionConfig",
+        "label": "RunTurn",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.base_turn",
+        "description": "siada.entrypoint.interaction.base_turn",
+        "peekOfCode": "class RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:\n            config: InteractionConfig with execution parameters\n            session: Current session instance\n        \"\"\"\n        self.config = config\n        self.session = session",
+        "detail": "siada.entrypoint.interaction.base_turn",
+        "documentation": {}
+    },
+    {
+        "label": "CommandTurn",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.command_turn",
+        "description": "siada.entrypoint.interaction.command_turn",
+        "peekOfCode": "class CommandTurn(RunTurn):\n    \"\"\"Handles slash command turns\"\"\"\n    def get_turn_type(self) -> TurnType:\n        return TurnType.COMMAND\n    def can_handle(self, user_input: str) -> bool:\n        \"\"\"Handle slash commands\"\"\"\n        return self.slash_commands.is_command(user_input)\n    def execute(self, turn_input: TurnInput) -> TurnOutput:\n        \"\"\"Execute slash command\n        Args:",
+        "detail": "siada.entrypoint.interaction.command_turn",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfig",
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.config",
         "description": "siada.entrypoint.interaction.config",
-        "peekOfCode": "class InteractionConfig:\n    \"\"\"Configuration data class for interaction controller\"\"\"\n    # Model and IO\n    model: ModelRunConfig\n    io: InputOutput\n    workspace: str\n    agent_name: str\n    completer: Completer",
+        "peekOfCode": "class RunningConfig:\n    \"\"\"Configuration data class for interaction controller\"\"\"\n    # Model and IO\n    model: ModelRunConfig\n    max_turns: int = 10\n    tracing_disabled: bool = False\n    console_output: bool = False\n    io: InputOutput\n    workspace: str\n    agent_name: str",
         "detail": "siada.entrypoint.interaction.config",
         "documentation": {}
     },
     {
-        "label": "InteractionController",
+        "label": "Controller",
         "kind": 6,
-        "importPath": "siada.entrypoint.interaction.interaction_controller",
-        "description": "siada.entrypoint.interaction.interaction_controller",
-        "peekOfCode": "class InteractionController:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: InteractionConfig, slash_commands: SlashCommands):\n        self.config = config\n        self.slash_commands = slash_commands\n    def run(self) -> int:\n        session = InteractionSessionManager.create_session(\n            interaction_config=self.config,\n        )\n        while True:",
-        "detail": "siada.entrypoint.interaction.interaction_controller",
+        "importPath": "siada.entrypoint.interaction.controller",
+        "description": "siada.entrypoint.interaction.controller",
+        "peekOfCode": "class Controller:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig, slash_commands: SlashCommands):\n        self.config = config\n        self.slash_commands = slash_commands\n    def run(self) -> int:\n        session = InteractionSessionManager.create_session(\n            interaction_config=self.config,\n        )\n        while True:",
+        "detail": "siada.entrypoint.interaction.controller",
+        "documentation": {}
+    },
+    {
+        "label": "ConversationTurn",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.conversation_turn",
+        "description": "siada.entrypoint.interaction.conversation_turn",
+        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    got_tool_result_part: bool = False",
+        "detail": "siada.entrypoint.interaction.conversation_turn",
+        "documentation": {}
+    },
+    {
+        "label": "REASONING_TAG",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.conversation_turn",
+        "description": "siada.entrypoint.interaction.conversation_turn",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
+        "detail": "siada.entrypoint.interaction.conversation_turn",
+        "documentation": {}
+    },
+    {
+        "label": "REASONING_START",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.conversation_turn",
+        "description": "siada.entrypoint.interaction.conversation_turn",
+        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None",
+        "detail": "siada.entrypoint.interaction.conversation_turn",
+        "documentation": {}
+    },
+    {
+        "label": "REASONING_END",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.conversation_turn",
+        "description": "siada.entrypoint.interaction.conversation_turn",
+        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
+        "detail": "siada.entrypoint.interaction.conversation_turn",
+        "documentation": {}
+    },
+    {
+        "label": "TOOL_CALL_START",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.conversation_turn",
+        "description": "siada.entrypoint.interaction.conversation_turn",
+        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
+        "detail": "siada.entrypoint.interaction.conversation_turn",
+        "documentation": {}
+    },
+    {
+        "label": "DEFAULT_REASONING_TAG",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.conversation_turn",
+        "description": "siada.entrypoint.interaction.conversation_turn",
+        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
+        "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
     {
@@ -7088,7 +7737,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action\nclass RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: InteractionConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:",
+        "peekOfCode": "class TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action\nclass RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7097,7 +7746,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: InteractionConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:\n            config: InteractionConfig with execution parameters\n            session: Current session instance\n        \"\"\"\n        self.config = config\n        self.session = session",
+        "peekOfCode": "class RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:\n            config: InteractionConfig with execution parameters\n            session: Current session instance\n        \"\"\"\n        self.config = config\n        self.session = session",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7106,7 +7755,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
+        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    got_tool_result_part: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7124,7 +7773,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnFactory:\n    \"\"\"Factory for creating appropriate turn instances\"\"\"\n    @staticmethod\n    def create_turn(\n        config: InteractionConfig, session: Any, slash_commands: Any, user_input: str\n    ) -> RunTurn:\n        \"\"\"Create appropriate turn for user input\n        Args:\n            user_input: Raw user input\n        Returns:",
+        "peekOfCode": "class TurnFactory:\n    \"\"\"Factory for creating appropriate turn instances\"\"\"\n    @staticmethod\n    def create_turn(\n        config: RunningConfig, session: Any, slash_commands: Any, user_input: str\n    ) -> RunTurn:\n        \"\"\"Create appropriate turn for user input\n        Args:\n            user_input: Raw user input\n        Returns:",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7133,7 +7782,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7142,7 +7791,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None",
+        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7151,7 +7800,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None",
+        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7160,7 +7809,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False",
+        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7169,8 +7818,44 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_call_mdstream: siada.io.components.mdstream.MarkdownStream = None\n    response_content: str = None\n    tool_call: str = None\n    tool_call_output: str = None\n    got_tool_call_arguments: bool = False\n    got_content_part: bool = False",
+        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "TurnFactory",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn_factory",
+        "description": "siada.entrypoint.interaction.turn_factory",
+        "peekOfCode": "class TurnFactory:\n    \"\"\"Factory for creating appropriate turn instances\"\"\"\n    @staticmethod\n    def create_turn(\n        config: RunningConfig, session: Any, slash_commands: Any, user_input: str\n    ) -> RunTurn:\n        \"\"\"Create appropriate turn for user input\n        Args:\n            user_input: Raw user input\n        Returns:",
+        "detail": "siada.entrypoint.interaction.turn_factory",
+        "documentation": {}
+    },
+    {
+        "label": "TurnType",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "peekOfCode": "class TurnType(Enum):\n    \"\"\"Types of interaction turns\"\"\"\n    COMMAND = \"command\"  # Slash commands (/help, /edit, etc.)\n    CONVERSATION = \"conversation\"  # Regular AI conversation\n@dataclass\nclass TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n@dataclass\nclass TurnOutput:",
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnInput",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "peekOfCode": "class TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n@dataclass\nclass TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action",
+        "detail": "siada.entrypoint.interaction.turn_models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnOutput",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn_models",
+        "description": "siada.entrypoint.interaction.turn_models",
+        "peekOfCode": "class TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action",
+        "detail": "siada.entrypoint.interaction.turn_models",
         "documentation": {}
     },
     {
@@ -7723,39 +8408,48 @@
         "documentation": {}
     },
     {
-        "label": "ModelRunConfig",
+        "label": "ModelSettingsConverter",
         "kind": 6,
-        "importPath": "siada.models.model_setting",
-        "description": "siada.models.model_setting",
-        "peekOfCode": "class ModelRunConfig(ModelSettings):\n    reasoning_effort : Optional[str] = None\n    thinking_tokens : Optional[int] = None\n    temperature : Optional[float] = None\n    extra_params : Optional[dict] = None\n    def __init__(self, model): \n        self.configure_model_settings(model)\n    def _copy_fields(self, source):\n        \"\"\"Helper to copy fields from a ModelSettings instance to self\"\"\"\n        for field in fields(ModelSettings):",
-        "detail": "siada.models.model_setting",
+        "importPath": "siada.models.converter",
+        "description": "siada.models.converter",
+        "peekOfCode": "class ModelSettingsConverter:\n    @staticmethod\n    def convert_model_settings(model_running_config: ModelRunConfig) -> ModelSettings:\n        extra_body = {}\n        if model_running_config.get_reasoning_effort() is not None:\n            extra_body[\"effort\"] = model_running_config.get_reasoning_effort()\n        if model_running_config.get_thinking_tokens is not None:\n            extra_body[\"max_tokens\"] = model_running_config.get_thinking_tokens()\n        model_settings = ModelSettings(\n            reasoning=Reasoning(",
+        "detail": "siada.models.converter",
         "documentation": {}
     },
     {
-        "label": "DEFAULT_MODEL",
-        "kind": 5,
-        "importPath": "siada.models.model_setting",
-        "description": "siada.models.model_setting",
-        "peekOfCode": "DEFAULT_MODEL = \"claude-sonnet-4\"\n@dataclass()\nclass ModelRunConfig(ModelSettings):\n    reasoning_effort : Optional[str] = None\n    thinking_tokens : Optional[int] = None\n    temperature : Optional[float] = None\n    extra_params : Optional[dict] = None\n    def __init__(self, model): \n        self.configure_model_settings(model)\n    def _copy_fields(self, source):",
-        "detail": "siada.models.model_setting",
-        "documentation": {}
-    },
-    {
-        "label": "ModelSettings",
+        "label": "ModelBaseConfig",
         "kind": 6,
-        "importPath": "siada.models.model_settings",
-        "description": "siada.models.model_settings",
-        "peekOfCode": "class ModelSettings:\n    \"\"\"\n    Represents the configuration for a specific language model.\n    \"\"\"\n    model_name: str\n    context_window: int\n    max_tokens: Optional[int] = None\n    supports_images: bool = False\n    supports_prompt_cache: bool = False\n# Simple list of all model configurations",
-        "detail": "siada.models.model_settings",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
+        "peekOfCode": "class ModelBaseConfig:\n    \"\"\"\n    Represents the configuration for a specific language model.\n    \"\"\"\n    model_name: str\n    context_window: int\n    max_tokens: Optional[int] = None\n    supports_images: bool = False\n    supports_prompt_cache: bool = False\n# Simple list of all model configurations",
+        "detail": "siada.models.model_base_config",
         "documentation": {}
     },
     {
         "label": "get_model_config",
         "kind": 2,
-        "importPath": "siada.models.model_settings",
-        "description": "siada.models.model_settings",
-        "peekOfCode": "def get_model_config(model_name: str) -> Optional[ModelSettings]:\n    \"\"\"\n    Retrieves the configuration for a given model name.\n    Args:\n        model_name: The name of the model to retrieve.\n    Returns:\n        A ModelSettings instance if the model is found, otherwise None.\n    \"\"\"\n    # Exact match first\n    for model_config in MODEL_SETTING:",
-        "detail": "siada.models.model_settings",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
+        "peekOfCode": "def get_model_config(model_name: str) -> Optional[ModelBaseConfig]:\n    \"\"\"\n    Retrieves the configuration for a given model name.\n    Args:\n        model_name: The name of the model to retrieve.\n    Returns:\n        A ModelSettings instance if the model is found, otherwise None.\n    \"\"\"\n    # Exact match first\n    for model_config in MODEL_SETTING:",
+        "detail": "siada.models.model_base_config",
+        "documentation": {}
+    },
+    {
+        "label": "ModelRunConfig",
+        "kind": 6,
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
+        "peekOfCode": "class ModelRunConfig(ModelBaseConfig):\n    reasoning_effort : Optional[str] = None\n    thinking_tokens : Optional[int] = None\n    temperature : Optional[float] = None\n    extra_params : Optional[dict] = None\n    provider: Optional[str] = None\n    def __init__(self, model): \n        self.configure_model_settings(model)\n    def _copy_fields(self, source):\n        \"\"\"Helper to copy fields from a ModelSettings instance to self\"\"\"",
+        "detail": "siada.models.model_run_config",
+        "documentation": {}
+    },
+    {
+        "label": "DEFAULT_MODEL",
+        "kind": 5,
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
+        "peekOfCode": "DEFAULT_MODEL = \"claude-sonnet-4\"\n@dataclass()\nclass ModelRunConfig(ModelBaseConfig):\n    reasoning_effort : Optional[str] = None\n    thinking_tokens : Optional[int] = None\n    temperature : Optional[float] = None\n    extra_params : Optional[dict] = None\n    provider: Optional[str] = None\n    def __init__(self, model): \n        self.configure_model_settings(model)",
+        "detail": "siada.models.model_run_config",
         "documentation": {}
     },
     {
@@ -7993,6 +8687,15 @@
         "documentation": {}
     },
     {
+        "label": "get_provider",
+        "kind": 2,
+        "importPath": "siada.provider.provider_factory",
+        "description": "siada.provider.provider_factory",
+        "peekOfCode": "def get_provider(provider_name: str) -> ModelProvider:\n    \"\"\"\n    根据提供商名称获取相应的模型提供商实例。\n    Args:\n        provider_name (str): 提供商的名称，例如 'li'。\n    Returns:\n        ModelProvider: 对应的模型提供商实例。\n    Raises:\n        ValueError: 如果提供商名称不受支持。\n    \"\"\"",
+        "detail": "siada.provider.provider_factory",
+        "documentation": {}
+    },
+    {
         "label": "SiadaRunner",
         "kind": 6,
         "importPath": "siada.services.siada_runner",
@@ -8006,7 +8709,7 @@
         "kind": 6,
         "importPath": "siada.session.session_manager",
         "description": "siada.session.session_manager",
-        "peekOfCode": "class InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: InteractionConfig,\n        session_id: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:\n            config: Model configuration using ModelSettings structure",
+        "peekOfCode": "class InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: RunningConfig,\n        session_id: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:\n            config: Model configuration using ModelSettings structure",
         "detail": "siada.session.session_manager",
         "documentation": {}
     },
@@ -8015,7 +8718,7 @@
         "kind": 5,
         "importPath": "siada.session.session_manager",
         "description": "siada.session.session_manager",
-        "peekOfCode": "logger = logging.getLogger(__name__)\nclass InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: InteractionConfig,\n        session_id: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:",
+        "peekOfCode": "logger = logging.getLogger(__name__)\nclass InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: RunningConfig,\n        session_id: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:",
         "detail": "siada.session.session_manager",
         "documentation": {}
     },
@@ -8033,7 +8736,7 @@
         "kind": 6,
         "importPath": "siada.session.session_models",
         "description": "siada.session.session_models",
-        "peekOfCode": "class Session:\n    interaction_config: InteractionConfig\n    session_id: str = field(default_factory=lambda: str(uuid4()))\n    state: SessionState = field(default_factory=SessionState)",
+        "peekOfCode": "class Session:\n    running_config: RunningConfig\n    session_id: str = field(default_factory=lambda: str(uuid4()))\n    state: SessionState = field(default_factory=SessionState)",
         "detail": "siada.session.session_models",
         "documentation": {}
     },
@@ -8737,6 +9440,15 @@
         "description": "siada.tools.coder.repo_map.waiting",
         "peekOfCode": "def main():\n    spinner = Spinner(\"Running spinner...\")\n    try:\n        for _ in range(100):\n            time.sleep(0.15)\n            spinner.step()\n        print(\"Success!\")\n    except KeyboardInterrupt:\n        print(\"\\nInterrupted by user.\")\n    finally:",
         "detail": "siada.tools.coder.repo_map.waiting",
+        "documentation": {}
+    },
+    {
+        "label": "AskFollowupQuestionResult",
+        "kind": 6,
+        "importPath": "siada.tools.coder.ask_followup_question",
+        "description": "siada.tools.coder.ask_followup_question",
+        "peekOfCode": "class AskFollowupQuestionResult(FunctionCallResult):\n    answer: str\n    error: str\n    def __init__(self, answer: str = None, error: str = None):\n        super().__init__(content=answer)\n        self.answer = answer\n        self.error = error\n    def format_for_display(self) -> str:\n        if self.error:\n            return f\"I can't get the answer from the user, because {self.error} occurred\"",
+        "detail": "siada.tools.coder.ask_followup_question",
         "documentation": {}
     },
     {

@@ -70,17 +70,13 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         Returns:
             Generation result containing final output and execution details
         """
-        config = RunConfig(tracing_disabled=True)
-        #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
-        set_trace_processors([create_detailed_logger()])
 
         input_with_env = self.assemble_user_input(user_input, context)
-        result = await Runner.run(
+        result = await self.run_impl(
             starting_agent=self,
             input=input_with_env,
             max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context.session.openai_session
+            context=context,
         )
         
         return result
@@ -95,19 +91,16 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         Returns:
             生成结果，包含最终输出、执行轮数等信息
         """
-        config = RunConfig(tracing_disabled=True)
+        # config = RunConfig(tracing_disabled=True)
         #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
-        set_trace_processors([create_detailed_logger()])
+        # set_trace_processors([create_detailed_logger()])
 
         input_with_env = self.assemble_user_input(user_input, context)
-        result = Runner.run_streamed(
-            starting_agent=self,
-            input=input_with_env,
-            max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context,
-            session=context.session.state.openai_session
-        )
+        result = self.run_streamed_impl(starting_agent=self,
+                                        input=input_with_env,
+                                        context=context,
+                                        max_turns=settings.MAX_TURNS,
+                                        context=context.session.openai_session)
 
         return result
 

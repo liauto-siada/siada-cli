@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional, List
 
 @dataclass
-class ModelSettings:
+class ModelBaseConfig:
     """
     Represents the configuration for a specific language model.
     """
@@ -13,80 +13,80 @@ class ModelSettings:
     supports_prompt_cache: bool = False
 
 # Simple list of all model configurations
-MODEL_SETTING: List[ModelSettings] = [
-    ModelSettings(
+MODEL_SETTING: List[ModelBaseConfig] = [
+    ModelBaseConfig(
         model_name="claude-sonnet-4",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="claude-sonnet-4-thinking",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="claude-3-7-sonnet",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="claude-3-5-sonnet-20240620",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="gemini-2.5-pro",
         max_tokens=65535,
         context_window=1_048_576,
         supports_images=True,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="claude-opus-4",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="deepseek-r1-0528",
         max_tokens=16_384,
         context_window=128_000,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="deepseek-v3-0324",
         max_tokens=12_288,
         context_window=128_000,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="o1",
         max_tokens=100_000,
         context_window=200_000,
         supports_images=True,
         supports_prompt_cache=True,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="gpt-4.1",
         max_tokens=32_768,
         context_window=1_047_576,
         supports_images=True,
         supports_prompt_cache=True,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="o1-mini",
         max_tokens=65_536,
         context_window=128_000,
         supports_prompt_cache=True,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="o3-mini",
         max_tokens=100_000,
         context_window=200_000,
         supports_prompt_cache=True,
     ),
-    ModelSettings(
+    ModelBaseConfig(
         model_name="gpt-4o",
         max_tokens=16_384,
         context_window=128_000,
@@ -95,7 +95,7 @@ MODEL_SETTING: List[ModelSettings] = [
     ),
 ]
 
-def get_model_config(model_name: str) -> Optional[ModelSettings]:
+def get_model_config(model_name: str) -> Optional[ModelBaseConfig]:
     """
     Retrieves the configuration for a given model name.
     

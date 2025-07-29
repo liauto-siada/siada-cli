@@ -7,7 +7,7 @@ from prompt_toolkit.completion import Completion, PathCompleter
 from prompt_toolkit.document import Document
 
 import siada.io.io
-from siada.models.model_setting import ModelRunConfig
+from siada.models.model_run_config import ModelRunConfig
 from siada.support.editor import pipe_editor
 from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
 

@@ -9,19 +9,19 @@ from dataclasses import dataclass
 
 import siada.support.completer
 from siada import __version__
-from siada.entrypoint.interaction.config import InteractionConfig
+from siada.entrypoint.interaction.config import RunningConfig
 from siada.entrypoint.interaction.run_turn import TurnFactory, TurnInput
 from siada.io.io import InputOutput
-from siada.models.model_setting import ModelRunConfig
+from siada.models.model_run_config import ModelRunConfig
 from siada.session.session_manager import InteractionSessionManager
 from siada.support.slash_commands import SlashCommands, SwitchEvent
 
 
-class InteractionController:
+class Controller:
     """Controls user-AI coding interactions and manages coder lifecycle"""
 
 
-    def __init__(self, config: InteractionConfig, slash_commands: SlashCommands):
+    def __init__(self, config: RunningConfig, slash_commands: SlashCommands):
         self.config = config
         self.slash_commands = slash_commands
 

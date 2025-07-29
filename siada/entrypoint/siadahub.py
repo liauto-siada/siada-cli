@@ -7,11 +7,11 @@ from pathlib import Path
 from prompt_toolkit.completion import Completer
 
 from siada.entrypoint.args_parser.args import get_parser
-from siada.entrypoint.interaction.config import InteractionConfig
-from siada.entrypoint.interaction.interaction_controller import InteractionController
+from siada.entrypoint.interaction.config import RunningConfig
+from siada.entrypoint.interaction.controller import Controller
 from siada.foundation.logging import toggle_console_output, logger
-from siada.models.model_setting import ModelRunConfig
-from siada.models.model_settings import ModelSettings
+from siada.models.model_run_config import ModelRunConfig
+from siada.models.model_base_config import ModelBaseConfig
 from siada.support.completer import AutoCompleter
 from siada.support.slash_commands import SlashCommands, SwitchEvent
 from siada.support.envprocessor import load_dotenv_files
@@ -247,7 +247,7 @@ def main():
         encoding=args.encoding,
     )
 
-    interaction_config = InteractionConfig(
+    interaction_config = RunningConfig(
         model=model,
         io=io,
         workspace=workspace,
@@ -255,7 +255,7 @@ def main():
         completer=completer,
     )
 
-    controller = InteractionController(interaction_config, commands)
+    controller = Controller(interaction_config, commands)
     controller.show_announcements()
     controller.run()
 
