@@ -130,6 +130,8 @@ class BugFixAgent(CodeGenAgent):
             issue_desc=user_input,
             fix_code=diff_patch,
         )
+
+        check_result["code_diff"] = diff_patch
         return check_result
 
         # return {
