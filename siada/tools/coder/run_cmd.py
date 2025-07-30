@@ -25,17 +25,13 @@ class RunCmdResult(FunctionCallResult):
         self.code = code if code is not None else 1
 
     def format_for_display(self) -> str:
-        if self.code == 0 and self.output:
-            return self.output
-        elif self.code == 0 and not self.output:
-            return f"Command exited with code: {self.code}"
-        elif self.code != 0 and self.output:
-            return f"Command failed: {self.output}"
+        if self.code == 0:
+            return f"`{self.command}` executed successfully!"
         else:
-            return f"Command failed with code: {self.code}"
+            return f"`{self.command}` executed with error!"
 
     def __str__(self):
-        return str(self.format_for_display())
+        return str((self.code, self.output))
 
 
 @function_tool

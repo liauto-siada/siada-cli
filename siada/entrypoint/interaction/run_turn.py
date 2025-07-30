@@ -164,6 +164,8 @@ REASONING_END = "------------\n► **ANSWER**"
 
 TOOL_CALL_START = "--------------\n► **TOOL USE**"
 
+TOOL_OUTPUT_START = "--------------\n► **TOOL OUTPUT**"
+
 DEFAULT_REASONING_TAG = "thinking"
 
 
@@ -258,6 +260,7 @@ class ConversationTurn(RunTurn):
             ResponseReasoningSummaryPartAddedEvent,
             ResponseFunctionToolCall,
             ResponseOutputItemDoneEvent,
+            ResponseContentPartDoneEvent
         )
         from openai.types.responses.response_input_item_param import FunctionCallOutput
 
@@ -312,14 +315,18 @@ class ConversationTurn(RunTurn):
                             self.response_content += delta_text
                         self._live_incremental_response(delta_text, self.response_content)
 
+                    elif isinstance(stream_data, ResponseContentPartDoneEvent):
+                        self._live_incremental_response("", self.response_content, final=True)
+                        self.mdstream = None
+
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
-                            call_id = stream_data.item.id
+                            call_id = stream_data.item.call_id
                             tool_name = stream_data.item.name
                             self.tool_calls[call_id] = {"name": tool_name, "arguments": ""}
                             self.current_active_call_id = call_id
                             self.config.io.print_tool_call(
-                                f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}"
+                                f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}\n"
                             )
 
                     elif isinstance(stream_data, ResponseFunctionCallArgumentsDeltaEvent):
@@ -327,9 +334,11 @@ class ConversationTurn(RunTurn):
                         if self.current_active_call_id:
                             self.tool_calls[self.current_active_call_id]["arguments"] += delta
 
+                        ## TODO: stream output the tool call arge
+
                     elif isinstance(stream_data, ResponseOutputItemDoneEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
-                            call_id = stream_data.item.id
+                            call_id = stream_data.item.call_id
                             if call_id in self.tool_calls:
                                 tool_name = self.tool_calls[call_id]["name"]
                                 full_arguments = self.tool_calls[call_id]["arguments"]
@@ -351,26 +360,19 @@ class ConversationTurn(RunTurn):
                                 self.current_active_call_id = None
 
                     elif isinstance(stream_data, ResponseCompletedEvent):
-                        self._live_incremental_response("", self.response_content, final=True)
-                        self.mdstream = None
-                        self.response_content = None
-                        self.tool_calls = None
-                        self.tool_call_mdstreams = None
-                        self.got_content_part = False
-                        self.got_reasoning_part = False
-                        self.current_active_call_id = None
+                        pass
 
                 elif isinstance(event, RunItemStreamEvent):
                     stream_data = event.item
                     if isinstance(stream_data, ToolCallOutputItem):
-
-                        if hasattr(stream_data.raw_item, "call_id"):
-                            call_id = stream_data.raw_item.call_id
+                        call_id = stream_data.raw_item.get("call_id", None)
+                        if call_id:
                             if call_id in self.tool_calls:
                                 tool_name = self.tool_calls[call_id]["name"]
-                                self.config.io.print_tool_result(
-                                    f"Siada has used the tool: {tool_name}"
-                                )
+                                # self.config.io.print_tool_result(
+                                #     f"{TOOL_OUTPUT_START}: {tool_name.upper()}"
+                                # )
+                                self.config.io.print_tool_result()
                                 output = stream_data.output
                                 if isinstance(output, FunctionCallResult):
                                     self.config.io.print_tool_result(
