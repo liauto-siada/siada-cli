@@ -14,7 +14,9 @@ def get_provider(provider_name: str) -> ModelProvider:
     Raises:
         ValueError: 如果提供商名称不受支持。
     """
-    if provider_name == "li":
+    if not provider_name:
+        return SiadaProvider()
+    elif provider_name == "li":
         return SiadaProvider()
     # TODO: 在此添加对 'openrouter' 的支持
     # elif provider_name == "openrouter":

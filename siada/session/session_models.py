@@ -29,7 +29,7 @@ class SessionState:
 
 
 @dataclass
-class Session:
+class RunningSession:
     
     running_config: RunningConfig
 

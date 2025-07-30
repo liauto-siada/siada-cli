@@ -13,13 +13,15 @@ from siada.models.model_run_config import ModelRunConfig
 class RunningConfig:
     """Configuration data class for interaction controller"""
 
-    # Model and IO
+    # Required fields (no default values)
     model: ModelRunConfig
-    max_turns: int = 10
-    tracing_disabled: bool = False
-    console_output: bool = False
     io: InputOutput
     workspace: str
     agent_name: str
-    interactive: bool = True
     completer: Completer
+    
+    # Optional fields (with default values)
+    max_turns: int = 10
+    tracing_disabled: bool = False
+    console_output: bool = False
+    interactive: bool = True

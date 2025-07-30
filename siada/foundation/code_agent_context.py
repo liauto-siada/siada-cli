@@ -1,7 +1,7 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
-from siada.session.session_models import Session
+from siada.session.session_models import RunningSession
 
 class CodeAgentContext(BaseModel):
     
@@ -9,4 +9,4 @@ class CodeAgentContext(BaseModel):
     
     root_dir: Optional[str] = None
 
-    session: Optional[Session] = None
+    session: Optional[RunningSession] = None

@@ -7,19 +7,19 @@ from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
 from siada.support.slash_commands import SlashCommands
 
-from .session_models import Session, SessionState
+from .session_models import RunningSession, SessionState
 from siada.models.model_base_config import ModelBaseConfig
 
 logger = logging.getLogger(__name__)
 
 
-class InteractionSessionManager:
+class RunningSessionManager:
     
     @staticmethod
     def create_session(
-        interaction_config: RunningConfig,
+        running_config: RunningConfig,
         session_id: Optional[str] = None,
-    ) -> Session:
+    ) -> RunningSession:
         """
         Create a new interaction session
         
@@ -37,9 +37,9 @@ class InteractionSessionManager:
             session_id = str(uuid4())
         
         # Create interaction session
-        session = Session(
+        session = RunningSession(
             session_id=session_id,
-            config= interaction_config,
+            running_config=running_config,
         )
         
         # Create associated OpenAI SQLiteSession with same ID

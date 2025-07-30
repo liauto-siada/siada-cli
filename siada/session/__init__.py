@@ -11,19 +11,19 @@ Core Features:
 """
 
 from .session_models import (
-    Session,
+    RunningSession,
     SessionState
 )
 
 from .session_manager import (
-    InteractionSessionManager,
+    RunningSessionManager,
 )
 
 __all__ = [
     # Data models
-    "Session",
+    "RunningSession",
     "SessionState",
     
     # Managers
-    "InteractionSessionManager",
+    "RunningSessionManager",
 ]

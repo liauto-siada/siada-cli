@@ -12,7 +12,7 @@ class DefaultFormatter(ToolCallFormatter):
 
     @property
     def supported_function(self) -> str:
-        return ""
+        return "default"
     
 
 class FileEditFormatter(ToolCallFormatter):

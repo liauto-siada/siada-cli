@@ -2,7 +2,7 @@ import asyncio
 import importlib
 import os
 from pathlib import Path
-from siada.session.session_models import Session
+from siada.session.session_models import RunningSession
 from typing import Dict, Type, Optional, Union, Literal, overload
 
 import yaml
@@ -21,7 +21,7 @@ class SiadaRunner:
         agent_name: str,
         user_input: str,
         workspace: str = None,
-        session: Session = None,
+        session: RunningSession = None,
         *,
         stream: Literal[True],
     ) -> RunResultStreaming: ...
@@ -32,7 +32,7 @@ class SiadaRunner:
         agent_name: str,
         user_input: str,
         workspace: str = None,
-        session: Session = None,
+        session: RunningSession = None,
         *,
         stream: Literal[False],
     ) -> RunResult: ...
@@ -42,7 +42,7 @@ class SiadaRunner:
         agent_name: str,
         user_input: str,
         workspace: str = None,
-        session: Session = None,
+        session: RunningSession = None,
         stream: bool = False,
     ) -> RunResult | RunResultStreaming:
         """
@@ -64,11 +64,11 @@ class SiadaRunner:
         if session:
             context.session = session
 
-        set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
+        # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
 
         if stream:
             # 流式执行
-            result = agent.run_streamed(user_input, context)
+            result = await agent.run_streamed(user_input, context)
         else:
             # 普通执行
             result = await agent.run(user_input, context)

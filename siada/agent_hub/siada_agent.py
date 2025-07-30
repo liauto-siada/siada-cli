@@ -8,7 +8,7 @@ from siada.agent_hub.coder.tracing.logger_tracing_processor import create_detail
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.models.converter import ModelSettingsConverter
 from siada.provider.provider_factory import get_provider
-from siada.tools.coder import ask_followup_question
+from siada.tools.coder.ask_followup_question import ask_followup_question
 from siada.tools.coder.repo_map.repo_map import RepoMap
 from siada.tools.coder.repo_map.token_counter import TokenCounterModel
 from siada.tools.coder.repo_map.io import SilentIO
@@ -42,7 +42,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         pass
 
     @abstractmethod
-    def run_streamed(self, user_input: str, context: TContext) -> RunResultStreaming:
+    async def run_streamed(self, user_input: str, context: TContext) -> RunResultStreaming:
         """
         Execute Streamed the agent with the given user input and context
                 
@@ -122,15 +122,16 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             # 如果创建失败，返回 None
             return None
 
-    def _prepare_run_environment(self, run_config: RunConfig | None = None):
+    async def _prepare_run_environment(
+        self,
+        run_config: RunConfig | None = None,
+        context: TContext | None = None,
+    ):
+        running_session = context.session
 
-        siada_agent_context: CodeAgentContext = self.get_context()
-
-        running_session = siada_agent_context.session
-
-        model_running_config = running_session.running_config
+        model_running_config = running_session.running_config.model
         model_settings = ModelSettingsConverter.convert_model_settings(model_running_config)
-        model_provider_name = model_running_config.model.provider
+        model_provider_name = model_running_config.provider
         model_provider = get_provider(model_provider_name)
 
         if running_session.running_config.interactive:
@@ -141,7 +142,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         if run_config is None:
             run_config = RunConfig(
                 tracing_disabled=running_session.running_config.tracing_disabled,
-                model=model_running_config.model.model_name,
+                model=model_running_config.model_name,
                 model_provider=model_provider,
                 model_settings=model_settings
             )
@@ -152,7 +153,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         session = running_session.state.openai_session
         return run_config, session
 
-    def run_impl(
+    async def run_impl(
         self,
         starting_agent: Agent[TContext],
         input: str | list[TResponseInputItem],
@@ -163,7 +164,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         previous_response_id: str | None = None,
     ) -> RunResult:
 
-        run_config, session = self._prepare_run_environment(run_config)
+        run_config, session = await self._prepare_run_environment(run_config, context)
 
         return Runner.run(
             starting_agent=starting_agent,
@@ -176,7 +177,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             session=session,
         )
 
-    def run_streamed_impl(
+    async def run_streamed_impl(
         self,
         starting_agent: Agent[TContext],
         input: str | list[TResponseInputItem],
@@ -187,7 +188,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         previous_response_id: str | None = None,
     ) -> RunResultStreaming:
 
-        run_config, session = self._prepare_run_environment(run_config)
+        run_config, session = await self._prepare_run_environment(run_config, context)
 
         return Runner.run_streamed(
             starting_agent=starting_agent,

@@ -2281,6 +2281,14 @@
         "documentation": {}
     },
     {
+        "label": "SiadaRunner",
+        "importPath": "siada.services.siada_runner",
+        "description": "siada.services.siada_runner",
+        "isExtraImport": true,
+        "detail": "siada.services.siada_runner",
+        "documentation": {}
+    },
+    {
         "label": "create_env",
         "importPath": "benchmark.swe.tools.conda_env",
         "description": "benchmark.swe.tools.conda_env",
@@ -2499,38 +2507,6 @@
     },
     {
         "label": "RunResultStreaming",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "Runner",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "RunConfig",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "add_trace_processor",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "set_trace_processors",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -3194,14 +3170,6 @@
         "documentation": {}
     },
     {
-        "label": "create_detailed_logger",
-        "importPath": "siada.agent_hub.coder.tracing",
-        "description": "siada.agent_hub.coder.tracing",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.tracing",
-        "documentation": {}
-    },
-    {
         "label": "datetime",
         "kind": 6,
         "isExtraImport": true,
@@ -3669,34 +3637,10 @@
     },
     {
         "label": "ask_followup_question",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
+        "importPath": "siada.tools.coder.ask_followup_question",
+        "description": "siada.tools.coder.ask_followup_question",
         "isExtraImport": true,
-        "detail": "siada.tools.coder",
-        "documentation": {}
-    },
-    {
-        "label": "edit",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
-        "documentation": {}
-    },
-    {
-        "label": "search",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
-        "documentation": {}
-    },
-    {
-        "label": "run_cmd",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
+        "detail": "siada.tools.coder.ask_followup_question",
         "documentation": {}
     },
     {
@@ -3748,6 +3692,14 @@
         "importPath": "shtab",
         "description": "shtab",
         "detail": "shtab",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfig",
+        "importPath": "siada.entrypoint.interaction.config",
+        "description": "siada.entrypoint.interaction.config",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.config",
         "documentation": {}
     },
     {
@@ -4033,7 +3985,15 @@
         "documentation": {}
     },
     {
-        "label": "InteractionSessionManager",
+        "label": "RunningSessionManager",
+        "importPath": "siada.session.session_manager",
+        "description": "siada.session.session_manager",
+        "isExtraImport": true,
+        "detail": "siada.session.session_manager",
+        "documentation": {}
+    },
+    {
+        "label": "RunningSessionManager",
         "importPath": "siada.session.session_manager",
         "description": "siada.session.session_manager",
         "isExtraImport": true,
@@ -4596,6 +4556,31 @@
         "documentation": {}
     },
     {
+        "label": "unittest",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "unittest",
+        "description": "unittest",
+        "detail": "unittest",
+        "documentation": {}
+    },
+    {
+        "label": "result",
+        "importPath": "unittest",
+        "description": "unittest",
+        "isExtraImport": true,
+        "detail": "unittest",
+        "documentation": {}
+    },
+    {
+        "label": "IsolatedAsyncioTestCase",
+        "importPath": "unittest",
+        "description": "unittest",
+        "isExtraImport": true,
+        "detail": "unittest",
+        "documentation": {}
+    },
+    {
         "label": "Enum",
         "importPath": "enum",
         "description": "enum",
@@ -4741,6 +4726,14 @@
         "documentation": {}
     },
     {
+        "label": "NoInteractiveController",
+        "importPath": "siada.entrypoint.interaction.nointeractive_controller",
+        "description": "siada.entrypoint.interaction.nointeractive_controller",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.nointeractive_controller",
+        "documentation": {}
+    },
+    {
         "label": "ModelBaseConfig",
         "importPath": "siada.models.model_base_config",
         "description": "siada.models.model_base_config",
@@ -4846,7 +4839,7 @@
         "documentation": {}
     },
     {
-        "label": "Session",
+        "label": "RunningSession",
         "importPath": "siada.session.session_models",
         "description": "siada.session.session_models",
         "isExtraImport": true,
@@ -4854,7 +4847,7 @@
         "documentation": {}
     },
     {
-        "label": "Session",
+        "label": "RunningSession",
         "importPath": "siada.session.session_models",
         "description": "siada.session.session_models",
         "isExtraImport": true,
@@ -6286,23 +6279,6 @@
         "documentation": {}
     },
     {
-        "label": "unittest",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "unittest",
-        "description": "unittest",
-        "detail": "unittest",
-        "documentation": {}
-    },
-    {
-        "label": "IsolatedAsyncioTestCase",
-        "importPath": "unittest",
-        "description": "unittest",
-        "isExtraImport": true,
-        "detail": "unittest",
-        "documentation": {}
-    },
-    {
         "label": "patch",
         "importPath": "unittest.mock",
         "description": "unittest.mock",
@@ -6444,6 +6420,30 @@
         "description": "siada.agent_hub",
         "isExtraImport": true,
         "detail": "siada.agent_hub",
+        "documentation": {}
+    },
+    {
+        "label": "edit",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
+        "documentation": {}
+    },
+    {
+        "label": "search",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
+        "documentation": {}
+    },
+    {
+        "label": "run_cmd",
+        "importPath": "siada.tools.coder",
+        "description": "siada.tools.coder",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder",
         "documentation": {}
     },
     {
@@ -7602,7 +7602,7 @@
         "kind": 2,
         "importPath": "siada.entrypoint.args_parser.args",
         "description": "siada.entrypoint.args_parser.args",
-        "peekOfCode": "def resolve_aiderignore_path(path_str, git_root=None):\n    path = Path(path_str)\n    if path.is_absolute():\n        return str(path)\n    elif git_root:\n        return str(Path(git_root) / path)\n    return str(path)\ndef default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser(default_config_files, git_root):",
+        "peekOfCode": "def resolve_aiderignore_path(path_str, git_root=None):\n    path = Path(path_str)\n    if path.is_absolute():\n        return str(path)\n    elif git_root:\n        return str(Path(git_root) / path)\n    return str(path)\ndef default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser_for_dotenv():",
         "detail": "siada.entrypoint.args_parser.args",
         "documentation": {}
     },
@@ -7611,7 +7611,16 @@
         "kind": 2,
         "importPath": "siada.entrypoint.args_parser.args",
         "description": "siada.entrypoint.args_parser.args",
-        "peekOfCode": "def default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser(default_config_files, git_root):\n    parser = configargparse.ArgumentParser(\n        description=\"Siada-CLI is AI pair programming in your terminal\",\n        add_config_file_help=True,\n        default_config_files=default_config_files,\n        config_file_parser_class=configargparse.YAMLConfigFileParser,\n        auto_env_var_prefix=\"SIADA_\",\n    )",
+        "peekOfCode": "def default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser_for_dotenv():\n    # Special-case parser for getting the env_file, so we can load it\n    # before we parse the rest of the args.\n    parser = configargparse.ArgumentParser(add_help=False)\n    # Add only the arguments needed to find the .env file\n    parser.add_argument(\n        \"--workspace\",\n        metavar=\"DIR\",",
+        "detail": "siada.entrypoint.args_parser.args",
+        "documentation": {}
+    },
+    {
+        "label": "get_parser_for_dotenv",
+        "kind": 2,
+        "importPath": "siada.entrypoint.args_parser.args",
+        "description": "siada.entrypoint.args_parser.args",
+        "peekOfCode": "def get_parser_for_dotenv():\n    # Special-case parser for getting the env_file, so we can load it\n    # before we parse the rest of the args.\n    parser = configargparse.ArgumentParser(add_help=False)\n    # Add only the arguments needed to find the .env file\n    parser.add_argument(\n        \"--workspace\",\n        metavar=\"DIR\",\n        help=\"Specify the workspace directory (defaults to git root or current working directory)\",\n    )",
         "detail": "siada.entrypoint.args_parser.args",
         "documentation": {}
     },
@@ -7647,7 +7656,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.config",
         "description": "siada.entrypoint.interaction.config",
-        "peekOfCode": "class RunningConfig:\n    \"\"\"Configuration data class for interaction controller\"\"\"\n    # Model and IO\n    model: ModelRunConfig\n    max_turns: int = 10\n    tracing_disabled: bool = False\n    console_output: bool = False\n    io: InputOutput\n    workspace: str\n    agent_name: str",
+        "peekOfCode": "class RunningConfig:\n    \"\"\"Configuration data class for interaction controller\"\"\"\n    # Required fields (no default values)\n    model: ModelRunConfig\n    io: InputOutput\n    workspace: str\n    agent_name: str\n    completer: Completer\n    # Optional fields (with default values)\n    max_turns: int = 10",
         "detail": "siada.entrypoint.interaction.config",
         "documentation": {}
     },
@@ -7656,7 +7665,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.controller",
         "description": "siada.entrypoint.interaction.controller",
-        "peekOfCode": "class Controller:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig, slash_commands: SlashCommands):\n        self.config = config\n        self.slash_commands = slash_commands\n    def run(self) -> int:\n        session = InteractionSessionManager.create_session(\n            interaction_config=self.config,\n        )\n        while True:",
+        "peekOfCode": "class Controller:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig, slash_commands: SlashCommands):\n        self.config = config\n        self.slash_commands = slash_commands\n    def run(self) -> int:\n        session = RunningSessionManager.create_session(\n            running_config=self.config,\n        )\n        while True:",
         "detail": "siada.entrypoint.interaction.controller",
         "documentation": {}
     },
@@ -7712,6 +7721,15 @@
         "description": "siada.entrypoint.interaction.conversation_turn",
         "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
         "detail": "siada.entrypoint.interaction.conversation_turn",
+        "documentation": {}
+    },
+    {
+        "label": "NoInteractiveController",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.nointeractive_controller",
+        "description": "siada.entrypoint.interaction.nointeractive_controller",
+        "peekOfCode": "class NoInteractiveController:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig):\n        self.config = config\n    def run(self, user_input: str) -> int:\n        session = RunningSessionManager.create_session(\n            running_config=self.config,\n        )\n        result = asyncio.run(\n            SiadaRunner.run_agent(",
+        "detail": "siada.entrypoint.interaction.nointeractive_controller",
         "documentation": {}
     },
     {
@@ -7913,11 +7931,56 @@
         "documentation": {}
     },
     {
+        "label": "get_io",
+        "kind": 2,
+        "importPath": "siada.entrypoint.siadahub",
+        "description": "siada.entrypoint.siadahub",
+        "peekOfCode": "def get_io(args, pretty=None):\n    \"\"\"\n    Create InputOutput instance with complete IO configuration\n    Args:\n        args: Parsed command line arguments\n        pretty: Whether to enable pretty mode, defaults to args.pretty\n    Returns:\n        InputOutput: Configured IO instance\n    Raises:\n        ValueError: When theme configuration is invalid",
+        "detail": "siada.entrypoint.siadahub",
+        "documentation": {}
+    },
+    {
+        "label": "set_env",
+        "kind": 2,
+        "importPath": "siada.entrypoint.siadahub",
+        "description": "siada.entrypoint.siadahub",
+        "peekOfCode": "def set_env(args, io):\n    \"\"\"\n    Set environment variables, including general environment variables and API keys\n    Args:\n        args: Parsed command line arguments\n        io: InputOutput instance for printing error messages\n    Returns:\n        int: 0 for success, 1 for error\n    \"\"\"\n    # Set general environment variables",
+        "detail": "siada.entrypoint.siadahub",
+        "documentation": {}
+    },
+    {
+        "label": "get_workspace",
+        "kind": 2,
+        "importPath": "siada.entrypoint.siadahub",
+        "description": "siada.entrypoint.siadahub",
+        "peekOfCode": "def get_workspace(workspace_arg, git_root):\n    \"\"\"\n    Get and set workspace directory\n    Args:\n        workspace_arg: User-specified workspace path\n        git_root: Git root directory path\n    Returns:\n        str: Workspace path\n    Raises:\n        SystemExit: When workspace directory does not exist or is not a directory",
+        "detail": "siada.entrypoint.siadahub",
+        "documentation": {}
+    },
+    {
+        "label": "show_banner",
+        "kind": 2,
+        "importPath": "siada.entrypoint.siadahub",
+        "description": "siada.entrypoint.siadahub",
+        "peekOfCode": "def show_banner(io):\n    \"\"\"\n    Display SIADA HUB banner with error handling\n    Args:\n        io: InputOutput instance\n    Raises:\n        Exception: When banner display fails\n    \"\"\"\n    # Show SIADA HUB banner with gradient effect\n    from siada.io.banner import show_siada_banner",
+        "detail": "siada.entrypoint.siadahub",
+        "documentation": {}
+    },
+    {
+        "label": "set_model",
+        "kind": 2,
+        "importPath": "siada.entrypoint.siadahub",
+        "description": "siada.entrypoint.siadahub",
+        "peekOfCode": "def set_model(args, io):\n    \"\"\"\n    Configure and create model instance\n    Args:\n        args: Parsed command line arguments\n        io: InputOutput instance for displaying information\n    Returns:\n        ModelRunConfig: Configured model instance, returns None if exit is needed\n    \"\"\"\n    if args.list_models:",
+        "detail": "siada.entrypoint.siadahub",
+        "documentation": {}
+    },
+    {
         "label": "main",
         "kind": 2,
         "importPath": "siada.entrypoint.siadahub",
         "description": "siada.entrypoint.siadahub",
-        "peekOfCode": "def main():\n    # Configure litellm globally to suppress debug logs\n    _configure_litellm_logging()\n    argv = sys.argv[1:]\n    # workspace and disable-console-output are sepcific for development\n    import argparse\n    temp_parser = argparse.ArgumentParser(add_help=False)\n    temp_parser.add_argument(\"--workspace\", default=None)\n    temp_parser.add_argument(\n        \"--enable-console-output\", action=\"store_true\", default=False",
+        "peekOfCode": "def main():\n    # Configure litellm globally to suppress debug logs\n    _configure_litellm_logging()\n    argv = sys.argv[1:]\n    args, _, _, git_root, workspace_arg, parser = _parse_args_and_setup_environment(argv)\n    interactive_mode = True\n    if args.prompt:\n        interactive_mode = False\n        args.pretty = False\n    try:",
         "detail": "siada.entrypoint.siadahub",
         "documentation": {}
     },
@@ -7926,7 +7989,7 @@
         "kind": 6,
         "importPath": "siada.foundation.code_agent_context",
         "description": "siada.foundation.code_agent_context",
-        "peekOfCode": "class CodeAgentContext(BaseModel):\n    model_config = ConfigDict(arbitrary_types_allowed=True)\n    root_dir: Optional[str] = None\n    session: Optional[Session] = None",
+        "peekOfCode": "class CodeAgentContext(BaseModel):\n    model_config = ConfigDict(arbitrary_types_allowed=True)\n    root_dir: Optional[str] = None\n    session: Optional[RunningSession] = None",
         "detail": "siada.foundation.code_agent_context",
         "documentation": {}
     },
@@ -8700,16 +8763,16 @@
         "kind": 6,
         "importPath": "siada.services.siada_runner",
         "description": "siada.services.siada_runner",
-        "peekOfCode": "class SiadaRunner:\n    @overload\n    @staticmethod\n    async def run_agent(\n        agent_name: str,\n        user_input: str,\n        workspace: str = None,\n        session: Session = None,\n        *,\n        stream: Literal[True],",
+        "peekOfCode": "class SiadaRunner:\n    @overload\n    @staticmethod\n    async def run_agent(\n        agent_name: str,\n        user_input: str,\n        workspace: str = None,\n        session: RunningSession = None,\n        *,\n        stream: Literal[True],",
         "detail": "siada.services.siada_runner",
         "documentation": {}
     },
     {
-        "label": "InteractionSessionManager",
+        "label": "RunningSessionManager",
         "kind": 6,
         "importPath": "siada.session.session_manager",
         "description": "siada.session.session_manager",
-        "peekOfCode": "class InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: RunningConfig,\n        session_id: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:\n            config: Model configuration using ModelSettings structure",
+        "peekOfCode": "class RunningSessionManager:\n    @staticmethod\n    def create_session(\n        running_config: RunningConfig,\n        session_id: Optional[str] = None,\n    ) -> RunningSession:\n        \"\"\"\n        Create a new interaction session\n        Args:\n            config: Model configuration using ModelSettings structure",
         "detail": "siada.session.session_manager",
         "documentation": {}
     },
@@ -8718,7 +8781,7 @@
         "kind": 5,
         "importPath": "siada.session.session_manager",
         "description": "siada.session.session_manager",
-        "peekOfCode": "logger = logging.getLogger(__name__)\nclass InteractionSessionManager:\n    @staticmethod\n    def create_session(\n        interaction_config: RunningConfig,\n        session_id: Optional[str] = None,\n    ) -> Session:\n        \"\"\"\n        Create a new interaction session\n        Args:",
+        "peekOfCode": "logger = logging.getLogger(__name__)\nclass RunningSessionManager:\n    @staticmethod\n    def create_session(\n        running_config: RunningConfig,\n        session_id: Optional[str] = None,\n    ) -> RunningSession:\n        \"\"\"\n        Create a new interaction session\n        Args:",
         "detail": "siada.session.session_manager",
         "documentation": {}
     },
@@ -8732,11 +8795,11 @@
         "documentation": {}
     },
     {
-        "label": "Session",
+        "label": "RunningSession",
         "kind": 6,
         "importPath": "siada.session.session_models",
         "description": "siada.session.session_models",
-        "peekOfCode": "class Session:\n    running_config: RunningConfig\n    session_id: str = field(default_factory=lambda: str(uuid4()))\n    state: SessionState = field(default_factory=SessionState)",
+        "peekOfCode": "class RunningSession:\n    running_config: RunningConfig\n    session_id: str = field(default_factory=lambda: str(uuid4()))\n    state: SessionState = field(default_factory=SessionState)",
         "detail": "siada.session.session_models",
         "documentation": {}
     },
@@ -9591,7 +9654,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class DefaultFormatter(ToolCallFormatter):\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", arguments\n    @property\n    def supported_function(self) -> str:\n        return \"\"\nclass FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"",
+        "peekOfCode": "class DefaultFormatter(ToolCallFormatter):\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", arguments\n    @property\n    def supported_function(self) -> str:\n        return \"default\"\nclass FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },

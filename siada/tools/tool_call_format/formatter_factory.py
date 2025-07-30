@@ -22,8 +22,7 @@ class ToolCallFormatterFactory:
             formatter_class: Formatter类
         """
         instance = formatter_class()
-        for function_name in instance.supported_functions:
-            cls._formatters[function_name] = formatter_class
+        cls._formatters[instance.supported_function] = formatter_class
             
     @classmethod
     def get_formatter(cls, function_name: str) -> Optional[ToolCallFormatter]:

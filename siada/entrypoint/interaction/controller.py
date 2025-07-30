@@ -13,7 +13,7 @@ from siada.entrypoint.interaction.config import RunningConfig
 from siada.entrypoint.interaction.run_turn import TurnFactory, TurnInput
 from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
-from siada.session.session_manager import InteractionSessionManager
+from siada.session.session_manager import RunningSessionManager
 from siada.support.slash_commands import SlashCommands, SwitchEvent
 
 
@@ -27,8 +27,8 @@ class Controller:
 
 
     def run(self) -> int:
-        session = InteractionSessionManager.create_session(
-            interaction_config=self.config,
+        session = RunningSessionManager.create_session(
+            running_config=self.config,
         )
         while True:
             try:
