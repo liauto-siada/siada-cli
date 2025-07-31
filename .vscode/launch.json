@@ -26,16 +26,17 @@
             ]
         },
         {
-            "name": "Siada Hub - Custom Agent",
+            "name": "Siada Hub - No Interactive Mode",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "--agent", "bugfix",
+                "--agent", "coder",
                 "--model", "claude-sonnet-4",
-                "--thinking-tokens", "8k"
+                "--thinking-tokens", "8k",
+                "--prompt", "写一个hello world的python程序"
             ]
         },
         {

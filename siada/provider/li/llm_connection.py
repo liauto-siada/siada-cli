@@ -198,7 +198,7 @@ class SiadaClient:
             dict: 处理后的请求体
         """
         # 清理NotGiven类型的值
-        llm_request_body = SiadaClient._clean_not_given(llm_request_body)
+        # llm_request_body = SiadaClient._clean_not_given(llm_request_body)
         
         # 如果是Gemini模型，清理tools中的default属性
         model_key = 'model' if 'model' in llm_request_body else 'model_name'

@@ -132,7 +132,6 @@ def get_io(args, pretty=None):
         
     return InputOutput(
         pretty=args.pretty,
-        yes=True,
         color_settings=color_settings,
         encoding=args.encoding,
         line_endings=getattr(args, "line_endings", "platform"),

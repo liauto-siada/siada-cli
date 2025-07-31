@@ -24,3 +24,4 @@ class NoInteractiveController:
             )
         )
         self.config.io.print(result)
+        return 0

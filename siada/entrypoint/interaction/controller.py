@@ -33,8 +33,7 @@ class Controller:
         while True:
             try:
                 user_input = self.config.io.get_input(
-                    root=self.config.workspace,
-                    completer=self.config.completer,
+                    completer=self.config.completer
                 )
                 turn = TurnFactory.create_turn(self.config, session, self.slash_commands, user_input)
                 turn_output = turn.execute(TurnInput(use_input=user_input))

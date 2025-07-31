@@ -1,3 +1,4 @@
+import asyncio
 from agents import function_tool, RunContextWrapper
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.tools.coder.observation.observation import FunctionCallResult
@@ -59,7 +60,10 @@ async def ask_followup_question(
     """
 
     try:
-        answer = context.session.state.interaction_config.io.prompt_ask(question)
+        code_agent_context : CodeAgentContext = context.context
+        # 在线程中运行同步的prompt_ask以避免异步冲突
+        answer = await asyncio.to_thread(code_agent_context.session.get_input)
+        
     except Exception as e:
         return AskFollowupQuestionResult(error=str(e))
 

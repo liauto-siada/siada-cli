@@ -166,7 +166,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
 
         run_config, session = await self._prepare_run_environment(run_config, context)
 
-        return Runner.run(
+        return await Runner.run(
             starting_agent=starting_agent,
             input=input,
             context=context,

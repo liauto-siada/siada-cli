@@ -3,6 +3,7 @@ import os
 import subprocess
 import webbrowser
 from dataclasses import dataclass
+from typing import Optional
 
 from prompt_toolkit.completion import Completer, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
@@ -284,8 +285,7 @@ class InputOutput:
 
     def get_input(
         self,
-        root: str,
-        completer: Completer
+        completer: Optional[Completer] = None
     ):
         self.rule()
 
@@ -293,11 +293,6 @@ class InputOutput:
         self.ring_bell()
 
         show = ""
-        # if rel_fnames:
-        #     rel_read_only_fnames = [
-        #         get_rel_fname(fname, root) for fname in (abs_read_only_fnames or [])
-        #     ]
-        #     show = self.format_files_for_input(rel_fnames, rel_read_only_fnames)
 
         prompt_prefix = ""
         if self.multiline_mode:
@@ -312,7 +307,7 @@ class InputOutput:
 
         style = self._get_style()
 
-        completer_instance = ThreadedCompleter(completer=completer)
+        completer_instance = ThreadedCompleter(completer=completer) if completer else None
 
         kb_factory = KeyBindingsFactory(self)
         kb = kb_factory.create_key_bindings()
@@ -335,17 +330,23 @@ class InputOutput:
                     def get_continuation(width, line_number, is_soft_wrap):
                         return self.prompt_prefix
 
-                    line = self.prompt_session.prompt(
-                        show,
-                        default=default,
-                        completer=completer_instance,
-                        reserve_space_for_menu=4,
-                        complete_style=CompleteStyle.MULTI_COLUMN,
-                        style=style,
-                        key_bindings=kb,
-                        complete_while_typing=True,
-                        prompt_continuation=get_continuation,
-                    )
+                    # 构建prompt参数，只在有completer时才添加补全相关参数
+                    prompt_kwargs = {
+                        "default": default,
+                        "style": style,
+                        "key_bindings": kb,
+                        "prompt_continuation": get_continuation,
+                    }
+                    
+                    if completer_instance:
+                        prompt_kwargs.update({
+                            "completer": completer_instance,
+                            "reserve_space_for_menu": 4,
+                            "complete_style": CompleteStyle.MULTI_COLUMN,
+                            "complete_while_typing": True,
+                        })
+                    
+                    line = self.prompt_session.prompt(show, **prompt_kwargs)
                 else:
                     line = input(show)
 

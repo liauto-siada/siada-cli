@@ -712,6 +712,14 @@
         "documentation": {}
     },
     {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Any",
         "importPath": "typing",
         "description": "typing",
@@ -5786,6 +5794,14 @@
         "documentation": {}
     },
     {
+        "label": "prepare_dataset",
+        "importPath": "benchmark.swe.tools.dataset",
+        "description": "benchmark.swe.tools.dataset",
+        "isExtraImport": true,
+        "detail": "benchmark.swe.tools.dataset",
+        "documentation": {}
+    },
+    {
         "label": "contextlib",
         "kind": 6,
         "isExtraImport": true,
@@ -7800,7 +7816,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nTOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7809,7 +7825,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None",
+        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nTOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7818,7 +7834,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
+        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nTOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -7827,7 +7843,16 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.run_turn",
         "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
+        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nTOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
+        "detail": "siada.entrypoint.interaction.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "TOOL_OUTPUT_START",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.run_turn",
+        "description": "siada.entrypoint.interaction.run_turn",
+        "peekOfCode": "TOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
         "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
@@ -8286,7 +8311,7 @@
         "kind": 6,
         "importPath": "siada.io.components.mdstream",
         "description": "siada.io.components.mdstream",
-        "peekOfCode": "class MarkdownStream:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.\n    Uses rich.console and rich.live to render markdown content with smooth scrolling\n    and partial updates. Maintains a sliding window of visible content while streaming\n    in new markdown text.\n    \"\"\"\n    live = None  # Rich Live display instance\n    when = 0  # Timestamp of last update\n    min_delay = 1.0 / 20  # Minimum time between updates (20fps)\n    live_window = 2  # Number of lines to keep visible at bottom during streaming",
+        "peekOfCode": "class MarkdownStream:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.\n    Uses rich.console and rich.live to render markdown content with smooth scrolling\n    and partial updates. Maintains a sliding window of visible content while streaming\n    in new markdown text.\n    \"\"\"\n    live = None  # Rich Live display instance\n    when = 0  # Timestamp of last update\n    min_delay = 1.0 / 20  # Minimum time between updates (20fps)\n    live_window = 1  # Number of lines to keep visible at bottom during streaming",
         "detail": "siada.io.components.mdstream",
         "documentation": {}
     },
@@ -8475,7 +8500,7 @@
         "kind": 6,
         "importPath": "siada.models.converter",
         "description": "siada.models.converter",
-        "peekOfCode": "class ModelSettingsConverter:\n    @staticmethod\n    def convert_model_settings(model_running_config: ModelRunConfig) -> ModelSettings:\n        extra_body = {}\n        if model_running_config.get_reasoning_effort() is not None:\n            extra_body[\"effort\"] = model_running_config.get_reasoning_effort()\n        if model_running_config.get_thinking_tokens is not None:\n            extra_body[\"max_tokens\"] = model_running_config.get_thinking_tokens()\n        model_settings = ModelSettings(\n            reasoning=Reasoning(",
+        "peekOfCode": "class ModelSettingsConverter:\n    @staticmethod\n    def convert_model_settings(model_running_config: ModelRunConfig) -> ModelSettings:\n        extra_body = {}\n        if model_running_config.get_reasoning_effort() is not None:\n            extra_body[\"effort\"] = model_running_config.get_reasoning_effort()\n        if model_running_config.get_thinking_tokens is not None:\n            extra_body[\"max_tokens\"] = model_running_config.get_raw_thinking_tokens()\n        model_settings = ModelSettings(\n            reasoning=Reasoning(",
         "detail": "siada.models.converter",
         "documentation": {}
     },
@@ -8799,7 +8824,7 @@
         "kind": 6,
         "importPath": "siada.session.session_models",
         "description": "siada.session.session_models",
-        "peekOfCode": "class RunningSession:\n    running_config: RunningConfig\n    session_id: str = field(default_factory=lambda: str(uuid4()))\n    state: SessionState = field(default_factory=SessionState)",
+        "peekOfCode": "class RunningSession:\n    running_config: RunningConfig\n    session_id: str = field(default_factory=lambda: str(uuid4()))\n    state: SessionState = field(default_factory=SessionState)\n    def prompt_ask(self, question: str) -> str:\n        return self.running_config.io.prompt_ask(question)\n    def get_input(self) -> str:\n        return self.running_config.io.get_input()",
         "detail": "siada.session.session_models",
         "documentation": {}
     },
@@ -9618,7 +9643,7 @@
         "kind": 6,
         "importPath": "siada.tools.coder.run_cmd",
         "description": "siada.tools.coder.run_cmd",
-        "peekOfCode": "class RunCmdResult(FunctionCallResult):\n    \"\"\"This data class represents the output of a command.\"\"\"\n    def __init__(self, command: str, output: str, code: int):\n        self.command = command\n        self.output = output\n        self.code = code if code is not None else 1\n    def format_for_display(self) -> str:\n        if self.code == 0 and self.output:\n            return self.output\n        elif self.code == 0 and not self.output:",
+        "peekOfCode": "class RunCmdResult(FunctionCallResult):\n    \"\"\"This data class represents the output of a command.\"\"\"\n    def __init__(self, command: str, output: str, code: int):\n        self.command = command\n        self.output = output\n        self.code = code if code is not None else 1\n    def format_for_display(self) -> str:\n        if self.code == 0:\n            return f\"`{self.command}` executed successfully!\"\n        else:",
         "detail": "siada.tools.coder.run_cmd",
         "documentation": {}
     },

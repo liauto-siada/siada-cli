@@ -160,28 +160,3 @@ class SiadaRunner:
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
 
-
-async def main():
-    user_input = """
-                execute the command : ls -l
-                """
-    agent_name = "coder"
-    
-    # 普通执行
-    print("=== 普通执行 ===")
-    result = await SiadaRunner.run_agent(agent_name, user_input, stream=False)
-    print(result)
-    
-    # # 流式执行
-    # print("\n=== 流式执行 ===")
-    # stream_result = await SiadaRunner.run_agent(agent_name, user_input, stream=True)
-    # ## 仅消费流
-    # async for event in stream_result.stream_events():
-    #     ...
-    #
-    # print(stream_result.final_output)
-
-
-if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
-    asyncio.run(main())
