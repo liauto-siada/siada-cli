@@ -7781,7 +7781,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.controller",
         "description": "siada.entrypoint.interaction.controller",
-        "peekOfCode": "class Controller:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig, slash_commands: SlashCommands):\n        self.config = config\n        self.slash_commands = slash_commands\n    def run(self) -> int:\n        session = RunningSessionManager.create_session(\n            running_config=self.config,\n        )\n        display_rule = True",
+        "peekOfCode": "class Controller:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig, slash_commands: SlashCommands, shell_mode: bool = False):\n        self.config = config\n        self.slash_commands = slash_commands\n        self.shell_mode = shell_mode\n    def run(self) -> int:\n        session = RunningSessionManager.create_session(\n            running_config=self.config,\n        )",
         "detail": "siada.entrypoint.interaction.controller",
         "documentation": {}
     },

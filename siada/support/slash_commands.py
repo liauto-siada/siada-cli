@@ -47,56 +47,62 @@ class SlashCommands:
         model = ModelRunConfig(model_name)
         return SwitchEvent(model=model)
 
-    def cmd_agent(self, args):
-        "Switch to a different agent type"
+    # def cmd_agent(self, args):
+    #     "Switch to a different agent type"
 
-        agent_name = args.strip()
+    #     agent_name = args.strip()
 
-        try:
-            from siada.services.siada_runner import SiadaRunner
+    #     try:
+    #         from siada.services.siada_runner import SiadaRunner
 
-            # Load agent configurations
-            agent_configs = SiadaRunner._load_agent_config()
-            # Get all available agent types (only enabled ones)
-            available_agents = {name: config for name, config in agent_configs.items() 
-                              if config.get('class') and config.get('enabled', True)}
+    #         # Load agent configurations
+    #         agent_configs = SiadaRunner._load_agent_config()
+    #         # Get all available agent types (only enabled ones)
+    #         available_agents = {name: config for name, config in agent_configs.items() 
+    #                           if config.get('class') and config.get('enabled', True)}
 
-            if not agent_name:
-                self.io.print_info("Available agents:\n")
-                max_name_length = max(len(name) for name in available_agents.keys()) if available_agents else 0
-                for name, config in available_agents.items():
-                    description = config.get('description', f'{name.title()} agent')
-                    self.io.print_info(f"- {name:<{max_name_length}} : {description}")
-                self.io.print_info("\nUsage: /agent <agent_name>")
-                return
+    #         if not agent_name:
+    #             self.io.print_info("Available agents:\n")
+    #             max_name_length = max(len(name) for name in available_agents.keys()) if available_agents else 0
+    #             for name, config in available_agents.items():
+    #                 description = config.get('description', f'{name.title()} agent')
+    #                 self.io.print_info(f"- {name:<{max_name_length}} : {description}")
+    #             self.io.print_info("\nUsage: /agent <agent_name>")
+    #             return
 
-            # Normalize agent name (lowercase, remove underscores/hyphens)
-            normalized_name = agent_name.lower().replace('_', '').replace('-', '')
+    #         # Normalize agent name (lowercase, remove underscores/hyphens)
+    #         normalized_name = agent_name.lower().replace('_', '').replace('-', '')
 
-            # Find matching agent config
-            agent_config = available_agents.get(normalized_name)
+    #         # Find matching agent config
+    #         agent_config = available_agents.get(normalized_name)
 
-            if agent_config is None:
-                available_names = list(available_agents.keys())
-                self.io.print_error(f"Unknown agent: '{agent_name}'")
-                self.io.print_info(f"Available agents: {', '.join(available_names)}")
-                return
+    #         if agent_config is None:
+    #             available_names = list(available_agents.keys())
+    #             self.io.print_error(f"Unknown agent: '{agent_name}'")
+    #             self.io.print_info(f"Available agents: {', '.join(available_names)}")
+    #             return
 
-            # Check if agent class is implemented
-            if not agent_config.get('class'):
-                self.io.print_error(f"Agent '{agent_name}' is not implemented yet")
-                return
+    #         # Check if agent class is implemented
+    #         if not agent_config.get('class'):
+    #             self.io.print_error(f"Agent '{agent_name}' is not implemented yet")
+    #             return
 
-            self.io.print_info(f"Switching to {agent_name} agent...")
+    #         self.io.print_info(f"Switching to {agent_name} agent...")
 
-            # Return SwitchEvent to change agent
-            return SwitchEvent(agent=normalized_name)
+    #         # Return SwitchEvent to change agent
+    #         return SwitchEvent(agent=normalized_name)
 
-        except Exception as e:
-            self.io.print_error(f"Failed to switch agent: {e}")
-            if self.verbose:
-                import traceback
-                self.io.print_error(traceback.format_exc())
+    #     except Exception as e:
+    #         self.io.print_error(f"Failed to switch agent: {e}")
+    #         if self.verbose:
+    #             import traceback
+    #             self.io.print_error(traceback.format_exc())
+
+
+    def cmd_shell(self, args):
+        "Open a shell"
+        self.io.print_info("Switching to shell mode...")
+        return SwitchEvent(shell=True)
 
     def completions_model(self):
         models = litellm.model_cost.keys()
@@ -266,7 +272,7 @@ class SlashCommands:
             args,
             verbose=self.verbose,
             error_print=self.io.print_error,
-            cwd=session.interaction_config.workspace,
+            cwd=session.running_config.workspace,
         )
         return combined_output
 
@@ -314,19 +320,19 @@ class SlashCommands:
         res += "\n"
         return res
 
-    def cmd_map(self, args):
-        "Print out the current repository map"
-        repo_map = self.coder.get_repo_map()
-        if repo_map:
-            self.io.print_info(repo_map)
-        else:
-            self.io.print_info("No repository map available.")
+    # def cmd_map(self, args):
+    #     "Print out the current repository map"
+    #     repo_map = self.coder.get_repo_map()
+    #     if repo_map:
+    #         self.io.print_info(repo_map)
+    #     else:
+    #         self.io.print_info("No repository map available.")
 
-    def cmd_map_refresh(self, args):
-        "Force a refresh of the repository map"
-        repo_map = self.coder.get_repo_map(force_refresh=True)
-        if repo_map:
-            self.io.print_info("The repo map has been refreshed, use /map to view it.")
+    # def cmd_map_refresh(self, args):
+    #     "Force a refresh of the repository map"
+    #     repo_map = self.coder.get_repo_map(force_refresh=True)
+    #     if repo_map:
+    #         self.io.print_info("The repo map has been refreshed, use /map to view it.")
 
 
     def cmd_multiline_mode(self, args):
@@ -344,53 +350,53 @@ class SlashCommands:
         "Siada for /editor: Open an editor to write a prompt"
         return self.cmd_editor(args)
 
-    def cmd_think_tokens(self, session, args):
-        """Set the thinking token budget, eg: 8096, 8k, 10.5k, 0.5M, or 0 to disable."""
+    # def cmd_think_tokens(self, session, args):
+    #     """Set the thinking token budget, eg: 8096, 8k, 10.5k, 0.5M, or 0 to disable."""
 
-        model = session.interaction_config.model
+    #     model = session.interaction_config.model
 
-        if not args.strip():
-            # Display current value if no args are provided
-            formatted_budget = model.get_thinking_tokens()
-            if formatted_budget is None:
-                self.io.print_info("Thinking tokens are not currently set.")
-            else:
-                budget = model.get_raw_thinking_tokens()
-                self.io.print_info(
-                    f"Current thinking token budget: {budget:,} tokens ({formatted_budget})."
-                )
-            return
+    #     if not args.strip():
+    #         # Display current value if no args are provided
+    #         formatted_budget = model.get_thinking_tokens()
+    #         if formatted_budget is None:
+    #             self.io.print_info("Thinking tokens are not currently set.")
+    #         else:
+    #             budget = model.get_raw_thinking_tokens()
+    #             self.io.print_info(
+    #                 f"Current thinking token budget: {budget:,} tokens ({formatted_budget})."
+    #             )
+    #         return
 
-        value = args.strip()
-        model.set_thinking_tokens(value)
+    #     value = args.strip()
+    #     model.set_thinking_tokens(value)
 
-        # Handle the special case of 0 to disable thinking tokens
-        if value == "0":
-            self.io.print_info("Thinking tokens disabled.")
-        else:
-            formatted_budget = model.get_thinking_tokens()
-            budget = model.get_raw_thinking_tokens()
-            self.io.print_info(
-                f"Set thinking token budget to {budget:,} tokens ({formatted_budget})."
-            )
+    #     # Handle the special case of 0 to disable thinking tokens
+    #     if value == "0":
+    #         self.io.print_info("Thinking tokens disabled.")
+    #     else:
+    #         formatted_budget = model.get_thinking_tokens()
+    #         budget = model.get_raw_thinking_tokens()
+    #         self.io.print_info(
+    #             f"Set thinking token budget to {budget:,} tokens ({formatted_budget})."
+    #         )
 
-    def cmd_reasoning_effort(self, session, args):
-        "Set the reasoning effort level (values: number or low/medium/high depending on model)"
-        model = session.interaction_config.model
+    # def cmd_reasoning_effort(self, session, args):
+    #     "Set the reasoning effort level (values: number or low/medium/high depending on model)"
+    #     model = session.interaction_config.model
 
-        if not args.strip():
-            # Display current value if no args are provided
-            reasoning_value = model.get_reasoning_effort()
-            if reasoning_value is None:
-                self.io.print_info("Reasoning effort is not currently set.")
-            else:
-                self.io.print_info(f"Current reasoning effort: {reasoning_value}")
-            return
+    #     if not args.strip():
+    #         # Display current value if no args are provided
+    #         reasoning_value = model.get_reasoning_effort()
+    #         if reasoning_value is None:
+    #             self.io.print_info("Reasoning effort is not currently set.")
+    #         else:
+    #             self.io.print_info(f"Current reasoning effort: {reasoning_value}")
+    #         return
 
-        value = args.strip()
-        model.set_reasoning_effort(value)
-        reasoning_value = model.get_reasoning_effort()
-        self.io.print_info(f"Set reasoning effort to {reasoning_value}")
+    #     value = args.strip()
+    #     model.set_reasoning_effort(value)
+    #     reasoning_value = model.get_reasoning_effort()
+    #     self.io.print_info(f"Set reasoning effort to {reasoning_value}")
 
 
 def main():

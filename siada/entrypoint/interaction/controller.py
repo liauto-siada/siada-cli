@@ -20,11 +20,10 @@ from siada.support.slash_commands import SlashCommands, SwitchEvent
 class Controller:
     """Controls user-AI coding interactions and manages coder lifecycle"""
 
-
-    def __init__(self, config: RunningConfig, slash_commands: SlashCommands):
+    def __init__(self, config: RunningConfig, slash_commands: SlashCommands, shell_mode: bool = False):
         self.config = config
         self.slash_commands = slash_commands
-
+        self.shell_mode = shell_mode
 
     def run(self) -> int:
         session = RunningSessionManager.create_session(
@@ -34,19 +33,32 @@ class Controller:
         while True:
             try:
                 user_input = self.config.io.get_input(
-                    completer=self.config.completer,
-                    display_rule=display_rule
+                    completer=self.config.completer if not self.shell_mode else None,
+                    display_rule=display_rule,
+                    color=(
+                        self.config.running_color_settings.user_input_color
+                        if not self.shell_mode
+                        else self.config.running_color_settings.shell_model_color
+                    ),
                 )
                 display_rule = True
                 if user_input.strip() == "":
                     display_rule = False
                     continue
 
+                if self.shell_mode and user_input.strip() in ["exit", "quit"]:
+                    # exit the shell mode
+                    self.shell_mode = False
+                    self.config.io.print_info("Switching to agent mode...")
+                    continue
+
+                if self.shell_mode:
+                    user_input = f"!{user_input}"
+
                 turn = TurnFactory.create_turn(self.config, session, self.slash_commands, user_input)
                 turn_output = turn.execute(TurnInput(use_input=user_input))
 
                 if isinstance(turn_output.output, SwitchEvent):
-
                     if turn_output.output.kwargs.get("agent"):
 
                         self.config.agent_name = turn_output.output.kwargs.get("agent")
@@ -56,6 +68,8 @@ class Controller:
                     elif turn_output.output.kwargs.get("model"):
                         self.config.model = turn_output.output.kwargs.get("model")
                     # show the announcements in every switch event
+                    if turn_output.output.kwargs.get("shell"):
+                        self.shell_mode = True
                     self.show_announcements()
             except Exception as e:
                 self.config.io.print_error(e)
@@ -76,6 +90,11 @@ class Controller:
         reasoning_effort = self.config.model.get_reasoning_effort()
         if reasoning_effort:
             output += f", reasoning {reasoning_effort}"
+
+        if self.shell_mode:
+            output += ", shell mode"
+        else:
+            output += ", agent mode"
 
         lines.append(output)
         return lines

@@ -103,7 +103,7 @@ class InputOutput:
         # Initialize running color settings or create default
         if running_color_settings is None:
             running_color_settings = RunningConfigColorSettings(pretty=pretty)
-        
+
         self.running_color_settings = running_color_settings
 
         self.input = input
@@ -157,8 +157,6 @@ class InputOutput:
             if self.is_dumb_terminal:
                 self.print_info("Detected dumb terminal, disabling fancy input and pretty output.")
 
-
-
     def _initialize_printer(self):
         """Initialize the console printer."""
         printer_colors = {
@@ -170,18 +168,17 @@ class InputOutput:
         }
         self.printer = ConsolePrinter(self.console, self.pretty, colors=printer_colors)
 
-
-
-    def _get_style(self):
+    def _get_style(self, input_color=None):
         style_dict = {}
         if not self.pretty:
             return Style.from_dict(style_dict)
 
-        if self.running_color_settings.user_input_color:
-            style_dict.setdefault("", self.running_color_settings.user_input_color)
+        user_input_color = input_color or self.running_color_settings.user_input_color
+        if user_input_color:
+            style_dict.setdefault("", user_input_color)
             style_dict.update(
                 {
-                    "pygments.literal.string": f"bold italic {self.running_color_settings.user_input_color}",
+                    "pygments.literal.string": f"bold italic {user_input_color}",
                 }
             )
 
@@ -207,9 +204,17 @@ class InputOutput:
 
         return Style.from_dict(style_dict)
 
-    def rule(self):
+    def rule(self, color=None):
         if self.pretty:
-            style = dict(style=self.running_color_settings.user_input_color) if self.running_color_settings.user_input_color else dict()
+            style = (
+                dict(style=color)
+                if color
+                else (
+                    dict(style=self.running_color_settings.user_input_color)
+                    if self.running_color_settings.user_input_color
+                    else dict()
+                )
+            )
             self.console.rule(**style)
         else:
             print()
@@ -225,9 +230,10 @@ class InputOutput:
         self,
         completer: Optional[Completer] = None,
         display_rule: bool = True,
+        color: str = None,
     ):
         if display_rule:
-            self.rule()
+            self.rule(color=color)
 
         # Ring the bell if needed
         self.ring_bell()
@@ -245,8 +251,7 @@ class InputOutput:
         inp = ""
         multiline_input = False
 
-        style = self._get_style()
-
+        style = self._get_style(input_color=color)
         completer_instance = ThreadedCompleter(completer=completer) if completer else None
 
         kb_factory = KeyBindingsFactory(self)
@@ -270,22 +275,23 @@ class InputOutput:
                     def get_continuation(width, line_number, is_soft_wrap):
                         return self.prompt_prefix
 
-                    # 构建prompt参数，只在有completer时才添加补全相关参数
+                    # Build prompt parameters, explicitly set completer (including None case)
                     prompt_kwargs = {
                         "default": default,
                         "style": style,
                         "key_bindings": kb,
                         "prompt_continuation": get_continuation,
+                        "completer": completer_instance,  # Explicitly set, even if None
+                        "complete_while_typing": bool(completer),  # Only enable when completer exists
                     }
-                    
-                    if completer_instance:
+
+                    # Only add completion-related extra configurations when completer exists
+                    if completer:
                         prompt_kwargs.update({
-                            "completer": completer_instance,
                             "reserve_space_for_menu": 4,
                             "complete_style": CompleteStyle.MULTI_COLUMN,
-                            "complete_while_typing": True,
                         })
-                    
+
                     line = self.prompt_session.prompt(show, **prompt_kwargs)
                 else:
                     line = input(show)
