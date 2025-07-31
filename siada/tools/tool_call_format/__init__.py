@@ -12,6 +12,7 @@ from .tool_call_formatter import ToolCallFormatter
 from .formatter_factory import ToolCallFormatterFactory
 from .formatters import (
     DefaultFormatter,
+    ListCodeDefinitionNamesFormatter,
     SearchFormatter,
     CommandFormatter,
     FixAttemptCompletionFormatter,
@@ -31,6 +32,7 @@ def _register_all_formatters():
         ReproduceCompletionFormatter,
         FileEditFormatter,
         AskFollowupQuestionFormatter,
+        ListCodeDefinitionNamesFormatter,
     ]
     
     for formatter_class in formatters:

@@ -172,6 +172,7 @@ async def edit(
             new_contents=new_content or '',
             filepath=path,
         ),
+        command=command,
     )
 
 

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import siada.support.completer
 from siada import __version__
 from siada.entrypoint.interaction.config import RunningConfig
-from siada.entrypoint.interaction.run_turn import TurnFactory, TurnInput
+from siada.entrypoint.interaction.turn.run_turn import TurnFactory, TurnInput
 from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
 from siada.session.session_manager import RunningSessionManager
@@ -30,11 +30,18 @@ class Controller:
         session = RunningSessionManager.create_session(
             running_config=self.config,
         )
+        display_rule = True
         while True:
             try:
                 user_input = self.config.io.get_input(
-                    completer=self.config.completer
+                    completer=self.config.completer,
+                    display_rule=display_rule
                 )
+                display_rule = True
+                if user_input.strip() == "":
+                    display_rule = False
+                    continue
+
                 turn = TurnFactory.create_turn(self.config, session, self.slash_commands, user_input)
                 turn_output = turn.execute(TurnInput(use_input=user_input))
 

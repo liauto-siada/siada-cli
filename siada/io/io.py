@@ -19,10 +19,10 @@ from rich.markdown import Markdown
 from rich.style import Style as RichStyle
 from rich.text import Text
 
-from siada.io.components.mdstream import MarkdownStream
+from siada.io.components.mdstream import MarkdownRender
 from siada.io.console_printer import ConsolePrinter
 from siada.io.notification_command import NotificationCommandUtil
-from .color_settings import ColorSettings
+from .color_settings import ColorSettings, RunningConfigColorSettings
 from .key_bindings import KeyBindingsFactory
 
 # from .editor import pipe_editor
@@ -73,7 +73,7 @@ class InputOutput:
         yes=None,
         input=None,
         output=None,
-        color_settings: "ColorSettings" = None,
+        running_color_settings: "RunningConfigColorSettings" = None,
         encoding="utf-8",
         line_endings="platform",
         editingmode=EditingMode.EMACS,
@@ -100,48 +100,11 @@ class InputOutput:
         if no_color is not None and no_color != "":
             pretty = False
 
-        self.color_settings = color_settings or ColorSettings()
-        self.user_input_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.user_input_color) if pretty else None
-        )
-        self.tool_output_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.tool_output_color) if pretty else None
-        )
-        self.tool_error_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.tool_error_color) if pretty else None
-        )
-        self.tool_warning_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.tool_warning_color) if pretty else None
-        )
-        self.tool_result_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.tool_result_color) if pretty else None
-        )
-        self.tool_call_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.tool_call_color) if pretty else None
-        )
-        self.assistant_output_color = ColorUtils.ensure_hash_prefix(
-            self.color_settings.assistant_output_color
-        )
-        self.completion_menu_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.completion_menu_color) if pretty else None
-        )
-        self.completion_menu_bg_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.completion_menu_bg_color)
-            if pretty
-            else None
-        )
-        self.completion_menu_current_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.completion_menu_current_color)
-            if pretty
-            else None
-        )
-        self.completion_menu_current_bg_color = (
-            ColorUtils.ensure_hash_prefix(self.color_settings.completion_menu_current_bg_color)
-            if pretty
-            else None
-        )
-
-        self.code_theme = self.color_settings.code_theme
+        # Initialize running color settings or create default
+        if running_color_settings is None:
+            running_color_settings = RunningConfigColorSettings(pretty=pretty)
+        
+        self.running_color_settings = running_color_settings
 
         self.input = input
         self.output = output
@@ -194,74 +157,49 @@ class InputOutput:
             if self.is_dumb_terminal:
                 self.print_info("Detected dumb terminal, disabling fancy input and pretty output.")
 
-        # Validate color settings after console is initialized
-        self._validate_color_settings()
+
 
     def _initialize_printer(self):
         """Initialize the console printer."""
         printer_colors = {
-            "error": self.tool_error_color,
-            "warning": self.tool_warning_color,
-            "output": self.tool_output_color,
-            "result": self.tool_result_color,
-            "call": self.tool_call_color,
+            "error": self.running_color_settings.tool_error_color,
+            "warning": self.running_color_settings.tool_warning_color,
+            "output": self.running_color_settings.tool_output_color,
+            "result": self.running_color_settings.tool_result_color,
+            "call": self.running_color_settings.tool_call_color,
         }
         self.printer = ConsolePrinter(self.console, self.pretty, colors=printer_colors)
 
-    def _validate_color_settings(self):
-        """Validate configured color strings and reset invalid ones."""
-        color_attributes = [
-            "user_input_color",
-            "tool_output_color",
-            "tool_error_color",
-            "tool_warning_color",
-            "assistant_output_color",
-            "completion_menu_color",
-            "completion_menu_bg_color",
-            "completion_menu_current_color",
-            "completion_menu_current_bg_color",
-        ]
-        for attr_name in color_attributes:
-            color_value = getattr(self, attr_name, None)
-            if color_value:
-                try:
-                    # Try creating a style to validate the color
-                    RichStyle(color=color_value)
-                except ColorParseError as e:
-                    self.console.print(
-                        "[bold red]Warning:[/bold red] Invalid configuration for"
-                        f" {attr_name}: '{color_value}'. {e}. Disabling this color."
-                    )
-                    setattr(self, attr_name, None)  # Reset invalid color to None
+
 
     def _get_style(self):
         style_dict = {}
         if not self.pretty:
             return Style.from_dict(style_dict)
 
-        if self.user_input_color:
-            style_dict.setdefault("", self.user_input_color)
+        if self.running_color_settings.user_input_color:
+            style_dict.setdefault("", self.running_color_settings.user_input_color)
             style_dict.update(
                 {
-                    "pygments.literal.string": f"bold italic {self.user_input_color}",
+                    "pygments.literal.string": f"bold italic {self.running_color_settings.user_input_color}",
                 }
             )
 
         # Conditionally add 'completion-menu' style
         completion_menu_style = []
-        if self.completion_menu_bg_color:
-            completion_menu_style.append(f"bg:{self.completion_menu_bg_color}")
-        if self.completion_menu_color:
-            completion_menu_style.append(self.completion_menu_color)
+        if self.running_color_settings.completion_menu_bg_color:
+            completion_menu_style.append(f"bg:{self.running_color_settings.completion_menu_bg_color}")
+        if self.running_color_settings.completion_menu_color:
+            completion_menu_style.append(self.running_color_settings.completion_menu_color)
         if completion_menu_style:
             style_dict["completion-menu"] = " ".join(completion_menu_style)
 
         # Conditionally add 'completion-menu.completion.current' style
         completion_menu_current_style = []
-        if self.completion_menu_current_bg_color:
-            completion_menu_current_style.append(self.completion_menu_current_bg_color)
-        if self.completion_menu_current_color:
-            completion_menu_current_style.append(f"bg:{self.completion_menu_current_color}")
+        if self.running_color_settings.completion_menu_current_bg_color:
+            completion_menu_current_style.append(self.running_color_settings.completion_menu_current_bg_color)
+        if self.running_color_settings.completion_menu_current_color:
+            completion_menu_current_style.append(f"bg:{self.running_color_settings.completion_menu_current_color}")
         if completion_menu_current_style:
             style_dict["completion-menu.completion.current"] = " ".join(
                 completion_menu_current_style
@@ -271,7 +209,7 @@ class InputOutput:
 
     def rule(self):
         if self.pretty:
-            style = dict(style=self.user_input_color) if self.user_input_color else dict()
+            style = dict(style=self.running_color_settings.user_input_color) if self.running_color_settings.user_input_color else dict()
             self.console.rule(**style)
         else:
             print()
@@ -285,9 +223,11 @@ class InputOutput:
 
     def get_input(
         self,
-        completer: Optional[Completer] = None
+        completer: Optional[Completer] = None,
+        display_rule: bool = True,
     ):
-        self.rule()
+        if display_rule:
+            self.rule()
 
         # Ring the bell if needed
         self.ring_bell()
@@ -412,8 +352,8 @@ class InputOutput:
         return inp
 
     def display_user_input(self, inp):
-        if self.pretty and self.user_input_color:
-            style = dict(style=self.user_input_color)
+        if self.pretty and self.running_color_settings.user_input_color:
+            style = dict(style=self.running_color_settings.user_input_color)
         else:
             style = dict()
 
@@ -603,11 +543,11 @@ class InputOutput:
 
     def get_assistant_mdstream(self):
         mdargs = dict(
-            style=self.assistant_output_color,
-            code_theme=self.code_theme,
+            style=self.running_color_settings.assistant_output_color,
+            code_theme=self.running_color_settings.code_theme,
             inline_code_lexer="text",
         )
-        mdStream = MarkdownStream(mdargs=mdargs)
+        mdStream = MarkdownRender(mdargs=mdargs)
         return mdStream
 
     def assistant_output(self, message, pretty=None):
@@ -623,7 +563,7 @@ class InputOutput:
 
         if pretty:
             show_resp = Markdown(
-                message, style=self.assistant_output_color, code_theme=self.code_theme
+                message, style=self.running_color_settings.assistant_output_color, code_theme=self.running_color_settings.code_theme
             )
         else:
             show_resp = Text(message or "(empty response)")

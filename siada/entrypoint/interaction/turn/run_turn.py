@@ -7,19 +7,13 @@ and model conversations. Encapsulates the logic for a single interaction cycle.
 
 from siada.foundation.logging import logger
 import re
-from siada.support.slash_commands import SwitchEvent
-import sys
 import siada.io.components.mdstream
-from typing import Optional, Dict, Any, List
-from dataclasses import dataclass
-from abc import ABC, abstractmethod
-from enum import Enum
+from typing import Optional, Dict, Any
 
 from agents import (
     RawResponsesStreamEvent,
     RunItemStreamEvent,
     RunResultStreaming,
-    StreamEvent,
     ToolCallOutputItem,
 )
 
@@ -27,154 +21,34 @@ from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 
 # Import existing InteractionConfig
-from .config import RunningConfig
+from ..config import RunningConfig
 
-
-class TurnType(Enum):
-    """Types of interaction turns"""
-
-    COMMAND = "command"  # Slash commands (/help, /edit, etc.)
-    CONVERSATION = "conversation"  # Regular AI conversation
-
-
-@dataclass
-class TurnInput:
-    """Input data for a turn"""
-
-    use_input: str  # Raw user input
-
-
-@dataclass
-class TurnOutput:
-    """Output data from a turn"""
-
-    output: str | SwitchEvent  # Response content
-    metadata: Dict[str, Any]  # Response metadata
-    next_action: Optional[str]  # Suggested next action
-
-
-class RunTurn(ABC):
-    """Abstract base class for interaction turns"""
-
-    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):
-        """Initialize turn with configuration and session
-
-        Args:
-            config: InteractionConfig with execution parameters
-            session: Current session instance
-        """
-        self.config = config
-        self.session = session
-        self.slash_commands = slash_commands
-
-        # Data tracking
-        self.input_data: Optional[TurnInput] = None
-        self.output_data: Optional[TurnOutput] = None
-        self.start_time: Optional[float] = None
-        self.end_time: Optional[float] = None
-        self.error: Optional[Exception] = None
-
-    @abstractmethod
-    def execute(self, turn_input: TurnInput) -> TurnOutput:
-        """Execute the turn with given input
-
-        Args:
-            turn_input: Input data for this turn
-
-        Returns:
-            TurnOutput: Result of turn execution
-        """
-        pass
-
-    def can_handle(self, user_input: str) -> bool:
-        """Check if this turn type can handle the given input
-
-        Args:
-            user_input: Raw user input string
-
-        Returns:
-            bool: True if this turn can handle the input
-        """
-        return True
-
-    def prepare_input(self, raw_input: str) -> TurnInput:
-        """Prepare turn input from raw user input
-
-        Args:
-            raw_input: Raw user input string
-
-        Returns:
-            TurnInput: Prepared input for turn execution
-        """
-        return TurnInput(use_input=raw_input)
-
-    def get_turn_type(self) -> TurnType:
-        """Get the type of this turn
-
-        Returns:
-            TurnType: Type of this turn
-        """
-        return TurnType.CONVERSATION
-
-    def validate_input(self, turn_input: TurnInput) -> bool:
-        """Validate turn input
-
-        Args:
-            turn_input: Input to validate
-
-        Returns:
-            bool: True if input is valid
-        """
-        return bool(turn_input.use_input and turn_input.use_input.strip())
-
-    def handle_error(self, error: Exception) -> TurnOutput:
-        """Handle execution error
-
-        Args:
-            error: Exception that occurred
-
-        Returns:
-            TurnOutput: Error response
-        """
-        self.error = error
-        
-        # Print full error traceback for debugging
-        import traceback
-        full_traceback = traceback.format_exc()
-        self.config.io.print_error(f"Error occurred: {str(error)}\n\nFull traceback:\n{full_traceback}")
-
-        return TurnOutput(
-            output=f"Error: {str(error)}",
-            metadata={"error_type": type(error).__name__},
-            next_action=None,
-        )
-
-    def _get_timestamp(self) -> float:
-        """Get current timestamp"""
-        import time
-
-        return time.time()
+# Import models and interface from the same directory
+from .models import TurnType, TurnInput, TurnOutput
+from .interface import RunTurn
+from rich.markdown import Markdown
+from rich.text import Text
 
 
 # Standard tag identifier
 REASONING_TAG = "thinking-content-" + "7bbeb8e1441453ad999a0bbba8a46d4b"
+
+SPLIT_TAG = "--------------\n\n"
 # Output formatting
-REASONING_START = "--------------\n► **THINKING**"
-REASONING_END = "------------\n► **ANSWER**"
 
-TOOL_CALL_START = "--------------\n► **TOOL USE**"
+REASONING_START = "► **THINKING**"
 
-TOOL_OUTPUT_START = "--------------\n► **TOOL OUTPUT**"
+REASONING_END = "► **ANSWER**"
 
-DEFAULT_REASONING_TAG = "thinking"
+TOOL_CALL_START = "► **TOOL USE**"
 
 
 class ConversationTurn(RunTurn):
     """Handles regular AI conversation turns"""
 
-    mdstream: siada.io.components.mdstream.MarkdownStream = None
+    mdstream: siada.io.components.mdstream.MarkdownRender = None
     tool_calls: Dict[str, Dict[str, Any]] = None
-    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None
+    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None
     response_content: str = None
     current_active_call_id: Optional[str] = None
     got_content_part: bool = False
@@ -185,6 +59,14 @@ class ConversationTurn(RunTurn):
     _dedicated_loop = None
     _dedicated_thread = None
     _loop_ready = None
+
+    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):
+        super().__init__(config, session, slash_commands)
+        self.mdargs = dict(
+            style=self.config.running_color_settings.split_line_color,
+            code_theme=self.config.running_color_settings.code_theme,
+            inline_code_lexer="text",
+        )
 
     @classmethod
     def _ensure_dedicated_loop(cls):
@@ -295,6 +177,7 @@ class ConversationTurn(RunTurn):
                     elif isinstance(stream_data, ResponseReasoningSummaryTextDeltaEvent):
                         if not self.got_reasoning_part and stream_data.delta:
                             self.got_reasoning_part = True
+                            self.print_split_line()
                             delta_text = f"\n{REASONING_START}\n\n{stream_data.delta}"
                             self.response_content += delta_text
                         else:
@@ -308,6 +191,7 @@ class ConversationTurn(RunTurn):
                     elif isinstance(stream_data, ResponseTextDeltaEvent):
                         if not self.got_content_part and stream_data.delta:
                             self.got_content_part = True
+                            self.print_split_line()
                             delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}" 
                             self.response_content += delta_text
                         else:
@@ -325,6 +209,7 @@ class ConversationTurn(RunTurn):
                             tool_name = stream_data.item.name
                             self.tool_calls[call_id] = {"name": tool_name, "arguments": ""}
                             self.current_active_call_id = call_id
+                            self.print_split_line()
                             self.config.io.print_tool_call(
                                 f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}\n"
                             )
@@ -369,9 +254,7 @@ class ConversationTurn(RunTurn):
                         if call_id:
                             if call_id in self.tool_calls:
                                 tool_name = self.tool_calls[call_id]["name"]
-                                # self.config.io.print_tool_result(
-                                #     f"{TOOL_OUTPUT_START}: {tool_name.upper()}"
-                                # )
+                                self.print_split_line()
                                 self.config.io.print_tool_result()
                                 output = stream_data.output
                                 if isinstance(output, FunctionCallResult):
@@ -394,7 +277,8 @@ class ConversationTurn(RunTurn):
 
     def _live_incremental_response(self, delta_text: str, response_content: str, final: bool = False):
         if self.mdstream:
-            response_content = self.replace_reasoning_tag(response_content, DEFAULT_REASONING_TAG)
+            # ignore reasoning tag ,because it cause the stream output formate error just ignore process the xml tags
+            # response_content = self.replace_reasoning_tag(response_content, DEFAULT_REASONING_TAG)
             self.mdstream.update(response_content, final)
         else:
             self.config.io.print_info(delta_text)
@@ -466,28 +350,35 @@ class ConversationTurn(RunTurn):
 
             return self.handle_error(e)
 
-    def replace_reasoning_tag(self, text, tag_name):
-        """
-        Replace opening and closing reasoning tags with standard formatting.
-        Ensures exactly one blank line before START and END markers.
+    # def replace_reasoning_tag(self, text, tag_name):
+    #     """
+    #     Replace opening and closing reasoning tags with standard formatting.
+    #     Ensures exactly one blank line before START and END markers.
 
-        Args:
-            text (str): The text containing the tags
-            tag_name (str): The name of the tag to replace
+    #     Args:
+    #         text (str): The text containing the tags
+    #         tag_name (str): The name of the tag to replace
 
-        Returns:
-            str: Text with reasoning tags replaced with standard format
-        """
-        if not text:
-            return text
+    #     Returns:
+    #         str: Text with reasoning tags replaced with standard format
+    #     """
+    #     if not text:
+    #         return text
 
-        # Replace opening tag with thinking format
-        text = re.sub(f"\\s*<{tag_name}>\\s*", "\n```thinking\n", text)
+    #     # Replace opening tag with thinking format
+    #     text = re.sub(f"\\s*<{tag_name}>\\s*", "\n```thinking\n", text)
 
-        # Replace closing tag with thinking format
-        text = re.sub(f"\\s*</{tag_name}>\\s*", "\n```\n\n", text)
+    #     # Replace closing tag with thinking format
+    #     text = re.sub(f"\\s*</{tag_name}>\\s*", "\n```\n\n", text)
 
-        return text
+    #     return text
+
+    def print_split_line(self):
+        if self.config.io.pretty:
+            show = Markdown(SPLIT_TAG, **self.mdargs)
+            self.config.io.console.print(show)
+        else:
+            self.config.io.console.print(SPLIT_TAG)
 
 
 class CommandTurn(RunTurn):

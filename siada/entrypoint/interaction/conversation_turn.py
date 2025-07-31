@@ -42,9 +42,9 @@ DEFAULT_REASONING_TAG = "thinking"
 class ConversationTurn(RunTurn):
     """Handles regular AI conversation turns"""
 
-    mdstream: siada.io.components.mdstream.MarkdownStream = None
+    mdstream: siada.io.components.mdstream.MarkdownRender = None
     tool_calls: Dict[str, Dict[str, Any]] = None
-    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None
+    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None
     response_content: str = None
     current_active_call_id: Optional[str] = None
     got_content_part: bool = False

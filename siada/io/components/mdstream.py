@@ -52,7 +52,7 @@ class NoInsetMarkdown(Markdown):
     }
 
 
-class MarkdownStream:
+class MarkdownRender:
     """Streaming markdown renderer that progressively displays content with a live updating window.
 
     Uses rich.console and rich.live to render markdown content with smooth scrolling
@@ -82,19 +82,24 @@ class MarkdownStream:
         self.live = None
         self._live_started = False
 
-    def _render_markdown_to_lines(self, text):
+    @staticmethod
+    def render_markdown_to_lines(text, mdargs=None):
         """Render markdown text to a list of lines.
 
         Args:
             text (str): Markdown text to render
+            mdargs (dict, optional): Additional markdown arguments to override defaults
 
         Returns:
             list: List of rendered lines with line endings preserved
         """
+        # Use provided mdargs or fall back to instance mdargs
+        final_mdargs = mdargs if mdargs is not None else {}
+        
         # Render the markdown to a string buffer
         string_io = io.StringIO()
         console = Console(file=string_io, force_terminal=True)
-        markdown = NoInsetMarkdown(text, **self.mdargs)
+        markdown = NoInsetMarkdown(text, **final_mdargs)
         console.print(markdown)
         output = string_io.getvalue()
 
@@ -140,7 +145,7 @@ class MarkdownStream:
 
         # Measure render time and adjust min_delay to maintain smooth rendering
         start = time.time()
-        lines = self._render_markdown_to_lines(text)
+        lines = MarkdownRender.render_markdown_to_lines(text, self.mdargs)
         render_time = time.time() - start
 
         # Set min_delay to render time plus a small buffer

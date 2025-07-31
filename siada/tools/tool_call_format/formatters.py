@@ -17,7 +17,7 @@ class DefaultFormatter(ToolCallFormatter):
 
 class FileEditFormatter(ToolCallFormatter):
     """
-    文件操作格式化程序
+    File operation formatter
     """
 
     def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:
@@ -50,7 +50,7 @@ class FileEditFormatter(ToolCallFormatter):
 
             return "text", content
         except json.JSONDecodeError:
-            return "text", f"Failed to parse arguments: {arguments}"
+            return "text", f"failed to parse arguments: {arguments}"
 
     @property
     def supported_function(self) -> str:
@@ -63,7 +63,7 @@ class FileEditFormatter(ToolCallFormatter):
 
 class SearchFormatter(ToolCallFormatter):
     """
-    搜索格式化程序
+    Search formatter
     """
 
     def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:
@@ -76,7 +76,7 @@ class SearchFormatter(ToolCallFormatter):
             content = f"I will search for: {regex} in {directory_path} with file pattern {file_pattern} in {cwd}"
             return "text", content
         except json.JSONDecodeError:
-            return "text", f"Failed to parse arguments: {arguments}"
+            return "text", f"failed to parse arguments: {arguments}"
 
     @property
     def supported_function(self) -> str:
@@ -85,16 +85,16 @@ class SearchFormatter(ToolCallFormatter):
 
 class CommandFormatter(ToolCallFormatter):
     """
-    命令格式化程序
+    Command formatter
     """
 
     def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:
         try:
             args = json.loads(arguments)
             command = args.get("command", "")
-            return "text", f"I will run the following command: {command}"
+            return "text", f"siada wants to run the following command: {command}"
         except json.JSONDecodeError:
-            return "text", f"Failed to parse arguments: {arguments}"
+            return "text", f"failed to parse arguments: {arguments}"
 
     @property
     def supported_function(self) -> str:
@@ -113,7 +113,7 @@ class FixAttemptCompletionFormatter(ToolCallFormatter):
             content = f"The bug fix task has been successfully completed. see the result below\n {result}"
             return "text", content
         except json.JSONDecodeError:
-            return "text", f"Failed to parse arguments: {arguments}"
+            return "text", f"failed to parse arguments: {arguments}"
 
     @property
     def supported_function(self) -> str:
@@ -133,7 +133,7 @@ class ReproduceCompletionFormatter(ToolCallFormatter):
             content = f"This issue can be reproduced using test case : {test_case}.\n Analysis of the issue: {bug_analysis}"
             return "text", content
         except json.JSONDecodeError:
-            return "text", f"Failed to parse arguments: {arguments}"
+            return "text", f"failed to parse arguments: {arguments}"
 
     @property
     def supported_function(self) -> str:
@@ -150,9 +150,9 @@ class WebCrawlFormatter(ToolCallFormatter):
             args = json.loads(arguments)
             url = args.get("url", "")
             crawl_format = args.get("format", "text")
-            return "text", f"I will crawl the url: {url} with format {crawl_format}"
+            return "text", f"siada wants to crawl the url: {url} with format {crawl_format}"
         except json.JSONDecodeError:
-            return "text", f"Failed to parse arguments: {arguments}"
+            return "text", f"failed to parse arguments: {arguments}"
 
     @property
     def supported_function(self) -> str:
@@ -170,8 +170,26 @@ class AskFollowupQuestionFormatter(ToolCallFormatter):
             question = args.get("question", "")
             return "text", f"{question}"
         except json.JSONDecodeError:
-            return "text", f"Failed to parse arguments: {arguments}"
+            return "text", f"failed to parse arguments: {arguments}"
 
     @property
     def supported_function(self) -> str:
         return "ask_followup_question" 
+    
+
+class ListCodeDefinitionNamesFormatter(ToolCallFormatter):
+    """
+    Formatter for the list_code_definition_names function.
+    """
+
+    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:
+        try:
+            args = json.loads(arguments)
+            file_name = args.get("file_name", "Unknown file")
+            return "text", f"siada wants to analyze definitions in `{file_name}`"
+        except json.JSONDecodeError:
+            return "text", "failed to parse arguments: {arguments}"
+
+    @property
+    def supported_function(self) -> str:
+        return "list_code_definition_names"

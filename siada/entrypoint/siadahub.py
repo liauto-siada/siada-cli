@@ -11,6 +11,7 @@ from siada.entrypoint.interaction.config import RunningConfig
 from siada.entrypoint.interaction.controller import Controller
 from siada.entrypoint.interaction.nointeractive_controller import NoInteractiveController
 from siada.foundation.logging import toggle_console_output, logger
+from siada.io.color_settings import RunningConfigColorSettings
 from siada.models.model_run_config import ModelRunConfig
 from siada.models.model_base_config import ModelBaseConfig
 from siada.support.completer import AutoCompleter
@@ -123,6 +124,7 @@ def get_io(args, pretty=None):
     
     # Configure color settings
     color_settings = ColorSettings.from_theme(args.theme)
+    running_color_settings = RunningConfigColorSettings(color_settings=color_settings, pretty=args.pretty)
     color_settings.apply_to_args(args)
     if args.verbose:
         print(f"Applied color theme: {args.theme}")
@@ -132,14 +134,14 @@ def get_io(args, pretty=None):
         
     return InputOutput(
         pretty=args.pretty,
-        color_settings=color_settings,
+        running_color_settings=running_color_settings,
         encoding=args.encoding,
         line_endings=getattr(args, "line_endings", "platform"),
         editingmode=editing_mode,
         fancy_input=True,
         multiline_mode=False,
         notifications=True,
-    )
+    ), running_color_settings
 
 
 def set_env(args, io):
@@ -290,7 +292,7 @@ def main():
         args.pretty = False
 
     try:
-        io = get_io(args)
+        io, running_color_settings = get_io(args)
     except ValueError as e:
         print(f"Invalid theme configuration: {e}")
         return 1
@@ -340,6 +342,7 @@ def main():
         workspace=workspace,
         agent_name=args.agent,
         completer=completer,
+        running_color_settings=running_color_settings,
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
     )

@@ -5,6 +5,7 @@ Configuration classes for interaction module
 from dataclasses import dataclass
 from rlcompleter import Completer
 
+from siada.io.color_settings import RunningConfigColorSettings
 from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
 
@@ -19,6 +20,7 @@ class RunningConfig:
     workspace: str
     agent_name: str
     completer: Completer
+    running_color_settings: RunningConfigColorSettings
     
     # Optional fields (with default values)
     max_turns: int = 10

@@ -584,7 +584,39 @@
         "documentation": {}
     },
     {
-        "label": "List",
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -2738,14 +2770,6 @@
         "documentation": {}
     },
     {
-        "label": "StreamEvent",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
         "label": "ToolCallOutputItem",
         "importPath": "agents",
         "description": "agents",
@@ -3703,6 +3727,400 @@
         "documentation": {}
     },
     {
+        "label": "Enum",
+        "importPath": "enum",
+        "description": "enum",
+        "isExtraImport": true,
+        "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "Enum",
+        "importPath": "enum",
+        "description": "enum",
+        "isExtraImport": true,
+        "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "Enum",
+        "importPath": "enum",
+        "description": "enum",
+        "isExtraImport": true,
+        "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "Enum",
+        "importPath": "enum",
+        "description": "enum",
+        "isExtraImport": true,
+        "detail": "enum",
+        "documentation": {}
+    },
+    {
+        "label": "SwitchEvent",
+        "importPath": "siada.support.slash_commands",
+        "description": "siada.support.slash_commands",
+        "isExtraImport": true,
+        "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "SlashCommands",
+        "importPath": "siada.support.slash_commands",
+        "description": "siada.support.slash_commands",
+        "isExtraImport": true,
+        "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "SwitchEvent",
+        "importPath": "siada.support.slash_commands",
+        "description": "siada.support.slash_commands",
+        "isExtraImport": true,
+        "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "SwitchEvent",
+        "importPath": "siada.support.slash_commands",
+        "description": "siada.support.slash_commands",
+        "isExtraImport": true,
+        "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "SlashCommands",
+        "importPath": "siada.support.slash_commands",
+        "description": "siada.support.slash_commands",
+        "isExtraImport": true,
+        "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "SwitchEvent",
+        "importPath": "siada.support.slash_commands",
+        "description": "siada.support.slash_commands",
+        "isExtraImport": true,
+        "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "SlashCommands",
+        "importPath": "siada.support.slash_commands",
+        "description": "siada.support.slash_commands",
+        "isExtraImport": true,
+        "detail": "siada.support.slash_commands",
+        "documentation": {}
+    },
+    {
+        "label": "re",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "siada.io.components.mdstream",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "MarkdownRender",
+        "importPath": "siada.io.components.mdstream",
+        "description": "siada.io.components.mdstream",
+        "isExtraImport": true,
+        "detail": "siada.io.components.mdstream",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "ObservationType",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionCallResult",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileEditSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "FileReadSource",
+        "importPath": "siada.tools.coder.observation.observation",
+        "description": "siada.tools.coder.observation.observation",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.observation.observation",
+        "documentation": {}
+    },
+    {
+        "label": "ToolCallFormatterFactory",
+        "importPath": "siada.tools.tool_call_format.formatter_factory",
+        "description": "siada.tools.tool_call_format.formatter_factory",
+        "isExtraImport": true,
+        "detail": "siada.tools.tool_call_format.formatter_factory",
+        "documentation": {}
+    },
+    {
+        "label": "ToolCallFormatterFactory",
+        "importPath": "siada.tools.tool_call_format.formatter_factory",
+        "description": "siada.tools.tool_call_format.formatter_factory",
+        "isExtraImport": true,
+        "detail": "siada.tools.tool_call_format.formatter_factory",
+        "documentation": {}
+    },
+    {
+        "label": "Markdown",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "CodeBlock",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "Heading",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "Markdown",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "Markdown",
+        "importPath": "rich.markdown",
+        "description": "rich.markdown",
+        "isExtraImport": true,
+        "detail": "rich.markdown",
+        "documentation": {}
+    },
+    {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
+        "label": "Text",
+        "importPath": "rich.text",
+        "description": "rich.text",
+        "isExtraImport": true,
+        "detail": "rich.text",
+        "documentation": {}
+    },
+    {
         "label": "RunningConfig",
         "importPath": "siada.entrypoint.interaction.config",
         "description": "siada.entrypoint.interaction.config",
@@ -3863,6 +4281,30 @@
         "documentation": {}
     },
     {
+        "label": "RunningConfigColorSettings",
+        "importPath": "siada.io.color_settings",
+        "description": "siada.io.color_settings",
+        "isExtraImport": true,
+        "detail": "siada.io.color_settings",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfigColorSettings",
+        "importPath": "siada.io.color_settings",
+        "description": "siada.io.color_settings",
+        "isExtraImport": true,
+        "detail": "siada.io.color_settings",
+        "documentation": {}
+    },
+    {
+        "label": "ColorSettings",
+        "importPath": "siada.io.color_settings",
+        "description": "siada.io.color_settings",
+        "isExtraImport": true,
+        "detail": "siada.io.color_settings",
+        "documentation": {}
+    },
+    {
         "label": "siada.io.io",
         "kind": 6,
         "isExtraImport": true,
@@ -3978,18 +4420,18 @@
     },
     {
         "label": "TurnFactory",
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
         "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.run_turn",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
     {
         "label": "TurnInput",
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
         "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.run_turn",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
     {
@@ -4006,71 +4448,6 @@
         "description": "siada.session.session_manager",
         "isExtraImport": true,
         "detail": "siada.session.session_manager",
-        "documentation": {}
-    },
-    {
-        "label": "SlashCommands",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "SwitchEvent",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "SwitchEvent",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "SwitchEvent",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "SlashCommands",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "SwitchEvent",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "SlashCommands",
-        "importPath": "siada.support.slash_commands",
-        "description": "siada.support.slash_commands",
-        "isExtraImport": true,
-        "detail": "siada.support.slash_commands",
-        "documentation": {}
-    },
-    {
-        "label": "re",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "re",
-        "description": "re",
-        "detail": "re",
         "documentation": {}
     },
     {
@@ -4331,239 +4708,6 @@
         "documentation": {}
     },
     {
-        "label": "siada.io.components.mdstream",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "siada.io.components.mdstream",
-        "description": "siada.io.components.mdstream",
-        "detail": "siada.io.components.mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "MarkdownStream",
-        "importPath": "siada.io.components.mdstream",
-        "description": "siada.io.components.mdstream",
-        "isExtraImport": true,
-        "detail": "siada.io.components.mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "MarkdownStream",
-        "importPath": "siada.io.components.mdstream",
-        "description": "siada.io.components.mdstream",
-        "isExtraImport": true,
-        "detail": "siada.io.components.mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "MarkdownStream",
-        "importPath": "siada.io.components.mdstream",
-        "description": "siada.io.components.mdstream",
-        "isExtraImport": true,
-        "detail": "siada.io.components.mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "ObservationType",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileEditSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "FileReadSource",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
-        "documentation": {}
-    },
-    {
-        "label": "ToolCallFormatterFactory",
-        "importPath": "siada.tools.tool_call_format.formatter_factory",
-        "description": "siada.tools.tool_call_format.formatter_factory",
-        "isExtraImport": true,
-        "detail": "siada.tools.tool_call_format.formatter_factory",
-        "documentation": {}
-    },
-    {
-        "label": "ToolCallFormatterFactory",
-        "importPath": "siada.tools.tool_call_format.formatter_factory",
-        "description": "siada.tools.tool_call_format.formatter_factory",
-        "isExtraImport": true,
-        "detail": "siada.tools.tool_call_format.formatter_factory",
-        "documentation": {}
-    },
-    {
         "label": "unittest",
         "kind": 6,
         "isExtraImport": true,
@@ -4586,38 +4730,6 @@
         "description": "unittest",
         "isExtraImport": true,
         "detail": "unittest",
-        "documentation": {}
-    },
-    {
-        "label": "Enum",
-        "importPath": "enum",
-        "description": "enum",
-        "isExtraImport": true,
-        "detail": "enum",
-        "documentation": {}
-    },
-    {
-        "label": "Enum",
-        "importPath": "enum",
-        "description": "enum",
-        "isExtraImport": true,
-        "detail": "enum",
-        "documentation": {}
-    },
-    {
-        "label": "Enum",
-        "importPath": "enum",
-        "description": "enum",
-        "isExtraImport": true,
-        "detail": "enum",
-        "documentation": {}
-    },
-    {
-        "label": "Enum",
-        "importPath": "enum",
-        "description": "enum",
-        "isExtraImport": true,
-        "detail": "enum",
         "documentation": {}
     },
     {
@@ -5010,38 +5122,6 @@
         "documentation": {}
     },
     {
-        "label": "CodeBlock",
-        "importPath": "rich.markdown",
-        "description": "rich.markdown",
-        "isExtraImport": true,
-        "detail": "rich.markdown",
-        "documentation": {}
-    },
-    {
-        "label": "Heading",
-        "importPath": "rich.markdown",
-        "description": "rich.markdown",
-        "isExtraImport": true,
-        "detail": "rich.markdown",
-        "documentation": {}
-    },
-    {
-        "label": "Markdown",
-        "importPath": "rich.markdown",
-        "description": "rich.markdown",
-        "isExtraImport": true,
-        "detail": "rich.markdown",
-        "documentation": {}
-    },
-    {
-        "label": "Markdown",
-        "importPath": "rich.markdown",
-        "description": "rich.markdown",
-        "isExtraImport": true,
-        "detail": "rich.markdown",
-        "documentation": {}
-    },
-    {
         "label": "Panel",
         "importPath": "rich.panel",
         "description": "rich.panel",
@@ -5055,38 +5135,6 @@
         "description": "rich.syntax",
         "isExtraImport": true,
         "detail": "rich.syntax",
-        "documentation": {}
-    },
-    {
-        "label": "Text",
-        "importPath": "rich.text",
-        "description": "rich.text",
-        "isExtraImport": true,
-        "detail": "rich.text",
-        "documentation": {}
-    },
-    {
-        "label": "Text",
-        "importPath": "rich.text",
-        "description": "rich.text",
-        "isExtraImport": true,
-        "detail": "rich.text",
-        "documentation": {}
-    },
-    {
-        "label": "Text",
-        "importPath": "rich.text",
-        "description": "rich.text",
-        "isExtraImport": true,
-        "detail": "rich.text",
-        "documentation": {}
-    },
-    {
-        "label": "Text",
-        "importPath": "rich.text",
-        "description": "rich.text",
-        "isExtraImport": true,
-        "detail": "rich.text",
         "documentation": {}
     },
     {
@@ -6343,22 +6391,6 @@
         "documentation": {}
     },
     {
-        "label": "MagicMock",
-        "importPath": "unittest.mock",
-        "description": "unittest.mock",
-        "isExtraImport": true,
-        "detail": "unittest.mock",
-        "documentation": {}
-    },
-    {
-        "label": "patch",
-        "importPath": "unittest.mock",
-        "description": "unittest.mock",
-        "isExtraImport": true,
-        "detail": "unittest.mock",
-        "documentation": {}
-    },
-    {
         "label": "mock_open",
         "importPath": "unittest.mock",
         "description": "unittest.mock",
@@ -6431,55 +6463,6 @@
         "documentation": {}
     },
     {
-        "label": "SiadaAgent",
-        "importPath": "siada.agent_hub",
-        "description": "siada.agent_hub",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub",
-        "documentation": {}
-    },
-    {
-        "label": "edit",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
-        "documentation": {}
-    },
-    {
-        "label": "search",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
-        "documentation": {}
-    },
-    {
-        "label": "run_cmd",
-        "importPath": "siada.tools.coder",
-        "description": "siada.tools.coder",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder",
-        "documentation": {}
-    },
-    {
-        "label": "ColorSettings",
-        "importPath": "siada.io.color_settings",
-        "description": "siada.io.color_settings",
-        "isExtraImport": true,
-        "detail": "siada.io.color_settings",
-        "documentation": {}
-    },
-    {
-        "label": "pytest",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "pytest",
-        "description": "pytest",
-        "detail": "pytest",
-        "documentation": {}
-    },
-    {
         "label": "concurrent.futures",
         "kind": 6,
         "isExtraImport": true,
@@ -6520,6 +6503,15 @@
         "importPath": "numpy",
         "description": "numpy",
         "detail": "numpy",
+        "documentation": {}
+    },
+    {
+        "label": "pytest",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "pytest",
+        "description": "pytest",
+        "detail": "pytest",
         "documentation": {}
     },
     {
@@ -7652,6 +7644,114 @@
     {
         "label": "RunTurn",
         "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn.interface",
+        "description": "siada.entrypoint.interaction.turn.interface",
+        "peekOfCode": "class RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:\n            config: InteractionConfig with execution parameters\n            session: Current session instance\n        \"\"\"\n        self.config = config\n        self.session = session",
+        "detail": "siada.entrypoint.interaction.turn.interface",
+        "documentation": {}
+    },
+    {
+        "label": "TurnType",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn.models",
+        "description": "siada.entrypoint.interaction.turn.models",
+        "peekOfCode": "class TurnType(Enum):\n    \"\"\"Types of interaction turns\"\"\"\n    COMMAND = \"command\"  # Slash commands (/help, /edit, etc.)\n    CONVERSATION = \"conversation\"  # Regular AI conversation\n@dataclass\nclass TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n@dataclass\nclass TurnOutput:",
+        "detail": "siada.entrypoint.interaction.turn.models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnInput",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn.models",
+        "description": "siada.entrypoint.interaction.turn.models",
+        "peekOfCode": "class TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n@dataclass\nclass TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action",
+        "detail": "siada.entrypoint.interaction.turn.models",
+        "documentation": {}
+    },
+    {
+        "label": "TurnOutput",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn.models",
+        "description": "siada.entrypoint.interaction.turn.models",
+        "peekOfCode": "class TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action",
+        "detail": "siada.entrypoint.interaction.turn.models",
+        "documentation": {}
+    },
+    {
+        "label": "ConversationTurn",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
+        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    got_tool_result_part: bool = False",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "CommandTurn",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
+        "peekOfCode": "class CommandTurn(RunTurn):\n    \"\"\"Handles slash command turns\"\"\"\n    def get_turn_type(self) -> TurnType:\n        return TurnType.COMMAND\n    def can_handle(self, user_input: str) -> bool:\n        \"\"\"Handle slash commands\"\"\"\n        return self.slash_commands.is_command(user_input)\n    def execute(self, turn_input: TurnInput) -> TurnOutput:\n        \"\"\"Execute slash command\n        Args:",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "TurnFactory",
+        "kind": 6,
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
+        "peekOfCode": "class TurnFactory:\n    \"\"\"Factory for creating appropriate turn instances\"\"\"\n    @staticmethod\n    def create_turn(\n        config: RunningConfig, session: Any, slash_commands: Any, user_input: str\n    ) -> RunTurn:\n        \"\"\"Create appropriate turn for user input\n        Args:\n            user_input: Raw user input\n        Returns:",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "REASONING_TAG",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\nSPLIT_TAG = \"--------------\\n\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "SPLIT_TAG",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
+        "peekOfCode": "SPLIT_TAG = \"--------------\\n\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "REASONING_START",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
+        "peekOfCode": "REASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "REASONING_END",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
+        "peekOfCode": "REASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "TOOL_CALL_START",
+        "kind": 5,
+        "importPath": "siada.entrypoint.interaction.turn.run_turn",
+        "description": "siada.entrypoint.interaction.turn.run_turn",
+        "peekOfCode": "TOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
+        "detail": "siada.entrypoint.interaction.turn.run_turn",
+        "documentation": {}
+    },
+    {
+        "label": "RunTurn",
+        "kind": 6,
         "importPath": "siada.entrypoint.interaction.base_turn",
         "description": "siada.entrypoint.interaction.base_turn",
         "peekOfCode": "class RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:\n            config: InteractionConfig with execution parameters\n            session: Current session instance\n        \"\"\"\n        self.config = config\n        self.session = session",
@@ -7672,7 +7772,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.config",
         "description": "siada.entrypoint.interaction.config",
-        "peekOfCode": "class RunningConfig:\n    \"\"\"Configuration data class for interaction controller\"\"\"\n    # Required fields (no default values)\n    model: ModelRunConfig\n    io: InputOutput\n    workspace: str\n    agent_name: str\n    completer: Completer\n    # Optional fields (with default values)\n    max_turns: int = 10",
+        "peekOfCode": "class RunningConfig:\n    \"\"\"Configuration data class for interaction controller\"\"\"\n    # Required fields (no default values)\n    model: ModelRunConfig\n    io: InputOutput\n    workspace: str\n    agent_name: str\n    completer: Completer\n    running_color_settings: RunningConfigColorSettings\n    # Optional fields (with default values)",
         "detail": "siada.entrypoint.interaction.config",
         "documentation": {}
     },
@@ -7681,7 +7781,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.controller",
         "description": "siada.entrypoint.interaction.controller",
-        "peekOfCode": "class Controller:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig, slash_commands: SlashCommands):\n        self.config = config\n        self.slash_commands = slash_commands\n    def run(self) -> int:\n        session = RunningSessionManager.create_session(\n            running_config=self.config,\n        )\n        while True:",
+        "peekOfCode": "class Controller:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig, slash_commands: SlashCommands):\n        self.config = config\n        self.slash_commands = slash_commands\n    def run(self) -> int:\n        session = RunningSessionManager.create_session(\n            running_config=self.config,\n        )\n        display_rule = True",
         "detail": "siada.entrypoint.interaction.controller",
         "documentation": {}
     },
@@ -7690,7 +7790,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.conversation_turn",
         "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    got_tool_result_part: bool = False",
+        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    got_tool_result_part: bool = False",
         "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
@@ -7699,7 +7799,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.conversation_turn",
         "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
         "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
@@ -7708,7 +7808,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.conversation_turn",
         "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None",
+        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None",
         "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
@@ -7717,7 +7817,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.conversation_turn",
         "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
+        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
         "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
@@ -7726,7 +7826,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.conversation_turn",
         "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
+        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
         "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
@@ -7735,7 +7835,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.conversation_turn",
         "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
+        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
         "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
@@ -7746,123 +7846,6 @@
         "description": "siada.entrypoint.interaction.nointeractive_controller",
         "peekOfCode": "class NoInteractiveController:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig):\n        self.config = config\n    def run(self, user_input: str) -> int:\n        session = RunningSessionManager.create_session(\n            running_config=self.config,\n        )\n        result = asyncio.run(\n            SiadaRunner.run_agent(",
         "detail": "siada.entrypoint.interaction.nointeractive_controller",
-        "documentation": {}
-    },
-    {
-        "label": "TurnType",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnType(Enum):\n    \"\"\"Types of interaction turns\"\"\"\n    COMMAND = \"command\"  # Slash commands (/help, /edit, etc.)\n    CONVERSATION = \"conversation\"  # Regular AI conversation\n@dataclass\nclass TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n@dataclass\nclass TurnOutput:",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "TurnInput",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnInput:\n    \"\"\"Input data for a turn\"\"\"\n    use_input: str  # Raw user input\n@dataclass\nclass TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action\nclass RunTurn(ABC):",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "TurnOutput",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnOutput:\n    \"\"\"Output data from a turn\"\"\"\n    output: str | SwitchEvent  # Response content\n    metadata: Dict[str, Any]  # Response metadata\n    next_action: Optional[str]  # Suggested next action\nclass RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "RunTurn",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class RunTurn(ABC):\n    \"\"\"Abstract base class for interaction turns\"\"\"\n    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):\n        \"\"\"Initialize turn with configuration and session\n        Args:\n            config: InteractionConfig with execution parameters\n            session: Current session instance\n        \"\"\"\n        self.config = config\n        self.session = session",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "ConversationTurn",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    got_tool_result_part: bool = False",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "CommandTurn",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class CommandTurn(RunTurn):\n    \"\"\"Handles slash command turns\"\"\"\n    def get_turn_type(self) -> TurnType:\n        return TurnType.COMMAND\n    def can_handle(self, user_input: str) -> bool:\n        \"\"\"Handle slash commands\"\"\"\n        return self.slash_commands.is_command(user_input)\n    def execute(self, turn_input: TurnInput) -> TurnOutput:\n        \"\"\"Execute slash command\n        Args:",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "TurnFactory",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "class TurnFactory:\n    \"\"\"Factory for creating appropriate turn instances\"\"\"\n    @staticmethod\n    def create_turn(\n        config: RunningConfig, session: Any, slash_commands: Any, user_input: str\n    ) -> RunTurn:\n        \"\"\"Create appropriate turn for user input\n        Args:\n            user_input: Raw user input\n        Returns:",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "REASONING_TAG",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nTOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "REASONING_START",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nTOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "REASONING_END",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nTOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "TOOL_CALL_START",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nTOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "TOOL_OUTPUT_START",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "TOOL_OUTPUT_START = \"--------------\\n► **TOOL OUTPUT**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
-        "detail": "siada.entrypoint.interaction.run_turn",
-        "documentation": {}
-    },
-    {
-        "label": "DEFAULT_REASONING_TAG",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.run_turn",
-        "description": "siada.entrypoint.interaction.run_turn",
-        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownStream = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownStream] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
-        "detail": "siada.entrypoint.interaction.run_turn",
         "documentation": {}
     },
     {
@@ -8302,16 +8285,16 @@
         "kind": 6,
         "importPath": "siada.io.components.mdstream",
         "description": "siada.io.components.mdstream",
-        "peekOfCode": "class NoInsetMarkdown(Markdown):\n    \"\"\"Markdown with code blocks that have no padding and left-justified headings.\"\"\"\n    elements = {\n        **Markdown.elements,\n        \"fence\": NoInsetCodeBlock,\n        \"code_block\": NoInsetCodeBlock,\n        \"heading_open\": LeftHeading,\n    }\nclass MarkdownStream:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.",
+        "peekOfCode": "class NoInsetMarkdown(Markdown):\n    \"\"\"Markdown with code blocks that have no padding and left-justified headings.\"\"\"\n    elements = {\n        **Markdown.elements,\n        \"fence\": NoInsetCodeBlock,\n        \"code_block\": NoInsetCodeBlock,\n        \"heading_open\": LeftHeading,\n    }\nclass MarkdownRender:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.",
         "detail": "siada.io.components.mdstream",
         "documentation": {}
     },
     {
-        "label": "MarkdownStream",
+        "label": "MarkdownRender",
         "kind": 6,
         "importPath": "siada.io.components.mdstream",
         "description": "siada.io.components.mdstream",
-        "peekOfCode": "class MarkdownStream:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.\n    Uses rich.console and rich.live to render markdown content with smooth scrolling\n    and partial updates. Maintains a sliding window of visible content while streaming\n    in new markdown text.\n    \"\"\"\n    live = None  # Rich Live display instance\n    when = 0  # Timestamp of last update\n    min_delay = 1.0 / 20  # Minimum time between updates (20fps)\n    live_window = 1  # Number of lines to keep visible at bottom during streaming",
+        "peekOfCode": "class MarkdownRender:\n    \"\"\"Streaming markdown renderer that progressively displays content with a live updating window.\n    Uses rich.console and rich.live to render markdown content with smooth scrolling\n    and partial updates. Maintains a sliding window of visible content while streaming\n    in new markdown text.\n    \"\"\"\n    live = None  # Rich Live display instance\n    when = 0  # Timestamp of last update\n    min_delay = 1.0 / 20  # Minimum time between updates (20fps)\n    live_window = 1  # Number of lines to keep visible at bottom during streaming",
         "detail": "siada.io.components.mdstream",
         "documentation": {}
     },
@@ -8348,6 +8331,15 @@
         "importPath": "siada.io.color_settings",
         "description": "siada.io.color_settings",
         "peekOfCode": "class ColorSettings:\n    user_input_color: str = \"blue\"\n    tool_output_color: str = None\n    tool_error_color: str = \"red\"\n    tool_warning_color: str = \"#FFA500\"\n    tool_result_color: str = \"#00FF00\"\n    tool_call_color: str = \"#FFD700\"\n    assistant_output_color: str = \"blue\"\n    completion_menu_color: str = None\n    completion_menu_bg_color: str = None",
+        "detail": "siada.io.color_settings",
+        "documentation": {}
+    },
+    {
+        "label": "RunningConfigColorSettings",
+        "kind": 6,
+        "importPath": "siada.io.color_settings",
+        "description": "siada.io.color_settings",
+        "peekOfCode": "class RunningConfigColorSettings:\n    \"\"\"Runtime color settings with processed color values.\"\"\"\n    def __init__(self, color_settings=None, pretty=True):\n        \"\"\"Initialize running color settings.\n        Args:\n            color_settings (ColorSettings, optional): Base color settings\n            pretty (bool): Whether to apply colors (if False, most colors will be None)\n        \"\"\"\n        from .color_utils import ColorUtils\n        self.color_settings = color_settings or ColorSettings()",
         "detail": "siada.io.color_settings",
         "documentation": {}
     },
@@ -9679,7 +9671,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class DefaultFormatter(ToolCallFormatter):\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", arguments\n    @property\n    def supported_function(self) -> str:\n        return \"default\"\nclass FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"",
+        "peekOfCode": "class DefaultFormatter(ToolCallFormatter):\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        return \"text\", arguments\n    @property\n    def supported_function(self) -> str:\n        return \"default\"\nclass FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    File operation formatter\n    \"\"\"",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9688,7 +9680,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    文件操作格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            path = args.get(\"path\", \"\")\n            command = args.get(\"command\", \"\")\n            file_text = args.get(\"file_text\", \"\")",
+        "peekOfCode": "class FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    File operation formatter\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            path = args.get(\"path\", \"\")\n            command = args.get(\"command\", \"\")\n            file_text = args.get(\"file_text\", \"\")",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9697,7 +9689,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class SearchFormatter(ToolCallFormatter):\n    \"\"\"\n    搜索格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            cwd = args.get(\"cwd\", os.getcwd())\n            directory_path = args.get(\"directory_path\", \"\")\n            regex = args.get(\"regex\", \"\")",
+        "peekOfCode": "class SearchFormatter(ToolCallFormatter):\n    \"\"\"\n    Search formatter\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            cwd = args.get(\"cwd\", os.getcwd())\n            directory_path = args.get(\"directory_path\", \"\")\n            regex = args.get(\"regex\", \"\")",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9706,7 +9698,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class CommandFormatter(ToolCallFormatter):\n    \"\"\"\n    命令格式化程序\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            command = args.get(\"command\", \"\")\n            return \"text\", f\"I will run the following command: {command}\"\n        except json.JSONDecodeError:",
+        "peekOfCode": "class CommandFormatter(ToolCallFormatter):\n    \"\"\"\n    Command formatter\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            command = args.get(\"command\", \"\")\n            return \"text\", f\"siada wants to run the following command: {command}\"\n        except json.JSONDecodeError:",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9733,7 +9725,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class WebCrawlFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the web_crawl function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            url = args.get(\"url\", \"\")\n            crawl_format = args.get(\"format\", \"text\")\n            return \"text\", f\"I will crawl the url: {url} with format {crawl_format}\"",
+        "peekOfCode": "class WebCrawlFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the web_crawl function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            url = args.get(\"url\", \"\")\n            crawl_format = args.get(\"format\", \"text\")\n            return \"text\", f\"siada wants to crawl the url: {url} with format {crawl_format}\"",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9743,6 +9735,15 @@
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
         "peekOfCode": "class AskFollowupQuestionFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the ask_followup_question function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            question = args.get(\"question\", \"\")\n            return \"text\", f\"{question}\"\n        except json.JSONDecodeError:",
+        "detail": "siada.tools.tool_call_format.formatters",
+        "documentation": {}
+    },
+    {
+        "label": "ListCodeDefinitionNamesFormatter",
+        "kind": 6,
+        "importPath": "siada.tools.tool_call_format.formatters",
+        "description": "siada.tools.tool_call_format.formatters",
+        "peekOfCode": "class ListCodeDefinitionNamesFormatter(ToolCallFormatter):\n    \"\"\"\n    Formatter for the list_code_definition_names function.\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            file_name = args.get(\"file_name\", \"Unknown file\")\n            return \"text\", f\"siada wants to analyze definitions in `{file_name}`\"\n        except json.JSONDecodeError:",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9963,147 +9964,12 @@
         "documentation": {}
     },
     {
-        "label": "MyAgent",
-        "kind": 6,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "class MyAgent(SiadaAgent):\n    def __init__(self):\n        super().__init__(\n            name=\"智能编程助手\",\n            tools=[edit, search, run_cmd],\n            model=\"claude-sonnet-4\"\n        )\n    async def solve_problem(self, user_input: str):\n        # 智能分析用户需求\n        context = await self.get_context()",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "demo_basic_usage",
-        "kind": 2,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "def demo_basic_usage():\n    \"\"\"演示基本使用\"\"\"\n    print(\"🔄 演示 1: 基本 MarkdownStream 使用\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    # 模拟逐步构建内容\n    content_steps = [\n        \"# 欢迎使用 MarkdownStream\",\n        \"# 欢迎使用 MarkdownStream\\n\\n这是一个实时 Markdown 渲染工具。\",\n        \"# 欢迎使用 MarkdownStream\\n\\n这是一个实时 Markdown 渲染工具。\\n\\n## 主要特性\",",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "demo_ai_conversation",
-        "kind": 2,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "def demo_ai_conversation():\n    \"\"\"演示 AI 对话场景\"\"\"\n    print(\"🤖 演示 2: AI 对话场景\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    # 模拟 AI 助手回复的逐步生成\n    ai_chunks = [\n        \"# AI 助手回复\\n\\n\",\n        \"我理解您的问题。让我为您提供一个详细的解决方案。\\n\\n\",\n        \"## 问题分析\\n\\n\",",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "demo_code_explanation",
-        "kind": 2,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "def demo_code_explanation():\n    \"\"\"演示代码解释场景\"\"\"\n    print(\"💻 演示 3: 代码解释场景\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    # 模拟代码解释的逐步生成\n    explanation_parts = [\n        \"# 代码解释\\n\\n\",\n        \"让我来解释这段 Python 代码的工作原理：\\n\\n\",\n        \"```python\\ndef fibonacci(n):\\n    if n <= 1:\\n        return n\\n    return fibonacci(n-1) + fibonacci(n-2)\\n```\\n\\n\",",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "demo_performance_test",
-        "kind": 2,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "def demo_performance_test():\n    \"\"\"演示性能测试\"\"\"\n    print(\"⚡ 演示 4: 性能测试\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    print(\"🔄 生成大量内容进行性能测试...\")\n    # 生成大量内容\n    large_content = \"# 性能测试报告\\n\\n\"\n    large_content += \"这是一个包含大量内容的 Markdown 文档，用于测试 MarkdownStream 的性能。\\n\\n\"\n    for i in range(50):",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "demo_thinking_answer_format",
-        "kind": 2,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "def demo_thinking_answer_format():\n    \"\"\"演示包含 thinking 和 answer 格式的内容\"\"\"\n    print(\"🧠 演示 5: Thinking + Answer 格式\")\n    print(\"=\" * 50)\n    mdstream = MarkdownStream()\n    # 完整的 thinking + answer 格式内容\n    thinking_answer_content = \"\"\"► **ANSWER**\n<thinking>\nThe user said \"你好\" which means \"Hello\" in Chinese. They are simply greeting me. Since this is a greeting and not a \nspecific task, I should respond appropriately in Chinese and let them know I'm ready to help with any tasks they might ",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "main",
-        "kind": 2,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "def main():\n    \"\"\"主演示函数\"\"\"\n    print(\"🎯 MarkdownStream 功能全面演示\")\n    print(\"=\" * 60)\n    print(\"这个演示将展示 MarkdownStream 在各种场景下的使用效果\")\n    print(\"请注意观察内容的实时渲染效果！\\n\")\n    demos = [\n        (\"基本使用\", demo_basic_usage),\n        (\"AI 对话场景\", demo_ai_conversation),\n        (\"代码解释场景\", demo_code_explanation),",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "agent",
-        "kind": 5,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "agent = MyAgent()\nresult = await agent.solve_problem(\"帮我优化这段代码\")\nprint(f\"解决方案: {result}\")\n```\n> **核心特性**: Thinking + Answer 格式完美支持 ✅\n---\n**演示完成** - MarkdownStream 支持完整的 AI 交互格式！🎉\n\"\"\"\n    # 分步展示内容\n    parts = [",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "result",
-        "kind": 5,
-        "importPath": "tests.io.demo_mdstream",
-        "description": "tests.io.demo_mdstream",
-        "peekOfCode": "result = await agent.solve_problem(\"帮我优化这段代码\")\nprint(f\"解决方案: {result}\")\n```\n> **核心特性**: Thinking + Answer 格式完美支持 ✅\n---\n**演示完成** - MarkdownStream 支持完整的 AI 交互格式！🎉\n\"\"\"\n    # 分步展示内容\n    parts = [\n        \"► **ANSWER**\\n\\n<thinking>\",",
-        "detail": "tests.io.demo_mdstream",
-        "documentation": {}
-    },
-    {
         "label": "TestDisplayUserInput",
         "kind": 6,
         "importPath": "tests.io.test_io",
         "description": "tests.io.test_io",
         "peekOfCode": "class TestDisplayUserInput(unittest.TestCase):\n    def test_display_with_pretty_and_color(self):\n        \"\"\"Demonstrates display_user_input with pretty=True and a color.\"\"\"\n        print(f\"\\n--- Running: {self.test_display_with_pretty_and_color.__doc__} ---\")\n        color_settings = ColorSettings(user_input_color=\"#123456\")\n        io = InputOutput(pretty=True, color_settings=color_settings)\n        # The console needs to support colors for this test.\n        # It will print directly to the terminal.\n        io.console = Console(force_terminal=True, color_system=\"truecolor\")\n        io.display_user_input(\"This is a colored test input.\")",
         "detail": "tests.io.test_io",
-        "documentation": {}
-    },
-    {
-        "label": "TestMarkdownStream",
-        "kind": 6,
-        "importPath": "tests.io.test_mdstream",
-        "description": "tests.io.test_mdstream",
-        "peekOfCode": "class TestMarkdownStream:\n    \"\"\"MarkdownStream 测试类\"\"\"\n    def setup_method(self):\n        \"\"\"每个测试方法的设置\"\"\"\n        self.mdstream = MarkdownStream()\n    def teardown_method(self):\n        \"\"\"每个测试方法的清理\"\"\"\n        if self.mdstream and self.mdstream.live:\n            self.mdstream.live.stop()\n    def test_basic_markdown_rendering(self):",
-        "detail": "tests.io.test_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "hello",
-        "kind": 2,
-        "importPath": "tests.io.test_mdstream",
-        "description": "tests.io.test_mdstream",
-        "peekOfCode": "def hello():\n    print(\"Hello, World!\")\n```\n**粗体文本** 和 *斜体文本*\n\"\"\"\n        # 模拟控制台输出\n        with patch('siada.io.components.mdstream.Live') as mock_live:\n            mock_live_instance = MagicMock()\n            mock_live.return_value = mock_live_instance\n            # 测试更新",
-        "detail": "tests.io.test_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "greet_user",
-        "kind": 2,
-        "importPath": "tests.io.test_mdstream",
-        "description": "tests.io.test_mdstream",
-        "peekOfCode": "def greet_user():\n    return \"你好，欢迎使用 Siada!\"\n```\n> **提示**: 完整格式内容测试 ✅\n\"\"\"\n        with patch('siada.io.components.mdstream.Live') as mock_live:\n            mock_live_instance = MagicMock()\n            mock_live.return_value = mock_live_instance\n            # 测试完整格式内容的渲染\n            self.mdstream.update(full_content, final=True)",
-        "detail": "tests.io.test_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "multilingual_greeting",
-        "kind": 2,
-        "importPath": "tests.io.test_mdstream",
-        "description": "tests.io.test_mdstream",
-        "peekOfCode": "def multilingual_greeting():\n    greetings = {\n        \"中文\": \"你好世界！\",\n        \"English\": \"Hello World!\",\n        \"日本語\": \"こんにちは世界！\"\n    }\n    for lang, text in greetings.items():\n        print(f\"{lang}: {text}\")\n# 测试函数\nmultilingual_greeting()",
-        "detail": "tests.io.test_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "test_markdown_stream_integration",
-        "kind": 2,
-        "importPath": "tests.io.test_mdstream",
-        "description": "tests.io.test_mdstream",
-        "peekOfCode": "def test_markdown_stream_integration():\n    \"\"\"集成测试：模拟真实使用场景\"\"\"\n    # 模拟流式接收 AI 响应的场景\n    ai_response_chunks = [\n        \"# AI 助手回复\\n\\n\",\n        \"我来帮您解决这个问题。\\n\\n\",\n        \"## 解决方案\\n\\n\",\n        \"1. 首先，我们需要分析问题\\n\",\n        \"2. 然后制定解决策略\\n\",\n        \"3. 最后实施解决方案\\n\\n\",",
-        "detail": "tests.io.test_mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "demo",
-        "kind": 2,
-        "importPath": "tests.io.test_mdstream",
-        "description": "tests.io.test_mdstream",
-        "peekOfCode": "def demo():\n    stream = MarkdownStream()\n    stream.update(\"# Hello World\")\n    stream.update(\"# Hello World\\n\\n更多内容...\")\n    stream.update(final_content, final=True)\n```\n## 结束\n演示完成！\n\"\"\"\n    # 模拟逐步更新",
-        "detail": "tests.io.test_mdstream",
         "documentation": {}
     },
     {

@@ -42,7 +42,6 @@ class FileWriteObservation(FunctionCallResult):
         return f'[Write to {self.path} is successful.]\n{self.content}'
 
 
-
 @dataclass
 class FileEditObservation(FunctionCallResult):
     """This data class represents a file edit operation.
@@ -68,12 +67,23 @@ class FileEditObservation(FunctionCallResult):
     _diff_cache: str | None = (
         None  # Cache for the diff visualization, used in LLM-based editing mode
     )
+    command: str = "unknown"
 
     @property
     def message(self) -> str:
-        """Get a human-readable message describing the file edit operation."""
-        return f'I edited the file {self.path}.'
-    
+        if self.command == "view":
+            return f"siada viewed the file {self.path}."
+        elif self.command == "create":
+            return f"siada created the file {self.path}."
+        elif self.command == "str_replace":
+            return f"siada replaced the string in the file {self.path}."
+        elif self.command == "insert":
+            return f"siada inserted the string in the file {self.path}."
+        elif self.command == "undo_edit":
+            return f"siada reverted the last edit in the file {self.path}."
+        else:
+            return f"siada has operated the file {self.path}."
+
     def format_for_display(self) -> str:
         return self.message
 
