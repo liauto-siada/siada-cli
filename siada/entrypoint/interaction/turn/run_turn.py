@@ -5,6 +5,7 @@ Manages individual interaction turns between user and AI, including command proc
 and model conversations. Encapsulates the logic for a single interaction cycle.
 """
 
+import grep_ast
 from siada.foundation.logging import logger
 import re
 import siada.io.components.mdstream
@@ -105,9 +106,9 @@ class ConversationTurn(RunTurn):
 
             # Start dedicated thread
             cls._dedicated_thread = threading.Thread(
-                target=run_dedicated_loop, 
+                target=run_dedicated_loop,
                 daemon=True,  # Daemon thread, auto-terminate when main program exits
-                name="ConversationTurn-AsyncLoop"
+                name="ConversationTurn-AsyncLoop",
             )
             cls._dedicated_thread.start()
 
@@ -142,7 +143,7 @@ class ConversationTurn(RunTurn):
             ResponseReasoningSummaryPartAddedEvent,
             ResponseFunctionToolCall,
             ResponseOutputItemDoneEvent,
-            ResponseContentPartDoneEvent
+            ResponseContentPartDoneEvent,
         )
         from openai.types.responses.response_input_item_param import FunctionCallOutput
 
@@ -171,10 +172,14 @@ class ConversationTurn(RunTurn):
                         self.current_active_call_id = None
                         self.got_tool_result_part = False
 
-                    elif isinstance(stream_data, ResponseReasoningSummaryPartAddedEvent):
+                    elif isinstance(
+                        stream_data, ResponseReasoningSummaryPartAddedEvent
+                    ):
                         continue
 
-                    elif isinstance(stream_data, ResponseReasoningSummaryTextDeltaEvent):
+                    elif isinstance(
+                        stream_data, ResponseReasoningSummaryTextDeltaEvent
+                    ):
                         if not self.got_reasoning_part and stream_data.delta:
                             self.got_reasoning_part = True
                             self.print_split_line()
@@ -183,7 +188,9 @@ class ConversationTurn(RunTurn):
                         else:
                             delta_text = stream_data.delta
                             self.response_content += delta_text
-                        self._live_incremental_response(delta_text, self.response_content)
+                        self._live_incremental_response(
+                            delta_text, self.response_content
+                        )
 
                     elif isinstance(stream_data, ResponseContentPartAddedEvent):
                         continue
@@ -191,33 +198,49 @@ class ConversationTurn(RunTurn):
                     elif isinstance(stream_data, ResponseTextDeltaEvent):
                         if not self.got_content_part and stream_data.delta:
                             self.got_content_part = True
-                            self.print_split_line()
-                            delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}" 
+                            # self.response_content += "\n"
+                            # self._live_incremental_response(
+                            #     "", self.response_content, flush=False
+                            # )
+                            if not self.got_reasoning_part:
+                                self.print_split_line()
+                            delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}"
                             self.response_content += delta_text
                         else:
                             delta_text = stream_data.delta
                             self.response_content += delta_text
-                        self._live_incremental_response(delta_text, self.response_content)
+                        self._live_incremental_response(
+                            delta_text, self.response_content
+                        )
 
                     elif isinstance(stream_data, ResponseContentPartDoneEvent):
-                        self._live_incremental_response("", self.response_content, final=True)
+                        self._live_incremental_response(
+                            "", self.response_content, final=True
+                        )
                         self.mdstream = None
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
                             call_id = stream_data.item.call_id
                             tool_name = stream_data.item.name
-                            self.tool_calls[call_id] = {"name": tool_name, "arguments": ""}
+                            self.tool_calls[call_id] = {
+                                "name": tool_name,
+                                "arguments": "",
+                            }
                             self.current_active_call_id = call_id
                             self.print_split_line()
                             self.config.io.print_tool_call(
                                 f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}\n"
                             )
 
-                    elif isinstance(stream_data, ResponseFunctionCallArgumentsDeltaEvent):
+                    elif isinstance(
+                        stream_data, ResponseFunctionCallArgumentsDeltaEvent
+                    ):
                         delta = stream_data.delta
                         if self.current_active_call_id:
-                            self.tool_calls[self.current_active_call_id]["arguments"] += delta
+                            self.tool_calls[self.current_active_call_id][
+                                "arguments"
+                            ] += delta
 
                         ## TODO: stream output the tool call arge
 
@@ -228,15 +251,21 @@ class ConversationTurn(RunTurn):
                                 tool_name = self.tool_calls[call_id]["name"]
                                 full_arguments = self.tool_calls[call_id]["arguments"]
 
-                                tool_call_formatter = ToolCallFormatterFactory.get_formatter(tool_name)
+                                tool_call_formatter = (
+                                    ToolCallFormatterFactory.get_formatter(tool_name)
+                                )
                                 style, content = tool_call_formatter.format_input(
                                     call_id, tool_name, full_arguments
                                 )
 
                                 if style == "markdown":
                                     if call_id not in self.tool_call_mdstreams:
-                                        self.tool_call_mdstreams[call_id] = self.config.io.get_assistant_mdstream()
-                                    self.tool_call_mdstreams[call_id].update(content, final=True)
+                                        self.tool_call_mdstreams[call_id] = (
+                                            self.config.io.get_assistant_mdstream()
+                                        )
+                                    self.tool_call_mdstreams[call_id].update(
+                                        content, final=True
+                                    )
                                     del self.tool_call_mdstreams[call_id]
                                 else:
                                     self.config.io.print_tool_call(content)
@@ -266,20 +295,26 @@ class ConversationTurn(RunTurn):
 
         except Exception as e:
             # Clean up MarkdownStream if it exists on stream error
-            if hasattr(self, 'mdstream') and self.mdstream is not None:
+            if hasattr(self, "mdstream") and self.mdstream is not None:
                 try:
-                    if hasattr(self, 'response_content') and self.response_content:
+                    if hasattr(self, "response_content") and self.response_content:
                         self.mdstream.update(self.response_content, final=True)
                     self.mdstream = None
                 except Exception:
                     pass  # Ignore cleanup errors
             raise e
 
-    def _live_incremental_response(self, delta_text: str, response_content: str, final: bool = False):
+    def _live_incremental_response(
+        self,
+        delta_text: str,
+        response_content: str,
+        final: bool = False,
+        flush: bool = False,
+    ):
         if self.mdstream:
             # ignore reasoning tag ,because it cause the stream output formate error just ignore process the xml tags
             # response_content = self.replace_reasoning_tag(response_content, DEFAULT_REASONING_TAG)
-            self.mdstream.update(response_content, final)
+            self.mdstream.update(response_content, final, flush=flush)
         else:
             self.config.io.print_info(delta_text)
 
@@ -318,7 +353,9 @@ class ConversationTurn(RunTurn):
             self._ensure_dedicated_loop()
 
             # Execute async task in dedicated loop
-            future = asyncio.run_coroutine_threadsafe(_async_execute(), self._dedicated_loop)
+            future = asyncio.run_coroutine_threadsafe(
+                _async_execute(), self._dedicated_loop
+            )
             result = future.result()
 
             self.end_time = self._get_timestamp()
@@ -339,10 +376,10 @@ class ConversationTurn(RunTurn):
             self.end_time = self._get_timestamp()
 
             # Clean up MarkdownStream if it exists
-            if hasattr(self, 'mdstream') and self.mdstream is not None:
+            if hasattr(self, "mdstream") and self.mdstream is not None:
                 try:
                     # Force final output of any accumulated content
-                    if hasattr(self, 'response_content') and self.response_content:
+                    if hasattr(self, "response_content") and self.response_content:
                         self.mdstream.update(self.response_content, final=True)
                     self.mdstream = None
                 except Exception:

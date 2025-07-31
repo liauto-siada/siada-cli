@@ -33,18 +33,6 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_images=True
     ),
     ModelBaseConfig(
-        model_name="claude-3-5-sonnet-20240620",
-        max_tokens=8192,
-        context_window=200_000,
-        supports_images=True,
-    ),
-    ModelBaseConfig(
-        model_name="gemini-2.5-pro",
-        max_tokens=65535,
-        context_window=1_048_576,
-        supports_images=True,
-    ),
-    ModelBaseConfig(
         model_name="claude-opus-4",
         max_tokens=8192,
         context_window=200_000,
@@ -59,40 +47,7 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         model_name="deepseek-v3-0324",
         max_tokens=12_288,
         context_window=128_000,
-    ),
-    ModelBaseConfig(
-        model_name="o1",
-        max_tokens=100_000,
-        context_window=200_000,
-        supports_images=True,
-        supports_prompt_cache=True,
-    ),
-    ModelBaseConfig(
-        model_name="gpt-4.1",
-        max_tokens=32_768,
-        context_window=1_047_576,
-        supports_images=True,
-        supports_prompt_cache=True,
-    ),
-    ModelBaseConfig(
-        model_name="o1-mini",
-        max_tokens=65_536,
-        context_window=128_000,
-        supports_prompt_cache=True,
-    ),
-    ModelBaseConfig(
-        model_name="o3-mini",
-        max_tokens=100_000,
-        context_window=200_000,
-        supports_prompt_cache=True,
-    ),
-    ModelBaseConfig(
-        model_name="gpt-4o",
-        max_tokens=16_384,
-        context_window=128_000,
-        supports_images=True,
-        supports_prompt_cache=True,
-    ),
+    )
 ]
 
 def get_model_config(model_name: str) -> Optional[ModelBaseConfig]:

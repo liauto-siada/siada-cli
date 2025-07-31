@@ -114,12 +114,13 @@ class MarkdownRender:
             except Exception:
                 pass  # Ignore any errors during cleanup
 
-    def update(self, text, final=False):
+    def update(self, text, final=False, flush=False):
         """Update the displayed markdown content.
 
         Args:
             text (str): The markdown text received so far
             final (bool): If True, this is the final update and we should clean up
+            flush (bool): If True, force output all remaining lines to console
 
         Splits the output into "stable" older lines and the "last few" lines
         which aren't considered stable. They may shift around as new chunks
@@ -154,8 +155,8 @@ class MarkdownRender:
         num_lines = len(lines)
 
         # How many lines have "left" the live window and are now considered stable?
-        # Or if final, consider all lines to be stable.
-        if not final:
+        # Or if final or flush, consider all lines to be stable.
+        if not final and not flush:
             num_lines -= self.live_window
 
         # If we have stable content to display...
@@ -182,6 +183,11 @@ class MarkdownRender:
             self.live.update(Text(""))
             self.live.stop()
             self.live = None
+            return
+
+        # Handle flush - output remaining lines and clear live window
+        if flush:
+            self.live.update(Text(""))
             return
 
         # Update the live window with remaining lines

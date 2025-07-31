@@ -13,11 +13,13 @@ class ModelSettingsConverter:
             extra_body["effort"] = model_running_config.get_reasoning_effort()
         if model_running_config.get_thinking_tokens is not None:
             extra_body["max_tokens"] = model_running_config.get_raw_thinking_tokens()
+        
 
         model_settings = ModelSettings(
             reasoning=Reasoning(
                 effort=model_running_config.reasoning_effort,
             ),
+            max_tokens=model_running_config.max_tokens,
             extra_body=extra_body,
         )
 

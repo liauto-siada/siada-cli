@@ -100,9 +100,10 @@ class ChatCmplStreamHandler:
             # Handle reasoning content
             if hasattr(delta, "reasoning_content"):
                 reasoning_content = delta.reasoning_content
-                
+
                 # Extract text content from reasoning_content
                 reasoning_text = ""
+                signature = ""
                 if reasoning_content:
                     if isinstance(reasoning_content, str):
                         reasoning_text = reasoning_content
@@ -112,8 +113,16 @@ class ChatCmplStreamHandler:
                             reasoning_text = reasoning_content.thinking
                         elif reasoning_content.data:
                             reasoning_text = reasoning_content.data
+                        elif reasoning_content.signature:
+                            signature += reasoning_content.signature
+
                         # If neither thinking nor data is available, use empty string
-                
+
+                if signature:
+                    state.reasoning_content_index_and_output[1].encrypted_content = (
+                        signature
+                    )
+
                 if reasoning_text and not state.reasoning_content_index_and_output:
                     state.reasoning_content_index_and_output = (
                         0,
@@ -300,7 +309,7 @@ class ChatCmplStreamHandler:
                             # 如果还没有function call，使用0并标记下一个为1
                             index = 0
                             state.next_function_call_index = 1
-                    
+
                     # 使用确定的index处理function call
                     if index not in state.function_calls:
                         state.function_calls[index] = ResponseFunctionToolCall(

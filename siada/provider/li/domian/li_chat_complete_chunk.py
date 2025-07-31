@@ -42,9 +42,12 @@ class LiChoiceDeltaToolCall(BaseModel):
     type: Optional[Literal["function"]] = None
     """The type of the tool. Currently, only `function` is supported."""
 
+
 class LiReasoningContent(BaseModel):
-    
-    type: Optional[Literal["redacted_thinking", "thinking"]] = None
+
+    type: Optional[
+        Literal["redacted_thinking", "thinking", "thinking_delta", "signature_delta"]
+    ] = None
 
     signature: Optional[str] = None
 
@@ -54,7 +57,7 @@ class LiReasoningContent(BaseModel):
 
 
 class ChoiceDelta(BaseModel):
-    
+
     content: Optional[str | List[str]] = None
     """The contents of the chunk message."""
 
@@ -73,10 +76,7 @@ class ChoiceDelta(BaseModel):
 
     tool_calls: Optional[List[LiChoiceDeltaToolCall]] = None
 
-
     reasoning_content: Optional[str | LiReasoningContent] = None
-
-
 
 
 class Choice(BaseModel):
@@ -98,7 +98,6 @@ class Choice(BaseModel):
 
     # logprobs: Optional[ChoiceLogprobs] = None
     # """Log probability information for the choice."""
-
 
 
 class LiChatCompletionChunk(BaseModel):

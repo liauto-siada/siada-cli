@@ -1,4 +1,5 @@
 import inspect
+from siada.services.model_info_service import ModelInfoService
 import siada.session.session_models
 import sys
 
@@ -37,15 +38,15 @@ class SlashCommands:
         self.help = None
         self.editor = editor
 
-    def cmd_model(self, args):
+    # def cmd_model(self, args):
 
-        model_name = args.strip()
-        if not model_name:
-            self.io.print_info("No model name provided")
-            return
+    #     model_name = args.strip()
+    #     if not model_name:
+    #         self.io.print_info("No model name provided")
+    #         return
 
-        model = ModelRunConfig(model_name)
-        return SwitchEvent(model=model)
+    #     model = ModelRunConfig(model_name)
+    #     return SwitchEvent(model=model)
 
     # def cmd_agent(self, args):
     #     "Switch to a different agent type"
@@ -105,19 +106,19 @@ class SlashCommands:
         return SwitchEvent(shell=True)
 
     def completions_model(self):
-        models = litellm.model_cost.keys()
-        return models
+        return ModelInfoService.get_model_names()
 
     def cmd_models(self, args):
         "Search the list of available models"
 
         args = args.strip()
 
-        if args:
-            # models.print_matching_models(self.io, args)
-            pass
-        else:
-            self.io.print_info("Please provide a partial model name to search for.")
+        # models.print_matching_models(self.io, args)
+        models = ModelInfoService.get_model_names()
+        for model in models:
+            self.io.print_info(f"- {model}")
+
+
 
     def is_command(self, inp):
         return inp[0] in "/!"

@@ -296,6 +296,15 @@ class LiModel(Model):
         if model_settings.extra_args:
             extra_kwargs.update(model_settings.extra_args)
 
+        # process the thinking config for li provider
+        if extra_kwargs and "max_tokens" in extra_kwargs:
+            thinking_budget = extra_kwargs.pop("max_tokens", None)
+            if thinking_budget and thinking_budget > 0:
+                extra_kwargs["thinking"] = {
+                    "type" : "enabled",
+                    "budget_tokens": thinking_budget
+                }
+    
 
         complete_kwargs = {
             "model": self.model,
@@ -313,6 +322,7 @@ class LiModel(Model):
             "stream_options": stream_options,
             "reasoning_effort": reasoning_effort,
             "extra_headers": {**HEADERS, **(model_settings.extra_headers or {})},
+            # "extra_body": {**(model_settings.extra_body or {})},
             **extra_kwargs,
         }
         
