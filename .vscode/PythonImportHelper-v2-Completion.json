@@ -152,6 +152,14 @@
         "documentation": {}
     },
     {
+        "label": "dataclass",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
         "label": "fields",
         "importPath": "dataclasses",
         "description": "dataclasses",
@@ -209,6 +217,14 @@
     },
     {
         "label": "field",
+        "importPath": "dataclasses",
+        "description": "dataclasses",
+        "isExtraImport": true,
+        "detail": "dataclasses",
+        "documentation": {}
+    },
+    {
+        "label": "asdict",
         "importPath": "dataclasses",
         "description": "dataclasses",
         "isExtraImport": true,
@@ -600,30 +616,6 @@
         "documentation": {}
     },
     {
-        "label": "Optional",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Dict",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
-        "label": "Any",
-        "importPath": "typing",
-        "description": "typing",
-        "isExtraImport": true,
-        "detail": "typing",
-        "documentation": {}
-    },
-    {
         "label": "Any",
         "importPath": "typing",
         "description": "typing",
@@ -656,7 +648,31 @@
         "documentation": {}
     },
     {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
         "importPath": "typing",
         "description": "typing",
         "isExtraImport": true,
@@ -960,6 +976,62 @@
         "documentation": {}
     },
     {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Dict",
         "importPath": "typing",
         "description": "typing",
@@ -1200,6 +1272,14 @@
         "documentation": {}
     },
     {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Dict",
         "importPath": "typing",
         "description": "typing",
@@ -1301,6 +1381,142 @@
         "description": "typing",
         "isExtraImport": true,
         "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Union",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "siada.foundation.config",
+        "description": "siada.foundation.config",
+        "isExtraImport": true,
+        "detail": "siada.foundation.config",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "siada.foundation.config",
+        "description": "siada.foundation.config",
+        "isExtraImport": true,
+        "detail": "siada.foundation.config",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "siada.foundation.config",
+        "description": "siada.foundation.config",
+        "isExtraImport": true,
+        "detail": "siada.foundation.config",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "siada.foundation.config",
+        "description": "siada.foundation.config",
+        "isExtraImport": true,
+        "detail": "siada.foundation.config",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "siada.foundation.config",
+        "description": "siada.foundation.config",
+        "isExtraImport": true,
+        "detail": "siada.foundation.config",
+        "documentation": {}
+    },
+    {
+        "label": "settings",
+        "importPath": "siada.foundation.config",
+        "description": "siada.foundation.config",
+        "isExtraImport": true,
+        "detail": "siada.foundation.config",
         "documentation": {}
     },
     {
@@ -1458,14 +1674,6 @@
     },
     {
         "label": "ColoredFormatter",
-        "importPath": "siada.foundation.logging",
-        "description": "siada.foundation.logging",
-        "isExtraImport": true,
-        "detail": "siada.foundation.logging",
-        "documentation": {}
-    },
-    {
-        "label": "logger",
         "importPath": "siada.foundation.logging",
         "description": "siada.foundation.logging",
         "isExtraImport": true,
@@ -1833,6 +2041,62 @@
         "documentation": {}
     },
     {
+        "label": "Field",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "BaseModel",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "BaseModel",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "BaseModel",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "BaseModel",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "validator",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "Field",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
         "label": "BaseModel",
         "importPath": "pydantic",
         "description": "pydantic",
@@ -1905,6 +2169,14 @@
         "isExtraImport": true,
         "importPath": "pathlib",
         "description": "pathlib",
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
         "detail": "pathlib",
         "documentation": {}
     },
@@ -2329,6 +2601,14 @@
         "documentation": {}
     },
     {
+        "label": "SiadaRunner",
+        "importPath": "siada.services.siada_runner",
+        "description": "siada.services.siada_runner",
+        "isExtraImport": true,
+        "detail": "siada.services.siada_runner",
+        "documentation": {}
+    },
+    {
         "label": "create_env",
         "importPath": "benchmark.swe.tools.conda_env",
         "description": "benchmark.swe.tools.conda_env",
@@ -2385,6 +2665,22 @@
         "documentation": {}
     },
     {
+        "label": "run_cmd",
+        "importPath": "siada.tools.coder.run_cmd",
+        "description": "siada.tools.coder.run_cmd",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.run_cmd",
+        "documentation": {}
+    },
+    {
+        "label": "run_cmd",
+        "importPath": "siada.tools.coder.run_cmd",
+        "description": "siada.tools.coder.run_cmd",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.run_cmd",
+        "documentation": {}
+    },
+    {
         "label": "download_dataset",
         "importPath": "benchmark.swe.run_infer",
         "description": "benchmark.swe.run_infer",
@@ -2398,6 +2694,22 @@
         "description": "benchmark.swe.run_infer",
         "isExtraImport": true,
         "detail": "benchmark.swe.run_infer",
+        "documentation": {}
+    },
+    {
+        "label": "RECOMMENDED_PROMPT_PREFIX",
+        "importPath": "agents.extensions.handoff_prompt",
+        "description": "agents.extensions.handoff_prompt",
+        "isExtraImport": true,
+        "detail": "agents.extensions.handoff_prompt",
+        "documentation": {}
+    },
+    {
+        "label": "RECOMMENDED_PROMPT_PREFIX",
+        "importPath": "agents.extensions.handoff_prompt",
+        "description": "agents.extensions.handoff_prompt",
+        "isExtraImport": true,
+        "detail": "agents.extensions.handoff_prompt",
         "documentation": {}
     },
     {
@@ -2474,7 +2786,7 @@
         "documentation": {}
     },
     {
-        "label": "add_trace_processor",
+        "label": "Agent",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2482,7 +2794,31 @@
         "documentation": {}
     },
     {
-        "label": "set_trace_processors",
+        "label": "Runner",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "TContext",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunResult",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2587,6 +2923,110 @@
     },
     {
         "label": "add_trace_processor",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunConfig",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunResult",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "Runner",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "set_trace_processors",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunResult",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "Runner",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunConfig",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "add_trace_processor",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "TContext",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "AgentOutputSchema",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "\\",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2746,31 +3186,7 @@
         "documentation": {}
     },
     {
-        "label": "RawResponsesStreamEvent",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "RunItemStreamEvent",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "RunResultStreaming",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "ToolCallOutputItem",
+        "label": "TResponseInputItem",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2786,7 +3202,7 @@
         "documentation": {}
     },
     {
-        "label": "GenerationSpanData",
+        "label": "AgentOutputSchemaBase",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2802,7 +3218,7 @@
         "documentation": {}
     },
     {
-        "label": "Model",
+        "label": "Agent",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2810,39 +3226,7 @@
         "documentation": {}
     },
     {
-        "label": "ModelResponse",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "Span",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "TResponseInputItem",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "\\",
-        "importPath": "agents",
-        "description": "agents",
-        "isExtraImport": true,
-        "detail": "agents",
-        "documentation": {}
-    },
-    {
-        "label": "ModelProvider",
+        "label": "RunContextWrapper",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2970,7 +3354,31 @@
         "documentation": {}
     },
     {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "function_tool",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "function_tool",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -2994,7 +3402,31 @@
         "documentation": {}
     },
     {
+        "label": "function_tool",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContextWrapper",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "function_tool",
         "importPath": "agents",
         "description": "agents",
         "isExtraImport": true,
@@ -3079,6 +3511,62 @@
         "description": "agents.tracing",
         "isExtraImport": true,
         "detail": "agents.tracing",
+        "documentation": {}
+    },
+    {
+        "label": "Span",
+        "importPath": "agents.tracing",
+        "description": "agents.tracing",
+        "isExtraImport": true,
+        "detail": "agents.tracing",
+        "documentation": {}
+    },
+    {
+        "label": "TracingProcessor",
+        "importPath": "agents.tracing",
+        "description": "agents.tracing",
+        "isExtraImport": true,
+        "detail": "agents.tracing",
+        "documentation": {}
+    },
+    {
+        "label": "Trace",
+        "importPath": "agents.tracing",
+        "description": "agents.tracing",
+        "isExtraImport": true,
+        "detail": "agents.tracing",
+        "documentation": {}
+    },
+    {
+        "label": "Span",
+        "importPath": "agents.tracing",
+        "description": "agents.tracing",
+        "isExtraImport": true,
+        "detail": "agents.tracing",
+        "documentation": {}
+    },
+    {
+        "label": "SiadaProvider",
+        "importPath": "siada.provider.li.li_provider",
+        "description": "siada.provider.li.li_provider",
+        "isExtraImport": true,
+        "detail": "siada.provider.li.li_provider",
+        "documentation": {}
+    },
+    {
+        "label": "SiadaProvider",
+        "importPath": "siada.provider.li.li_provider",
+        "description": "siada.provider.li.li_provider",
+        "isExtraImport": true,
+        "detail": "siada.provider.li.li_provider",
+        "documentation": {}
+    },
+    {
+        "label": "SiadaProvider",
+        "importPath": "siada.provider.li.li_provider",
+        "description": "siada.provider.li.li_provider",
+        "isExtraImport": true,
+        "detail": "siada.provider.li.li_provider",
         "documentation": {}
     },
     {
@@ -3219,11 +3707,28 @@
         "documentation": {}
     },
     {
-        "label": "BugReproduceAgent",
-        "importPath": "siada.agent_hub.coder.bug_reproduce_agent",
-        "description": "siada.agent_hub.coder.bug_reproduce_agent",
+        "label": "datetime",
+        "importPath": "datetime",
+        "description": "datetime",
         "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.bug_reproduce_agent",
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "timedelta",
+        "importPath": "datetime",
+        "description": "datetime",
+        "isExtraImport": true,
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "ast",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "ast",
+        "description": "ast",
+        "detail": "ast",
         "documentation": {}
     },
     {
@@ -3248,6 +3753,22 @@
         "description": "siada.agent_hub.coder.code_gen_agent",
         "isExtraImport": true,
         "detail": "siada.agent_hub.coder.code_gen_agent",
+        "documentation": {}
+    },
+    {
+        "label": "CodeGenAgent",
+        "importPath": "siada.agent_hub.coder.code_gen_agent",
+        "description": "siada.agent_hub.coder.code_gen_agent",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.code_gen_agent",
+        "documentation": {}
+    },
+    {
+        "label": "IssueReviewAgent",
+        "importPath": "siada.agent_hub.coder.issue_review_agent",
+        "description": "siada.agent_hub.coder.issue_review_agent",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.issue_review_agent",
         "documentation": {}
     },
     {
@@ -3371,6 +3892,134 @@
         "documentation": {}
     },
     {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "CodeAgentContext",
+        "importPath": "siada.foundation.code_agent_context",
+        "description": "siada.foundation.code_agent_context",
+        "isExtraImport": true,
+        "detail": "siada.foundation.code_agent_context",
+        "documentation": {}
+    },
+    {
+        "label": "GitDiffUtil",
+        "importPath": "siada.foundation.tools.get_git_diff",
+        "description": "siada.foundation.tools.get_git_diff",
+        "isExtraImport": true,
+        "detail": "siada.foundation.tools.get_git_diff",
+        "documentation": {}
+    },
+    {
+        "label": "GitDiffUtil",
+        "importPath": "siada.foundation.tools.get_git_diff",
+        "description": "siada.foundation.tools.get_git_diff",
+        "isExtraImport": true,
+        "detail": "siada.foundation.tools.get_git_diff",
+        "documentation": {}
+    },
+    {
+        "label": "FixResultChecker",
+        "importPath": "siada.services.fix_result_check",
+        "description": "siada.services.fix_result_check",
+        "isExtraImport": true,
+        "detail": "siada.services.fix_result_check",
+        "documentation": {}
+    },
+    {
+        "label": "FixResultChecker",
+        "importPath": "siada.services.fix_result_check",
+        "description": "siada.services.fix_result_check",
+        "isExtraImport": true,
+        "detail": "siada.services.fix_result_check",
+        "documentation": {}
+    },
+    {
+        "label": "list_code_definition_names",
+        "importPath": "siada.tools.ast.ast_tool",
+        "description": "siada.tools.ast.ast_tool",
+        "isExtraImport": true,
+        "detail": "siada.tools.ast.ast_tool",
+        "documentation": {}
+    },
+    {
         "label": "list_code_definition_names",
         "importPath": "siada.tools.ast.ast_tool",
         "description": "siada.tools.ast.ast_tool",
@@ -3435,6 +4084,38 @@
         "documentation": {}
     },
     {
+        "label": "edit",
+        "importPath": "siada.tools.coder.file_operator",
+        "description": "siada.tools.coder.file_operator",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.file_operator",
+        "documentation": {}
+    },
+    {
+        "label": "edit",
+        "importPath": "siada.tools.coder.file_operator",
+        "description": "siada.tools.coder.file_operator",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.file_operator",
+        "documentation": {}
+    },
+    {
+        "label": "regex_search_files",
+        "importPath": "siada.tools.coder.file_search",
+        "description": "siada.tools.coder.file_search",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.file_search",
+        "documentation": {}
+    },
+    {
+        "label": "regex_search_files",
+        "importPath": "siada.tools.coder.file_search",
+        "description": "siada.tools.coder.file_search",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.file_search",
+        "documentation": {}
+    },
+    {
         "label": "regex_search_files",
         "importPath": "siada.tools.coder.file_search",
         "description": "siada.tools.coder.file_search",
@@ -3483,6 +4164,14 @@
         "documentation": {}
     },
     {
+        "label": "StopAtTools",
+        "importPath": "agents.agent",
+        "description": "agents.agent",
+        "isExtraImport": true,
+        "detail": "agents.agent",
+        "documentation": {}
+    },
+    {
         "label": "bug_reproduce_prompt",
         "importPath": "siada.agent_hub.coder.prompt",
         "description": "siada.agent_hub.coder.prompt",
@@ -3500,6 +4189,22 @@
     },
     {
         "label": "fe_gen_prompt",
+        "importPath": "siada.agent_hub.coder.prompt",
+        "description": "siada.agent_hub.coder.prompt",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.prompt",
+        "documentation": {}
+    },
+    {
+        "label": "issue_review_prompt",
+        "importPath": "siada.agent_hub.coder.prompt",
+        "description": "siada.agent_hub.coder.prompt",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.prompt",
+        "documentation": {}
+    },
+    {
+        "label": "test_prompt",
         "importPath": "siada.agent_hub.coder.prompt",
         "description": "siada.agent_hub.coder.prompt",
         "isExtraImport": true,
@@ -3536,6 +4241,46 @@
         "description": "siada.agent_hub.siada_agent",
         "isExtraImport": true,
         "detail": "siada.agent_hub.siada_agent",
+        "documentation": {}
+    },
+    {
+        "label": "SiadaAgent",
+        "importPath": "siada.agent_hub.siada_agent",
+        "description": "siada.agent_hub.siada_agent",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.siada_agent",
+        "documentation": {}
+    },
+    {
+        "label": "create_detailed_logger",
+        "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "documentation": {}
+    },
+    {
+        "label": "create_detailed_logger",
+        "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
+        "documentation": {}
+    },
+    {
+        "label": "issue_review_completion",
+        "importPath": "siada.tools.coder.issue_review_completion",
+        "description": "siada.tools.coder.issue_review_completion",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.issue_review_completion",
+        "documentation": {}
+    },
+    {
+        "label": "test_completion",
+        "importPath": "siada.tools.coder.test_completion",
+        "description": "siada.tools.coder.test_completion",
+        "isExtraImport": true,
+        "detail": "siada.tools.coder.test_completion",
         "documentation": {}
     },
     {
@@ -3641,14 +4386,6 @@
         "importPath": "yaml",
         "description": "yaml",
         "detail": "yaml",
-        "documentation": {}
-    },
-    {
-        "label": "create_detailed_logger",
-        "importPath": "siada.agent_hub.coder.tracing.logger_tracing_processor",
-        "description": "siada.agent_hub.coder.tracing.logger_tracing_processor",
-        "isExtraImport": true,
-        "detail": "siada.agent_hub.coder.tracing.logger_tracing_processor",
         "documentation": {}
     },
     {
@@ -3815,6 +4552,47 @@
         "documentation": {}
     },
     {
+        "label": "grep_ast",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "grep_ast",
+        "description": "grep_ast",
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
+        "label": "TreeContext",
+        "importPath": "grep_ast",
+        "description": "grep_ast",
+        "isExtraImport": true,
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
+        "label": "filename_to_lang",
+        "importPath": "grep_ast",
+        "description": "grep_ast",
+        "isExtraImport": true,
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
+        "label": "TreeContext",
+        "importPath": "grep_ast",
+        "description": "grep_ast",
+        "isExtraImport": true,
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
+        "label": "filename_to_lang",
+        "importPath": "grep_ast",
+        "description": "grep_ast",
+        "isExtraImport": true,
+        "detail": "grep_ast",
+        "documentation": {}
+    },
+    {
         "label": "re",
         "kind": 6,
         "isExtraImport": true,
@@ -3838,14 +4616,6 @@
         "description": "siada.io.components.mdstream",
         "isExtraImport": true,
         "detail": "siada.io.components.mdstream",
-        "documentation": {}
-    },
-    {
-        "label": "FunctionCallResult",
-        "importPath": "siada.tools.coder.observation.observation",
-        "description": "siada.tools.coder.observation.observation",
-        "isExtraImport": true,
-        "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
     {
@@ -4033,14 +4803,6 @@
         "documentation": {}
     },
     {
-        "label": "ToolCallFormatterFactory",
-        "importPath": "siada.tools.tool_call_format.formatter_factory",
-        "description": "siada.tools.tool_call_format.formatter_factory",
-        "isExtraImport": true,
-        "detail": "siada.tools.tool_call_format.formatter_factory",
-        "documentation": {}
-    },
-    {
         "label": "Markdown",
         "importPath": "rich.markdown",
         "description": "rich.markdown",
@@ -4201,78 +4963,6 @@
         "documentation": {}
     },
     {
-        "label": "TurnInput",
-        "importPath": "siada.entrypoint.interaction.turn_models",
-        "description": "siada.entrypoint.interaction.turn_models",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.turn_models",
-        "documentation": {}
-    },
-    {
-        "label": "TurnOutput",
-        "importPath": "siada.entrypoint.interaction.turn_models",
-        "description": "siada.entrypoint.interaction.turn_models",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.turn_models",
-        "documentation": {}
-    },
-    {
-        "label": "TurnType",
-        "importPath": "siada.entrypoint.interaction.turn_models",
-        "description": "siada.entrypoint.interaction.turn_models",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.turn_models",
-        "documentation": {}
-    },
-    {
-        "label": "TurnInput",
-        "importPath": "siada.entrypoint.interaction.turn_models",
-        "description": "siada.entrypoint.interaction.turn_models",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.turn_models",
-        "documentation": {}
-    },
-    {
-        "label": "TurnOutput",
-        "importPath": "siada.entrypoint.interaction.turn_models",
-        "description": "siada.entrypoint.interaction.turn_models",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.turn_models",
-        "documentation": {}
-    },
-    {
-        "label": "TurnType",
-        "importPath": "siada.entrypoint.interaction.turn_models",
-        "description": "siada.entrypoint.interaction.turn_models",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.turn_models",
-        "documentation": {}
-    },
-    {
-        "label": "RunTurn",
-        "importPath": "siada.entrypoint.interaction.base_turn",
-        "description": "siada.entrypoint.interaction.base_turn",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.base_turn",
-        "documentation": {}
-    },
-    {
-        "label": "RunTurn",
-        "importPath": "siada.entrypoint.interaction.base_turn",
-        "description": "siada.entrypoint.interaction.base_turn",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.base_turn",
-        "documentation": {}
-    },
-    {
-        "label": "RunTurn",
-        "importPath": "siada.entrypoint.interaction.base_turn",
-        "description": "siada.entrypoint.interaction.base_turn",
-        "isExtraImport": true,
-        "detail": "siada.entrypoint.interaction.base_turn",
-        "documentation": {}
-    },
-    {
         "label": "Completer",
         "importPath": "rlcompleter",
         "description": "rlcompleter",
@@ -4394,6 +5084,22 @@
         "documentation": {}
     },
     {
+        "label": "DEFAULT_MODEL",
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
+        "isExtraImport": true,
+        "detail": "siada.models.model_run_config",
+        "documentation": {}
+    },
+    {
+        "label": "ModelRunConfig",
+        "importPath": "siada.models.model_run_config",
+        "description": "siada.models.model_run_config",
+        "isExtraImport": true,
+        "detail": "siada.models.model_run_config",
+        "documentation": {}
+    },
+    {
         "label": "ModelRunConfig",
         "importPath": "siada.models.model_run_config",
         "description": "siada.models.model_run_config",
@@ -4451,263 +5157,6 @@
         "documentation": {}
     },
     {
-        "label": "threading",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "threading",
-        "description": "threading",
-        "detail": "threading",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseTextDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningSummaryTextDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseFunctionCallArgumentsDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseContentPartAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputItemAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseCompletedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseCreatedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningSummaryPartAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseFunctionToolCall",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputItemDoneEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "Response",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseCompletedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseContentPartAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseContentPartDoneEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseCreatedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseFunctionCallArgumentsDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseFunctionToolCall",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputItem",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputItemAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputItemDoneEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputMessage",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputRefusal",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseOutputText",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningItem",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningSummaryPartAddedEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningSummaryPartDoneEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseReasoningSummaryTextDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseRefusalDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseTextDeltaEvent",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "ResponseUsage",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
-        "label": "Response",
-        "importPath": "openai.types.responses",
-        "description": "openai.types.responses",
-        "isExtraImport": true,
-        "detail": "openai.types.responses",
-        "documentation": {}
-    },
-    {
         "label": "unittest",
         "kind": 6,
         "isExtraImport": true,
@@ -4730,6 +5179,14 @@
         "description": "unittest",
         "isExtraImport": true,
         "detail": "unittest",
+        "documentation": {}
+    },
+    {
+        "label": "RunTurn",
+        "importPath": "siada.entrypoint.interaction.base_turn",
+        "description": "siada.entrypoint.interaction.base_turn",
+        "isExtraImport": true,
+        "detail": "siada.entrypoint.interaction.base_turn",
         "documentation": {}
     },
     {
@@ -4863,6 +5320,30 @@
     },
     {
         "label": "ModelBaseConfig",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
+        "isExtraImport": true,
+        "detail": "siada.models.model_base_config",
+        "documentation": {}
+    },
+    {
+        "label": "get_model_config",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
+        "isExtraImport": true,
+        "detail": "siada.models.model_base_config",
+        "documentation": {}
+    },
+    {
+        "label": "ModelBaseConfig",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
+        "isExtraImport": true,
+        "detail": "siada.models.model_base_config",
+        "documentation": {}
+    },
+    {
+        "label": "MODEL_SETTING",
         "importPath": "siada.models.model_base_config",
         "description": "siada.models.model_base_config",
         "isExtraImport": true,
@@ -5423,6 +5904,30 @@
         "documentation": {}
     },
     {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
         "label": "inspect",
         "kind": 6,
         "isExtraImport": true,
@@ -5593,6 +6098,174 @@
         "documentation": {}
     },
     {
+        "label": "Response",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseCompletedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseContentPartAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseContentPartDoneEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseCreatedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseFunctionCallArgumentsDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseFunctionToolCall",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputItem",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputItemAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputItemDoneEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputMessage",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputRefusal",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseOutputText",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningItem",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningSummaryPartAddedEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningSummaryPartDoneEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseReasoningSummaryTextDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseRefusalDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseTextDeltaEvent",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "ResponseUsage",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
+        "label": "Response",
+        "importPath": "openai.types.responses",
+        "description": "openai.types.responses",
+        "isExtraImport": true,
+        "detail": "openai.types.responses",
+        "documentation": {}
+    },
+    {
         "label": "Summary",
         "importPath": "openai.types.responses.response_reasoning_item",
         "description": "openai.types.responses.response_reasoning_item",
@@ -5697,7 +6370,55 @@
         "documentation": {}
     },
     {
+        "label": "ModelResponse",
+        "importPath": "agents.items",
+        "description": "agents.items",
+        "isExtraImport": true,
+        "detail": "agents.items",
+        "documentation": {}
+    },
+    {
+        "label": "TResponseInputItem",
+        "importPath": "agents.items",
+        "description": "agents.items",
+        "isExtraImport": true,
+        "detail": "agents.items",
+        "documentation": {}
+    },
+    {
         "label": "TResponseStreamEvent",
+        "importPath": "agents.items",
+        "description": "agents.items",
+        "isExtraImport": true,
+        "detail": "agents.items",
+        "documentation": {}
+    },
+    {
+        "label": "TResponseInputItem",
+        "importPath": "agents.items",
+        "description": "agents.items",
+        "isExtraImport": true,
+        "detail": "agents.items",
+        "documentation": {}
+    },
+    {
+        "label": "TResponseInputItem",
+        "importPath": "agents.items",
+        "description": "agents.items",
+        "isExtraImport": true,
+        "detail": "agents.items",
+        "documentation": {}
+    },
+    {
+        "label": "TResponseInputItem",
+        "importPath": "agents.items",
+        "description": "agents.items",
+        "isExtraImport": true,
+        "detail": "agents.items",
+        "documentation": {}
+    },
+    {
+        "label": "TResponseInputItem",
         "importPath": "agents.items",
         "description": "agents.items",
         "isExtraImport": true,
@@ -5721,11 +6442,91 @@
         "documentation": {}
     },
     {
+        "label": "ModelProvider",
+        "importPath": "agents.models.interface",
+        "description": "agents.models.interface",
+        "isExtraImport": true,
+        "detail": "agents.models.interface",
+        "documentation": {}
+    },
+    {
+        "label": "Model",
+        "importPath": "agents.models.interface",
+        "description": "agents.models.interface",
+        "isExtraImport": true,
+        "detail": "agents.models.interface",
+        "documentation": {}
+    },
+    {
+        "label": "ModelTracing",
+        "importPath": "agents.models.interface",
+        "description": "agents.models.interface",
+        "isExtraImport": true,
+        "detail": "agents.models.interface",
+        "documentation": {}
+    },
+    {
+        "label": "Tool",
+        "importPath": "agents.tool",
+        "description": "agents.tool",
+        "isExtraImport": true,
+        "detail": "agents.tool",
+        "documentation": {}
+    },
+    {
+        "label": "Tool",
+        "importPath": "agents.tool",
+        "description": "agents.tool",
+        "isExtraImport": true,
+        "detail": "agents.tool",
+        "documentation": {}
+    },
+    {
+        "label": "Handoff",
+        "importPath": "agents.handoffs",
+        "description": "agents.handoffs",
+        "isExtraImport": true,
+        "detail": "agents.handoffs",
+        "documentation": {}
+    },
+    {
+        "label": "Usage",
+        "importPath": "agents.usage",
+        "description": "agents.usage",
+        "isExtraImport": true,
+        "detail": "agents.usage",
+        "documentation": {}
+    },
+    {
         "label": "ModelSettings",
         "importPath": "agents.model_settings",
         "description": "agents.model_settings",
         "isExtraImport": true,
         "detail": "agents.model_settings",
+        "documentation": {}
+    },
+    {
+        "label": "GenerationSpanData",
+        "importPath": "agents.tracing.span_data",
+        "description": "agents.tracing.span_data",
+        "isExtraImport": true,
+        "detail": "agents.tracing.span_data",
+        "documentation": {}
+    },
+    {
+        "label": "GenerationSpanData",
+        "importPath": "agents.tracing.span_data",
+        "description": "agents.tracing.span_data",
+        "isExtraImport": true,
+        "detail": "agents.tracing.span_data",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionSpanData",
+        "importPath": "agents.tracing.span_data",
+        "description": "agents.tracing.span_data",
+        "isExtraImport": true,
+        "detail": "agents.tracing.span_data",
         "documentation": {}
     },
     {
@@ -5750,6 +6551,22 @@
         "description": "agents.models.chatcmpl_converter",
         "isExtraImport": true,
         "detail": "agents.models.chatcmpl_converter",
+        "documentation": {}
+    },
+    {
+        "label": "SiadaClient",
+        "importPath": "siada.provider.li.llm_connection",
+        "description": "siada.provider.li.llm_connection",
+        "isExtraImport": true,
+        "detail": "siada.provider.li.llm_connection",
+        "documentation": {}
+    },
+    {
+        "label": "SiadaClient",
+        "importPath": "siada.provider.li.llm_connection",
+        "description": "siada.provider.li.llm_connection",
+        "isExtraImport": true,
+        "detail": "siada.provider.li.llm_connection",
         "documentation": {}
     },
     {
@@ -5825,6 +6642,38 @@
         "documentation": {}
     },
     {
+        "label": "AgentHooks",
+        "importPath": "agents.lifecycle",
+        "description": "agents.lifecycle",
+        "isExtraImport": true,
+        "detail": "agents.lifecycle",
+        "documentation": {}
+    },
+    {
+        "label": "ChatCompletionMessageParam",
+        "importPath": "openai.types.chat",
+        "description": "openai.types.chat",
+        "isExtraImport": true,
+        "detail": "openai.types.chat",
+        "documentation": {}
+    },
+    {
+        "label": "ChatCompletionMessageParam",
+        "importPath": "openai.types.chat",
+        "description": "openai.types.chat",
+        "isExtraImport": true,
+        "detail": "openai.types.chat",
+        "documentation": {}
+    },
+    {
+        "label": "ChatCompletion",
+        "importPath": "openai.types.chat",
+        "description": "openai.types.chat",
+        "isExtraImport": true,
+        "detail": "openai.types.chat",
+        "documentation": {}
+    },
+    {
         "label": "importlib",
         "kind": 6,
         "isExtraImport": true,
@@ -5842,11 +6691,19 @@
         "documentation": {}
     },
     {
-        "label": "prepare_dataset",
-        "importPath": "benchmark.swe.tools.dataset",
-        "description": "benchmark.swe.tools.dataset",
+        "label": "ContextTracingProcessor",
+        "importPath": "siada.services.code_context_manager",
+        "description": "siada.services.code_context_manager",
         "isExtraImport": true,
-        "detail": "benchmark.swe.tools.dataset",
+        "detail": "siada.services.code_context_manager",
+        "documentation": {}
+    },
+    {
+        "label": "ContextHooks",
+        "importPath": "siada.services.code_context_manager",
+        "description": "siada.services.code_context_manager",
+        "isExtraImport": true,
+        "detail": "siada.services.code_context_manager",
         "documentation": {}
     },
     {
@@ -5872,6 +6729,14 @@
         "description": "contextlib",
         "isExtraImport": true,
         "detail": "contextlib",
+        "documentation": {}
+    },
+    {
+        "label": "ModelInfoService",
+        "importPath": "siada.services.model_info_service",
+        "description": "siada.services.model_info_service",
+        "isExtraImport": true,
+        "detail": "siada.services.model_info_service",
         "documentation": {}
     },
     {
@@ -5905,38 +6770,6 @@
         "importPath": "warnings",
         "description": "warnings",
         "detail": "warnings",
-        "documentation": {}
-    },
-    {
-        "label": "TreeContext",
-        "importPath": "grep_ast",
-        "description": "grep_ast",
-        "isExtraImport": true,
-        "detail": "grep_ast",
-        "documentation": {}
-    },
-    {
-        "label": "filename_to_lang",
-        "importPath": "grep_ast",
-        "description": "grep_ast",
-        "isExtraImport": true,
-        "detail": "grep_ast",
-        "documentation": {}
-    },
-    {
-        "label": "TreeContext",
-        "importPath": "grep_ast",
-        "description": "grep_ast",
-        "isExtraImport": true,
-        "detail": "grep_ast",
-        "documentation": {}
-    },
-    {
-        "label": "filename_to_lang",
-        "importPath": "grep_ast",
-        "description": "grep_ast",
-        "isExtraImport": true,
-        "detail": "grep_ast",
         "documentation": {}
     },
     {
@@ -6110,6 +6943,15 @@
         "description": "diskcache",
         "isExtraImport": true,
         "detail": "diskcache",
+        "documentation": {}
+    },
+    {
+        "label": "threading",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "threading",
+        "description": "threading",
+        "detail": "threading",
         "documentation": {}
     },
     {
@@ -6383,6 +7225,30 @@
         "documentation": {}
     },
     {
+        "label": "AsyncMock",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "MagicMock",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "patch",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
         "label": "patch",
         "importPath": "unittest.mock",
         "description": "unittest.mock",
@@ -6392,6 +7258,22 @@
     },
     {
         "label": "mock_open",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "Mock",
+        "importPath": "unittest.mock",
+        "description": "unittest.mock",
+        "isExtraImport": true,
+        "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "patch",
         "importPath": "unittest.mock",
         "description": "unittest.mock",
         "isExtraImport": true,
@@ -6436,6 +7318,22 @@
         "description": "unittest.mock",
         "isExtraImport": true,
         "detail": "unittest.mock",
+        "documentation": {}
+    },
+    {
+        "label": "BugFixAgent",
+        "importPath": "siada.agent_hub.coder.bug_fix_agent",
+        "description": "siada.agent_hub.coder.bug_fix_agent",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.bug_fix_agent",
+        "documentation": {}
+    },
+    {
+        "label": "BugFixAgent",
+        "importPath": "siada.agent_hub.coder.bug_fix_agent",
+        "description": "siada.agent_hub.coder.bug_fix_agent",
+        "isExtraImport": true,
+        "detail": "siada.agent_hub.coder.bug_fix_agent",
         "documentation": {}
     },
     {
@@ -6523,11 +7421,165 @@
         "documentation": {}
     },
     {
-        "label": "ChatCompletion",
-        "importPath": "openai.types.chat",
-        "description": "openai.types.chat",
+        "label": "_compress_context_tool",
+        "importPath": "siada.tools.compression_tool",
+        "description": "siada.tools.compression_tool",
         "isExtraImport": true,
-        "detail": "openai.types.chat",
+        "detail": "siada.tools.compression_tool",
+        "documentation": {}
+    },
+    {
+        "label": "_compress_context_tool",
+        "importPath": "siada.tools.compression_tool",
+        "description": "siada.tools.compression_tool",
+        "isExtraImport": true,
+        "detail": "siada.tools.compression_tool",
+        "documentation": {}
+    },
+    {
+        "label": "FastAPI",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "HTTPException",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "FastAPI",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "HTTPException",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "status",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "Depends",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "FastAPI",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "HTTPException",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "status",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "Depends",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "uvicorn",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "uvicorn",
+        "description": "uvicorn",
+        "detail": "uvicorn",
+        "documentation": {}
+    },
+    {
+        "label": "JSONResponse",
+        "importPath": "fastapi.responses",
+        "description": "fastapi.responses",
+        "isExtraImport": true,
+        "detail": "fastapi.responses",
+        "documentation": {}
+    },
+    {
+        "label": "HTTPBearer",
+        "importPath": "fastapi.security",
+        "description": "fastapi.security",
+        "isExtraImport": true,
+        "detail": "fastapi.security",
+        "documentation": {}
+    },
+    {
+        "label": "HTTPAuthorizationCredentials",
+        "importPath": "fastapi.security",
+        "description": "fastapi.security",
+        "isExtraImport": true,
+        "detail": "fastapi.security",
+        "documentation": {}
+    },
+    {
+        "label": "jwt",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "jwt",
+        "description": "jwt",
+        "detail": "jwt",
+        "documentation": {}
+    },
+    {
+        "label": "CryptContext",
+        "importPath": "passlib.context",
+        "description": "passlib.context",
+        "isExtraImport": true,
+        "detail": "passlib.context",
+        "documentation": {}
+    },
+    {
+        "label": "Calculator",
+        "importPath": "calculator",
+        "description": "calculator",
+        "isExtraImport": true,
+        "detail": "calculator",
+        "documentation": {}
+    },
+    {
+        "label": "AdvancedCalculator",
+        "importPath": "calculator",
+        "description": "calculator",
+        "isExtraImport": true,
+        "detail": "calculator",
         "documentation": {}
     },
     {
@@ -7404,6 +8456,24 @@
         "documentation": {}
     },
     {
+        "label": "get_system_prompt",
+        "kind": 2,
+        "importPath": "siada.agent_hub.coder.prompt.issue_review_prompt",
+        "description": "siada.agent_hub.coder.prompt.issue_review_prompt",
+        "peekOfCode": "def get_system_prompt(cwd: str = \"/default/path\", ) -> str:\n    \"\"\"\n    生成系统提示词\n    Args:\n        cwd: 当前工作目录路径\n    Returns:\n        格式化后的系统提示词\n    \"\"\"\n    os_name = platform.system()\n    home_dir = os.path.expanduser(\"~\")",
+        "detail": "siada.agent_hub.coder.prompt.issue_review_prompt",
+        "documentation": {}
+    },
+    {
+        "label": "get_system_prompt",
+        "kind": 2,
+        "importPath": "siada.agent_hub.coder.prompt.test_prompt",
+        "description": "siada.agent_hub.coder.prompt.test_prompt",
+        "peekOfCode": "def get_system_prompt(cwd: str = \"/default/path\") -> str:\n    \"\"\"\n    生成系统提示词\n    Args:\n        cwd: 当前工作目录路径\n    Returns:\n        格式化后的系统提示词\n    \"\"\"\n    os_name = platform.system()\n    home_dir = os.path.expanduser(\"~\")",
+        "detail": "siada.agent_hub.coder.prompt.test_prompt",
+        "documentation": {}
+    },
+    {
         "label": "SearchResult",
         "kind": 6,
         "importPath": "siada.agent_hub.coder.tracing.example_usage",
@@ -7548,16 +8618,21 @@
         "documentation": {}
     },
     {
-        "label": {
-            "name": "",
-            "kind": 6,
-            "peekOfCode": "class  BugFixAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"BugFixAgent\",\n            tools=[edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names],\n            model=model,\n            tool_use_behavior={\n                \"stop_at_tool_names\": [\"fix_attempt_completion\"],"
-        },
+        "label": "BugFixAgent",
         "kind": 6,
         "importPath": "siada.agent_hub.coder.bug_fix_agent",
         "description": "siada.agent_hub.coder.bug_fix_agent",
-        "peekOfCode": "class  BugFixAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"BugFixAgent\",\n            tools=[edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names],\n            model=model,\n            tool_use_behavior={\n                \"stop_at_tool_names\": [\"fix_attempt_completion\"],",
+        "peekOfCode": "class BugFixAgent(CodeGenAgent):\n    fix_result_checker: FixResultChecker\n    issue_review_agent: IssueReviewAgent  # Forward declaration for type hinting\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        self.fix_result_checker = FixResultChecker()\n        self.issue_review_agent = IssueReviewAgent()\n        super().__init__(\n            name=\"BugFixAgent\",",
         "detail": "siada.agent_hub.coder.bug_fix_agent",
+        "documentation": {}
+    },
+    {
+        "label": "BugFixTriageAgent",
+        "kind": 6,
+        "importPath": "siada.agent_hub.coder.bug_fix_triage_agent",
+        "description": "siada.agent_hub.coder.bug_fix_triage_agent",
+        "peekOfCode": "class BugFixTriageAgent(Agent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        instructions = (\n            f\"{RECOMMENDED_PROMPT_PREFIX} \"\n            \"You are a helpful triaging agent. You can use your tools to delegate the task to other appropriate agents.\"\n            \"The BugFixAgent fixes issues, and the TestAgent verifies the fixes. If verification fails, the BugFixAgent continues fixing until the issue is resolved.\"\n            \"Your job is to assign tasks to the appropriate agent at each stage.\"\n        ),",
+        "detail": "siada.agent_hub.coder.bug_fix_triage_agent",
         "documentation": {}
     },
     {
@@ -7565,7 +8640,7 @@
         "kind": 6,
         "importPath": "siada.agent_hub.coder.bug_reproduce_agent",
         "description": "siada.agent_hub.coder.bug_reproduce_agent",
-        "peekOfCode": "class BugReproduceAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        super().__init__(\n            name=\"BugReproduceAgent\",\n            tools=[edit, regex_search_files, run_cmd, reproduce_completion],\n            tool_use_behavior=StopAtTools(stop_at_tool_names=['reproduce_completion']),\n            *args,\n            **kwargs\n        )",
+        "peekOfCode": "class BugReproduceAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        super().__init__(\n            name=\"BugReproduceAgent\",\n            tools=[edit, regex_search_files, run_cmd, reproduce_completion],\n            tool_use_behavior=StopAtTools(stop_at_tool_names=['reproduce_completion']),\n            *args,\n            **kwargs\n        )\n    async def get_system_prompt(self, run_context: RunContextWrapper[CodeAgentContext]) -> str | None:",
         "detail": "siada.agent_hub.coder.bug_reproduce_agent",
         "documentation": {}
     },
@@ -7585,6 +8660,24 @@
         "description": "siada.agent_hub.coder.fe_gen_agent",
         "peekOfCode": "class FeGenAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"FeGenAgent\",\n            tools=[edit, regex_search_files, run_cmd],\n            model=model,\n            *args,\n            **kwargs",
         "detail": "siada.agent_hub.coder.fe_gen_agent",
+        "documentation": {}
+    },
+    {
+        "label": "IssueReviewAgent",
+        "kind": 6,
+        "importPath": "siada.agent_hub.coder.issue_review_agent",
+        "description": "siada.agent_hub.coder.issue_review_agent",
+        "peekOfCode": "class IssueReviewAgent(CodeGenAgent):\n    \"\"\"\n    Agent to review issues in a repository.\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"IssueReviewAgent\",\n            tools=[edit, regex_search_files, run_cmd, list_code_definition_names, issue_review_completion],",
+        "detail": "siada.agent_hub.coder.issue_review_agent",
+        "documentation": {}
+    },
+    {
+        "label": "TestAgent",
+        "kind": 6,
+        "importPath": "siada.agent_hub.coder.test_agent",
+        "description": "siada.agent_hub.coder.test_agent",
+        "peekOfCode": "class TestAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Execution Agent: an agent dedicated to running test cases.\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"TestAgent\",\n            tools=[edit, regex_search_files, run_cmd, test_completion],",
+        "detail": "siada.agent_hub.coder.test_agent",
         "documentation": {}
     },
     {
@@ -7759,15 +8852,6 @@
         "documentation": {}
     },
     {
-        "label": "CommandTurn",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.command_turn",
-        "description": "siada.entrypoint.interaction.command_turn",
-        "peekOfCode": "class CommandTurn(RunTurn):\n    \"\"\"Handles slash command turns\"\"\"\n    def get_turn_type(self) -> TurnType:\n        return TurnType.COMMAND\n    def can_handle(self, user_input: str) -> bool:\n        \"\"\"Handle slash commands\"\"\"\n        return self.slash_commands.is_command(user_input)\n    def execute(self, turn_input: TurnInput) -> TurnOutput:\n        \"\"\"Execute slash command\n        Args:",
-        "detail": "siada.entrypoint.interaction.command_turn",
-        "documentation": {}
-    },
-    {
         "label": "RunningConfig",
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.config",
@@ -7783,60 +8867,6 @@
         "description": "siada.entrypoint.interaction.controller",
         "peekOfCode": "class Controller:\n    \"\"\"Controls user-AI coding interactions and manages coder lifecycle\"\"\"\n    def __init__(self, config: RunningConfig, slash_commands: SlashCommands, shell_mode: bool = False):\n        self.config = config\n        self.slash_commands = slash_commands\n        self.shell_mode = shell_mode\n    def run(self) -> int:\n        session = RunningSessionManager.create_session(\n            running_config=self.config,\n        )",
         "detail": "siada.entrypoint.interaction.controller",
-        "documentation": {}
-    },
-    {
-        "label": "ConversationTurn",
-        "kind": 6,
-        "importPath": "siada.entrypoint.interaction.conversation_turn",
-        "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    got_tool_result_part: bool = False",
-        "detail": "siada.entrypoint.interaction.conversation_turn",
-        "documentation": {}
-    },
-    {
-        "label": "REASONING_TAG",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.conversation_turn",
-        "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\n# Output formatting\nREASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
-        "detail": "siada.entrypoint.interaction.conversation_turn",
-        "documentation": {}
-    },
-    {
-        "label": "REASONING_START",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.conversation_turn",
-        "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "REASONING_START = \"--------------\\n► **THINKING**\"\nREASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None",
-        "detail": "siada.entrypoint.interaction.conversation_turn",
-        "documentation": {}
-    },
-    {
-        "label": "REASONING_END",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.conversation_turn",
-        "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "REASONING_END = \"------------\\n► **ANSWER**\"\nTOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
-        "detail": "siada.entrypoint.interaction.conversation_turn",
-        "documentation": {}
-    },
-    {
-        "label": "TOOL_CALL_START",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.conversation_turn",
-        "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "TOOL_CALL_START = \"--------------\\n► **TOOL USE**\"\nDEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
-        "detail": "siada.entrypoint.interaction.conversation_turn",
-        "documentation": {}
-    },
-    {
-        "label": "DEFAULT_REASONING_TAG",
-        "kind": 5,
-        "importPath": "siada.entrypoint.interaction.conversation_turn",
-        "description": "siada.entrypoint.interaction.conversation_turn",
-        "peekOfCode": "DEFAULT_REASONING_TAG = \"thinking\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
-        "detail": "siada.entrypoint.interaction.conversation_turn",
         "documentation": {}
     },
     {
@@ -7993,11 +9023,20 @@
         "documentation": {}
     },
     {
+        "label": "GitDiffUtil",
+        "kind": 6,
+        "importPath": "siada.foundation.tools.get_git_diff",
+        "description": "siada.foundation.tools.get_git_diff",
+        "peekOfCode": "class GitDiffUtil:\n    \"\"\"工具类，用于获取 Git 仓库的 diff 信息，排除测试文件。\"\"\"\n    @staticmethod\n    def get_git_diff(repo_path: str = \".\") -> str:\n        \"\"\"\n        获取当前 Git 仓库的完整 diff。\n        Args:\n            repo_path: Git 仓库的路径，默认为当前目录。\n        Returns:\n            str: 返回完整的 diff 信息。",
+        "detail": "siada.foundation.tools.get_git_diff",
+        "documentation": {}
+    },
+    {
         "label": "CodeAgentContext",
         "kind": 6,
         "importPath": "siada.foundation.code_agent_context",
         "description": "siada.foundation.code_agent_context",
-        "peekOfCode": "class CodeAgentContext(BaseModel):\n    model_config = ConfigDict(arbitrary_types_allowed=True)\n    root_dir: Optional[str] = None\n    session: Optional[RunningSession] = None",
+        "peekOfCode": "class CodeAgentContext(BaseModel):\n    model_config = ConfigDict(arbitrary_types_allowed=True)\n    session: Optional[RunningSession] = None\n    root_dir: str | None = None\n    # 完整的消息历史列表\n    message_history: List[TResponseInputItem] = Field(default_factory=list)\n    def add_message(self, message: TResponseInputItem) -> None:\n        self.message_history.append(message)\n    def add_messages(self, messages: List[TResponseInputItem]) -> None:\n        self.message_history.extend(messages)",
         "detail": "siada.foundation.code_agent_context",
         "documentation": {}
     },
@@ -8591,7 +9630,7 @@
         "kind": 6,
         "importPath": "siada.provider.li.domian.li_chat_complete_chunk",
         "description": "siada.provider.li.domian.li_chat_complete_chunk",
-        "peekOfCode": "class LiChoiceDeltaToolCall(BaseModel):\n    index: Optional[int] = None\n    id: Optional[str] = None\n    \"\"\"The ID of the tool call.\"\"\"\n    function: Optional[LiChoiceDeltaToolCallFunction] = None\n    type: Optional[Literal[\"function\"]] = None\n    \"\"\"The type of the tool. Currently, only `function` is supported.\"\"\"\nclass LiReasoningContent(BaseModel):\n    type: Optional[Literal[\"redacted_thinking\", \"thinking\"]] = None\n    signature: Optional[str] = None",
+        "peekOfCode": "class LiChoiceDeltaToolCall(BaseModel):\n    index: Optional[int] = None\n    id: Optional[str] = None\n    \"\"\"The ID of the tool call.\"\"\"\n    function: Optional[LiChoiceDeltaToolCallFunction] = None\n    type: Optional[Literal[\"function\"]] = None\n    \"\"\"The type of the tool. Currently, only `function` is supported.\"\"\"\nclass LiReasoningContent(BaseModel):\n    type: Optional[\n        Literal[\"redacted_thinking\", \"thinking\", \"thinking_delta\", \"signature_delta\"]",
         "detail": "siada.provider.li.domian.li_chat_complete_chunk",
         "documentation": {}
     },
@@ -8600,7 +9639,7 @@
         "kind": 6,
         "importPath": "siada.provider.li.domian.li_chat_complete_chunk",
         "description": "siada.provider.li.domian.li_chat_complete_chunk",
-        "peekOfCode": "class LiReasoningContent(BaseModel):\n    type: Optional[Literal[\"redacted_thinking\", \"thinking\"]] = None\n    signature: Optional[str] = None\n    thinking: Optional[str] = None\n    data: Optional[str] = None\nclass ChoiceDelta(BaseModel):\n    content: Optional[str | List[str]] = None\n    \"\"\"The contents of the chunk message.\"\"\"\n    function_call: Optional[LiChoiceDeltaFunctionCall] = None\n    \"\"\"Deprecated and replaced by `tool_calls`.",
+        "peekOfCode": "class LiReasoningContent(BaseModel):\n    type: Optional[\n        Literal[\"redacted_thinking\", \"thinking\", \"thinking_delta\", \"signature_delta\"]\n    ] = None\n    signature: Optional[str] = None\n    thinking: Optional[str] = None\n    data: Optional[str] = None\nclass ChoiceDelta(BaseModel):\n    content: Optional[str | List[str]] = None\n    \"\"\"The contents of the chunk message.\"\"\"",
         "detail": "siada.provider.li.domian.li_chat_complete_chunk",
         "documentation": {}
     },
@@ -8744,7 +9783,7 @@
         "kind": 6,
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
-        "peekOfCode": "class LiModel(Model):\n    def __init__(self, model: str):\n        super().__init__()\n        self._client = SiadaClient()\n        self.model = model\n    def _non_null_or_not_given(self, value: Any) -> Any:\n        return value if value is not None else NOT_GIVEN\n    async def get_response(\n            self,\n            system_instructions: str | None,",
+        "peekOfCode": "class LiModel(Model):\n    def __init__(self, model: str):\n        super().__init__()\n        self._client = SiadaClient()\n        self.model = model\n        self.context = None  # 添加 context 变量\n    def _non_null_or_not_given(self, value: Any) -> Any:\n        return value if value is not None else NOT_GIVEN\n    async def get_response(\n            self,",
         "detail": "siada.provider.li.li_provider",
         "documentation": {}
     },
@@ -8773,6 +9812,42 @@
         "description": "siada.provider.provider_factory",
         "peekOfCode": "def get_provider(provider_name: str) -> ModelProvider:\n    \"\"\"\n    根据提供商名称获取相应的模型提供商实例。\n    Args:\n        provider_name (str): 提供商的名称，例如 'li'。\n    Returns:\n        ModelProvider: 对应的模型提供商实例。\n    Raises:\n        ValueError: 如果提供商名称不受支持。\n    \"\"\"",
         "detail": "siada.provider.provider_factory",
+        "documentation": {}
+    },
+    {
+        "label": "ContextHooks",
+        "kind": 6,
+        "importPath": "siada.services.code_context_manager",
+        "description": "siada.services.code_context_manager",
+        "peekOfCode": "class ContextHooks(AgentHooks[CodeAgentContext]):\n    \"\"\"混合上下文管理器\n    使用AgentHooks来捕获Agent级别的事件，\n    确保用户输入和助手输出都被正确记录\n    \"\"\"\n    def __init__(self):\n        super().__init__()\n        print(\"🔧 HybridContextManager 初始化完成\")\n    async def on_start(\n            self,",
+        "detail": "siada.services.code_context_manager",
+        "documentation": {}
+    },
+    {
+        "label": "ContextTracingProcessor",
+        "kind": 6,
+        "importPath": "siada.services.code_context_manager",
+        "description": "siada.services.code_context_manager",
+        "peekOfCode": "class ContextTracingProcessor(TracingProcessor):\n    def __init__(self, context: CodeAgentContext):\n        self.context = context\n    def on_trace_start(self, trace: \"Trace\") -> None:\n        pass\n    def on_span_start(self, span: \"Span[Any]\") -> None:\n        if hasattr(span.span_data, \"input\") and span.span_data.input:\n            if isinstance(span.span_data.input, list):\n                self.context.message_history = span.span_data.input\n            else:",
+        "detail": "siada.services.code_context_manager",
+        "documentation": {}
+    },
+    {
+        "label": "FixResultChecker",
+        "kind": 6,
+        "importPath": "siada.services.fix_result_check",
+        "description": "siada.services.fix_result_check",
+        "peekOfCode": "class FixResultChecker:\n    \"\"\"修复结果检查器\n    使用模型分析代码修复是否真正解决了描述的问题\n    \"\"\"\n    def __init__(self):\n        \"\"\"初始化检查器\"\"\"\n        self.client = SiadaClient()\n    async def check(self, issue_desc: str, fix_code: str) -> Dict[str, Any]:\n        \"\"\"检查修复代码是否真正解决了问题\n        Args:",
+        "detail": "siada.services.fix_result_check",
+        "documentation": {}
+    },
+    {
+        "label": "ModelInfoService",
+        "kind": 6,
+        "importPath": "siada.services.model_info_service",
+        "description": "siada.services.model_info_service",
+        "peekOfCode": "class ModelInfoService:\n    \"\"\"\n    Service for managing and querying model information.\n    This service provides methods to:\n    - List available models\n    - Get detailed model information\n    - Validate model configurations\n    - Search and filter models by capabilities\n    \"\"\"\n    @staticmethod",
+        "detail": "siada.services.model_info_service",
         "documentation": {}
     },
     {
@@ -9302,7 +10377,7 @@
         "kind": 6,
         "importPath": "siada.tools.coder.observation.observation",
         "description": "siada.tools.coder.observation.observation",
-        "peekOfCode": "class FileEditSource(str, Enum):\n    LLM_BASED_EDIT = 'llm_based_edit'\n    OH_ACI = 'oh_aci'  # openhands-aci\n@dataclass\nclass FunctionCallResult:\n    content: str\n    def format_for_display(self) -> str:\n        return str(self)",
+        "peekOfCode": "class FileEditSource(str, Enum):\n    LLM_BASED_EDIT = 'llm_based_edit'\n    OH_ACI = 'oh_aci'  # openhands-aci\n@dataclass\nclass FunctionCallResult:\n    content: str\n    def format_for_display(self) -> str:\n        return self.__str__()",
         "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
@@ -9311,7 +10386,7 @@
         "kind": 6,
         "importPath": "siada.tools.coder.observation.observation",
         "description": "siada.tools.coder.observation.observation",
-        "peekOfCode": "class FunctionCallResult:\n    content: str\n    def format_for_display(self) -> str:\n        return str(self)",
+        "peekOfCode": "class FunctionCallResult:\n    content: str\n    def format_for_display(self) -> str:\n        return self.__str__()",
         "detail": "siada.tools.coder.observation.observation",
         "documentation": {}
     },
@@ -9613,6 +10688,15 @@
         "documentation": {}
     },
     {
+        "label": "ISSUE_REVIEW_COMPLETION_DOCS",
+        "kind": 5,
+        "importPath": "siada.tools.coder.issue_review_completion",
+        "description": "siada.tools.coder.issue_review_completion",
+        "peekOfCode": "ISSUE_REVIEW_COMPLETION_DOCS = f\"\"\"Issue Review Completion Tool\nThis tool is called when completing an issue review process. It captures the final assessment of whether an issue has been successfully resolved.\nParameters:\n- is_fixed (bool): Indicates whether the issue has been fixed. True if the issue is fixed, False if the issue is not fixed.\n- check_summary (str): The review conclusion summary. When is_fixed is False, this summary must be very detailed, explaining what aspects of the issue remain unresolved, what problems were found during the review, and what additional work is needed. Must include:\n   - Specific basis for fix status judgment\n   - If not fixed, clearly explain reasons for non-fix\n   - If fixed, assess implementation quality and potential risks\n   - Specific improvement suggestions or alternative solutions\n\"\"\"",
+        "detail": "siada.tools.coder.issue_review_completion",
+        "documentation": {}
+    },
+    {
         "label": "ReproduceCompletionResult",
         "kind": 6,
         "importPath": "siada.tools.coder.reproduce_completion",
@@ -9658,6 +10742,15 @@
         "documentation": {}
     },
     {
+        "label": "TEST_COMPLETION_DOCS",
+        "kind": 5,
+        "importPath": "siada.tools.coder.test_completion",
+        "description": "siada.tools.coder.test_completion",
+        "peekOfCode": "TEST_COMPLETION_DOCS = f\"\"\"Test Completion Tool\nUse this tool to submit your test work results to the user whenever the test task has been completed. This tool reports whether tests passed or failed and provides detailed information about the test execution.\nIMPORTANT NOTE: Do not invoke this tool unless the test task has been confirmed as completed.\nArgs:\n    is_passed: Integer type, 0 indicates test failed, 1 indicates test passed.\n    test_detail: String type. If tests passed, describe which test cases were executed. If tests failed, describe each failed test case and the failure reason.\n\"\"\"\n@function_tool(\n    name_override=\"test_completion\", description_override=TEST_COMPLETION_DOCS, failure_error_function=None\n)",
+        "detail": "siada.tools.coder.test_completion",
+        "documentation": {}
+    },
+    {
         "label": "ToolCallFormatterFactory",
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatter_factory",
@@ -9680,7 +10773,7 @@
         "kind": 6,
         "importPath": "siada.tools.tool_call_format.formatters",
         "description": "siada.tools.tool_call_format.formatters",
-        "peekOfCode": "class FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    File operation formatter\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        try:\n            args = json.loads(arguments)\n            path = args.get(\"path\", \"\")\n            command = args.get(\"command\", \"\")\n            file_text = args.get(\"file_text\", \"\")",
+        "peekOfCode": "class FileEditFormatter(ToolCallFormatter):\n    \"\"\"\n    File operation formatter\n    \"\"\"\n    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:\n        style = \"text\"\n        try:\n            args = json.loads(arguments)\n            path = args.get(\"path\", \"\")\n            command = args.get(\"command\", \"\")",
         "detail": "siada.tools.tool_call_format.formatters",
         "documentation": {}
     },
@@ -9784,6 +10877,15 @@
         "documentation": {}
     },
     {
+        "label": "COMPRESS_DOCS",
+        "kind": 5,
+        "importPath": "siada.tools.compression_tool",
+        "description": "siada.tools.compression_tool",
+        "peekOfCode": "COMPRESS_DOCS = \"\"\"Intelligently compress or summarize the conversation history within a specified range.\n    This tool should be called when the following situations occur:\n    1. The conversation history is too long and needs to be partially archived.\n    2. A task or topic has concluded, and the relevant conversation can be compressed.\n    3. Some messages are no longer important for resolving the current main task and need to be cleared.\n    4. The current conversation has deviated from the original topic and needs to be refocused.\n    5. The message list contains a lot of redundant information, which reduces the efficiency of accessing important content.\n    6. If the test required multiple steps to complete — or was not completed — you need to summarize the testing process.\n    7. If the search involved multiple steps — or returned too many results — you need to summarize the search process.\n    ===",
+        "detail": "siada.tools.compression_tool",
+        "documentation": {}
+    },
+    {
         "label": "JsonUtils",
         "kind": 6,
         "importPath": "siada.utils",
@@ -9862,6 +10964,24 @@
         "description": "tests.agent.web_analysis",
         "peekOfCode": "class TestWebAnalysisAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Web Content Analysis Agent\n    Test agent implementation for web content analysis functionality\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        # Use default model provided by SiadaProvider\n        provider = SiadaProvider()\n        model = provider.get_model(\"claude-sonnet-4\")\n        # Use default value if name parameter is not passed",
         "detail": "tests.agent.web_analysis",
+        "documentation": {}
+    },
+    {
+        "label": "RunCheckerByAgent",
+        "kind": 6,
+        "importPath": "tests.agent_hub.coder.run_checker_by_agent",
+        "description": "tests.agent_hub.coder.run_checker_by_agent",
+        "peekOfCode": "class RunCheckerByAgent:\n    \"\"\"Test the run_checker_by_agent method\"\"\"\n    def setUp(self):\n        \"\"\"Set up test environment\"\"\"\n        self.agent = BugFixAgent()\n        self.root_dir = \"/Users/yunan/code/test/test_ai\"\n        self.context = CodeAgentContext(root_dir=self.root_dir)\n        # Issue description for testing\n        self.user_input = \"\"\"\n## Issue Description",
+        "detail": "tests.agent_hub.coder.run_checker_by_agent",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "tests.agent_hub.coder.run_checker_by_agent",
+        "description": "tests.agent_hub.coder.run_checker_by_agent",
+        "peekOfCode": "def main():\n    checker = RunCheckerByAgent()\n    checker.setUp()\n    asyncio.run(checker.run_checker_by_agent_returns_dict_with_required_fields())\nif __name__ == '__main__':\n    main()",
+        "detail": "tests.agent_hub.coder.run_checker_by_agent",
         "documentation": {}
     },
     {
@@ -9964,6 +11084,15 @@
         "documentation": {}
     },
     {
+        "label": "TestBugFixAgentNewLogic",
+        "kind": 6,
+        "importPath": "tests.agent_hub.coder.test_bug_fix_agent_new_logic",
+        "description": "tests.agent_hub.coder.test_bug_fix_agent_new_logic",
+        "peekOfCode": "class TestBugFixAgentNewLogic(unittest.IsolatedAsyncioTestCase):\n    \"\"\"Test the new BugFixAgent logic with run_checker\"\"\"\n    def setUp(self):\n        \"\"\"Set up test environment\"\"\"\n        self.agent = BugFixAgent()\n        self.context = CodeAgentContext(root_dir=\"/test/dir\")\n        self.user_input = \"Test bug description\"\n    async def test_run_checker_method(self):\n        \"\"\"Test that run_checker method works correctly\"\"\"\n        # Mock the dependencies",
+        "detail": "tests.agent_hub.coder.test_bug_fix_agent_new_logic",
+        "documentation": {}
+    },
+    {
         "label": "TestDisplayUserInput",
         "kind": 6,
         "importPath": "tests.io.test_io",
@@ -10054,12 +11183,57 @@
         "documentation": {}
     },
     {
+        "label": "MockRunContextWrapper",
+        "kind": 6,
+        "importPath": "tests.services.demo_context_compression",
+        "description": "tests.services.demo_context_compression",
+        "peekOfCode": "class MockRunContextWrapper:\n    \"\"\"模拟 RunContextWrapper\"\"\"\n    def __init__(self, context: CodeAgentContext):\n        self.context = context\nclass MockTool:\n    \"\"\"模拟 Tool\"\"\"\n    def __init__(self, name: str):\n        self.name = name\nasync def demo_compression_workflow():\n    \"\"\"演示完整的压缩工作流程\"\"\"",
+        "detail": "tests.services.demo_context_compression",
+        "documentation": {}
+    },
+    {
+        "label": "MockTool",
+        "kind": 6,
+        "importPath": "tests.services.demo_context_compression",
+        "description": "tests.services.demo_context_compression",
+        "peekOfCode": "class MockTool:\n    \"\"\"模拟 Tool\"\"\"\n    def __init__(self, name: str):\n        self.name = name\nasync def demo_compression_workflow():\n    \"\"\"演示完整的压缩工作流程\"\"\"\n    print(\"🚀 开始演示 ContextHooks 压缩功能\")\n    print(\"=\" * 80)\n    # 1. 创建包含多条消息的上下文\n    context = CodeAgentContext(root_dir=\"/demo/project\")",
+        "detail": "tests.services.demo_context_compression",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "tests.services.run_bug_fix_by_runner",
+        "description": "tests.services.run_bug_fix_by_runner",
+        "peekOfCode": "def main():\n    \"\"\"Main function to run the codegen test.\"\"\"\n    asyncio.run(run_bugfix())\nif __name__ == \"__main__\":\n    main()",
+        "detail": "tests.services.run_bug_fix_by_runner",
+        "documentation": {}
+    },
+    {
+        "label": "issue_desc",
+        "kind": 5,
+        "importPath": "tests.services.run_bug_fix_by_runner",
+        "description": "tests.services.run_bug_fix_by_runner",
+        "peekOfCode": "issue_desc = \"\"\"\n## Issue Description\nIn validators.py\nEmail verification function incorrectly accepts email addresses with purely numeric domain names as valid.\n## Affected Email Formats\nThe following email address patterns are incorrectly validated as __valid__:\n- `user@123.com` - Domain name consists entirely of numbers\n- `admin@999.org` - Domain name consists entirely of numbers\n- `test@12345.net` - Domain name consists entirely of numbers\n- `spam@888.net` - Domain name consists entirely of numbers",
+        "detail": "tests.services.run_bug_fix_by_runner",
+        "documentation": {}
+    },
+    {
         "label": "main",
         "kind": 2,
         "importPath": "tests.services.run_codegen_by_runner",
         "description": "tests.services.run_codegen_by_runner",
         "peekOfCode": "def main():\n    \"\"\"Main function to run the codegen test.\"\"\"\n    asyncio.run(run_codegen())\nif __name__ == \"__main__\":\n    main()",
         "detail": "tests.services.run_codegen_by_runner",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "tests.services.run_test_by_runner",
+        "description": "tests.services.run_test_by_runner",
+        "peekOfCode": "def main():\n    \"\"\"Main function to run the codegen test.\"\"\"\n    asyncio.run(run_test())\nif __name__ == \"__main__\":\n    main()",
+        "detail": "tests.services.run_test_by_runner",
         "documentation": {}
     },
     {
@@ -10087,6 +11261,15 @@
         "description": "tests.services.runner_usage",
         "peekOfCode": "fruit = \"\"\"实现一个网页版的水果匹配小游戏\"\"\"\nasync def main():\n    user_input = fruit\n    agent_name = \"fegen\"\n    result = await SiadaRunner.run_agent(agent_name, user_input)\n    print(result)\nif __name__ == \"__main__\":\n    logging.getLogger().setLevel(logging.INFO)\n    asyncio.run(main())",
         "detail": "tests.services.runner_usage",
+        "documentation": {}
+    },
+    {
+        "label": "TestFixResultChecker",
+        "kind": 6,
+        "importPath": "tests.services.test_fix_result_check",
+        "description": "tests.services.test_fix_result_check",
+        "peekOfCode": "class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):\n    \"\"\"测试 FixResultChecker 类\"\"\"\n    def setUp(self):\n        \"\"\"设置测试环境\"\"\"\n        self.checker = FixResultChecker()\n    async def test_call_model_for_analysis_real_api(self):\n        \"\"\"测试 _call_model_for_analysis 方法真实API调用\"\"\"\n        # 准备测试数据\n        issue_desc = \"\"\"\n        在Python代码中，有一个函数试图访问一个可能为None的变量的属性，导致AttributeError。",
+        "detail": "tests.services.test_fix_result_check",
         "documentation": {}
     },
     {
@@ -10618,6 +11801,294 @@
         "description": "tests.tools.coder.repo_map.test_repo_map",
         "peekOfCode": "CONFIG = {\n    \"debug\": True,\n    \"version\": \"1.0.0\"\n}\ndef get_config():\n    return CONFIG\n'''\n        files.append(self._create_test_python_file(\"config.py\", config_content))\n        repo_map = RepoMap(\n            root=self.test_dir,",
         "detail": "tests.tools.coder.repo_map.test_repo_map",
+        "documentation": {}
+    },
+    {
+        "label": "MockRunContextWrapper",
+        "kind": 6,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "class MockRunContextWrapper:\n    \"\"\"模拟 RunContextWrapper\"\"\"\n    def __init__(self, context: CodeAgentContext):\n        self.context = context\ndef create_demo_message_history() -> List[TResponseInputItem]:\n    \"\"\"创建演示用的消息历史\"\"\"\n    return [\n        {\n            \"role\": \"user\", \n            \"content\": \"请帮我创建一个Python Web API，使用FastAPI框架。\"",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "Item",
+        "kind": 6,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "class Item(BaseModel):\n    id: Optional[int] = None\n    name: str\n    description: Optional[str] = None\n    price: float\n# 模拟数据库\nitems_db = []\n@app.get(\"/\")\nasync def root():\n    return {\"message\": \"Welcome to Demo API\"}",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "Item",
+        "kind": 6,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "class Item(BaseModel):\n    id: Optional[int] = None\n    name: str = Field(..., min_length=1, max_length=100)\n    description: Optional[str] = Field(None, max_length=500)\n    price: float = Field(..., gt=0, description=\"Price must be greater than 0\")\n    category: str = Field(..., min_length=1, max_length=50)\n    @validator('name')\n    def name_must_not_be_empty(cls, v):\n        if not v.strip():\n            raise ValueError('Name cannot be empty or whitespace')",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "ErrorResponse",
+        "kind": 6,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "class ErrorResponse(BaseModel):\n    error: str\n    detail: str\n    status_code: int\n# 全局异常处理器\n@app.exception_handler(ValueError)\nasync def value_error_handler(request, exc):\n    return JSONResponse(\n        status_code=400,\n        content={\"error\": \"Validation Error\", \"detail\": str(exc), \"status_code\": 400}",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "User",
+        "kind": 6,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "class User(BaseModel):\n    id: Optional[int] = None\n    username: str\n    email: str\n    role: str = \"user\"  # user, admin\n    is_active: bool = True\nclass UserCreate(BaseModel):\n    username: str\n    email: str\n    password: str",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "UserCreate",
+        "kind": 6,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "class UserCreate(BaseModel):\n    username: str\n    email: str\n    password: str\nclass UserLogin(BaseModel):\n    username: str\n    password: str\nclass Token(BaseModel):\n    access_token: str\n    token_type: str",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "UserLogin",
+        "kind": 6,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "class UserLogin(BaseModel):\n    username: str\n    password: str\nclass Token(BaseModel):\n    access_token: str\n    token_type: str\n# 模拟用户数据库\nusers_db = [\n    {\n        \"id\": 1,",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "Token",
+        "kind": 6,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "class Token(BaseModel):\n    access_token: str\n    token_type: str\n# 模拟用户数据库\nusers_db = [\n    {\n        \"id\": 1,\n        \"username\": \"admin\",\n        \"email\": \"admin@example.com\",\n        \"hashed_password\": pwd_context.hash(\"admin123\"),",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "create_demo_message_history",
+        "kind": 2,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "def create_demo_message_history() -> List[TResponseInputItem]:\n    \"\"\"创建演示用的消息历史\"\"\"\n    return [\n        {\n            \"role\": \"user\", \n            \"content\": \"请帮我创建一个Python Web API，使用FastAPI框架。\"\n        },\n        {\n            \"role\": \"assistant\", \n            \"content\": \"\"\"我来帮您创建一个Python Web API，使用FastAPI框架：",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "get_item_by_id",
+        "kind": 2,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "def get_item_by_id(item_id: int):\n    for item in items_db:\n        if item.id == item_id:\n            return item\n    raise HTTPException(\n        status_code=status.HTTP_404_NOT_FOUND, \n        detail=f\"Item with id {item_id} not found\"\n    )\n@app.post(\"/items\", response_model=Item, status_code=status.HTTP_201_CREATED)\nasync def create_item(item: Item):",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "verify_password",
+        "kind": 2,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "def verify_password(plain_password, hashed_password):\n    return pwd_context.verify(plain_password, hashed_password)\ndef get_password_hash(password):\n    return pwd_context.hash(password)\ndef authenticate_user(username: str, password: str):\n    for user in users_db:\n        if user[\"username\"] == username:\n            if verify_password(password, user[\"hashed_password\"]):\n                return user\n    return None",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "get_password_hash",
+        "kind": 2,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "def get_password_hash(password):\n    return pwd_context.hash(password)\ndef authenticate_user(username: str, password: str):\n    for user in users_db:\n        if user[\"username\"] == username:\n            if verify_password(password, user[\"hashed_password\"]):\n                return user\n    return None\ndef create_access_token(data: dict, expires_delta: Optional[timedelta] = None):\n    to_encode = data.copy()",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "authenticate_user",
+        "kind": 2,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "def authenticate_user(username: str, password: str):\n    for user in users_db:\n        if user[\"username\"] == username:\n            if verify_password(password, user[\"hashed_password\"]):\n                return user\n    return None\ndef create_access_token(data: dict, expires_delta: Optional[timedelta] = None):\n    to_encode = data.copy()\n    if expires_delta:\n        expire = datetime.utcnow() + expires_delta",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "create_access_token",
+        "kind": 2,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):\n    to_encode = data.copy()\n    if expires_delta:\n        expire = datetime.utcnow() + expires_delta\n    else:\n        expire = datetime.utcnow() + timedelta(minutes=15)\n    to_encode.update({\"exp\": expire})\n    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)\n    return encoded_jwt\nasync def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "app",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "app = FastAPI(title=\"Demo API\", version=\"1.0.0\")\nclass Item(BaseModel):\n    id: Optional[int] = None\n    name: str\n    description: Optional[str] = None\n    price: float\n# 模拟数据库\nitems_db = []\n@app.get(\"/\")\nasync def root():",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "items_db",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "items_db = []\n@app.get(\"/\")\nasync def root():\n    return {\"message\": \"Welcome to Demo API\"}\n@app.get(\"/items\", response_model=List[Item])\nasync def get_items():\n    return items_db\n@app.post(\"/items\", response_model=Item)\nasync def create_item(item: Item):\n    item.id = len(items_db) + 1",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "logger",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "logger = logging.getLogger(__name__)\napp = FastAPI(title=\"Enhanced Demo API\", version=\"2.0.0\")\nclass Item(BaseModel):\n    id: Optional[int] = None\n    name: str = Field(..., min_length=1, max_length=100)\n    description: Optional[str] = Field(None, max_length=500)\n    price: float = Field(..., gt=0, description=\"Price must be greater than 0\")\n    category: str = Field(..., min_length=1, max_length=50)\n    @validator('name')\n    def name_must_not_be_empty(cls, v):",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "app",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "app = FastAPI(title=\"Enhanced Demo API\", version=\"2.0.0\")\nclass Item(BaseModel):\n    id: Optional[int] = None\n    name: str = Field(..., min_length=1, max_length=100)\n    description: Optional[str] = Field(None, max_length=500)\n    price: float = Field(..., gt=0, description=\"Price must be greater than 0\")\n    category: str = Field(..., min_length=1, max_length=50)\n    @validator('name')\n    def name_must_not_be_empty(cls, v):\n        if not v.strip():",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "SECRET_KEY",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "SECRET_KEY = os.getenv(\"SECRET_KEY\", \"your-secret-key-here\")\nALGORITHM = \"HS256\"\nACCESS_TOKEN_EXPIRE_MINUTES = 30\n# 密码加密\npwd_context = CryptContext(schemes=[\"bcrypt\"], deprecated=\"auto\")\nsecurity = HTTPBearer()\napp = FastAPI(title=\"Secure Demo API\", version=\"3.0.0\")\nclass User(BaseModel):\n    id: Optional[int] = None\n    username: str",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "ALGORITHM",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "ALGORITHM = \"HS256\"\nACCESS_TOKEN_EXPIRE_MINUTES = 30\n# 密码加密\npwd_context = CryptContext(schemes=[\"bcrypt\"], deprecated=\"auto\")\nsecurity = HTTPBearer()\napp = FastAPI(title=\"Secure Demo API\", version=\"3.0.0\")\nclass User(BaseModel):\n    id: Optional[int] = None\n    username: str\n    email: str",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "ACCESS_TOKEN_EXPIRE_MINUTES",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "ACCESS_TOKEN_EXPIRE_MINUTES = 30\n# 密码加密\npwd_context = CryptContext(schemes=[\"bcrypt\"], deprecated=\"auto\")\nsecurity = HTTPBearer()\napp = FastAPI(title=\"Secure Demo API\", version=\"3.0.0\")\nclass User(BaseModel):\n    id: Optional[int] = None\n    username: str\n    email: str\n    role: str = \"user\"  # user, admin",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "pwd_context",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "pwd_context = CryptContext(schemes=[\"bcrypt\"], deprecated=\"auto\")\nsecurity = HTTPBearer()\napp = FastAPI(title=\"Secure Demo API\", version=\"3.0.0\")\nclass User(BaseModel):\n    id: Optional[int] = None\n    username: str\n    email: str\n    role: str = \"user\"  # user, admin\n    is_active: bool = True\nclass UserCreate(BaseModel):",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "security",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "security = HTTPBearer()\napp = FastAPI(title=\"Secure Demo API\", version=\"3.0.0\")\nclass User(BaseModel):\n    id: Optional[int] = None\n    username: str\n    email: str\n    role: str = \"user\"  # user, admin\n    is_active: bool = True\nclass UserCreate(BaseModel):\n    username: str",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "app",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "app = FastAPI(title=\"Secure Demo API\", version=\"3.0.0\")\nclass User(BaseModel):\n    id: Optional[int] = None\n    username: str\n    email: str\n    role: str = \"user\"  # user, admin\n    is_active: bool = True\nclass UserCreate(BaseModel):\n    username: str\n    email: str",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "users_db",
+        "kind": 5,
+        "importPath": "tests.tools.demo_compression",
+        "description": "tests.tools.demo_compression",
+        "peekOfCode": "users_db = [\n    {\n        \"id\": 1,\n        \"username\": \"admin\",\n        \"email\": \"admin@example.com\",\n        \"hashed_password\": pwd_context.hash(\"admin123\"),\n        \"role\": \"admin\",\n        \"is_active\": True\n    }\n]",
+        "detail": "tests.tools.demo_compression",
+        "documentation": {}
+    },
+    {
+        "label": "MockRunContextWrapper",
+        "kind": 6,
+        "importPath": "tests.tools.test_compression_tool",
+        "description": "tests.tools.test_compression_tool",
+        "peekOfCode": "class MockRunContextWrapper:\n    \"\"\"模拟 RunContextWrapper\"\"\"\n    def __init__(self, context: CodeAgentContext):\n        self.context = context\nclass TestCompressionTool:\n    \"\"\"测试 compression_tool._compress_context_tool 方法的完整功能\"\"\"\n    def _create_test_message_history(self) -> List[TResponseInputItem]:\n        \"\"\"创建测试用的消息历史\"\"\"\n        return [\n            {",
+        "detail": "tests.tools.test_compression_tool",
+        "documentation": {}
+    },
+    {
+        "label": "TestCompressionTool",
+        "kind": 6,
+        "importPath": "tests.tools.test_compression_tool",
+        "description": "tests.tools.test_compression_tool",
+        "peekOfCode": "class TestCompressionTool:\n    \"\"\"测试 compression_tool._compress_context_tool 方法的完整功能\"\"\"\n    def _create_test_message_history(self) -> List[TResponseInputItem]:\n        \"\"\"创建测试用的消息历史\"\"\"\n        return [\n            {\n                \"role\": \"user\", \n                \"content\": \"请帮我创建一个Python计算器类，需要支持基本的四则运算功能。\"\n            },\n            {",
+        "detail": "tests.tools.test_compression_tool",
+        "documentation": {}
+    },
+    {
+        "label": "Calculator",
+        "kind": 6,
+        "importPath": "tests.tools.test_compression_tool",
+        "description": "tests.tools.test_compression_tool",
+        "peekOfCode": "class Calculator:\n    def __init__(self):\n        self.history = []\n    def add(self, a, b):\n        result = a + b\n        self.history.append(f\"{a} + {b} = {result}\")\n        return result\n    def subtract(self, a, b):\n        result = a - b\n        self.history.append(f\"{a} - {b} = {result}\")",
+        "detail": "tests.tools.test_compression_tool",
+        "documentation": {}
+    },
+    {
+        "label": "AdvancedCalculator",
+        "kind": 6,
+        "importPath": "tests.tools.test_compression_tool",
+        "description": "tests.tools.test_compression_tool",
+        "peekOfCode": "class AdvancedCalculator(Calculator):\n    def power(self, base, exponent):\n        result = base ** exponent\n        self.history.append(f\"{base} ^ {exponent} = {result}\")\n        return result\n    def square_root(self, x):\n        if x < 0:\n            raise ValueError(\"Cannot calculate square root of negative number\")\n        result = math.sqrt(x)\n        self.history.append(f\"√{x} = {result}\")",
+        "detail": "tests.tools.test_compression_tool",
+        "documentation": {}
+    },
+    {
+        "label": "TestCalculator",
+        "kind": 6,
+        "importPath": "tests.tools.test_compression_tool",
+        "description": "tests.tools.test_compression_tool",
+        "peekOfCode": "class TestCalculator(unittest.TestCase):\n    def setUp(self):\n        self.calc = Calculator()\n    def test_add(self):\n        self.assertEqual(self.calc.add(2, 3), 5)\n        self.assertEqual(self.calc.add(-1, 1), 0)\n        self.assertEqual(self.calc.add(0.1, 0.2), 0.3)\n    def test_subtract(self):\n        self.assertEqual(self.calc.subtract(5, 3), 2)\n        self.assertEqual(self.calc.subtract(0, 5), -5)",
+        "detail": "tests.tools.test_compression_tool",
+        "documentation": {}
+    },
+    {
+        "label": "TestAdvancedCalculator",
+        "kind": 6,
+        "importPath": "tests.tools.test_compression_tool",
+        "description": "tests.tools.test_compression_tool",
+        "peekOfCode": "class TestAdvancedCalculator(unittest.TestCase):\n    def setUp(self):\n        self.calc = AdvancedCalculator()\n    def test_power(self):\n        self.assertEqual(self.calc.power(2, 3), 8)\n        self.assertEqual(self.calc.power(5, 0), 1)\n    def test_square_root(self):\n        self.assertEqual(self.calc.square_root(9), 3)\n        with self.assertRaises(ValueError):\n            self.calc.square_root(-1)",
+        "detail": "tests.tools.test_compression_tool",
+        "documentation": {}
+    },
+    {
+        "label": "OptimizedCalculator",
+        "kind": 6,
+        "importPath": "tests.tools.test_compression_tool",
+        "description": "tests.tools.test_compression_tool",
+        "peekOfCode": "class OptimizedCalculator:\n    def __init__(self, max_history: int = 1000):\n        self._history: List[str] = []\n        self._last_result: Optional[float] = None\n        self._max_history = max_history\n    def _record_operation(self, operation: str, result: float) -> float:\n        \\\"\\\"\\\"记录操作并管理历史记录大小\\\"\\\"\\\"\n        self._last_result = result\n        self._history.append(operation)\n        # 限制历史记录大小以优化内存使用",
+        "detail": "tests.tools.test_compression_tool",
         "documentation": {}
     },
     {

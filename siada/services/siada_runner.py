@@ -13,6 +13,8 @@ from siada.agent_hub.siada_agent import SiadaAgent
 
 import logging
 
+from siada.services.code_context_manager import ContextTracingProcessor
+
 class SiadaRunner:
 
     @overload
@@ -46,16 +48,17 @@ class SiadaRunner:
         stream: bool = False,
     ) -> RunResult | RunResultStreaming:
         """
-        运行指定的Agent
+        Run the specified Agent.
 
         Args:
-            agent_name: Agent名称
-            user_input: 用户输入
-            workspace: 工作空间路径，可选
-            stream: 是否启用流式输出，默认为False
+            agent_name: Name of the Agent.
+            user_input: User input.
+            workspace: Workspace path, optional.
+            session: The running session object, optional.
+            stream: Whether to enable streaming output, defaults to False.
 
         Returns:
-            Union[RunResult, RunResultStreaming]: 根据stream参数返回普通结果或流式结果
+            Union[RunResult, RunResultStreaming]: Returns a regular or streaming result based on the stream parameter.
         """
         agent = await SiadaRunner.get_agent(agent_name)
         context = await agent.get_context()
@@ -65,12 +68,17 @@ class SiadaRunner:
             context.session = session
 
         # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
+        console_output = session.running_config.console_output if session else True
+        context_tracing_processor = ContextTracingProcessor(context)
+
+        set_trace_processors([create_detailed_logger(console_output=console_output),
+                              context_tracing_processor])
 
         if stream:
-            # 流式执行
+            # Stream execution
             result = await agent.run_streamed(user_input, context)
         else:
-            # 普通执行
+            # Normal execution
             result = await agent.run(user_input, context)
 
         return result
@@ -159,4 +167,3 @@ class SiadaRunner:
         module_path, class_name = class_path.rsplit('.', 1)
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
-

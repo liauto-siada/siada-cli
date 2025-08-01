@@ -62,9 +62,10 @@ class FileEditSource(str, Enum):
     LLM_BASED_EDIT = 'llm_based_edit'
     OH_ACI = 'oh_aci'  # openhands-aci
 
+
 @dataclass
 class FunctionCallResult:
     content: str
 
     def format_for_display(self) -> str:
-        return str(self)
+        return self.__str__()

@@ -10,7 +10,10 @@
             "cwd": "${workspaceFolder}",
             "args": [
                 "--pretty",
-                "--workspace", "/Users/zhangmeng20/vscodeProject/test"
+                "--workspace",
+                "/Users/zhangmeng20/vscodeProject/test",
+                // "--thinking-tokens",
+                // "2k"
             ]
         },
         {

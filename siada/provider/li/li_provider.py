@@ -4,10 +4,19 @@ import asyncio
 from typing import Any, AsyncIterator, Literal, cast, overload
 
 import litellm
-from agents import GenerationSpanData, ModelProvider, Model, ModelResponse, Span, TResponseInputItem, \
-    AgentOutputSchemaBase, Tool, \
-    Handoff, ModelTracing, Usage
-from agents.model_settings import  ModelSettings
+# 直接从具体模块导入，避免通过 agents 主模块
+# 直接从 tracing 子模块导入，避免循环依赖
+from agents.models.interface import ModelProvider, Model, ModelTracing
+from agents.items import ModelResponse, TResponseInputItem
+from agents import AgentOutputSchemaBase
+from agents.tool import Tool
+from agents.handoffs import Handoff
+from agents.usage import Usage
+from agents.model_settings import ModelSettings
+
+from agents.tracing.span_data import GenerationSpanData
+from agents.tracing import Span
+
 from agents.extensions.models.litellm_model import LitellmConverter
 from agents.items import TResponseStreamEvent
 from agents.tracing.create import generation_span
@@ -17,23 +26,20 @@ from agents.models.chatcmpl_converter import Converter
 from agents.models.fake_id import FAKE_RESPONSES_ID
 
 from siada.provider.li.llm_connection import SiadaClient
-
 from litellm.types.utils import ModelResponse as LitellmModelResponse
-
 from siada.foundation.logging import logger
 from siada.provider.li.stream.__stream import AsyncStream
 from siada.provider.li.stream._stream_handler import ChatCmplStreamHandler as StreamHandler
 from agents.models.chatcmpl_helpers import HEADERS
 
 
-
 class LiModel(Model):
-
 
     def __init__(self, model: str):
         super().__init__()
         self._client = SiadaClient()
         self.model = model
+        self.context = None  # 添加 context 变量
         
 
     def _non_null_or_not_given(self, value: Any) -> Any:

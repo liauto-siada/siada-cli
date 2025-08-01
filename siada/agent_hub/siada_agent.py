@@ -147,9 +147,6 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
                 model_settings=model_settings
             )
 
-        console_output = running_session.running_config.console_output
-        set_trace_processors([create_detailed_logger(console_output=console_output)])
-
         session = running_session.state.openai_session
         return run_config, session
 

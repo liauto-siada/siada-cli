@@ -101,15 +101,16 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
     def assemble_user_input(self, user_input: str, context: CodeAgentContext) -> str:
         task = f'<task>\n{user_input}\n</task>'
-        repo_map_content = self.generate_repo_map(context)
+        return task
+        # repo_map_content = self.generate_repo_map(context)
 
-        if repo_map_content:
-            project_structure = f"Repository Map:\n{repo_map_content}"
-        else:
-            project_structure = "Repository Map: Unable to generate repository map"
+        # if repo_map_content:
+        #     project_structure = f"Repository Map:\n{repo_map_content}"
+        # else:
+        #     project_structure = "Repository Map: Unable to generate repository map"
 
-        environment_details = f'<environment_details>\n{project_structure}\n</environment_details>'
-        return task + '\n' + environment_details
+        # environment_details = f'<environment_details>\n{project_structure}\n</environment_details>'
+        # return task + '\n' + environment_details
 
     def generate_repo_map(self, context: CodeAgentContext) -> str:
         """

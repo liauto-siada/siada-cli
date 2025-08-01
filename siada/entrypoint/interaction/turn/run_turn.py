@@ -55,6 +55,7 @@ class ConversationTurn(RunTurn):
     got_content_part: bool = False
     got_reasoning_part: bool = False
     got_tool_result_part: bool = False
+    got_function_call_part: bool = False
 
     # Class-level dedicated event loop and thread, shared by all instances
     _dedicated_loop = None
@@ -171,6 +172,7 @@ class ConversationTurn(RunTurn):
                         self.got_reasoning_part = False
                         self.current_active_call_id = None
                         self.got_tool_result_part = False
+                        self.got_function_call_part = False
 
                     elif isinstance(
                         stream_data, ResponseReasoningSummaryPartAddedEvent
@@ -214,13 +216,23 @@ class ConversationTurn(RunTurn):
                         )
 
                     elif isinstance(stream_data, ResponseContentPartDoneEvent):
-                        self._live_incremental_response(
-                            "", self.response_content, final=True
-                        )
-                        self.mdstream = None
+                        if not self.got_function_call_part:
+                            # if not got function call part, flush the response content
+                            self._live_incremental_response(
+                                "", self.response_content, final=True
+                            )
+                            self.mdstream = None
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
+                            if not self.got_function_call_part:
+                                self.got_function_call_part = True
+                                # flush the response content
+                                self._live_incremental_response(
+                                    "", self.response_content, final=True
+                                )
+                                self.mdstream = None
+
                             call_id = stream_data.item.call_id
                             tool_name = stream_data.item.name
                             self.tool_calls[call_id] = {
@@ -309,12 +321,11 @@ class ConversationTurn(RunTurn):
         delta_text: str,
         response_content: str,
         final: bool = False,
-        flush: bool = False,
     ):
         if self.mdstream:
             # ignore reasoning tag ,because it cause the stream output formate error just ignore process the xml tags
             # response_content = self.replace_reasoning_tag(response_content, DEFAULT_REASONING_TAG)
-            self.mdstream.update(response_content, final, flush=flush)
+            self.mdstream.update(response_content, final)
         else:
             self.config.io.print_info(delta_text)
 
