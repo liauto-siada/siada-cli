@@ -9,8 +9,6 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "--no-pretty",
-                "--no-fancy-input",
                 "--workspace",
                 "/Users/zhangmeng20/vscodeProject/test",
                 // "--thinking-tokens",

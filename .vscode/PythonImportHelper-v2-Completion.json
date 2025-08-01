@@ -8818,7 +8818,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.turn.run_turn",
         "description": "siada.entrypoint.interaction.turn.run_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\nSPLIT_TAG = \"--------------\\n\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\nSPLIT_TAG = \"\\n--------------\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
         "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
@@ -8827,7 +8827,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.turn.run_turn",
         "description": "siada.entrypoint.interaction.turn.run_turn",
-        "peekOfCode": "SPLIT_TAG = \"--------------\\n\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None",
+        "peekOfCode": "SPLIT_TAG = \"\\n--------------\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None",
         "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },

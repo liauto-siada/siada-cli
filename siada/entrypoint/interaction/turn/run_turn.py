@@ -160,11 +160,6 @@ class ConversationTurn(RunTurn):
                     # Handle different types of stream events
                     if isinstance(stream_data, ResponseCreatedEvent):
                         # Response started
-                        self.mdstream = (
-                            self.config.io.get_assistant_mdstream()
-                            if self.config.io.pretty
-                            else None
-                        )
                         self.response_content = ""
                         self.tool_calls = {}
                         self.tool_call_mdstreams = {}
@@ -177,6 +172,12 @@ class ConversationTurn(RunTurn):
                     elif isinstance(
                         stream_data, ResponseReasoningSummaryPartAddedEvent
                     ):
+                        if self.mdstream is None:
+                            self.mdstream = (
+                                self.config.io.get_assistant_mdstream()
+                                if self.config.io.pretty
+                                else None
+                            )
                         continue
 
                     elif isinstance(
@@ -195,6 +196,12 @@ class ConversationTurn(RunTurn):
                         )
 
                     elif isinstance(stream_data, ResponseContentPartAddedEvent):
+                        if self.mdstream is None:
+                            self.mdstream = (
+                                self.config.io.get_assistant_mdstream()
+                                if self.config.io.pretty
+                                else None
+                            )
                         continue
 
                     elif isinstance(stream_data, ResponseTextDeltaEvent):
@@ -217,7 +224,7 @@ class ConversationTurn(RunTurn):
 
                     elif isinstance(stream_data, ResponseContentPartDoneEvent):
                         if not self.got_function_call_part:
-                            if self.got_reasoning_part or self.got_content_part:
+                            if self.response_content:
                                 # if not got function call part, flush the response content
                                 self._live_incremental_response(
                                     "\n", self.response_content, final=True
