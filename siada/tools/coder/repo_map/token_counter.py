@@ -69,14 +69,14 @@ class TokenCounterModel:
     def _check_litellm_availability(self) -> bool:
         """Check if litellm is available."""
         try:
-            import litellm
+            from siada.provider.lazy_lite_llm import litellm
             return True
         except ImportError:
             return False
     
     def _count_with_litellm(self, text: str) -> int:
         """Count tokens using litellm."""
-        import litellm
+        from siada.provider.lazy_lite_llm import litellm
         response = litellm.token_counter(model=self.model_name, text=text)
         return int(response)
     

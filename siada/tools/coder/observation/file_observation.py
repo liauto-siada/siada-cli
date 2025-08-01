@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
-from siada.tools.coder.observation.observation import Observation, FileReadSource, ObservationType, FileEditSource
+import re
+from siada.tools.coder.observation.observation import FunctionCallResult, FileReadSource, ObservationType, FileEditSource
 
 
 @dataclass
-class FileReadObservation(Observation):
+class FileReadObservation(FunctionCallResult):
     """This data class represents the content of a file."""
 
     path: str
@@ -22,7 +23,7 @@ class FileReadObservation(Observation):
         return f'[Read from {self.path} is successful.]\n{self.content}'
 
 @dataclass
-class FileWriteObservation(Observation):
+class FileWriteObservation(FunctionCallResult):
     """This data class represents a file write operation."""
 
     path: str
@@ -32,15 +33,17 @@ class FileWriteObservation(Observation):
     def message(self) -> str:
         """Get a human-readable message describing the file write operation."""
         return f'I wrote to the file {self.path}.'
+    
+    def format_for_display(self) -> str:
+        return self.message
 
     def __str__(self) -> str:
         """Get a string representation of the file write observation."""
         return f'[Write to {self.path} is successful.]\n{self.content}'
 
 
-
 @dataclass
-class FileEditObservation(Observation):
+class FileEditObservation(FunctionCallResult):
     """This data class represents a file edit operation.
 
     The observation includes both the old and new content of the file, and can
@@ -64,11 +67,25 @@ class FileEditObservation(Observation):
     _diff_cache: str | None = (
         None  # Cache for the diff visualization, used in LLM-based editing mode
     )
+    command: str = "unknown"
 
     @property
     def message(self) -> str:
-        """Get a human-readable message describing the file edit operation."""
-        return f'I edited the file {self.path}.'
+        if self.command == "view":
+            return f"siada viewed the file {self.path}."
+        elif self.command == "create":
+            return f"siada created the file {self.path}."
+        elif self.command == "str_replace":
+            return f"siada replaced the string in the file {self.path}."
+        elif self.command == "insert":
+            return f"siada inserted the string in the file {self.path}."
+        elif self.command == "undo_edit":
+            return f"siada reverted the last edit in the file {self.path}."
+        else:
+            return f"siada has operated the file {self.path}."
+
+    def format_for_display(self) -> str:
+        return self.message
 
     def get_edit_groups(self, n_context_lines: int = 2) -> list[dict[str, list[str]]]:
         """Get the edit groups showing changes between old and new content.

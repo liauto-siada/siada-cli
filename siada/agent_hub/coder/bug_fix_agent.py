@@ -50,11 +50,11 @@ class BugFixAgent(CodeGenAgent):
     async def get_context(self) -> CodeAgentContext:
         current_working_dir = os.getcwd()
         context = CodeAgentContext(root_dir=current_working_dir)
-        
+
         # 将 context 值赋给 model 对象
         if hasattr(self, 'model') and hasattr(self.model, 'context'):
             self.model.context = context
-        
+
         return context
 
     async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
@@ -92,7 +92,7 @@ class BugFixAgent(CodeGenAgent):
             # Check if the issue is fixed using run_checker
             try:
                 check_result = await self.run_checker_by_agent(user_input, context)
-                
+
                 if check_result.get("is_fixed", False):
                     # Issue is fixed, break the loop
                     print(f"Fix_check_result, Issue fixed: {check_result.get('check_summary', 'Fix verified')}")
@@ -101,7 +101,7 @@ class BugFixAgent(CodeGenAgent):
                     # Issue not fixed, add the check_summary to input_list for next iteration
                     check_summary = check_result.get("check_summary", "Fix verification failed")
                     print(f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}")
-                    
+
                     # Add the unfixed check_summary to input_list for next round
                     feedback_message = {
                         "content": f"Here is the previous fix logic:\n{result.final_output}"
@@ -123,7 +123,7 @@ class BugFixAgent(CodeGenAgent):
     async def run_checker_by_agent(self, user_input: str, context: CodeAgentContext):
 
         result = await self.issue_review_agent.run(user_input, context)
-        
+
         output = ast.literal_eval(result.final_output)
         return output
 

@@ -21,7 +21,7 @@ from agents.extensions.models.litellm_model import LitellmConverter
 from agents.items import TResponseStreamEvent
 from agents.tracing.create import generation_span
 from openai.types.responses import Response
-from openai import NOT_GIVEN
+from openai import NOT_GIVEN, NotGiven
 from agents.models.chatcmpl_converter import Converter
 from agents.models.fake_id import FAKE_RESPONSES_ID
 
@@ -30,6 +30,8 @@ from litellm.types.utils import ModelResponse as LitellmModelResponse
 from siada.foundation.logging import logger
 from siada.provider.li.stream.__stream import AsyncStream
 from siada.provider.li.stream._stream_handler import ChatCmplStreamHandler as StreamHandler
+from agents.models.chatcmpl_helpers import HEADERS
+
 
 class LiModel(Model):
 
@@ -54,6 +56,7 @@ class LiModel(Model):
             tracing: ModelTracing,
             *,
             previous_response_id: str | None,
+            prompt: Any | None
             
     ) -> ModelResponse:
         """Get a response from the model.
@@ -68,6 +71,7 @@ class LiModel(Model):
             tracing: Tracing configuration.
             previous_response_id: the ID of the previous response. Generally not used by the model,
                 except for the OpenAI Responses API.
+            prompt: The prompt config to use for the model.
 
         Returns:
             The full model response.
@@ -150,6 +154,7 @@ class LiModel(Model):
             tracing: ModelTracing,
             *,
             previous_response_id: str | None,
+            prompt: Any | None
     ) -> AsyncIterator[TResponseStreamEvent]:
         """Stream a response from the model.
 
@@ -163,6 +168,7 @@ class LiModel(Model):
             tracing: Tracing configuration.
             previous_response_id: the ID of the previous response. Generally not used by the model,
                 except for the OpenAI Responses API.
+            prompt: The prompt config to use for the model.
 
         Returns:
             An iterator of response stream events, in OpenAI Responses format.
@@ -267,7 +273,7 @@ class LiModel(Model):
             if model_settings.parallel_tool_calls and tools and len(tools) > 0
             else False
             if model_settings.parallel_tool_calls is False
-            else NOT_GIVEN
+            else None
         )
         tool_choice = Converter.convert_tool_choice(model_settings.tool_choice)
         response_format = Converter.convert_response_format(output_schema)
@@ -284,23 +290,46 @@ class LiModel(Model):
         if stream and model_settings.include_usage is not None:
             stream_options = {"include_usage": model_settings.include_usage}
 
+        extra_kwargs = {}
+        if model_settings.extra_query:
+            extra_kwargs["extra_query"] = model_settings.extra_query
+        if model_settings.metadata:
+            extra_kwargs["metadata"] = model_settings.metadata
+        if model_settings.extra_body and isinstance(model_settings.extra_body, dict):
+            extra_kwargs.update(model_settings.extra_body)
+
+        # Add kwargs from model_settings.extra_args, filtering out None values
+        if model_settings.extra_args:
+            extra_kwargs.update(model_settings.extra_args)
+
+        # process the thinking config for li provider
+        if extra_kwargs and "max_tokens" in extra_kwargs:
+            thinking_budget = extra_kwargs.pop("max_tokens", None)
+            if thinking_budget and thinking_budget > 0:
+                extra_kwargs["thinking"] = {
+                    "type" : "enabled",
+                    "budget_tokens": thinking_budget
+                }
+    
+
         complete_kwargs = {
             "model": self.model,
             "messages": converted_messages,
-            "tools": converted_tools or NOT_GIVEN,
-            "temperature": self._non_null_or_not_given(model_settings.temperature),
-            "top_p": self._non_null_or_not_given(model_settings.top_p),
-            "frequency_penalty": self._non_null_or_not_given(model_settings.frequency_penalty),
-            "presence_penalty": self._non_null_or_not_given(model_settings.presence_penalty),
-            "max_tokens": self._non_null_or_not_given(model_settings.max_tokens),
-            "tool_choice": tool_choice,
-            "response_format": response_format,
+            "tools": converted_tools or None,
+            "temperature": model_settings.temperature,
+            "top_p": model_settings.top_p,
+            "frequency_penalty": model_settings.frequency_penalty,
+            "presence_penalty": model_settings.presence_penalty,
+            "max_tokens": model_settings.max_tokens,
+            "tool_choice": self._remove_not_given(tool_choice),
+            "response_format": self._remove_not_given(response_format),
             "parallel_tool_calls": parallel_tool_calls,
             "stream": stream,
             "stream_options": stream_options,
-            "reasoning_effort": self._non_null_or_not_given(reasoning_effort),
-            "extra_query": model_settings.extra_query,
-            "extra_body": model_settings.extra_body,
+            "reasoning_effort": reasoning_effort,
+            "extra_headers": {**HEADERS, **(model_settings.extra_headers or {})},
+            # "extra_body": {**(model_settings.extra_body or {})},
+            **extra_kwargs,
         }
         
         if stream:
@@ -340,6 +369,11 @@ class LiModel(Model):
             reasoning=model_settings.reasoning,
         )
         return response, ret
+    
+    def _remove_not_given(self, value: Any) -> Any:
+        if isinstance(value, NotGiven):
+            return None
+        return value
 
 
 

@@ -1,0 +1,498 @@
+"""
+Run Turn Module
+
+Manages individual interaction turns between user and AI, including command processing
+and model conversations. Encapsulates the logic for a single interaction cycle.
+"""
+
+import grep_ast
+from siada.foundation.logging import logger
+import re
+import siada.io.components.mdstream
+from typing import Optional, Dict, Any
+
+from agents import (
+    RawResponsesStreamEvent,
+    RunItemStreamEvent,
+    RunResultStreaming,
+    ToolCallOutputItem,
+)
+
+from siada.tools.coder.observation.observation import FunctionCallResult
+from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
+
+# Import existing InteractionConfig
+from ..config import RunningConfig
+
+# Import models and interface from the same directory
+from .models import TurnType, TurnInput, TurnOutput
+from .interface import RunTurn
+from rich.markdown import Markdown
+from rich.text import Text
+
+
+# Standard tag identifier
+REASONING_TAG = "thinking-content-" + "7bbeb8e1441453ad999a0bbba8a46d4b"
+
+SPLIT_TAG = "--------------\n\n"
+# Output formatting
+
+REASONING_START = "► **THINKING**"
+
+REASONING_END = "► **ANSWER**"
+
+TOOL_CALL_START = "► **TOOL USE**"
+
+
+class ConversationTurn(RunTurn):
+    """Handles regular AI conversation turns"""
+
+    mdstream: siada.io.components.mdstream.MarkdownRender = None
+    tool_calls: Dict[str, Dict[str, Any]] = None
+    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None
+    response_content: str = None
+    current_active_call_id: Optional[str] = None
+    got_content_part: bool = False
+    got_reasoning_part: bool = False
+    got_tool_result_part: bool = False
+    got_function_call_part: bool = False
+
+    # Class-level dedicated event loop and thread, shared by all instances
+    _dedicated_loop = None
+    _dedicated_thread = None
+    _loop_ready = None
+
+    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):
+        super().__init__(config, session, slash_commands)
+        self.mdargs = dict(
+            style=self.config.running_color_settings.split_line_color,
+            code_theme=self.config.running_color_settings.code_theme,
+            inline_code_lexer="text",
+        )
+
+    @classmethod
+    def _ensure_dedicated_loop(cls):
+        """Ensure dedicated event loop is started"""
+        if cls._dedicated_loop is None or cls._dedicated_loop.is_closed():
+            import threading
+            import asyncio
+
+            # Detect if main thread has a running event loop (prompt_toolkit might be using it)
+            try:
+                main_loop = asyncio.get_running_loop()
+                logger.info(f"📋 Detected main thread event loop: {id(main_loop)}")
+            except RuntimeError:
+                logger.info("📋 No event loop in main thread")  # Normal case
+
+            # Create event for synchronization
+            cls._loop_ready = threading.Event()
+
+            def run_dedicated_loop():
+                """Run event loop in dedicated thread"""
+                # Create new event loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                cls._dedicated_loop = loop
+
+                # Notify main thread that loop is ready
+                cls._loop_ready.set()
+
+                try:
+                    # Run event loop until stopped
+                    loop.run_forever()
+                finally:
+                    # Cleanup
+                    loop.close()
+                    cls._dedicated_loop = None
+
+            # Start dedicated thread
+            cls._dedicated_thread = threading.Thread(
+                target=run_dedicated_loop,
+                daemon=True,  # Daemon thread, auto-terminate when main program exits
+                name="ConversationTurn-AsyncLoop",
+            )
+            cls._dedicated_thread.start()
+
+            # Wait for event loop to be ready
+            cls._loop_ready.wait()
+
+    @classmethod
+    def _cleanup_dedicated_loop(cls):
+        """Cleanup dedicated event loop (optional, mainly for testing or graceful shutdown)"""
+        if cls._dedicated_loop and not cls._dedicated_loop.is_closed():
+            cls._dedicated_loop.call_soon_threadsafe(cls._dedicated_loop.stop)
+            if cls._dedicated_thread and cls._dedicated_thread.is_alive():
+                cls._dedicated_thread.join(timeout=5.0)
+
+    def get_turn_type(self) -> TurnType:
+        return TurnType.CONVERSATION
+
+    def can_handle(self, user_input: str) -> bool:
+        """Handle non-command input"""
+        return not self.slash_commands.is_command(user_input)
+
+    async def output_stream_content(self, result: RunResultStreaming) -> None:
+        """Process stream events and handle real-time output"""
+        from openai.types.responses import (
+            ResponseTextDeltaEvent,
+            ResponseReasoningSummaryTextDeltaEvent,
+            ResponseFunctionCallArgumentsDeltaEvent,
+            ResponseContentPartAddedEvent,
+            ResponseOutputItemAddedEvent,
+            ResponseCompletedEvent,
+            ResponseCreatedEvent,
+            ResponseReasoningSummaryPartAddedEvent,
+            ResponseFunctionToolCall,
+            ResponseOutputItemDoneEvent,
+            ResponseContentPartDoneEvent,
+        )
+        from openai.types.responses.response_input_item_param import FunctionCallOutput
+
+        stream_iterator = None
+        try:
+            stream_iterator = result.stream_events()
+            async for event in stream_iterator:
+                if isinstance(event, RawResponsesStreamEvent):
+
+                    # Handle the raw response stream event
+                    stream_data = event.data
+
+                    # Handle different types of stream events
+                    if isinstance(stream_data, ResponseCreatedEvent):
+                        # Response started
+                        self.mdstream = (
+                            self.config.io.get_assistant_mdstream()
+                            if self.config.io.pretty
+                            else None
+                        )
+                        self.response_content = ""
+                        self.tool_calls = {}
+                        self.tool_call_mdstreams = {}
+                        self.got_content_part = False
+                        self.got_reasoning_part = False
+                        self.current_active_call_id = None
+                        self.got_tool_result_part = False
+                        self.got_function_call_part = False
+
+                    elif isinstance(
+                        stream_data, ResponseReasoningSummaryPartAddedEvent
+                    ):
+                        continue
+
+                    elif isinstance(
+                        stream_data, ResponseReasoningSummaryTextDeltaEvent
+                    ):
+                        if not self.got_reasoning_part and stream_data.delta:
+                            self.got_reasoning_part = True
+                            self.print_split_line()
+                            delta_text = f"\n{REASONING_START}\n\n{stream_data.delta}"
+                            self.response_content += delta_text
+                        else:
+                            delta_text = stream_data.delta
+                            self.response_content += delta_text
+                        self._live_incremental_response(
+                            delta_text, self.response_content
+                        )
+
+                    elif isinstance(stream_data, ResponseContentPartAddedEvent):
+                        continue
+
+                    elif isinstance(stream_data, ResponseTextDeltaEvent):
+                        if not self.got_content_part and stream_data.delta:
+                            self.got_content_part = True
+                            # self.response_content += "\n"
+                            # self._live_incremental_response(
+                            #     "", self.response_content, flush=False
+                            # )
+                            if not self.got_reasoning_part:
+                                self.print_split_line()
+                            delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}"
+                            self.response_content += delta_text
+                        else:
+                            delta_text = stream_data.delta
+                            self.response_content += delta_text
+                        self._live_incremental_response(
+                            delta_text, self.response_content
+                        )
+
+                    elif isinstance(stream_data, ResponseContentPartDoneEvent):
+                        if not self.got_function_call_part:
+                            # if not got function call part, flush the response content
+                            self._live_incremental_response(
+                                "", self.response_content, final=True
+                            )
+                            self.mdstream = None
+
+                    elif isinstance(stream_data, ResponseOutputItemAddedEvent):
+                        if isinstance(stream_data.item, ResponseFunctionToolCall):
+                            if not self.got_function_call_part:
+                                self.got_function_call_part = True
+                                # flush the response content
+                                self._live_incremental_response(
+                                    "", self.response_content, final=True
+                                )
+                                self.mdstream = None
+
+                            call_id = stream_data.item.call_id
+                            tool_name = stream_data.item.name
+                            self.tool_calls[call_id] = {
+                                "name": tool_name,
+                                "arguments": "",
+                            }
+                            self.current_active_call_id = call_id
+                            self.print_split_line()
+                            self.config.io.print_tool_call(
+                                f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}\n"
+                            )
+
+                    elif isinstance(
+                        stream_data, ResponseFunctionCallArgumentsDeltaEvent
+                    ):
+                        delta = stream_data.delta
+                        if self.current_active_call_id:
+                            self.tool_calls[self.current_active_call_id][
+                                "arguments"
+                            ] += delta
+
+                        ## TODO: stream output the tool call arge
+
+                    elif isinstance(stream_data, ResponseOutputItemDoneEvent):
+                        if isinstance(stream_data.item, ResponseFunctionToolCall):
+                            call_id = stream_data.item.call_id
+                            if call_id in self.tool_calls:
+                                tool_name = self.tool_calls[call_id]["name"]
+                                full_arguments = self.tool_calls[call_id]["arguments"]
+
+                                tool_call_formatter = (
+                                    ToolCallFormatterFactory.get_formatter(tool_name)
+                                )
+                                style, content = tool_call_formatter.format_input(
+                                    call_id, tool_name, full_arguments
+                                )
+
+                                if style == "markdown":
+                                    if call_id not in self.tool_call_mdstreams:
+                                        self.tool_call_mdstreams[call_id] = (
+                                            self.config.io.get_assistant_mdstream()
+                                        )
+                                    self.tool_call_mdstreams[call_id].update(
+                                        content, final=True
+                                    )
+                                    del self.tool_call_mdstreams[call_id]
+                                else:
+                                    self.config.io.print_tool_call(content)
+
+                            if self.current_active_call_id == call_id:
+                                self.current_active_call_id = None
+
+                    elif isinstance(stream_data, ResponseCompletedEvent):
+                        pass
+
+                elif isinstance(event, RunItemStreamEvent):
+                    stream_data = event.item
+                    if isinstance(stream_data, ToolCallOutputItem):
+                        call_id = stream_data.raw_item.get("call_id", None)
+                        if call_id:
+                            if call_id in self.tool_calls:
+                                tool_name = self.tool_calls[call_id]["name"]
+                                self.print_split_line()
+                                self.config.io.print_tool_result()
+                                output = stream_data.output
+                                if isinstance(output, FunctionCallResult):
+                                    self.config.io.print_tool_result(
+                                        output.format_for_display()
+                                    )
+                                else:
+                                    self.config.io.print_tool_result(str(output))
+
+        except Exception as e:
+            # Clean up MarkdownStream if it exists on stream error
+            if hasattr(self, "mdstream") and self.mdstream is not None:
+                try:
+                    if hasattr(self, "response_content") and self.response_content:
+                        self.mdstream.update(self.response_content, final=True)
+                    self.mdstream = None
+                except Exception:
+                    pass  # Ignore cleanup errors
+            raise e
+
+    def _live_incremental_response(
+        self,
+        delta_text: str,
+        response_content: str,
+        final: bool = False,
+    ):
+        if self.mdstream:
+            # ignore reasoning tag ,because it cause the stream output formate error just ignore process the xml tags
+            # response_content = self.replace_reasoning_tag(response_content, DEFAULT_REASONING_TAG)
+            self.mdstream.update(response_content, final)
+        else:
+            self.config.io.print_info(delta_text)
+
+    def execute(self, turn_input: TurnInput) -> TurnOutput:
+        """Execute AI conversation turn
+
+        Args:
+            turn_input: User input for conversation
+
+        Returns:
+            TurnOutput: AI response
+        """
+        self.input_data = turn_input
+        self.start_time = self._get_timestamp()
+
+        try:
+            # Import here to avoid circular imports
+            from siada.services.siada_runner import SiadaRunner
+            import asyncio
+
+            # Define async execution logic
+            async def _async_execute():
+                # Run agent for conversation
+                result: RunResultStreaming = await SiadaRunner.run_agent(
+                    agent_name=self.config.agent_name,
+                    user_input=turn_input.use_input,
+                    workspace=self.config.workspace,
+                    session=self.session,
+                    stream=True,
+                )
+
+                await self.output_stream_content(result)
+                return result
+
+            # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
+            self._ensure_dedicated_loop()
+
+            # Execute async task in dedicated loop
+            future = asyncio.run_coroutine_threadsafe(
+                _async_execute(), self._dedicated_loop
+            )
+            result = future.result()
+
+            self.end_time = self._get_timestamp()
+
+            output = TurnOutput(
+                output=result.final_output,
+                metadata={
+                    "agent_used": self.config.agent_name,
+                    "execution_time": self.end_time - self.start_time,
+                },
+                next_action=None,
+            )
+
+            self.output_data = output
+            return output
+
+        except Exception as e:
+            self.end_time = self._get_timestamp()
+
+            # Clean up MarkdownStream if it exists
+            if hasattr(self, "mdstream") and self.mdstream is not None:
+                try:
+                    # Force final output of any accumulated content
+                    if hasattr(self, "response_content") and self.response_content:
+                        self.mdstream.update(self.response_content, final=True)
+                    self.mdstream = None
+                except Exception:
+                    pass  # Ignore cleanup errors
+
+            return self.handle_error(e)
+
+    # def replace_reasoning_tag(self, text, tag_name):
+    #     """
+    #     Replace opening and closing reasoning tags with standard formatting.
+    #     Ensures exactly one blank line before START and END markers.
+
+    #     Args:
+    #         text (str): The text containing the tags
+    #         tag_name (str): The name of the tag to replace
+
+    #     Returns:
+    #         str: Text with reasoning tags replaced with standard format
+    #     """
+    #     if not text:
+    #         return text
+
+    #     # Replace opening tag with thinking format
+    #     text = re.sub(f"\\s*<{tag_name}>\\s*", "\n```thinking\n", text)
+
+    #     # Replace closing tag with thinking format
+    #     text = re.sub(f"\\s*</{tag_name}>\\s*", "\n```\n\n", text)
+
+    #     return text
+
+    def print_split_line(self):
+        if self.config.io.pretty:
+            show = Markdown(SPLIT_TAG, **self.mdargs)
+            self.config.io.console.print(show)
+        else:
+            self.config.io.console.print(SPLIT_TAG)
+
+
+class CommandTurn(RunTurn):
+    """Handles slash command turns"""
+
+    def get_turn_type(self) -> TurnType:
+        return TurnType.COMMAND
+
+    def can_handle(self, user_input: str) -> bool:
+        """Handle slash commands"""
+        return self.slash_commands.is_command(user_input)
+
+    def execute(self, turn_input: TurnInput) -> TurnOutput:
+        """Execute slash command
+
+        Args:
+            turn_input: Command input
+
+        Returns:
+            TurnOutput: Command result
+        """
+        self.input_data = turn_input
+        self.start_time = self._get_timestamp()
+
+        try:
+            result = self.slash_commands.run(self.session, turn_input.use_input)
+            self.end_time = self._get_timestamp()
+
+            output = TurnOutput(
+                output=result,
+                metadata={"execution_time": self.end_time - self.start_time},
+                next_action=None,
+            )
+
+            return output
+
+        except Exception as e:
+            self.end_time = self._get_timestamp()
+            return self.handle_error(e)
+
+
+class TurnFactory:
+    """Factory for creating appropriate turn instances"""
+
+    @staticmethod
+    def create_turn(
+        config: RunningConfig, session: Any, slash_commands: Any, user_input: str
+    ) -> RunTurn:
+        """Create appropriate turn for user input
+
+        Args:
+            user_input: Raw user input
+
+        Returns:
+            RunTurn: Appropriate turn handler
+        """
+        # Always create new instances to avoid state pollution
+        turn_types = [
+            CommandTurn,
+            ConversationTurn,
+        ]
+
+        for turn_class in turn_types:
+            # Create a temporary instance to test if it can handle the input
+            temp_turn = turn_class(config, session, slash_commands)
+            if temp_turn.can_handle(user_input):
+                return temp_turn
+
+        raise ValueError(f"No turn can handle the input: {user_input}")

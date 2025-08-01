@@ -13,7 +13,7 @@ from binaryornot.check import is_binary
 
 from siada.tools.coder.files import read_lines
 from siada.tools.coder.observation.file_observation import FileReadObservation, FileEditObservation
-from siada.tools.coder.observation.observation import Observation, FileEditSource
+from siada.tools.coder.observation.observation import FunctionCallResult, FileEditSource
 from siada.tools.coder.observation.error import ErrorObservation
 from siada.tools.coder.observation.observation import FileReadSource
 from siada.tools.coder.tool_docs import EDIT_DOCS
@@ -30,7 +30,7 @@ async def read(
     end: int = -1,
     impl_source: FileReadSource = FileReadSource.DEFAULT,
     view_range: list[int] | None = None
-) -> Observation:
+) -> FunctionCallResult:
     """
     Read file content with support for various file types including text, images, PDFs, and videos.
     
@@ -147,7 +147,7 @@ async def edit(
     new_str: str | None = None,
     insert_line: int | None = None,
     view_range: list[int] | None = None
-) -> Observation:
+) -> FunctionCallResult:
     file_editor = OHEditor(workspace_root=context.context.root_dir)
     result_str, (old_content, new_content) = _execute_file_editor(
         file_editor,
@@ -172,6 +172,7 @@ async def edit(
             new_contents=new_content or '',
             filepath=path,
         ),
+        command=command,
     )
 
 

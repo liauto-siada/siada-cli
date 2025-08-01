@@ -76,9 +76,9 @@ check_python() {
 uninstall_old() {
     log_info "检查是否已安装旧版本..."
     
-    if pip3 show siada-api &> /dev/null; then
+    if pip3 show siada-agenthub &> /dev/null; then
         log_warning "发现已安装的版本，正在卸载..."
-        pip3 uninstall siada-api -y
+        pip3 uninstall siada-agenthub -y
         log_success "旧版本卸载完成"
     else
         log_info "未发现已安装的版本"

@@ -50,6 +50,7 @@ class LoggerTracingProcessor(TracingProcessor):
         show_trace_lifecycle: bool = True,
         show_timestamps: bool = True,
         use_colors: bool = True,
+        console_output: bool = True,
         output_file: Optional[str] = None,
         indent_level: int = 0
     ):
@@ -63,6 +64,7 @@ class LoggerTracingProcessor(TracingProcessor):
             show_trace_lifecycle: Whether to show Trace lifecycle
             show_timestamps: Whether to show timestamps
             use_colors: Whether to use colored output
+            console_output: Whether to output to console (default: True)
             output_file: Optional output file path
             indent_level: Indentation level
         """
@@ -72,6 +74,7 @@ class LoggerTracingProcessor(TracingProcessor):
         self.show_trace_lifecycle = show_trace_lifecycle
         self.show_timestamps = show_timestamps
         self.use_colors = use_colors
+        self.console_output = console_output
         self.output_file = output_file
         self.indent_level = indent_level
         
@@ -95,7 +98,9 @@ class LoggerTracingProcessor(TracingProcessor):
         indent = "  " * self.indent_level
         full_message = f"{indent}{message}"
         
-        print(full_message)
+        # Print to console only if console_output is enabled
+        if self.console_output:
+            print(full_message)
         
         if self.output_file:
             try:
@@ -106,7 +111,9 @@ class LoggerTracingProcessor(TracingProcessor):
                         clean_message = clean_message.replace(color, '')
                     f.write(clean_message + '\n')
             except Exception as e:
-                print(f"Warning: Failed to write to file {self.output_file}: {e}")
+                # Only print warning to console if console output is enabled
+                if self.console_output:
+                    print(f"Warning: Failed to write to file {self.output_file}: {e}")
     
     def _truncate_content(self, content: str, max_length: int = 500) -> str:
         """Truncate overly long content"""
@@ -376,18 +383,19 @@ class LoggerTracingProcessor(TracingProcessor):
 
 
 # Convenient factory functions
-def create_simple_logger() -> LoggerTracingProcessor:
+def create_simple_logger(console_output: bool = True) -> LoggerTracingProcessor:
     """Create a simple logger"""
     return LoggerTracingProcessor(
         show_model_calls=True,
         show_tool_calls=True,
         show_handoffs=True,
         show_trace_lifecycle=True,
-        use_colors=True
+        use_colors=True,
+        console_output=console_output
     )
 
 
-def create_detailed_logger(output_file: Optional[str] = None) -> LoggerTracingProcessor:
+def create_detailed_logger(output_file: Optional[str] = None, console_output: bool = True) -> LoggerTracingProcessor:
     """Create a detailed logger"""
     # If no output file is specified, use the default log file path
     if output_file is None:
@@ -409,16 +417,23 @@ def create_detailed_logger(output_file: Optional[str] = None) -> LoggerTracingPr
         show_trace_lifecycle=True,
         show_timestamps=True,
         use_colors=True,
+        console_output=console_output,
         output_file=output_file
     )
 
 
-def create_minimal_logger() -> LoggerTracingProcessor:
+def create_file_only_logger(output_file: Optional[str] = None) -> LoggerTracingProcessor:
+    """Create a logger that only writes to file (no console output)"""
+    return create_detailed_logger(output_file=output_file, console_output=False)
+
+
+def create_minimal_logger(console_output: bool = True) -> LoggerTracingProcessor:
     """Create a minimal logger"""
     return LoggerTracingProcessor(
         show_model_calls=True,
         show_tool_calls=False,
         show_handoffs=True,
         show_trace_lifecycle=False,
-        use_colors=False
+        use_colors=False,
+        console_output=console_output
     )

@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
-from siada.tools.coder.observation.observation import Observation
+from siada.tools.coder.observation.observation import FunctionCallResult
 
 
 @dataclass
-class ErrorObservation(Observation):
+class ErrorObservation(FunctionCallResult):
     """This data class represents an error encountered by the agent.
 
     This is the type of error that LLM can recover from.

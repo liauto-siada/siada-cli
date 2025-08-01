@@ -5,7 +5,7 @@ Provides specialized Agent implementation for code generation tasks.
 """
 import os
 
-from agents import RunContextWrapper, RunResult, RunResultStreaming, Runner, RunConfig, add_trace_processor
+from agents import RunContextWrapper, RunResult, RunResultStreaming
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.ast.ast_tool import list_code_definition_names
@@ -16,9 +16,6 @@ from siada.foundation.config import settings
 from siada.provider.li.li_provider import SiadaProvider
 from siada.agent_hub.coder.prompt import code_gen_prompt
 import logging
-from siada.agent_hub.coder.tracing import create_detailed_logger
-from agents import set_trace_processors
-
 
 
 logging.getLogger().setLevel(logging.INFO)
@@ -33,21 +30,20 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
     def __init__(self, *args, **kwargs):
         provider = SiadaProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
-        
+
         if 'name' not in kwargs:
             kwargs['name'] = "CodeGenAgent"
-        
+
         if 'tools' not in kwargs:
             kwargs['tools'] = [edit, regex_search_files, run_cmd, list_code_definition_names]
-            
+
         if 'model' not in kwargs:
             kwargs['model'] = model
-        
+
         super().__init__(
             *args,
             **kwargs
         )
-
 
     async def get_system_prompt(self, run_context: RunContextWrapper[CodeAgentContext]) -> str | None:
         root_dir = run_context.context.root_dir
@@ -59,33 +55,30 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         context = CodeAgentContext(root_dir=current_working_dir)
         return context
 
-
     async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
         """
         Execute code generation task.
-        
+
         Args:
             user_input: User's code generation request with requirements and specifications
             context: Context object providing project information
         Returns:
             Generation result containing final output and execution details
         """
-        config = RunConfig(tracing_disabled=False)
-        #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
-        set_trace_processors([create_detailed_logger()])
 
         input_with_env = self.assemble_user_input(user_input, context)
-        result = await Runner.run(
+        result = await self.run_impl(
             starting_agent=self,
             input=input_with_env,
             max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context
+            context=context,
         )
-        
+
         return result
 
-    def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
+    async def run_streamed(
+        self, user_input: str, context: CodeAgentContext
+    ) -> RunResultStreaming:
         """
         执行代码生成任务
 
@@ -95,32 +88,27 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         Returns:
             生成结果，包含最终输出、执行轮数等信息
         """
-        config = RunConfig(tracing_disabled=False)
-        #  ~/.siadahub/logs/agent_trace-yyyymmdd.log
-        set_trace_processors([create_detailed_logger()])
 
         input_with_env = self.assemble_user_input(user_input, context)
-        result = Runner.run_streamed(
+        result = await self.run_streamed_impl(
             starting_agent=self,
             input=input_with_env,
+            context=context,
             max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context
         )
 
         return result
-
 
     def assemble_user_input(self, user_input: str, context: CodeAgentContext) -> str:
         task = f'<task>\n{user_input}\n</task>'
         return task
         # repo_map_content = self.generate_repo_map(context)
-        
+
         # if repo_map_content:
         #     project_structure = f"Repository Map:\n{repo_map_content}"
         # else:
         #     project_structure = "Repository Map: Unable to generate repository map"
-        
+
         # environment_details = f'<environment_details>\n{project_structure}\n</environment_details>'
         # return task + '\n' + environment_details
 
@@ -137,22 +125,22 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         try:
             if not context.root_dir:
                 return ""
-                
+
             repo_map = self.get_repo_map_instance(context.root_dir)
             if not repo_map:
                 return ""
-            
+
             python_files = []
             for root, dirs, files in os.walk(context.root_dir):
                 dirs[:] = [d for d in dirs if not d.startswith('.') and d not in [
                     '__pycache__', 'node_modules', '.git', '.venv', 'venv', 'env'
                 ]]
-                
+
                 for file in files:
                     if file.endswith('.py') and not file.startswith('.'):
                         filepath = os.path.join(root, file)
                         python_files.append(filepath)
-            
+
             substantial_files = []
             for filepath in python_files:
                 try:
@@ -165,18 +153,18 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
                                 substantial_files.append(filepath)
                 except Exception:
                     continue
-            
+
             if len(substantial_files) > 50:
                 substantial_files = substantial_files[:50]
-            
+
             result = repo_map.get_repo_map(
                 chat_files=[],
                 other_files=substantial_files,
                 mentioned_fnames=set(),
                 mentioned_idents=set(['class', 'def', 'function'])
             )
-            
+
             return result or ""
-            
+
         except Exception as e:
             return f"Generate repo map failed: {str(e)}"

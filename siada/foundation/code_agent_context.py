@@ -1,9 +1,18 @@
+from typing import Optional
+from pydantic import BaseModel, ConfigDict
+
+from siada.session.session_models import RunningSession
 from typing import List
 from agents import TResponseInputItem
 from pydantic import BaseModel, Field
 
 
 class CodeAgentContext(BaseModel):
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    session: Optional[RunningSession] = None
+
     root_dir: str | None = None
 
     # 完整的消息历史列表

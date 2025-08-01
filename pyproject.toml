@@ -7,6 +7,7 @@ packages = [{include = "siada"}, {include = "agent_config.yaml"}]
 include = ["agent_config.yaml"]
 
 [tool.poetry.scripts]
+siada-cli = "siada.entrypoint.siadahub:main"
 siadahub = "siada.entrypoint.cli:siadahub"
 
 [tool.poetry.dependencies]
@@ -15,7 +16,7 @@ fastapi = "^0.110.0"
 uvicorn = "^0.27.0"
 pydantic = "^2.6.0"
 pydantic-settings = "^2.2.0"
-openai-agents = "^0.0.17"
+openai-agents = "^0.2.2"
 openai = "^1.66.5"
 litellm={extras = ["all"], version = "^1.72.6"}
 openhands-aci = "0.3.0"
@@ -31,9 +32,12 @@ pygments = "^2.19.1"
 grep-ast = "^0.9.0"
 scipy = "^1.15.3"
 click = "^8.2.1"
+configargparse = "^1.7"
+shtab = "^1.7"
 patch-ng = "^1.18.1"
 datasets = "^3.6.0"
 trafilatura = "^2.0.0"
+prompt-toolkit = "^3.0.51"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

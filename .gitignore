@@ -18,3 +18,4 @@ launch.json
 **/.siada*
 .cca
 .DS_Store
+.aider*
