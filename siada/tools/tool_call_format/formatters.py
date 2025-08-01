@@ -21,6 +21,7 @@ class FileEditFormatter(ToolCallFormatter):
     """
 
     def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:
+        style = "text"
         try:
             args = json.loads(arguments)
             path = args.get("path", "")
@@ -40,15 +41,17 @@ class FileEditFormatter(ToolCallFormatter):
             elif command == 'create':
                 content = f'I will create the file `{path}` with the following content:\n```\n{file_text}\n```'
             elif command == 'str_replace':
+                style = "markdown"
                 content = f'In the file `{path}`, I will replace the string:\n```\n{old_str}\n```\nwith:\n```\n{new_str}\n```'
             elif command == 'insert':
+                style = "markdown"
                 content = f'In the file `{path}`, I will insert the following text after line {insert_line}:\n```\n{new_str}\n```'
             elif command == 'undo_edit':
                 content = f'I will undo the last edit for the file `{path}`.'
             else:
                 content = f"I will perform the command `{command}` with the arguments: {arguments}"
 
-            return "text", content
+            return style, content
         except json.JSONDecodeError:
             return "text", f"failed to parse arguments: {arguments}"
 

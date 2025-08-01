@@ -5,7 +5,6 @@ from uuid import uuid4
 from agents import SQLiteSession
 
 from siada.entrypoint.interaction.config import RunningConfig
-from benchmark.swe.tools.dataset import prepare_dataset
 
 
 @dataclass
