@@ -15,6 +15,10 @@ from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
 from siada.session.session_manager import RunningSessionManager
 from siada.support.slash_commands import SlashCommands, SwitchEvent
+from rich.console import Console
+
+import time
+import sys
 
 
 class Controller:
@@ -24,6 +28,7 @@ class Controller:
         self.config = config
         self.slash_commands = slash_commands
         self.shell_mode = shell_mode
+        self.last_keyboard_interrupt = None
 
     def run(self) -> int:
         session = RunningSessionManager.create_session(
@@ -32,15 +37,20 @@ class Controller:
         display_rule = True
         while True:
             try:
-                user_input = self.config.io.get_input(
-                    completer=self.config.completer if not self.shell_mode else None,
-                    display_rule=display_rule,
-                    color=(
-                        self.config.running_color_settings.user_input_color
-                        if not self.shell_mode
-                        else self.config.running_color_settings.shell_model_color
-                    ),
-                )
+                try:
+                    user_input = self.config.io.get_input(
+                        completer=self.config.completer if not self.shell_mode else None,
+                        display_rule=display_rule,
+                        color=(
+                            self.config.running_color_settings.user_input_color
+                            if not self.shell_mode
+                            else self.config.running_color_settings.shell_model_color
+                        ),
+                    )
+                except KeyboardInterrupt as e:
+                    self.keyboard_interrupt()
+
+
                 display_rule = True
                 if user_input.strip() == "":
                     display_rule = False
@@ -102,3 +112,12 @@ class Controller:
     def show_announcements(self):
         for line in self.get_announcements():
             self.config.io.print_info(line)
+
+
+
+    def keyboard_interrupt(self):
+        # Ensure cursor is visible on exit
+        Console().show_cursor(True)
+        
+        self.config.io.print_warning("\n\n^C KeyboardInterrupt")
+        sys.exit()

@@ -62,6 +62,7 @@ class SiadaRunner:
         """
         agent = await SiadaRunner.get_agent(agent_name)
         context = await agent.get_context()
+        console_output = False
         if workspace:
             context.root_dir = workspace
         if session:

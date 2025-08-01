@@ -7,6 +7,8 @@ Contains abstract base classes and interfaces for interaction turns.
 from typing import Optional, Any
 from abc import ABC, abstractmethod
 
+from agents import TResponseInputItem
+
 # Import existing config and models
 from ..config import RunningConfig
 from .models import TurnType, TurnInput, TurnOutput
@@ -101,7 +103,6 @@ class RunTurn(ABC):
         import traceback
         full_traceback = traceback.format_exc()
         self.config.io.print_error(f"Error occurred: {str(error)}\n\nFull traceback:\n{full_traceback}")
-
         return TurnOutput(
             output=f"Error: {str(error)}",
             metadata={"error_type": type(error).__name__},

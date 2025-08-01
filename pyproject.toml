@@ -7,7 +7,8 @@ packages = [{include = "siada"}, {include = "agent_config.yaml"}]
 include = ["agent_config.yaml"]
 
 [tool.poetry.scripts]
-siadahub = "siada.entrypoint.siadahub:main"
+siada-cli = "siada.entrypoint.siadahub:main"
+siadahub = "siada.entrypoint.cli:siadahub"
 
 [tool.poetry.dependencies]
 python = "^3.12"

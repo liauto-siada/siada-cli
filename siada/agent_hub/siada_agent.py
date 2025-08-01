@@ -128,6 +128,8 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         context: TContext | None = None,
     ):
         running_session = context.session
+        if running_session is None:
+            return RunConfig(), None
 
         model_running_config = running_session.running_config.model
         model_settings = ModelSettingsConverter.convert_model_settings(model_running_config)
