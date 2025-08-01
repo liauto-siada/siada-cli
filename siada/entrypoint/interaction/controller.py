@@ -37,19 +37,15 @@ class Controller:
         display_rule = True
         while True:
             try:
-                try:
-                    user_input = self.config.io.get_input(
-                        completer=self.config.completer if not self.shell_mode else None,
-                        display_rule=display_rule,
-                        color=(
-                            self.config.running_color_settings.user_input_color
-                            if not self.shell_mode
-                            else self.config.running_color_settings.shell_model_color
-                        ),
-                    )
-                except KeyboardInterrupt as e:
-                    self.keyboard_interrupt()
-
+                user_input = self.config.io.get_input(
+                    completer=self.config.completer if not self.shell_mode else None,
+                    display_rule=display_rule,
+                    color=(
+                        self.config.running_color_settings.user_input_color
+                        if not self.shell_mode
+                        else self.config.running_color_settings.shell_model_color
+                    ),
+                )
 
                 display_rule = True
                 if user_input.strip() == "":
@@ -65,7 +61,9 @@ class Controller:
                 if self.shell_mode:
                     user_input = f"!{user_input}"
 
-                turn = TurnFactory.create_turn(self.config, session, self.slash_commands, user_input)
+                turn = TurnFactory.create_turn(
+                    self.config, session, self.slash_commands, user_input
+                )
                 turn_output = turn.execute(TurnInput(use_input=user_input))
 
                 if isinstance(turn_output.output, SwitchEvent):
@@ -81,6 +79,9 @@ class Controller:
                     if turn_output.output.kwargs.get("shell"):
                         self.shell_mode = True
                     self.show_announcements()
+            except KeyboardInterrupt as e:
+                self.keyboard_interrupt()
+                break
             except Exception as e:
                 self.config.io.print_error(e)
                 break
@@ -113,11 +114,9 @@ class Controller:
         for line in self.get_announcements():
             self.config.io.print_info(line)
 
-
-
     def keyboard_interrupt(self):
         # Ensure cursor is visible on exit
         Console().show_cursor(True)
-        
+
         self.config.io.print_warning("\n\n^C KeyboardInterrupt")
         sys.exit()

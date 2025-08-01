@@ -176,6 +176,13 @@ def get_parser(default_config_files, git_root):
         help="Enable/disable pretty, colorized output (default: True)",
     )
 
+    group.add_argument(
+        "--fancy-input",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable fancy input (default: True)",
+    )
+
 
     group = parser.add_argument_group("Upgrading")
     group.add_argument(
@@ -206,13 +213,6 @@ def get_parser(default_config_files, git_root):
         "--encoding",
         default="utf-8",
         help="Specify the encoding for input and output (default: utf-8)",
-    )
-
-    group.add_argument(
-        "--fancy-input",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable/disable fancy input with history and completion (default: True)",
     )
 
     group.add_argument(

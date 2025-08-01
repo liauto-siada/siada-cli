@@ -56,6 +56,9 @@ class ConsolePrinter:
         """Prints standard tool output."""
         self.print_messages(*messages, color_name='output', bold=bold)
 
+    def print(self, *args, **kwargs):
+        self.console.print(*args, **kwargs)
+
     def result(self, *messages):
         """Prints tool result messages."""
         self.print_messages(*messages, color_name='result')

@@ -138,7 +138,7 @@ def get_io(args, pretty=None):
         encoding=args.encoding,
         line_endings=getattr(args, "line_endings", "platform"),
         editingmode=editing_mode,
-        fancy_input=True,
+        fancy_input=args.fancy_input,
         multiline_mode=False,
         notifications=True,
     ), running_color_settings

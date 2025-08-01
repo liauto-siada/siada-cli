@@ -34,7 +34,7 @@ from rich.text import Text
 # Standard tag identifier
 REASONING_TAG = "thinking-content-" + "7bbeb8e1441453ad999a0bbba8a46d4b"
 
-SPLIT_TAG = "--------------\n\n"
+SPLIT_TAG = "\n--------------\n"
 # Output formatting
 
 REASONING_START = "► **THINKING**"
@@ -217,21 +217,23 @@ class ConversationTurn(RunTurn):
 
                     elif isinstance(stream_data, ResponseContentPartDoneEvent):
                         if not self.got_function_call_part:
-                            # if not got function call part, flush the response content
-                            self._live_incremental_response(
-                                "", self.response_content, final=True
-                            )
-                            self.mdstream = None
+                            if self.got_reasoning_part or self.got_content_part:
+                                # if not got function call part, flush the response content
+                                self._live_incremental_response(
+                                    "\n", self.response_content, final=True
+                                )
+                                self.mdstream = None
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
                             if not self.got_function_call_part:
                                 self.got_function_call_part = True
                                 # flush the response content
-                                self._live_incremental_response(
-                                    "", self.response_content, final=True
-                                )
-                                self.mdstream = None
+                                if self.got_reasoning_part or self.got_content_part:
+                                    self._live_incremental_response(
+                                        "\n", self.response_content, final=True
+                                    )
+                                    self.mdstream = None
 
                             call_id = stream_data.item.call_id
                             tool_name = stream_data.item.name
@@ -270,7 +272,7 @@ class ConversationTurn(RunTurn):
                                     call_id, tool_name, full_arguments
                                 )
 
-                                if style == "markdown":
+                                if style == "markdown" and self.config.io.pretty:
                                     if call_id not in self.tool_call_mdstreams:
                                         self.tool_call_mdstreams[call_id] = (
                                             self.config.io.get_assistant_mdstream()
@@ -296,7 +298,6 @@ class ConversationTurn(RunTurn):
                             if call_id in self.tool_calls:
                                 tool_name = self.tool_calls[call_id]["name"]
                                 self.print_split_line()
-                                self.config.io.print_tool_result()
                                 output = stream_data.output
                                 if isinstance(output, FunctionCallResult):
                                     self.config.io.print_tool_result(
@@ -327,7 +328,7 @@ class ConversationTurn(RunTurn):
             # response_content = self.replace_reasoning_tag(response_content, DEFAULT_REASONING_TAG)
             self.mdstream.update(response_content, final)
         else:
-            self.config.io.print_info(delta_text)
+            self.config.io.console.print(delta_text, sep="", end="")
 
     def execute(self, turn_input: TurnInput) -> TurnOutput:
         """Execute AI conversation turn
@@ -426,7 +427,7 @@ class ConversationTurn(RunTurn):
             show = Markdown(SPLIT_TAG, **self.mdargs)
             self.config.io.console.print(show)
         else:
-            self.config.io.console.print(SPLIT_TAG)
+            self.config.io.console.print(SPLIT_TAG, end="")
 
 
 class CommandTurn(RunTurn):
