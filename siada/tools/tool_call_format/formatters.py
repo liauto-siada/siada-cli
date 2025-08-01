@@ -39,6 +39,7 @@ class FileEditFormatter(ToolCallFormatter):
                 else:
                     content = f"I will read the file `{path}`."
             elif command == 'create':
+                style = "markdown"
                 content = f'I will create the file `{path}` with the following content:\n```\n{file_text}\n```'
             elif command == 'str_replace':
                 style = "markdown"
