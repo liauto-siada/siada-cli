@@ -12,31 +12,46 @@ class ModelBaseConfig:
     supports_images: bool = False
     supports_prompt_cache: bool = False
 
+    supports_extra_params: Optional[List[str]] = None
+
 # Simple list of all model configurations
 MODEL_SETTING: List[ModelBaseConfig] = [
+
+    # ModelBaseConfig(
+    #     model_name="o3-pro",
+    #     max_tokens=8192,
+    #     context_window=200_000,
+    #     supports_images=True,
+    #     supports_extra_params=["reasoning_effort"],
+    # ),
+
     ModelBaseConfig(
-        model_name="claude-sonnet-4",
+        model_name="gpt-4.1",
         max_tokens=8192,
-        context_window=200_000,
-        supports_images=True
+        context_window=1_047_576,
+        supports_images=True,
     ),
-    ModelBaseConfig(
-        model_name="claude-sonnet-4-thinking",
-        max_tokens=8192,
-        context_window=200_000,
-        supports_images=True
-    ),
-    ModelBaseConfig(
-        model_name="claude-3-7-sonnet",
-        max_tokens=8192,
-        context_window=200_000,
-        supports_images=True
-    ),
+
     ModelBaseConfig(
         model_name="claude-opus-4",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True,
+        supports_extra_params=["thinking_tokens"],
+    ),
+    ModelBaseConfig(
+        model_name="claude-sonnet-4",
+        max_tokens=8192,
+        context_window=200_000,
+        supports_images=True,
+        supports_extra_params=["thinking_tokens"],
+    ),
+    ModelBaseConfig(
+        model_name="claude-3.7-sonnet",
+        max_tokens=8192,
+        context_window=200_000,
+        supports_images=True,
+        supports_extra_params=["thinking_tokens"],
     ),
     ModelBaseConfig(
         model_name="deepseek-r1-0528",

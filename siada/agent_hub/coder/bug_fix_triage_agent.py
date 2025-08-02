@@ -2,13 +2,13 @@ from agents import Agent, Runner, RunContextWrapper, TContext, RunResult
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
 from siada.foundation.config import settings
-from siada.provider.li.li_provider import SiadaProvider
+from siada.provider.li.li_provider import LiProvider
 
 
 class BugFixTriageAgent(Agent):
 
     def __init__(self, *args, **kwargs):
-        provider = SiadaProvider()
+        provider = LiProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
         instructions = (
             f"{RECOMMENDED_PROMPT_PREFIX} "

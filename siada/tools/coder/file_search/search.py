@@ -413,7 +413,7 @@ def regex_search_files(
         >>> results = regex_search_files(
         ...     cwd="/project/root",
         ...     directory_path="siada",
-        ...     regex=r"def\s+(\w+)",
+        ...     regex=r"def\\s+(\\w+)",
         ...     file_pattern="*.py"
         ... )
         >>> print(results)

@@ -7,7 +7,7 @@ from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import bug_reproduce_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.config import settings
-from siada.provider.li.li_provider import SiadaProvider
+from siada.provider.li.li_provider import LiProvider
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.reproduce_completion import reproduce_completion

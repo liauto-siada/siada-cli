@@ -11,42 +11,9 @@ import shtab
 from siada import __version__
 from siada.services.siada_runner import SiadaRunner
 
-def resolve_aiderignore_path(path_str, git_root=None):
-    path = Path(path_str)
-    if path.is_absolute():
-        return str(path)
-    elif git_root:
-        return str(Path(git_root) / path)
-    return str(path)
-
 
 def default_env_file(git_root):
     return os.path.join(git_root, ".env") if git_root else ".env"
-
-
-def get_parser_for_dotenv():
-    # Special-case parser for getting the env_file, so we can load it
-    # before we parse the rest of the args.
-    parser = configargparse.ArgumentParser(add_help=False)
-
-    # Add only the arguments needed to find the .env file
-    parser.add_argument(
-        "--workspace",
-        metavar="DIR",
-        help="Specify the workspace directory (defaults to git root or current working directory)",
-    )
-    parser.add_argument(
-        "--env-file",
-        metavar="ENV_FILE",
-        help="Specify the .env file to load",
-    )
-    parser.add_argument(
-        "--encoding",
-        default="utf-8",
-        help="Specify the encoding for the .env file",
-    )
-
-    return parser
 
 
 def get_parser(default_config_files, git_root):
@@ -120,17 +87,6 @@ def get_parser(default_config_files, git_root):
         default=[],
     )
 
-    group.add_argument(
-        "--api-key",
-        action="append",
-        metavar="PROVIDER=KEY",
-        help=(
-            "Set an API key for a provider (eg: --api-key provider=<key> sets"
-            " PROVIDER_API_KEY=<key>)"
-        ),
-        default=[],
-    )
-
     group = parser.add_argument_group("Model settings")
 
     group.add_argument(
@@ -143,8 +99,8 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--list-models",
         "--models",
-        metavar="MODEL",
-        help="List known models which match the (partial) MODEL name",
+        action="store_true",
+        help="List all available models",
     )
 
     group.add_argument(
@@ -159,6 +115,14 @@ def get_parser(default_config_files, git_root):
             "Set the thinking token budget for models that support it. Use 0 to disable. (default:"
             " not set)"
         ),
+    )
+
+    group.add_argument(
+        "--provider",
+        choices=["openrouter", "li"],
+        default="li",
+        help="Specify the provider to use for the main chat (choices: openrouter, li, default: li)",
+        metavar="PROVIDER",
     )
 
     group = parser.add_argument_group("Output settings")
@@ -182,7 +146,6 @@ def get_parser(default_config_files, git_root):
         default=True,
         help="Enable/disable fancy input (default: True)",
     )
-
 
     group = parser.add_argument_group("Upgrading")
     group.add_argument(

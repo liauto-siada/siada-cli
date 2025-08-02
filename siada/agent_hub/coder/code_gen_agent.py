@@ -13,7 +13,7 @@ from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.foundation.config import settings
-from siada.provider.li.li_provider import SiadaProvider
+from siada.provider.li.li_provider import LiProvider
 from siada.agent_hub.coder.prompt import code_gen_prompt
 import logging
 
@@ -28,7 +28,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
     """
 
     def __init__(self, *args, **kwargs):
-        provider = SiadaProvider()
+        provider = LiProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
 
         if 'name' not in kwargs:
@@ -80,13 +80,13 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         self, user_input: str, context: CodeAgentContext
     ) -> RunResultStreaming:
         """
-        执行代码生成任务
+        Execute code generation task with streaming output.
 
         Args:
-            user_input: 用户的代码生成请求，包含需求和规格说明
-            context: 用于提供上下文信息的上下文对象
+            user_input: User's code generation request with requirements and specifications
+            context: Context object providing project information
         Returns:
-            生成结果，包含最终输出、执行轮数等信息
+            A streaming result of the generation, containing final output and execution details.
         """
 
         input_with_env = self.assemble_user_input(user_input, context)

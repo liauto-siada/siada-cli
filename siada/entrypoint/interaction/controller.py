@@ -88,9 +88,9 @@ class Controller:
 
     def get_announcements(self):
         lines = []
-        lines.append(f"SiadaHub v{__version__}")
+        lines.append(f"Siada CLI v{__version__}")
 
-        output = f"Agent: {self.config.agent_name}"
+        output = f"Agent: {self.config.agent_name}, Model: {self.config.model.model_name}"
 
         # Check for thinking token budget
         thinking_tokens = self.config.model.get_thinking_tokens()

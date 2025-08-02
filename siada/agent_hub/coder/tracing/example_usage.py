@@ -14,10 +14,10 @@ from agents import Agent, Runner, function_tool
 from agents.tracing import add_trace_processor
 
 from siada.foundation.config import settings
-from siada.provider.li.li_provider import SiadaProvider
+from siada.provider.li.li_provider import LiProvider
 from siada.agent_hub.coder.tracing import create_simple_logger, create_detailed_logger, LoggerTracingProcessor
 
-provider = SiadaProvider()
+provider = LiProvider()
 model = provider.get_model(settings.Claude_4_0_SONNET)
 
 

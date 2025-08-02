@@ -21,7 +21,7 @@ from siada.agent_hub.coder.prompt import test_prompt
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import logging
 from siada.foundation.config import settings
-from siada.provider.li.li_provider import SiadaProvider
+from siada.provider.li.li_provider import LiProvider
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -32,7 +32,7 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
     """
 
     def __init__(self, *args, **kwargs):
-        provider = SiadaProvider()
+        provider = LiProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
         super().__init__(
             name="TestAgent",

@@ -29,6 +29,7 @@ except ImportError:
 import shtab
 from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
+from siada.services.model_info_service import ModelInfoService
 
 
 def _configure_litellm_logging():
@@ -165,18 +166,6 @@ def set_env(args, io):
                 io.print_error(f"Invalid --set-env format: {env_setting}")
                 io.print_info("Format should be: ENV_VAR_NAME=value")
                 return 1
-
-    # Set API key environment variables
-    if args.api_key:
-        for api_setting in args.api_key:
-            try:
-                provider, key = api_setting.split("=", 1)
-                env_var = f"{provider.strip().upper()}_API_KEY"
-                os.environ[env_var] = key.strip()
-            except ValueError:
-                io.print_error(f"Invalid --api-key format: {api_setting}")
-                io.print_info("Format should be: provider=key")
-                return 1
     
     return 0
 
@@ -250,9 +239,6 @@ def set_model(args, io):
     Returns:
         ModelRunConfig: Configured model instance, returns None if exit is needed
     """
-    if args.list_models:
-        # TODO: Implement this
-        return None
 
     # Create model instance
     if args.model is None:
@@ -260,20 +246,46 @@ def set_model(args, io):
     else:
         model = ModelRunConfig(args.model)
 
+    if args.provider == "openrouter":
+        ## check the openrouter api key is set
+        if os.getenv("OPENROUTER_API_KEY") is None:
+            io.print_error("OPENROUTER_API_KEY is not set for openrouter provider")
+            sys.exit(1)
+        model.provider = "openrouter"
+    else:
+        model.provider = "li"
+
     # Set reasoning effort and thinking tokens if specified
     if args.reasoning_effort is not None:
-        model.set_reasoning_effort(args.reasoning_effort)
+        if (
+            not model.supports_extra_params
+            or "reasoning_effort" not in model.supports_extra_params
+        ):
+            io.print_error(f"Model {model.model_name} does not support reasoning effort")
+            sys.exit(1)
+        else:
+            model.set_reasoning_effort(args.reasoning_effort)
 
     if args.thinking_tokens is not None:
-        model.set_thinking_tokens(args.thinking_tokens)
+        if (
+            not model.supports_extra_params
+            or "thinking_tokens" not in model.supports_extra_params
+        ):
+            io.print_error(f"Model {model.model_name} does not support thinking tokens")
+            sys.exit(1)
+        else:
+            model.set_thinking_tokens(args.thinking_tokens)
 
     # Display model settings in verbose mode
     if args.verbose:
         io.print_info("Model settings:")
         for attr in sorted(fields(ModelRunConfig), key=lambda x: x.name):
-            val = getattr(model, attr.name)
-            val = json.dumps(val, indent=4)
-            io.print_info(f"{attr.name}: {val}")
+            value = getattr(model, attr.name)
+            if value is None:
+                val_str = "None"
+            else:
+                val_str = json.dumps(value, indent=4)
+            io.print_info(f"{attr.name}: {val_str}")
 
     return model
 
@@ -297,8 +309,14 @@ def main():
         print(f"Invalid theme configuration: {e}")
         return 1
 
+    if args.list_models:
+        models = ModelInfoService.get_model_names()
+        io.print_info("\n".join(f"- {model}" for model in models))
+        return 0
+
+    # Configure model
+    model = set_model(args, io)
     # Display banner
-    show_banner(io)
 
     # Set environment variables
     if set_env(args, io) != 0:
@@ -319,8 +337,7 @@ def main():
         cmd_line = " ".join(sys.argv)
         io.print_info(f"Command: {cmd_line}")
 
-    # Configure model
-    model = set_model(args, io)
+    
     if model is None:
         return 0
 
@@ -346,6 +363,7 @@ def main():
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
     )
+    show_banner(io)
 
     if not interactive_mode:
         controller = NoInteractiveController(running_config)

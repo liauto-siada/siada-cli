@@ -8,13 +8,13 @@
             "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
+            "justMyCode": false,
             "args": [
-                "--no-pretty",
-                "--no-fancy-input",
                 "--workspace",
                 "/Users/zhangmeng20/vscodeProject/test",
-                // "--thinking-tokens",
-                // "2k"
+                "--provider", "openrouter",
+                "--model", "gpt-4.1"
+            
             ]
         },
         {
@@ -24,6 +24,7 @@
             "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
+            "justMyCode": false,
             "args": [
                 "--verbose",
                 "--agent", "coder"
@@ -36,6 +37,7 @@
             "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
+            "justMyCode": false,
             "args": [
                 "--agent", "coder",
                 "--model", "claude-sonnet-4",
@@ -50,6 +52,7 @@
             "program": "${workspaceFolder}/siada/entrypoint/siadahub.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
+            "justMyCode": false,
             "args": [
                 "--verbose",
                 "--fancy-input",
