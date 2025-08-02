@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# SiadaHub 安装脚本
-# 用于本地安装构建的 wheel 包
+# SiadaHub Installation Script
+# For local installation of built wheel packages
 
-set -e  # 遇到错误时退出
+set -e  # Exit on error
 
-# 颜色定义
+# Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 日志函数
+# Logging functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -29,123 +29,123 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# 获取脚本所在目录
+# Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# 检查是否需要构建
+# Check if build is needed
 check_build() {
     if [ ! -d "$PROJECT_DIR/dist" ] || [ -z "$(ls -A "$PROJECT_DIR/dist" 2>/dev/null)" ]; then
-        log_warning "未找到构建文件，开始构建..."
+        log_warning "Build files not found, starting build..."
         "$SCRIPT_DIR/build.sh"
     else
-        log_info "发现已有构建文件"
+        log_info "Found existing build files"
     fi
 }
 
-# 查找最新的 wheel 文件
+# Find the latest wheel file
 find_wheel() {
     local wheel_file
     wheel_file=$(find "$PROJECT_DIR/dist" -name "*.whl" -type f | head -n 1)
     
     if [ -z "$wheel_file" ]; then
-        log_error "未找到 wheel 文件"
+        log_error "Wheel file not found"
         exit 1
     fi
     
     echo "$wheel_file"
 }
 
-# 检查 Python 和 pip
+# Check Python and pip
 check_python() {
     if ! command -v python3 &> /dev/null; then
-        log_error "Python3 未安装"
+        log_error "Python3 is not installed"
         exit 1
     fi
     
     if ! command -v pip3 &> /dev/null; then
-        log_error "pip3 未安装"
+        log_error "pip3 is not installed"
         exit 1
     fi
     
-    log_info "Python 版本: $(python3 --version)"
-    log_info "pip 版本: $(pip3 --version)"
+    log_info "Python version: $(python3 --version)"
+    log_info "pip version: $(pip3 --version)"
 }
 
-# 卸载旧版本
+# Uninstall old version
 uninstall_old() {
-    log_info "检查是否已安装旧版本..."
+    log_info "Checking for previously installed version..."
     
     if pip3 show siada-agenthub &> /dev/null; then
-        log_warning "发现已安装的版本，正在卸载..."
+        log_warning "Found installed version, uninstalling..."
         pip3 uninstall siada-agenthub -y
-        log_success "旧版本卸载完成"
+        log_success "Old version uninstalled"
     else
-        log_info "未发现已安装的版本"
+        log_info "No previously installed version found"
     fi
 }
 
-# 安装 wheel 包
+# Install wheel package
 install_wheel() {
     local wheel_file="$1"
     
-    log_info "安装 wheel 包: $(basename "$wheel_file")"
+    log_info "Installing wheel package: $(basename "$wheel_file")"
     
-    # 使用 pip 安装
+    # Use pip to install
     pip3 install "$wheel_file" --force-reinstall
     
     if [ $? -eq 0 ]; then
-        log_success "安装成功"
+        log_success "Installation successful"
     else
-        log_error "安装失败"
+        log_error "Installation failed"
         exit 1
     fi
 }
 
-# 验证安装
+# Verify installation
 verify_installation() {
-    log_info "验证安装..."
+    log_info "Verifying installation..."
     
-    # 检查命令是否可用
+    # Check if command is available
     if command -v siadahub &> /dev/null; then
-        log_success "siadahub 命令已可用"
+        log_success "siadahub command is available"
         
-        # 显示帮助信息
+        # Show help information
         echo ""
-        log_info "命令帮助信息:"
+        log_info "Command help information:"
         siadahub --help
         
     else
-        log_error "siadahub 命令不可用"
-        log_warning "可能需要重新加载 shell 或检查 PATH 环境变量"
+        log_error "siadahub command is not available"
+        log_warning "You may need to reload shell or check PATH environment variable"
         exit 1
     fi
 }
 
-# 显示使用说明
+# Show usage instructions
 show_usage() {
     echo ""
     echo "========================================"
-    echo "           使用说明"
+    echo "           Usage Instructions"
     echo "========================================"
     echo ""
-    echo "基本用法:"
-    echo "  siadahub --help                    # 显示帮助"
-    echo "  siadahub bugfix \"修复某个问题\"     # 使用 bugfix agent"
+    echo "Basic usage:"
+    echo "  siadahub --help                    # Show help"
+    echo "  siadahub bugfix \"Fix some issue\"  # Use bugfix agent"
     echo ""
-    echo "示例:"
-    echo "  siadahub bugfix \"完成一个需求\""
+    echo "Examples:"
+    echo "  siadahub bugfix \"Complete a requirement\""
     echo ""
 }
 
-# 主函数
+# Main function
 main() {
     echo "========================================"
-    echo "       SiadaHub 安装脚本"
+    echo "       SiadaHub Installation Script"
     echo "========================================"
     echo ""
     
-    # 切换到项目目录
+    # Switch to project directory
     cd "$PROJECT_DIR"
     
     check_python
@@ -160,8 +160,8 @@ main() {
     show_usage
     
     echo ""
-    log_success "安装完成！"
+    log_success "Installation completed!"
 }
 
-# 执行主函数
+# Execute main function
 main "$@"

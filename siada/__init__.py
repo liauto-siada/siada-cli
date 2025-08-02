@@ -1,20 +1,13 @@
-from packaging import version
-
-__version__ = "0.0.1.dev"
-safe_version = __version__
+try:
+    from importlib.metadata import version
+except ImportError:
+    # Python < 3.8 compatibility
+    from importlib_metadata import version
 
 try:
-    from siada._version import __version__
+    __version__ = version("siada-agenthub")
 except Exception:
-    __version__ = safe_version + "+import"
+    # Fallback for development environment
+    __version__ = "dev"
 
-if type(__version__) is not str:
-    __version__ = safe_version + "+type"
-else:
-    try:
-        if version.parse(__version__) < version.parse(safe_version):
-            __version__ = safe_version + "+less"
-    except Exception:
-        __version__ = safe_version + "+parse"
-
-__all__ = [__version__]
+__all__ = ["__version__"]

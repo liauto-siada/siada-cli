@@ -1,5 +1,5 @@
 """
-ASCII Art Banner Display Module for Siada Hub
+ASCII Art Banner Display Module for Siada CLI
 
 Provides colorful banner display with gradient effects and fallback for non-pretty terminals.
 """
@@ -11,14 +11,14 @@ from rich.console import Console
 class BannerDisplay:
     """Handle ASCII art banner display with color gradients."""
     
-    # ASCII art for SIADA HUB
+    # ASCII art for SIADA CLI
     BANNER_LINES = [
-        "  ███████╗██╗ █████╗ ██████╗  █████╗     ██╗  ██╗██╗   ██╗██████╗ ",
-        "  ██╔════╝██║██╔══██╗██╔══██╗██╔══██╗    ██║  ██║██║   ██║██╔══██╗",
-        "  ███████╗██║███████║██║  ██║███████║    ███████║██║   ██║██████╔╝",
-        "  ╚════██║██║██╔══██║██║  ██║██╔══██║    ██╔══██║██║   ██║██╔══██╗",
-        "  ███████║██║██║  ██║██████╔╝██║  ██║    ██║  ██║╚██████╔╝██████╔╝",
-        "  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ "
+        "  ███████╗██╗ █████╗ ██████╗  █████╗      ██████╗██╗     ██╗",
+        "  ██╔════╝██║██╔══██╗██╔══██╗██╔══██╗    ██╔════╝██║     ██║",
+        "  ███████╗██║███████║██║  ██║███████║    ██║     ██║     ██║",
+        "  ╚════██║██║██╔══██║██║  ██║██╔══██║    ██║     ██║     ██║",
+        "  ███████║██║██║  ██║██████╔╝██║  ██║    ╚██████╗███████╗██║",
+        "  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝     ╚═════╝╚══════╝╚═╝"
     ]
     
     # Color gradient from left to right
@@ -36,7 +36,7 @@ class BannerDisplay:
     @classmethod
     def show_banner(cls, pretty: bool = True, console: Console = None):
         """
-        Display the SIADA HUB banner.
+        Display the SIADA CLI banner.
         
         Args:
             pretty: Whether to use colorful output
@@ -100,8 +100,8 @@ class BannerDisplay:
     def _show_ascii_fallback_banner(cls):
         """Show ASCII-only fallback banner."""
         ascii_banner = [
-            "  ===== SIADA HUB =====",
-            "  S I A D A   H U B",
+            "  ===== SIADA CLI =====",
+            "  S I A D A   C L I",
             "  ====================="
         ]
         for line in ascii_banner:
@@ -117,19 +117,19 @@ class BannerDisplay:
         """
         return "\n".join([
             "",
-            "  ███████╗██╗ █████╗ ██████╗  █████╗     ██╗  ██╗██╗   ██╗██████╗ ",
-            "  ██╔════╝██║██╔══██╗██╔══██╗██╔══██╗    ██║  ██║██║   ██║██╔══██╗",
-            "  ███████╗██║███████║██║  ██║███████║    ███████║██║   ██║██████╔╝",
-            "  ╚════██║██║██╔══██║██║  ██║██╔══██║    ██╔══██║██║   ██║██╔══██╗",
-            "  ███████║██║██║  ██║██████╔╝██║  ██║    ██║  ██║╚██████╔╝██████╔╝",
-            "  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ",
+            "  ███████╗██╗ █████╗ ██████╗  █████╗      ██████╗██╗     ██╗",
+            "  ██╔════╝██║██╔══██╗██╔══██╗██╔══██╗    ██╔════╝██║     ██║",
+            "  ███████╗██║███████║██║  ██║███████║    ██║     ██║     ██║",
+            "  ╚════██║██║██╔══██║██║  ██║██╔══██║    ██║     ██║     ██║",
+            "  ███████║██║██║  ██║██████╔╝██║  ██║    ╚██████╗███████╗██║",
+            "  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝     ╚═════╝╚══════╝╚═╝",
             ""
         ])
 
 
 def show_siada_banner(pretty: bool = True, console: Console = None):
     """
-    Convenience function to display SIADA HUB banner.
+    Convenience function to display SIADA CLI banner.
     
     Args:
         pretty: Whether to use colorful output

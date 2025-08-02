@@ -5535,6 +5535,22 @@
         "documentation": {}
     },
     {
+        "label": "ModelInfoService",
+        "importPath": "siada.services.model_info_service",
+        "description": "siada.services.model_info_service",
+        "isExtraImport": true,
+        "detail": "siada.services.model_info_service",
+        "documentation": {}
+    },
+    {
+        "label": "ModelInfoService",
+        "importPath": "siada.services.model_info_service",
+        "description": "siada.services.model_info_service",
+        "isExtraImport": true,
+        "detail": "siada.services.model_info_service",
+        "documentation": {}
+    },
+    {
         "label": "siada.session.session_models",
         "kind": 6,
         "isExtraImport": true,
@@ -6777,14 +6793,6 @@
         "description": "contextlib",
         "isExtraImport": true,
         "detail": "contextlib",
-        "documentation": {}
-    },
-    {
-        "label": "ModelInfoService",
-        "importPath": "siada.services.model_info_service",
-        "description": "siada.services.model_info_service",
-        "isExtraImport": true,
-        "detail": "siada.services.model_info_service",
         "documentation": {}
     },
     {
@@ -9039,7 +9047,7 @@
         "kind": 2,
         "importPath": "siada.entrypoint.siadahub",
         "description": "siada.entrypoint.siadahub",
-        "peekOfCode": "def set_model(args, io):\n    \"\"\"\n    Configure and create model instance\n    Args:\n        args: Parsed command line arguments\n        io: InputOutput instance for displaying information\n    Returns:\n        ModelRunConfig: Configured model instance, returns None if exit is needed\n    \"\"\"\n    if args.list_models:",
+        "peekOfCode": "def set_model(args, io):\n    \"\"\"\n    Configure and create model instance\n    Args:\n        args: Parsed command line arguments\n        io: InputOutput instance for displaying information\n    Returns:\n        ModelRunConfig: Configured model instance, returns None if exit is needed\n    \"\"\"\n    # Create model instance",
         "detail": "siada.entrypoint.siadahub",
         "documentation": {}
     },
@@ -9372,7 +9380,7 @@
         "kind": 6,
         "importPath": "siada.io.banner",
         "description": "siada.io.banner",
-        "peekOfCode": "class BannerDisplay:\n    \"\"\"Handle ASCII art banner display with color gradients.\"\"\"\n    # ASCII art for SIADA HUB\n    BANNER_LINES = [\n        \"  ███████╗██╗ █████╗ ██████╗  █████╗     ██╗  ██╗██╗   ██╗██████╗ \",\n        \"  ██╔════╝██║██╔══██╗██╔══██╗██╔══██╗    ██║  ██║██║   ██║██╔══██╗\",\n        \"  ███████╗██║███████║██║  ██║███████║    ███████║██║   ██║██████╔╝\",\n        \"  ╚════██║██║██╔══██║██║  ██║██╔══██║    ██╔══██║██║   ██║██╔══██╗\",\n        \"  ███████║██║██║  ██║██████╔╝██║  ██║    ██║  ██║╚██████╔╝██████╔╝\",\n        \"  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ \"",
+        "peekOfCode": "class BannerDisplay:\n    \"\"\"Handle ASCII art banner display with color gradients.\"\"\"\n    # ASCII art for SIADA CLI\n    BANNER_LINES = [\n        \"  ███████╗██╗ █████╗ ██████╗  █████╗      ██████╗██╗     ██╗\",\n        \"  ██╔════╝██║██╔══██╗██╔══██╗██╔══██╗    ██╔════╝██║     ██║\",\n        \"  ███████╗██║███████║██║  ██║███████║    ██║     ██║     ██║\",\n        \"  ╚════██║██║██╔══██║██║  ██║██╔══██║    ██║     ██║     ██║\",\n        \"  ███████║██║██║  ██║██████╔╝██║  ██║    ╚██████╗███████╗██║\",\n        \"  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝     ╚═════╝╚══════╝╚═╝\"",
         "detail": "siada.io.banner",
         "documentation": {}
     },
@@ -9381,7 +9389,7 @@
         "kind": 2,
         "importPath": "siada.io.banner",
         "description": "siada.io.banner",
-        "peekOfCode": "def show_siada_banner(pretty: bool = True, console: Console = None):\n    \"\"\"\n    Convenience function to display SIADA HUB banner.\n    Args:\n        pretty: Whether to use colorful output\n        console: Rich console instance (optional)\n    \"\"\"\n    BannerDisplay.show_banner(pretty, console)\ndef get_banner_text() -> str:\n    \"\"\"",
+        "peekOfCode": "def show_siada_banner(pretty: bool = True, console: Console = None):\n    \"\"\"\n    Convenience function to display SIADA CLI banner.\n    Args:\n        pretty: Whether to use colorful output\n        console: Rich console instance (optional)\n    \"\"\"\n    BannerDisplay.show_banner(pretty, console)\ndef get_banner_text() -> str:\n    \"\"\"",
         "detail": "siada.io.banner",
         "documentation": {}
     },

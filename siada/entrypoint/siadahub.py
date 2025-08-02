@@ -29,6 +29,7 @@ except ImportError:
 import shtab
 from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
+from siada.services.model_info_service import ModelInfoService
 
 
 def _configure_litellm_logging():
@@ -239,10 +240,6 @@ def set_model(args, io):
         ModelRunConfig: Configured model instance, returns None if exit is needed
     """
 
-    if args.list_models:
-        # TODO: Implement this
-        return None
-
     # Create model instance
     if args.model is None:
         model = ModelRunConfig.get_default_model()
@@ -309,6 +306,11 @@ def main():
     except ValueError as e:
         print(f"Invalid theme configuration: {e}")
         return 1
+
+    if args.list_models:
+        models = ModelInfoService.get_model_names()
+        io.print_info("\n".join(f"- {model}" for model in models))
+        return 0
 
     # Display banner
     show_banner(io)

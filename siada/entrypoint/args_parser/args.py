@@ -99,8 +99,8 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--list-models",
         "--models",
-        metavar="MODEL",
-        help="List known models which match the (partial) MODEL name",
+        action="store_true",
+        help="List all available models",
     )
 
     group.add_argument(
