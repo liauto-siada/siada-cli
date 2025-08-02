@@ -165,18 +165,6 @@ def set_env(args, io):
                 io.print_error(f"Invalid --set-env format: {env_setting}")
                 io.print_info("Format should be: ENV_VAR_NAME=value")
                 return 1
-
-    # Set API key environment variables
-    if args.api_key:
-        for api_setting in args.api_key:
-            try:
-                provider, key = api_setting.split("=", 1)
-                env_var = f"{provider.strip().upper()}_API_KEY"
-                os.environ[env_var] = key.strip()
-            except ValueError:
-                io.print_error(f"Invalid --api-key format: {api_setting}")
-                io.print_info("Format should be: provider=key")
-                return 1
     
     return 0
 
@@ -250,6 +238,7 @@ def set_model(args, io):
     Returns:
         ModelRunConfig: Configured model instance, returns None if exit is needed
     """
+
     if args.list_models:
         # TODO: Implement this
         return None
@@ -260,20 +249,44 @@ def set_model(args, io):
     else:
         model = ModelRunConfig(args.model)
 
+    if args.provider == "openrouter":
+        ## check the openrouter api key is set
+        if os.getenv("OPENROUTER_API_KEY") is None:
+            io.print_error("OPENROUTER_API_KEY is not set for openrouter provider")
+            sys.exit(1)
+        model.provider = "openrouter"
+    else:
+        model.provider = "li"
+
     # Set reasoning effort and thinking tokens if specified
     if args.reasoning_effort is not None:
-        model.set_reasoning_effort(args.reasoning_effort)
+        if (
+            not model.supports_extra_params
+            or "reasoning_effort" not in model.supports_extra_params
+        ):
+            io.print_warning("Model does not support reasoning effort")
+        else:
+            model.set_reasoning_effort(args.reasoning_effort)
 
     if args.thinking_tokens is not None:
-        model.set_thinking_tokens(args.thinking_tokens)
+        if (
+            not model.supports_extra_params
+            or "thinking_tokens" not in model.supports_extra_params
+        ):
+            io.print_warning("Model does not support thinking tokens")
+        else:
+            model.set_thinking_tokens(args.thinking_tokens)
 
     # Display model settings in verbose mode
     if args.verbose:
         io.print_info("Model settings:")
         for attr in sorted(fields(ModelRunConfig), key=lambda x: x.name):
-            val = getattr(model, attr.name)
-            val = json.dumps(val, indent=4)
-            io.print_info(f"{attr.name}: {val}")
+            value = getattr(model, attr.name)
+            if value is None:
+                val_str = "None"
+            else:
+                val_str = json.dumps(value, indent=4)
+            io.print_info(f"{attr.name}: {val_str}")
 
     return model
 

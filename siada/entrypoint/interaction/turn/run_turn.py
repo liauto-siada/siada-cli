@@ -174,7 +174,7 @@ class ConversationTurn(RunTurn):
                     ):
                         if self.mdstream is None:
                             self.mdstream = (
-                                self.config.io.get_assistant_mdstream()
+                                self.get_response_mdstream()
                                 if self.config.io.pretty
                                 else None
                             )
@@ -198,7 +198,7 @@ class ConversationTurn(RunTurn):
                     elif isinstance(stream_data, ResponseContentPartAddedEvent):
                         if self.mdstream is None:
                             self.mdstream = (
-                                self.config.io.get_assistant_mdstream()
+                                self.get_response_mdstream()
                                 if self.config.io.pretty
                                 else None
                             )
@@ -224,23 +224,21 @@ class ConversationTurn(RunTurn):
 
                     elif isinstance(stream_data, ResponseContentPartDoneEvent):
                         if not self.got_function_call_part:
-                            if self.response_content:
-                                # if not got function call part, flush the response content
-                                self._live_incremental_response(
-                                    "\n", self.response_content, final=True
-                                )
-                                self.mdstream = None
+                            # if not got function call part, flush the response content
+                            self._live_incremental_response(
+                                "\n", self.response_content, final=True
+                            )
+                            self.mdstream = None
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
                             if not self.got_function_call_part:
                                 self.got_function_call_part = True
                                 # flush the response content
-                                if self.got_reasoning_part or self.got_content_part:
-                                    self._live_incremental_response(
-                                        "\n", self.response_content, final=True
-                                    )
-                                    self.mdstream = None
+                                self._live_incremental_response(
+                                    "\n", self.response_content, final=True
+                                )
+                                self.mdstream = None
 
                             call_id = stream_data.item.call_id
                             tool_name = stream_data.item.name
@@ -282,7 +280,7 @@ class ConversationTurn(RunTurn):
                                 if style == "markdown" and self.config.io.pretty:
                                     if call_id not in self.tool_call_mdstreams:
                                         self.tool_call_mdstreams[call_id] = (
-                                            self.config.io.get_assistant_mdstream()
+                                            self.get_response_mdstream()
                                         )
                                     self.tool_call_mdstreams[call_id].update(
                                         content, final=True
@@ -331,11 +329,10 @@ class ConversationTurn(RunTurn):
         final: bool = False,
     ):
         if self.mdstream:
-            # ignore reasoning tag ,because it cause the stream output formate error just ignore process the xml tags
-            # response_content = self.replace_reasoning_tag(response_content, DEFAULT_REASONING_TAG)
-            self.mdstream.update(response_content, final)
+            self.mdstream.update(response_content if response_content else "", final)
         else:
-            self.config.io.console.print(delta_text, sep="", end="")
+            if not self.config.io.pretty:
+                self.config.io.console.print(delta_text, sep="", end="")
 
     def execute(self, turn_input: TurnInput) -> TurnOutput:
         """Execute AI conversation turn
@@ -431,10 +428,19 @@ class ConversationTurn(RunTurn):
 
     def print_split_line(self):
         if self.config.io.pretty:
-            show = Markdown(SPLIT_TAG, **self.mdargs)
-            self.config.io.console.print(show)
+            self.config.io.rule(color=self.config.running_color_settings.split_line_color)
         else:
             self.config.io.console.print(SPLIT_TAG, end="")
+
+
+    def get_response_mdstream(self):
+        mdargs = dict(
+            style=self.config.running_color_settings.assistant_output_color,
+            code_theme=self.config.running_color_settings.code_theme,
+            inline_code_lexer="text",
+        )
+        mdStream = siada.io.components.mdstream.MarkdownRender(mdargs=mdargs)
+        return mdStream
 
 
 class CommandTurn(RunTurn):

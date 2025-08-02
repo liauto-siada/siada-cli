@@ -9,16 +9,16 @@ class ModelSettingsConverter:
     def convert_model_settings(model_running_config: ModelRunConfig) -> ModelSettings:
 
         extra_body = {}
+        reasoning = {}
         if model_running_config.get_reasoning_effort() is not None:
-            extra_body["effort"] = model_running_config.get_reasoning_effort()
-        if model_running_config.get_thinking_tokens is not None:
-            extra_body["max_tokens"] = model_running_config.get_raw_thinking_tokens()
-        
+            reasoning["effort"] = model_running_config.get_reasoning_effort()
+        if model_running_config.get_raw_thinking_tokens() is not None:
+            reasoning["max_tokens"] = model_running_config.get_raw_thinking_tokens()
+
+        if reasoning:
+            extra_body["reasoning"] = reasoning
 
         model_settings = ModelSettings(
-            reasoning=Reasoning(
-                effort=model_running_config.reasoning_effort,
-            ),
             max_tokens=model_running_config.max_tokens,
             extra_body=extra_body,
         )

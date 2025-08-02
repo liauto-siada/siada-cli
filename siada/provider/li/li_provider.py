@@ -4,8 +4,8 @@ import asyncio
 from typing import Any, AsyncIterator, Literal, cast, overload
 
 import litellm
-# 直接从具体模块导入，避免通过 agents 主模块
-# 直接从 tracing 子模块导入，避免循环依赖
+# Import directly from specific modules to avoid going through the main agents module
+# Import directly from the tracing submodule to avoid circular dependencies
 from agents.models.interface import ModelProvider, Model, ModelTracing
 from agents.items import ModelResponse, TResponseInputItem
 from agents import AgentOutputSchemaBase
@@ -39,7 +39,7 @@ class LiModel(Model):
         super().__init__()
         self._client = SiadaClient()
         self.model = model
-        self.context = None  # 添加 context 变量
+        self.context = None  # Add context variable
         
 
     def _non_null_or_not_given(self, value: Any) -> Any:
@@ -84,7 +84,7 @@ class LiModel(Model):
                 "role": "system",
             })
         with generation_span(
-                input=converted_messages if tracing.include_data() else None,  # 使用转换后的消息
+                input=converted_messages if tracing.include_data() else None,  # Use converted messages
                 model=str(self.model),
                 model_config=model_settings.to_json_dict()
                              | {"model_impl": "siada_llm"},
@@ -181,7 +181,7 @@ class LiModel(Model):
                 "role": "system",
             })
         with generation_span(
-                input=converted_messages if tracing.include_data() else None,  # 使用转换后的消息
+                input=converted_messages if tracing.include_data() else None,  # Use converted messages
                 model=str(self.model),
                 model_config=model_settings.to_json_dict()
                              | {"model_impl": "siadallm"},
@@ -310,6 +310,15 @@ class LiModel(Model):
                     "type" : "enabled",
                     "budget_tokens": thinking_budget
                 }
+        if extra_kwargs and "reasoning" in extra_kwargs:
+            reasoning = extra_kwargs.pop("reasoning", None)
+            if reasoning and reasoning["max_tokens"] > 0:
+                extra_kwargs["thinking"] = {
+                    "type" : "enabled",
+                    "budget_tokens": reasoning["max_tokens"]
+                }
+            if reasoning and reasoning["effort"] is not None:
+                reasoning_effort = reasoning["effort"]
     
 
         complete_kwargs = {
@@ -377,8 +386,14 @@ class LiModel(Model):
 
 
 
+def covert_to_li_model_name(model_name: str) -> str:
+    # Temporary handling, currently only processes claude-3.7-sonnet
+    if model_name == "claude-3.7-sonnet":
+        return "claude-3-7-sonnet"
+    return model_name
 
-class SiadaProvider(ModelProvider):
+
+class LiProvider(ModelProvider):
     """The base interface for a model provider.
 
     Model provider is responsible for looking up Models by name.
@@ -393,4 +408,6 @@ class SiadaProvider(ModelProvider):
         Returns:
             The model.
         """
-        return LiModel(model=model_name)
+
+        covert_model_name = covert_to_li_model_name(model_name)
+        return LiModel(model=covert_model_name)

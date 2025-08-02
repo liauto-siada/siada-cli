@@ -12,7 +12,7 @@ from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.web import web_crawl
 from siada.foundation.config import settings
-from siada.provider.li.li_provider import SiadaProvider
+from siada.provider.li.li_provider import LiProvider
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import logging
 
@@ -38,7 +38,7 @@ class TestWebAnalysisAgent(SiadaAgent[CodeAgentContext]):
 
     def __init__(self, *args, **kwargs):
         # Use default model provided by SiadaProvider
-        provider = SiadaProvider()
+        provider = LiProvider()
         model = provider.get_model("claude-sonnet-4")
 
         # Use default value if name parameter is not passed

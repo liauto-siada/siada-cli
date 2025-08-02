@@ -60,10 +60,10 @@ class Settings(BaseSettings):
         """
         if self._DEFAULT_RUN_CONFIG is None:
             # 在这里导入SiadaProvider，避免循环导入
-            from siada.provider.li.li_provider import SiadaProvider
+            from siada.provider.li.li_provider import LiProvider
             self.__class__._DEFAULT_RUN_CONFIG = agents.RunConfig(model=self.DEFAULT_MODEL,
                                                                   tracing_disabled=True,
-                                                                  model_provider=SiadaProvider())
+                                                                  model_provider=LiProvider())
         return self._DEFAULT_RUN_CONFIG
 
 

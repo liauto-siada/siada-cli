@@ -976,6 +976,22 @@
         "documentation": {}
     },
     {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Type",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Any",
         "importPath": "typing",
         "description": "typing",
@@ -3218,6 +3234,22 @@
         "documentation": {}
     },
     {
+        "label": "Model",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
+        "label": "ModelProvider",
+        "importPath": "agents",
+        "description": "agents",
+        "isExtraImport": true,
+        "detail": "agents",
+        "documentation": {}
+    },
+    {
         "label": "ModelProvider",
         "importPath": "agents",
         "description": "agents",
@@ -3554,7 +3586,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -3562,7 +3594,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -3570,7 +3602,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -3578,7 +3610,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -3586,7 +3618,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -3594,7 +3626,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -3602,7 +3634,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -3610,7 +3642,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -3618,15 +3650,7 @@
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
-        "importPath": "siada.provider.li.li_provider",
-        "description": "siada.provider.li.li_provider",
-        "isExtraImport": true,
-        "detail": "siada.provider.li.li_provider",
-        "documentation": {}
-    },
-    {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
         "isExtraImport": true,
@@ -6554,6 +6578,14 @@
         "documentation": {}
     },
     {
+        "label": "LitellmModel",
+        "importPath": "agents.extensions.models.litellm_model",
+        "description": "agents.extensions.models.litellm_model",
+        "isExtraImport": true,
+        "detail": "agents.extensions.models.litellm_model",
+        "documentation": {}
+    },
+    {
         "label": "generation_span",
         "importPath": "agents.tracing.create",
         "description": "agents.tracing.create",
@@ -6658,6 +6690,23 @@
         "documentation": {}
     },
     {
+        "label": "importlib",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "importlib",
+        "description": "importlib",
+        "detail": "importlib",
+        "documentation": {}
+    },
+    {
+        "label": "resources",
+        "importPath": "importlib",
+        "description": "importlib",
+        "isExtraImport": true,
+        "detail": "importlib",
+        "documentation": {}
+    },
+    {
         "label": "AgentHooks",
         "importPath": "agents.lifecycle",
         "description": "agents.lifecycle",
@@ -6687,23 +6736,6 @@
         "description": "openai.types.chat",
         "isExtraImport": true,
         "detail": "openai.types.chat",
-        "documentation": {}
-    },
-    {
-        "label": "importlib",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "importlib",
-        "description": "importlib",
-        "detail": "importlib",
-        "documentation": {}
-    },
-    {
-        "label": "resources",
-        "importPath": "importlib",
-        "description": "importlib",
-        "isExtraImport": true,
-        "detail": "importlib",
         "documentation": {}
     },
     {
@@ -8539,7 +8571,7 @@
         "kind": 5,
         "importPath": "siada.agent_hub.coder.tracing.example_usage",
         "description": "siada.agent_hub.coder.tracing.example_usage",
-        "peekOfCode": "provider = SiadaProvider()\nmodel = provider.get_model(settings.Claude_4_0_SONNET)\n# 定义一些示例工具\n@function_tool\ndef search_web(query: str) -> str:\n    \"\"\"搜索网络信息\"\"\"\n    return f\"搜索结果：找到关于 '{query}' 的 5 篇相关文章\"\n@function_tool\ndef analyze_data(data: str) -> str:\n    \"\"\"分析数据\"\"\"",
+        "peekOfCode": "provider = LiProvider()\nmodel = provider.get_model(settings.Claude_4_0_SONNET)\n# 定义一些示例工具\n@function_tool\ndef search_web(query: str) -> str:\n    \"\"\"搜索网络信息\"\"\"\n    return f\"搜索结果：找到关于 '{query}' 的 5 篇相关文章\"\n@function_tool\ndef analyze_data(data: str) -> str:\n    \"\"\"分析数据\"\"\"",
         "detail": "siada.agent_hub.coder.tracing.example_usage",
         "documentation": {}
     },
@@ -8638,7 +8670,7 @@
         "kind": 6,
         "importPath": "siada.agent_hub.coder.bug_fix_agent",
         "description": "siada.agent_hub.coder.bug_fix_agent",
-        "peekOfCode": "class BugFixAgent(CodeGenAgent):\n    fix_result_checker: FixResultChecker\n    issue_review_agent: IssueReviewAgent  # Forward declaration for type hinting\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        self.fix_result_checker = FixResultChecker()\n        self.issue_review_agent = IssueReviewAgent()\n        super().__init__(\n            name=\"BugFixAgent\",",
+        "peekOfCode": "class BugFixAgent(CodeGenAgent):\n    fix_result_checker: FixResultChecker\n    issue_review_agent: IssueReviewAgent  # Forward declaration for type hinting\n    def __init__(self, *args, **kwargs):\n        provider = LiProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        self.fix_result_checker = FixResultChecker()\n        self.issue_review_agent = IssueReviewAgent()\n        super().__init__(\n            name=\"BugFixAgent\",",
         "detail": "siada.agent_hub.coder.bug_fix_agent",
         "documentation": {}
     },
@@ -8647,7 +8679,7 @@
         "kind": 6,
         "importPath": "siada.agent_hub.coder.bug_fix_triage_agent",
         "description": "siada.agent_hub.coder.bug_fix_triage_agent",
-        "peekOfCode": "class BugFixTriageAgent(Agent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        instructions = (\n            f\"{RECOMMENDED_PROMPT_PREFIX} \"\n            \"You are a helpful triaging agent. You can use your tools to delegate the task to other appropriate agents.\"\n            \"The BugFixAgent fixes issues, and the TestAgent verifies the fixes. If verification fails, the BugFixAgent continues fixing until the issue is resolved.\"\n            \"Your job is to assign tasks to the appropriate agent at each stage.\"\n        ),",
+        "peekOfCode": "class BugFixTriageAgent(Agent):\n    def __init__(self, *args, **kwargs):\n        provider = LiProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        instructions = (\n            f\"{RECOMMENDED_PROMPT_PREFIX} \"\n            \"You are a helpful triaging agent. You can use your tools to delegate the task to other appropriate agents.\"\n            \"The BugFixAgent fixes issues, and the TestAgent verifies the fixes. If verification fails, the BugFixAgent continues fixing until the issue is resolved.\"\n            \"Your job is to assign tasks to the appropriate agent at each stage.\"\n        ),",
         "detail": "siada.agent_hub.coder.bug_fix_triage_agent",
         "documentation": {}
     },
@@ -8665,7 +8697,7 @@
         "kind": 6,
         "importPath": "siada.agent_hub.coder.code_gen_agent",
         "description": "siada.agent_hub.coder.code_gen_agent",
-        "peekOfCode": "class CodeGenAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Code Generation Agent\n    Specialized Agent implementation for code generation tasks.\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        if 'name' not in kwargs:\n            kwargs['name'] = \"CodeGenAgent\"",
+        "peekOfCode": "class CodeGenAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Code Generation Agent\n    Specialized Agent implementation for code generation tasks.\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        provider = LiProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        if 'name' not in kwargs:\n            kwargs['name'] = \"CodeGenAgent\"",
         "detail": "siada.agent_hub.coder.code_gen_agent",
         "documentation": {}
     },
@@ -8674,7 +8706,7 @@
         "kind": 6,
         "importPath": "siada.agent_hub.coder.fe_gen_agent",
         "description": "siada.agent_hub.coder.fe_gen_agent",
-        "peekOfCode": "class FeGenAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"FeGenAgent\",\n            tools=[edit, regex_search_files, run_cmd],\n            model=model,\n            *args,\n            **kwargs",
+        "peekOfCode": "class FeGenAgent(CodeGenAgent):\n    def __init__(self, *args, **kwargs):\n        provider = LiProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"FeGenAgent\",\n            tools=[edit, regex_search_files, run_cmd],\n            model=model,\n            *args,\n            **kwargs",
         "detail": "siada.agent_hub.coder.fe_gen_agent",
         "documentation": {}
     },
@@ -8683,7 +8715,7 @@
         "kind": 6,
         "importPath": "siada.agent_hub.coder.issue_review_agent",
         "description": "siada.agent_hub.coder.issue_review_agent",
-        "peekOfCode": "class IssueReviewAgent(CodeGenAgent):\n    \"\"\"\n    Agent to review issues in a repository.\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"IssueReviewAgent\",\n            tools=[edit, regex_search_files, run_cmd, list_code_definition_names, issue_review_completion],",
+        "peekOfCode": "class IssueReviewAgent(CodeGenAgent):\n    \"\"\"\n    Agent to review issues in a repository.\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        provider = LiProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"IssueReviewAgent\",\n            tools=[edit, regex_search_files, run_cmd, list_code_definition_names, issue_review_completion],",
         "detail": "siada.agent_hub.coder.issue_review_agent",
         "documentation": {}
     },
@@ -8692,7 +8724,7 @@
         "kind": 6,
         "importPath": "siada.agent_hub.coder.test_agent",
         "description": "siada.agent_hub.coder.test_agent",
-        "peekOfCode": "class TestAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Execution Agent: an agent dedicated to running test cases.\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        provider = SiadaProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"TestAgent\",\n            tools=[edit, regex_search_files, run_cmd, test_completion],",
+        "peekOfCode": "class TestAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Execution Agent: an agent dedicated to running test cases.\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        provider = LiProvider()\n        model = provider.get_model(settings.Claude_4_0_SONNET)\n        super().__init__(\n            name=\"TestAgent\",\n            tools=[edit, regex_search_files, run_cmd, test_completion],",
         "detail": "siada.agent_hub.coder.test_agent",
         "documentation": {}
     },
@@ -8715,29 +8747,11 @@
         "documentation": {}
     },
     {
-        "label": "resolve_aiderignore_path",
-        "kind": 2,
-        "importPath": "siada.entrypoint.args_parser.args",
-        "description": "siada.entrypoint.args_parser.args",
-        "peekOfCode": "def resolve_aiderignore_path(path_str, git_root=None):\n    path = Path(path_str)\n    if path.is_absolute():\n        return str(path)\n    elif git_root:\n        return str(Path(git_root) / path)\n    return str(path)\ndef default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser_for_dotenv():",
-        "detail": "siada.entrypoint.args_parser.args",
-        "documentation": {}
-    },
-    {
         "label": "default_env_file",
         "kind": 2,
         "importPath": "siada.entrypoint.args_parser.args",
         "description": "siada.entrypoint.args_parser.args",
-        "peekOfCode": "def default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser_for_dotenv():\n    # Special-case parser for getting the env_file, so we can load it\n    # before we parse the rest of the args.\n    parser = configargparse.ArgumentParser(add_help=False)\n    # Add only the arguments needed to find the .env file\n    parser.add_argument(\n        \"--workspace\",\n        metavar=\"DIR\",",
-        "detail": "siada.entrypoint.args_parser.args",
-        "documentation": {}
-    },
-    {
-        "label": "get_parser_for_dotenv",
-        "kind": 2,
-        "importPath": "siada.entrypoint.args_parser.args",
-        "description": "siada.entrypoint.args_parser.args",
-        "peekOfCode": "def get_parser_for_dotenv():\n    # Special-case parser for getting the env_file, so we can load it\n    # before we parse the rest of the args.\n    parser = configargparse.ArgumentParser(add_help=False)\n    # Add only the arguments needed to find the .env file\n    parser.add_argument(\n        \"--workspace\",\n        metavar=\"DIR\",\n        help=\"Specify the workspace directory (defaults to git root or current working directory)\",\n    )",
+        "peekOfCode": "def default_env_file(git_root):\n    return os.path.join(git_root, \".env\") if git_root else \".env\"\ndef get_parser(default_config_files, git_root):\n    parser = configargparse.ArgumentParser(\n        description=\"Siada-CLI is AI pair programming in your terminal\",\n        add_config_file_help=True,\n        default_config_files=default_config_files,\n        config_file_parser_class=configargparse.YAMLConfigFileParser,\n        auto_env_var_prefix=\"SIADA_\",\n    )",
         "detail": "siada.entrypoint.args_parser.args",
         "documentation": {}
     },
@@ -9547,7 +9561,7 @@
         "kind": 6,
         "importPath": "siada.models.converter",
         "description": "siada.models.converter",
-        "peekOfCode": "class ModelSettingsConverter:\n    @staticmethod\n    def convert_model_settings(model_running_config: ModelRunConfig) -> ModelSettings:\n        extra_body = {}\n        if model_running_config.get_reasoning_effort() is not None:\n            extra_body[\"effort\"] = model_running_config.get_reasoning_effort()\n        if model_running_config.get_thinking_tokens is not None:\n            extra_body[\"max_tokens\"] = model_running_config.get_raw_thinking_tokens()\n        model_settings = ModelSettings(\n            reasoning=Reasoning(",
+        "peekOfCode": "class ModelSettingsConverter:\n    @staticmethod\n    def convert_model_settings(model_running_config: ModelRunConfig) -> ModelSettings:\n        extra_body = {}\n        reasoning = {}\n        if model_running_config.get_reasoning_effort() is not None:\n            reasoning[\"effort\"] = model_running_config.get_reasoning_effort()\n        if model_running_config.get_raw_thinking_tokens() is not None:\n            reasoning[\"max_tokens\"] = model_running_config.get_raw_thinking_tokens()\n        if reasoning:",
         "detail": "siada.models.converter",
         "documentation": {}
     },
@@ -9556,7 +9570,7 @@
         "kind": 6,
         "importPath": "siada.models.model_base_config",
         "description": "siada.models.model_base_config",
-        "peekOfCode": "class ModelBaseConfig:\n    \"\"\"\n    Represents the configuration for a specific language model.\n    \"\"\"\n    model_name: str\n    context_window: int\n    max_tokens: Optional[int] = None\n    supports_images: bool = False\n    supports_prompt_cache: bool = False\n# Simple list of all model configurations",
+        "peekOfCode": "class ModelBaseConfig:\n    \"\"\"\n    Represents the configuration for a specific language model.\n    \"\"\"\n    model_name: str\n    context_window: int\n    max_tokens: Optional[int] = None\n    supports_images: bool = False\n    supports_prompt_cache: bool = False\n    supports_extra_params: Optional[List[str]] = None",
         "detail": "siada.models.model_base_config",
         "documentation": {}
     },
@@ -9799,16 +9813,25 @@
         "kind": 6,
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
-        "peekOfCode": "class LiModel(Model):\n    def __init__(self, model: str):\n        super().__init__()\n        self._client = SiadaClient()\n        self.model = model\n        self.context = None  # 添加 context 变量\n    def _non_null_or_not_given(self, value: Any) -> Any:\n        return value if value is not None else NOT_GIVEN\n    async def get_response(\n            self,",
+        "peekOfCode": "class LiModel(Model):\n    def __init__(self, model: str):\n        super().__init__()\n        self._client = SiadaClient()\n        self.model = model\n        self.context = None  # Add context variable\n    def _non_null_or_not_given(self, value: Any) -> Any:\n        return value if value is not None else NOT_GIVEN\n    async def get_response(\n            self,",
         "detail": "siada.provider.li.li_provider",
         "documentation": {}
     },
     {
-        "label": "SiadaProvider",
+        "label": "LiProvider",
         "kind": 6,
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
-        "peekOfCode": "class SiadaProvider(ModelProvider):\n    \"\"\"The base interface for a model provider.\n    Model provider is responsible for looking up Models by name.\n    \"\"\"\n    def get_model(self, model_name: str | None) -> Model:\n        \"\"\"Get a model by name.\n        Args:\n            model_name: The name of the model to get.\n        Returns:\n            The model.",
+        "peekOfCode": "class LiProvider(ModelProvider):\n    \"\"\"The base interface for a model provider.\n    Model provider is responsible for looking up Models by name.\n    \"\"\"\n    def get_model(self, model_name: str | None) -> Model:\n        \"\"\"Get a model by name.\n        Args:\n            model_name: The name of the model to get.\n        Returns:\n            The model.",
+        "detail": "siada.provider.li.li_provider",
+        "documentation": {}
+    },
+    {
+        "label": "covert_to_li_model_name",
+        "kind": 2,
+        "importPath": "siada.provider.li.li_provider",
+        "description": "siada.provider.li.li_provider",
+        "peekOfCode": "def covert_to_li_model_name(model_name: str) -> str:\n    # Temporary handling, currently only processes claude-3.7-sonnet\n    if model_name == \"claude-3.7-sonnet\":\n        return \"claude-3-7-sonnet\"\n    return model_name\nclass LiProvider(ModelProvider):\n    \"\"\"The base interface for a model provider.\n    Model provider is responsible for looking up Models by name.\n    \"\"\"\n    def get_model(self, model_name: str | None) -> Model:",
         "detail": "siada.provider.li.li_provider",
         "documentation": {}
     },
@@ -9822,11 +9845,47 @@
         "documentation": {}
     },
     {
+        "label": "OpenRouterProvider",
+        "kind": 6,
+        "importPath": "siada.provider.openrouter.openroute_provider",
+        "description": "siada.provider.openrouter.openroute_provider",
+        "peekOfCode": "class OpenRouterProvider(ModelProvider):\n    \"\"\"implementation of ModelProvider for OpenRouter by litellm\"\"\"\n    def get_model(self, model_name: str | None) -> Model:\n        \"\"\"Get a model by name.\n        Args:\n            model_name: The name of the model to get.\n        Returns:\n            The model.\n        \"\"\"\n        covert_model_name = \"openrouter/\" + covert_to_openrouter_model_name(model_name)",
+        "detail": "siada.provider.openrouter.openroute_provider",
+        "documentation": {}
+    },
+    {
+        "label": "covert_to_openrouter_model_name",
+        "kind": 2,
+        "importPath": "siada.provider.openrouter.openroute_provider",
+        "description": "siada.provider.openrouter.openroute_provider",
+        "peekOfCode": "def covert_to_openrouter_model_name(model_name: str) -> str:\n    temp_model_name = model_name\n    if model_name.startswith(\"claude-\"):\n        temp_model_name = model_name.replace(\"claude-\", \"anthropic/claude-\")\n    elif model_name.startswith(\"deepseek-\"):\n        if model_name == \"deepseek-v3-0324\":\n            temp_model_name = \"deepseek-chat-v3-0324\"\n        temp_model_name = temp_model_name.replace(\"deepseek-\", \"deepseek/deepseek-\")\n    return temp_model_name\nclass OpenRouterProvider(ModelProvider):",
+        "detail": "siada.provider.openrouter.openroute_provider",
+        "documentation": {}
+    },
+    {
         "label": "get_provider",
         "kind": 2,
         "importPath": "siada.provider.provider_factory",
         "description": "siada.provider.provider_factory",
-        "peekOfCode": "def get_provider(provider_name: str) -> ModelProvider:\n    \"\"\"\n    根据提供商名称获取相应的模型提供商实例。\n    Args:\n        provider_name (str): 提供商的名称，例如 'li'。\n    Returns:\n        ModelProvider: 对应的模型提供商实例。\n    Raises:\n        ValueError: 如果提供商名称不受支持。\n    \"\"\"",
+        "peekOfCode": "def get_provider(p_type: provider_type | None = None) -> ModelProvider:\n    \"\"\"\n    Retrieves the model provider instance based on the provider name.\n    Args:\n        p_type (provider_type | None): The name of the provider, e.g., 'li'. \n                                           If None, defaults to the first available provider.\n    Returns:\n        ModelProvider: The corresponding model provider instance.\n    Raises:\n        ValueError: If the provider name is not supported.",
+        "detail": "siada.provider.provider_factory",
+        "documentation": {}
+    },
+    {
+        "label": "PROVIDER_DIR",
+        "kind": 5,
+        "importPath": "siada.provider.provider_factory",
+        "description": "siada.provider.provider_factory",
+        "peekOfCode": "PROVIDER_DIR = os.path.dirname(__file__)\nprovider_map: Dict[str, ModelProvider] = {}\ndef _discover_providers():\n    \"\"\"\n    Dynamically discovers and registers all ModelProvider implementations.\n    \"\"\"\n    for item in os.listdir(PROVIDER_DIR):\n        item_path = os.path.join(PROVIDER_DIR, item)\n        if os.path.isdir(item_path):\n            provider_key = item",
+        "detail": "siada.provider.provider_factory",
+        "documentation": {}
+    },
+    {
+        "label": "provider_type",
+        "kind": 5,
+        "importPath": "siada.provider.provider_factory",
+        "description": "siada.provider.provider_factory",
+        "peekOfCode": "provider_type = str\ndef get_provider(p_type: provider_type | None = None) -> ModelProvider:\n    \"\"\"\n    Retrieves the model provider instance based on the provider name.\n    Args:\n        p_type (provider_type | None): The name of the provider, e.g., 'li'. \n                                           If None, defaults to the first available provider.\n    Returns:\n        ModelProvider: The corresponding model provider instance.\n    Raises:",
         "detail": "siada.provider.provider_factory",
         "documentation": {}
     },
@@ -10024,7 +10083,7 @@
         "kind": 2,
         "importPath": "siada.support.envprocessor",
         "description": "siada.support.envprocessor",
-        "peekOfCode": "def load_dotenv_files(git_root, dotenv_fname, encoding=\"utf-8\"):\n    # Standard .env file search path\n    dotenv_files = generate_search_path_list(\n        \".env\",\n        git_root,\n        dotenv_fname,\n    )\n    # Explicitly add the OAuth keys file to the beginning of the list\n    oauth_keys_file = Path.home() / \".siadahub\" / \"oauth-keys.env\"\n    if oauth_keys_file.exists():",
+        "peekOfCode": "def load_dotenv_files(git_root, dotenv_fname, encoding=\"utf-8\"):\n    # Standard .env file search path\n    dotenv_files = generate_search_path_list(\n        \".env\",\n        git_root,\n        dotenv_fname,\n    )\n    loaded = []\n    for fname in dotenv_files:\n        try:",
         "detail": "siada.support.envprocessor",
         "documentation": {}
     },
@@ -10978,7 +11037,7 @@
         "kind": 6,
         "importPath": "tests.agent.web_analysis",
         "description": "tests.agent.web_analysis",
-        "peekOfCode": "class TestWebAnalysisAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Web Content Analysis Agent\n    Test agent implementation for web content analysis functionality\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        # Use default model provided by SiadaProvider\n        provider = SiadaProvider()\n        model = provider.get_model(\"claude-sonnet-4\")\n        # Use default value if name parameter is not passed",
+        "peekOfCode": "class TestWebAnalysisAgent(SiadaAgent[CodeAgentContext]):\n    \"\"\"\n    Test Web Content Analysis Agent\n    Test agent implementation for web content analysis functionality\n    \"\"\"\n    def __init__(self, *args, **kwargs):\n        # Use default model provided by SiadaProvider\n        provider = LiProvider()\n        model = provider.get_model(\"claude-sonnet-4\")\n        # Use default value if name parameter is not passed",
         "detail": "tests.agent.web_analysis",
         "documentation": {}
     },

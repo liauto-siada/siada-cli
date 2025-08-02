@@ -8,7 +8,7 @@ from siada.agent_hub.coder.tracing.logger_tracing_processor import create_detail
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.config import settings
 from siada.foundation.tools.get_git_diff import GitDiffUtil
-from siada.provider.li.li_provider import SiadaProvider
+from siada.provider.li.li_provider import LiProvider
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
@@ -21,7 +21,7 @@ class IssueReviewAgent(CodeGenAgent):
     """
 
     def __init__(self, *args, **kwargs):
-        provider = SiadaProvider()
+        provider = LiProvider()
         model = provider.get_model(settings.Claude_4_0_SONNET)
 
         super().__init__(
