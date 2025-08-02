@@ -16,6 +16,22 @@ class ModelBaseConfig:
 
 # Simple list of all model configurations
 MODEL_SETTING: List[ModelBaseConfig] = [
+
+    # ModelBaseConfig(
+    #     model_name="o3-pro",
+    #     max_tokens=8192,
+    #     context_window=200_000,
+    #     supports_images=True,
+    #     supports_extra_params=["reasoning_effort"],
+    # ),
+
+    ModelBaseConfig(
+        model_name="gpt-4.1",
+        max_tokens=8192,
+        context_window=1_047_576,
+        supports_images=True,
+    ),
+
     ModelBaseConfig(
         model_name="claude-opus-4",
         max_tokens=8192,

@@ -261,7 +261,8 @@ def set_model(args, io):
             not model.supports_extra_params
             or "reasoning_effort" not in model.supports_extra_params
         ):
-            io.print_warning("Model does not support reasoning effort")
+            io.print_error(f"Model {model.model_name} does not support reasoning effort")
+            sys.exit(1)
         else:
             model.set_reasoning_effort(args.reasoning_effort)
 
@@ -270,7 +271,8 @@ def set_model(args, io):
             not model.supports_extra_params
             or "thinking_tokens" not in model.supports_extra_params
         ):
-            io.print_warning("Model does not support thinking tokens")
+            io.print_error(f"Model {model.model_name} does not support thinking tokens")
+            sys.exit(1)
         else:
             model.set_thinking_tokens(args.thinking_tokens)
 
@@ -312,8 +314,9 @@ def main():
         io.print_info("\n".join(f"- {model}" for model in models))
         return 0
 
+    # Configure model
+    model = set_model(args, io)
     # Display banner
-    show_banner(io)
 
     # Set environment variables
     if set_env(args, io) != 0:
@@ -334,8 +337,7 @@ def main():
         cmd_line = " ".join(sys.argv)
         io.print_info(f"Command: {cmd_line}")
 
-    # Configure model
-    model = set_model(args, io)
+    
     if model is None:
         return 0
 
@@ -361,6 +363,7 @@ def main():
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
     )
+    show_banner(io)
 
     if not interactive_mode:
         controller = NoInteractiveController(running_config)

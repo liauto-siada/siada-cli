@@ -312,12 +312,12 @@ class LiModel(Model):
                 }
         if extra_kwargs and "reasoning" in extra_kwargs:
             reasoning = extra_kwargs.pop("reasoning", None)
-            if reasoning and reasoning["max_tokens"] > 0:
+            if reasoning and reasoning.get("max_tokens", 0) > 0:
                 extra_kwargs["thinking"] = {
                     "type" : "enabled",
                     "budget_tokens": reasoning["max_tokens"]
                 }
-            if reasoning and reasoning["effort"] is not None:
+            if reasoning and "effort" in reasoning and reasoning["effort"] is not None:
                 reasoning_effort = reasoning["effort"]
     
 

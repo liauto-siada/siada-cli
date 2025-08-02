@@ -2,11 +2,6 @@
 Core search functionality using ripgrep binary.
 """
 
-# pylint: disable=anomalous-backslash-in-string
-# flake8: noqa: W605
-import warnings
-warnings.filterwarnings("ignore", category=SyntaxWarning, module=__name__)
-
 import json
 import os
 import platform
@@ -418,7 +413,7 @@ def regex_search_files(
         >>> results = regex_search_files(
         ...     cwd="/project/root",
         ...     directory_path="siada",
-        ...     regex=r"def\s+(\w+)",
+        ...     regex=r"def\\s+(\\w+)",
         ...     file_pattern="*.py"
         ... )
         >>> print(results)

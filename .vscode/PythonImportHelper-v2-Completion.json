@@ -600,6 +600,14 @@
         "documentation": {}
     },
     {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Optional",
         "importPath": "typing",
         "description": "typing",
@@ -8813,7 +8821,7 @@
         "kind": 6,
         "importPath": "siada.entrypoint.interaction.turn.run_turn",
         "description": "siada.entrypoint.interaction.turn.run_turn",
-        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False\n    got_tool_result_part: bool = False",
+        "peekOfCode": "class ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:\n        \"\"\"\n        Process thinking tags and return (processed_text, should_render)\n        Args:\n            text (str): Streaming input text\n        Returns:\n            tuple: (processed_text, should_render)",
         "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
@@ -8840,7 +8848,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.turn.run_turn",
         "description": "siada.entrypoint.interaction.turn.run_turn",
-        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\nSPLIT_TAG = \"\\n--------------\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None",
+        "peekOfCode": "REASONING_TAG = \"thinking-content-\" + \"7bbeb8e1441453ad999a0bbba8a46d4b\"\nSPLIT_TAG = \"\\n--------------\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:",
         "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
@@ -8849,7 +8857,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.turn.run_turn",
         "description": "siada.entrypoint.interaction.turn.run_turn",
-        "peekOfCode": "SPLIT_TAG = \"\\n--------------\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None",
+        "peekOfCode": "SPLIT_TAG = \"\\n--------------\\n\"\n# Output formatting\nREASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:\n        \"\"\"",
         "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
@@ -8858,7 +8866,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.turn.run_turn",
         "description": "siada.entrypoint.interaction.turn.run_turn",
-        "peekOfCode": "REASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None",
+        "peekOfCode": "REASONING_START = \"► **THINKING**\"\nREASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:\n        \"\"\"\n        Process thinking tags and return (processed_text, should_render)\n        Args:",
         "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
@@ -8867,7 +8875,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.turn.run_turn",
         "description": "siada.entrypoint.interaction.turn.run_turn",
-        "peekOfCode": "REASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False",
+        "peekOfCode": "REASONING_END = \"► **ANSWER**\"\nTOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:\n        \"\"\"\n        Process thinking tags and return (processed_text, should_render)\n        Args:\n            text (str): Streaming input text",
         "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
@@ -8876,7 +8884,7 @@
         "kind": 5,
         "importPath": "siada.entrypoint.interaction.turn.run_turn",
         "description": "siada.entrypoint.interaction.turn.run_turn",
-        "peekOfCode": "TOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    tool_calls: Dict[str, Dict[str, Any]] = None\n    tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None\n    response_content: str = None\n    current_active_call_id: Optional[str] = None\n    got_content_part: bool = False\n    got_reasoning_part: bool = False",
+        "peekOfCode": "TOOL_CALL_START = \"► **TOOL USE**\"\nclass ConversationTurn(RunTurn):\n    \"\"\"Handles regular AI conversation turns\"\"\"\n    mdstream: siada.io.components.mdstream.MarkdownRender = None\n    def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:\n        \"\"\"\n        Process thinking tags and return (processed_text, should_render)\n        Args:\n            text (str): Streaming input text\n        Returns:",
         "detail": "siada.entrypoint.interaction.turn.run_turn",
         "documentation": {}
     },
@@ -9866,7 +9874,7 @@
         "kind": 2,
         "importPath": "siada.provider.openrouter.openroute_provider",
         "description": "siada.provider.openrouter.openroute_provider",
-        "peekOfCode": "def covert_to_openrouter_model_name(model_name: str) -> str:\n    temp_model_name = model_name\n    if model_name.startswith(\"claude-\"):\n        temp_model_name = model_name.replace(\"claude-\", \"anthropic/claude-\")\n    elif model_name.startswith(\"deepseek-\"):\n        if model_name == \"deepseek-v3-0324\":\n            temp_model_name = \"deepseek-chat-v3-0324\"\n        temp_model_name = temp_model_name.replace(\"deepseek-\", \"deepseek/deepseek-\")\n    return temp_model_name\nclass OpenRouterProvider(ModelProvider):",
+        "peekOfCode": "def covert_to_openrouter_model_name(model_name: str) -> str:\n    temp_model_name = model_name\n    if model_name.startswith(\"claude-\"):\n        temp_model_name = model_name.replace(\"claude-\", \"anthropic/claude-\")\n    elif model_name.startswith(\"deepseek-\"):\n        if model_name == \"deepseek-v3-0324\":\n            temp_model_name = \"deepseek-chat-v3-0324\"\n        temp_model_name = temp_model_name.replace(\"deepseek-\", \"deepseek/deepseek-\")\n    elif model_name.startswith(\"o3-\"):\n        temp_model_name = model_name.replace(\"o3-\", \"openai/o3-\")",
         "detail": "siada.provider.openrouter.openroute_provider",
         "documentation": {}
     },

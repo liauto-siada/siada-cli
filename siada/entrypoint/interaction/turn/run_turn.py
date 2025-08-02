@@ -9,7 +9,7 @@ import grep_ast
 from siada.foundation.logging import logger
 import re
 import siada.io.components.mdstream
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 from agents import (
     RawResponsesStreamEvent,
@@ -48,6 +48,68 @@ class ConversationTurn(RunTurn):
     """Handles regular AI conversation turns"""
 
     mdstream: siada.io.components.mdstream.MarkdownRender = None
+    
+    def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:
+        """
+        Process thinking tags and return (processed_text, should_render)
+        
+        Args:
+            text (str): Streaming input text
+            
+        Returns:
+            tuple: (processed_text, should_render)
+                - If text ends with incomplete thinking tag, return (previous_safe_text, False)
+                - Otherwise remove all thinking tags (preserve content) and return (clean_text, True)
+        """
+        # Define complete tags
+        thinking_start = '<thinking>'
+        thinking_end = '</thinking>'
+        
+        # Check if text ends with incomplete thinking tag
+        def is_partial_tag_at_end(text: str, full_tag: str) -> bool:
+            """Check if text ends with incomplete part of specified tag"""
+            for i in range(1, len(full_tag)):
+                if text.endswith(full_tag[:i]):
+                    return True
+            return False
+        
+        # If text ends with incomplete <thinking> or </thinking> part, pause rendering
+        if is_partial_tag_at_end(text, thinking_start) or is_partial_tag_at_end(text, thinking_end):
+            # Find the last complete tag position and get safe part
+            safe_end = len(text)
+            for i in range(len(text) - 1, -1, -1):
+                if text[i] == '<':
+                    # Check if this position might be start of incomplete thinking tag
+                    remaining = text[i:]
+                    if thinking_start.startswith(remaining) or thinking_end.startswith(remaining):
+                        safe_end = i
+                        break
+            
+            safe_text = text[:safe_end]
+            clean_text = self._remove_thinking_content(safe_text)
+            return clean_text, False
+        
+        # No incomplete tags, remove all thinking tags
+        clean_text = self._remove_thinking_content(text)
+        return clean_text, True
+    
+    def _remove_thinking_content(self, text: str) -> str:
+        """
+        Remove thinking tags from text but preserve content inside
+        
+        Args:
+            text (str): Input text
+            
+        Returns:
+            str: Text with thinking tags removed
+        """
+        # Remove start tag <thinking> and possible whitespace
+        text = re.sub(r'<thinking>\s?', '', text)
+        
+        # Remove end tag </thinking> and possible surrounding whitespace
+        text = re.sub(r'\s?</thinking>', '', text)
+        
+        return text
     tool_calls: Dict[str, Dict[str, Any]] = None
     tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None
     response_content: str = None
@@ -329,10 +391,18 @@ class ConversationTurn(RunTurn):
         final: bool = False,
     ):
         if self.mdstream:
-            self.mdstream.update(response_content if response_content else "", final)
+            # Process thinking tags
+            processed_content, should_render = self._process_thinking_tags(response_content)
+            
+            if should_render or final:
+                self.mdstream.update(processed_content if processed_content else "", final)
+            # If should_render is False, pause mdstream.update temporarily
         else:
             if not self.config.io.pretty:
-                self.config.io.console.print(delta_text, sep="", end="")
+                # For non-pretty mode, also need to process thinking tags
+                processed_delta, should_render = self._process_thinking_tags(delta_text)
+                if should_render or final:
+                    self.config.io.console.print(processed_delta, sep="", end="")
 
     def execute(self, turn_input: TurnInput) -> TurnOutput:
         """Execute AI conversation turn

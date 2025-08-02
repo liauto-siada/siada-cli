@@ -10,6 +10,10 @@ def covert_to_openrouter_model_name(model_name: str) -> str:
         if model_name == "deepseek-v3-0324":
             temp_model_name = "deepseek-chat-v3-0324"
         temp_model_name = temp_model_name.replace("deepseek-", "deepseek/deepseek-")
+    elif model_name.startswith("o3-"):
+        temp_model_name = model_name.replace("o3-", "openai/o3-")
+    elif model_name.startswith("gpt-"):
+        temp_model_name = model_name.replace("gpt-", "openai/gpt-")
     return temp_model_name
 
 
