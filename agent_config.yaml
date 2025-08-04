@@ -20,16 +20,6 @@ agents:
     description: "Frontend code generation agent"
     enabled: false
 
-  bugreproduce:
-    class: "siada.agent_hub.coder.bug_reproduce_agent.BugReproduceAgent"
-    description: "Bug reproduction agent"
-    enabled: false
-
-  test:
-    class: "siada.agent_hub.coder.test_agent.TestAgent"
-    description: "Test agent"
-    enabled: false
-
 # LLM Configuration
 llm_config:
   provider: "li"                    # Optional： ”li“ ， “openrouter”
