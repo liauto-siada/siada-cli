@@ -12,9 +12,8 @@
             "args": [
                 "--workspace",
                 "/Users/zhangmeng20/vscodeProject/test",
-                "--provider", "openrouter",
-                "--model", "gpt-4.1"
-            
+                "--provider", "li",
+                "--model", "gemini-2.5-pro",
             ]
         },
         {

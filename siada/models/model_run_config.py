@@ -40,9 +40,6 @@ class ModelRunConfig(ModelBaseConfig):
         self.reasoning_effort = reasoning_effort
 
 
-    def set_thinking_tokens(self, thinking_tokens):
-        self.thinking_tokens = thinking_tokens
-
     def get_raw_thinking_tokens(self):
         """Get formatted thinking token budget if available"""
         return self.thinking_tokens

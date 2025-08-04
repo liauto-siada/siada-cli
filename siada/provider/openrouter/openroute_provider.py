@@ -14,6 +14,8 @@ def covert_to_openrouter_model_name(model_name: str) -> str:
         temp_model_name = model_name.replace("o3-", "openai/o3-")
     elif model_name.startswith("gpt-"):
         temp_model_name = model_name.replace("gpt-", "openai/gpt-")
+    elif model_name.startswith("gemini-"):
+        temp_model_name = model_name.replace("gemini-", "google/gemini-")
     return temp_model_name
 
 

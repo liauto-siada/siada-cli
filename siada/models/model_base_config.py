@@ -37,33 +37,39 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         max_tokens=8192,
         context_window=200_000,
         supports_images=True,
-        supports_extra_params=["thinking_tokens"],
+        supports_extra_params=[],
     ),
     ModelBaseConfig(
         model_name="claude-sonnet-4",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True,
-        supports_extra_params=["thinking_tokens"],
+        supports_extra_params=[],
     ),
     ModelBaseConfig(
         model_name="claude-3.7-sonnet",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True,
+        supports_extra_params=[],
+    ),
+
+    ModelBaseConfig(
+        model_name="gemini-2.5-pro",
+        max_tokens=8192,
+        context_window=1_048_576,
         supports_extra_params=["thinking_tokens"],
     ),
-    ModelBaseConfig(
-        model_name="deepseek-r1-0528",
-        max_tokens=16_384,
-        context_window=128_000,
-    ),
+
     ModelBaseConfig(
         model_name="deepseek-v3-0324",
-        max_tokens=12_288,
+        max_tokens=8192,
         context_window=128_000,
-    )
+    ),
 ]
+
+def is_gemini_model(model_name: str) -> bool:
+    return model_name.startswith("gemini-")
 
 def get_model_config(model_name: str) -> Optional[ModelBaseConfig]:
     """
