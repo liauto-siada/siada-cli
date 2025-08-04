@@ -120,7 +120,7 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--provider",
         choices=["openrouter", "li"],
-        default="li",
+        default=None,
         help="Specify the provider to use for the main chat (choices: openrouter, li, default: li)",
         metavar="PROVIDER",
     )

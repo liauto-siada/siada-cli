@@ -14,13 +14,10 @@ from siada.agent_hub.coder.tracing import create_detailed_logger
 class FeGenAgent(CodeGenAgent):
 
     def __init__(self, *args, **kwargs):
-        provider = LiProvider()
-        model = provider.get_model(settings.Claude_4_0_SONNET)
 
         super().__init__(
             name="FeGenAgent",
             tools=[edit, regex_search_files, run_cmd],
-            model=model,
             *args,
             **kwargs
         )

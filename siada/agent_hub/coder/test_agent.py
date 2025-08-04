@@ -32,13 +32,10 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
     """
 
     def __init__(self, *args, **kwargs):
-        provider = LiProvider()
-        model = provider.get_model(settings.Claude_4_0_SONNET)
         super().__init__(
             name="TestAgent",
             tools=[edit, regex_search_files, run_cmd, test_completion],
             tool_use_behavior=StopAtTools(stop_at_tool_names=['test_completion']),
-            model=model,
             *args,
             **kwargs
         )
@@ -55,15 +52,14 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
 
     async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
 
-        config = RunConfig(tracing_disabled=False)
+        #config = RunConfig(tracing_disabled=False)
         add_trace_processor(create_detailed_logger())
 
-        result = await Runner.run(
-            starting_agent=self,
-            input=user_input,
-            max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context
+        result = await self.run_impl(
+                    starting_agent=self,
+                    input=input,
+                    max_turns=settings.MAX_TURNS,
+                    context=context,
         )
 
         return result

@@ -13,7 +13,6 @@ from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.foundation.config import settings
-from siada.provider.li.li_provider import LiProvider
 from siada.agent_hub.coder.prompt import code_gen_prompt
 import logging
 
@@ -28,17 +27,12 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
     """
 
     def __init__(self, *args, **kwargs):
-        provider = LiProvider()
-        model = provider.get_model(settings.Claude_4_0_SONNET)
 
         if 'name' not in kwargs:
             kwargs['name'] = "CodeGenAgent"
 
         if 'tools' not in kwargs:
             kwargs['tools'] = [edit, regex_search_files, run_cmd, list_code_definition_names]
-
-        if 'model' not in kwargs:
-            kwargs['model'] = model
 
         super().__init__(
             *args,

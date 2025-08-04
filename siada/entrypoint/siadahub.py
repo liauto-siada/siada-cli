@@ -246,14 +246,11 @@ def set_model(args, io):
     else:
         model = ModelRunConfig(args.model)
 
-    if args.provider == "openrouter":
+    if model.provider == "openrouter":
         ## check the openrouter api key is set
         if os.getenv("OPENROUTER_API_KEY") is None:
             io.print_error("OPENROUTER_API_KEY is not set for openrouter provider")
             sys.exit(1)
-        model.provider = "openrouter"
-    else:
-        model.provider = "li"
 
     # Set reasoning effort and thinking tokens if specified
     if args.reasoning_effort is not None:

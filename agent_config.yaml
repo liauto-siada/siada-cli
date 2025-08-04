@@ -32,7 +32,8 @@ agents:
 
 # LLM Configuration
 llm_config:
-  model_name: "claude-3-7-sonnet"
+  provider: "openrouter"                            # Optional： ”li“ ， “openrouter”
+  model_name: "claude-3.7-sonnet"
   repo_map_tokens: 8192                     # repo map max token
   repo_map_mul_no_files: 16                 # Multiple without chat files
   repo_verbose: true                        # Enable detailed output or not

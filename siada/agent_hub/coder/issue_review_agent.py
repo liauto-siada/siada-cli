@@ -1,6 +1,6 @@
 import os
 
-from agents import RunConfig, RunContextWrapper, RunResult, Runner, set_trace_processors
+from agents import  RunContextWrapper, RunResult,  set_trace_processors
 
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import issue_review_prompt
@@ -21,13 +21,9 @@ class IssueReviewAgent(CodeGenAgent):
     """
 
     def __init__(self, *args, **kwargs):
-        provider = LiProvider()
-        model = provider.get_model(settings.Claude_4_0_SONNET)
-
         super().__init__(
             name="IssueReviewAgent",
             tools=[edit, regex_search_files, run_cmd, list_code_definition_names, issue_review_completion],
-            model=model,
             tool_use_behavior={
                 "stop_at_tool_names": ["issue_review_completion"],
             },
@@ -61,16 +57,13 @@ Here is the issue description and the code patch that fixes the problem.
 {patch}
 """
 
-        config = RunConfig(tracing_disabled=False)
-
         set_trace_processors([create_detailed_logger(output_file="agent_trace.log")]), 
 
-        result = await Runner.run(
+        result = await self.run_impl(
             starting_agent=self,
             input=input,
             max_turns=settings.MAX_TURNS,
-            run_config=config,
-            context=context
+            context=context,
         )
 
         return result
