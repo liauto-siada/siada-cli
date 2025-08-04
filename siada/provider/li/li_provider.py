@@ -1,3 +1,4 @@
+from siada.models.model_base_config import is_gemini_model
 from siada.provider.li.domian.li_chat_complete_chunk import LiChatCompletionChunk
 import time
 import asyncio
@@ -310,16 +311,23 @@ class LiModel(Model):
                     "type" : "enabled",
                     "budget_tokens": thinking_budget
                 }
+
+
+        if is_gemini_model(self.model.lower()):
+            extra_kwargs["enable_thinking"] = True
         if extra_kwargs and "reasoning" in extra_kwargs:
             reasoning = extra_kwargs.pop("reasoning", None)
-            if reasoning and reasoning.get("max_tokens", 0) > 0:
-                extra_kwargs["thinking"] = {
-                    "type" : "enabled",
-                    "budget_tokens": reasoning["max_tokens"]
-                }
-            if reasoning and "effort" in reasoning and reasoning["effort"] is not None:
-                reasoning_effort = reasoning["effort"]
-    
+            if reasoning:
+                max_tokens = reasoning.get("max_tokens", 0)
+                
+                if max_tokens > 0:
+                        extra_kwargs["enable_thinking"] = True
+                        extra_kwargs["thinking_budget"] = max_tokens    
+                    # Handle reasoning effort parameter
+                if "effort" in reasoning and reasoning["effort"] is not None:
+                    reasoning_effort = reasoning["effort"]
+
+            
 
         complete_kwargs = {
             "model": self.model,
@@ -390,6 +398,8 @@ def covert_to_li_model_name(model_name: str) -> str:
     # Temporary handling, currently only processes claude-3.7-sonnet
     if model_name == "claude-3.7-sonnet":
         return "claude-3-7-sonnet"
+    if model_name == "gemini-2.5-pro":
+        return "Gemini-2.5-pro"
     return model_name
 
 
@@ -411,3 +421,4 @@ class LiProvider(ModelProvider):
 
         covert_model_name = covert_to_li_model_name(model_name)
         return LiModel(model=covert_model_name)
+

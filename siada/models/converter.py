@@ -1,5 +1,6 @@
 from agents import ModelSettings
 from litellm import Reasoning
+from siada.models.model_base_config import is_gemini_model
 from siada.models.model_run_config import ModelRunConfig
 
 

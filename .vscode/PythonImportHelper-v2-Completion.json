@@ -5431,6 +5431,14 @@
         "documentation": {}
     },
     {
+        "label": "is_gemini_model",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
+        "isExtraImport": true,
+        "detail": "siada.models.model_base_config",
+        "documentation": {}
+    },
+    {
         "label": "ModelBaseConfig",
         "importPath": "siada.models.model_base_config",
         "description": "siada.models.model_base_config",
@@ -5440,6 +5448,14 @@
     },
     {
         "label": "get_model_config",
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
+        "isExtraImport": true,
+        "detail": "siada.models.model_base_config",
+        "documentation": {}
+    },
+    {
+        "label": "is_gemini_model",
         "importPath": "siada.models.model_base_config",
         "description": "siada.models.model_base_config",
         "isExtraImport": true,
@@ -9591,6 +9607,15 @@
         "documentation": {}
     },
     {
+        "label": "is_gemini_model",
+        "kind": 2,
+        "importPath": "siada.models.model_base_config",
+        "description": "siada.models.model_base_config",
+        "peekOfCode": "def is_gemini_model(model_name: str) -> bool:\n    return model_name.startswith(\"gemini-\")\ndef get_model_config(model_name: str) -> Optional[ModelBaseConfig]:\n    \"\"\"\n    Retrieves the configuration for a given model name.\n    Args:\n        model_name: The name of the model to retrieve.\n    Returns:\n        A ModelSettings instance if the model is found, otherwise None.\n    \"\"\"",
+        "detail": "siada.models.model_base_config",
+        "documentation": {}
+    },
+    {
         "label": "get_model_config",
         "kind": 2,
         "importPath": "siada.models.model_base_config",
@@ -9847,7 +9872,7 @@
         "kind": 2,
         "importPath": "siada.provider.li.li_provider",
         "description": "siada.provider.li.li_provider",
-        "peekOfCode": "def covert_to_li_model_name(model_name: str) -> str:\n    # Temporary handling, currently only processes claude-3.7-sonnet\n    if model_name == \"claude-3.7-sonnet\":\n        return \"claude-3-7-sonnet\"\n    return model_name\nclass LiProvider(ModelProvider):\n    \"\"\"The base interface for a model provider.\n    Model provider is responsible for looking up Models by name.\n    \"\"\"\n    def get_model(self, model_name: str | None) -> Model:",
+        "peekOfCode": "def covert_to_li_model_name(model_name: str) -> str:\n    # Temporary handling, currently only processes claude-3.7-sonnet\n    if model_name == \"claude-3.7-sonnet\":\n        return \"claude-3-7-sonnet\"\n    if model_name == \"gemini-2.5-pro\":\n        return \"Gemini-2.5-pro\"\n    return model_name\nclass LiProvider(ModelProvider):\n    \"\"\"The base interface for a model provider.\n    Model provider is responsible for looking up Models by name.",
         "detail": "siada.provider.li.li_provider",
         "documentation": {}
     },
