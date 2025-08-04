@@ -245,6 +245,10 @@ def set_model(args, io):
         model = ModelRunConfig.get_default_model()
     else:
         model = ModelRunConfig(args.model)
+    
+    # Override provider if specified via command line
+    if args.provider is not None:
+        model.provider = args.provider
 
     if model.provider == "openrouter":
         ## check the openrouter api key is set
