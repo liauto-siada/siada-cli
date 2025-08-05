@@ -30,15 +30,15 @@ def _discover_clients():
 _discover_clients()
 
 # The client keys are determined dynamically, so we use `str` for type hinting.
-client_type = str
+provider_type = str
 
 
-def get_client(c_type: client_type | None = None) -> LLMClient:
+def get_client(p_type: provider_type | None = None) -> LLMClient:
     """
     Retrieves the LLM client instance based on the client name.
 
     Args:
-        c_type (client_type | None): The name of the client, e.g., 'li', 'openrouter'. 
+        p_type (provider_type | None): The name of the provider, e.g., 'li', 'openrouter'. 
                                      If None, defaults to the first available client.
 
     Returns:
@@ -47,7 +47,7 @@ def get_client(c_type: client_type | None = None) -> LLMClient:
     Raises:
         ValueError: If the client name is not supported.
     """
-    if c_type and c_type in client_map:
-        return client_map[c_type]
+    if p_type and p_type in client_map:
+        return client_map[p_type]
 
     raise ValueError("No LLM clients found or registered.")
