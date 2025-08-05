@@ -337,5 +337,5 @@ def toggle_console_output(enable: bool = True, target_logger=None):
         remove_console_handler(target_logger)
 
 
-# 全局可访问的logger实例
+# Global accessible logger instance
 logger = setup_logger()

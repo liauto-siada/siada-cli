@@ -42,9 +42,10 @@ class RipgrepSearchResult(FunctionCallResult):
     search_results: List[SearchResult]
     cwd: str
 
-    def __init__(self, search_results: List[SearchResult], cwd: str):
+    def __init__(self, content: str, search_results: List[SearchResult], cwd: str):
         self.search_results = search_results
         self.cwd = cwd
+        super().__init__(content=content)
 
     def format_for_display(self):
         if self.search_results:
@@ -54,6 +55,7 @@ class RipgrepSearchResult(FunctionCallResult):
             return "No results found"
 
     def __str__(self):
+        """Generate content dynamically from search results."""
         if self.search_results:
             return RipgrepSearcher.format_results(self.search_results, self.cwd)
         else:
@@ -301,10 +303,10 @@ class RipgrepSearcher:
             
             results = self._parse_ripgrep_output(output)
             
-            return RipgrepSearchResult(results, cwd or os.getcwd())
+            return RipgrepSearchResult(content="", search_results=results, cwd=cwd or os.getcwd())
         
         except Exception:
-            return RipgrepSearchResult([], cwd or os.getcwd())
+            return RipgrepSearchResult(content="", search_results=[], cwd=cwd or os.getcwd())
     
     @staticmethod
     def format_results(results: List[SearchResult], cwd: str) -> str:
@@ -370,7 +372,7 @@ def regex_search_files(
     directory_path: str,
     regex: str,
     file_pattern: str = "*"
-) -> str:
+) -> RipgrepSearchResult:
     """
     Perform high-performance regex search across files using ripgrep.
     
