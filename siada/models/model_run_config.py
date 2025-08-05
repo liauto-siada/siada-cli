@@ -5,6 +5,8 @@ from siada.models.model_base_config import ModelBaseConfig, get_model_config
 
 DEFAULT_MODEL = "claude-sonnet-4"
 import os
+from pathlib import Path
+
 import logging
 import yaml
 @dataclass()
@@ -125,7 +127,8 @@ class ModelRunConfig(ModelBaseConfig):
 
     @staticmethod
     def get_default_model():
-            config_path = os.path.join(os.getcwd(), "agent_config.yaml")
+            project_root = Path(__file__).parent.parent.parent
+            config_path = project_root / "agent_config.yaml"
             llm_config = {}
             if os.path.exists(config_path):
                 try:
