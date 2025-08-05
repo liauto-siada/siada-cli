@@ -183,7 +183,7 @@ class FileFormatter(logging.Formatter):
         msg_type = record.__dict__.get('msg_type')
         event_source = record.__dict__.get('event_source')
         
-        # 处理事件源前缀
+        # Handle event source prefix
         if event_source and msg_type:
             msg_type = f'{event_source.upper()}_{msg_type}'
             
@@ -193,11 +193,11 @@ class FileFormatter(logging.Formatter):
             name_str = record.name
             level_str = record.levelname
             
-            # 处理错误或调试信息，包含更多细节
+            # Handle error or debug info with more details
             if msg_type == 'ERROR' or DEBUG:
                 return f'{time_str} - {name_str}:{level_str}: {record.filename}:{record.lineno}\n{msg_type}\n{msg}'
             
-            # 普通消息
+            # Normal message
             return format_log_line(time_str, msg_type, msg)
             
         elif msg_type == 'STEP':
@@ -241,39 +241,39 @@ def get_console_handler(log_level=logging.INFO, extra_info: Optional[str] = None
 
 def configure_third_party_loggers():
     """
-    配置第三方库的日志级别，减少冗余日志输出
+    Configure third-party library log levels to reduce verbose log output
     """
-    # 设置httpx日志级别为ERROR，避免过多的网络请求日志
+    # Set httpx log level to ERROR to avoid excessive network request logs
     logging.getLogger('httpx').setLevel(logging.ERROR)
     
-    # 可以根据需要添加其他第三方库的日志配置
+    # Add other third-party library log configurations as needed
     # logging.getLogger('urllib3').setLevel(logging.WARNING)
     # logging.getLogger('requests').setLevel(logging.WARNING)
 
 
 def setup_logger():
     """
-    设置并返回siada.api的logger
+    Setup and return siada.api logger
     """
-    # 创建logger
+    # Create logger
     setup_logger = logging.getLogger('siada.api')
     setup_logger.setLevel(logging.INFO)
 
-    # 如果logger已经有处理器，不要重复添加
+    # If logger already has handlers, don't add duplicates
     if setup_logger.handlers:
         return setup_logger
 
-    # 创建控制台处理器
+    # Create console handler
     console_handler = get_console_handler()
-    # 创建文件处理器 - 每天轮转一次，保留30天的日志
+    # Create file handler - rotate daily, keep 30 days of logs
     file_handler = get_file_handler()
 
-    # 添加处理器到logger
+    # Add handlers to logger
     setup_logger.addHandler(console_handler)
     setup_logger.addHandler(file_handler)
     setup_logger.propagate = False
 
-    # 配置第三方库的日志级别
+    # Configure third-party library log levels
     configure_third_party_loggers()
 
     return setup_logger

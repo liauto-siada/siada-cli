@@ -294,6 +294,7 @@ class ConversationTurn(RunTurn):
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
+                            # if have got the function call part, must flush the response before the tool call
                             if not self.got_function_call_part:
                                 self.got_function_call_part = True
                                 # flush the response content
@@ -312,7 +313,6 @@ class ConversationTurn(RunTurn):
 
                             tool_call_formatter = ToolCallFormatterFactory.get_formatter(tool_name)
 
-                            style = tool_call_formatter.get_style()
                             if (
                                 self.config.io.pretty
                                 and tool_call_formatter.supports_streaming()
@@ -320,26 +320,29 @@ class ConversationTurn(RunTurn):
                                 self.tool_call_mdstreams[call_id] = (
                                     self.get_response_mdstream()
                                 )
-                            else:
-                                self.tool_call_mdstreams[call_id] = None
 
                             # process the previous tool call stream, stop the live
-                            if self.current_active_call_id in self.tool_call_mdstreams:
+                            if (
+                                self.current_active_call_id
+                                and self.current_active_call_id
+                                in self.tool_call_mdstreams
+                            ):
                                 self.tool_call_mdstreams[
                                     self.current_active_call_id
                                 ].update(
                                     tool_call_formatter.format_input(
                                         self.current_active_call_id,
-                                        tool_name,
+                                        self.tool_calls[self.current_active_call_id]["name"],
                                         self.tool_calls[self.current_active_call_id][
                                             "arguments"
                                         ],
-                                    )[1],
+                                    )[0],
                                     final=True,
                                 )
-                                del self.tool_call_mdstreams[
-                                    self.current_active_call_id
-                                ]
+                                if self.current_active_call_id in self.tool_call_mdstreams:
+                                    del self.tool_call_mdstreams[
+                                        self.current_active_call_id
+                                    ]
 
                             self.current_active_call_id = call_id
                             self.print_split_line()
@@ -360,9 +363,9 @@ class ConversationTurn(RunTurn):
                             self.tool_calls[self.current_active_call_id]["name"]
                         )
 
+                        # if supports streaming, update the tool call mdstream
                         if tool_call_formatter.supports_streaming():
-                            style, content, is_complete = (
-                                tool_call_formatter.format_input(
+                            content, is_complete = tool_call_formatter.format_input(
                                     self.current_active_call_id,
                                     self.tool_calls[self.current_active_call_id][
                                         "name"
@@ -371,11 +374,9 @@ class ConversationTurn(RunTurn):
                                         "arguments"
                                     ],
                                 )
-                            )
 
-                            self.tool_calls[self.current_active_call_id]["arguments"] += delta
                             # compute the content_delta
-                            content_delta = content[len(self.tool_calls[self.current_active_call_id]["arguments_render"]):]
+                            arguments_delta = content[len(self.tool_calls[self.current_active_call_id]["arguments_render"]):]
                             self.tool_calls[self.current_active_call_id]["arguments_render"] = content
 
                             if self.current_active_call_id in self.tool_call_mdstreams:
@@ -383,7 +384,9 @@ class ConversationTurn(RunTurn):
                                     self.current_active_call_id
                                 ].update(content, final=False)
                             else:
-                                self.config.io.console.print(content_delta, sep="", end="")
+                                self.config.io.console.print(
+                                    arguments_delta, sep="", end=""
+                                )
 
                     elif isinstance(stream_data, ResponseOutputItemDoneEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
@@ -395,21 +398,12 @@ class ConversationTurn(RunTurn):
                                 tool_call_formatter = (
                                     ToolCallFormatterFactory.get_formatter(tool_name)
                                 )
-                                style, content, is_complete = tool_call_formatter.format_input(
+                                content, is_complete = tool_call_formatter.format_input(
                                     call_id, tool_name, full_arguments
                                 )
                                 style = tool_call_formatter.get_style()
                                 # if not streaming, only create the mdstream and update the final content
-                                if not tool_call_formatter.supports_streaming():
-                                    if style == "markdown" and self.config.io.pretty:
-                                        self.tool_call_mdstreams[call_id] = self.get_response_mdstream()
-                                        self.tool_call_mdstreams[call_id].update(
-                                            content, final=True
-                                        )
-                                        del self.tool_call_mdstreams[call_id]
-                                    else:
-                                        self.config.io.print_tool_call(content)
-                                else:
+                                if tool_call_formatter.supports_streaming():
                                     # process the last tool call stream, stop the live
                                     if call_id in self.tool_call_mdstreams:
                                         self.tool_call_mdstreams[call_id].update(
@@ -417,10 +411,23 @@ class ConversationTurn(RunTurn):
                                                 call_id,
                                                 tool_name,
                                                 self.tool_calls[call_id]["arguments"],
-                                            )[1],
+                                            )[0],
                                             final=True,
                                         )
-                                    del self.tool_call_mdstreams[call_id]
+                                    if call_id in self.tool_call_mdstreams:
+                                        del self.tool_call_mdstreams[call_id]
+                                else:
+                                    if style == "markdown" and self.config.io.pretty:
+                                        self.tool_call_mdstreams[call_id] = (
+                                            self.get_response_mdstream()
+                                        )
+                                        self.tool_call_mdstreams[call_id].update(
+                                            content, final=True
+                                        )
+                                        if call_id in self.tool_call_mdstreams:
+                                            del self.tool_call_mdstreams[call_id]
+                                    else:
+                                        self.config.io.print_tool_call(content)
 
                     elif isinstance(stream_data, ResponseCompletedEvent):
                         pass
