@@ -1,4 +1,5 @@
 from siada.models.model_base_config import is_gemini_model
+from siada.provider.li.coverter import covert_to_li_model_name
 from siada.provider.li.domian.li_chat_complete_chunk import LiChatCompletionChunk
 import time
 import asyncio
@@ -394,13 +395,7 @@ class LiModel(Model):
 
 
 
-def covert_to_li_model_name(model_name: str) -> str:
-    # Temporary handling, currently only processes claude-3.7-sonnet
-    if model_name == "claude-3.7-sonnet":
-        return "claude-3-7-sonnet"
-    if model_name == "gemini-2.5-pro":
-        return "Gemini-2.5-pro"
-    return model_name
+
 
 
 class LiProvider(ModelProvider):
