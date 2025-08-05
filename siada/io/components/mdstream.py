@@ -150,7 +150,7 @@ class MarkdownRender:
         render_time = time.time() - start
 
         # Set min_delay to render time plus a small buffer
-        self.min_delay = min(max(render_time * 10, 1.0 / 20), 1)
+        self.min_delay = min(max(render_time * 10, 1.0 / 20), 2)
 
         num_lines = len(lines)
 

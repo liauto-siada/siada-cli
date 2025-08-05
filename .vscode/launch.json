@@ -12,8 +12,8 @@
             "args": [
                 "--workspace",
                 "/Users/zhangmeng20/vscodeProject/test",
-                "--provider", "li",
-                "--model", "gemini-2.5-pro",
+                "--provider", "openrouter",
+                "--model", "claude-sonnet-4",
             ]
         },
         {
@@ -40,8 +40,10 @@
             "args": [
                 "--agent", "coder",
                 "--model", "claude-sonnet-4",
-                "--thinking-tokens", "8k",
-                "--prompt", "写一个hello world的python程序"
+                "--prompt", "使用search工具搜索sort关键词",
+                "--provider", "li",
+                "--model", "claude-sonnet-4",
+                "--workspace", "/Users/zhangmeng20/vscodeProject/test",
             ]
         },
         {

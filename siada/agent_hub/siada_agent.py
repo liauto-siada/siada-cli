@@ -138,10 +138,10 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         
         context.provider = model_provider
 
-        if running_session.running_config.interactive:
-            ## in the interactive mode, we need to add the ask_followup_question tool
-            if ask_followup_question not in self.tools:
-                self.tools.append(ask_followup_question)
+        # if running_session.running_config.interactive:
+        #     ## in the interactive mode, we need to add the ask_followup_question tool
+        #     if ask_followup_question not in self.tools:
+        #         self.tools.append(ask_followup_question)
 
         if run_config is None:
             run_config = RunConfig(

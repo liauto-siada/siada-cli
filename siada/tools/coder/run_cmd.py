@@ -19,10 +19,11 @@ RUN_CMD_DOCS = """Execute a shell command using the most appropriate method for 
 class RunCmdResult(FunctionCallResult):
     """This data class represents the output of a command."""
 
-    def __init__(self, command: str, output: str, code: int):
+    def __init__(self, content: str, command: str, output: str, code: int):
         self.command = command
         self.output = output
         self.code = code if code is not None else 1
+        super().__init__(content=content)
 
     def format_for_display(self) -> str:
         if self.code == 0:
@@ -52,4 +53,4 @@ def run_cmd(context: RunContextWrapper[CodeAgentContext], command):
     """
     cwd = context.context.root_dir
     code, output = run_cmd_impl(command=command, cwd=cwd)
-    return RunCmdResult(command, output, code)
+    return RunCmdResult(content=command, command=command, output=output, code=code)

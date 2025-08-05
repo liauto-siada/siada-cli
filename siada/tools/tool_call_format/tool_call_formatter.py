@@ -4,32 +4,51 @@ from typing import Any, Dict, Tuple
 
 class ToolCallFormatter(ABC):
     """
-    Tool call formatter 接口
-    用于格式化不同函数的输入参数
+    Tool call formatter interface
+    Used to format input parameters for different functions
     """
 
     @abstractmethod
-    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:
+    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, bool]:
         """
-        格式化函数输入参数
+        Format function input parameters
         
         Args:
             call_id: tool_call id
-            function_name: 函数名称
-            arguments: 原始参数字符串
+            function_name: function name
+            arguments: raw parameter string
             
         Returns:
-            一个包含样式和内容的元组 (style, content)
+            A tuple containing content and completeness flag (content, is_complete)
         """
         pass
+    
+    def supports_streaming(self) -> bool:
+        """
+        Whether streaming rendering is supported
+        
+        Returns:
+            True if this formatter supports streaming rendering, False otherwise
+        """
+        return False
 
     @property
     @abstractmethod
     def supported_function(self) -> str:
         """
-        返回支持的函数名
+        Return the supported function name
         
         Returns:
-            支持的函数名
+            The supported function name
         """
         pass 
+
+
+    def get_style(self) -> str:
+        """
+        Return the style
+        
+        Returns:
+            The style
+        """
+        return "text"
