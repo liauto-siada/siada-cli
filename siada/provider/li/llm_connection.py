@@ -8,10 +8,12 @@ from siada.foundation.constants import LLM_API_CONNECT_TIMEOUT, LLM_API_READ_TIM
 from litellm.types.utils import ModelResponse as LitellmModelResponse
 from siada.foundation.logging import logger
 from siada.provider.li.domian.li_chat_complete_chunk import LiChatCompletionChunk
+from siada.provider.li.li_provider import covert_to_li_model_name
 from siada.provider.li.stream.__stream import AsyncStream
+from siada.provider.llm_client import LLMClient
 
 
-class SiadaClient:
+class SiadaClient(LLMClient):
     """连接Siada LLM服务的客户端类"""
 
     # 单例客户端实例
@@ -341,3 +343,8 @@ class SiadaClient:
                     
                     # 设置处理后的reasoning_content
                     choice['message']['reasoning_content'] = thinking_content if thinking_content else ""
+
+    def completion(self, **kwargs) -> LitellmModelResponse:
+        model = kwargs.get("model")
+        kwargs["model"] = covert_to_li_model_name(model)
+        return self.chat_complete(**kwargs)
