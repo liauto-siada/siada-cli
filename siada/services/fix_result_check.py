@@ -8,21 +8,15 @@ from typing import Dict, Any
 
 from openai.types.chat import ChatCompletionMessageParam
 
-from siada.provider.li.llm_connection import SiadaClient
+from siada.provider.client_factory import get_client
 from siada.foundation.config import settings
-
 
 class FixResultChecker:
     """修复结果检查器
     
     使用模型分析代码修复是否真正解决了描述的问题
     """
-    
-    def __init__(self):
-        """初始化检查器"""
-        self.client = SiadaClient()
-    
-    async def check(self, issue_desc: str, fix_code: str) -> Dict[str, Any]:
+    async def check(self, issue_desc: str, fix_code: str,context: Any) -> Dict[str, Any]:
         """检查修复代码是否真正解决了问题
         
         Args:
@@ -38,7 +32,7 @@ class FixResultChecker:
             }
         """
         try:
-            analysis_result = await self._call_model_for_analysis(issue_desc, fix_code)
+            analysis_result = await self._call_model_for_analysis(issue_desc, fix_code, context)
             return self._parse_analysis_result(analysis_result)
         except Exception as e:
             return {
@@ -47,7 +41,7 @@ class FixResultChecker:
                 "analysis": f"错误详情: {str(e)}"
             }
     
-    async def _call_model_for_analysis(self, issue_desc: str, fix_code: str) -> str:
+    async def _call_model_for_analysis(self, issue_desc: str, fix_code: str, context: Any) -> str:
         """调用模型进行分析
         
         Args:
@@ -66,7 +60,6 @@ class FixResultChecker:
             {"role": "user", "content": user_task},
         ]
         
-        print("checking fix task :", user_task)
 
         # 调用模型
         complete_kwargs = {
@@ -76,7 +69,9 @@ class FixResultChecker:
             "temperature": 0.2,  # 较低温度确保分析的准确性和一致性
         }
 
-        response = await self.client.chat_complete(**complete_kwargs)
+        
+        client = get_client(context.provider)
+        response = await client.chat_complete(**complete_kwargs)
         
         # 提取分析结果
         if response and response.choices and response.choices[0].message:

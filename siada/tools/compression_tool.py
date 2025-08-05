@@ -9,11 +9,9 @@ from typing import Any
 from agents import RunContextWrapper, function_tool
 from agents.items import TResponseInputItem
 from openai.types.chat import ChatCompletionMessageParam
-
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.provider.li.llm_connection import SiadaClient
 from siada.foundation.config import settings
-
+from siada.provider.client_factory import get_client
 COMPRESS_DOCS = """Intelligently compress or summarize the conversation history within a specified range.
 
     This tool should be called when the following situations occur:
@@ -85,9 +83,8 @@ async def compress_context_tool(
         end_index=end_index
     )
 
-async def _compress_messages_with_model(messages: list[TResponseInputItem], reason: str) -> str:
+async def _compress_messages_with_model(messages: list[TResponseInputItem], reason: str, context: RunContextWrapper[CodeAgentContext]) -> str:
     
-    client = SiadaClient()
     
     # Format messages
     formatted_messages_content = []
@@ -127,7 +124,7 @@ Please generate a summary based on the following conversation history:
         "stream": False,
         "temperature": 0.2,  # Lower temperature to ensure the determinism and accuracy of the summary
     }
-    
+    client = get_client(context.context.provider)
     response = await client.chat_complete(**complete_kwargs)
     
     # Extract the summary content from the response
