@@ -8,8 +8,6 @@ include = ["agent_config.yaml"]
 
 [tool.poetry.scripts]
 siada-cli = "siada.entrypoint.siadahub:main"
-siadahub = "siada.entrypoint.cli:siadahub"
-
 [tool.poetry.dependencies]
 python = "^3.12"
 fastapi = "^0.110.0"

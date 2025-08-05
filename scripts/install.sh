@@ -107,16 +107,16 @@ verify_installation() {
     log_info "Verifying installation..."
     
     # Check if command is available
-    if command -v siadahub &> /dev/null; then
-        log_success "siadahub command is available"
+    if command -v siada-cli &> /dev/null; then
+        log_success "siadahub-cli command is available"
         
         # Show help information
         echo ""
         log_info "Command help information:"
-        siadahub --help
+        siadahub-cli --help
         
     else
-        log_error "siadahub command is not available"
+        log_error "siadahub-cli command is not available"
         log_warning "You may need to reload shell or check PATH environment variable"
         exit 1
     fi
@@ -130,11 +130,11 @@ show_usage() {
     echo "========================================"
     echo ""
     echo "Basic usage:"
-    echo "  siadahub --help                    # Show help"
-    echo "  siadahub bugfix \"Fix some issue\"  # Use bugfix agent"
+    echo "  siadahub-cli --help                    # Show help"
+    echo "  siadahub-cli bugfix \"Fix some issue\"  # Use bugfix agent"
     echo ""
     echo "Examples:"
-    echo "  siadahub bugfix \"Complete a requirement\""
+    echo "  siadahub-cli bugfix \"Complete a requirement\""
     echo ""
 }
 
