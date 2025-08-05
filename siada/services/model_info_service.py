@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Any
 from dataclasses import asdict
 
 from siada.models.model_base_config import ModelBaseConfig, MODEL_SETTING, get_model_config
-from siada.models.model_run_config import ModelRunConfig, DEFAULT_MODEL
+from siada.models.model_run_config import ModelRunConfig
 
 
 class ModelInfoService:

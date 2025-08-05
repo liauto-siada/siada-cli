@@ -3,7 +3,6 @@ from typing import Optional
 
 from siada.models.model_base_config import ModelBaseConfig, get_model_config
 
-DEFAULT_MODEL = "claude-sonnet-4"
 import os
 from pathlib import Path
 
@@ -127,23 +126,23 @@ class ModelRunConfig(ModelBaseConfig):
 
     @staticmethod
     def get_default_model():
-            project_root = Path(__file__).parent.parent.parent
-            config_path = project_root / "agent_config.yaml"
-            llm_config = {}
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = yaml.safe_load(f)
-                        llm_config = config.get('llm_config', {})
-                except Exception as e:
+        project_root = Path(__file__).parent.parent.parent
+        config_path = project_root / "agent_config.yaml"
+        llm_config = {}
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    llm_config = config.get('llm_config', {})
+            except Exception as e:
                     logging.warning(f"Failed to read agent config file for repo map instance: {str(e)}")
-            model_name = llm_config.get('model_name')
-            provider = llm_config.get('provider')
+        model_name = llm_config.get('model_name')
+        provider = llm_config.get('provider')
 
-            model_config = ModelRunConfig(model_name)
+        model_config = ModelRunConfig(model_name)
 
-            model_config.provider = provider
-            return model_config
+        model_config.provider = provider
+        return model_config
 
 
 
