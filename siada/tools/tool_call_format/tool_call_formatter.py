@@ -9,7 +9,7 @@ class ToolCallFormatter(ABC):
     """
 
     @abstractmethod
-    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str]:
+    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, str, bool]:
         """
         格式化函数输入参数
         
@@ -19,9 +19,18 @@ class ToolCallFormatter(ABC):
             arguments: 原始参数字符串
             
         Returns:
-            一个包含样式和内容的元组 (style, content)
+            一个包含样式、内容和完整性标志的元组 (style, content, is_complete)
         """
         pass
+    
+    def supports_streaming(self) -> bool:
+        """
+        是否支持流式渲染
+        
+        Returns:
+            True if this formatter supports streaming rendering, False otherwise
+        """
+        return False
 
     @property
     @abstractmethod
@@ -33,3 +42,13 @@ class ToolCallFormatter(ABC):
             支持的函数名
         """
         pass 
+
+
+    def get_style(self) -> str:
+        """
+        返回样式
+        
+        Returns:
+            样式
+        """
+        return "text"

@@ -38,6 +38,7 @@ patch-ng = "^1.18.1"
 datasets = "^3.6.0"
 trafilatura = "^2.0.0"
 prompt-toolkit = "^3.0.51"
+partial-json-parser = "^0.2.1.1.post6"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

@@ -48,7 +48,7 @@ class ConversationTurn(RunTurn):
     """Handles regular AI conversation turns"""
 
     mdstream: siada.io.components.mdstream.MarkdownRender = None
-    
+
     def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:
         """
         Process thinking tags and return (processed_text, should_render)
@@ -64,7 +64,7 @@ class ConversationTurn(RunTurn):
         # Define complete tags
         thinking_start = '<thinking>'
         thinking_end = '</thinking>'
-        
+
         # Check if text ends with incomplete thinking tag
         def is_partial_tag_at_end(text: str, full_tag: str) -> bool:
             """Check if text ends with incomplete part of specified tag"""
@@ -72,7 +72,7 @@ class ConversationTurn(RunTurn):
                 if text.endswith(full_tag[:i]):
                     return True
             return False
-        
+
         # If text ends with incomplete <thinking> or </thinking> part, pause rendering
         if is_partial_tag_at_end(text, thinking_start) or is_partial_tag_at_end(text, thinking_end):
             # Find the last complete tag position and get safe part
@@ -84,15 +84,15 @@ class ConversationTurn(RunTurn):
                     if thinking_start.startswith(remaining) or thinking_end.startswith(remaining):
                         safe_end = i
                         break
-            
+
             safe_text = text[:safe_end]
             clean_text = self._remove_thinking_content(safe_text)
             return clean_text, False
-        
+
         # No incomplete tags, remove all thinking tags
         clean_text = self._remove_thinking_content(text)
         return clean_text, True
-    
+
     def _remove_thinking_content(self, text: str) -> str:
         """
         Remove thinking tags from text but preserve content inside
@@ -105,10 +105,10 @@ class ConversationTurn(RunTurn):
         """
         # Remove start tag <thinking> and possible whitespace
         text = re.sub(r'<thinking>\s?', '', text)
-        
+
         # Remove end tag </thinking> and possible surrounding whitespace
         text = re.sub(r'\s?</thinking>', '', text)
-        
+
         return text
     tool_calls: Dict[str, Dict[str, Any]] = None
     tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None
@@ -307,7 +307,40 @@ class ConversationTurn(RunTurn):
                             self.tool_calls[call_id] = {
                                 "name": tool_name,
                                 "arguments": "",
+                                "arguments_render": "",
                             }
+
+                            tool_call_formatter = ToolCallFormatterFactory.get_formatter(tool_name)
+
+                            style = tool_call_formatter.get_style()
+                            if (
+                                self.config.io.pretty
+                                and tool_call_formatter.supports_streaming()
+                            ):
+                                self.tool_call_mdstreams[call_id] = (
+                                    self.get_response_mdstream()
+                                )
+                            else:
+                                self.tool_call_mdstreams[call_id] = None
+
+                            # process the previous tool call stream, stop the live
+                            if self.current_active_call_id in self.tool_call_mdstreams:
+                                self.tool_call_mdstreams[
+                                    self.current_active_call_id
+                                ].update(
+                                    tool_call_formatter.format_input(
+                                        self.current_active_call_id,
+                                        tool_name,
+                                        self.tool_calls[self.current_active_call_id][
+                                            "arguments"
+                                        ],
+                                    )[1],
+                                    final=True,
+                                )
+                                del self.tool_call_mdstreams[
+                                    self.current_active_call_id
+                                ]
+
                             self.current_active_call_id = call_id
                             self.print_split_line()
                             self.config.io.print_tool_call(
@@ -323,7 +356,34 @@ class ConversationTurn(RunTurn):
                                 "arguments"
                             ] += delta
 
-                        ## TODO: stream output the tool call arge
+                        tool_call_formatter = ToolCallFormatterFactory.get_formatter(
+                            self.tool_calls[self.current_active_call_id]["name"]
+                        )
+
+                        if tool_call_formatter.supports_streaming():
+                            style, content, is_complete = (
+                                tool_call_formatter.format_input(
+                                    self.current_active_call_id,
+                                    self.tool_calls[self.current_active_call_id][
+                                        "name"
+                                    ],
+                                    self.tool_calls[self.current_active_call_id][
+                                        "arguments"
+                                    ],
+                                )
+                            )
+
+                            self.tool_calls[self.current_active_call_id]["arguments"] += delta
+                            # compute the content_delta
+                            content_delta = content[len(self.tool_calls[self.current_active_call_id]["arguments_render"]):]
+                            self.tool_calls[self.current_active_call_id]["arguments_render"] = content
+
+                            if self.current_active_call_id in self.tool_call_mdstreams:
+                                self.tool_call_mdstreams[
+                                    self.current_active_call_id
+                                ].update(content, final=False)
+                            else:
+                                self.config.io.console.print(content_delta, sep="", end="")
 
                     elif isinstance(stream_data, ResponseOutputItemDoneEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
@@ -335,24 +395,32 @@ class ConversationTurn(RunTurn):
                                 tool_call_formatter = (
                                     ToolCallFormatterFactory.get_formatter(tool_name)
                                 )
-                                style, content = tool_call_formatter.format_input(
+                                style, content, is_complete = tool_call_formatter.format_input(
                                     call_id, tool_name, full_arguments
                                 )
-
-                                if style == "markdown" and self.config.io.pretty:
-                                    if call_id not in self.tool_call_mdstreams:
-                                        self.tool_call_mdstreams[call_id] = (
-                                            self.get_response_mdstream()
+                                style = tool_call_formatter.get_style()
+                                # if not streaming, only create the mdstream and update the final content
+                                if not tool_call_formatter.supports_streaming():
+                                    if style == "markdown" and self.config.io.pretty:
+                                        self.tool_call_mdstreams[call_id] = self.get_response_mdstream()
+                                        self.tool_call_mdstreams[call_id].update(
+                                            content, final=True
                                         )
-                                    self.tool_call_mdstreams[call_id].update(
-                                        content, final=True
-                                    )
-                                    del self.tool_call_mdstreams[call_id]
+                                        del self.tool_call_mdstreams[call_id]
+                                    else:
+                                        self.config.io.print_tool_call(content)
                                 else:
-                                    self.config.io.print_tool_call(content)
-
-                            if self.current_active_call_id == call_id:
-                                self.current_active_call_id = None
+                                    # process the last tool call stream, stop the live
+                                    if call_id in self.tool_call_mdstreams:
+                                        self.tool_call_mdstreams[call_id].update(
+                                            tool_call_formatter.format_input(
+                                                call_id,
+                                                tool_name,
+                                                self.tool_calls[call_id]["arguments"],
+                                            )[1],
+                                            final=True,
+                                        )
+                                    del self.tool_call_mdstreams[call_id]
 
                     elif isinstance(stream_data, ResponseCompletedEvent):
                         pass
@@ -393,7 +461,7 @@ class ConversationTurn(RunTurn):
         if self.mdstream:
             # Process thinking tags
             processed_content, should_render = self._process_thinking_tags(response_content)
-            
+
             if should_render or final:
                 self.mdstream.update(processed_content if processed_content else "", final)
             # If should_render is False, pause mdstream.update temporarily
@@ -501,7 +569,6 @@ class ConversationTurn(RunTurn):
             self.config.io.rule(color=self.config.running_color_settings.split_line_color)
         else:
             self.config.io.console.print(SPLIT_TAG, end="")
-
 
     def get_response_mdstream(self):
         mdargs = dict(
