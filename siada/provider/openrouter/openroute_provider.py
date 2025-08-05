@@ -1,22 +1,11 @@
 from agents import Model, ModelProvider
 from agents.extensions.models.litellm_model import LitellmModel
+import litellm
 
+from siada.provider.llm_client import LLMClient
+from litellm.types.utils import ModelResponse as LitellmModelResponse
 
-def covert_to_openrouter_model_name(model_name: str) -> str:
-    temp_model_name = model_name
-    if model_name.startswith("claude-"):
-        temp_model_name = model_name.replace("claude-", "anthropic/claude-")
-    elif model_name.startswith("deepseek-"):
-        if model_name == "deepseek-v3-0324":
-            temp_model_name = "deepseek-chat-v3-0324"
-        temp_model_name = temp_model_name.replace("deepseek-", "deepseek/deepseek-")
-    elif model_name.startswith("o3-"):
-        temp_model_name = model_name.replace("o3-", "openai/o3-")
-    elif model_name.startswith("gpt-"):
-        temp_model_name = model_name.replace("gpt-", "openai/gpt-")
-    elif model_name.startswith("gemini-"):
-        temp_model_name = model_name.replace("gemini-", "google/gemini-")
-    return temp_model_name
+from siada.provider.openrouter.coverter import covert_to_openrouter_model_name
 
 
 class OpenRouterProvider(ModelProvider):
@@ -32,5 +21,13 @@ class OpenRouterProvider(ModelProvider):
             The model.
         """
 
-        covert_model_name = "openrouter/" + covert_to_openrouter_model_name(model_name)
+        covert_model_name = covert_to_openrouter_model_name(model_name)
         return LitellmModel(model=covert_model_name)
+
+
+class OpenRouterClient(LLMClient):
+
+    def completion(self, **kwargs) -> LitellmModelResponse:
+        model = kwargs.get("model")
+        kwargs["model"] = covert_to_openrouter_model_name(model)
+        return litellm.completion(**kwargs)

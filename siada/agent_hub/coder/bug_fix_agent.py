@@ -9,7 +9,6 @@ from siada.agent_hub.coder.prompt.bug_prompt import bug_fix_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.config import settings
 from siada.foundation.tools.get_git_diff import GitDiffUtil
-from siada.provider.li.li_provider import LiProvider
 from siada.services.fix_result_check import FixResultChecker
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
@@ -24,8 +23,6 @@ class BugFixAgent(CodeGenAgent):
     issue_review_agent: IssueReviewAgent  # Forward declaration for type hinting
 
     def __init__(self, *args, **kwargs):
-        provider = LiProvider()
-        model = provider.get_model(settings.Claude_4_0_SONNET)
 
         self.fix_result_checker = FixResultChecker()
         self.issue_review_agent = IssueReviewAgent()
@@ -33,7 +30,6 @@ class BugFixAgent(CodeGenAgent):
         super().__init__(
             name="BugFixAgent",
             tools=[edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names],
-            model=model,
             tool_use_behavior={
                 "stop_at_tool_names": ["fix_attempt_completion"],
             },
@@ -68,7 +64,7 @@ class BugFixAgent(CodeGenAgent):
         Returns:
             Fix result, including final output, execution rounds, and other information
         """
-        config = RunConfig(tracing_disabled=False)
+        #config = RunConfig(tracing_disabled=False)
         #set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
@@ -79,11 +75,10 @@ class BugFixAgent(CodeGenAgent):
 
         while current_turn < max_turns:
             # Run BugFixAgent for fixing
-            result = await Runner.run(
+            result = await self.run_impl(
                 starting_agent=self,
                 input=input_list,
                 max_turns=settings.MAX_TURNS,
-                run_config=config,
                 context=context
             )
 
@@ -92,7 +87,7 @@ class BugFixAgent(CodeGenAgent):
             # Check if the issue is fixed using run_checker
             try:
                 check_result = await self.run_checker_by_agent(user_input, context)
-
+                
                 if check_result.get("is_fixed", False):
                     # Issue is fixed, break the loop
                     print(f"Fix_check_result, Issue fixed: {check_result.get('check_summary', 'Fix verified')}")

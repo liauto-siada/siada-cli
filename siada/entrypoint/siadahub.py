@@ -240,54 +240,59 @@ def set_model(args, io):
         ModelRunConfig: Configured model instance, returns None if exit is needed
     """
 
+    config = ModelRunConfig.get_default_model()
     # Create model instance
-    if args.model is None:
-        model = ModelRunConfig.get_default_model()
-    else:
-        model = ModelRunConfig(args.model)
+    if args.model is not None:
+        config.model_name = args.model
+        config.configure_model_settings(config.model_name)
 
-    if args.provider == "openrouter":
+    if args.provider is not None:
+        config.provider = args.provider
+    
+    # Check if provider is set
+    if config.provider is None:
+        io.print_error("No provider specified. Please set provider in agent_config.yaml or use --provider option")
+        sys.exit(1)
+
+    if config.provider == "openrouter":
         ## check the openrouter api key is set
         if os.getenv("OPENROUTER_API_KEY") is None:
             io.print_error("OPENROUTER_API_KEY is not set for openrouter provider")
             sys.exit(1)
-        model.provider = "openrouter"
-    else:
-        model.provider = "li"
 
     # Set reasoning effort and thinking tokens if specified
     if args.reasoning_effort is not None:
         if (
-            not model.supports_extra_params
-            or "reasoning_effort" not in model.supports_extra_params
+            not config.supports_extra_params
+            or "reasoning_effort" not in config.supports_extra_params
         ):
-            io.print_error(f"Model {model.model_name} does not support reasoning effort")
+            io.print_error(f"Model {config.model_name} does not support reasoning effort")
             sys.exit(1)
         else:
-            model.set_reasoning_effort(args.reasoning_effort)
+            config.set_reasoning_effort(args.reasoning_effort)
 
     if args.thinking_tokens is not None:
         if (
-            not model.supports_extra_params
-            or "thinking_tokens" not in model.supports_extra_params
+            not config.supports_extra_params
+            or "thinking_tokens" not in config.supports_extra_params
         ):
-            io.print_error(f"Model {model.model_name} does not support thinking tokens")
+            io.print_error(f"Model {config.model_name} does not support thinking tokens")
             sys.exit(1)
         else:
-            model.set_thinking_tokens(args.thinking_tokens)
+            config.set_thinking_tokens(args.thinking_tokens)
 
     # Display model settings in verbose mode
     if args.verbose:
         io.print_info("Model settings:")
         for attr in sorted(fields(ModelRunConfig), key=lambda x: x.name):
-            value = getattr(model, attr.name)
+            value = getattr(config, attr.name)
             if value is None:
                 val_str = "None"
             else:
                 val_str = json.dumps(value, indent=4)
             io.print_info(f"{attr.name}: {val_str}")
 
-    return model
+    return config
 
 
 def main():
