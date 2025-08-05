@@ -17,18 +17,16 @@ class RunningSessionManager:
     
     @staticmethod
     def create_session(
-        running_config: RunningConfig,
+        siada_config: RunningConfig,
         session_id: Optional[str] = None,
     ) -> RunningSession:
         """
         Create a new interaction session
         
         Args:
-            config: Model configuration using ModelSettings structure
+            siada_config: config of siada running
             session_id: Session ID, auto-generates UUID if not provided
-            db_path: Database path for OpenAI SQLiteSession
-            io: InputOutput instance
-            
+
         Returns:
             Session: Created session object
         """
@@ -39,7 +37,7 @@ class RunningSessionManager:
         # Create interaction session
         session = RunningSession(
             session_id=session_id,
-            running_config=running_config,
+            siada_config=siada_config,
         )
         
         # Create associated OpenAI SQLiteSession with same ID
@@ -51,3 +49,18 @@ class RunningSessionManager:
         )
         session.state.openai_session = openai_session
         return session
+
+    @staticmethod
+    def get_default_session():
+        llm_config = ModelRunConfig.get_default_config()
+        io = InputOutput()
+
+        siada_config = RunningConfig(
+            llm_config=llm_config,
+            io=io,
+            workspace='',
+            agent_name='',
+            console_output=True,
+            interactive=False,
+        )
+        return RunningSessionManager.create_session(siada_config)

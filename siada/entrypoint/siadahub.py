@@ -228,7 +228,7 @@ def show_banner(io):
         sys.exit(1)
 
 
-def set_model(args, io):
+def get_config(args, io):
     """
     Configure and create model instance
     
@@ -240,7 +240,7 @@ def set_model(args, io):
         ModelRunConfig: Configured model instance, returns None if exit is needed
     """
 
-    config = ModelRunConfig.get_default_model()
+    config = ModelRunConfig.get_default_config()
     # Create model instance
     if args.model is not None:
         config.model_name = args.model
@@ -320,7 +320,7 @@ def main():
         return 0
 
     # Configure model
-    model = set_model(args, io)
+    model = get_config(args, io)
     # Display banner
 
     # Set environment variables
@@ -359,7 +359,7 @@ def main():
     )
 
     running_config = RunningConfig(
-        model=model,
+        llm_config=model,
         io=io,
         workspace=workspace,
         agent_name=args.agent,

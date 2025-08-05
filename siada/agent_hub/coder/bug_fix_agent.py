@@ -73,12 +73,15 @@ class BugFixAgent(CodeGenAgent):
         task_message = {"content": input_with_env, "role": "user"}
         input_list = [task_message]
 
+        run_config, _ = await self.prepare_run_environment(context)
+
         while current_turn < max_turns:
             # Run BugFixAgent for fixing
-            result = await self.run_impl(
+            result = await Runner.run(
                 starting_agent=self,
                 input=input_list,
                 max_turns=settings.MAX_TURNS,
+                run_config=run_config,
                 context=context
             )
 

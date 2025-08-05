@@ -5,6 +5,8 @@ from uuid import uuid4
 from agents import SQLiteSession
 
 from siada.entrypoint.interaction.config import RunningConfig
+from siada.io.io import InputOutput
+from siada.models.model_run_config import ModelRunConfig
 
 
 @dataclass
@@ -31,14 +33,11 @@ class SessionState:
 @dataclass
 class RunningSession:
 
-    running_config: RunningConfig
+    siada_config: RunningConfig
 
     session_id: str = field(default_factory=lambda: str(uuid4()))
 
     state: SessionState = field(default_factory=SessionState)
 
-    def prompt_ask(self, question: str) -> str:
-        return self.running_config.io.prompt_ask(question)
-
     def get_input(self) -> str:
-        return self.running_config.io.get_input()
+        return self.siada_config.io.get_input()

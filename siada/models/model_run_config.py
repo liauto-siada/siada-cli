@@ -125,7 +125,7 @@ class ModelRunConfig(ModelBaseConfig):
     
 
     @staticmethod
-    def get_default_model():
+    def get_default_config():
         project_root = Path(__file__).parent.parent.parent
         config_path = project_root / "agent_config.yaml"
         llm_config = {}

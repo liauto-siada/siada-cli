@@ -3,6 +3,7 @@ Configuration classes for interaction module
 """
 
 from dataclasses import dataclass
+from typing import Optional
 from rlcompleter import Completer
 
 from siada.io.color_settings import RunningConfigColorSettings
@@ -15,14 +16,14 @@ class RunningConfig:
     """Configuration data class for interaction controller"""
 
     # Required fields (no default values)
-    model: ModelRunConfig
+    llm_config: ModelRunConfig
     io: InputOutput
     workspace: str
     agent_name: str
-    completer: Completer
-    running_color_settings: RunningConfigColorSettings
     
     # Optional fields (with default values)
+    completer: Optional[Completer] = None
+    running_color_settings: Optional[RunningConfigColorSettings] = None
     max_turns: int = 10
     tracing_disabled: bool = False
     console_output: bool = False

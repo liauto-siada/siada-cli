@@ -8,6 +8,7 @@ from siada.agent_hub.coder.tracing.logger_tracing_processor import create_detail
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.models.converter import ModelSettingsConverter
 from siada.provider.provider_factory import get_provider
+from siada.session import RunningSessionManager
 from siada.tools.coder.ask_followup_question import ask_followup_question
 from siada.tools.coder.repo_map.repo_map import RepoMap
 from siada.tools.coder.repo_map.token_counter import TokenCounterModel
@@ -122,18 +123,18 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             # 如果创建失败，返回 None
             return None
 
-    async def _prepare_run_environment(
+    async def prepare_run_environment(
         self,
-        run_config: RunConfig | None = None,
         context: TContext | None = None,
     ):
         running_session = context.session
         if running_session is None:
-            return RunConfig(), None
+            running_session = RunningSessionManager.get_default_session()
+            context.session = running_session
 
-        model_running_config = running_session.running_config.model
-        model_settings = ModelSettingsConverter.convert_model_settings(model_running_config)
-        model_provider_name = model_running_config.provider
+        llm_config = running_session.siada_config.llm_config
+        model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
+        model_provider_name = llm_config.provider
         model_provider = get_provider(model_provider_name)
         
         context.provider = model_provider
@@ -143,13 +144,12 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         #     if ask_followup_question not in self.tools:
         #         self.tools.append(ask_followup_question)
 
-        if run_config is None:
-            run_config = RunConfig(
-                tracing_disabled=running_session.running_config.tracing_disabled,
-                model=model_running_config.model_name,
-                model_provider=model_provider,
-                model_settings=model_settings
-            )
+        run_config = RunConfig(
+            tracing_disabled=running_session.siada_config.tracing_disabled,
+            model=llm_config.model_name,
+            model_provider=model_provider,
+            model_settings=model_settings
+        )
 
         session = running_session.state.openai_session
         return run_config, session
@@ -161,11 +161,10 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         context: TContext | None = None,
         max_turns: int = 10,
         hooks: RunHooks[TContext] | None = None,
-        run_config: RunConfig | None = None,
         previous_response_id: str | None = None,
     ) -> RunResult:
 
-        run_config, session = await self._prepare_run_environment(run_config, context)
+        run_config, session = await self.prepare_run_environment(context)
 
         return await Runner.run(
             starting_agent=starting_agent,
