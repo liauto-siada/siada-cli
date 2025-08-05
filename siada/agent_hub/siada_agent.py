@@ -135,6 +135,8 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         model_settings = ModelSettingsConverter.convert_model_settings(model_running_config)
         model_provider_name = model_running_config.provider
         model_provider = get_provider(model_provider_name)
+        
+        context.provider = model_provider
 
         if running_session.running_config.interactive:
             ## in the interactive mode, we need to add the ask_followup_question tool

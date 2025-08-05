@@ -15,6 +15,8 @@ class CodeAgentContext(BaseModel):
 
     root_dir: str | None = None
 
+    provider: str | None = None
+
     # 完整的消息历史列表
     message_history: List[TResponseInputItem] = Field(default_factory=list)
 

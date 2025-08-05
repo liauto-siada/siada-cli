@@ -130,6 +130,7 @@ class BugFixAgent(CodeGenAgent):
         check_result = await self.fix_result_checker.check(
             issue_desc=user_input,
             fix_code=diff_patch,
+            context=context
         )
 
         check_result["code_diff"] = diff_patch
