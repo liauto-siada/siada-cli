@@ -47,7 +47,7 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_extra_params=[],
     ),
     ModelBaseConfig(
-        model_name="claude-3.7-sonnet",
+        model_name="claude-3-7-sonnet",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True,
@@ -81,14 +81,13 @@ def get_model_config(model_name: str) -> Optional[ModelBaseConfig]:
     Returns:
         A ModelSettings instance if the model is found, otherwise None.
     """
-    # Exact match first
+    # Check if model_name is None or empty
+    if not model_name:
+        raise ValueError("Model name cannot be None or empty")
+        
+    # Only exact match
     for model_config in MODEL_SETTING:
         if model_config.model_name == model_name:
             return model_config
-    
-    # Fallback for partial matches
-    for model_config in MODEL_SETTING:
-        if model_name in model_config.model_name:
-            return model_config
             
-    return None 
+    return None

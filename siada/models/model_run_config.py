@@ -134,10 +134,11 @@ class ModelRunConfig(ModelBaseConfig):
                         llm_config = config.get('llm_config', {})
                 except Exception as e:
                     logging.warning(f"Failed to read agent config file for repo map instance: {str(e)}")
-            model_name = llm_config.get('model_name', 'claude-sonnet-4')
+            model_name = llm_config.get('model_name')
             provider = llm_config.get('provider')
 
             model_config = ModelRunConfig(model_name)
+
             model_config.provider = provider
             return model_config
 
