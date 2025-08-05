@@ -69,7 +69,7 @@ class SiadaRunner:
             context.session = session
 
         # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
-        console_output = session.running_config.console_output if session else True
+        console_output = session.siada_config.console_output if session else True
         context_tracing_processor = ContextTracingProcessor(context)
 
         set_trace_processors([create_detailed_logger(console_output=console_output),

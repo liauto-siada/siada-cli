@@ -13,7 +13,7 @@ class NoInteractiveController:
 
     def run(self, user_input: str) -> int:
         session = RunningSessionManager.create_session(
-            running_config=self.config,
+            siada_config=self.config,
         )
         result = asyncio.run(
             SiadaRunner.run_agent(

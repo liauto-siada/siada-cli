@@ -32,7 +32,7 @@ class Controller:
 
     def run(self) -> int:
         session = RunningSessionManager.create_session(
-            running_config=self.config,
+            siada_config=self.config,
         )
         display_rule = True
         while True:
@@ -90,15 +90,15 @@ class Controller:
         lines = []
         lines.append(f"Siada CLI v{__version__}")
 
-        output = f"Agent: {self.config.agent_name}, Model: {self.config.model.model_name}"
+        output = f"Agent: {self.config.agent_name}, Model: {self.config.llm_config.model_name}"
 
         # Check for thinking token budget
-        thinking_tokens = self.config.model.get_thinking_tokens()
+        thinking_tokens = self.config.llm_config.get_thinking_tokens()
         if thinking_tokens:
             output += f", {thinking_tokens} think tokens"
 
         # Check for reasoning effort
-        reasoning_effort = self.config.model.get_reasoning_effort()
+        reasoning_effort = self.config.llm_config.get_reasoning_effort()
         if reasoning_effort:
             output += f", reasoning {reasoning_effort}"
 

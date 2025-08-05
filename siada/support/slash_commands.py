@@ -273,7 +273,7 @@ class SlashCommands:
             args,
             verbose=self.verbose,
             error_print=self.io.print_error,
-            cwd=session.running_config.workspace,
+            cwd=session.siada_config.workspace,
         )
         return combined_output
 

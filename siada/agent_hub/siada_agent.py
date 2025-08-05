@@ -188,7 +188,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         previous_response_id: str | None = None,
     ) -> RunResultStreaming:
 
-        run_config, session = await self._prepare_run_environment(run_config, context)
+        run_config, session = await self.prepare_run_environment(context)
 
         return Runner.run_streamed(
             starting_agent=starting_agent,
