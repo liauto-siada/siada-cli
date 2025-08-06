@@ -1,0 +1,24 @@
+{
+  "name": "ReadManyFiles Test Config",
+  "version": "1.0.0",
+  "settings": {
+    "max_file_size": "20MB",
+    "supported_formats": [
+      "text",
+      "image",
+      "pdf"
+    ],
+    "default_excludes": true,
+    "respect_gitignore": true
+  },
+  "file_types": {
+    "text": [".py", ".js", ".md", ".json", ".txt"],
+    "image": [".png", ".jpg", ".jpeg", ".gif"],
+    "pdf": [".pdf"]
+  },
+  "test_data": {
+    "unicode_content": "测试中文内容 🚀",
+    "special_chars": "Special chars: @#$%^&*()[]{}",
+    "numbers": [1, 2, 3, 4, 5]
+  }
+}

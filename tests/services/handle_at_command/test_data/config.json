@@ -1,0 +1,20 @@
+{
+  "app_name": "Test Application",
+  "version": "1.0.0",
+  "debug": true,
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "test_db"
+  },
+  "features": {
+    "enable_logging": true,
+    "enable_cache": false,
+    "max_connections": 100
+  },
+  "api_endpoints": [
+    "/api/v1/users",
+    "/api/v1/posts",
+    "/api/v1/comments"
+  ]
+}
