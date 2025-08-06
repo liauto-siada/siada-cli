@@ -95,13 +95,20 @@ class AutoCompleter(Completer):
                 # Fall through to normal completion
                 pass
 
-        elif text[0] == "@":
+        # Check for @ symbol anywhere in the text before cursor
+        text_before_cursor = document.text_before_cursor
+        at_pos = text_before_cursor.rfind("@")
+        
+        if at_pos != -1:
             try:
-                if self.file_recommendation_engine.should_show_suggestions(text):
-                    suggestions = self.file_recommendation_engine.get_suggestions_sync(text)
+                # Extract query text from @ symbol to cursor
+                query_text = text_before_cursor[at_pos:]
+                
+                if self.file_recommendation_engine.should_show_suggestions(query_text):
+                    suggestions = self.file_recommendation_engine.get_suggestions_sync(query_text)
                     
                     # Calculate start_position to replace from @ symbol
-                    start_position = -len(text)
+                    start_position = at_pos - len(text_before_cursor)
                     
                     for suggestion in suggestions:
                         yield Completion(
@@ -110,12 +117,12 @@ class AutoCompleter(Completer):
                             display=suggestion['label']
                         )
                 else:
-                    if text == "@":
+                    if query_text == "@":
                         suggestions = self.file_recommendation_engine.get_suggestions_sync("@")
                         for suggestion in suggestions:
                             yield Completion(
                                 "@" + suggestion['value'],
-                                start_position=-1,  # Replace the @ symbol
+                                start_position=at_pos - len(text_before_cursor),  # Replace from @ symbol
                                 display=suggestion['label']
                             )
             except Exception as e:

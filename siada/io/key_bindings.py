@@ -76,9 +76,10 @@ class KeyBindingsFactory:
             "Handle Enter key press when completions are shown"
             buffer = event.current_buffer
             
-            # Check if this is an @ command completion (only @ commands should not submit)
-            text = buffer.text
-            is_at_command = text and text.lstrip().startswith("@")
+            # Check if this is an @ command completion using cursor position (consistent with completer.py)
+            text_before_cursor = buffer.document.text_before_cursor
+            at_pos = text_before_cursor.rfind("@")
+            is_at_command = at_pos != -1
             
             if buffer.complete_state:
                 # Accept the currently selected completion
