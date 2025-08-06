@@ -1,5 +1,7 @@
 # Siada CLI
 
+![Siada CLI Screenshot](./docs/assets/siada-cli-screenshot.png)
+
 This repository contains Siada CLI, a command-line AI workflow tool that provides specialized intelligent agents for code development, debugging, and automation tasks.
 
 With Siada CLI you can:
@@ -342,3 +344,13 @@ If running `siada-cli` directly shows command not found:
 - Use `--verbose` flag to see detailed output
 
 For more detailed troubleshooting, check logs and use the `--verbose` flag for additional debug information.
+
+## Acknowledgements
+
+Siada CLI is built upon the foundation of numerous open source projects, and we extend our deepest respect and gratitude to their contributors.
+
+For a complete list of open source projects and licenses used in Siada CLI, please see our [CREDITS.md](./CREDITS.md) file.
+
+## License
+
+Distributed under the MIT License. See [`LICENSE`](./LICENSE) for more information.

@@ -1,5 +1,7 @@
 # Siada CLI
 
+![Siada CLI Screenshot](../assets/siada-cli-screenshot.png)
+
 本仓库包含 Siada CLI，这是一个命令行 AI 工作流工具，为代码开发、调试和自动化任务提供专业化的智能代理。
 
 使用 Siada CLI 您可以：
@@ -342,3 +344,13 @@ unset SIADA_MODEL
 - 使用 `--verbose` 标志查看详细输出
 
 有关更详细的故障排除，请检查日志并使用 `--verbose` 标志获取额外的调试信息。
+
+## 致谢
+
+Siada CLI 的建设离不开众多开源项目的支持，我们对这些项目的贡献者深表敬意与感谢。
+
+有关 Siada CLI 中使用的开源项目和许可证清单，请查看我们的[CREDITS_zh.md](./CREDITS_zh.md)文件。
+
+## 许可证
+
+本项目采用 MIT 许可证分发。更多信息请参见 [`LICENSE`](../../LICENSE)。
