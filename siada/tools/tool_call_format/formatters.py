@@ -61,14 +61,19 @@ class FileEditFormatter(ToolCallFormatter):
                 fence = get_language_from_file_extension(path)
 
             if command == "view":
-                if path:
-                    content = f"I will read the file `{path}"
-                    if view_range and len(view_range) == 2:
-                        content += f"` from line {view_range[0]} to line {view_range[1]}"
-                        if complete:
-                            content += "."
-                    elif complete:
-                        content += "`"
+                if complete:
+                    if path:
+                        # Safely check if path has file extension
+                        try:
+                            is_file = bool(os.path.splitext(str(path))[1])  # Has extension = likely a file
+                        except Exception:
+                            is_file = False  # Default to directory if path is invalid
+                        if is_file:
+                            content = f"I will read the file `{path}"
+                            if view_range and len(view_range) == 2:
+                                content += f"` from line {view_range[0]} to line {view_range[1]}."
+                        else:
+                            content = f"I will view the directory `{path}`."
             elif command == "create":
 
                 if path:

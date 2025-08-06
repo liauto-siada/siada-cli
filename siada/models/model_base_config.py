@@ -47,7 +47,7 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_extra_params=[],
     ),
     ModelBaseConfig(
-        model_name="claude-3-7-sonnet",
+        model_name="claude-3.7-sonnet",
         max_tokens=8192,
         context_window=200_000,
         supports_images=True,

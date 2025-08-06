@@ -58,13 +58,13 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
 
     def get_repo_map_model_name(self) -> str:
         """
-        获取用于 repo map 生成的模型名称
+        Get the model name used for repo map generation
         
         Returns:
-            str: 模型名称，默认使用 claude-sonnet-4
+            str: Model name, defaults to claude-sonnet-4
         """
         try:
-            # 读取配置文件
+            # Read configuration file
             config_path = os.path.join(os.getcwd(), "agent_config.yaml")
             if os.path.exists(config_path):
                 with open(config_path, 'r', encoding='utf-8') as f:
@@ -74,22 +74,22 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         except Exception as e:
             logging.warning(f"Failed to read agent config file for repo map model name: {str(e)}")
 
-        # 如果读取配置失败，使用默认值
+        # If reading configuration fails, use default value
         return 'claude-sonnet-4'
 
     def get_repo_map_instance(self, root_dir: str):
         """
-        获取 RepoMap 实例
+        Get RepoMap instance
         
         Args:
-            root_dir (str): 仓库根目录
+            root_dir (str): Repository root directory
             
         Returns:
-            RepoMap: 配置好的 RepoMap 实例
+            RepoMap: Configured RepoMap instance
         """
         try:
 
-            # 读取配置
+            # Read configuration
             config_path = os.path.join(os.getcwd(), "agent_config.yaml")
             llm_config = {}
             if os.path.exists(config_path):
@@ -100,15 +100,15 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
                 except Exception as e:
                     logging.warning(f"Failed to read agent config file for repo map instance: {str(e)}")
 
-            # 获取配置参数
+            # Get configuration parameters
             model_name = llm_config.get('model_name', 'claude-sonnet-4')
             repo_map_tokens = llm_config.get('repo_map_tokens', 8192)
             repo_map_mul_no_files = llm_config.get('repo_map_mul_no_files', 16)
             repo_verbose = llm_config.get('repo_verbose', True)
 
-            # 创建组件
+            # Create components
             token_counter = TokenCounterModel(model_name)
-            io = SilentIO()  # 使用静默 IO 避免输出干扰
+            io = SilentIO()  # Use silent IO to avoid output interference
 
             return RepoMap(
                 root=root_dir,
@@ -120,7 +120,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             )
         except Exception as e:
             logging.warning(f"Failed to create RepoMap instance for root directory '{root_dir}': {str(e)}")
-            # 如果创建失败，返回 None
+            # If creation fails, return None
             return None
 
     async def prepare_run_environment(

@@ -71,18 +71,26 @@ class FileEditObservation(FunctionCallResult):
 
     @property
     def message(self) -> str:
+        # Check if path is likely a file or directory
+        import os.path
+        try:
+            is_file = bool(os.path.splitext(str(self.path))[1]) if self.path else True
+        except Exception:
+            # if path is invalid, default to directory
+            is_file = False
+            
         if self.command == "view":
-            return f"siada viewed the file {self.path}."
+            return "✓ File content loaded" if is_file else "✓ Directory listing completed"
         elif self.command == "create":
-            return f"siada created the file {self.path}."
+            return "✓ File created successfully" if is_file else "✓ Directory created successfully"
         elif self.command == "str_replace":
-            return f"siada replaced the string in the file {self.path}."
+            return "✓ Text replacement completed"
         elif self.command == "insert":
-            return f"siada inserted the string in the file {self.path}."
+            return "✓ Content insertion completed"
         elif self.command == "undo_edit":
-            return f"siada reverted the last edit in the file {self.path}."
+            return "✓ Edit operation reverted"
         else:
-            return f"siada has operated the file {self.path}."
+            return "✓ Operation completed successfully"
 
     def format_for_display(self) -> str:
         return self.message

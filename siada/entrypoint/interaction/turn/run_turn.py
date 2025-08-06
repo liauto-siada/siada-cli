@@ -18,6 +18,7 @@ from agents import (
     ToolCallOutputItem,
 )
 
+from siada.support.spinner import WaitingSpinner
 from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 
@@ -215,6 +216,7 @@ class ConversationTurn(RunTurn):
             stream_iterator = result.stream_events()
             async for event in stream_iterator:
                 if isinstance(event, RawResponsesStreamEvent):
+                    self._stop_waiting_spinner()
 
                     # Handle the raw response stream event
                     stream_data = event.data
@@ -502,6 +504,10 @@ class ConversationTurn(RunTurn):
         """
         self.input_data = turn_input
         self.start_time = self._get_timestamp()
+        self.spinner = None
+        if self.config.io.pretty:
+            self.spinner = WaitingSpinner(f"Waiting for Agent {self.config.agent_name}...")
+            self.spinner.start()
 
         try:
             # Import here to avoid circular imports
@@ -549,29 +555,6 @@ class ConversationTurn(RunTurn):
             self.end_time = self._get_timestamp()
             return self.handle_error(e)
 
-    # def replace_reasoning_tag(self, text, tag_name):
-    #     """
-    #     Replace opening and closing reasoning tags with standard formatting.
-    #     Ensures exactly one blank line before START and END markers.
-
-    #     Args:
-    #         text (str): The text containing the tags
-    #         tag_name (str): The name of the tag to replace
-
-    #     Returns:
-    #         str: Text with reasoning tags replaced with standard format
-    #     """
-    #     if not text:
-    #         return text
-
-    #     # Replace opening tag with thinking format
-    #     text = re.sub(f"\\s*<{tag_name}>\\s*", "\n```thinking\n", text)
-
-    #     # Replace closing tag with thinking format
-    #     text = re.sub(f"\\s*</{tag_name}>\\s*", "\n```\n\n", text)
-
-    #     return text
-
     def print_split_line(self):
         if self.config.io.pretty:
             self.config.io.rule(color=self.config.running_color_settings.split_line_color)
@@ -586,6 +569,15 @@ class ConversationTurn(RunTurn):
         )
         mdStream = siada.io.components.mdstream.MarkdownRender(mdargs=mdargs)
         return mdStream
+    
+    def _stop_waiting_spinner(self):
+        """Stop and clear the waiting spinner if it is running."""
+        spinner = getattr(self, "spinner", None)
+        if spinner:
+            try:
+                spinner.stop()
+            finally:
+                self.spinner = None
 
 
 class CommandTurn(RunTurn):

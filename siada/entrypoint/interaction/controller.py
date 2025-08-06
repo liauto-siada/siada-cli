@@ -90,7 +90,7 @@ class Controller:
         lines = []
         lines.append(f"Siada CLI v{__version__}")
 
-        output = f"Agent: {self.config.agent_name}, Model: {self.config.llm_config.model_name}"
+        output = f"Agent: {self.config.agent_name}, Provider: {self.config.llm_config.provider}, Model: {self.config.llm_config.model_name}"
 
         # Check for thinking token budget
         thinking_tokens = self.config.llm_config.get_thinking_tokens()
