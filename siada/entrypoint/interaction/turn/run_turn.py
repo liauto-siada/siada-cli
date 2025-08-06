@@ -452,9 +452,21 @@ class ConversationTurn(RunTurn):
             # Clean up MarkdownStream if it exists on stream error
             if hasattr(self, "mdstream") and self.mdstream is not None:
                 try:
-                    if hasattr(self, "response_content") and self.response_content:
-                        self.mdstream.update(self.response_content, final=True)
+                    self.mdstream.close()  # Direct close, no need to render on error
                     self.mdstream = None
+                except Exception:
+                    pass  # Ignore cleanup errors
+
+            # Clean up tool call streams on error
+            if hasattr(self, "tool_call_mdstreams") and self.tool_call_mdstreams:
+                try:
+                    for stream in self.tool_call_mdstreams.values():
+                        if stream:
+                            try:
+                                stream.close()  # Direct close, no need to render on error
+                            except Exception:
+                                pass  # Ignore individual stream cleanup errors
+                    self.tool_call_mdstreams.clear()
                 except Exception:
                     pass  # Ignore cleanup errors
             raise e
@@ -535,17 +547,6 @@ class ConversationTurn(RunTurn):
 
         except Exception as e:
             self.end_time = self._get_timestamp()
-
-            # Clean up MarkdownStream if it exists
-            if hasattr(self, "mdstream") and self.mdstream is not None:
-                try:
-                    # Force final output of any accumulated content
-                    if hasattr(self, "response_content") and self.response_content:
-                        self.mdstream.update(self.response_content, final=True)
-                    self.mdstream = None
-                except Exception:
-                    pass  # Ignore cleanup errors
-
             return self.handle_error(e)
 
     # def replace_reasoning_tag(self, text, tag_name):

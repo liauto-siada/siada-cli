@@ -106,13 +106,21 @@ class MarkdownRender:
         # Split rendered output into lines
         return output.splitlines(keepends=True)
 
-    def __del__(self):
-        """Destructor to ensure Live display is properly cleaned up."""
+    def close(self):
+        """Explicitly close the Live display and clean up resources."""
         if self.live:
             try:
                 self.live.stop()
-            except Exception:
-                pass  # Ignore any errors during cleanup
+                self.live = None
+            except Exception as e:
+                pass
+
+    def __del__(self):
+        """Destructor to ensure Live display is properly cleaned up."""
+        try:
+            self.close()
+        except Exception:
+            pass  # Ignore any errors during cleanup
 
     def update(self, text, final=False, flush=False):
         """Update the displayed markdown content.
