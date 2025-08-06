@@ -3,6 +3,7 @@ import os
 import sys
 from dataclasses import fields
 from pathlib import Path
+import warnings
 
 from prompt_toolkit.completion import Completer
 
@@ -30,6 +31,23 @@ import shtab
 from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
 from siada.services.model_info_service import ModelInfoService
+
+
+def _suppress_third_party_warnings():
+    """Suppress harmless warnings from third-party libraries"""
+    # Suppress pydub ffmpeg/avconv warning - not relevant for Siada as we don't use audio features
+    warnings.filterwarnings(
+        "ignore", 
+        message="Couldn't find ffmpeg or avconv.*", 
+        category=RuntimeWarning
+    )
+    
+    # Suppress all SyntaxWarning from pydub - use message pattern to catch invalid escape sequences
+    warnings.filterwarnings(
+        "ignore", 
+        message="invalid escape sequence.*", 
+        category=SyntaxWarning
+    )
 
 
 def _configure_litellm_logging():
@@ -296,6 +314,9 @@ def get_config(args, io):
 
 
 def main():
+    # Suppress harmless warnings from third-party libraries
+    _suppress_third_party_warnings()
+    
     # Configure litellm globally to suppress debug logs
     _configure_litellm_logging()
 

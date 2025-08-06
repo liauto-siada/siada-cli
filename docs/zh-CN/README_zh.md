@@ -131,7 +131,7 @@ Siada CLI 支持两种使用模式，满足不同的使用场景：
 siada-cli --agent bugfix --prompt "修复 auth.py 中的登录错误"
 
 # 组合其他参数
-siada-cli --agent coder --model claude-3-7-sonnet --prompt "创建一个 REST API 端点"
+siada-cli --agent coder --model claude-sonnet-4 --prompt "创建一个 REST API 端点"
 ```
 
 ### 交互模式
@@ -168,7 +168,7 @@ siada-cli --agent coder
 siada-cli --prompt "修复 login.py 中的认证错误"
 
 # 使用不同模型
-siada-cli --model claude-3-opus
+siada-cli --model claude-sonnet-4
 
 # 使用 OpenRouter 提供商（需要设置 API 密钥）
 siada-cli --provider openrouter
@@ -225,7 +225,7 @@ siada-cli --list-models
    **方法3：通过环境变量**
    ```bash
    # 设置模型
-   export SIADA_MODEL="claude-3-7-sonnet"
+   export SIADA_MODEL="claude-sonnet-4"
    
    # 设置供应商
    export SIADA_PROVIDER="openrouter"
@@ -237,7 +237,7 @@ siada-cli --list-models
    **方法4：通过命令行参数（最高优先级）**
    ```bash
    # 仅更改模型（保持供应商不变）
-   siada-cli --model claude-3-7-sonnet
+   siada-cli --model claude-sonnet-4
    
    # 同时更改模型和供应商
    siada-cli --model gpt-4.1 --provider openrouter
@@ -277,7 +277,7 @@ llm_config:
 ```bash
 # Siada 特定设置（使用 SIADA_ 前缀）
 export SIADA_AGENT="bugfix"
-export SIADA_MODEL="claude-3-opus"
+export SIADA_MODEL="claude-sonnet-4"
 export SIADA_THEME="dark"
 
 # 仅在使用 OpenRouter 提供商时需要（可选）

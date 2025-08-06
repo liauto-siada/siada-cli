@@ -131,7 +131,7 @@ Siada CLI supports two usage modes to meet different usage scenarios:
 siada-cli --agent bugfix --prompt "Fix login errors in auth.py"
 
 # Combine with other parameters
-siada-cli --agent coder --model claude-3-7-sonnet --prompt "Create a REST API endpoint"
+siada-cli --agent coder --model claude-sonnet-4 --prompt "Create a REST API endpoint"
 ```
 
 ### Interactive Mode
@@ -168,7 +168,7 @@ siada-cli --agent coder
 siada-cli --prompt "Fix authentication errors in login.py"
 
 # Use a different model
-siada-cli --model claude-3-opus
+siada-cli --model claude-sonnet-4
 
 # Use OpenRouter provider (requires API key setup)
 siada-cli --provider openrouter
@@ -225,7 +225,7 @@ Focused on frontend development tasks, including React components, CSS styling, 
    **Method 3: Via Environment Variables**
    ```bash
    # Set model
-   export SIADA_MODEL="claude-3-7-sonnet"
+   export SIADA_MODEL="claude-sonnet-4"
    
    # Set provider
    export SIADA_PROVIDER="openrouter"
@@ -237,7 +237,7 @@ Focused on frontend development tasks, including React components, CSS styling, 
    **Method 4: Via Command Line Parameters (Highest Priority)**
    ```bash
    # Only change model (keep provider unchanged)
-   siada-cli --model claude-3-7-sonnet
+   siada-cli --model claude-sonnet-4
    
    # Change both model and provider
    siada-cli --model gpt-4.1 --provider openrouter
@@ -277,7 +277,7 @@ Set environment variables to configure behavior:
 ```bash
 # Siada-specific settings (use SIADA_ prefix)
 export SIADA_AGENT="bugfix"
-export SIADA_MODEL="claude-3-opus"
+export SIADA_MODEL="claude-sonnet-4"
 export SIADA_THEME="dark"
 
 # Only required when using OpenRouter provider (optional)
