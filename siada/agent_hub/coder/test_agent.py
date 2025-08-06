@@ -4,10 +4,8 @@ Bug修复Agent模块
 提供专门用于代码bug修复的Agent实现
 """
 import os
-from dataclasses import dataclass
 
-from agents import RunContextWrapper, RunResult, Runner, RunConfig, add_trace_processor, TContext, AgentOutputSchema, \
-    RunResultStreaming
+from agents import RunContextWrapper, RunResult, add_trace_processor, RunResultStreaming
 from agents.agent import StopAtTools
 
 from siada.foundation.code_agent_context import CodeAgentContext
@@ -16,12 +14,10 @@ from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.tools.coder.test_completion import test_completion
-from siada.foundation.config import settings
 from siada.agent_hub.coder.prompt import test_prompt
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import logging
 from siada.foundation.config import settings
-from siada.provider.li.li_provider import LiProvider
 
 logging.getLogger().setLevel(logging.INFO)
 

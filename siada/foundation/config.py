@@ -53,19 +53,6 @@ class Settings(BaseSettings):
         # Agent名称
         JANK_PROBLEM_AGENT_NAME: str = "JankProblemAgent"
 
-    @property
-    def DEFAULT_RUN_CONFIG(self) -> agents.RunConfig:
-        """
-        延迟加载RunConfig，避免循环导入
-        """
-        if self._DEFAULT_RUN_CONFIG is None:
-            # 在这里导入SiadaProvider，避免循环导入
-            from siada.provider.li.li_provider import LiProvider
-            self.__class__._DEFAULT_RUN_CONFIG = agents.RunConfig(model=self.DEFAULT_MODEL,
-                                                                  tracing_disabled=True,
-                                                                  model_provider=LiProvider())
-        return self._DEFAULT_RUN_CONFIG
-
 
 # 创建全局设置对象
 settings = Settings()

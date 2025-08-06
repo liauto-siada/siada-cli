@@ -1,18 +1,15 @@
 import os
 
-from agents import RunContextWrapper, RunResultStreaming, Runner, RunConfig, add_trace_processor
+from agents import RunContextWrapper
 from agents.agent import StopAtTools
 
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import bug_reproduce_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.foundation.config import settings
-from siada.provider.li.li_provider import LiProvider
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.reproduce_completion import reproduce_completion
 from siada.tools.coder.run_cmd import run_cmd
-from siada.agent_hub.coder.tracing import create_detailed_logger
 
 
 class BugReproduceAgent(CodeGenAgent):

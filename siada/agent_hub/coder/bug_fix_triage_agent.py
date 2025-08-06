@@ -1,8 +1,5 @@
-from agents import Agent, Runner, RunContextWrapper, TContext, RunResult
+from agents import Agent, RunResult
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
-
-from siada.foundation.config import settings
-from siada.provider.li.li_provider import LiProvider
 
 
 class BugFixTriageAgent(Agent):
