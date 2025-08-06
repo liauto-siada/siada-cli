@@ -1,6 +1,6 @@
 # Siada CLI
 
-![Siada CLI Screenshot](../assets/siada-cli-screenshot.png)
+![Siada CLI Screenshot](../assets/siada-cli-screenshot-zh.png)
 
 本仓库包含 Siada CLI，这是一个命令行 AI 工作流工具，为代码开发、调试和自动化任务提供专业化的智能代理。
 
