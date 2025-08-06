@@ -46,7 +46,9 @@ pytest-asyncio = "^1.1.0"
 [tool.poetry-dynamic-versioning]
 enable = true
 vcs = "git"
-style = "semver"
+style = "pep440"
+dirty = true
+format-jinja = "{% if distance == 0 %}{{ base }}{% else %}{{ base }}.post{{ distance }}{% endif %}"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
