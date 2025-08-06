@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 
 from openai.types.chat import ChatCompletionMessageParam
 
-from siada.provider.li.llm_connection import SiadaClient
+from siada.provider.client_factory import get_client_with_kwargs
 from siada.foundation.config import settings
 from siada.services.execution_trace_collector import ExecutionTrace
 
@@ -17,13 +17,11 @@ class EnhancedFixResultChecker:
     """Enhanced Fix Result Checker
     """
     
-    def __init__(self):
-        self.client = SiadaClient()
-    
     async def check_with_trace(
         self, 
         issue_desc: str, 
-        fix_code: str, 
+        fix_code: str,
+        context: Any,
         execution_trace: Optional[ExecutionTrace] = None
     ) -> Dict[str, Any]:
         """check the fix result with enhanced analysis
@@ -78,7 +76,7 @@ class EnhancedFixResultChecker:
         """
         try:
             analysis_result = await self._call_model_for_enhanced_analysis(
-                issue_desc, fix_code, execution_trace
+                issue_desc, fix_code, context, execution_trace
             )
             return self._parse_enhanced_analysis_result(analysis_result)
         except Exception as e:
@@ -95,7 +93,8 @@ class EnhancedFixResultChecker:
     async def _call_model_for_enhanced_analysis(
         self, 
         issue_desc: str, 
-        fix_code: str, 
+        fix_code: str,
+        context: Any,
         execution_trace: Optional[ExecutionTrace]
     ) -> str:
         """call the model for enhanced analysis
@@ -116,14 +115,17 @@ class EnhancedFixResultChecker:
         
         print("Enhanced checking fix task with trace analysis...")
 
-        complete_kwargs = {
+        # Call the model with context support
+        default_kwargs = {
             "model": settings.Claude_4_0_SONNET,
             "messages": model_messages,
             "stream": False,
-            "temperature": 0.2,
+            "temperature": 0.2,  # Lower temperature for accuracy
         }
 
-        response = await self.client.chat_complete(**complete_kwargs)
+        # Use get_client_with_kwargs to support context parameter overrides
+        client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
+        response = await client.chat_complete(**complete_kwargs)
         
         if response and response.choices and response.choices[0].message:
             analysis = response.choices[0].message.content
@@ -542,4 +544,3 @@ Conduct a **forensic-level analysis** as a senior architect would during a criti
                 f"Failed to parse enhanced analysis result: {str(e)}. "
                 "Please ensure the model output is in the correct JSON format."
             )
-    

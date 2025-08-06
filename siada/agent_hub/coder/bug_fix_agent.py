@@ -198,6 +198,7 @@ class BugFixAgent(CodeGenAgent):
         enhanced_result = await self.enhanced_fix_result_checker.check_with_trace(
             issue_desc=user_input,
             fix_code=diff_patch,
+            context=context,
             execution_trace=execution_trace,
         )
 

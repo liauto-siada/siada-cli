@@ -11,7 +11,7 @@ from agents.items import TResponseInputItem
 from openai.types.chat import ChatCompletionMessageParam
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.config import settings
-from siada.provider.client_factory import get_client
+from siada.provider.client_factory import get_client_with_kwargs
 COMPRESS_DOCS = """Intelligently compress or summarize the conversation history within a specified range.
 
     This tool should be called when the following situations occur:
@@ -118,13 +118,15 @@ Please generate a summary based on the following conversation history:
     ]
 
     # Call the model for a non-streaming request
-    complete_kwargs = {
+    default_kwargs = {
         "model": settings.Claude_4_0_SONNET,
         "messages": model_messages,
         "stream": False,
         "temperature": 0.2,  # Lower temperature to ensure the determinism and accuracy of the summary
     }
-    client = get_client(context.context.provider)
+    
+    # Use get_client_with_kwargs to support context parameter overrides
+    client, complete_kwargs = get_client_with_kwargs(context.context, default_kwargs)
     response = await client.chat_complete(**complete_kwargs)
     
     # Extract the summary content from the response
