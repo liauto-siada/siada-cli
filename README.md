@@ -43,7 +43,7 @@ With Siada CLI you can:
    - Edit the `llm_config` section in `agent_config.yaml` file:
    ```yaml
    llm_config:
-     provider: "li"                    # Options: "li" or "openrouter"
+     provider: "openrouter"            # Options: "openrouter"
      model_name: "claude-sonnet-4"     # Change to your desired model
    ```
 
@@ -79,7 +79,7 @@ source $(poetry env info --path)/bin/activate
 
 After activating the environment, you can choose between interactive mode or non-interactive mode to interact with AI agents.
 
-**Interactive Mode (Default):**
+**Interactive Mode:**
 
 ```bash
 # Enter project directory
@@ -116,7 +116,7 @@ deactivate
 
 Siada CLI supports two usage modes to meet different usage scenarios:
 
-### Non-Interactive Mode (Recommended)
+### Non-Interactive Mode
 
 **Features:**
 - One-time execution: Execute a single task and automatically exit
@@ -132,7 +132,7 @@ siada-cli --agent bugfix --prompt "Fix login errors in auth.py"
 siada-cli --agent coder --model claude-3-7-sonnet --prompt "Create a REST API endpoint"
 ```
 
-### Interactive Mode (Default)
+### Interactive Mode
 
 **Features:**
 - Continuous conversation: Maintains session state after startup, allows continuous dialogue

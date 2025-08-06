@@ -116,7 +116,7 @@ deactivate
 
 Siada CLI 支持两种使用模式，满足不同的使用场景：
 
-### 非交互模式（推荐）
+### 非交互模式
 
 **特点：**
 - 一次性执行：执行单个任务后自动退出
@@ -132,7 +132,7 @@ siada-cli --agent bugfix --prompt "修复 auth.py 中的登录错误"
 siada-cli --agent coder --model claude-3-7-sonnet --prompt "创建一个 REST API 端点"
 ```
 
-### 交互模式（默认）
+### 交互模式
 
 **特点：**
 - 持续对话：启动后保持会话状态，可以连续对话
@@ -261,7 +261,7 @@ agents:
     enabled: true
 
 llm_config:
-  provider: "li"                    # 可选："li"或"openrouter"
+  provider: "openrouter"                    # 可选："openrouter"
   model_name: "claude-sonnet-4"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
