@@ -402,13 +402,14 @@ def create_detailed_logger(output_file: Optional[str] = None, console_output: bo
         import os
         from datetime import datetime
         
-        # Create log directory
-        log_dir = os.path.expanduser("~/.siadahub/logs")
-        os.makedirs(log_dir, exist_ok=True)
+        # Create log directory (unified across all platforms)
+        from pathlib import Path
+        log_dir = Path.home() / ".siadahub" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate log file name
         date_str = datetime.now().strftime("%Y%m%d")
-        output_file = os.path.join(log_dir, f"agent_trace-{date_str}.log")
+        output_file = log_dir / f"agent_trace-{date_str}.log"
     
     return LoggerTracingProcessor(
         show_model_calls=True,
