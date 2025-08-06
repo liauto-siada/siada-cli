@@ -187,6 +187,26 @@ class TestClass:
         self.assertIn("test readme file", processed_input)
         self.assertIn("Review", processed_input)
 
+    # 私有测试用例
+    # async def test_process_at_commands_with_cmd_runner_file(self):
+    #     """Test processing input with @ command referencing cmd_runner.py file"""
+    #     user_input = "介绍一下这个文件的作用 @cmd_runner.py"
+    #     print(f"\n=== test_process_at_commands_with_cmd_runner_file ===")
+    #     print(f"原始输入: {user_input}")
+    #
+    #     self.context.root_dir = '/Users/yunan/code/copilot/siada-agenthub'
+    #     result = await self.agent.process_at_commands(user_input, self.context)
+    #
+    #     print(f"处理后输入长度: {len(result)}")
+    #     print(f"输入长度变化: {len(user_input)} -> {len(result)}")
+    #     print(f"处理后输入预览: {result[:300]}...")
+    #     print(f"包含 'get_windows_parent_process_name': {'get_windows_parent_process_name' in result}")
+    #     print(f"包含 '介绍一下这个文件的作用': {'介绍一下这个文件的作用' in result}")
+    #
+    #     # Verify that @ command was processed and contains the expected function
+    #     self.assertIn("get_windows_parent_process_name", result)
+    #     self.assertIn("介绍一下这个文件的作用", result)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

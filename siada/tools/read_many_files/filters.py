@@ -152,7 +152,7 @@ class FileFilter:
     
     def _find_gitignore_files(self) -> List[str]:
         """
-        Find all .gitignore files in the target directory tree
+        Find all .gitignore files in the target directory tree (excluding hidden directories)
         
         Returns:
             List of .gitignore file paths
@@ -160,6 +160,9 @@ class FileFilter:
         gitignore_files = []
         
         for root, dirs, files in os.walk(self.target_dir):
+            # Filter out hidden directories from further traversal
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            
             if '.gitignore' in files:
                 gitignore_path = os.path.join(root, '.gitignore')
                 gitignore_files.append(gitignore_path)
