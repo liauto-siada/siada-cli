@@ -14,7 +14,7 @@ With Siada CLI you can:
 
 ## Quick Start
 
-### Installation
+### Installation (Developer Mode)
 
 1. **Prerequisites:** Ensure you have [Python 3.12](https://www.python.org/downloads/) or higher and [Poetry](https://python-poetry.org/docs/#installation) installed.
 
@@ -41,12 +41,17 @@ With Siada CLI you can:
 
    **Default/Configure via Configuration File**
    - The system reads default configuration from `agent_config.yaml` file
-   - Current defaults: model `claude-sonnet-4`, provider `li`
+   - Current defaults: model `claude-sonnet-4`, provider `openrouter`
    - Edit the `llm_config` section in `agent_config.yaml` file:
    ```yaml
    llm_config:
-     provider: "openrouter"            # Options: "openrouter"
+     provider: "openrouter"                    
      model_name: "claude-sonnet-4"     # Change to your desired model
+   ```
+   - Set OPENROUTER_API_KEY
+   ```bash
+   # Required when using OpenRouter provider
+   export OPENROUTER_API_KEY="your_openrouter_key"
    ```
 
 2. **Choose Your Agent:** Select from available specialized agents:
@@ -243,13 +248,13 @@ Focused on frontend development tasks, including React components, CSS styling, 
 
 **Method 1: Default Configuration**
    - The system reads default configuration from `agent_config.yaml` file
-   - Current defaults: model `claude-sonnet-4`, provider `li`
+   - Current defaults: model `claude-sonnet-4`, provider `openrouter`
 
    **Method 2: Customize via Configuration File**
    - Edit the `llm_config` section in `agent_config.yaml` file:
    ```yaml
    llm_config:
-     provider: "li"                    # Options: "li" or "openrouter"
+     provider: "openrouter"
      model_name: "claude-sonnet-4"     # Change to your desired model
    ```
 
@@ -261,7 +266,7 @@ Focused on frontend development tasks, including React components, CSS styling, 
    # Set provider
    export SIADA_PROVIDER="openrouter"
 
-   # Only required when using OpenRouter provider (optional)
+   # Required when using OpenRouter provider
    export OPENROUTER_API_KEY="your_openrouter_key"
    ```
 
@@ -294,7 +299,7 @@ agents:
     enabled: true
 
 llm_config:
-  provider: "li"                    # Options: "li" or "openrouter"
+  provider: "openrouter"
   model_name: "claude-sonnet-4"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
@@ -311,7 +316,7 @@ export SIADA_AGENT="bugfix"
 export SIADA_MODEL="claude-sonnet-4"
 export SIADA_THEME="dark"
 
-# Only required when using OpenRouter provider (optional)
+# Required when using OpenRouter provider
 export OPENROUTER_API_KEY="your_openrouter_key"
 
 # Unset environment variables in current terminal session

@@ -14,7 +14,7 @@
 
 ## 快速开始
 
-### 安装
+### 安装（开发者模式）
 
 1. **前提条件：** 确保您已安装 [Python 3.12](https://www.python.org/downloads/) 或更高版本以及 [Poetry](https://python-poetry.org/docs/#installation)。
 
@@ -41,12 +41,17 @@
 
    **默认/通过配置文件自定义**
    - 系统从 `agent_config.yaml` 文件读取默认配置
-   - 当前默认：模型 `claude-sonnet-4`，供应商 `li`
+   - 当前默认：模型 `claude-sonnet-4`，供应商 `openrouter`
    - 编辑 `agent_config.yaml` 文件中的 `llm_config` 部分：
    ```yaml
    llm_config:
-     provider: "li"                    # 可选："li"或"openrouter"
+     provider: "openrouter"                    
      model_name: "claude-sonnet-4"     # 更改为您想要的模型
+   ```
+   - 设置 OPENROUTER_API_KEY
+   ```bash
+   # 在使用 OpenRouter 提供商时需要
+   export OPENROUTER_API_KEY="your_openrouter_key"
    ```
 
 2. **选择您的代理：** 从可用的专业化代理中选择：
@@ -170,7 +175,7 @@ siada-cli --prompt "修复 login.py 中的认证错误"
 # 使用不同模型
 siada-cli --model claude-sonnet-4
 
-# 使用 OpenRouter 提供商（需要设置 API 密钥）
+# 明确使用 OpenRouter 提供商（需要设置 API 密钥）
 siada-cli --provider openrouter
 
 # 设置颜色主题
@@ -243,13 +248,13 @@ exit
 
 **方法1：默认配置**
    - 系统从 `agent_config.yaml` 文件读取默认配置
-   - 当前默认：模型 `claude-sonnet-4`，供应商 `li`
+   - 当前默认：模型 `claude-sonnet-4`，供应商 `openrouter`
 
    **方法2：通过配置文件自定义**
    - 编辑 `agent_config.yaml` 文件中的 `llm_config` 部分：
    ```yaml
    llm_config:
-     provider: "li"                    # 可选："li"或"openrouter"
+     provider: "openrouter"
      model_name: "claude-sonnet-4"     # 更改为您想要的模型
    ```
 
@@ -261,7 +266,7 @@ exit
    # 设置供应商
    export SIADA_PROVIDER="openrouter"
 
-   # 仅在使用 OpenRouter 提供商时需要（可选）
+   # 在使用 OpenRouter 提供商时需要
    export OPENROUTER_API_KEY="your_openrouter_key"
    ```
 
@@ -294,7 +299,7 @@ agents:
     enabled: true
 
 llm_config:
-  provider: "openrouter"                    # 可选："openrouter"
+  provider: "openrouter"
   model_name: "claude-sonnet-4"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
@@ -311,7 +316,7 @@ export SIADA_AGENT="bugfix"
 export SIADA_MODEL="claude-sonnet-4"
 export SIADA_THEME="dark"
 
-# 仅在使用 OpenRouter 提供商时需要（可选）
+# 在使用 OpenRouter 提供商时需要
 export OPENROUTER_API_KEY="your_openrouter_key"
 
 # 在当前终端会话中取消环境变量
