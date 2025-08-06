@@ -11,9 +11,20 @@ from .handle_at_command import (
     handle_at_command
 )
 
+from .file_recommendation import (
+    FileRecommendationEngine,
+    CompletionConfig,
+    FilterOptions,
+    DEFAULT_COMPLETION_CONFIG
+)
+
 __all__ = [
     'AtCommandProcessor',
     'HandleAtCommandParams', 
     'HandleAtCommandResult',
-    'handle_at_command'
+    'handle_at_command',
+    'FileRecommendationEngine',
+    'CompletionConfig',
+    'FilterOptions',
+    'DEFAULT_COMPLETION_CONFIG'
 ]

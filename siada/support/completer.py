@@ -1,4 +1,7 @@
 from prompt_toolkit.completion import Completer, Completion
+import os
+
+from siada.services.file_recommendation import FileRecommendationEngine, CompletionConfig
 
 
 class CommandCompletionException(Exception):
@@ -13,6 +16,7 @@ class AutoCompleter(Completer):
         self, root, commands, encoding
     ):
         self.encoding = encoding
+        self.root = root
 
         self.words = set()
 
@@ -20,6 +24,19 @@ class AutoCompleter(Completer):
         self.command_completions = dict()
         if commands:
             self.command_names = self.commands.get_commands()
+        
+        # Initialize file recommendation engine
+        current_dir = root if root else os.getcwd()
+        config = CompletionConfig(
+            max_results=20,
+            enable_recursive_search=True,
+            max_search_depth=5,
+            respect_git_ignore=True
+        )
+        self.file_recommendation_engine = FileRecommendationEngine(
+            current_directory=current_dir,
+            config=config
+        )
 
     def get_command_completions(self, document, complete_event, text, words):
         if len(words) == 1 and not text[-1].isspace():
@@ -77,6 +94,33 @@ class AutoCompleter(Completer):
             except CommandCompletionException:
                 # Fall through to normal completion
                 pass
+
+        elif text[0] == "@":
+            try:
+                if self.file_recommendation_engine.should_show_suggestions(text):
+                    suggestions = self.file_recommendation_engine.get_suggestions_sync(text)
+                    
+                    at_text = text[1:] if len(text) > 1 else ""
+                    start_position = -len(at_text)
+                    
+                    for suggestion in suggestions:
+                        yield Completion(
+                            suggestion['value'], 
+                            start_position=start_position,
+                            display=suggestion['label']
+                        )
+                else:
+                    if text == "@":
+                        suggestions = self.file_recommendation_engine.get_suggestions_sync("@")
+                        for suggestion in suggestions:
+                            yield Completion(
+                                suggestion['value'],
+                                start_position=0,
+                                display=suggestion['label']
+                            )
+            except Exception as e:
+                pass
+
 
         candidates = self.words
         candidates = [word if type(word) is tuple else (word, word) for word in candidates]

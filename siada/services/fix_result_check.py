@@ -4,30 +4,34 @@ Fix Result Checker - 通过模型判断代码修复是否真正解决了问题
 from __future__ import annotations
 
 import json
-from typing import Dict, Any
+import logging
+from typing import Dict, Any, Union
 
 from openai.types.chat import ChatCompletionMessageParam
 
 from siada.provider.client_factory import get_client
 from siada.foundation.config import settings
 
+logger = logging.getLogger(__name__)
+
 class FixResultChecker:
     """修复结果检查器
     
     使用模型分析代码修复是否真正解决了描述的问题
     """
-    async def check(self, issue_desc: str, fix_code: str,context: Any) -> Dict[str, Any]:
+    async def check(self, issue_desc: str, fix_code: str, context: Any) -> Dict[str, Any]:
         """检查修复代码是否真正解决了问题
         
         Args:
             issue_desc: 问题描述
             fix_code: 修复代码
+            context: 上下文对象，包含provider等信息
             
         Returns:
             Dict[str, Any]: 包含检查结果的字典
             {
                 "is_fixed": bool,      # 是否修复（部分修复算作未修复）
-                "check_summary": str,         # 如果未修复，说明原因
+                "check_summary": str,  # 检查摘要，说明修复状态和原因
                 "analysis": str        # 完整的分析过程
             }
         """
@@ -35,6 +39,7 @@ class FixResultChecker:
             analysis_result = await self._call_model_for_analysis(issue_desc, fix_code, context)
             return self._parse_analysis_result(analysis_result)
         except Exception as e:
+            logger.error(f"Fix result check failed: {e}", exc_info=True)
             return {
                 "is_fixed": False,
                 "check_summary": f"分析过程中发生错误: {str(e)}",
@@ -47,20 +52,19 @@ class FixResultChecker:
         Args:
             issue_desc: 问题描述
             fix_code: 修复代码
+            context: 上下文对象，包含provider等信息
             
         Returns:
             str: 模型分析结果
         """
         # 构建用户任务提示词
         user_task = self.build_prompt(issue_desc, fix_code)
-
         
         # 构建请求消息
         model_messages: list[ChatCompletionMessageParam] = [
             {"role": "user", "content": user_task},
         ]
         
-
         # 调用模型
         complete_kwargs = {
             "model": settings.Claude_4_0_SONNET,
@@ -68,7 +72,6 @@ class FixResultChecker:
             "stream": False,
             "temperature": 0.2,  # 较低温度确保分析的准确性和一致性
         }
-
         
         client = get_client(context.provider)
         response = await client.chat_complete(**complete_kwargs)
@@ -191,16 +194,18 @@ You must return your analysis in the following JSON format：
             json_content = analysis_result.strip()
             
             # 如果响应被包装在markdown代码块中，提取JSON部分
-            if json_content.startswith('```json'):
+            if json_content.startswith('```json') or json_content.startswith('```'):
                 lines = json_content.split('\n')
                 json_lines = []
                 in_json_block = False
                 for line in lines:
-                    if line.strip() == '```json':
-                        in_json_block = True
+                    line_stripped = line.strip()
+                    if line_stripped in ['```json', '```']:
+                        if not in_json_block:
+                            in_json_block = True
+                        else:
+                            break
                         continue
-                    elif line.strip() == '```' and in_json_block:
-                        break
                     elif in_json_block:
                         json_lines.append(line)
                 json_content = '\n'.join(json_lines)
@@ -213,15 +218,18 @@ You must return your analysis in the following JSON format：
             
             # 提取结果信息
             result = parsed_json.get("result", {})
-            analysis = parsed_json.get("analysis", {})
+            analysis = parsed_json.get("analysis", "")
             
-            # 构建完整的分析文本
-            # analysis_text = self._build_analysis_text(analysis)
+            # 如果analysis是字典类型，构建完整的分析文本
+            if isinstance(analysis, dict):
+                analysis_text = self._build_analysis_text(analysis)
+            else:
+                analysis_text = str(analysis)
             
             return {
                 "is_fixed": result.get("is_fixed", False),
                 "check_summary": result.get("check_summary", "未提供原因说明"),
-                "analysis": analysis
+                "analysis": analysis_text
             }
             
         except (json.JSONDecodeError, ValueError, KeyError) as e:
@@ -237,20 +245,43 @@ You must return your analysis in the following JSON format：
         Returns:
             str: 格式化的分析文本
         """
-        sections = [
-            ("Step 1: Problem Scope Analysis", analysis.get("step1_problem_scope", "")),
-            ("Step 2: Fix Coverage Evaluation", analysis.get("step2_fix_coverage", "")),
-            ("Step 3: Test Case Completeness Validation", analysis.get("step3_test_validation", "")),
-            ("Step 4: Logical Consistency Check", analysis.get("step4_logical_consistency", "")),
-            ("Step 5: Final Assessment", analysis.get("step5_final_assessment", ""))
-        ]
+        # 如果analysis是字符串，直接返回
+        if isinstance(analysis, str):
+            return analysis
+            
+        # 如果analysis是字典，尝试构建结构化文本
+        if isinstance(analysis, dict):
+            # 预定义的步骤名称映射
+            step_mappings = [
+                ("step1_problem_scope", "Step 1: Deep Root Cause Analysis"),
+                ("step2_fix_coverage", "Step 2: Fix Strategy Rationality Assessment"),
+                ("step3_test_validation", "Step 3: Fix Code Implementation Quality Analysis"),
+                ("step4_logical_consistency", "Step 4: Data Security and System Stability Check"),
+                ("step5_final_assessment", "Step 5: Design Principles and Architecture Consistency"),
+                ("step6_test_verification", "Step 6: Test Verification Completeness"),
+                ("step7_comprehensive_judgment", "Step 7: Comprehensive Judgment and Recommendations")
+            ]
+            
+            formatted_sections = []
+            
+            # 处理结构化步骤
+            for key, title in step_mappings:
+                content = analysis.get(key, "")
+                if content:
+                    formatted_sections.append(f"## {title}\n{content}")
+            
+            # 如果没有找到标准步骤，处理其他键值对
+            if not formatted_sections:
+                for key, value in analysis.items():
+                    if value:  # 只处理非空值
+                        # 格式化键名为更可读的标题
+                        title = key.replace("_", " ").title()
+                        formatted_sections.append(f"## {title}\n{str(value)}")
+            
+            return "\n\n".join(formatted_sections) if formatted_sections else str(analysis)
         
-        formatted_sections = []
-        for title, content in sections:
-            if content:
-                formatted_sections.append(f"## {title}\n{content}")
-        
-        return "\n\n".join(formatted_sections)
+        # 其他类型转换为字符串
+        return str(analysis)
     
     def _fallback_text_parsing(self, analysis_result: str, error_msg: str) -> Dict[str, Any]:
         """当JSON解析失败时的回退文本解析方法
