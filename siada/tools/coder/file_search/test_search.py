@@ -54,14 +54,14 @@ def test_basic_functionality():
     """Test basic search functionality."""
     print("Creating test files...")
     test_dir = create_test_files()
-    
+    searcher = RipgrepSearcher()
     try:
         print(f"Test directory: {test_dir}")
         
         # Test 1: Search for TODO comments in Python files
         print("\n=== Test 1: Search for TODO comments in Python files ===")
         try:
-            results = regex_search_files(
+            results = searcher.search_in_files(
                 cwd=str(test_dir),
                 directory_path=str(test_dir),
                 regex=r"TODO:",
@@ -75,7 +75,7 @@ def test_basic_functionality():
         # Test 2: Search for function definitions
         print("\n=== Test 2: Search for function definitions ===")
         try:
-            searcher = RipgrepSearcher()
+
             results = searcher.search_in_files(
                 directory_path=str(test_dir),
                 regex=r"def\s+\w+\(|function\s+\w+\(",
