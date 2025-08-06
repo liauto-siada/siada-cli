@@ -1,0 +1,13 @@
+This is a file in a nested directory.
+
+It's used to test directory traversal and nested file access.
+
+Content:
+- Line 1: Simple text
+- Line 2: More content
+- Line 3: Testing nested access
+
+This file should be accessible via:
+- @nested_dirs/deep_file.txt
+- @nested_dirs/ (directory reference)
+- @deep (fuzzy matching)

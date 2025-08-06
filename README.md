@@ -193,6 +193,37 @@ In the CLI, you can use slash commands for additional functionality:
 - `/editor` - Open editor for multiline input
 - `/exit` or `/quit` - Exit the application
 
+### Shell Mode Usage Guide
+
+Siada CLI provides two ways to execute system commands:
+
+#### Method 1: Use `/shell` to switch to shell mode
+Switch to persistent shell mode where you can continuously execute multiple system commands:
+
+```bash
+> /shell
+# After entering shell mode, you can execute multiple commands
+ls -la
+cd my-project
+npm install
+git status
+# Use exit or quit to exit shell mode
+exit
+```
+
+#### Method 2: Use `!` prefix to execute commands directly
+Execute single system commands directly in interactive mode without switching modes:
+
+```bash
+> !ls -la
+> !git status
+> !npm run dev
+```
+
+Differences between the two methods:
+- **`/shell`**: Suitable for scenarios requiring continuous execution of multiple system commands, switch once and use persistently
+- **`!<command>`**: Suitable for occasionally executing single system commands, returns to AI conversation mode immediately after execution
+
 ## Agent Types
 
 ### Bug Fix Agent (`--agent bugfix` or `--bugfix`) 

@@ -193,6 +193,37 @@ siada-cli --list-models
 - `/editor` - 打开编辑器进行多行输入
 - `/exit` 或 `/quit` - 退出应用程序
 
+### Shell 模式使用说明
+
+Siada CLI 提供两种方式执行系统命令：
+
+#### 方式一：使用 `/shell` 切换到 shell 模式
+切换到持续的 shell 模式，在此模式下可以连续执行多个系统命令：
+
+```bash
+> /shell
+# 进入 shell 模式后可以执行多个命令
+ls -la
+cd my-project
+npm install
+git status
+# 使用 exit 或 quit 退出 shell 模式
+exit
+```
+
+#### 方式二：使用 `!` 前缀直接执行命令
+在交互模式下直接执行单个系统命令，无需切换模式：
+
+```bash
+> !ls -la
+> !git status
+> !npm run dev
+```
+
+两种方式的区别：
+- **`/shell`**：适合需要连续执行多个系统命令的场景，一次切换持续使用
+- **`!<命令>`**：适合偶尔执行单个系统命令的场景，执行完立即返回 AI 对话模式
+
 ## 代理类型
 
 ### 错误修复代理 (`--agent bugfix` 或 `--bugfix`) 
