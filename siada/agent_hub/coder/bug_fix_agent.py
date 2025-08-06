@@ -75,7 +75,7 @@ class BugFixAgent(CodeGenAgent):
         #set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
-        max_turns = 1
+        max_turns = 3
         current_turn = 0
         task_message = {"content": input_with_env, "role": "user"}
         input_list = [task_message]
