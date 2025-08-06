@@ -100,12 +100,12 @@ class AutoCompleter(Completer):
                 if self.file_recommendation_engine.should_show_suggestions(text):
                     suggestions = self.file_recommendation_engine.get_suggestions_sync(text)
                     
-                    at_text = text[1:] if len(text) > 1 else ""
-                    start_position = -len(at_text)
+                    # Calculate start_position to replace from @ symbol
+                    start_position = -len(text)
                     
                     for suggestion in suggestions:
                         yield Completion(
-                            suggestion['value'], 
+                            "@" + suggestion['value'], 
                             start_position=start_position,
                             display=suggestion['label']
                         )
@@ -114,8 +114,8 @@ class AutoCompleter(Completer):
                         suggestions = self.file_recommendation_engine.get_suggestions_sync("@")
                         for suggestion in suggestions:
                             yield Completion(
-                                suggestion['value'],
-                                start_position=0,
+                                "@" + suggestion['value'],
+                                start_position=-1,  # Replace the @ symbol
                                 display=suggestion['label']
                             )
             except Exception as e:
