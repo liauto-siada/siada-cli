@@ -24,6 +24,12 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     #     supports_images=True,
     #     supports_extra_params=["reasoning_effort"],
     # ),
+    ModelBaseConfig(
+        model_name="claude-opus-4.1",
+        max_tokens=8192,
+        context_window=200_000,
+        supports_extra_params=[],
+    ),
 
     ModelBaseConfig(
         model_name="gpt-4.1",
