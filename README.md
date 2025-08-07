@@ -381,6 +381,19 @@ If running `siada-cli` directly shows command not found:
 
 For more detailed troubleshooting, check logs and use the `--verbose` flag for additional debug information.
 
+## Contributing
+
+We welcome contributions to Siada CLI! Whether you want to fix bugs, add new features, improve documentation, or suggest enhancements, your contributions are greatly appreciated.
+
+To get started with contributing, please read our [Contributing Guide](./docs/CONTRIBUTING.md) which includes:
+
+- Our project vision and development goals
+- Project directory structure and development guidelines
+- Pull request guidelines and best practices
+- Code organization principles
+
+Before submitting any changes, please make sure to check our issue tracker and follow the contribution workflow outlined in the guide.
+
 ## Acknowledgements
 
 Siada CLI is built upon the foundation of numerous open source projects, and we extend our deepest respect and gratitude to their contributors.
