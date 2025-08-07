@@ -3,9 +3,12 @@
 
 提供项目中通用的工具函数
 """
+import hashlib
 import json
+import os
 import traceback
 from inspect import stack
+from pathlib import Path
 from textwrap import indent
 from typing import Any, Dict, Union, List
 
@@ -173,7 +176,7 @@ class ImageUtils:
         """Check if a file is an image file"""
         file_name = str(filename)  # Convert file_name to string
         return any(file_name.endswith(ext) for ext in ImageUtils.IMAGE_EXTENSIONS)
-    
+
 
 class SettingsUtils:
 
@@ -192,3 +195,95 @@ class SettingsUtils:
         for arg, val in sorted(vars(args).items()):
             show += f"  - {arg}: {val}\n"  # noqa: E221
         return show
+
+
+class DirectoryUtils:
+    """Utility class for common directory operations."""
+
+    @staticmethod
+    def get_global_temp_dir() -> str:
+        """Get global temp directory ~/.siada-cli/data/tmp
+        
+        Returns:
+            Path to the global temp directory
+        """
+        siada_temp_dir = Path.home() / ".siada-cli" / "data" / "tmp"
+        # Ensure directory exists
+        siada_temp_dir.mkdir(parents=True, exist_ok=True)
+        return str(siada_temp_dir)
+
+    @staticmethod
+    def get_global_sessions_dir(cwd: str) -> str:
+        """Get sessions directory based on project context
+        
+        Args:
+            cwd: Current working directory/project root (required)
+            
+        Returns:
+            Path to the project-specific sessions directory
+        """
+        # Project-specific sessions directory
+        project_temp_dir = DirectoryUtils.get_project_temp_dir(cwd)
+        sessions_dir = Path(project_temp_dir) / "sessions"
+
+        # Ensure directory exists
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+        return str(sessions_dir)
+
+    @staticmethod
+    def get_file_path_hash(file_path: str) -> str:
+        """Calculate SHA256 hash of file path
+        
+        Args:
+            file_path: Path to hash
+            
+        Returns:
+            SHA256 hash of the file path
+        """
+        return hashlib.sha256(file_path.encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def get_project_temp_dir(project_root: str) -> str:
+        """Get project-specific temp directory using project root path hash
+        
+        Args:
+            project_root: Root directory of the project
+            
+        Returns:
+            Path to the project-specific temp directory
+        """
+        hash_value = DirectoryUtils.get_file_path_hash(project_root)
+        temp_dir = DirectoryUtils.get_global_temp_dir()
+        project_temp_dir = os.path.join(temp_dir, hash_value)
+        # Ensure directory exists
+        Path(project_temp_dir).mkdir(parents=True, exist_ok=True)
+        return project_temp_dir
+
+    @staticmethod
+    def get_project_checkpoint_dir(project_root: str) -> str:
+        """Get project-specific checkpoint directory"""
+        return os.path.join(DirectoryUtils.get_project_temp_dir(project_root), "checkpoints")
+
+    @staticmethod
+    def get_siada_config_dir() -> str:
+        """Get siada configuration directory ~/.siada-cli
+        
+        Returns:
+            Path to the siada configuration directory
+        """
+        config_dir = Path.home() / ".siada-cli"
+        # Ensure directory exists
+        config_dir.mkdir(parents=True, exist_ok=True)
+        return str(config_dir)
+
+    @staticmethod
+    def get_siada_data_dir() -> str:
+        """Get siada data directory ~/.siada-cli/data
+        
+        Returns:
+            Path to the siada data directory
+        """
+        data_dir = Path.home() / ".siada-cli" / "data"
+        # Ensure directory exists
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return str(data_dir)

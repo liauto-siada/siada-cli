@@ -3,6 +3,7 @@ import re
 from typing import List, Optional
 from pathlib import Path
 import os
+import pandas as pd
 
 class GitDiffUtil:
     """工具类，用于获取 Git 仓库的 diff 信息，排除测试文件。"""
@@ -71,6 +72,16 @@ class GitDiffUtil:
                 text=True,
                 check=True
             )
+            if result.stdout.strip() == "":
+                cmd = ['git', 'diff', '--', 'src/']
+                result = subprocess.run(
+                    cmd,
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+            print(f"git diff result: {result.stdout}\n")
             return result.stdout
         except subprocess.CalledProcessError as e:
             raise Exception(f"Git diff failed: {e.stderr}")
@@ -94,6 +105,96 @@ class GitDiffUtil:
         
         return None
 
+
+    @staticmethod
+    def get_git_diff_analysis(repo_path: str = ".") -> dict:
+        """
+        获取 Git diff 分析结果，包括添加、删除、总行数和净变化行数。
+
+        Args:
+            repo_path: Git 仓库的路径，默认为当前目录。
+
+        Returns:
+            dict: 包含添加、删除、总行数和净变化行数的字典。
+        """
+        diff_text = GitDiffUtil.get_git_diff_exclude_test_files(repo_path)
+        
+        return {
+            'diff_patch': diff_text,
+            'line_changes': GitDiffUtil.parse_diff_lines(diff_text),
+            'patch_complexity': GitDiffUtil.analyze_patch_complexity(diff_text)
+        }
+
+    def parse_diff_lines(diff_text: str) -> dict:
+        """
+        analyze git diff to count added, deleted, and total changed lines.
+        
+        Args:
+            diff_text (str): git diff text
+        
+        Returns:
+            dict: including added, deleted, total, and net changes
+        """
+        if not diff_text or pd.isna(diff_text):
+            return {'added': 0, 'deleted': 0, 'total': 0, 'net': 0}
+        
+        lines = diff_text.split('\n')
+        added_lines = 0
+        deleted_lines = 0
+        
+        for line in lines:
+            if (line.startswith('diff --git') or 
+                line.startswith('index ') or 
+                line.startswith('--- ') or 
+                line.startswith('+++ ') or 
+                line.startswith('@@')):
+                continue
+            
+            if line.startswith('+') and not line.startswith('+++'):
+                added_lines += 1
+            elif line.startswith('-') and not line.startswith('---'):
+                deleted_lines += 1
+        
+        total_changes = added_lines + deleted_lines
+        net_changes = added_lines - deleted_lines
+        
+        return {
+            'added': added_lines,
+            'deleted': deleted_lines,
+            'total': total_changes,
+            'net': net_changes
+        }
+    
+    def analyze_patch_complexity(diff_text:str) -> dict:
+        """
+        Analyze the complexity of the patch from git diff text.
+        
+        Args:
+            diff_text (str): git diff text  
+        
+        Returns:
+            dict: including number of files changed and whether function definitions were changed
+        """
+        if not diff_text or pd.isna(diff_text):
+            return {'files_changed': 0, 'has_function_changes': False}
+        
+        file_pattern = r'diff --git a/(.*?) b/'
+        files_changed = len(re.findall(file_pattern, diff_text))
+        
+        function_patterns = [
+            r'[+-]\s*def\s+\w+',  
+            r'[+-]\s*function\s+\w+',  
+            r'[+-]\s*class\s+\w+', 
+        ]
+        
+        has_function_changes = any(re.search(pattern, diff_text) for pattern in function_patterns)
+        
+        return {
+            'files_changed': files_changed,
+            'has_function_changes': has_function_changes
+        }
+
+# Example usage
 if __name__ == "__main__":
     # from siada.foundation.tools.get_git_diff import GitDiffUtil
     # 示例用法

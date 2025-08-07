@@ -1,11 +1,11 @@
 """
 Interaction Session Management Module
 
-Provides interaction session management functionality working with OpenAI Agents SQLiteSession:
+Provides interaction session management functionality working with FileSession:
 
 Core Features:
-- Create interaction sessions and associated OpenAI SQLiteSession
-- Interaction session and openai_session share the same ID
+- Create interaction sessions and associated FileSession
+- Interaction session and file_session share the same ID
 - Support ModelSettings model configuration
 - Simplified API focusing on session creation
 """

@@ -1,0 +1,42 @@
+import React from 'react'
+import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/iconbutton'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
+
+${componentCode}
+
+import { StrictMode, useRef, useEffect, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import '../index.css'
+
+const App = () => {
+  return (
+    <div className="w-[933px] h-[1360px] bg-slate-200 rounded-[20px] py-[60px] relative">
+      {/* 标题区域 */}
+      <div className="px-[60px] mb-[100px]">
+        <h1 className="text-[52px] font-bold text-gray-800">${title}</h1>
+      </div>
+
+      {/* 内容区域 - 左右都保持60px边距，滚动条包含在右边距内，底部保持50px安全距离 */}
+      <div className="pl-[60px] pr-[30px] pb-[50px]" style={{ height: 'calc(100% - 120px)' }}>
+        <div className="relative h-full">
+          <ScrollArea className="h-full w-full">
+            <div className="pr-[35px]">
+              <${componentName} />
+            </div>
+          </ScrollArea>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const rootElement = document.getElementById('root')
+if (rootElement) {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  )
+}

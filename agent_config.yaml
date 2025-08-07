@@ -7,22 +7,43 @@ agents:
     class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
     description: "Specialized agent for code bug fixing"
     enabled: true
+    supported_modes: "non_interactive"
   
   # Code Development Agent (not implemented yet)
   coder:
     class: "siada.agent_hub.coder.code_gen_agent.CodeGenAgent"
     description: "General-purpose code development agent"
     enabled: true
+    supported_modes: "all"
   
   # Frontend Generation Agent
   fegen:
     class: "siada.agent_hub.coder.fe_gen_agent.FeGenAgent"
     description: "Frontend code generation agent"
     enabled: false
+    supported_modes: "non_interactive"
+
+  browser:
+    class: "siada.agent_hub.coder.browser_agent.BrowserAgent"
+    description: "Browser operate agent"
+    enabled: true
+    supported_modes: "interactive"
+
+  bugreproduce:
+    class: "siada.agent_hub.coder.bug_reproduce_agent.BugReproduceAgent"
+    description: "Bug reproduction agent"
+    enabled: false
+    supported_modes: "non_interactive"
+
+  test:
+    class: "siada.agent_hub.coder.test_agent.TestAgent"
+    description: "Test agent"
+    enabled: false
+    supported_modes: "non_interactive"
 
 # LLM Configuration
 llm_config:
-  provider: "openrouter"                    # Optional：“openrouter”
+  provider: "li"                    # Optional： ”li“ ， “openrouter”
   model_name: "claude-sonnet-4"
   repo_map_tokens: 8192                     # repo map max token
   repo_map_mul_no_files: 16                 # Multiple without chat files

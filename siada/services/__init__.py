@@ -11,12 +11,21 @@ from .handle_at_command import (
     handle_at_command
 )
 
+from .mcp_service import mcp_service
+
 from .file_recommendation import (
     FileRecommendationEngine,
     CompletionConfig,
     FilterOptions,
     DEFAULT_COMPLETION_CONFIG
 )
+
+from .git_service import (
+    GitService,
+    GitServiceError
+)
+
+from .file_session import FileSession
 
 __all__ = [
     'AtCommandProcessor',
@@ -26,5 +35,10 @@ __all__ = [
     'FileRecommendationEngine',
     'CompletionConfig',
     'FilterOptions',
-    'DEFAULT_COMPLETION_CONFIG'
+    'DEFAULT_COMPLETION_CONFIG',
+    'GitService',
+    'GitServiceError',
+    'FileSession'
+    'DEFAULT_COMPLETION_CONFIG',
+    'mcp_service'
 ]

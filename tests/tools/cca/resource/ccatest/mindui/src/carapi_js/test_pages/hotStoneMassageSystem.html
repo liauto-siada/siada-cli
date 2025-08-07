@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>热石按摩系统接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>热石按摩系统接口</h1>
+    <div id="button-list">
+        <div class="button-row"><button id="HotStone_FL">获取主驾座椅热石按摩开关状态</button><span class="result-span" id="HotStone_FL_result"></span></div>
+        <div class="button-row"><button id="HotStone_FR">获取副驾座椅热石按摩开关状态</button><span class="result-span" id="HotStone_FR_result"></span></div>
+        <div class="button-row"><button id="HotStone_SecL">获取二排左座椅热石按摩开关状态</button><span class="result-span" id="HotStone_SecL_result"></span></div>
+        <div class="button-row"><button id="HotStone_SecR">获取二排右座椅热石按摩开关状态</button><span class="result-span" id="HotStone_SecR_result"></span></div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+
+            [
+                "HotStone_FL", "HotStone_FR", "HotStone_SecL", "HotStone_SecR"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_hot_stone_massage_system(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+        }
+    </script>
+</body>
+
+</html>

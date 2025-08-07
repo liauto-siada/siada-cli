@@ -1,0 +1,113 @@
+{
+    "name": "GetLixiangStudentInfo",
+    "description": "理想同学AI智能检索工具，可以进行智能对话、获取热点新闻、百科知识，商品价格和回答各种问题等。当有任何信息需要搜索时可以使用此工具检索",
+    "type": "tool",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "text": {
+                "type": "string",
+                "description": "查询文本，例如：今日热点新闻、理想汽车最新消息、天气如何等",
+                "example": "今日热点新闻"
+            },
+            "vin": {
+                "type": "string",
+                "description": "VIN码，车辆识别码，用于个性化服务",
+                "example": "WEB1b247b0f111111"
+            },
+            "Vehicle": {
+                "type": "string",
+                "description": "理想同学API服务器地址，必须传入完整的API端点地址。",
+                "example": "https://crs-hmi-testtwo.chehejia.com/crs-mindcloud-api/api/v1/tool/lixiang/student/bidStreamingDialogue",
+                "default": "https://crs-hmi-testtwo.chehejia.com/crs-mindcloud-api/api/v1/tool/lixiang/student/bidStreamingDialogue"
+            },
+            "Cloud": {
+                "type": "string",
+                "description": "理想同学API服务器地址，必须传入完整的API端点地址。",
+                "example": "https://crs-mindcloud-service-testtwo.inner.chj.cloud/api/v1/tool/lixiang/student/bidStreamingDialogue",
+                "default": "https://crs-mindcloud-service-testtwo.inner.chj.cloud/api/v1/tool/lixiang/student/bidStreamingDialogue"
+            }
+        },
+        "required": ["text", "vin"]
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "业务状态码，0表示成功",
+                "example": 0
+            },
+            "msg": {
+                "type": "string",
+                "description": "结果描述",
+                "example": "成功"
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "multiSessionVOList": {
+                        "type": "array",
+                        "description": "多会话对象列表",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "generateTextContent": {
+                        "type": "object",
+                        "description": "生成的文本内容",
+                        "properties": {
+                            "display": {
+                                "type": "string",
+                                "description": "显示内容，包含格式化的文本和卡片信息",
+                                "example": "<voice_bar>为你播报国内社会新闻热点</voice_bar><text_card>国内社会新闻</text_card>"
+                            },
+                            "spoken": {
+                                "type": ["string", "null"],
+                                "description": "语音播报内容"
+                            }
+                        }
+                    },
+                    "struct_block_contents": {
+                        "type": "array",
+                        "description": "结构化块内容列表",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "block_name": {
+                                    "type": "string",
+                                    "description": "块名称，如voice_bar、text_card、custom_card等",
+                                    "example": "voice_bar"
+                                },
+                                "spoken": {
+                                    "type": "string",
+                                    "description": "语音播报文本",
+                                    "example": "为你播报国内社会新闻热点"
+                                },
+                                "is_final": {
+                                    "type": "boolean",
+                                    "description": "是否为最终内容",
+                                    "example": true
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "块内容，可能是文本或JSON字符串",
+                                    "example": "国内社会新闻"
+                                },
+                                "block_type": {
+                                    "type": ["string", "null"],
+                                    "description": "块类型"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+} 

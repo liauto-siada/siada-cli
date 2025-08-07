@@ -1,0 +1,37 @@
+/* 通用测试页面样式 */
+
+body {
+    font-size: 25px !important;
+}
+
+.button-row {
+    font-size: 18px !important;
+}
+
+button {
+    font-size: 25px !important;
+    padding: 6px 18px;
+}
+
+.result-span {
+    font-size: 25px !important;
+}
+
+.link-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 24px;
+}
+
+.link-list a {
+    font-size: 30px !important;
+    color: #1976d2;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.link-list a:hover {
+    color: #0d47a1;
+    text-decoration: underline;
+}

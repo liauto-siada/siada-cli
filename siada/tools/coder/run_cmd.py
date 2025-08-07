@@ -33,7 +33,7 @@ class RunCmdResult(FunctionCallResult):
         if self.code == 0:
             return f"`{self.command}` executed successfully!"
         else:
-            return f"`{self.command}` executed with error!"
+            return f"`{self.command}` executed with code: {self.code}!"
 
     def __str__(self):
         return self.content
@@ -56,5 +56,5 @@ def run_cmd(context: RunContextWrapper[CodeAgentContext], command) -> FunctionCa
             a single string argument. Defaults to None.
     """
     cwd = context.context.root_dir
-    code, output = run_cmd_impl(command=command, cwd=cwd)
+    code, output = run_cmd_impl(command=command, verbose=True, cwd=cwd)
     return RunCmdResult(command=command, output=output, code=code)

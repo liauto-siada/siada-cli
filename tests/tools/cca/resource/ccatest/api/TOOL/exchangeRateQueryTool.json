@@ -1,0 +1,232 @@
+{
+    "name": "GetExchangeRateInfo",
+    "description": "根据查询文本进行常用货币之间的实时汇率查询和货币兑换查询，支持美元、欧元、英镑、日元等主要货币与人民币之间的汇率查询",
+    "type": "tool",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "refText": {
+                "type": "string",
+                "description": "查询文本，例如：查一下美元的汇率、欧元兑换人民币汇率、100美元等于多少人民币等",
+                "example": "查一下美元的汇率"
+            },
+            "apiUrl": {
+                "type": "string",
+                "description": "汇率API服务器地址，必须传入完整的API端点地址。",
+                "example": "https://crs-hmi-testtwo.chehejia.com/crs-mindcloud-api/api/v1/tool/speech/exchangeRate",
+                "default": "https://crs-hmi-testtwo.chehejia.com/crs-mindcloud-api/api/v1/tool/speech/exchangeRate"
+            }
+        },
+        "required": ["refText", "apiUrl"]
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "业务状态码，0表示成功",
+                "example": 0
+            },
+            "msg": {
+                "type": "string",
+                "description": "结果描述",
+                "example": "成功"
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "recordId": {
+                        "type": "string",
+                        "description": "记录ID",
+                        "example": "da1504ee3fd94282b8d5035988df6b3d"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "请求ID",
+                        "example": "da1504ee3fd94282b8d5035988df6b3d"
+                    },
+                    "skill": {
+                        "type": "string",
+                        "description": "技能名称",
+                        "example": "汇率"
+                    },
+                    "contextId": {
+                        "type": "string",
+                        "description": "上下文ID",
+                        "example": "da1504ee3fd94282b8d5035988df6b3d"
+                    },
+                    "sessionId": {
+                        "type": "string",
+                        "description": "会话ID",
+                        "example": "da1504ee3fd94282b8d5035988df6b3d"
+                    },
+                    "skillId": {
+                        "type": "string",
+                        "description": "技能ID",
+                        "example": "2022032100000016"
+                    },
+                    "speakUrl": {
+                        "type": "string",
+                        "description": "语音播报URL",
+                        "example": "https://dds-ack.dui.ai/runtime/v1/cache/0145d49ff519472aa7a0856dae99b05f?productId=279630977&aispeech-da-env=hd-ack"
+                    },
+                    "ttsSampleRate": {
+                        "type": "integer",
+                        "description": "TTS采样率",
+                        "example": 16000
+                    },
+                    "dm": {
+                        "type": "object",
+                        "properties": {
+                            "taskId": {
+                                "type": "string",
+                                "description": "任务ID",
+                                "example": "62383858b973a600012b8b44"
+                            },
+                            "intentId": {
+                                "type": "string",
+                                "description": "意图ID",
+                                "example": "640074ef66923800012feb97"
+                            },
+                            "input": {
+                                "type": "string",
+                                "description": "输入文本",
+                                "example": "查一下美元的汇率"
+                            },
+                            "shouldEndSession": {
+                                "type": "boolean",
+                                "description": "是否应该结束会话",
+                                "example": true
+                            },
+                            "status": {
+                                "type": "integer",
+                                "description": "状态码",
+                                "example": 1
+                            },
+                            "nlg": {
+                                "type": "string",
+                                "description": "汇率信息的自然语言描述",
+                                "example": "根据中国银行外汇牌价，目前美元兑换人民币汇率为7.16"
+                            },
+                            "intentName": {
+                                "type": "string",
+                                "description": "意图名称",
+                                "example": "汇率查询"
+                            },
+                            "task": {
+                                "type": "string",
+                                "description": "任务类型",
+                                "example": "汇率"
+                            },
+                            "widget": {
+                                "type": "object",
+                                "properties": {
+                                    "result": {
+                                        "type": "string",
+                                        "description": "汇率结果",
+                                        "example": "7.16"
+                                    },
+                                    "duiWidget": {
+                                        "type": "string",
+                                        "description": "DUI组件类型",
+                                        "example": "text"
+                                    },
+                                    "errId": {
+                                        "type": "integer",
+                                        "description": "错误ID",
+                                        "example": 0
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "description": "组件类型",
+                                        "example": "text"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": "组件名称",
+                                        "example": "default"
+                                    },
+                                    "errorCode": {
+                                        "type": "integer",
+                                        "description": "错误代码",
+                                        "example": 0
+                                    },
+                                    "widgetName": {
+                                        "type": "string",
+                                        "description": "组件名称",
+                                        "example": "default"
+                                    },
+                                    "extra": {
+                                        "type": "object",
+                                        "properties": {
+                                            "date": {
+                                                "type": "string",
+                                                "description": "汇率日期",
+                                                "example": "2025-06-30"
+                                            },
+                                            "fromCode": {
+                                                "type": "string",
+                                                "description": "源货币代码",
+                                                "example": "USD"
+                                            },
+                                            "result": {
+                                                "type": "string",
+                                                "description": "汇率结果",
+                                                "example": "7.16"
+                                            },
+                                            "time": {
+                                                "type": "string",
+                                                "description": "汇率时间",
+                                                "example": "10:09:57"
+                                            },
+                                            "to": {
+                                                "type": "string",
+                                                "description": "目标货币名称",
+                                                "example": "人民币"
+                                            },
+                                            "from": {
+                                                "type": "string",
+                                                "description": "源货币名称",
+                                                "example": "美元"
+                                            },
+                                            "fromNumber": {
+                                                "type": "string",
+                                                "description": "源货币数量",
+                                                "example": "1"
+                                            },
+                                            "toCode": {
+                                                "type": "string",
+                                                "description": "目标货币代码",
+                                                "example": "RMB"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "context": {
+                                "type": "object",
+                                "properties": {
+                                    "currentIntentName": {
+                                        "type": "string",
+                                        "description": "当前意图名称",
+                                        "example": "汇率查询"
+                                    },
+                                    "nlgLanguageClass": {
+                                        "type": "string",
+                                        "description": "自然语言生成的语言类别",
+                                        "example": "putonghua"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+} 

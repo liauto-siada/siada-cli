@@ -6,11 +6,10 @@ import asyncio
 import time
 from typing import List, Optional
 
-from .config import CompletionConfig, FilterOptions
+from .config import CompletionConfig
 from .file_discovery import FileDiscoveryService
 from .suggestion import Suggestion, sort_suggestions, limit_suggestions
 from ..utils.text_utils import parse_at_command_path, extract_at_path_from_text
-from ..utils.path_utils import escape_path
 
 
 class CompletionEngine:

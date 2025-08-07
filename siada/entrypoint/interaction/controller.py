@@ -5,61 +5,70 @@ Manages the AI coding interaction lifecycle and controls the main interaction fl
 Separates core interaction logic from main entry point for better code organization.
 """
 
-from dataclasses import dataclass
-
-import siada.support.completer
+from siada.session.session_models import RunningSession
 from siada import __version__
-from siada.entrypoint.interaction.config import RunningConfig
-from siada.entrypoint.interaction.turn.run_turn import TurnFactory, TurnInput
-from siada.io.io import InputOutput
-from siada.models.model_run_config import ModelRunConfig
-from siada.session.session_manager import RunningSessionManager
+from siada.entrypoint.interaction.running_config import RunningConfig
+from siada.entrypoint.interaction.turn import TurnFactory, TurnInput
 from siada.support.slash_commands import SlashCommands, SwitchEvent
 from rich.console import Console
 
-import time
 import sys
 
 
 class Controller:
     """Controls user-AI coding interactions and manages coder lifecycle"""
 
-    def __init__(self, config: RunningConfig, slash_commands: SlashCommands, shell_mode: bool = False):
+    def __init__(
+        self,
+        config: RunningConfig,
+        slash_commands: SlashCommands,
+        shell_mode: bool = False,
+        session: RunningSession = None,
+    ):
         self.config = config
         self.slash_commands = slash_commands
         self.shell_mode = shell_mode
         self.last_keyboard_interrupt = None
+        self.session = session
 
     def run(self) -> int:
-        session = RunningSessionManager.create_session(
-            siada_config=self.config,
-        )
+        session = self.session
         display_rule = True
+        pending_input = None  # Pending input to process in next iteration
+
         while True:
             try:
-                user_input = self.config.io.get_input(
-                    completer=self.config.completer if not self.shell_mode else None,
-                    display_rule=display_rule,
-                    color=(
-                        self.config.running_color_settings.user_input_color
-                        if not self.shell_mode
-                        else self.config.running_color_settings.shell_model_color
-                    ),
-                )
+                if pending_input:
+                    user_input = pending_input
+                    pending_input = None
+                else:
+                    # Get user input normally
+                    user_input = self.config.io.get_input(
+                        completer=(
+                            self.config.completer if not self.shell_mode else None
+                        ),
+                        display_rule=display_rule,
+                        color=(
+                            self.config.running_color_settings.user_input_color
+                            if not self.shell_mode
+                            else self.config.running_color_settings.shell_model_color
+                        ),
+                    )
+                if isinstance(user_input, str):
+                    display_rule = True
+                    if user_input.strip() == "":
+                        display_rule = False
+                        continue
 
-                display_rule = True
-                if user_input.strip() == "":
-                    display_rule = False
-                    continue
+                    if self.shell_mode and user_input.strip() in ["exit", "quit"]:
+                        # exit the shell mode
+                        self.shell_mode = False
+                        self.config.io.print_info("Switching to agent mode...")
+                        continue
 
-                if self.shell_mode and user_input.strip() in ["exit", "quit"]:
-                    # exit the shell mode
-                    self.shell_mode = False
-                    self.config.io.print_info("Switching to agent mode...")
-                    continue
-
-                if self.shell_mode:
-                    user_input = f"!{user_input}"
+                    # Add shell command prefix in shell mode
+                    if self.shell_mode:
+                        user_input = f"!{user_input}"
 
                 turn = TurnFactory.create_turn(
                     self.config, session, self.slash_commands, user_input
@@ -67,14 +76,14 @@ class Controller:
                 turn_output = turn.execute(TurnInput(use_input=user_input))
 
                 if isinstance(turn_output.output, SwitchEvent):
-                    if turn_output.output.kwargs.get("agent"):
-
-                        self.config.agent_name = turn_output.output.kwargs.get("agent")
-                        # clear the session to avoid the previous agent's messages
-                        session.state.openai_session.clear_session()
-
-                    elif turn_output.output.kwargs.get("model"):
+                    if turn_output.output.kwargs.get("model"):
                         self.config.model = turn_output.output.kwargs.get("model")
+
+                    elif turn_output.output.kwargs.get("ai_analysis_prompt"):
+                        # Set pending input for next iteration - reuse existing flow
+                        pending_input = turn_output.output.kwargs.get("ai_analysis_prompt")
+                        continue
+
                     # show the announcements in every switch event
                     if turn_output.output.kwargs.get("shell"):
                         self.shell_mode = True
@@ -88,7 +97,7 @@ class Controller:
 
     def get_announcements(self):
         lines = []
-        lines.append(f"Siada CLI v{__version__}")
+        lines.append(f"Siada CLI v{__version__} supported by Li Auto")
 
         output = f"Agent: {self.config.agent_name}, Provider: {self.config.llm_config.provider}, Model: {self.config.llm_config.model_name}"
 

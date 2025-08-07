@@ -1,27 +1,55 @@
-import asyncio
 import importlib
-import os
 from pathlib import Path
 from siada.session.session_models import RunningSession
-from typing import Dict, Type, Optional, Union, Literal, overload
+from typing import Dict, Type, Optional, Literal, overload
 
 import yaml
-from agents import RunResult, RunResultStreaming, Agent, set_trace_processors
+from agents import RunResult, RunResultStreaming, Agent, set_trace_processors, TResponseInputItem
 
 from siada.agent_hub.coder.tracing import create_detailed_logger
 from siada.agent_hub.siada_agent import SiadaAgent
+from siada.foundation.logging import logger as logging
 
-import logging
 
-from siada.services.code_context_manager import ContextTracingProcessor
 
 class SiadaRunner:
+
+    @staticmethod
+    async def build_context(
+        agent: SiadaAgent,
+        workspace: Optional[str] = None,
+        session: Optional[RunningSession] = None
+    ):
+        """
+        Build the execution context for an agent.
+
+        Args:
+            agent: The SiadaAgent instance.
+            workspace: Workspace path, optional.
+            session: The running session object, optional.
+
+        Returns:
+            The configured context object.
+        """
+        context = await agent.get_context()
+
+        if workspace:
+            context.root_dir = workspace
+
+        if session:
+            context.session = session
+            context.checkpoint_tracker = session.checkpoint_tracker
+            if context.checkpoint_tracker:
+                # start add current changes to save current state
+                context.checkpoint_tracker.start()
+
+        return context
 
     @overload
     @staticmethod
     async def run_agent(
         agent_name: str,
-        user_input: str,
+        user_input: str | list[TResponseInputItem],
         workspace: str = None,
         session: RunningSession = None,
         *,
@@ -32,7 +60,7 @@ class SiadaRunner:
     @staticmethod
     async def run_agent(
         agent_name: str,
-        user_input: str,
+        user_input: str | list[TResponseInputItem],
         workspace: str = None,
         session: RunningSession = None,
         *,
@@ -42,7 +70,7 @@ class SiadaRunner:
     @staticmethod
     async def run_agent(
         agent_name: str,
-        user_input: str,
+        user_input: str | list[TResponseInputItem],
         workspace: str = None,
         session: RunningSession = None,
         stream: bool = False,
@@ -61,19 +89,21 @@ class SiadaRunner:
             Union[RunResult, RunResultStreaming]: Returns a regular or streaming result based on the stream parameter.
         """
         agent = await SiadaRunner.get_agent(agent_name)
-        context = await agent.get_context()
-        console_output = False
-        if workspace:
-            context.root_dir = workspace
-        if session:
-            context.session = session
+        context = await SiadaRunner.build_context(agent, workspace, session)
+
+        # Load user memory from siada.md file
+        if workspace or (session and session.siada_config.workspace):
+            workspace_path = workspace or session.siada_config.workspace
+            try:
+                from siada.services.siada_memory import load_siada_memory
+                user_memory = load_siada_memory(workspace_path)
+                context.user_memory = user_memory
+            except Exception as e:
+                logging.debug(f"Failed to load user memory: {e}")
 
         # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
         console_output = session.siada_config.console_output if session else True
-        context_tracing_processor = ContextTracingProcessor(context)
-
-        set_trace_processors([create_detailed_logger(console_output=console_output),
-                              context_tracing_processor])
+        set_trace_processors([create_detailed_logger(console_output=console_output)])
 
         if stream:
             # Stream execution
@@ -130,7 +160,12 @@ class SiadaRunner:
         # Dynamically import and instantiate Agent class
         try:
             agent_class = SiadaRunner._import_agent_class(class_path)
-            return agent_class()
+            agent = agent_class()
+            
+            # Configure MCP servers for the agent
+            await SiadaRunner._configure_mcp_servers(agent)
+            
+            return agent
         except (ImportError, AttributeError) as e:
             raise ImportError(f"Failed to import agent class '{class_path}': {e}")
 
@@ -168,3 +203,34 @@ class SiadaRunner:
         module_path, class_name = class_path.rsplit('.', 1)
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
+
+    @staticmethod
+    async def _configure_mcp_servers(agent: SiadaAgent):
+        """
+        Configure MCP servers for the agent using delayed connection strategy
+        
+        Args:
+            agent: The agent instance to configure
+        """
+        try:
+            from siada.services.mcp_service import mcp_service
+            
+            # Check if MCP configuration is available
+            if not mcp_service.has_config():
+                logging.debug("No MCP configuration available, skipping MCP server configuration")
+                return
+                        
+            # Get MCP servers from the initialized service
+            mcp_servers = mcp_service.get_mcp_servers_for_agent()
+            if mcp_servers:
+                # Configure the agent with MCP servers using official SDK mechanism
+                agent.mcp_servers = mcp_servers
+                agent.mcp_config = {"convert_schemas_to_strict": True}
+                
+                for server in mcp_servers:
+                    logging.debug(f"   - {server.name}")
+            else:
+                logging.warning("MCP service initialized but no servers available for agent configuration")
+                
+        except Exception as e:
+            logging.error(f"Failed to configure MCP servers for agent: {e}")

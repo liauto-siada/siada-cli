@@ -142,6 +142,77 @@ export OPENROUTER_API_KEY="your_openrouter_key"
 unset SIADA_MODEL
 ```
 
+### Checkpoint 配置
+
+Siada CLI 提供检查点跟踪功能，可以自动保存会话状态，并支持从开发工作流程中的先前点进行恢复。
+
+**什么是检查点？**
+- 在重要工具操作后自动拍摄会话状态快照
+- 包括对话历史、修改的文件和git状态
+- 支持回滚到先前状态以及比较不同时间点的差异
+
+**启用检查点跟踪：**
+
+   **方法1：命令行参数**
+   ```bash
+   # 启动CLI时启用检查点
+   siada-cli --checkpointing --agent coder
+   ```
+
+   **方法2：环境变量**
+   ```bash
+   # 全局启用检查点
+   export SIADA_CHECKPOINTING=true
+   siada-cli --agent coder
+   ```
+
+   **方法3：配置文件**
+   
+   编辑 `~/.siada-cli/conf.yaml`：
+   ```yaml
+   checkpoint_config:
+     enable: true
+   ```
+
+**检查点使用：**
+- 在文件编辑和命令执行等工具操作后自动创建检查点
+- 使用 `/restore <checkpoint_file>` 恢复到先前状态
+- 使用 `/undo <checkpoint_file>` 撤销检查点的更改，恢复到检查点创建之前的状态
+- 使用 `/compare <checkpoint_file>` 查看当前状态与检查点的差异
+
+**存储位置：**
+- 文件地址：`~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id/`
+
+### MCP 配置
+
+Siada CLI 集成了 MCP（Model Context Protocol）服务，为 AI 代理提供扩展的工具和资源
+
+**MCP 配置文件 `~/.siada-cli/mcp_config.json`**
+
+   参数说明：
+   - `enabled`：控制全局/单个mcp server的开关
+   - `type`：连接类型（`stdio`/`http`/`sse`）
+
+   配置文件示例：
+   ```json
+   {
+      "enabled": true,
+      "mcpServers": {
+         "filesystem": {
+            "enabled": true,
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocolserver-filesystem", "./"]
+         }
+      }
+   }
+   ```
+
+**MCP 斜杠命令**
+
+   - `/mcp-server`：列出所有mcp服务
+   - `/mcp-list`：列出所有mcp服务及提供的工具
+
 ## 使用模式
 
 Siada CLI 支持两种使用模式，满足不同的使用场景：
@@ -214,7 +285,16 @@ siada-cli --verbose
 # 列出所有可用模型
 siada-cli --list-models
 siada-cli --models
+
+# 启用检查点跟踪（用于会话恢复）
+siada-cli --checkpointing
 ```
+
+# 版本检查与更新
+siada-cli --just-check-update  # 仅检查版本，不执行更新
+siada-cli --upgrade            # 立即升级到最新版本  
+siada-cli --check-update       # 启动时检查并提示更新（默认开启）
+、、、
 
 ## 斜杠命令
 
@@ -223,7 +303,17 @@ siada-cli --models
 - `/shell` - 切换到 shell 模式执行系统命令（输入 `exit` 或 `quit` 退出 shell 模式）
 - `/models` - 列出可用的 AI 模型
 - `/run <命令>` 或 `!<命令>` - 执行 shell 命令
-- `/editor` - 打开编辑器进行多行输入
+- `/editor` 或 `/edit` - 打开编辑器进行多行输入
+- `/multiline-mode` - 切换多行模式（改变 Enter 键和 Meta+Enter 键的行为）
+  - Enter 键换行
+  - Meta+Enter 键结束多行模式，将内容发送给模型
+- `/init [--force]` - 分析项目并创建定制的 siada.md 文件
+- `/restore <checkpoint_file>` - 从检查点文件恢复会话状态（需要启用检查点跟踪）
+- `/undo <checkpoint_file>` - 撤销检查点所做的更改，恢复到检查点创建之前的状态（需要启用检查点跟踪）
+- `/compare <checkpoint_file>` - 将当前状态与检查点文件进行比较以查看差异
+- `/memory-refresh` - 从 siada.md 文件刷新用户内存内容
+- `/memory-status` - 显示当前用户内存状态（文件信息、大小、加载状态）
+- `/status` - 显示当前会话状态（模型、Agent、会话ID和工作空间）
 - `/exit` 或 `/quit` - 退出应用程序
 
 ### Shell 模式使用说明
@@ -405,6 +495,9 @@ Siada CLI 的建设离不开众多开源项目的支持，我们对这些项目�
 ## 许可证
 
 本项目采用 MIT 许可证分发。更多信息请参见 [`LICENSE`](../../LICENSE)。
+
+## 免责声明
+请参阅 [disclaimers.md](../../disclaimers.md)
 
 ----
 <div align="center">

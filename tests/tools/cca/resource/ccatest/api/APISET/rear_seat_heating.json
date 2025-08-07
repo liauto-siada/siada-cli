@@ -1,0 +1,55 @@
+{
+    "name": "set_rear_seat_heating",
+    "description": "设置车辆二排和三排各座椅加热功能的状态，包括二排、三排座椅等位置。通过传入目标座椅位置来控制。0 表示关闭，1~3 表示从低到高的加热强度。",
+    "type": "skill",
+    "field_names": {
+      "CarControlTpuPlugin_SeatAcRow2LeftHeat": "二排左侧座椅加热",
+      "CarControlTpuPlugin_SeatAcRow2RightHeat": "二排右侧座椅加热",
+      "CarControlTpuPlugin_SeatAcRow2MiddleHeat": "二排中间座椅加热",
+      "CarControlTpuPlugin_SeatAcRow3LeftHeat": "三排左侧座椅加热",
+      "CarControlTpuPlugin_SeatAcRow3RightHeat": "三排右侧座椅加热",
+      "CarControlTpuPlugin_SeatAcRow3MiddleHeat": "三排中间座椅加热"
+    },
+    "input_schema": {
+      "type": "string",
+      "description": "指定要设置的座椅加热位置",
+      "example": "CarControlTpuPlugin_SeatAcRow1LeftHeat",
+      "enum": [
+        "CarControlTpuPlugin_SeatAcRow2LeftHeat",
+        "CarControlTpuPlugin_SeatAcRow2RightHeat",
+        "CarControlTpuPlugin_SeatAcRow2MiddleHeat",
+        "CarControlTpuPlugin_SeatAcRow3LeftHeat",
+        "CarControlTpuPlugin_SeatAcRow3RightHeat",
+        "CarControlTpuPlugin_SeatAcRow3MiddleHeat"
+      ],
+      "enumDescriptions": {
+        "CarControlTpuPlugin_SeatAcRow2LeftHeat": "设置二排左座椅加热档位，0:关闭，1:一档，2:二档，3:三档",
+        "CarControlTpuPlugin_SeatAcRow2RightHeat": "设置二排右座椅加热档位，0:关闭，1:一档，2:二档，3:三档",
+        "CarControlTpuPlugin_SeatAcRow2MiddleHeat": "设置二排中间座椅加热档位，0:关闭，1:一档，2:二档，3:三档",
+        "CarControlTpuPlugin_SeatAcRow3LeftHeat": "设置三排左座椅加热档位，0:关闭，1:一档，2:二档，3:三档",
+        "CarControlTpuPlugin_SeatAcRow3RightHeat": "设置三排右座椅加热档位，0:关闭，1:一档，2:二档，3:三档",
+        "CarControlTpuPlugin_SeatAcRow3MiddleHeat": "设置三排中间座椅加热档位，0:关闭，1:一档，2:二档，3:三档"
+      }
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "设置是否成功",
+          "example": true
+        },
+        "code": {
+          "type": "integer",
+          "description": "设置操作返回状态码，0 表示成功",
+          "example": 0
+        },
+        "message": {
+          "type": "string",
+          "description": "附加信息说明",
+          "example": "设置成功"
+        }
+      }
+    }
+  }
+  

@@ -2,8 +2,6 @@
 
 import argparse
 import os
-import sys
-from pathlib import Path
 
 import configargparse
 import shtab
@@ -151,10 +149,39 @@ def get_parser(default_config_files, git_root):
 
     group = parser.add_argument_group("Upgrading")
     group.add_argument(
+        "--just-check-update",
+        action="store_true",
+        help="Check for updates and return status in the exit code",
+        default=False,
+    )
+    group.add_argument(
+        "--check-update",
+        action=argparse.BooleanOptionalAction,
+        help="Check for new siada-cli versions on launch",
+        default=True,
+    )
+    group.add_argument(
+        "--upgrade",
+        "--update",
+        action="store_true",
+        help="Upgrade siada-cli to the latest version from PyPI",
+        default=False,
+    )
+
+    group = parser.add_argument_group("Upgrading")
+    group.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
         help="Show the version number and exit",
+    )
+    #####
+    group = parser.add_argument_group("Checkpointing settings")
+    group.add_argument(
+        "--checkpointing",
+        action=argparse.BooleanOptionalAction,
+        help="Enable checkpointing (default: False)",
+        default=None
     )
 
     ######

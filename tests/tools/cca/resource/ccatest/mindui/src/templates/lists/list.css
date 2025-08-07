@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+.lixiang-list-title {
+    @apply text-6xl font-bold text-gray-900 mb-[52px];
+}

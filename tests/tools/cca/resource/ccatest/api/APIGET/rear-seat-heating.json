@@ -1,0 +1,83 @@
+{
+    "name": "get_rear_seat_heating",
+    "description": "获取二排和三排座椅加热功能的状态信息。返回内容包括：二排左座椅加热档位(0-3档)、二排右座椅加热档位(0-3档)、二排中间座椅加热档位(0-3档)、三排左座椅加热档位(0-3档)、三排右座椅加热档位(0-3档)、三排中间座椅加热档位(0-3档)等6项后排座椅加热功能的当前档位设置，其中0档表示关闭，1-3档表示不同加热强度。",
+    "type": "skill",
+    "field_names": {
+        "SeatAcRow2LeftHeat": "二排左侧座椅加热",
+        "SeatAcRow2RightHeat": "二排右侧座椅加热",
+        "SeatAcRow2MiddleHeat": "二排中间座椅加热",
+        "SeatAcRow3LeftHeat": "三排左侧座椅加热",
+        "SeatAcRow3RightHeat": "三排右侧座椅加热",
+        "SeatAcRow3MiddleHeat": "三排中间座椅加热"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "后排座椅加热控制类型，指定要获取的控制数据类型，与输出参数一一对应",
+        "example": "SeatAcRow2LeftHeat",
+        "enum": ["SeatAcRow2LeftHeat", "SeatAcRow2RightHeat", "SeatAcRow2MiddleHeat", "SeatAcRow3LeftHeat", "SeatAcRow3RightHeat", "SeatAcRow3MiddleHeat"],
+        "enumDescriptions": {
+            "SeatAcRow2LeftHeat": "获取二排左座椅加热档位",
+            "SeatAcRow2RightHeat": "获取二排右座椅加热档位",
+            "SeatAcRow2MiddleHeat": "获取二排中间座椅加热档位",
+            "SeatAcRow3LeftHeat": "获取三排左座椅加热档位",
+            "SeatAcRow3RightHeat": "获取三排右座椅加热档位",
+            "SeatAcRow3MiddleHeat": "获取三排中间座椅加热档位"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "SeatAcRow2LeftHeat": {
+                        "type": ["string", "null"],
+                        "description": "二排左座椅加热档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    },
+                    "SeatAcRow2RightHeat": {
+                        "type": ["string", "null"],
+                        "description": "二排右座椅加热档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    },
+                    "SeatAcRow2MiddleHeat": {
+                        "type": ["string", "null"],
+                        "description": "二排中间座椅加热档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    },
+                    "SeatAcRow3LeftHeat": {
+                        "type": ["string", "null"],
+                        "description": "三排左座椅加热档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    },
+                    "SeatAcRow3RightHeat": {
+                        "type": ["string", "null"],
+                        "description": "三排右座椅加热档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    },
+                    "SeatAcRow3MiddleHeat": {
+                        "type": ["string", "null"],
+                        "description": "三排中间座椅加热档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    }
+                }
+            }
+        }
+    }
+} 

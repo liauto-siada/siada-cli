@@ -1,9 +1,20 @@
 [tool.poetry]
 name = "siada-cli"
-version = "0.0.1"
+version = "1.2.0"
 description = "Siada CLI is a Ai Pair Programming Tool in terminal"
 packages = [{include = "siada"}, {include = "agent_config.yaml"}]
 include = ["agent_config.yaml"]
+license = "Apache-2.0"
+readme = "README.md"
+ 
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python",
+    "Topic :: Software Development",
+]
 
 [tool.poetry.scripts]
 siada-cli = "siada.entrypoint.siadahub:main"
@@ -13,8 +24,8 @@ fastapi = ">=0.110.0,<1.0.0"
 uvicorn = ">=0.27.0,<1.0.0"
 pydantic = ">=2.6.0,<3.0.0"
 pydantic-settings = ">=2.2.0,<3.0.0"
-openai-agents = "0.2.5"
-openai = ">=1.99.9,<2.0.0"
+openai-agents = "0.2.9"
+openai = ">=1.102.0"
 litellm = ">=1.72.6,<2.0.0"
 openhands-aci = "0.3.0"
 termcolor = ">=3.1.0,<4.0.0"
@@ -22,7 +33,7 @@ psutil = ">=7.0.0,<8.0.0"
 pexpect = ">=4.9.0,<5.0.0"
 binaryornot = "0.4.4"
 diskcache = "5.6.3"
-rich = ">=13.0.0,<14.0.0"
+rich = ">=13.0.0,<=14.1.0"
 tqdm = ">=4.67.1,<5.0.0"
 pygments = ">=2.19.1,<3.0.0"
 grep-ast = ">=0.9.0,<1.0.0"
@@ -33,6 +44,12 @@ patch-ng = ">=1.18.1,<2.0.0"
 trafilatura = ">=2.0.0,<3.0.0"
 prompt-toolkit = ">=3.0.51,<4.0.0"
 partial-json-parser = ">=0.2.1.1.post6,<1.0.0"
+networkx = ">=3.5.0,<4.0.0"
+playwright = ">=1.40.0,<2.0.0"
+gitpython = ">=3.1.0,<4.0.0"
+mcp = ">=1.0.0,<2.0.0"
+aiohttp = ">=3.8.0,<4.0.0"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0.0,<9.0.0"

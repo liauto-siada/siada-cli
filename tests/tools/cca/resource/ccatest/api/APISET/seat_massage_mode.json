@@ -1,0 +1,285 @@
+{
+    "name": "set_seat_massage_mode",
+    "description": "设置座椅按摩功能的类型、模式、强度和热石按摩。通过传入目标控制类型type，调整主驾、副驾和二排座椅的按摩类型、模式、强度和热石按摩。",
+    "type": "skill",
+    "field_names": {
+      "CarControlTpuPlugin_driverMassage10Points_massType": "主驾座椅10点按摩类型",
+      "CarControlTpuPlugin_driverMassage10Points_massMode": "主驾座椅10点按摩模式",
+      "CarControlTpuPlugin_driverMassage10Points_massStrength": "主驾座椅10点按摩强度",
+      "CarControlTpuPlugin_driverMassage10Points_massHotStone": "主驾座椅10点热石按摩模式",
+
+      "CarControlTpuPlugin_driverMassage3Points_massType": "主驾座椅3点按摩类型",
+      "CarControlTpuPlugin_driverMassage3Points_massMode": "主驾座椅3点按摩模式",
+      "CarControlTpuPlugin_driverMassage3Points_massStrength": "主驾座椅3点按摩强度",
+      "CarControlTpuPlugin_driverMassage3Points_massHotStone": "主驾座椅3点热石按摩模式",
+
+      "CarControlTpuPlugin_driverMassage10Points6Cushion_massType": "主驾座椅16点按摩类型",
+      "CarControlTpuPlugin_driverMassage10Points6Cushion_massMode": "主驾座椅16点按摩模式",
+      "CarControlTpuPlugin_driverMassage10Points6Cushion_massStrength": "主驾座椅16点按摩强度",
+      "CarControlTpuPlugin_driverMassage10Points6Cushion_massHotStone": "主驾座椅16点热石按摩模式",
+
+      "CarControlTpuPlugin_driverHotStone12Points_massType": "主驾座椅12点按摩类型",
+      "CarControlTpuPlugin_driverHotStone12Points_massMode": "主驾座椅12点按摩模式",
+      "CarControlTpuPlugin_driverHotStone12Points_massStrength": "主驾座椅12点按摩强度",
+      "CarControlTpuPlugin_driverHotStone12Points_massHotStone": "主驾座椅12点热石按摩模式",
+
+
+      "CarControlTpuPlugin_passengerMassage10Points_massType": "副驾座椅10点按摩类型",
+      "CarControlTpuPlugin_passengerMassage10Points_massMode": "副驾座椅10点按摩模式",
+      "CarControlTpuPlugin_passengerMassage10Points_massStrength": "副驾座椅10点按摩强度",
+      "CarControlTpuPlugin_passengerMassage10Points_massHotStone": "副驾座椅10点热石按摩模式",
+      
+      "CarControlTpuPlugin_passengerMassage3Points_massType": "副驾座椅3点按摩类型",
+      "CarControlTpuPlugin_passengerMassage3Points_massMode": "副驾座椅3点按摩模式",
+      "CarControlTpuPlugin_passengerMassage3Points_massStrength": "副驾座椅3点按摩强度",
+      "CarControlTpuPlugin_passengerMassage3Points_massHotStone": "副驾座椅3点热石按摩模式",
+
+      "CarControlTpuPlugin_passengerMassage10Points6Cushion_massType": "副驾座椅16点按摩类型",
+      "CarControlTpuPlugin_passengerMassage10Points6Cushion_massMode": "副驾座椅16点按摩模式",
+      "CarControlTpuPlugin_passengerMassage10Points6Cushion_massStrength": "副驾座椅16点按摩强度",
+      "CarControlTpuPlugin_passengerMassage10Points6Cushion_massHotStone": "副驾座椅16点热石按摩模式",
+
+      "CarControlTpuPlugin_passengerHotStone12Points_massType": "副驾座椅12点按摩类型",
+      "CarControlTpuPlugin_passengerHotStone12Points_massMode": "副驾座椅12点按摩模式",
+      "CarControlTpuPlugin_passengerHotStone12Points_massStrength": "副驾座椅12点按摩强度",
+      "CarControlTpuPlugin_passengerHotStone12Points_massHotStone": "副驾座椅12点热石按摩模式",
+
+
+      "CarControlTpuPlugin_secondRowLeftMassage10Points_massType": "二排左侧座椅10点按摩类型",
+      "CarControlTpuPlugin_secondRowLeftMassage10Points_massMode": "二排左侧座椅10点按摩模式",
+      "CarControlTpuPlugin_secondRowLeftMassage10Points_massStrength": "二排左侧座椅10点按摩强度",
+      "CarControlTpuPlugin_secondRowLeftMassage10Points_massHotStone": "二排左侧座椅10点热石按摩模式",
+      
+      "CarControlTpuPlugin_secondRowLeftMassage3Points_massType": "二排左侧座椅3点按摩类型",
+      "CarControlTpuPlugin_secondRowLeftMassage3Points_massMode": "二排左侧座椅3点按摩模式",
+      "CarControlTpuPlugin_secondRowLeftMassage3Points_massStrength": "二排左侧座椅3点按摩强度",
+      "CarControlTpuPlugin_secondRowLeftMassage3Points_massHotStone": "二排左侧座椅3点热石按摩模式",
+
+      "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massType": "二排左侧座椅16点按摩类型",
+      "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massMode": "二排左侧座椅16点按摩模式",
+      "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massStrength": "二排左侧座椅16点按摩强度",
+      "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massHotStone": "二排左侧座椅16点热石按摩模式",
+
+      "CarControlTpuPlugin_secondRowLeftHotStone12Points_massType": "二排左侧座椅12点按摩类型",
+      "CarControlTpuPlugin_secondRowLeftHotStone12Points_massMode": "二排左侧座椅12点按摩模式",
+      "CarControlTpuPlugin_secondRowLeftHotStone12Points_massStrength": "二排左侧座椅12点按摩强度",
+      "CarControlTpuPlugin_secondRowLeftHotStone12Points_massHotStone": "二排左侧座椅12点热石按摩模式",
+
+
+      "CarControlTpuPlugin_secondRowRightMassage10Points_massType": "二排右侧座椅10点按摩类型",
+      "CarControlTpuPlugin_secondRowRightMassage10Points_massMode": "二排右侧座椅10点按摩模式",
+      "CarControlTpuPlugin_secondRowRightMassage10Points_massStrength": "二排右侧座椅10点按摩强度",
+      "CarControlTpuPlugin_secondRowRightMassage10Points_massHotStone": "二排右侧座椅10点热石按摩模式",
+      
+      "CarControlTpuPlugin_secondRowRightMassage3Points_massType": "二排右座椅3点按摩类型",
+      "CarControlTpuPlugin_secondRowRightMassage3Points_massMode": "二排右侧座椅3点按摩模式",
+      "CarControlTpuPlugin_secondRowRightMassage3Points_massStrength": "二排右侧座椅3点按摩强度",
+      "CarControlTpuPlugin_secondRowRightMassage3Points_massHotStone": "二排右侧座椅3点热石按摩模式",
+
+      "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massType": "二排右座椅16点按摩类型",
+      "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massMode": "二排右侧座椅16点按摩模式",
+      "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massStrength": "二排右侧座椅16点按摩强度",
+      "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massHotStone": "二排右侧座椅16点热石按摩模式",
+
+      "CarControlTpuPlugin_secondRowRightHotStone12Points_massType": "二排右座椅12点按摩类型",
+      "CarControlTpuPlugin_secondRowRightHotStone12Points_massMode": "二排右侧座椅12点按摩模式",
+      "CarControlTpuPlugin_secondRowRightHotStone12Points_massStrength": "二排右侧座椅12点按摩强度",
+      "CarControlTpuPlugin_secondRowRightHotStone12Points_massHotStone": "二排右侧座椅12点热石按摩模式"
+
+    },
+    "input_schema": {
+      "type": "string",
+      "description": "指定要设置的座椅按摩控制类型和状态值",
+      "example": "CarControlTpuPlugin_driverMassage10Points_massType",
+      "enum": [
+        "CarControlTpuPlugin_driverMassage10Points_massType", 
+        "CarControlTpuPlugin_driverMassage10Points_massMode",
+        "CarControlTpuPlugin_driverMassage10Points_massStrength",
+        "CarControlTpuPlugin_driverMassage10Points_massHotStone",
+
+        "CarControlTpuPlugin_driverMassage3Points_massType",
+        "CarControlTpuPlugin_driverMassage3Points_massMode",
+        "CarControlTpuPlugin_driverMassage3Points_massStrength",
+        "CarControlTpuPlugin_driverMassage3Points_massHotStone", 
+
+        "CarControlTpuPlugin_driverMassage10Points6Cushion_massType", 
+        "CarControlTpuPlugin_driverMassage10Points6Cushion_massMode",
+        "CarControlTpuPlugin_driverMassage10Points6Cushion_massStrength",
+        "CarControlTpuPlugin_driverMassage10Points6Cushion_massHotStone", 
+
+        "CarControlTpuPlugin_driverHotStone12Points_massType",
+        "CarControlTpuPlugin_driverHotStone12Points_massMode",
+        "CarControlTpuPlugin_driverHotStone12Points_massStrength",
+        "CarControlTpuPlugin_driverHotStone12Points_massHotStone", 
+
+
+        "CarControlTpuPlugin_passengerMassage10Points_massType",
+        "CarControlTpuPlugin_passengerMassage10Points_massMode",
+        "CarControlTpuPlugin_passengerMassage10Points_massStrength",
+        "CarControlTpuPlugin_passengerMassage10Points_massHotStone",
+
+        "CarControlTpuPlugin_passengerMassage3Points_massType",
+        "CarControlTpuPlugin_passengerMassage3Points_massMode",
+        "CarControlTpuPlugin_passengerMassage3Points_massStrength",
+        "CarControlTpuPlugin_passengerMassage3Points_massHotStone",
+
+        "CarControlTpuPlugin_passengerMassage10Points6Cushion_massType",
+        "CarControlTpuPlugin_passengerMassage10Points6Cushion_massMode",
+        "CarControlTpuPlugin_passengerMassage10Points6Cushion_massStrength",
+        "CarControlTpuPlugin_passengerMassage10Points6Cushion_massHotStone",
+
+        "CarControlTpuPlugin_passengerHotStone12Points_massType",
+        "CarControlTpuPlugin_passengerHotStone12Points_massMode",
+        "CarControlTpuPlugin_passengerHotStone12Points_massStrength",
+        "CarControlTpuPlugin_passengerHotStone12Points_massHotStone",
+
+        "CarControlTpuPlugin_secondRowLeftMassage10Points_massType",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points_massMode",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points_massStrength",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points_massHotStone",
+        
+        "CarControlTpuPlugin_secondRowLeftMassage3Points_massType",
+        "CarControlTpuPlugin_secondRowLeftMassage3Points_massMode",
+        "CarControlTpuPlugin_secondRowLeftMassage3Points_massStrength",
+        "CarControlTpuPlugin_secondRowLeftMassage3Points_massHotStone",
+
+        "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massType",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massMode",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massStrength",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massHotStone",
+
+        "CarControlTpuPlugin_secondRowLeftHotStone12Points_massType",
+        "CarControlTpuPlugin_secondRowLeftHotStone12Points_massMode",
+        "CarControlTpuPlugin_secondRowLeftHotStone12Points_massStrength",
+        "CarControlTpuPlugin_secondRowLeftHotStone12Points_massHotStone",
+
+
+        "CarControlTpuPlugin_secondRowRightMassage10Points_massType",
+        "CarControlTpuPlugin_secondRowRightMassage10Points_massMode",
+        "CarControlTpuPlugin_secondRowRightMassage10Points_massStrength",
+        "CarControlTpuPlugin_secondRowRightMassage10Points_massHotStone",
+        
+        "CarControlTpuPlugin_secondRowRightMassage3Points_massType",
+        "CarControlTpuPlugin_secondRowRightMassage3Points_massMode",
+        "CarControlTpuPlugin_secondRowRightMassage3Points_massStrength",
+        "CarControlTpuPlugin_secondRowRightMassage3Points_massHotStone",
+
+        "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massType",
+        "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massMode",
+        "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massStrength",
+        "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massHotStone",
+
+        "CarControlTpuPlugin_secondRowRightHotStone12Points_massType",
+        "CarControlTpuPlugin_secondRowRightHotStone12Points_massMode",
+        "CarControlTpuPlugin_secondRowRightHotStone12Points_massStrength",
+        "CarControlTpuPlugin_secondRowRightHotStone12Points_massHotStone"
+
+      ],
+      "enumDescriptions": {
+        "CarControlTpuPlugin_driverMassage10Points_massType": "设置主驾座椅按摩类型（10点按摩），1：全身，2：背部",
+        "CarControlTpuPlugin_driverMassage10Points_massMode": "设置主驾座椅按摩模式（10点按摩），1：未开启按摩，201：背部激活，202：背部放松，203：背部舒缓，204：脊柱松弛，205：腰部放松，206：腰部激活，207：背部舒展，208：肩部放松",
+        "CarControlTpuPlugin_driverMassage10Points_massStrength": "设置主驾座椅按摩强度（10点按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_driverMassage10Points_massHotStone": "设置主驾座椅按摩热石模式（10点按摩），1：开启，0：关闭，-1：没有此模式",
+        
+        "CarControlTpuPlugin_driverMassage3Points_massType": "设置主驾座椅按摩类型（3点按摩），2：背部",
+        "CarControlTpuPlugin_driverMassage3Points_massMode": "设置主驾座椅按摩模式（3点按摩），101：默认模式",
+        "CarControlTpuPlugin_driverMassage3Points_massStrength": "设置主驾座椅按摩强度（3点按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_driverMassage3Points_massHotStone": "设置主驾座椅按摩热石模式（3点按摩），1：开启，0：关闭，-1：没有此模式",
+
+        "CarControlTpuPlugin_driverMassage10Points6Cushion_massType": "设置主驾座椅按摩类型（10点按摩6点坐垫），1：全身，2：背部，3：坐垫",
+        "CarControlTpuPlugin_driverMassage10Points6Cushion_massMode": "设置主驾座椅按摩模式（10点按摩6点坐垫），1：未开启按摩，101：全身激活，102：全身放松，103：全身舒缓，104：全身松弛，105：腰臀放松，106：腰臀激活，107：全身舒展，108：肩臀放松，201：背部激活，202：背部放松，203：背部舒缓，204：脊柱松弛，205：腰部放松，206：腰部激活，207：背部舒展，208：肩部放松，301：臀部激活，302：臀部放松，303：臀部松弛，304：臀部解压",
+        "CarControlTpuPlugin_driverMassage10Points6Cushion_massStrength": "设置主驾座椅按摩强度（10点按摩6点坐垫），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_driverMassage10Points6Cushion_massHotStone": "设置主驾座椅按摩热石模式（10点按摩6点坐垫），1：开启，0：关闭，-1：没有此模式",
+
+        "CarControlTpuPlugin_driverHotStone12Points_massType": "设置主驾座椅热石按摩类型（12点热石按摩），1：全身，2：背部，3：坐垫",
+        "CarControlTpuPlugin_driverHotStone12Points_massMode": "设置主驾座椅热石按摩模式（12点热石按摩），1：未开启按摩，101：揉捏放松，102：揉捏激活，103：叩击放松，104：叩击激活，105：点按放松，106：点按激活，107：腰臀放松，108：腰臀激活，109：循环放松，110：循环激活，201：揉捏放松，202：揉捏激活，203：叩击放松，204：叩击激活，205：点按放松，206：点按激活，207：腰臀放松，208：腰臀激活，209：循环放松，210：循环激活，301：揉捏放松，302：揉捏激活，303：叩击放松，304：叩击激活，305：点按放松，306：点按激活，307：循环放松，308：循环激活",
+        "CarControlTpuPlugin_driverHotStone12Points_massStrength": "设置主驾座椅热石按摩强度（12点热石按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_driverHotStone12Points_massHotStone": "设置主驾座椅按摩热石模式（12点热石按摩），1：开启，0：关闭，-1：没有此模式",
+
+
+        "CarControlTpuPlugin_passengerMassage10Points_massType": "设置副驾座椅按摩类型（10点按摩），1：全身，2：背部",
+        "CarControlTpuPlugin_passengerMassage10Points_massMode": "设置副驾座椅按摩模式（10点按摩），1：未开启按摩，201：背部激活，202：背部放松，203：背部舒缓，204：脊柱松弛，205：腰部放松，206：腰部激活，207：背部舒展，208：肩部放松",
+        "CarControlTpuPlugin_passengerMassage10Points_massStrength": "设置副驾座椅按摩强度（10点按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_passengerMassage10Points_massHotStone": "设置副驾座椅按摩热石模式（10点按摩），1：开启，0：关闭，-1：没有此模式",
+        
+        "CarControlTpuPlugin_passengerMassage3Points_massType": "设置副驾座椅按摩类型（3点按摩），2：背部",
+        "CarControlTpuPlugin_passengerMassage3Points_massMode": "设置副驾座椅按摩模式（3点按摩），101：默认模式",
+        "CarControlTpuPlugin_passengerMassage3Points_massStrength": "设置副驾座椅按摩强度（3点按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_passengerMassage3Points_massHotStone": "设置副驾座椅按摩热石模式（3点按摩），1：开启，0：关闭，-1：没有此模式",
+
+        "CarControlTpuPlugin_passengerMassage10Points6Cushion_massType": "设置副驾座椅按摩类型（10点按摩6点坐垫），1：全身，2：背部，3：坐垫",
+        "CarControlTpuPlugin_passengerMassage10Points6Cushion_massMode": "设置副驾座椅按摩模式（10点按摩6点坐垫），1：未开启按摩，101：全身激活，102：全身放松，103：全身舒缓，104：全身松弛，105：腰臀放松，106：腰臀激活，107：全身舒展，108：肩臀放松，201：背部激活，202：背部放松，203：背部舒缓，204：脊柱松弛，205：腰部放松，206：腰部激活，207：背部舒展，208：肩部放松，301：臀部激活，302：臀部放松，303：臀部松弛，304：臀部解压",
+        "CarControlTpuPlugin_passengerMassage10Points6Cushion_massStrength": "设置副驾座椅按摩强度（10点按摩6点坐垫），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_passengerMassage10Points6Cushion_massHotStone": "设置副驾座椅按摩热石模式（10点按摩6点坐垫），1：开启，0：关闭，-1：没有此模式",
+
+        "CarControlTpuPlugin_passengerHotStone12Points_massType": "设置副驾座椅热石按摩类型（12点热石按摩），1：全身，2：背部，3：坐垫",
+        "CarControlTpuPlugin_passengerHotStone12Points_massMode": "设置副驾座椅热石按摩模式（12点热石按摩），1：未开启按摩，101：揉捏放松，102：揉捏激活，103：叩击放松，104：叩击激活，105：点按放松，106：点按激活，107：腰臀放松，108：腰臀激活，109：循环放松，110：循环激活，201：揉捏放松，202：揉捏激活，203：叩击放松，204：叩击激活，205：点按放松，206：点按激活，207：腰臀放松，208：腰臀激活，209：循环放松，210：循环激活，301：揉捏放松，302：揉捏激活，303：叩击放松，304：叩击激活，305：点按放松，306：点按激活，307：循环放松，308：循环激活",
+        "CarControlTpuPlugin_passengerHotStone12Points_massStrength": "设置副驾座椅热石按摩强度（12点热石按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_passengerHotStone12Points_massHotStone": "设置副驾座椅按摩热石模式（12点热石按摩），1：开启，0：关闭，-1：没有此模式",
+
+
+        "CarControlTpuPlugin_secondRowLeftMassage10Points_massType": "设置二排左座椅按摩类型（10点按摩），1：全身，2：背部",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points_massMode": "设置二排左座椅按摩模式（10点按摩），1：未开启按摩，201：背部激活，202：背部放松，203：背部舒缓，204：脊柱松弛，205：腰部放松，206：腰部激活，207：背部舒展，208：肩部放松",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points_massStrength": "设置二排左座椅按摩强度（10点按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points_massHotStone": "设置二排左座椅按摩热石模式（10点按摩），1：开启，0：关闭，-1：没有此模式",
+        
+        "CarControlTpuPlugin_secondRowLeftMassage3Points_massType": "设置二排左座椅按摩类型（3点按摩），2：背部",
+        "CarControlTpuPlugin_secondRowLeftMassage3Points_massMode": "设置二排左座椅按摩模式（3点按摩），101：默认模式",
+        "CarControlTpuPlugin_secondRowLeftMassage3Points_massStrength": "设置二排左座椅椅按摩强度（3点按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_secondRowLeftMassage3Points_massHotStone": "设置二排左座椅按摩热石模式（3点按摩），1：开启，0：关闭，-1：没有此模式",
+
+        "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massType": "设置二排左座椅按摩类型（10点按摩6点坐垫），1：全身，2：背部，3：坐垫",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massMode": "设置二排左座椅按摩模式（10点按摩6点坐垫），1：未开启按摩，101：全身激活，102：全身放松，103：全身舒缓，104：全身松弛，105：腰臀放松，106：腰臀激活，107：全身舒展，108：肩臀放松，201：背部激活，202：背部放松，203：背部舒缓，204：脊柱松弛，205：腰部放松，206：腰部激活，207：背部舒展，208：肩部放松，301：臀部激活，302：臀部放松，303：臀部松弛，304：臀部解压",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massStrength": "设置二排左座椅按摩强度（10点按摩6点坐垫），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_secondRowLeftMassage10Points6Cushion_massHotStone": "设置二排左座椅按摩热石模式（10点按摩6点坐垫），1：开启，0：关闭，-1：没有此模式",
+
+        "CarControlTpuPlugin_secondRowLeftHotStone12Points_massType": "设置二排左座椅热石按摩类型（12点热石按摩），1：全身，2：背部，3：坐垫",
+        "CarControlTpuPlugin_secondRowLeftHotStone12Points_massMode": "设置二排左座椅热石按摩模式（12点热石按摩），1：未开启按摩，101：揉捏放松，102：揉捏激活，103：叩击放松，104：叩击激活，105：点按放松，106：点按激活，107：腰臀放松，108：腰臀激活，109：循环放松，110：循环激活，201：揉捏放松，202：揉捏激活，203：叩击放松，204：叩击激活，205：点按放松，206：点按激活，207：腰臀放松，208：腰臀激活，209：循环放松，210：循环激活，301：揉捏放松，302：揉捏激活，303：叩击放松，304：叩击激活，305：点按放松，306：点按激活，307：循环放松，308：循环激活",
+        "CarControlTpuPlugin_secondRowLeftHotStone12Points_massStrength": "设置二排左座椅热石按摩强度（12点热石按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_secondRowLeftHotStone12Points_massHotStone": "设置二排左座椅按摩热石模式（12点热石按摩），1：开启，0：关闭，-1：没有此模式",
+
+
+        "CarControlTpuPlugin_secondRowRightMassage10Points_massType": "设置二排右座椅按摩类型（10点按摩），1：全身，2：背部",
+        "CarControlTpuPlugin_secondRowRightMassage10Points_massMode": "设置二排右座椅按摩模式（10点按摩），1：未开启按摩，201：背部激活，202：背部放松，203：背部舒缓，204：脊柱松弛，205：腰部放松，206：腰部激活，207：背部舒展，208：肩部放松",
+        "CarControlTpuPlugin_secondRowRightMassage10Points_massStrength": "设置二排右座椅按摩强度（10点按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_secondRowRightMassage10Points_massHotStone": "设置二排右座椅按摩热石模式（10点按摩），1：开启，0：关闭，-1：没有此模式",
+        
+        "CarControlTpuPlugin_secondRowRightMassage3Points_massType": "设置二排右座椅按摩类型（3点按摩），2：背部",
+        "CarControlTpuPlugin_secondRowRightMassage3Points_massMode": "设置二排右座椅按摩模式（3点按摩），101：默认模式",
+        "CarControlTpuPlugin_secondRowRightMassage3Points_massStrength": "设置二排右座椅椅按摩强度（3点按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_secondRowRightMassage3Points_massHotStone": "设置二排右座椅按摩热石模式（3点按摩），1：开启，0：关闭，-1：没有此模式",
+
+        "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massType": "设置二排右座椅按摩类型（10点按摩6点坐垫），1：全身，2：背部，3：坐垫",
+        "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massMode": "设置二排右座椅按摩模式（10点按摩6点坐垫），1：未开启按摩，101：全身激活，102：全身放松，103：全身舒缓，104：全身松弛，105：腰臀放松，106：腰臀激活，107：全身舒展，108：肩臀放松，201：背部激活，202：背部放松，203：背部舒缓，204：脊柱松弛，205：腰部放松，206：腰部激活，207：背部舒展，208：肩部放松，301：臀部激活，302：臀部放松，303：臀部松弛，304：臀部解压",
+        "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massStrength": "设置二排右座椅按摩强度（10点按摩6点坐垫），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_secondRowRightMassage10Points6Cushion_massHotStone": "设置二排右座椅按摩热石模式（10点按摩6点坐垫），1：开启，0：关闭，-1：没有此模式",
+
+        "CarControlTpuPlugin_secondRowRightHotStone12Points_massType": "设置二排右座椅热石按摩类型（12点热石按摩），1：全身，2：背部，3：坐垫",
+        "CarControlTpuPlugin_secondRowRightHotStone12Points_massMode": "设置二排右座椅热石按摩模式（12点热石按摩），1：未开启按摩，101：揉捏放松，102：揉捏激活，103：叩击放松，104：叩击激活，105：点按放松，106：点按激活，107：腰臀放松，108：腰臀激活，109：循环放松，110：循环激活，201：揉捏放松，202：揉捏激活，203：叩击放松，204：叩击激活，205：点按放松，206：点按激活，207：腰臀放松，208：腰臀激活，209：循环放松，210：循环激活，301：揉捏放松，302：揉捏激活，303：叩击放松，304：叩击激活，305：点按放松，306：点按激活，307：循环放松，308：循环激活",
+        "CarControlTpuPlugin_secondRowRightHotStone12Points_massStrength": "设置二排右座椅热石按摩强度（12点热石按摩），0：未开启按摩，1：轻柔，2：标准，3：强力",
+        "CarControlTpuPlugin_secondRowRightHotStone12Points_massHotStone": "设置二排右座椅按摩热石模式（12点热石按摩），1：开启，0：关闭，-1：没有此模式"
+
+      }
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "设置是否成功",
+          "example": true
+        },
+        "code": {
+          "type": "integer",
+          "description": "设置操作的返回状态码，0 表示成功",
+          "example": 0
+        },
+        "message": {
+          "type": "string",
+          "description": "附加说明信息",
+          "example": "设置成功"
+        }
+      }
+    }
+  }
+  

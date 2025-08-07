@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>车辆香氛系统接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>车辆香氛系统接口</h1>
+    <div style="display: flex; gap: 40px; align-items: flex-start;">
+        <div id="button-list">
+            <div class="button-row"><button id="PerfumeSw">获取香氛系统开关状态</button><span class="result-span" id="PerfumeSw_result"></span></div>
+            <div class="button-row"><button id="PerfumeSelectChannel">获取当前使用的香型种类</button><span class="result-span" id="PerfumeSelectChannel_result"></span></div>
+            <div class="button-row"><button id="PerfumeChannelNameZh">获取当前香型中文名称</button><span class="result-span" id="PerfumeChannelNameZh_result"></span></div>
+            <div class="button-row"><button id="PerfumeChannelNameEn">获取当前香型英文名称</button><span class="result-span" id="PerfumeChannelNameEn_result"></span></div>
+            <div class="button-row"><button id="PerfumeChannelDescribeZh">获取当前香型中文描述</button><span class="result-span" id="PerfumeChannelDescribeZh_result"></span></div>
+            <div class="button-row"><button id="PerfumeChannelDescribeEn">获取当前香型英文描述</button><span class="result-span" id="PerfumeChannelDescribeEn_result"></span></div>
+            <div class="button-row"><button id="PerfumeChannelLevel">获取当前香型通道香氛余量值</button><span class="result-span" id="PerfumeChannelLevel_result"></span></div>
+            <div class="button-row"><button id="PerfumeChannelType">获取香型通道类型</button><span class="result-span" id="PerfumeChannelType_result"></span></div>
+        </div>
+        <div id="set-button-list">
+            <div class="button-row">
+                <span>香氛开关</span>
+                <button id="set_CarControlTpuPlugin_PerfumeSw_1">开</button>
+                <button id="set_CarControlTpuPlugin_PerfumeSw_0">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_PerfumeSw_result"></span>
+            </div>
+            <div class="button-row">
+                <span>香氛通道</span>
+                <button id="set_CarControlTpuPlugin_PerfumeSelectChannel_0">未选</button>
+                <button id="set_CarControlTpuPlugin_PerfumeSelectChannel_1">通道一</button>
+                <button id="set_CarControlTpuPlugin_PerfumeSelectChannel_2">通道二</button>
+                <button id="set_CarControlTpuPlugin_PerfumeSelectChannel_3">通道三</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_PerfumeSelectChannel_result"></span>
+            </div>
+        </div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+
+            [
+                "PerfumeSw", "PerfumeSelectChannel"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_vehicle_fragrance_system(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+            ["PerfumeChannelNameZh", "PerfumeChannelNameEn", "PerfumeChannelDescribeZh", "PerfumeChannelDescribeEn", "PerfumeChannelLevel", "PerfumeChannelType"].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_perfume_information(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+            // 设置按钮事件
+            const setMap = [{
+                key: 'CarControlTpuPlugin_PerfumeSw',
+                vals: [1, 0]
+            }, {
+                key: 'CarControlTpuPlugin_PerfumeSelectChannel',
+                vals: [0, 1, 2, 3]
+            }];
+            setMap.forEach(item => {
+                item.vals.forEach(val => {
+                    const btnId = `set_${item.key}_${val}`;
+                    document.getElementById(btnId).onclick = function() {
+                        let res = myCarApi.set_vehicle_fragrance_system(item.key, val);
+                        console.log("set_vehicle_fragrance_system", item.key, val, res);
+                    };
+                });
+            });
+        }
+    </script>
+</body>
+
+</html>

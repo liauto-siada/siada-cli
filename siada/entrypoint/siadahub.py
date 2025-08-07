@@ -1,37 +1,108 @@
 import json
 import os
 import sys
+import threading
+import time
+import atexit
+import asyncio
 from dataclasses import fields
-from pathlib import Path
 import warnings
-
 from prompt_toolkit.completion import Completer
 
 from siada.config.config_loader import Config, load_conf
-from siada.entrypoint.args_parser.args import get_parser
-from siada.entrypoint.interaction.config import RunningConfig
+from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.entrypoint.interaction.controller import Controller
 from siada.entrypoint.interaction.nointeractive_controller import NoInteractiveController
-from siada.foundation.logging import toggle_console_output, logger
+from siada.foundation.logging import redirect_agents_logger, toggle_console_output, logger
 from siada.io.color_settings import RunningConfigColorSettings
 from siada.models.model_run_config import ModelRunConfig
-from siada.models.model_base_config import ModelBaseConfig
+from siada.session.session_manager import RunningSessionManager
 from siada.support.completer import AutoCompleter
-from siada.support.slash_commands import SlashCommands, SwitchEvent
 from siada.support.envprocessor import load_dotenv_files
 from siada.support.repo import get_git_root
+from siada.support.slash_commands import SlashCommands
 from siada.utils import SettingsUtils
 from siada.io.io import InputOutput
+from siada.services.siada_memory import load_siada_memory
+from siada.services.version_checker import version_checker
 
 try:
     import git
 except ImportError:
     git = None
 
-import shtab
-from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
 from siada.services.model_info_service import ModelInfoService
+
+def _init_mcp_service(config):
+    """Validate and store MCP configuration (no connection establishment)"""
+    if not config.mcp_config or not config.mcp_config.enabled:
+        return
+
+    # Check if there are any servers configured
+    if not config.mcp_config.servers:
+        # No servers configured, return silently without any prompts
+        return
+
+    try:
+        from siada.services.mcp_service import mcp_service
+
+        # Validate MCP configuration
+        _validate_mcp_config(config)
+
+        # Store configuration in global manager for delayed initialization
+        mcp_service.set_io(config.io)
+        mcp_service.set_mcp_config(config.mcp_config)
+
+        # Register cleanup hook for program exit
+        if config.interactive:
+            atexit.register(lambda: mcp_service.cleanup_sync())
+
+        # Show configuration summary
+        server_count = len(config.mcp_config.servers) if config.mcp_config.servers else 0
+        config.io.print_info(f"MCP: Configuration validated with {server_count} servers")
+
+    except Exception as e:
+        if hasattr(config, 'io'):
+            config.io.print_warning(f"MCP configuration validation failed: {e}")
+        import logging
+        logging.error(f"MCP config validation error: {e}")
+
+
+def _validate_mcp_config(config):
+    """Validate MCP configuration without establishing connections"""
+    mcp_config = config.mcp_config
+
+    if not mcp_config.servers:
+        raise ValueError("No MCP servers configured")
+
+    for server_name, server_config in mcp_config.servers.items():
+        try:
+            # Validate server configuration
+            transport_type = server_config.get_transport_type()
+
+            if transport_type.value == "stdio":
+                if not server_config.command:
+                    raise ValueError(f"Server '{server_name}': command is required for stdio transport")
+            elif transport_type.value == "http":
+                # HTTP transport can use either url or http_url field
+                if not (server_config.url or server_config.http_url):
+                    raise ValueError(f"Server '{server_name}': url or http_url is required for http transport")
+            elif transport_type.value == "sse":
+                if not server_config.url:
+                    raise ValueError(f"Server '{server_name}': url is required for sse transport")
+            else:
+                raise ValueError(f"Server '{server_name}': unsupported transport type '{transport_type}'")
+
+            # Validate timeout
+            if server_config.timeout <= 0:
+                raise ValueError(f"Server '{server_name}': timeout must be positive")
+
+        except Exception as e:
+            raise ValueError(f"Invalid configuration for server '{server_name}': {e}")
+
+    import logging
+    logging.info(f"MCP configuration validation passed for {len(mcp_config.servers)} servers")
 
 
 def _suppress_third_party_warnings():
@@ -49,37 +120,8 @@ def _suppress_third_party_warnings():
         message="invalid escape sequence.*", 
         category=SyntaxWarning
     )
-
-
-def _configure_litellm_logging():
-    """Configure LiteLLM global logging settings to suppress debug logs"""
-    try:
-        import litellm      
-
-        # Configure litellm global properties
-        litellm.set_verbose = False
-        litellm.turn_off_message_logging = True
-        litellm.suppress_debug_info = True
-        litellm.drop_params = True
-        
-        
-        # Try to disable internal debug logging
-        try:
-            litellm._logging._disable_debugging()
-        except Exception:
-            pass  # Ignore if method doesn't exist
-        
-        # Disable message logging and tracing
-        litellm.turn_off_message_logging = True
-        litellm.success_callback = []
-        litellm.failure_callback = []
-        
-        logger.debug("LiteLLM logging configuration completed")
-        
-    except ImportError:
-        logger.debug("LiteLLM not installed, skipping logging configuration")
-    except Exception as e:
-        logger.debug(f"Error configuring LiteLLM logging: {e}")
+    
+    redirect_agents_logger()
 
 
 def _parse_args_and_setup_environment(argv):
@@ -104,7 +146,7 @@ def _parse_args_and_setup_environment(argv):
         git_root = None
     else:
         git_root = get_git_root(temp_args.workspace)
-
+    from siada.entrypoint.args_parser.args import get_parser
     parser = get_parser(git_root=git_root, default_config_files=[])
     try:
         args, unknown = parser.parse_known_args(argv)
@@ -223,6 +265,30 @@ def get_workspace(workspace_arg, git_root):
     return workspace
 
 
+def validate_agent_compatibility(agent_name, interactive_mode, io, verbose=False):
+    """
+    Validate agent compatibility with the execution mode
+
+    Args:
+        agent_name: Name of the agent to validate
+        interactive_mode: Whether running in interactive mode
+        io: InputOutput instance for displaying messages
+        verbose: Whether to show verbose warnings
+    """
+    from siada.config.agent_config_loader import load_agent_config
+    agent_config_collection = load_agent_config()
+    agent_config = agent_config_collection.get_agent_config(agent_name)
+
+    if agent_config and agent_config.supported_modes == "non_interactive" and interactive_mode:
+        io.print_error(f"Agent '{agent_name}' only supports non-interactive mode, but current execution is in interactive mode.")
+        io.print_info("Please use --prompt (-p) option to run in non-interactive mode.")
+        sys.exit(1)
+    elif agent_config and agent_config.supported_modes == "interactive" and not interactive_mode:
+        io.print_error(f"Agent '{agent_name}' only supports interactive mode, but current execution is in non-interactive mode.")
+        io.print_info("Please remove --prompt (-p) option to run in interactive mode.")
+        sys.exit(1)
+
+
 def show_banner(io):
     """
     Display SIADA HUB banner with error handling
@@ -245,6 +311,32 @@ def show_banner(io):
     except Exception as err:
         io.print_error(f"Error showing banner: {err}")
         sys.exit(1)
+
+
+def get_enable_checkpointing(args, conf: Config = None, interactive_mode: bool = True):
+    """
+    Get enable_checkpointing setting with priority: args > config file > default
+
+    Args:
+        args: Parsed command line arguments
+        conf: Loaded configuration from config file
+        interactive_mode: Whether running in interactive mode
+
+    Returns:
+        bool: Final enable_checkpointing value
+    """
+    # Non-interactive mode always disables checkpointing
+    if not interactive_mode:
+        return False
+
+    # Priority: args > config file > default (False)
+    if args.checkpointing is not None:
+        return args.checkpointing
+
+    if conf and conf.checkpoint_config and conf.checkpoint_config.enable is not None:
+        return conf.checkpoint_config.enable
+
+    return False
 
 
 def get_config(args, io, conf: Config = None):
@@ -323,9 +415,6 @@ def main():
     # Suppress harmless warnings from third-party libraries
     _suppress_third_party_warnings()
 
-    # Configure litellm globally to suppress debug logs
-    _configure_litellm_logging()
-    
     conf: Config = load_conf()
 
     argv = sys.argv[1:]
@@ -374,17 +463,37 @@ def main():
     if model is None:
         return 0
 
+    if args.just_check_update:
+        update_available = version_checker.check_version(io, just_check=True, verbose=args.verbose)
+        return 0 if not update_available else 1
+
+    if args.upgrade:
+        success = version_checker.install_upgrade(io)
+        return 0 if success else 1
+
+    if args.check_update:
+        version_checker.check_version(io, verbose=args.verbose)
+
     commands = SlashCommands(
         io=io,
         verbose=args.verbose,
         editor=args.editor,
     )
 
+    session_id = str(int(time.time() * 1000))
+
     completer: Completer = AutoCompleter(
         root=workspace,
         commands=commands,
         encoding=args.encoding,
+        session_id=session_id
     )
+
+    # get the enable_checkpointing flag with priority: args > config file > default
+    enable_checkpointing = get_enable_checkpointing(args, conf, interactive_mode)
+
+    # Load user memory from siada.md file
+    user_memory = load_siada_memory(workspace)
 
     running_config = RunningConfig(
         llm_config=model,
@@ -395,15 +504,33 @@ def main():
         running_color_settings=running_color_settings,
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
+        user_memory=user_memory,
+        mcp_config=conf.mcp_config,
+        enable_checkpointing=enable_checkpointing,
     )
+
+    # create session
+    session = RunningSessionManager.create_session(
+        siada_config=running_config,
+        session_id=session_id
+    )
+
+    # Validate agent compatibility with interactive mode
+    validate_agent_compatibility(args.agent, interactive_mode, io, args.verbose)
+
     show_banner(io)
 
+    # Initialize MCP service if configured
+    _init_mcp_service(running_config)
+
     if not interactive_mode:
-        controller = NoInteractiveController(running_config)
+        controller = NoInteractiveController(config=running_config, session=session)
         controller.run(args.prompt)
         return 0
 
-    controller = Controller(running_config, commands)
+    controller = Controller(
+        config=running_config, slash_commands=commands, session=session
+    )
     controller.show_announcements()
     controller.run()
 

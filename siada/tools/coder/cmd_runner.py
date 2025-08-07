@@ -2,10 +2,17 @@ import os
 import platform
 import subprocess
 import sys
+import threading
 from io import BytesIO
 
 import pexpect
 import psutil
+
+# Global timeout for command execution (in seconds)
+COMMAND_TIMEOUT = 60
+
+# Maximum output length to prevent memory issues (in characters)
+MAX_OUTPUT_LENGTH = 20000
 
 
 def run_cmd_impl(command, verbose=False, cwd=None, error_print=None):
@@ -37,6 +44,41 @@ def get_windows_parent_process_name():
         return None
     except Exception:
         return None
+
+
+def _check_and_truncate_output(output_list, new_data, output_truncated):
+    """
+    Check if adding new data would exceed the limit and handle truncation.
+    
+    Args:
+        output_list: List of output chunks
+        new_data: New data to potentially add
+        output_truncated: Current truncation status
+    
+    Returns:
+        tuple: (updated_output_truncated, should_add_data)
+    """
+    if output_truncated or not new_data:
+        return output_truncated, False
+    
+    current_length = sum(len(chunk) for chunk in output_list)
+    
+    # Check if we've already reached the limit
+    if current_length >= MAX_OUTPUT_LENGTH:
+        if not output_truncated:
+            output_list.append(f"\n... [Output truncated, exceeded {MAX_OUTPUT_LENGTH} character limit] ...")
+        return True, False
+    
+    # Check if adding new data would exceed the limit
+    if current_length + len(new_data) > MAX_OUTPUT_LENGTH:
+        # Add only the portion that fits
+        allowed_length = MAX_OUTPUT_LENGTH - current_length
+        if allowed_length > 0:
+            output_list.append(new_data[:allowed_length])
+        output_list.append(f"\n... [Output truncated, exceeded {MAX_OUTPUT_LENGTH} character limit] ...")
+        return True, False
+    
+    return False, True
 
 
 def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.encoding):
@@ -72,16 +114,57 @@ def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.enc
             cwd=cwd,
         )
 
+        import time
         output = []
-        while True:
-            chunk = process.stdout.read(1)
-            if not chunk:
-                break
-            # print(chunk, end="", flush=True)  # Print the chunk in real-time
-            output.append(chunk)  # Store the chunk for later use
+        start_time = time.time()
+        output_truncated = False
+        
+        try:
+            while True:
+                # Check for timeout
+                if time.time() - start_time > COMMAND_TIMEOUT:
+                    print("run_cmd_subprocess timed out, killing process...")  
+                    process.kill()
+                    process.wait()
+                    print("run_cmd_subprocess timed out, killing process success.")  
+                    return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
+                
+                # Check if process has finished
+                if process.poll() is not None:
+                    # Read any remaining output
+                    remaining = process.stdout.read()
+                    if remaining:
+                        output_truncated, should_add = _check_and_truncate_output(output, remaining, output_truncated)
+                        if should_add:
+                            output.append(remaining)
+                    break
+                
+                # Try to read one character with a short timeout
+                try:
+                    chunk = process.stdout.read(1)
+                    if chunk:
+                        output_truncated, should_add = _check_and_truncate_output(output, chunk, output_truncated)
+                        if should_add:
+                            output.append(chunk)
+                        # print(chunk, end="", flush=True)  # Print the chunk in real-time
+                    else:
+                        # No data available, sleep briefly to avoid busy waiting
+                        time.sleep(0.01)
+                except Exception:
+                    # Handle any read errors
+                    time.sleep(0.01)
 
-        process.wait()
-        return process.returncode, "".join(output)
+            return process.returncode, "".join(output)
+        finally:
+            # Ensure the process and its streams are properly closed
+            try:
+                if process.stdout:
+                    process.stdout.close()
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait()
+            except Exception:
+                pass
     except Exception as e:
         return 1, str(e)
 
@@ -98,12 +181,48 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
         print("Using run_cmd_pexpect:", command)
 
     output = BytesIO()
+    child = None
+    timer = None
+    timed_out = False  # Flag to track if command timed out
+    output_truncated = False  # Flag to track if output was truncated
 
     def output_callback(b):
-        output.write(b)
+        nonlocal output_truncated
+        current_size = output.tell()
+        
+        if current_size < MAX_OUTPUT_LENGTH:
+            # Check if adding this chunk would exceed the limit
+            if current_size + len(b) > MAX_OUTPUT_LENGTH:
+                # Write only the portion that fits
+                remaining_space = MAX_OUTPUT_LENGTH - current_size
+                if remaining_space > 0:
+                    output.write(b[:remaining_space])
+                # Add truncation message
+                truncation_msg = b"\n... [Output truncated, exceeded " + str(MAX_OUTPUT_LENGTH).encode() + b" character limit] ..."
+                output.write(truncation_msg)
+                output_truncated = True
+            else:
+                output.write(b)
+        # If already truncated, don't write anything more
+        
         return b
 
+    def timeout_callback():
+        nonlocal timed_out
+        timed_out = True
+        if child and child.isalive():
+            if verbose:
+                print(f"\nCommand timed out after {COMMAND_TIMEOUT} seconds, killing process...")
+            try:
+                child.kill(9)  # Force kill the process
+            except:
+                pass  # Process might already be dead
+
     try:
+        # Start timeout timer
+        timer = threading.Timer(COMMAND_TIMEOUT, timeout_callback)
+        timer.start()
+
         # Use the SHELL environment variable, falling back to /bin/sh if not set
         shell = os.environ.get("SHELL", "/bin/sh")
         if verbose:
@@ -125,8 +244,19 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
 
         # Wait for the command to finish and get the exit status
         child.close()
+        
+        # Check if command was terminated due to timeout
+        if timed_out:
+            return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
+        
         return child.exitstatus, output.getvalue().decode("utf-8", errors="replace")
 
     except (pexpect.ExceptionPexpect, TypeError, ValueError) as e:
+        if timed_out:
+            return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
         error_msg = f"Error running command {command}: {e}"
         return 1, error_msg
+    finally:
+        # Ensure timer is cancelled
+        if timer:
+            timer.cancel()

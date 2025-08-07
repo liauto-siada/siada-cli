@@ -1,66 +1,64 @@
 """
-Fix Result Checker - 通过模型判断代码修复是否真正解决了问题
+Fix Result Checker
 """
 from __future__ import annotations
 
 import json
 import logging
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, Optional, TYPE_CHECKING
 
 from openai.types.chat import ChatCompletionMessageParam
 
+if TYPE_CHECKING:
+    from siada.agent_hub.coder.tracing.bug_fix_trace_collector import BugFixTraceCollector
+
 from siada.provider.client_factory import get_client_with_kwargs
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 
 logger = logging.getLogger(__name__)
 
 class FixResultChecker:
-    """修复结果检查器
-    
-    使用模型分析代码修复是否真正解决了描述的问题
-    """
-    async def check(self, issue_desc: str, fix_code: str, context: Any) -> Dict[str, Any]:
-        """检查修复代码是否真正解决了问题
+
+    async def check(self, issue_desc: str, fix_code: str, context: Any, trace_collector: Optional["BugFixTraceCollector"] = None) -> Dict[str, Any]:
+        """
         
         Args:
-            issue_desc: 问题描述
-            fix_code: 修复代码
-            context: 上下文对象，包含provider等信息
+            issue_desc: Problems description, describing the issue to be fixed
+            fix_code: fix code, the code changes made to fix the issue
+            context: includes provider and other necessary information for the model to analyze the fix
+            trace_collector: Optional trace collector for recording check process
             
         Returns:
-            Dict[str, Any]: 包含检查结果的字典
+            Dict[str, Any]:
             {
-                "is_fixed": bool,      # 是否修复（部分修复算作未修复）
-                "check_summary": str,  # 检查摘要，说明修复状态和原因
-                "analysis": str        # 完整的分析过程
+                "is_fixed": bool,    
+                "check_summary": str, 
+                "analysis": str    
             }
         """
         try:
             analysis_result = await self._call_model_for_analysis(issue_desc, fix_code, context)
-            return self._parse_analysis_result(analysis_result)
+            check_result = self._parse_analysis_result(analysis_result)
+            
+            self._record_checker_trace(trace_collector, issue_desc, fix_code, check_result)
+            
+            return check_result
         except Exception as e:
             logger.error(f"Fix result check failed: {e}", exc_info=True)
-            return {
+            error_result = {
                 "is_fixed": False,
-                "check_summary": f"分析过程中发生错误: {str(e)}",
-                "analysis": f"错误详情: {str(e)}"
+                "check_summary": f"error in analysis process: {str(e)}",
+                "analysis": f"error detail: {str(e)}"
             }
+            
+            self._record_checker_trace(trace_collector, issue_desc, fix_code, error_result, error=str(e))
+            
+            return error_result
     
     async def _call_model_for_analysis(self, issue_desc: str, fix_code: str, context: Any) -> str:
-        """调用模型进行分析
-        
-        Args:
-            issue_desc: 问题描述
-            fix_code: 修复代码
-            context: 上下文对象，包含provider等信息
-            
-        Returns:
-            str: 模型分析结果
-        """
-        # 构建用户任务提示词
+
         user_task = self.build_prompt(issue_desc, fix_code)
-        
-        # 构建请求消息
+        print("fix result check prompt:", user_task)
         model_messages: list[ChatCompletionMessageParam] = [
             {"role": "user", "content": user_task},
         ]
@@ -76,19 +74,24 @@ class FixResultChecker:
 
         # Use get_client_with_kwargs to support context parameter overrides
         client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
-        response = await client.chat_complete(**complete_kwargs)
+        response = await client.completion(**complete_kwargs)
         
-        # 提取分析结果
         if response and response.choices and response.choices[0].message:
             analysis = response.choices[0].message.content
             if analysis:
                 return analysis.strip()
         
-        # 如果无法获取有效分析结果，返回错误信息
-        raise Exception("无法从模型获取有效的分析结果")
+        raise Exception("cannot get analysis result from model response")
     
     def build_prompt(self, issue_desc: str, fix_code: str) -> str:
-        return f"""**Please systematically analyze whether the code modification truly resolves the issue by following the steps below and return your analysis in JSON format:**
+        return f"""
+        You are a **ZERO TOLERANCE CODE REVIEW Agent (Agent 2)**, responsible for working in the **second stage** of the issue resolution workflow. The current process has three steps:
+        1. **Initial Resolution**: Agent 1 attempts to resolve the issue based on the problem description, generating a solution trace and code patch.
+        2. **Review & Verification**: Agent 2 evaluates whether the issue has been resolved by reviewing the code patch and execution trace generated by Agent 1; if not, it produces a review conclusion.
+        4. **Iterative Improvement**: Agent 1 attempts to resolve the issue again based on the review conclusions from Step 2.
+
+        
+        **Please systematically analyze whether the code modification truly resolves the issue by following the steps below and return your analysis in JSON format:**
 
 ---
 Please systematically analyze whether the code modifications truly fix the problem by following these steps:
@@ -141,6 +144,7 @@ Please systematically analyze whether the code modifications truly fix the probl
 4. **Performance Test Consideration**: Assess whether performance-related tests are needed to verify fix quality
 
 ## Step 7: Comprehensive Judgment and Recommendations
+
 Based on the above analysis, provide clear conclusions:
 
 ### Required Output Fields:
@@ -175,27 +179,18 @@ You must return your analysis in the following JSON format：
 ```
 ---
 
-**Problem Description:**
+**Problem Description & Solution Process Trace:**
 {issue_desc}
+
 
 **Code Change:**
 {fix_code}
 """
     
     def _parse_analysis_result(self, analysis_result: str) -> Dict[str, Any]:
-        """解析模型分析结果
-        
-        Args:
-            analysis_result: 模型返回的分析结果（应为JSON格式）
-            
-        Returns:
-            Dict[str, Any]: 解析后的结果
-        """
         try:
-            # 尝试直接解析JSON，处理可能的markdown包装
             json_content = analysis_result.strip()
             
-            # 如果响应被包装在markdown代码块中，提取JSON部分
             if json_content.startswith('```json') or json_content.startswith('```'):
                 lines = json_content.split('\n')
                 json_lines = []
@@ -214,15 +209,12 @@ You must return your analysis in the following JSON format：
             
             parsed_json = json.loads(json_content)
             
-            # 验证JSON结构
             if not isinstance(parsed_json, dict):
-                raise ValueError("返回的不是有效的JSON对象")
+                raise ValueError("the result is not a valid JSON object")
             
-            # 提取结果信息
             result = parsed_json.get("result", {})
             analysis = parsed_json.get("analysis", "")
             
-            # 如果analysis是字典类型，构建完整的分析文本
             if isinstance(analysis, dict):
                 analysis_text = self._build_analysis_text(analysis)
             else:
@@ -230,30 +222,19 @@ You must return your analysis in the following JSON format：
             
             return {
                 "is_fixed": result.get("is_fixed", False),
-                "check_summary": result.get("check_summary", "未提供原因说明"),
+                "check_summary": result.get("check_summary", "no summary provided"),
                 "analysis": analysis_text
             }
             
         except (json.JSONDecodeError, ValueError, KeyError) as e:
-            # JSON解析失败，回退到文本解析
             return self._fallback_text_parsing(analysis_result, str(e))
     
     def _build_analysis_text(self, analysis: Dict[str, Any]) -> str:
-        """从JSON分析数据构建完整的分析文本
-        
-        Args:
-            analysis: 分析数据字典
-            
-        Returns:
-            str: 格式化的分析文本
-        """
-        # 如果analysis是字符串，直接返回
+
         if isinstance(analysis, str):
             return analysis
             
-        # 如果analysis是字典，尝试构建结构化文本
         if isinstance(analysis, dict):
-            # 预定义的步骤名称映射
             step_mappings = [
                 ("step1_problem_scope", "Step 1: Deep Root Cause Analysis"),
                 ("step2_fix_coverage", "Step 2: Fix Strategy Rationality Assessment"),
@@ -266,41 +247,26 @@ You must return your analysis in the following JSON format：
             
             formatted_sections = []
             
-            # 处理结构化步骤
             for key, title in step_mappings:
                 content = analysis.get(key, "")
                 if content:
                     formatted_sections.append(f"## {title}\n{content}")
             
-            # 如果没有找到标准步骤，处理其他键值对
             if not formatted_sections:
                 for key, value in analysis.items():
-                    if value:  # 只处理非空值
-                        # 格式化键名为更可读的标题
+                    if value:  
                         title = key.replace("_", " ").title()
                         formatted_sections.append(f"## {title}\n{str(value)}")
             
             return "\n\n".join(formatted_sections) if formatted_sections else str(analysis)
         
-        # 其他类型转换为字符串
         return str(analysis)
     
     def _fallback_text_parsing(self, analysis_result: str, error_msg: str) -> Dict[str, Any]:
-        """当JSON解析失败时的回退文本解析方法
-        
-        Args:
-            analysis_result: 原始分析结果
-            error_msg: 错误信息
-            
-        Returns:
-            Dict[str, Any]: 解析后的结果
-        """
-        # 使用原有的文本解析方法作为回退
         is_fixed = self._extract_fix_status(analysis_result)
         check_summary = self._extract_check_summary(analysis_result, is_fixed)
         
-        # 在分析文本中添加解析错误信息
-        analysis_with_error = f"[JSON解析失败: {error_msg}]\n\n{analysis_result}"
+        analysis_with_error = f"[Fail to resolved JSON: {error_msg}]\n\n{analysis_result}"
         
         return {
             "is_fixed": is_fixed,
@@ -309,60 +275,36 @@ You must return your analysis in the following JSON format：
         }
     
     def _extract_fix_status(self, analysis: str) -> bool:
-        """从分析结果中提取修复状态
-        
-        Args:
-            analysis: 分析结果文本
-            
-        Returns:
-            bool: 是否已修复
-        """
         analysis_lower = analysis.lower()
         
-        # 查找明确的修复状态指示
         if "fully fixed" in analysis_lower:
             return True
         elif "partially fixed" in analysis_lower or "not fixed" in analysis_lower:
             return False
         
-        # 查找是否修复的明确回答
         if "is the issue fixed: yes" in analysis_lower:
             return True
         elif "is the issue fixed: no" in analysis_lower:
             return False
         
-        # 如果没有明确指示，查找其他关键词
         positive_indicators = ["resolved", "addressed", "fixed", "solved"]
         negative_indicators = ["not resolved", "not addressed", "not fixed", "incomplete", "missing"]
         
         positive_count = sum(1 for indicator in positive_indicators if indicator in analysis_lower)
         negative_count = sum(1 for indicator in negative_indicators if indicator in analysis_lower)
         
-        # 如果负面指示更多，认为未修复
         if negative_count > positive_count:
             return False
         
-        # 默认情况下，如果有正面指示且没有明确的负面结论，认为已修复
         return positive_count > 0
     
     def _extract_check_summary(self, analysis: str, is_fixed: bool) -> str:
-        """提取未修复的原因
-        
-        Args:
-            analysis: 分析结果文本
-            is_fixed: 是否已修复
-            
-        Returns:
-            str: 原因说明
-        """
         if is_fixed:
-            return "问题已完全修复"
+            return "the issue has been fully resolved"
         
-        # 尝试提取原因
         lines = analysis.split('\n')
         check_summary_lines = []
         
-        # 查找包含原因的行
         for line in lines:
             line_lower = line.lower().strip()
             if any(keyword in line_lower for keyword in [
@@ -374,4 +316,53 @@ You must return your analysis in the following JSON format：
         if check_summary_lines:
             return " ".join(check_summary_lines)
         
-        return "分析表明问题未完全修复，但未明确说明具体原因"
+        return "analysis does not provide a clear reason for the issue not being fixed"
+    
+    def _record_checker_trace(
+        self, 
+        trace_collector: Optional["BugFixTraceCollector"], 
+        issue_desc: str, 
+        fix_code: str, 
+        check_result: Dict[str, Any], 
+        error: Optional[str] = None
+    ) -> None:
+        """
+        Record checker trace information
+        
+        Args:
+            trace_collector: Optional trace collector
+            issue_desc: Issue description
+            fix_code: Fix code
+            check_result: Check result
+            error: Optional error message for error cases
+        """
+        if not trace_collector:
+            return
+            
+        checker_prompt = self.build_prompt(issue_desc, fix_code)
+        
+        if error:
+            # Error case
+            feedback_message = {
+                "role": "user",
+                "content": f"Check process failed: {error}"
+            }
+            should_break = False
+            check_summary = check_result.get("check_summary", f"Error: {error}")
+        else:
+            # Normal case
+            is_fixed = check_result.get("is_fixed", False)
+            feedback_message = {
+                "role": "assistant" if is_fixed else "user",
+                "content": check_result.get("check_summary", "No summary available")
+            }
+            should_break = is_fixed
+            check_summary = check_result.get("check_summary", "")
+        
+        trace_collector.record_checker_trace(
+            prompt=checker_prompt,
+            user_input=issue_desc,
+            check_summary=check_summary,
+            feedback_message=feedback_message,
+            should_break=should_break
+        )

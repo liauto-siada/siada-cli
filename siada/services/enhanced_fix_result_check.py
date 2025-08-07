@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 from openai.types.chat import ChatCompletionMessageParam
 
 from siada.provider.client_factory import get_client_with_kwargs
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 from siada.services.execution_trace_collector import ExecutionTrace
 
 
@@ -108,7 +108,7 @@ class EnhancedFixResultChecker:
             str: the analysis result in JSON format
         """
         user_task = self._build_enhanced_prompt(issue_desc, fix_code, execution_trace)
-        
+        print("EnhancedFixResultChecker prompt:", user_task)
         model_messages: list[ChatCompletionMessageParam] = [
             {"role": "user", "content": user_task},
         ]
@@ -125,7 +125,7 @@ class EnhancedFixResultChecker:
 
         # Use get_client_with_kwargs to support context parameter overrides
         client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
-        response = await client.chat_complete(**complete_kwargs)
+        response = await client.completion(**complete_kwargs)
         
         if response and response.choices and response.choices[0].message:
             analysis = response.choices[0].message.content

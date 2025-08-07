@@ -1,0 +1,171 @@
+{
+    "name": "get_last_supply_duration",
+    "description": "获取车辆自上次充电驾驶信息相关数据。该API提供车辆自上次充电驾驶信息，包含车辆耗电行驶里程、耗油行驶里程、耗电行驶时长、耗油行驶时长、百公里油耗、百公里电耗、显示小时、显示分钟、显示总时长、累计耗电量、累计耗油量、行车空调累计电耗、行车电器累计电耗、驻车空调累计电耗、驻车电器累计电耗、驻车放电累计电耗等信息。支持按需获取特定类型的自上次充电驾驶相关数据，适用于车辆状态监控和驾驶辅助应用等场景。返回数据为车辆自上次充电驾驶信息的实时信息，可用于仪表盘显示和车辆健康监测等功能模块。",
+    "type": "skill",
+    "field_names": {
+        "drivingData_mileageData_mileageCd": "耗电行驶里程",
+        "drivingData_mileageData_mileageCs": "耗油行驶里程",
+        "drivingData_showData_cdShowTime": "耗电行驶时长",
+        "drivingData_showData_csShowTime": "耗油行驶时长",
+        "drivingData_showData_oneHundarFuel": "百公里油耗",
+        "drivingData_showData_oneHundarEle": "百公里电耗",
+        "drivingData_showData_showTime_hours": "显示小时",
+        "drivingData_showData_showTime_mins": "显示分钟",
+        "drivingData_showData_showTime_allMins": "显示总时长",
+        "energyData_energydis_drivingEleCd": "累计耗电量",
+        "energyData_energydis_drivingFuelCs": "累计耗油量",
+        "energyData_energydis_drivingAcCd": "行车空调累计电耗",
+        "energyData_energydis_drivingDcDcCd": "行车电器累计电耗",
+        "energyData_energydis_parkingAc": "驻车空调累计电耗",
+        "energyData_energydis_parkingDcDc": "驻车电器累计电耗",
+        "energyData_energydis_parkingOutside": "驻车放电累计电耗"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "获取车辆自上次充电驾驶信息相关数据类型。该参数采用枚举值形式，每个枚举值对应一种特定的车辆自上次充电驾驶信息。通过传入不同的参数值，可以精确获取所需数据项，避免不必要数据传输。参数值与API返回的data对象中的字段名称一一对应，确保数据获取的准确性和一致性。",
+        "example": "drivingData_mileageData_mileageCd",
+        "enum": [
+            "drivingData_mileageData_mileageCd",
+            "drivingData_mileageData_mileageCs",
+            "drivingData_showData_cdShowTime",
+            "drivingData_showData_csShowTime",
+            "drivingData_showData_oneHundarFuel",
+            "drivingData_showData_oneHundarEle",
+            "drivingData_showData_showTime_hours",
+            "drivingData_showData_showTime_mins",
+            "drivingData_showData_showTime_allMins",
+            "energyData_energydis_drivingEleCd",
+            "energyData_energydis_drivingFuelCs",
+            "energyData_energydis_drivingAcCd",
+            "energyData_energydis_drivingDcDcCd",
+            "energyData_energydis_parkingAc",
+            "energyData_energydis_parkingDcDc",
+            "energyData_energydis_parkingOutside"
+        ],
+        "enumDescriptions": {
+            "drivingData_mileageData_mileageCd": "获取耗电行驶里程",
+            "drivingData_mileageData_mileageCs": "获取耗油行驶里程",
+            "drivingData_showData_cdShowTime": "获取耗电行驶时长",
+            "drivingData_showData_csShowTime": "获取耗油行驶时长",
+            "drivingData_showData_oneHundarFuel": "获取百公里油耗",
+            "drivingData_showData_oneHundarEle": "获取百公里电耗",
+            "drivingData_showData_showTime_hours": "获取显示小时",
+            "drivingData_showData_showTime_mins": "获取显示分钟",
+            "drivingData_showData_showTime_allMins": "获取显示总时长",
+            "energyData_energydis_drivingEleCd": "获取累计耗电量",
+            "energyData_energydis_drivingFuelCs": "获取累计耗油量",
+            "energyData_energydis_drivingAcCd": "获取行车空调累计电耗",
+            "energyData_energydis_drivingDcDcCd": "获取行车电器累计电耗",
+            "energyData_energydis_parkingAc": "获取驻车空调累计电耗",
+            "energyData_energydis_parkingDcDc": "获取驻车电器累计电耗",
+            "energyData_energydis_parkingOutside": "获取驻车放电累计电耗"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "drivingData_mileageData_mileageCd": {
+                        "type": ["int", "null"],
+                        "description": "CD里程数，单位米m，精度百米",
+                        "example": "0"
+                    },
+                    "drivingData_mileageData_mileageCs": {
+                        "type": ["int", "null"],
+                        "description": "CS里程数，单位米m，精度百米",
+                        "example": "0"
+                    },
+                    "drivingData_showData_cdShowTime": {
+                        "type": ["int", "null"],
+                        "description": "CD阶段显示时长，单位秒",
+                        "example": "0"
+                    },
+                    "drivingData_showData_csShowTime": {
+                        "type": ["int", "null"],
+                        "description": "CS阶段显示时长，单位秒",
+                        "example": "0"
+                    },
+                    "drivingData_showData_oneHundarFuel": {
+                        "type": ["int", "null"],
+                        "description": "百公里油耗，单位L/100km",
+                        "example": "0"
+                    },
+                    "drivingData_showData_oneHundarEle": {
+                        "type": ["int", "null"],
+                        "description": "百公里电耗，单位kmh/100km",
+                        "example": "0"
+                    },
+                    "drivingData_showData_showTime_hours": {
+                        "type": ["int", "null"],
+                        "description": "显示小时",
+                        "example": "0"
+                    },
+                    "drivingData_showData_showTime_mins": {
+                        "type": ["int", "null"],
+                        "description": "显示分钟",
+                        "example": "0"
+                    },
+                    "drivingData_showData_showTime_allMins": {
+                        "type": ["int", "null"],
+                        "description": "显示总时长",
+                        "example": "0"
+                    },
+                    "energyData_energydis_drivingEleCd": {
+                        "type": ["int", "null"],
+                        "description": "行车cd驱动累计放电量，单位为wh",
+                        "example": "0",
+                        "range": ">=0"
+                    },
+                    "energyData_energydis_drivingFuelCs": {
+                        "type": ["int", "null"],
+                        "description": "行车累计油耗，单位为ml",
+                        "example": "0",
+                        "range": ">=0"
+                    },
+                    "energyData_energydis_drivingAcCd": {
+                        "type": ["int", "null"],
+                        "description": "行车cd空调累计用电量，单位为wh",
+                        "example": "0",
+                        "range": ">=0"
+                    },
+                    "energyData_energydis_drivingDcDcCd": {
+                        "type": ["int", "null"],
+                        "description": "行车cd电器累计用电量，单位为wh",
+                        "example": "0",
+                        "range": ">=0"
+                    },
+                    "energyData_energydis_parkingAc": {
+                        "type": ["int", "null"],
+                        "description": "驻车cd空调累计用电量，单位为wh",
+                        "example": "0",
+                        "range": ">=0"
+                    },
+                    "energyData_energydis_parkingDcDc": {
+                        "type": ["int", "null"],
+                        "description": "驻车cd电器累计用电量，单位为wh",
+                        "example": "0",
+                        "range": ">=0"
+                    },
+                    "energyData_energydis_parkingOutside": {
+                        "type": ["int", "null"],
+                        "description": "驻车cd累计放电量，单位为wh",
+                        "example": "0",
+                        "range": ">=0"
+                    }
+                }
+            }
+        }
+    }
+} 

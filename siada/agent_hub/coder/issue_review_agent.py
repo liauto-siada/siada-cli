@@ -6,7 +6,7 @@ from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import issue_review_prompt
 from siada.agent_hub.coder.tracing.logger_tracing_processor import create_detailed_logger
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 from siada.foundation.tools.get_git_diff import GitDiffUtil
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
@@ -56,7 +56,7 @@ Here is the issue description and the code patch that fixes the problem.
 {patch}
 """
 
-        set_trace_processors([create_detailed_logger(output_file="agent_trace.log")]), 
+        # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")]), 
 
         result = await self.run_impl(
             starting_agent=self,

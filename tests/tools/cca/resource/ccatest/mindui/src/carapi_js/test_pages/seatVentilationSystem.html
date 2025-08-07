@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>座椅通风系统接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>座椅通风系统接口</h1>
+    <div style="display: flex; gap: 40px; align-items: flex-start;">
+        <div id="button-list">
+            <div class="button-row"><button id="SeatAcRow1LeftVent">获取主驾座椅通风档位</button><span class="result-span" id="SeatAcRow1LeftVent_result"></span></div>
+            <div class="button-row"><button id="SeatAcRow1RightVent">获取副驾座椅通风档位</button><span class="result-span" id="SeatAcRow1RightVent_result"></span></div>
+            <div class="button-row"><button id="SeatAcRow2LeftVent">获取二排左座椅通风档位</button><span class="result-span" id="SeatAcRow2LeftVent_result"></span></div>
+            <div class="button-row"><button id="SeatAcRow2RightVent">获取二排右座椅通风档位</button><span class="result-span" id="SeatAcRow2RightVent_result"></span></div>
+        </div>
+        <div id="set-button-list">
+            <div class="button-row">
+                <span>主驾座椅</span>
+                <button id="set_CarControlTpuPlugin_SeatAcRow1LeftVent_0">关</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow1LeftVent_1">一档</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow1LeftVent_2">二档</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow1LeftVent_3">三档</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_SeatAcRow1LeftVent_result"></span>
+            </div>
+            <div class="button-row">
+                <span>副驾座椅</span>
+                <button id="set_CarControlTpuPlugin_SeatAcRow1RightVent_0">关</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow1RightVent_1">一档</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow1RightVent_2">二档</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow1RightVent_3">三档</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_SeatAcRow1RightVent_result"></span>
+            </div>
+            <div class="button-row">
+                <span>二排左座椅</span>
+                <button id="set_CarControlTpuPlugin_SeatAcRow2LeftVent_0">关</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow2LeftVent_1">一档</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow2LeftVent_2">二档</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow2LeftVent_3">三档</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_SeatAcRow2LeftVent_result"></span>
+            </div>
+            <div class="button-row">
+                <span>二排右座椅</span>
+                <button id="set_CarControlTpuPlugin_SeatAcRow2RightVent_0">关</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow2RightVent_1">一档</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow2RightVent_2">二档</button>
+                <button id="set_CarControlTpuPlugin_SeatAcRow2RightVent_3">三档</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_SeatAcRow2RightVent_result"></span>
+            </div>
+        </div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+
+            [
+                "SeatAcRow1LeftVent", "SeatAcRow1RightVent", "SeatAcRow2LeftVent", "SeatAcRow2RightVent"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_seat_ventilation_system(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+            // 设置按钮事件
+            const setMap = [{
+                key: 'CarControlTpuPlugin_SeatAcRow1LeftVent',
+                label: '主驾座椅'
+            }, {
+                key: 'CarControlTpuPlugin_SeatAcRow1RightVent',
+                label: '副驾座椅'
+            }, {
+                key: 'CarControlTpuPlugin_SeatAcRow2LeftVent',
+                label: '二排左座椅'
+            }, {
+                key: 'CarControlTpuPlugin_SeatAcRow2RightVent',
+                label: '二排右座椅'
+            }];
+            setMap.forEach(item => {
+                [0, 1, 2, 3].forEach(val => {
+                    const btnId = `set_${item.key}_${val}`;
+                    document.getElementById(btnId).onclick = function() {
+                        let res = myCarApi.set_seat_ventilation_system(item.key, val);
+                        console.log("set_seat_ventilation_system", item.key, val, res);
+                    };
+                });
+            });
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GreetingCard</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/cards/GreetingCard.tsx"></script>
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        if (window.widgetBridge?.isDarkMode?.() || params.get('theme') === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
+  </body>
+</html>

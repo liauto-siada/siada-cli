@@ -1,0 +1,91 @@
+{
+    "name": "get_driving_information",
+    "description": "获取车辆实时驾驶信息和续航状态的综合数据接口。该API提供车辆当前行驶状态的关键信息，包括：实时车速监测、续航工况模式识别、不同车型（纯电动/增程式）在不同测试标准（CLTC/WLTC）下的续航里程数据、以及预估续航。支持按需获取特定类型的驾驶数据，适用于车载信息系统、驾驶辅助应用、续航管理等场景。返回数据实时性强，可用于仪表盘显示、续航预测、驾驶行为分析等功能模块。",
+    "type": "skill",
+    "field_names": {
+        "Speed": "车速",
+        "EnduranceCondition": "续航显示工况",
+        "CltcPureEvMileage": "电池续航CLTC",
+        "WltcPureEvMileage": "电池续航WLTC",
+        "CltcReevMileage": "燃油续航CLTC",
+        "WltcReevMileage": "燃油续航WLTC",
+        "MileageFinalResult": "预估续航"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "驾驶信息类型参数，用于指定需要获取的具体数据类型。该参数采用枚举值形式，每个枚举值对应一种特定的驾驶或续航信息。通过传入不同的参数值，可以精确获取所需的数据项，避免不必要的数据传输。参数值与API返回的data对象中的字段名称一一对应，确保数据获取的准确性和一致性。",
+        "example": "Speed",
+        "enum": ["Speed", "EnduranceCondition", "CltcPureEvMileage", "WltcPureEvMileage", "CltcReevMileage", "WltcReevMileage", "MileageFinalResult"],
+        "enumDescriptions": {
+            "Speed": "获取当前车速",
+            "EnduranceCondition": "获取续航显示工况模式",
+            "CltcPureEvMileage": "获取纯电车型CLTC总续航里程",
+            "WltcPureEvMileage": "获取纯电车型WLTC总续航里程",
+            "CltcReevMileage": "获取增程车型CLTC总续航里程",
+            "WltcReevMileage": "获取增程车型WLTC总续航里程",
+            "MileageFinalResult": "获取预估续航"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "API调用是否成功的标识，true表示成功获取数据，false表示调用失败或数据获取异常",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "API返回状态码，0表示成功，非0表示各种错误状态（如网络异常、数据不可用等）",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "Speed": {
+                        "type": ["int", "null"],
+                        "description": "车辆当前行驶速度，以公里每小时为单位。当车辆静止时为0，行驶中显示实时速度值。如果车辆系统无法获取速度信息则返回null",
+                        "example": "120",
+                        "range": "0-200"
+                    },
+                    "EnduranceCondition": {
+                        "type": ["string", "null"],
+                        "description": "当前续航里程的测试工况标准。CLTC表示中国轻型汽车行驶工况（China Light-duty vehicle Test Cycle），WLTC表示全球轻型车测试循环（Worldwide harmonized Light vehicles Test Cycle），EST表示基于当前驾驶习惯的预估续航。如果无法确定工况标准则返回null",
+                        "example": "CLTC",
+                        "range": "CLTC/WLTC/EST"
+                    },
+                    "CltcPureEvMileage": {
+                        "type": ["string", "null"],
+                        "description": "纯电动车型在CLTC工况下的理论最大续航里程，包含数值和单位km。此数据基于标准测试条件得出，实际续航会受驾驶习惯、路况、气温等因素影响。如果车辆非纯电车型或数据不可用则返回null",
+                        "example": "433km",
+                        "range": ""
+                    },
+                    "WltcPureEvMileage": {
+                        "type": ["string", "null"],
+                        "description": "纯电动车型在WLTC工况下的理论最大续航里程，包含数值和单位km。WLTC工况相比CLTC更接近欧洲实际驾驶条件，通常续航数据会略低于CLTC。如果车辆非纯电车型或数据不可用则返回null",
+                        "example": "433km",
+                        "range": ""
+                    },
+                    "CltcReevMileage": {
+                        "type": ["string", "null"],
+                        "description": "增程式电动车型在CLTC工况下的综合续航里程，包含数值和单位km。综合了纯电续航和增程器工作后的总续航能力，代表满油满电状态下的最大行驶距离。如果车辆非增程车型或数据不可用则返回null",
+                        "example": "433km",
+                        "range": ""
+                    },
+                    "WltcReevMileage": {
+                        "type": ["string", "null"],
+                        "description": "增程式电动车型在WLTC工况下的综合续航里程，包含数值和单位km。基于WLTC测试标准的综合续航能力，包含纯电模式和增程模式的总续航距离。如果车辆非增程车型或数据不可用则返回null",
+                        "example": "433km",
+                        "range": ""
+                    },
+                    "MileageFinalResult": {
+                        "type": ["int", "null"],
+                        "description": "预估续航里程，包含数值和单位km。根据当前驾驶习惯和车辆状态，预测车辆在满油满电状态下的最大行驶距离。如果数据不可用或车辆非纯电/增程车型则返回null",
+                        "example": "500",
+                        "range": ""
+                    }
+                }
+            }
+        }
+    }
+} 
