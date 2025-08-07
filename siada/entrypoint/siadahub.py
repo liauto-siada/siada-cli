@@ -7,6 +7,7 @@ import warnings
 
 from prompt_toolkit.completion import Completer
 
+from siada.config.config_loader import Config, load_conf
 from siada.entrypoint.args_parser.args import get_parser
 from siada.entrypoint.interaction.config import RunningConfig
 from siada.entrypoint.interaction.controller import Controller
@@ -246,27 +247,32 @@ def show_banner(io):
         sys.exit(1)
 
 
-def get_config(args, io):
+def get_config(args, io, conf: Config = None):
     """
     Configure and create model instance
-    
+
     Args:
         args: Parsed command line arguments
         io: InputOutput instance for displaying information
-        
+
     Returns:
         ModelRunConfig: Configured model instance, returns None if exit is needed
     """
-
+    # Configuration priority: args > config file > defaults
     config = ModelRunConfig.get_default_config()
-    # Create model instance
-    if args.model is not None:
-        config.model_name = args.model
-        config.configure_model_settings(config.model_name)
-
-    if args.provider is not None:
-        config.provider = args.provider
     
+    # Determine final values using priority order
+    final_model = args.model or (conf.llm_config.model if conf and conf.llm_config else None)
+    final_provider = args.provider or (conf.llm_config.provider if conf and conf.llm_config else None)
+    
+    # Apply final configuration
+    if final_model is not None:
+        config.model_name = final_model
+        config.configure_model_settings(config.model_name)
+    
+    if final_provider is not None:
+        config.provider = final_provider
+
     # Check if provider is set
     if config.provider is None:
         io.print_error("No provider specified. Please set provider in agent_config.yaml or use --provider option")
@@ -316,9 +322,11 @@ def get_config(args, io):
 def main():
     # Suppress harmless warnings from third-party libraries
     _suppress_third_party_warnings()
-    
+
     # Configure litellm globally to suppress debug logs
     _configure_litellm_logging()
+    
+    conf: Config = load_conf()
 
     argv = sys.argv[1:]
 
@@ -341,7 +349,7 @@ def main():
         return 0
 
     # Configure model
-    model = get_config(args, io)
+    model = get_config(args, io, conf)
     # Display banner
 
     # Set environment variables
@@ -363,7 +371,6 @@ def main():
         cmd_line = " ".join(sys.argv)
         io.print_info(f"Command: {cmd_line}")
 
-    
     if model is None:
         return 0
 

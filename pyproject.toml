@@ -1,8 +1,7 @@
 [tool.poetry]
-name = "siada-agenthub"
-version = "0.0.0"
-description = "提供Siada agent对外的RPC能力"
-authors = ["Your Name <your.email@example.com>"]
+name = "siada-cli"
+version = "0.0.1"
+description = "Siada CLI is a Ai Pair Programming Tool in terminal"
 packages = [{include = "siada"}, {include = "agent_config.yaml"}]
 include = ["agent_config.yaml"]
 
@@ -43,12 +42,6 @@ pytest = "^8.0.0"
 httpx = "^0.27.0"
 pytest-asyncio = "^1.1.0"
 
-[tool.poetry-dynamic-versioning]
-enable = true
-vcs = "git"
-style = "pep440"
-dirty = true
-format-jinja = "{% if distance == 0 %}{{ base }}{% else %}{{ base }}.post{{ distance }}{% endif %}"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

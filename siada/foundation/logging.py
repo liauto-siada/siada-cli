@@ -12,9 +12,9 @@ def get_log_directory():
     Get log directory with the following priority:
     - Development mode: Project root ./logs (detected by pyproject.toml)
     - 1. Environment variable SIADAHUB_LOG_DIR
-    - 2. User home directory ~/.siadahub/logs
-    - 3. XDG cache directory ~/.cache/siadahub/logs  
-    - 4. System temp directory /tmp/siadahub/logs
+    - 2. User home directory ~/.siada-cli/logs
+    - 3. XDG cache directory ~/.cache/siada-cli/logs  
+    - 4. System temp directory /tmp/siada-cli/logs
     - 5. Current working directory ./logs (fallback)
     """
     # Check if in development mode first
@@ -29,19 +29,19 @@ def get_log_directory():
         if _ensure_log_dir(log_dir):
             return str(log_dir)
     
-    # 2. User home directory ~/.siadahub/logs
-    home_log_dir = Path.home() / '.siadahub' / 'logs'
+    # 2. User home directory ~/.siada-cli/logs
+    home_log_dir = Path.home() / '.siada-cli' / 'logs'
     if _ensure_log_dir(home_log_dir):
         return str(home_log_dir)
     
-    # 3. XDG cache directory ~/.cache/siadahub/logs
+    # 3. XDG cache directory ~/.cache/siada-cli/logs
     cache_dir = os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))
-    xdg_log_dir = Path(cache_dir) / 'siadahub' / 'logs'
+    xdg_log_dir = Path(cache_dir) / 'siada-cli' / 'logs'
     if _ensure_log_dir(xdg_log_dir):
         return str(xdg_log_dir)
     
     # 4. System temp directory
-    temp_log_dir = Path(tempfile.gettempdir()) / 'siadahub' / 'logs'
+    temp_log_dir = Path(tempfile.gettempdir()) / 'siada-cli' / 'logs'
     if _ensure_log_dir(temp_log_dir):
         return str(temp_log_dir)
     

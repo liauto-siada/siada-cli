@@ -1,9 +1,8 @@
 from typing import Any
 
 from siada.entrypoint.interaction.base_turn import RunTurn
-from siada.entrypoint.interaction.command_turn import CommandTurn
 from siada.entrypoint.interaction.config import RunningConfig
-from siada.entrypoint.interaction.conversation_turn import ConversationTurn
+from siada.entrypoint.interaction.turn.run_turn import CommandTurn, ConversationTurn
 
 
 class TurnFactory:

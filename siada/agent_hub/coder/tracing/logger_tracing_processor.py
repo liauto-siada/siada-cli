@@ -404,7 +404,7 @@ def create_detailed_logger(output_file: Optional[str] = None, console_output: bo
         
         # Create log directory (unified across all platforms)
         from pathlib import Path
-        log_dir = Path.home() / ".siadahub" / "logs"
+        log_dir = Path.home() / ".siada-cli" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate log file name
