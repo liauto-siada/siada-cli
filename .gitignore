@@ -9,7 +9,7 @@ dist/
 # Ignore test files
 test_get_git_diff.py
 # Ignore vscode configuration folder
-.vscode/
+.vscode/*
 # Ignore runtime result logs
 output.jsonl
 launch.json
