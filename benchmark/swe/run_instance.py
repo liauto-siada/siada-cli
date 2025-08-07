@@ -8,8 +8,7 @@ from siada.foundation.logging import logger
 from siada.services.siada_runner import SiadaRunner
 from benchmark.swe.tools.conda_env import create_env, _get_swebench_workspace_dir_name
 from benchmark.swe.tools.eval_output import EvalOutput
-from siada.tools.coder.run_cmd import run_cmd_subprocess
-
+from siada.tools.coder.cmd_runner import run_cmd_subprocess
 
 def process_instance(
         instance: pd.Series,

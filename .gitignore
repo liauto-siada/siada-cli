@@ -12,7 +12,6 @@ test_get_git_diff.py
 .vscode/*
 # Ignore runtime result logs
 output.jsonl
-launch.json
 
 # Ignore all .siada directories and their contents
 **/.siada*

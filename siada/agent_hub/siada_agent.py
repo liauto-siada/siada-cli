@@ -137,7 +137,8 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         model_provider_name = llm_config.provider
         model_provider = get_provider(model_provider_name)
         
-        context.provider = model_provider
+        # Store provider name (string) in context for client factory
+        context.provider = model_provider_name
 
         # if running_session.running_config.interactive:
         #     ## in the interactive mode, we need to add the ask_followup_question tool

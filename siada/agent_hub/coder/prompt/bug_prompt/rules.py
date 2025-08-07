@@ -29,6 +29,18 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str) -> str:
 
 - You are not allowed to ask questions to the user, generate commands requiring user input, or any other similar interactions. Each task must be completed independently. 
 - Avoid retrieving previous code versions via Git to infer the cause of the issue — the current version provides sufficient information for diagnosis.
+- Deep Root Cause Analysis: Don't just patch symptoms. You must trace the bug's origin, whether it stems from a flawed assumption, an incomplete logical condition, or an unhandled edge case. Your job is to understand why the problem occurs, not just where.
+- Surgical Precision: Apply fixes with the highest level of accuracy. Your changes should be minimal and localized. This often means:
+    --Adding a more precise conditional check.
+    --Constraining a loop or iteration's boundary.
+    --Preventing an incorrect type conversion or improper simplification.
+    --Using the most suitable underlying primitive or data structure for the task.
+- Robustness and Compatibility: Your solutions must be resilient. A fix should not only resolve the reported issue but also handle all related edge cases and invalid inputs gracefully to prevent regression. Your changes must also be fully compatible with the existing code, introducing no unintended side effects.
+- Maintain Code Integrity: Your work is meant to enhance the project, not disrupt it.
+    --Preserve Functionality: Ensure no existing features or valid use cases are unintentionally altered or broken.
+    --Test-Driven Validation: If you need to write tests to validate a fix, they must be new and specifically designed to reproduce and verify the original bug. Never modify existing tests.   
+    
+
 
 ====
 

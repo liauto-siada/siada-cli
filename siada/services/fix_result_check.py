@@ -9,7 +9,7 @@ from typing import Dict, Any, Union
 
 from openai.types.chat import ChatCompletionMessageParam
 
-from siada.provider.client_factory import get_client
+from siada.provider.client_factory import get_client_with_kwargs
 from siada.foundation.config import settings
 
 logger = logging.getLogger(__name__)
@@ -65,15 +65,17 @@ class FixResultChecker:
             {"role": "user", "content": user_task},
         ]
         
-        # 调用模型
-        complete_kwargs = {
+
+        # Call the model
+        default_kwargs = {
             "model": settings.Claude_4_0_SONNET,
             "messages": model_messages,
             "stream": False,
-            "temperature": 0.2,  # 较低温度确保分析的准确性和一致性
+            "temperature": 0.2,  # Lower temperature for accuracy and consistency
         }
-        
-        client = get_client(context.provider)
+
+        # Use get_client_with_kwargs to support context parameter overrides
+        client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
         response = await client.chat_complete(**complete_kwargs)
         
         # 提取分析结果

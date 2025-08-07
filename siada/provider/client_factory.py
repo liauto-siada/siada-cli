@@ -1,6 +1,6 @@
 import os
 import importlib
-from typing import Dict
+from typing import Dict, Any, Tuple
 from siada.provider.llm_client import LLMClient
 import inspect
 
@@ -51,3 +51,62 @@ def get_client(p_type: provider_type | None = None) -> LLMClient:
         return client_map[p_type]
 
     raise ValueError("No LLM clients found or registered.")
+
+
+def build_chat_complete_kwargs(context: Any, default_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Build chat completion kwargs by merging context parameters with defaults.
+    
+    Args:
+        context: Context object that may contain override parameters
+        default_kwargs: Default parameters for chat completion
+        
+    Returns:
+        Dict[str, Any]: Merged kwargs with context overrides taking precedence
+    """
+    # Start with default kwargs
+    complete_kwargs = default_kwargs.copy()
+    
+    # Override with context parameters if available
+    if context and hasattr(context, 'model') and context.model:
+        complete_kwargs['model'] = context.model
+    
+    if context and hasattr(context, 'temperature') and context.temperature is not None:
+        complete_kwargs['temperature'] = context.temperature
+    
+    if context and hasattr(context, 'stream') and context.stream is not None:
+        complete_kwargs['stream'] = context.stream
+    
+    # Add any other context parameters that might be relevant
+    if context:
+        # Check for additional parameters that might be set on context
+        for param in ['max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty']:
+            if hasattr(context, param) and getattr(context, param) is not None:
+                complete_kwargs[param] = getattr(context, param)
+    
+    return complete_kwargs
+
+
+def get_client_with_kwargs(context: Any, default_kwargs: Dict[str, Any]) -> Tuple[LLMClient, Dict[str, Any]]:
+    """
+    Get LLM client and build complete kwargs with context overrides.
+    
+    Args:
+        context: Context object containing provider info and optional parameter overrides
+        default_kwargs: Default parameters for chat completion
+        
+    Returns:
+        Tuple[LLMClient, Dict[str, Any]]: Client instance and merged kwargs
+    """
+    # Get provider from context
+    provider = None
+    if context and hasattr(context, 'provider'):
+        provider = context.provider
+    
+    # Get the client
+    client = get_client(provider)
+    
+    # Build complete kwargs with context overrides
+    complete_kwargs = build_chat_complete_kwargs(context, default_kwargs)
+    
+    return client, complete_kwargs
