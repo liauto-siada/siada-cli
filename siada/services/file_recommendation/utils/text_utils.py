@@ -58,22 +58,20 @@ def parse_at_command_path(text: str) -> Tuple[str, str, str]:
     
     Returns:
         Tuple[base_directory, path_prefix, original_partial_path]
+        
+    Note: Modified to remove relative path support and use full path as search prefix
     """
     at_index = text.rfind('@')
     if at_index == -1:
         return ".", "", ""
     
     partial_path = text[at_index + 1:]
-    last_slash_index = partial_path.rfind('/')
     
-    if last_slash_index == -1:
-        base_dir_relative = "."
-        prefix = unescape_path(partial_path)
-    else:
-        base_dir_relative = partial_path[:last_slash_index + 1]
-        prefix = unescape_path(partial_path[last_slash_index + 1:])
+    # Use the entire path after @ as search prefix, no directory-based splitting
+    # This eliminates relative path navigation issues
+    full_prefix = unescape_path(partial_path)
     
-    return base_dir_relative, prefix, partial_path
+    return ".", full_prefix, partial_path
 
 
 def to_code_points(text: str) -> List[str]:

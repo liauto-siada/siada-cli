@@ -18,6 +18,7 @@ class ColorSettings:
     code_theme: str = "default"
     split_line_color: str = "#0000FF"
     shell_model_color: str = "#FF00FF"
+    at_file_reference_color: str = "#FF6B6B"
     
     # Predefined theme configurations
     THEMES: ClassVar[Dict[str, Dict[str, str]]] = {
@@ -35,7 +36,8 @@ class ColorSettings:
             "completion_menu_current_bg_color": None,
             "code_theme": "default",
             "split_line_color": "#0000FF",
-            "shell_model_color": "#FF00FF"
+            "shell_model_color": "#FF00FF",
+            "at_file_reference_color": "#FF6B6B"
         },
         "dark": {
             "user_input_color": "#32FF32",
@@ -51,7 +53,8 @@ class ColorSettings:
             "completion_menu_current_bg_color": None,
             "code_theme": "monokai",
             "split_line_color": "#4169E1",
-            "shell_model_color": "#DA70D6"
+            "shell_model_color": "#DA70D6",
+            "at_file_reference_color": "#FF8A80"
         },
         "light": {
             "user_input_color": "green",
@@ -67,7 +70,8 @@ class ColorSettings:
             "completion_menu_current_bg_color": None,
             "code_theme": "default",
             "split_line_color": "#1E90FF",
-            "shell_model_color": "#9370DB"
+            "shell_model_color": "#9370DB",
+            "at_file_reference_color": "#E91E63"
         }
     }
     
@@ -101,6 +105,7 @@ class ColorSettings:
         args.code_theme = self.code_theme
         args.split_line_color = self.split_line_color
         args.shell_model_color = self.shell_model_color
+        args.at_file_reference_color = self.at_file_reference_color
 
 
 class RunningConfigColorSettings:
@@ -161,6 +166,9 @@ class RunningConfigColorSettings:
         self.shell_model_color = (
             ColorUtils.ensure_hash_prefix(self.color_settings.shell_model_color) if pretty else None
         )
+        self.at_file_reference_color = (
+            ColorUtils.ensure_hash_prefix(self.color_settings.at_file_reference_color) if pretty else None
+        )
         
         self.code_theme = self.color_settings.code_theme
         
@@ -184,6 +192,7 @@ class RunningConfigColorSettings:
             "completion_menu_current_bg_color",
             "split_line_color",
             "shell_model_color",
+            "at_file_reference_color",
         ]
         
         for attr_name in color_attributes:

@@ -81,23 +81,40 @@ class KeyBindingsFactory:
             at_pos = text_before_cursor.rfind("@")
             is_at_command = at_pos != -1
             
-            if buffer.complete_state:
-                # Accept the currently selected completion
-                buffer.apply_completion(buffer.complete_state.current_completion)
+            if buffer.complete_state and buffer.complete_state.completions:
+                # Ensure first completion is selected by default if none is currently selected
+                if buffer.complete_state.current_completion is None:
+                    # Move to first completion to ensure it's highlighted
+                    buffer.complete_next()
                 
-                # For @ commands, only accept completion without submitting
-                # For other commands (like /), accept completion and submit
-                if not is_at_command:
-                    # For non-@ commands, also submit after accepting completion
-                    if self.io.multiline_mode and not (
-                        self.io.editingmode == EditingMode.VI
-                        and event.app.vi_state.input_mode == InputMode.NAVIGATION
-                    ):
-                        # In multiline mode, Enter adds a newline after accepting completion
-                        buffer.insert_text("\n")
-                    else:
-                        # In normal mode, Enter submits after accepting completion
-                        buffer.validate_and_handle()
+                # Accept the currently selected completion
+                if buffer.complete_state.current_completion:
+                    buffer.apply_completion(buffer.complete_state.current_completion)
+                    
+                    # For @ commands, only accept completion without submitting
+                    # For other commands (like /), accept completion and submit
+                    if not is_at_command:
+                        # For non-@ commands, also submit after accepting completion
+                        if self.io.multiline_mode and not (
+                            self.io.editingmode == EditingMode.VI
+                            and event.app.vi_state.input_mode == InputMode.NAVIGATION
+                        ):
+                            # In multiline mode, Enter adds a newline after accepting completion
+                            buffer.insert_text("\n")
+                        else:
+                            # In normal mode, Enter submits after accepting completion
+                            buffer.validate_and_handle()
+            else:
+                # No completions available, just handle enter normally
+                if self.io.multiline_mode and not (
+                    self.io.editingmode == EditingMode.VI
+                    and event.app.vi_state.input_mode == InputMode.NAVIGATION
+                ):
+                    # In multiline mode, Enter adds a newline
+                    buffer.insert_text("\n")
+                else:
+                    # In normal mode, Enter submits
+                    buffer.validate_and_handle()
 
         @kb.add("escape", "enter", eager=True, filter=~is_searching)  # This is Alt+Enter
         def _(event):

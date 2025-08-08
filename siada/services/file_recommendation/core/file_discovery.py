@@ -153,15 +153,26 @@ class FileDiscoveryService:
                 if self.should_ignore_file(entry_path_from_root, filter_options):
                     continue
                 
-                # Check name matching
+                # Enhanced matching: prefix match OR fuzzy match
+                entry_matches = False
+                
+                # Check prefix matching (original logic)
                 if entry.lower().startswith(lower_search_prefix):
+                    entry_matches = True
+                
+                # Check fuzzy matching (contains match)
+                elif self._is_fuzzy_match(entry_path_from_root, search_prefix):
+                    entry_matches = True
+                
+                if entry_matches:
                     full_entry_path = os.path.join(start_dir, entry)
                     is_dir = os.path.isdir(full_entry_path)
                     suffix = '/' if is_dir else ''
                     
+                    # Use full path from project root for suggestion
                     suggestion = create_suggestion(
-                        label=entry_path_relative + suffix,
-                        value=escape_path(entry_path_relative + suffix)
+                        label=entry_path_from_root + suffix,
+                        value=escape_path(entry_path_from_root + suffix)
                     )
                     found_suggestions.append(suggestion)
                 
@@ -296,6 +307,34 @@ class FileDiscoveryService:
             pass
         
         return suggestions
+    
+    def _is_fuzzy_match(self, file_path: str, search_term: str) -> bool:
+        """
+        Check if file path fuzzy matches the search term
+        
+        Args:
+            file_path: File path to check
+            search_term: Search term
+            
+        Returns:
+            bool: True if it's a fuzzy match
+        """
+        if not search_term:
+            return False
+        
+        search_term_lower = search_term.lower()
+        file_path_lower = file_path.lower()
+        
+        # Check if search term is contained in file name (not full path for better UX)
+        file_name = os.path.basename(file_path_lower)
+        if search_term_lower in file_name:
+            return True
+        
+        # Check if search term is contained in full path
+        if search_term_lower in file_path_lower:
+            return True
+        
+        return False
     
     def get_default_ignore_patterns(self) -> List[str]:
         """Get default ignore patterns"""

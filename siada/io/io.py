@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 import subprocess
 import webbrowser
 from dataclasses import dataclass
@@ -8,11 +9,10 @@ from typing import Optional
 from prompt_toolkit.completion import Completer, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
 from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.output.vt100 import is_dumb_terminal
 from prompt_toolkit.shortcuts import CompleteStyle, PromptSession
 from prompt_toolkit.styles import Style
-from pygments.lexers import MarkdownLexer
 from rich.color import ColorParseError
 from rich.console import Console
 from rich.markdown import Markdown
@@ -32,6 +32,45 @@ NOTIFICATION_MESSAGE = "Siada is waiting for your input"
 
 
 from siada.io.color_utils import ColorUtils
+
+
+class AtFileReferenceLexer(Lexer):
+    """Custom lexer for highlighting @ file references"""
+    
+    def __init__(self):
+        self.at_pattern = re.compile(r'@[^\s]+')
+    
+    def lex_document(self, document):
+        def get_line(lineno):
+            if lineno >= len(document.lines):
+                return []
+            
+            line = document.lines[lineno]
+            result = []
+            last_end = 0
+            
+            # Find all @ commands in the line
+            for match in self.at_pattern.finditer(line):
+                start_pos = match.start()
+                end_pos = match.end()
+                
+                # Add text before @ command with default style
+                if start_pos > last_end:
+                    result.append(('', line[last_end:start_pos]))
+                
+                # Add @ command with special style
+                at_command = match.group()
+                result.append(('class:at-file-reference', at_command))
+                
+                last_end = end_pos
+            
+            # Add remaining text after last @ command
+            if last_end < len(line):
+                result.append(('', line[last_end:]))
+            
+            return result
+        
+        return get_line
 
 
 @dataclass
@@ -138,7 +177,7 @@ class InputOutput:
             session_kwargs = {
                 "input": self.input,
                 "output": self.output,
-                "lexer": PygmentsLexer(MarkdownLexer),
+                "lexer": None,
                 "editing_mode": self.editingmode,
             }
             if self.editingmode == EditingMode.VI:
@@ -201,6 +240,10 @@ class InputOutput:
             style_dict["completion-menu.completion.current"] = " ".join(
                 completion_menu_current_style
             )
+
+        # Add @ file reference style
+        if self.running_color_settings.at_file_reference_color:
+            style_dict["at-file-reference"] = self.running_color_settings.at_file_reference_color
 
         return Style.from_dict(style_dict)
 
@@ -283,13 +326,14 @@ class InputOutput:
                         "prompt_continuation": get_continuation,
                         "completer": completer_instance,  # Explicitly set, even if None
                         "complete_while_typing": bool(completer),  # Only enable when completer exists
+                        "lexer": AtFileReferenceLexer() if self.pretty else None,  # Enable @ file reference highlighting
                     }
 
                     # Only add completion-related extra configurations when completer exists
                     if completer:
                         prompt_kwargs.update({
-                            "reserve_space_for_menu": 4,
-                            "complete_style": CompleteStyle.MULTI_COLUMN,
+                            "reserve_space_for_menu": 8,
+                            "complete_style": CompleteStyle.COLUMN,
                         })
 
                     line = self.prompt_session.prompt(show, **prompt_kwargs)

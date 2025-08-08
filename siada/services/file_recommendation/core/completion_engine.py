@@ -262,9 +262,37 @@ class CompletionEngine:
         # Don't show suggestions for lone @ symbol
         if at_path == '@':
             return False
+        
+        # Check if the path corresponds to a complete existing file
+        path_content = at_path[1:]  # Remove @ prefix
+        if self._is_complete_file_path(path_content):
+            return False
             
         # Show suggestions for @ with content
         return True
+    
+    def _is_complete_file_path(self, path: str) -> bool:
+        """
+        Check if path corresponds to a complete existing file
+        
+        Args:
+            path: Path to check (without @ prefix)
+            
+        Returns:
+            bool: True if path points to an existing file
+        """
+        import os
+        
+        if not path:
+            return False
+        
+        # Check in all search directories
+        for search_dir in self.search_directories:
+            full_path = os.path.join(search_dir, path)
+            if os.path.isfile(full_path):
+                return True
+        
+        return False
     
     def update_config(self, config: CompletionConfig):
         """
