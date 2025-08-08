@@ -125,6 +125,9 @@ Please systematically analyze whether the code modifications truly fix the probl
 4. **Performance Test Consideration**: Assess whether performance-related tests are needed to verify fix quality
 
 ## Step 7: Comprehensive Judgment and Recommendations
+ Based on the analysis above, please provide a clear conclusion:
+    **** If the issue contains clear input/output examples and the fix code successfully resolves those specific cases, then it should be judged as: "is_fixed": True. ****
+    **** If the issue merely reports a bug without a clear expected outcome, or if the fix code is intended to implement a new feature, you must be extremely strict in your assessment. Any single potential problem should result in the judgment: "is_fixed": False.****
 Based on the above analysis, provide clear conclusions:
 
 ### Required Output Fields:
@@ -142,7 +145,6 @@ Based on the above analysis, provide clear conclusions:
 - Whether API usage is appropriate, avoiding roundabout or inefficient implementations
 - Whether data security and system stability are ensured
 - Long-term maintainability and extensibility of the code
-- If the code changes (excluding test functions) only involve a single line from the original project, it is highly likely that the issue has been fixed.
 ---
 
 ## **Required JSON Output Format**
