@@ -173,7 +173,7 @@ class CardCompiler:
 
 
 if __name__ == "__main__":
-    file_path = "/Users/youzijun/siada/siada-agenthub/tests/tools/cca/resource/.ccatest/mindui/src/cards/GreetingCard.tsx"
+    file_path = "/Users/youzijun/siada/siada-agenthub/tests/tools/cca/resource/ccatest/mindui/src/cards/GreetingCard.tsx"
     compiler = CardCompiler()
     compiler.compile_card(file_path)
 
