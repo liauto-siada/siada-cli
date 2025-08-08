@@ -12,49 +12,15 @@ import base64
 import logging
 from typing import Optional
 
+from agents import function_tool
 from playwright.async_api import async_playwright, Browser, Page, Playwright
 
 from .models import BrowserActionResult, BrowserSettings
 from .chromium_installer import ChromiumAutoInstaller
 
 
-class BrowserActionTool:
-    """Browser automation tool class.
-    
-    Provides browser automation capabilities using Playwright, including:
-    - Browser launching and navigation
-    - Click operations at specific coordinates
-    - Text input simulation
-    - Page scrolling
-    - Screenshot capture
-    - Console log monitoring
-    """
-
-    def __init__(self, browser_settings: BrowserSettings):
-        """Initialize the browser action tool.
-        
-        Args:
-            browser_settings: Configuration settings for the browser
-        """
-        self.browser_settings = browser_settings
-        self.browser: Optional[Browser] = None
-        self.page: Optional[Page] = None
-        self.playwright: Optional[Playwright] = None
-        self.console_logs: list[str] = []
-        self.logger = logging.getLogger(__name__)
-        
-        # 光标位置管理
-        self.current_cursor_position = {"x": 0, "y": 0}
-        self.cursor_initialized = False
-
-    async def execute_action(
-        self, 
-        action: str, 
-        url: Optional[str] = None, 
-        coordinate: Optional[str] = None, 
-        text: Optional[str] = None
-    ) -> BrowserActionResult:
-        """Execute a browser action with comprehensive automation capabilities.
+BROWSER_OPERATE_DOC ="""
+        Execute a browser action with comprehensive automation capabilities.
         
         This method provides a unified interface for all browser automation operations,
         each with specialized functionality and visual feedback systems.
@@ -137,6 +103,46 @@ class BrowserActionTool:
             - Cursor position is maintained across operations for visual continuity
             - Error handling includes graceful fallbacks and detailed logging
         
+        """
+
+class BrowserActionTool:
+    """Browser automation tool class.
+    
+    Provides browser automation capabilities using Playwright, including:
+    - Browser launching and navigation
+    - Click operations at specific coordinates
+    - Text input simulation
+    - Page scrolling
+    - Screenshot capture
+    - Console log monitoring
+    """
+
+    def __init__(self, browser_settings: BrowserSettings):
+        """Initialize the browser action tool.
+        
+        Args:
+            browser_settings: Configuration settings for the browser
+        """
+        self.browser_settings = browser_settings
+        self.browser: Optional[Browser] = None
+        self.page: Optional[Page] = None
+        self.playwright: Optional[Playwright] = None
+        self.console_logs: list[str] = []
+        self.logger = logging.getLogger(__name__)
+        
+        # 光标位置管理
+        self.current_cursor_position = {"x": 0, "y": 0}
+        self.cursor_initialized = False
+
+    async def execute_action(
+        self, 
+        action: str, 
+        url: Optional[str] = None, 
+        coordinate: Optional[str] = None, 
+        text: Optional[str] = None
+    ) -> BrowserActionResult:
+        """
+        @BROWSER_OPERATE_DOC
         """
         try:
             self.logger.info(f"Executing browser action: {action}")
@@ -762,3 +768,26 @@ class BrowserActionTool:
         """Async context manager exit."""
         if self.browser:
             await self._close()
+
+@function_tool(
+    name_override="browser_operate", description_override=BROWSER_OPERATE_DOC
+)
+async def browser_operate(
+        self,
+        action: str,
+        url: Optional[str] = None,
+        coordinate: Optional[str] = None,
+        text: Optional[str] = None
+    ) -> BrowserActionResult:
+
+    settings = BrowserSettings(
+        viewport={"width": 1200, "height": 800},
+        headless=False,
+        timeout=30000
+    )
+
+    tool = BrowserActionTool(settings)
+
+    browser_action_result = await tool.execute_action(action, url, coordinate, text)
+    return browser_action_result
+

@@ -3,6 +3,7 @@ from agents import RunContextWrapper
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import fe_gen_prompt
+from siada.tools.browser.browser_action_tool import browser_operate
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
@@ -14,7 +15,7 @@ class FeGenAgent(CodeGenAgent):
 
         super().__init__(
             name="FeGenAgent",
-            tools=[edit, regex_search_files, run_cmd],
+            tools=[edit, regex_search_files, run_cmd, browser_operate],
             *args,
             **kwargs
         )
