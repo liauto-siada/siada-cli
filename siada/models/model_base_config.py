@@ -32,6 +32,14 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ),
 
     ModelBaseConfig(
+        model_name="gpt-5-mini",
+        max_tokens=8192,
+        context_window=400_000,
+        supports_images=True,
+        supports_extra_params=["reasoning_effort"],
+    ),
+
+    ModelBaseConfig(
         model_name="gpt-4.1",
         max_tokens=8192,
         context_window=1_047_576,
