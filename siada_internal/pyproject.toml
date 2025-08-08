@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "siada-internal"
+version = "0.1.0"
+description = "Local-only internal tools for siada"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+# 直链 wheel 依赖（与 requirements.txt 对应）
+ois3-sdk-python = { url = "https://gitlabee.chehejia.com/storage-open/ois3-sdk-python/-/raw/develop/dist/ois3_sdk_python-3.2.28-py3-none-any.whl" }
+
+[[tool.poetry.source]]
+name = "chehejia"
+url = "https://gitlabee.chehejia.com/api/v4/projects/10037/packages/pypi/simple"
+priority = "supplemental"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
