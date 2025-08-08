@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行驶信息接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>行驶信息接口</h1>
+    <div id="button-list">
+        <div class="button-row"><button id="Speed">获取当前车速</button><span class="result-span" id="Speed_result"></span></div>
+        <div class="button-row"><button id="EnduranceCondition">获取续航显示工况模式</button><span class="result-span" id="EnduranceCondition_result"></span></div>
+        <div class="button-row"><button id="CltcPureEvMileage">获取纯电CLTC总续航</button><span class="result-span" id="CltcPureEvMileage_result"></span></div>
+        <div class="button-row"><button id="WltcPureEvMileage">获取纯电WLTC总续航</button><span class="result-span" id="WltcPureEvMileage_result"></span></div>
+        <div class="button-row"><button id="CltcReevMileage">获取增程CLTC总续航</button><span class="result-span" id="CltcReevMileage_result"></span></div>
+        <div class="button-row"><button id="WltcReevMileage">获取增程WLTC总续航</button><span class="result-span" id="WltcReevMileage_result"></span></div>
+        <div class="button-row"><button id="MileageFinalResult">获取预估续航</button><span class="result-span" id="MileageFinalResult_result"></span></div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+
+            [
+                "Speed", "EnduranceCondition", "CltcPureEvMileage", "WltcPureEvMileage",
+                "CltcReevMileage", "WltcReevMileage", "MileageFinalResult"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_driving_information(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+        }
+    </script>
+</body>
+
+</html>

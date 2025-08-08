@@ -15,7 +15,7 @@ output.jsonl
 
 # Ignore all .siada directories and their contents
 **/.siada*
-.cca
+.cca/
 .DS_Store
 
 .vscode/*

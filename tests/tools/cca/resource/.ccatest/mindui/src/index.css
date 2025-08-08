@@ -1,0 +1,240 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "react-day-picker/style.css";
+@custom-variant dark (&:is(.dark *));
+@theme {
+    /* 覆盖 Tailwind 背景颜色 浅色模式 */
+    --color-slate-200: #D5DDE7;
+    /* 覆盖 Tailwind 容器颜色 浅色模式 */
+    --color-slate-50: oklch(from #FFFFFF l c h / 0.15);
+    --color-slate-100: #E8EDF3;
+    --color-slate-150: #C8D0DB;
+    /* 覆盖 Tailwind 基础文本颜色 浅色模式 */
+    --color-gray-50: oklch(from #222732 l c h / 0.05);
+    --color-gray-100: oklch(from #222732 l c h / 0.1);
+    --color-gray-200: oklch(from #222732 l c h / 0.2);
+    --color-gray-300: oklch(from #222732 l c h / 0.3);
+    --color-gray-400: oklch(from #222732 l c h / 0.4);
+    --color-gray-500: oklch(from #222732 l c h / 0.5);
+    --color-gray-600: oklch(from #222732 l c h / 0.6);
+    --color-gray-700: oklch(from #222732 l c h / 0.7);
+    --color-gray-800: oklch(from #222732 l c h / 0.8);
+    --color-gray-900: oklch(from #222732 l c h / 0.9);
+    --color-gray-950: #222732;
+    /* 覆盖 Tailwind 基础彩色 浅色模式*/
+    --color-blue-700: #0a5bfc;
+    --color-green-700: #00803e;
+    --color-red-800: #ad231e;
+    --color-orange-700: #ec6746;
+    --color-indigo-700: #5500ff;
+    --color-yellow-600: #ebb113;
+    --color-rose-700: #ff2442;
+    /* 覆盖 Tailwind 具体组件使用的颜色 浅色模式*/
+    --color-blue-600: #1a79ff;
+    --color-slate-300: oklch(from #a9b2c7 l c h / 0.3);
+    --color-slate-600: oklch(from #151e32 l c h / 0.9);
+    --color-red-700: #b93a3a;
+    --color-zinc-50: rgba(255, 255, 255, 0.4);
+    --color-car-icon: oklch(from #000000 l c h / 0.3);
+    --color-data-unit: oklch(from #000000 l c h / 0.5);
+}
+
+.dark {
+    /* 覆盖 Tailwind 背景颜色 深色模式 */
+    --color-slate-200: #121211;
+    /* 覆盖 Tailwind 容器颜色 深色模式 */
+    --color-slate-50: oklch(from #5E5E5E l c h / 0.05);
+    --color-slate-100: #232323;
+    /* 覆盖 Tailwind 基础文本颜色 深色模式 */
+    --color-gray-50: oklch(from #FFFFFF l c h / 0.05);
+    --color-gray-100: oklch(from #FFFFFF l c h / 0.1);
+    --color-gray-200: oklch(from #FFFFFF l c h / 0.2);
+    --color-gray-300: oklch(from #FFFFFF l c h / 0.3);
+    --color-gray-400: oklch(from #FFFFFF l c h / 0.3);
+    --color-gray-500: oklch(from #FFFFFF l c h / 0.5);
+    --color-gray-600: oklch(from #FFFFFF l c h / 0.5);
+    --color-gray-700: oklch(from #FFFFFF l c h / 0.5);
+    --color-gray-800: oklch(from #FFFFFF l c h / 0.8);
+    --color-gray-900: oklch(from #FFFFFF l c h / 0.7);
+    --color-gray-950: oklch(from #FFFFFF l c h / 0.7);
+    /* 覆盖 Tailwind 基础彩色 深色模式*/
+    --color-blue-700: #1A79FF;
+    --color-green-700: #059B53;
+    --color-red-800: #BF1D1D;
+    --color-orange-700: #ec6746;
+    --color-indigo-700: #686EDD;
+    --color-yellow-600: #F6B80F;
+    --color-rose-700: #ff2442;
+    /* 覆盖 Tailwind 具体组件使用的颜色 深色模式*/
+    --color-blue-600: #0E50D3;
+    --color-slate-300: oklch(from #525761 l c h / 0.2);
+    --color-slate-600: oklch(from ##FFFFFF l c h / 0.7);
+    --color-red-700: #B93A3A;
+    --color-zinc-50: rgba(255, 255, 255, 0.4);
+    --color-car-icon: oklch(from #FFFFFF l c h / 0.3);
+    --color-data-unit: oklch(from #FFFFFF l c h / 0.5);
+}
+
+@theme inline {
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+    --radius: 0.625rem;
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --chart-1: oklch(0.646 0.222 41.116);
+    --chart-2: oklch(0.6 0.118 184.704);
+    --chart-3: oklch(0.398 0.07 227.392);
+    --chart-4: oklch(0.828 0.189 84.429);
+    --chart-5: oklch(0.769 0.188 70.08);
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+    /* 覆盖 Tailwind CSS 4 官方字体大小变量 */
+    --text-xl: 24px;
+    --text-xl--line-height: 36px;
+    --text-2xl: 28px;
+    --text-2xl--line-height: 40px;
+    --text-3xl: 32px;
+    --text-3xl--line-height: 48px;
+    --text-4xl: 36px;
+    --text-4xl--line-height: 52px;
+    --text-5xl: 42px;
+    --text-5xl--line-height: 56px;
+    --text-6xl: 48px;
+    --text-6xl--line-height: 60px;
+    --text-7xl: 60px;
+    --text-7xl--line-height: 72px;
+    --text-8xl: 64px;
+    --text-8xl--line-height: 80px;
+    --text-9xl: 72px;
+    --text-9xl--line-height: 94px;
+    --text-10xl: 110px;
+    --text-10xl--line-height: 140px;
+    --text-11xl: 130px;
+    --text-11xl--line-height: 160px;
+}
+
+.dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.488 0.243 264.376);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.627 0.265 303.9);
+    --chart-5: oklch(0.645 0.246 16.439);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+    html {
+        font-size: 62.5%;
+    }
+    body {
+        font-family: "sans-serif";
+    }
+}
+
+
+/* 直接定义字体大小类 - 不依赖@theme映射 */
+
+@layer utilities {
+    /* 现在这些类应该通过@theme inline自动生成，不需要手动定义了 */
+    .scrollbar-hide {
+        scrollbar-width: none;
+        /* Firefox */
+        -ms-overflow-style: none;
+        /* IE/Edge */
+    }
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+        /* Chrome/Safari */
+    }
+    .text-10xl {
+        font-size: var(--text-10xl);
+        line-height: var(--text-10xl--line-height);
+    }
+    .text-11xl {
+        font-size: var(--text-11xl);
+        line-height: var(--text-11xl--line-height);
+    }
+}

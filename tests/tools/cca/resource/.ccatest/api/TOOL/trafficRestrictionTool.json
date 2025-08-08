@@ -1,0 +1,266 @@
+{
+    "name": "GetTrafficRestrictionInfo",
+    "description": "根据查询文本进行交通限行情况查询，支持常见限行城市的交通限行情况查询，可以根据日期、星期、节日、节气查询某个城市的交通限行情况",
+    "type": "tool",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "refText": {
+                "type": "string",
+                "description": "查询文本，例如：北京明天限行吗、上海今天限行、广州限行情况等",
+                "example": "北京明天限行吗"
+            },
+            "apiUrl": {
+                "type": "string",
+                "description": "交通限行查询API服务器地址，必须传入完整的API端点地址。",
+                "example": "https://crs-hmi-testtwo.chehejia.com/crs-mindcloud-api/api/v1/tool/speech/trafficRestriction",
+                "default": "https://crs-hmi-testtwo.chehejia.com/crs-mindcloud-api/api/v1/tool/speech/trafficRestriction"
+            }
+        },
+        "required": ["refText", "apiUrl"]
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "业务状态码，0表示成功",
+                "example": 0
+            },
+            "msg": {
+                "type": "string",
+                "description": "结果描述",
+                "example": "成功"
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "请求ID",
+                        "example": "52bc9039bd7f425aa64c1eb11168e90a"
+                    },
+                    "recordId": {
+                        "type": "string",
+                        "description": "记录ID",
+                        "example": "52bc9039bd7f425aa64c1eb11168e90a"
+                    },
+                    "sessionId": {
+                        "type": "string",
+                        "description": "会话ID",
+                        "example": "52bc9039bd7f425aa64c1eb11168e90a"
+                    },
+                    "skillId": {
+                        "type": "string",
+                        "description": "技能ID",
+                        "example": "2020091000000115"
+                    },
+                    "dm": {
+                        "type": "object",
+                        "properties": {
+                            "nlg": {
+                                "type": "string",
+                                "description": "限行情况的自然语言描述",
+                                "example": "北京2025年6月30日外地车（含临时号牌）7:00-9:00，17:00-20:00在五环路(含)以内道路限行；本地车（含临时号牌）7:00-20:00尾号5和0在五环路以内道路(不含五环路)限行；外地车（含临时号牌）9:00-17:00尾号5和0在五环路(含)以内道路限行。"
+                            },
+                            "intentName": {
+                                "type": "string",
+                                "description": "意图名称",
+                                "example": "查询限行"
+                            },
+                            "task": {
+                                "type": "string",
+                                "description": "任务类型",
+                                "example": "限行"
+                            },
+                            "taskId": {
+                                "type": "string",
+                                "description": "任务ID",
+                                "example": "5f599a5b5730d8000182fc07"
+                            },
+                            "widget": {
+                                "type": "object",
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "description": "组件类型",
+                                        "example": "text"
+                                    },
+                                    "errorCode": {
+                                        "type": "string",
+                                        "description": "错误代码",
+                                        "example": "100100"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": "组件名称",
+                                        "example": "default"
+                                    },
+                                    "extra": {
+                                        "type": "object",
+                                        "properties": {
+                                            "bacCity": {
+                                                "type": "string",
+                                                "description": "查询城市",
+                                                "example": "北京"
+                                            },
+                                            "bacDate": {
+                                                "type": "string",
+                                                "description": "查询日期",
+                                                "example": "2025年6月30日"
+                                            },
+                                            "text": {
+                                                "type": "string",
+                                                "description": "限行详情文本",
+                                                "example": "北京2025年6月30日外地车（含临时号牌）7:00-9:00，17:00-20:00在五环路(含)以内道路限行；本地车（含临时号牌）7:00-20:00尾号5和0在五环路以内道路(不含五环路)限行；外地车（含临时号牌）9:00-17:00尾号5和0在五环路(含)以内道路限行。"
+                                            },
+                                            "isRestricted": {
+                                                "type": "string",
+                                                "description": "是否限行，1表示限行，0表示不限行",
+                                                "example": "1"
+                                            }
+                                        }
+                                    },
+                                    "count": {
+                                        "type": "integer",
+                                        "description": "限行规则数量",
+                                        "example": 3
+                                    },
+                                    "currentPage": {
+                                        "type": "integer",
+                                        "description": "当前页码",
+                                        "example": 1
+                                    },
+                                    "lastCurrentPage": {
+                                        "type": "integer",
+                                        "description": "上一页码",
+                                        "example": 0
+                                    },
+                                    "data": {
+                                        "type": "array",
+                                        "description": "详细限行规则列表",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "carException": {
+                                                    "type": "string",
+                                                    "description": "不受限行规则影响的车辆类型",
+                                                    "example": "警车、消防车、救护车、工程救险车；公共电汽车、省际长途客运车辆及大型客车、出租汽车(不含租赁车辆)、小公共汽车、邮政专用车、持有市交通运输管理部门核发的旅游客车营运证件的车辆、经市公安交通管理部门核定的单位班车和学校校车；车身喷涂统一标识并执行公务的行政执法车辆和清障专用作业车辆；环卫、园林、道路养护的专项作业车辆，殡仪馆的殡葬车辆；悬挂\"使\"字头号牌车辆及经批准临时入境的车辆；纯电动小客车"
+                                                },
+                                                "area": {
+                                                    "type": "string",
+                                                    "description": "限行区域",
+                                                    "example": "五环路(含)以内道路"
+                                                },
+                                                "fine": {
+                                                    "type": "string",
+                                                    "description": "违反限行规定的罚款金额和扣分情况",
+                                                    "example": "已办理进京通行证件的外地车罚款100元，并记3分，平峰期间罚款100元；未办理进京通行证件的外地车罚款100元，并记3分"
+                                                },
+                                                "isRestricted": {
+                                                    "type": "string",
+                                                    "description": "是否限行，1表示限行，0表示不限行",
+                                                    "example": "1"
+                                                },
+                                                "tailNos": {
+                                                    "type": "string",
+                                                    "description": "限行尾号",
+                                                    "example": "5和0"
+                                                },
+                                                "time": {
+                                                    "type": "string",
+                                                    "description": "限行时间段",
+                                                    "example": "7:00-9:00，17:00-20:00"
+                                                },
+                                                "carType": {
+                                                    "type": "string",
+                                                    "description": "限行车辆类型",
+                                                    "example": "外地车（含临时号牌）"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "widgetName": {
+                                        "type": "string",
+                                        "description": "组件名称",
+                                        "example": "default"
+                                    },
+                                    "duiWidget": {
+                                        "type": "string",
+                                        "description": "DUI组件类型",
+                                        "example": "text"
+                                    }
+                                }
+                            },
+                            "shouldEndSession": {
+                                "type": "boolean",
+                                "description": "是否应该结束会话",
+                                "example": true
+                            },
+                            "context": {
+                                "type": "object",
+                                "properties": {
+                                    "nlgLanguageClass": {
+                                        "type": "string",
+                                        "description": "自然语言生成的语言类别",
+                                        "example": "putonghua"
+                                    },
+                                    "currentIntentName": {
+                                        "type": "string",
+                                        "description": "当前意图名称",
+                                        "example": "查询限行"
+                                    }
+                                }
+                            },
+                            "input": {
+                                "type": "string",
+                                "description": "输入文本",
+                                "example": "北京限行"
+                            },
+                            "intentId": {
+                                "type": "string",
+                                "description": "意图ID",
+                                "example": "682bf4739e7b83000142bf34"
+                            },
+                            "status": {
+                                "type": "integer",
+                                "description": "状态码",
+                                "example": 1
+                            }
+                        }
+                    },
+                    "skill": {
+                        "type": "string",
+                        "description": "技能名称",
+                        "example": "限行"
+                    },
+                    "speakUrl": {
+                        "type": "string",
+                        "description": "语音播报URL",
+                        "example": "https://dds-ack.dui.ai/runtime/v1/cache/2dc7d0fb512e444ab31e8d2543865290?productId=279630977&aispeech-da-env=hd-ack"
+                    },
+                    "ttsSampleRate": {
+                        "type": "integer",
+                        "description": "TTS采样率",
+                        "example": 16000
+                    },
+                    "contextId": {
+                        "type": "string",
+                        "description": "上下文ID",
+                        "example": "52bc9039bd7f425aa64c1eb11168e90a"
+                    },
+                    "error": {
+                        "type": ["object", "null"],
+                        "description": "错误信息",
+                        "example": null
+                    }
+                }
+            }
+        }
+    }
+} 

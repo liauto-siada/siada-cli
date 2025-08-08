@@ -1,0 +1,51 @@
+{
+    "name": "get_ambient_light_information",
+    "description": "获取车辆氛围灯数据的综合接口。该API提供车辆氛围灯数据的综合数据接口，包括：开关、亮度。支持按需获取特定类型的灯光数据，适用于车载信息系统、驾驶辅助应用、车辆状态监控等场景。返回数据为当前灯光状态的实时信息，可用于仪表盘显示、驾驶辅助控制、车辆健康监测等功能模块。",
+    "type": "skill",
+    "field_names": {
+        "AmbientLightSwitch": "氛围灯开关",
+        "AmbientLightBrightness": "氛围灯亮度"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "灯光类型参数，用于指定需要获取的具体灯光数据类型。该参数采用枚举值形式，每个枚举值对应一种特定的灯光数据。通过传入不同的参数值，可以精确获取所需的数据项，避免不必要的数据传输。参数值与API返回的data对象中的字段名称一一对应，确保数据获取的准确性和一致性。",
+        "example": "AmbientLightSwitch",
+        "enum": ["AmbientLightSwitch", "AmbientLightBrightness"],
+        "enumDescriptions": {
+            "AmbientLightSwitch": "获取氛围灯开启状态",
+            "AmbientLightBrightness": "获取氛围灯亮度"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "API调用是否成功的标识，true表示成功获取数据，false表示调用失败或数据获取异常",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "API返回状态码，0表示成功，非0表示各种错误状态（如网络异常、数据不可用等）",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "AmbientLightSwitch": {
+                        "type": ["int", "null"],
+                        "description": "氛围灯开启状态，0: 关闭，1: 开启。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "AmbientLightBrightness": {
+                        "type": ["int", "null"],
+                        "description": "氛围灯亮度，亮度百分比。如果数据不可用则返回null",
+                        "example": "100",
+                        "range": "0-100"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,67 @@
+{
+    "name": "get_hot_stone_massage_system",
+    "description": "获取座椅热石按摩高级功能的状态信息。返回内容包括：主驾座椅热石按摩开关状态(开启/关闭)、副驾座椅热石按摩开关状态(开启/关闭)、二排左座椅热石按摩开关状态(开启/关闭)、二排右座椅热石按摩开关状态(开启/关闭)等4项热石按摩功能的开关控制状态，提供比普通按摩更高级的加热按摩体验。",
+    "type": "skill",
+    "field_names": {
+        "HotStone_FL": "主驾热石按摩",
+        "HotStone_FR": "副驾热石按摩",
+        "HotStone_SecL": "二排左侧热石按摩",
+        "HotStone_SecR": "二排右侧热石按摩"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "热石按摩控制类型，指定要获取的控制数据类型，与输出参数一一对应",
+        "example": "HotStone_FL",
+        "enum": ["HotStone_FL", "HotStone_FR", "HotStone_SecL", "HotStone_SecR"],
+        "enumDescriptions": {
+            "HotStone_FL": "获取主驾座椅热石按摩开关状态",
+            "HotStone_FR": "获取副驾座椅热石按摩开关状态",
+            "HotStone_SecL": "获取二排左座椅热石按摩开关状态",
+            "HotStone_SecR": "获取二排右座椅热石按摩开关状态"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "HotStone_FL": {
+                        "type": ["string", "null"],
+                        "description": "主驾座椅热石按摩开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "HotStone_FR": {
+                        "type": ["string", "null"],
+                        "description": "副驾座椅热石按摩开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "HotStone_SecL": {
+                        "type": ["string", "null"],
+                        "description": "二排左座椅热石按摩开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "HotStone_SecR": {
+                        "type": ["string", "null"],
+                        "description": "二排右座椅热石按摩开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    }
+                }
+            }
+        }
+    }
+} 

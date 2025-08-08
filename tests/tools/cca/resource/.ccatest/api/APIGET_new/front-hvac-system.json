@@ -1,0 +1,91 @@
+{
+    "name": "get_front_hvac_system",
+    "description": "获取前排空调系统的专属控制状态信息。返回内容包括：前排空调总开关状态(开启/关闭)、前排自动空调开关状态(开启/关闭)、主驾空调温度设置值(°C)、前排空调手动风量档位(1-9档)、前排空调自动风量档位(1-5档)、前排空调吹风方向模式等6项前排空调控制参数的实时状态。",
+    "type": "skill",
+    "field_names": {
+        "FrontAcSw": "前排空调开关",
+        "FrontAcAuto": "前排自动空调开关",
+        "FrontAcLeftTemp": "主驾温度",
+        "FrontAcRightTemp": "副驾温度",
+        "FrontAcWind": "前排空调手动风量",
+        "FrontAcWindAuto": "前排空调自动风量",
+        "FrontAcWindDirection": "前排吹风方向"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "前排空调控制类型，指定要获取的控制数据类型，与输出参数一一对应",
+        "example": "FrontAcSw",
+        "enum": ["FrontAcSw", "FrontAcAuto", "FrontAcLeftTemp", "FrontAcRightTemp", "FrontAcWind", "FrontAcWindAuto", "FrontAcWindDirection"],
+        "enumDescriptions": {
+            "FrontAcSw": "获取前排空调开关状态",
+            "FrontAcAuto": "获取前排自动空调开关状态",
+            "FrontAcLeftTemp": "获取主驾空调温度设置",
+            "FrontAcRightTemp": "获取副驾空调温度设置",
+            "FrontAcWind": "获取前排空调手动风量档位",
+            "FrontAcWindAuto": "获取前排空调自动风量档位",
+            "FrontAcWindDirection": "获取前排空调吹风方向模式"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "FrontAcSw": {
+                        "type": ["string", "null"],
+                        "description": "前排空调开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "FrontAcAuto": {
+                        "type": ["string", "null"],
+                        "description": "前排自动空调开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "FrontAcLeftTemp": {
+                        "type": ["float", "null"],
+                        "description": "主驾空调温度设置(°C)",
+                        "example": "25",
+                        "range": ""
+                    },
+                    "FrontAcRightTemp": {
+                        "type": ["float", "null"],
+                        "description": "副驾空调温度设置(°C)",
+                        "example": "25",
+                        "range": ""
+                    },
+                    "FrontAcWind": {
+                        "type": ["int", "null"],
+                        "description": "前排空调手动风量档位",
+                        "example": "1",
+                        "range": "1-9"
+                    },
+                    "FrontAcWindAuto": {
+                        "type": ["int", "null"],
+                        "description": "前排空调自动风量档位",
+                        "example": "1",
+                        "range": "1-5"
+                    },
+                    "FrontAcWindDirection": {
+                        "type": ["string", "null"],
+                        "description": "前排空调吹风方向模式，1:吹脸，2:吹脸&吹脚，3:吹脚，4:吹脚&吹窗，5:吹窗，6:吹脸&吹窗，7:吹脸&吹脚&吹窗",
+                        "example": "1",
+                        "range": "1-7"
+                    }
+                }
+            }
+        }
+    }
+} 

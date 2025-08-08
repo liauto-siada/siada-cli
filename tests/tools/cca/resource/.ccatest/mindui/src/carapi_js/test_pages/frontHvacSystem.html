@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前排空调系统接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>前排空调系统接口</h1>
+    <div style="display: flex; gap: 40px; align-items: flex-start;">
+        <div id="button-list">
+            <div class="button-row"><button id="FrontAcSw">获取前排空调开关状态</button><span class="result-span" id="FrontAcSw_result"></span></div>
+            <div class="button-row"><button id="FrontAcAuto">获取前排自动空调开关状态</button><span class="result-span" id="FrontAcAuto_result"></span></div>
+            <div class="button-row"><button id="FrontAcLeftTemp">获取主驾空调温度设置</button><span class="result-span" id="FrontAcLeftTemp_result"></span></div>
+            <div class="button-row"><button id="FrontAcWind">获取前排空调手动风量档位</button><span class="result-span" id="FrontAcWind_result"></span></div>
+            <div class="button-row"><button id="FrontAcWindAuto">获取前排空调自动风量档位</button><span class="result-span" id="FrontAcWindAuto_result"></span></div>
+            <div class="button-row"><button id="FrontAcWindDirection">获取前排空调吹风方向模式</button><span class="result-span" id="FrontAcWindDirection_result"></span></div>
+        </div>
+        <div id="set-button-list">
+            <div class="button-row">
+                <span>前排空调开关</span>
+                <button id="set_CarControlTpuPlugin_FrontAcPowerState_1">开</button>
+                <button id="set_CarControlTpuPlugin_FrontAcPowerState_0">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_FrontAcPowerState_result"></span>
+            </div>
+            <div class="button-row">
+                <span>自动空调</span>
+                <button id="set_CarControlTpuPlugin_FrontAcAutoModeEnabled_1">开</button>
+                <button id="set_CarControlTpuPlugin_FrontAcAutoModeEnabled_0">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_FrontAcAutoModeEnabled_result"></span>
+            </div>
+            <div class="button-row">
+                <span>主驾温度</span>
+                <input id="input_CarControlTpuPlugin_FrontAcLeftTemp" type="number" min="16" max="28" style="width:60px;">
+                <button id="set_CarControlTpuPlugin_FrontAcLeftTemp">设置</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_FrontAcLeftTemp_result"></span>
+            </div>
+            <div class="button-row">
+                <span>手动风量</span>
+                <input id="input_CarControlTpuPlugin_FrontAcManualFanLevel" type="number" min="1" max="9" style="width:60px;">
+                <button id="set_CarControlTpuPlugin_FrontAcManualFanLevel">设置</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_FrontAcManualFanLevel_result"></span>
+            </div>
+            <div class="button-row">
+                <span>自动风量</span>
+                <input id="input_CarControlTpuPlugin_FrontAcAutoFanLevel" type="number" min="1" max="5" style="width:60px;">
+                <button id="set_CarControlTpuPlugin_FrontAcAutoFanLevel">设置</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_FrontAcAutoFanLevel_result"></span>
+            </div>
+            <div class="button-row">
+                <span>吹风方向</span>
+                <button id="set_CarControlTpuPlugin_FrontAcWindDirection_1">吹脸</button>
+                <button id="set_CarControlTpuPlugin_FrontAcWindDirection_2">吹脸&吹脚</button>
+                <button id="set_CarControlTpuPlugin_FrontAcWindDirection_3">吹脚</button>
+                <button id="set_CarControlTpuPlugin_FrontAcWindDirection_4">吹脚&除霜</button>
+                <button id="set_CarControlTpuPlugin_FrontAcWindDirection_5">除霜</button>
+                <button id="set_CarControlTpuPlugin_FrontAcWindDirection_6">吹脸&除霜</button>
+                <button id="set_CarControlTpuPlugin_FrontAcWindDirection_7">吹脚&吹脸&除霜</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_FrontAcWindDirection_result"></span>
+            </div>
+        </div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+            [
+                "FrontAcSw", "FrontAcAuto", "FrontAcLeftTemp", "FrontAcWind", "FrontAcWindAuto", "FrontAcWindDirection"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_front_hvac_system(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+            // 设置按钮事件
+            document.getElementById('set_CarControlTpuPlugin_FrontAcPowerState_1').onclick = function() {
+                let result = myCarApi.set_front_hvac_system('CarControlTpuPlugin_FrontAcPowerState', 1)
+                console.log("btnId: ", `set_CarControlTpuPlugin_FrontAcPowerState_1`, "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_FrontAcPowerState_0').onclick = function() {
+                let result = myCarApi.set_front_hvac_system('CarControlTpuPlugin_FrontAcPowerState', 0)
+                console.log("btnId: ", `set_CarControlTpuPlugin_FrontAcPowerState_0`, "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_FrontAcAutoModeEnabled_1').onclick = function() {
+                let result = myCarApi.set_front_hvac_system('CarControlTpuPlugin_FrontAcAutoModeEnabled', 1);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_FrontAcAutoModeEnabled_1', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_FrontAcAutoModeEnabled_0').onclick = function() {
+                let result = myCarApi.set_front_hvac_system('CarControlTpuPlugin_FrontAcAutoModeEnabled', 0);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_FrontAcAutoModeEnabled_0', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_FrontAcLeftTemp').onclick = function() {
+                const val = parseFloat(document.getElementById('input_CarControlTpuPlugin_FrontAcLeftTemp').value);
+                if (val < 16 || val > 28) {
+                    document.getElementById('set_CarControlTpuPlugin_FrontAcLeftTemp_result').textContent = '温度范围16-28';
+                    return;
+                }
+                let result = myCarApi.set_front_hvac_system('CarControlTpuPlugin_FrontAcLeftTemp', val);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_FrontAcLeftTemp', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_FrontAcManualFanLevel').onclick = function() {
+                const val = parseInt(document.getElementById('input_CarControlTpuPlugin_FrontAcManualFanLevel').value);
+                if (val < 1 || val > 9) {
+                    document.getElementById('set_CarControlTpuPlugin_FrontAcManualFanLevel_result').textContent = '范围1-9';
+                    return;
+                }
+                let result = myCarApi.set_front_hvac_system('CarControlTpuPlugin_FrontAcManualFanLevel', val);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_FrontAcManualFanLevel', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_FrontAcAutoFanLevel').onclick = function() {
+                const val = parseInt(document.getElementById('input_CarControlTpuPlugin_FrontAcAutoFanLevel').value);
+                if (val < 1 || val > 5) {
+                    document.getElementById('set_CarControlTpuPlugin_FrontAcAutoFanLevel_result').textContent = '范围1-5';
+                    return;
+                }
+                let result = myCarApi.set_front_hvac_system('CarControlTpuPlugin_FrontAcAutoFanLevel', val);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_FrontAcAutoFanLevel', "result: ", result);
+            };
+            [1, 2, 3, 4, 5, 6, 7].forEach(val => {
+                document.getElementById(`set_CarControlTpuPlugin_FrontAcWindDirection_${val}`).onclick = function() {
+                    let result = myCarApi.set_front_hvac_system('CarControlTpuPlugin_FrontAcWindDirection', val)
+                    console.log("btnId: ", `set_CarControlTpuPlugin_FrontAcWindDirection_${val}`, "result: ", result);
+                };
+            });
+        }
+    </script>
+</body>
+
+</html>

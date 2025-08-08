@@ -1,0 +1,32 @@
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.calendar-fade-in {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+:root {
+    --day-text-today: rgba(0, 77, 246, 1);
+    --day-bg-selected: rgba(0, 77, 246, 1);
+    --day-text-selected: rgba(255, 255, 255, 1);
+    --day-text-unselected: rgba(0, 0, 0, 0.7);
+    --day-lunar-text-selected: rgba(255, 255, 255, 0.7);
+    --day-lunar-text-unselected: rgba(34, 39, 50, 0.4);
+    --weekday-text: rgba(0, 0, 0, 0.3);
+}
+
+.dark {
+    --day-text-today: rgba(26, 121, 255, 1);
+    --day-bg-selected: rgba(0, 77, 246, 1);
+    --day-text-selected: rgba(255, 255, 255, 1);
+    --day-text-unselected: rgba(255, 255, 255, 0.7);
+    --day-lunar-text-selected: rgba(255, 255, 255, 0.7);
+    --day-lunar-text-unselected: rgba(255, 255, 255, 0.4);
+    --weekday-text: rgba(255, 255, 255, 0.3);
+}

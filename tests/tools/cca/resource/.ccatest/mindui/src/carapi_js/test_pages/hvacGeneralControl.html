@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>空调总控接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>空调总控接口</h1>
+    <div style="display: flex; gap: 40px; align-items: flex-start;">
+        <div id="button-list">
+            <div class="button-row"><button id="FrontAcAc">获取A/C制冷开关状态</button><span class="result-span" id="FrontAcAc_result"></span></div>
+            <div class="button-row"><button id="FrontAcSync">获取前后排同步开关状态</button><span class="result-span" id="FrontAcSync_result"></span></div>
+            <div class="button-row"><button id="AcEcoMode">获取节能空调模式状态</button><span class="result-span" id="AcEcoMode_result"></span></div>
+            <div class="button-row"><button id="AcAirRecycle">获取空气循环模式状态</button><span class="result-span" id="AcAirRecycle_result"></span></div>
+        </div>
+        <div id="set-button-list">
+            <div class="button-row">
+                <span>空调A/C制冷</span>
+                <button id="set_CarControlTpuPlugin_FrontAcAc_1">开</button>
+                <button id="set_CarControlTpuPlugin_FrontAcAc_0">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_FrontAcAc_result"></span>
+            </div>
+            <div class="button-row">
+                <span>前后排同步</span>
+                <button id="set_CarControlTpuPlugin_FrontAcSync_1">开</button>
+                <button id="set_CarControlTpuPlugin_FrontAcSync_0">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_FrontAcSync_result"></span>
+            </div>
+            <div class="button-row">
+                <span>节能空调模式</span>
+                <button id="set_CarControlTpuPlugin_AcEcoMode_1">开</button>
+                <button id="set_CarControlTpuPlugin_AcEcoMode_0">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_AcEcoMode_result"></span>
+            </div>
+            <div class="button-row">
+                <span>空气循环模式</span>
+                <button id="set_CarControlTpuPlugin_AcAirRecycle_1">外循环</button>
+                <button id="set_CarControlTpuPlugin_AcAirRecycle_2">内循环</button>
+                <button id="set_CarControlTpuPlugin_AcAirRecycle_3">自动</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_AcAirRecycle_result"></span>
+            </div>
+        </div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+            [
+                "FrontAcAc", "FrontAcSync", "AcEcoMode", "AcAirRecycle"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_hvac_general_control(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+            // 设置按钮事件
+            const setMap = [{
+                key: 'CarControlTpuPlugin_FrontAcAc',
+                vals: [1, 0]
+            }, {
+                key: 'CarControlTpuPlugin_FrontAcSync',
+                vals: [1, 0]
+            }, {
+                key: 'CarControlTpuPlugin_AcEcoMode',
+                vals: [1, 0]
+            }, {
+                key: 'CarControlTpuPlugin_AcAirRecycle',
+                vals: [1, 2, 3]
+            }];
+            setMap.forEach(item => {
+                item.vals.forEach(val => {
+                    const btnId = `set_${item.key}_${val}`;
+                    document.getElementById(btnId).onclick = function() {
+                        let result = myCarApi.set_hvac_general_control(item.key, val);
+                        console.log("btnId: ", btnId, "result: ", result);
+                    };
+                });
+            });
+        }
+    </script>
+</body>
+
+</html>

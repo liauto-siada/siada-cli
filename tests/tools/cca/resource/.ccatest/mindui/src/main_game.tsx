@@ -1,0 +1,102 @@
+import { StrictMode, useRef, useEffect, useState, useCallback } from 'react'
+import { createRoot } from 'react-dom/client'
+import '@/index.css'
+import OneButtonGame from '@/templates/game/OneButtonGame'
+import { Button } from '@/components/ui/button'
+import MultiButtonGame from './templates/game/MultiButtonGame'
+import { motion, AnimatePresence } from 'framer-motion'
+import titleTipIcon from '@/drawable/title_tip.svg'
+import titleTipIconDark from '@/drawable/title_tip_dark.svg'
+
+const App = () => {
+  const [showTipModal, setShowTipModal] = useState(false)
+  const modalRef = useRef<HTMLDivElement>(null)
+
+  // 处理弹层外部点击
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        setShowTipModal(false)
+      }
+    }
+
+    if (showTipModal) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showTipModal])
+
+  const handleTipClick = () => {
+    setShowTipModal(true)
+  }
+
+  return (
+    <div className="w-[933px] h-[1360px] bg-slate-200 rounded-[20px] p-[60px] relative flex flex-col">
+      {/* 标题区域 */}
+      <div className="mb-[10px] flex items-center flex-shrink-0">
+        <h1 className="text-[52px] font-bold text-gray-950">游戏名称</h1>
+        <button
+          onClick={handleTipClick}
+          className="ml-[20px] w-[60px] h-[60px] flex items-center justify-center hover:opacity-80 transition-opacity"
+        >
+          <img
+            src={titleTipIcon}
+            alt="提示"
+            width="45"
+            height="45"
+            className="block dark:hidden"
+          />
+          <img
+            src={titleTipIconDark}
+            alt="提示"
+            width="45"
+            height="45"
+            className="hidden dark:block"
+          />
+        </button>
+      </div>
+      <div className="flex-1 h-full min-h-0">
+        <OneButtonGame />
+      </div>
+
+      {/* 提示弹层 - 覆盖整个区域 */}
+      <AnimatePresence>
+        {showTipModal && (
+          <div className="absolute inset-0 justify-center z-50 pt-[136px] pl-[60px]">
+            <motion.div
+              ref={modalRef}
+              className="w-[813px] max-h-[470px] bg-[#E8EDF3] dark:bg-[#232323] rounded-[20px] p-[50px] shadow-lg flex flex-col"
+              initial={{ opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{
+                opacity: 0,
+                scale: 0.6,
+                transition: { type: 'spring', damping: 47.39, stiffness: 830.641, mass: 1 }
+              }}
+              transition={{ type: 'spring', damping: 35.23, stiffness: 512.028, mass: 1 }}
+              style={{ transformOrigin: 'center top' }}
+            >
+              <h2 className="text-4xl font-bold text-gray-900 mb-[30px] flex-shrink-0">
+                踏入未知世界，开启你的冒险篇章！
+              </h2>
+              <div className="text-2xl text-gray-600 dark:text-gray-900 leading-relaxed flex-1 overflow-y-auto scrollbar-hide">
+                <p>
+                  欢迎来到《幻域边境》，一款融合探索、战斗与自由成长的开放世界大冒险。在这幻奇与现实交织的异世界中，每一次抉择都将改写命运。打造你的专属角色，结识志同道合的伙伴，挑战隐藏在深渊之中的古老敌人。无论你渴望孤独英雄，还是团队协作，都将在这里找到属于自己的荣耀。
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+)

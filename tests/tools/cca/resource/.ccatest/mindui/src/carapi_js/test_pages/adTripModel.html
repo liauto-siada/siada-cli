@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自动驾驶接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>自动驾驶接口</h1>
+    <div id="button-list">
+        <div class="button-row"><button id="adMileage">获取AD行程总里程</button><span class="result-span" id="adMileage_result"></span></div>
+        <div class="button-row"><button id="maxAdMileage">获取最远AD行程里程</button><span class="result-span" id="maxAdMileage_result"></span></div>
+        <div class="button-row"><button id="maxAdDuration">获取最远AD行程时长</button><span class="result-span" id="maxAdDuration_result"></span></div>
+        <div class="button-row"><button id="maxAdRatio">获取最远AD行程比例</button><span class="result-span" id="maxAdRatio_result"></span></div>
+        <div class="button-row"><button id="noaMileage">获取NOA行程总里程</button><span class="result-span" id="noaMileage_result"></span></div>
+        <div class="button-row"><button id="accMileage">获取ACC行程总里程</button><span class="result-span" id="accMileage_result"></span></div>
+        <div class="button-row"><button id="lccMileage">获取LCC行程总里程</button><span class="result-span" id="lccMileage_result"></span></div>
+        <div class="button-row"><button id="avpMileage">获取AVP行程总里程</button><span class="result-span" id="avpMileage_result"></span></div>
+        <div class="button-row"><button id="passCross">获取通过交叉路口次数</button><span class="result-span" id="passCross_result"></span></div>
+        <div class="button-row"><button id="laneChange">获取变道次数</button><span class="result-span" id="laneChange_result"></span></div>
+        <div class="button-row"><button id="laneAvoid">获取变道避让次数</button><span class="result-span" id="laneAvoid_result"></span></div>
+        <div class="button-row"><button id="cutInLine">获取加塞次数</button><span class="result-span" id="cutInLine_result"></span></div>
+        <div class="button-row"><button id="vlm">获取VLM次数</button><span class="result-span" id="vlm_result"></span></div>
+        <div class="button-row"><button id="passTollGate">获取通过收费站次数</button><span class="result-span" id="passTollGate_result"></span></div>
+        <div class="button-row"><button id="takeOver">获取接管次数</button><span class="result-span" id="takeOver_result"></span></div>
+        <div class="button-row"><button id="complexScenes">获取复杂场景次数</button><span class="result-span" id="complexScenes_result"></span></div>
+        <div class="button-row"><button id="adDays">获取AD行程天数</button><span class="result-span" id="adDays_result"></span></div>
+        <div class="button-row"><button id="adDaysRatio">获取AD行程天数比例</button><span class="result-span" id="adDaysRatio_result"></span></div>
+        <div class="button-row"><button id="noaRatio">获取NOA行程比例</button><span class="result-span" id="noaRatio_result"></span></div>
+        <div class="button-row"><button id="accRatio">获取ACC行程比例</button><span class="result-span" id="accRatio_result"></span></div>
+        <div class="button-row"><button id="lccRatio">获取LCC行程比例</button><span class="result-span" id="lccRatio_result"></span></div>
+        <div class="button-row"><button id="adRatio">获取AD行程比例</button><span class="result-span" id="adRatio_result"></span></div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+            [
+                "adMileage", "maxAdMileage", "maxAdDuration", "maxAdRatio", "noaMileage",
+                "accMileage", "lccMileage", "avpMileage", "passCross",
+                "laneChange", "laneAvoid", "cutInLine", "vlm", "passTollGate", "takeOver",
+                "complexScenes", "adDays", "adDaysRatio", "noaRatio", "accRatio", "lccRatio", "adRatio"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_bind_trip(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+        }
+    </script>
+</body>
+
+</html>

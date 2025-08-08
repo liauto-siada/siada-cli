@@ -1,0 +1,42 @@
+{
+    "name": "set_vehicle_refrigerator_control",
+    "description": "设置冰箱控制相关的功能，包括冰箱门、冰箱温度、冰箱工作模式等控制项。通过选择特定的 type 完成设置。",
+    "type": "skill",
+    "field_names": {
+      "CarExtDeviceTpuPlugin_FridgeDoorState": "冰箱门",
+      "CarExtDeviceTpuPlugin_FridgeTemp": "冰箱温度",
+      "CarExtDeviceTpuPlugin_FridgeWorkMode": "冰箱模式"
+    },
+    "input_schema": {
+      "type": "string",
+      "description": "指定要设置的冰箱控制项",
+      "example": "CarExtDeviceTpuPlugin_FridgeDoorState",
+      "enum": ["CarExtDeviceTpuPlugin_FridgeDoorState", "CarExtDeviceTpuPlugin_FridgeTemp", "CarExtDeviceTpuPlugin_FridgeWorkMode"],
+      "enumDescriptions": {
+          "CarExtDeviceTpuPlugin_FridgeDoorState": "设置冰箱门开关状态，1:打开，2:关闭",
+          "CarExtDeviceTpuPlugin_FridgeTemp": "设置冰箱温度，单位为摄氏度，制冷温度范围[0,7]，制热温度范围[35,50]",
+          "CarExtDeviceTpuPlugin_FridgeWorkMode": "设置冰箱工作模式，0:关闭，1:制冷，2:制热"
+      }
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "设置是否成功",
+          "example": true
+        },
+        "code": {
+          "type": "integer",
+          "description": "状态码，0 表示成功",
+          "example": 0
+        },
+        "message": {
+          "type": "string",
+          "description": "附加信息说明",
+          "example": "设置成功"
+        }
+      }
+    }
+  }
+  

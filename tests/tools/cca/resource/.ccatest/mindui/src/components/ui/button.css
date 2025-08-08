@@ -1,0 +1,51 @@
+:root {
+  --color-button-primary: #151E32cc;
+  --color-button-secondary: #A9B2C74d;
+  --color-button-activated: #1A79FF;
+  --color-button-warning: #B93A3A;
+
+  --color-button-text-primary: #FFFFFFe6;
+  --color-button-text-secondary: #222732e6;
+  --color-button-text-activated: #FFFFFFe6;
+  --color-button-text-warning: #FFFFFFe6;
+  --color-button-text-link: #0A5BFC;
+
+  --color-button-primary-disable: #151E3233;
+  --color-button-secondary-disable: #A9B2C74d;
+  --color-button-activated-disable: #A9B2C74d;
+  --color-button-warning-disable: #A9B2C74d;
+
+  --color-button-text-primary-disable: #FFFFFFe6;
+  --color-button-text-secondary-disable: #22273244;
+  --color-button-text-activated-disable: #FFFFFF44;
+  --color-button-text-warning-disable: #FFFFFF44;
+  --color-button-text-link-disable: #22273233;
+
+  --color-button-text-link-tap: #0B55E8;
+}
+
+.dark {
+  --color-button-primary: #FFFFFFb3;
+  --color-button-secondary: #52576133;
+  --color-button-activated: #0E50D3;
+  --color-button-warning: #B93A3A;
+
+  --color-button-text-primary: #222732;
+  --color-button-text-secondary: #FFFFFFb3;
+  --color-button-text-activated: #FFFFFFe6;
+  --color-button-text-warning: #FFFFFFe6;
+  --color-button-text-link: #1A79FF;
+
+  --color-button-primary-disable: #FFFFFF33;
+  --color-button-secondary-disable: #52576133;
+  --color-button-activated-disable: #52576133;
+  --color-button-warning-disable: #52576133;
+
+  --color-button-text-primary-disable: #222732;
+  --color-button-text-secondary-disable: #FFFFFF33;
+  --color-button-text-activated-disable: #FFFFFF44;
+  --color-button-text-warning-disable: #FFFFFF44;
+  --color-button-text-link-disable: #FFFFFF33;
+
+  --color-button-text-link-tap: #3186FF;
+}

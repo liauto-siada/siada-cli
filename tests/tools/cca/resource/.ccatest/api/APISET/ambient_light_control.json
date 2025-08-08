@@ -1,0 +1,40 @@
+{
+    "name": "set_ambient_light_control",
+    "description": "设置氛围灯开关状态和亮度。通过传入特定的控制类型，调整氛围灯的各项参数。",
+    "type": "skill",
+    "field_names": {
+      "CarSettingsPlugin_AmbientLightSwitch": "氛围灯",
+      "CarSettingsPlugin_AmbientLightBrightness": "氛围灯亮度"
+    },
+    "input_schema": {
+      "type": "string",
+      "description": "指定要设置的氛围灯功能",
+      "example": "CarSettingsPlugin_AmbientLightSwitch",
+      "enum": ["CarSettingsPlugin_AmbientLightSwitch", "CarSettingsPlugin_AmbientLightBrightness"],
+      "enumDescriptions": {
+        "CarSettingsPlugin_AmbientLightSwitch": "设置氛围灯开关状态，close:关闭，open:打开",
+        "CarSettingsPlugin_AmbientLightBrightness": "设置氛围灯亮度，取值范围为5-100"
+      }
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "设置是否成功",
+          "example": true
+        },
+        "code": {
+          "type": "integer",
+          "description": "设置操作的返回状态码，0 表示成功",
+          "example": 0
+        },
+        "message": {
+          "type": "string",
+          "description": "附加说明信息",
+          "example": "设置成功"
+        }
+      }
+    }
+  }
+  

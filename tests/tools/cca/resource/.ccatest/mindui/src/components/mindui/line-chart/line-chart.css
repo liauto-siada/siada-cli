@@ -1,0 +1,23 @@
+:root {
+    --color-line-chart-x-axis: rgba(0, 0, 0, 0.5);
+    --color-line-chart-y-axis: rgba(34, 39, 50, 0.3);
+    --color-cartesian-grid: rgba(0, 0, 0, 0.1);
+
+    --line-color-blue: #0A5BFC;
+    --line-color-green: #00803E;
+    --line-color-yellow: #AC7414;
+    --line-color-red: #B93A3A;
+    --line-color-gay: rgba(34, 39, 50, 0.4);
+}
+
+.dark {
+    --color-line-chart-x-axis: rgba(255, 255, 255, 0.5);
+    --color-line-chart-y-axis: rgba(255, 255, 255, 0.3);
+    --color-cartesian-grid: rgba(255, 255, 255, 0.1);
+
+    --line-color-blue: #1A79FF;
+    --line-color-green: #059B53;
+    --line-color-yellow: #CF8225;
+    --line-color-red: #BF1D1D;
+    --line-color-gray: rgba(255, 255, 255, 0.5);
+}

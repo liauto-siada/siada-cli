@@ -1,0 +1,54 @@
+{
+    "name": "get_vehicle_fragrance_system",
+    "description": "获取车内香氛系统开关和香型种类的综合数据接口。该API提供车内香氛系统的状态信息，包括：香氛系统开关状态、当前使用的香型种类等。适用于车载信息系统、驾驶辅助应用、车辆舒适性控制等场景。通过该接口可以实时获取车内香氛系统的工作状态，便于用户了解和控制车内环境。",
+    "type": "skill",
+    "field_names": {
+        "PerfumeSw": "香氛",
+        "PerfumeSelectChannel": "当前使用香型"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "香氛系统开关和香型种类的获取参数。通过传入不同的参数值，可以精确获取所需数据项，避免不必要的数据传输。参数值与API返回的data对象中的字段名称一一对应，确保数据获取的准确性和一致性。",
+        "example": "PerfumeSw",
+        "enum": [
+            "PerfumeSw", "PerfumeSelectChannel"
+        ],
+        "enumDescriptions": {
+            "PerfumeSw": "获取香氛系统开关状态",
+            "PerfumeSelectChannel": "获取当前使用的香型种类"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "PerfumeSw": {
+                        "type": ["string", "null"],
+                        "description": "香氛系统开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "PerfumeSelectChannel": {
+                        "type": ["string", "null"],
+                        "description": "当前使用的香型种类，0：未选中任何香型，1：通道一，2：通道二，3：通道三",
+                        "example": "1",
+                        "range": "0-3"
+                    }
+                }
+            }
+
+        }
+    }
+} 

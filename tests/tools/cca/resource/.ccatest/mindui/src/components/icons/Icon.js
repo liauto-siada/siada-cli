@@ -1,0 +1,42 @@
+/**
+ * @license lucide-react v0.0.1 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+import { forwardRef, createElement } from 'react';
+import defaultAttributes from './defaultAttributes.js';
+import { mergeClasses, hasA11yProp } from './utils.js';
+
+const Icon = forwardRef(
+  ({
+    color = "currentColor",
+    size = 72,
+    strokeWidth = 0,
+    absoluteStrokeWidth,
+    className = "",
+    children,
+    iconNode,
+    ...rest
+  }, ref) => createElement(
+    "svg",
+    {
+      ref,
+      ...defaultAttributes,
+      height: size,
+      stroke: color,
+      fill: color,
+      strokeWidth: absoluteStrokeWidth ? Number(strokeWidth) * 72 / Number(size) : strokeWidth,
+      className: mergeClasses("lucide", className),
+      ...!children && !hasA11yProp(rest) && { "aria-hidden": "true" },
+      ...rest
+    },
+    [
+      ...iconNode.map(([tag, attrs]) => createElement(tag, attrs)),
+      ...Array.isArray(children) ? children : [children]
+    ]
+  )
+);
+
+export { Icon as default };

@@ -1,0 +1,121 @@
+{
+    "name": "get_perfume_information",
+    "description": "获取车内香氛系统的香型信息的接口。该API提供车内香氛系统的香型相关信息，包括：香型中英文名称、香型中英文描述、香型余量、香型通道等。适用于车载信息系统、驾驶辅助应用、车辆舒适性控制等场景。通过该接口可以实时获取车内香氛系统的香型信息，便于用户了解和选择合适的香型。",
+    "type": "skill",
+    "field_names": {
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "获取香氛香型相关信息参数，用于指定需要获取的具体数据类型。该参数采用枚举值形式，每个枚举值对应一种特定的香型信息。通过传入不同的参数值，可以精确获取所需数据项，避免不必要数据传输。参数值与API返回的data对象中的字段名称一一对应，确保数据获取的准确性和一致性。",
+        "example": "PerfumeChannelNameZh",
+        "enum": [
+            "PerfumeChannelNameZh", "PerfumeChannelNameEn", "PerfumeChannelDescribeZh", 
+            "PerfumeChannelDescribeEn", "PerfumeChannelLevel", "PerfumeChannelType"
+        ],
+        "enumDescriptions": {
+            "PerfumeChannelNameZh": "获取当前香型中文名称",
+            "PerfumeChannelNameEn": "获取当前香型英文名称",
+            "PerfumeChannelDescribeZh": "获取当前香型中文描述",
+            "PerfumeChannelDescribeEn": "获取当前香型英文描述",
+            "PerfumeChannelLevel": "获取当前香型通道香氛余量值",
+            "PerfumeChannelType": "获取香型通道类型"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "PerfumeChannelNameZh": {
+                        "type": ["string", "null"],
+                        "description": "当前香型中文名称，包含沉香、活力、海洋、雨漫庭园、晨沐雪松、若水龙涎、守护树、平安果、吉祥云。",
+                        "example": "沉香",
+                        "enum": [
+                            "沉香",
+                            "活力",
+                            "海洋",
+                            "雨漫庭园",
+                            "晨沐雪松",
+                            "若水龙涎",
+                            "守护树",
+                            "平安果",
+                            "吉祥云"
+                          ]
+                    },
+                    "PerfumeChannelNameEn": {
+                        "type": ["string", "null"],
+                        "description": "当前香型英文名称，包含Vigour、Agarwood、Ocean、YUAN、YU、BAI LONG、SHU、GUO、YUN。",
+                        "example": "Agarwood",
+                        "enum": [
+                            "Vigour",
+                            "Agarwood",
+                            "Ocean",
+                            "YUAN",
+                            "YU",
+                            "BAI LONG",
+                            "SHU",
+                            "GUO",
+                            "YUN"
+                        ]
+                    },
+                    "PerfumeChannelDescribeZh": {
+                        "type": ["string", "null"],
+                        "description": "当前香型中文描述，用于详细说明该香型的特点和氛围。",
+                        "example": "令人宁静的木质香，纯粹且富有灵气",
+                        "enum": [
+                            "与青春面孔相遇的清香，充满年轻活力的气息 ",
+                            "令人宁静的木质香，纯粹且富有灵气",
+                            "鼓舞精神的味道，传达着能量、阳光与力量",
+                            "花草伴着风信子碰撞苹果，糅合黑醋栗的气息，宛若雨后清晨，活力再现",
+                            "柑橘、琥珀混着红茶的甘醇，与雪松的木质香调糅合，充满自然疗愈气息",
+                            "融合龙涎香、琥珀与麝香香调的辛暖浓郁，描绘出浮光闪烁的温暖和记忆",
+                            "甘冽的香柠檬与天竺葵如一阵清风，穿过山间树林，上演一场无声的自然舞剧",
+                            "宛如正午阳光下的金色果园，果汁从果蒂中迸发出来，像一片星辰，落回光里",
+                            "霞光下，去闻风送来的玫瑰苔藓花草清香，去感受释放自由到极致的灵魂"
+                        ]
+                    },
+                    "PerfumeChannelDescribeEn": {
+                        "type": ["string", "null"],
+                        "description": "当前香型英文描述，用于详细说明该香型的特点和氛围。",
+                        "example": "A serene woody fragrance, pure and full of aura",
+                        "enum": [
+                            "The fragrance of meeting with the youthful face is full of youthful vitality",
+                            "A serene woody fragrance, pure and full of aura",
+                            "Uplifting smells convey energy, sunshine and power",
+                            "Flowers, hyacinths and apples, blackcurrant, like morning after rain, come alive again",
+                            "Citrus and amber blends with black tea, and the woody aroma of cedar, which is full of natural healing",
+                            "Aromas of ambergris, amber, and musk deer evoke a glowing warmth and memory",
+                            "Crisp bergamot and geranium breeze through mountain forests in a silent natural ballet",
+                            "Like a golden orchard in midday sun, juice bursts from fruit stems, like stars, falling back into light",
+                            "Savor the scent of roses and moss in the sunset breeze, feel your soul's ultimate freedom"
+                        ]
+                    },
+                    "PerfumeChannelLevel": {
+                        "type": ["int", "null"],
+                        "description": "当前香型通道香氛余量等级，表示香氛的剩余量百分比（单位为%）。取值范围为0到100，0表示无香氛，100表示满量",
+                        "example": "19",
+                        "range": "0-100"
+                    },
+                    "PerfumeChannelType": {
+                        "type": ["int", "null"],
+                        "description": "香型通道类型，表示香氛的类型，1: 沉香，2: 活力，3: 海洋，4: 雨漫庭园，5: 晨沐雪松，6: 若水龙涎，7: 守护树，8: 平安果，9: 吉祥云",
+                        "example": "1",
+                        "range": "1-9"
+                    }
+                }
+            }
+
+        }
+    }
+} 
