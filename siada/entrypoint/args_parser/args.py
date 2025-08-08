@@ -42,6 +42,7 @@ def get_parser(default_config_files, git_root):
 
     group.add_argument(
         "--agent",
+        "-a",
         metavar="AGENT",
         choices=agent_choices,
         default="coder",
@@ -65,6 +66,7 @@ def get_parser(default_config_files, git_root):
     group = parser.add_argument_group("prompt config")
     group.add_argument(
         "--prompt",
+        "-p",
         metavar="PROMPT",
         default=None,
         help="Specify the prompt, if provided, it will be activated for the no interaction mode",

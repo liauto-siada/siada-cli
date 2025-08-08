@@ -170,9 +170,13 @@ siada-cli --agent coder
 ```bash
 # Use a specific agent
 siada-cli --agent coder
+# Supports abbreviations
+siada-cli -a coder
 
 # Non-interactive mode with a single prompt
 siada-cli --prompt "Fix authentication errors in login.py"
+# Supports abbreviations
+siada-cli -p "Fix authentication errors in login.py"
 
 # Use a different model
 siada-cli --model claude-sonnet-4
@@ -233,15 +237,15 @@ Differences between the two methods:
 
 ## Agent Types
 
-### Bug Fix Agent (`--agent bugfix` or `--bugfix`) 
+### Bug Fix Agent (`--agent bugfix` / `-a bugfix` / `--bugfix`) 
 > **Only supports non-interactive mode!**
 
 Specialized for identifying, analyzing, and fixing bugs in codebases. Provides detailed analysis and automated fix suggestions.
 
-### Code Generation Agent (`--agent coder` or `--coder`)
+### Code Generation Agent (`--agent coder` / `-a coder` / `--coder`)
 General-purpose code development agent for creating new features, refactoring code, and implementing functionality in various programming languages.
 
-### Frontend Generation Agent (`--agent fegen` or `--fegen`)
+### Frontend Generation Agent (`--agent fegen` / `-a fegen` / `--fegen`)
 Focused on frontend development tasks, including React components, CSS styling, and user interface implementation.
 
 ## Configuration

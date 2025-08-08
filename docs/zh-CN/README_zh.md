@@ -168,9 +168,13 @@ siada-cli --agent coder
 ```bash
 # 使用特定代理
 siada-cli --agent coder
+# 支持缩写
+siada-cli -a coder
 
 # 使用单个提示的非交互模式
 siada-cli --prompt "修复 login.py 中的认证错误"
+# 支持缩写
+siada-cli -p "修复 login.py 中的认证错误"
 
 # 使用不同模型
 siada-cli --model claude-sonnet-4
@@ -231,15 +235,15 @@ exit
 
 ## 代理类型
 
-### 错误修复代理 (`--agent bugfix` 或 `--bugfix`) 
+### 错误修复代理 (`--agent bugfix` / `-a bugfix` / `--bugfix`) 
 > **仅支持在非交互模式下使用！**
 
 专门用于识别、分析和修复代码库中的错误。提供详细分析和自动修复建议。
 
-### 代码生成代理 (`--agent coder` 或 `--coder`)
+### 代码生成代理 (`--agent coder` / `-a coder` / `--coder`)
 通用代码开发代理，用于创建新功能、重构代码以及在各种编程语言中实现功能。
 
-### 前端生成代理 (`--agent fegen` 或 `--fegen`)
+### 前端生成代理 (`--agent fegen` / `-a fegen` / `--fegen`)
 专注于前端开发任务，包括 React 组件、CSS 样式和用户界面实现。
 
 ## 配置
