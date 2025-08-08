@@ -33,6 +33,10 @@ patch-ng = ">=1.18.1,<2.0.0"
 trafilatura = ">=2.0.0,<3.0.0"
 prompt-toolkit = ">=3.0.51,<4.0.0"
 partial-json-parser = ">=0.2.1.1.post6,<1.0.0"
+networkx = "^3.5"
+scipy = "^1.15.3"
+playwright = "^1.40.0"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0.0,<9.0.0"
