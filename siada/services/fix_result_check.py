@@ -72,7 +72,9 @@ class FixResultChecker:
         raise Exception("cannot get analysis result from model response")
     
     def build_prompt(self, issue_desc: str, fix_code: str) -> str:
-        return f"""**Please systematically analyze whether the code modification truly resolves the issue by following the steps below and return your analysis in JSON format:**
+        return f"""
+        You are a **ZERO TOLERANCE CODE REVIEWER**.
+        **Please systematically analyze whether the code modification truly resolves the issue by following the steps below and return your analysis in JSON format:**
 
 ---
 Please systematically analyze whether the code modifications truly fix the problem by following these steps:
