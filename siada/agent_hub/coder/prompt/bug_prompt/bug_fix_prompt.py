@@ -6,7 +6,7 @@ from ..base.prompt_builder import build_system_prompt
 from .rules import get_rules_section
 
 
-def get_system_prompt(cwd: str = "/default/path") -> str:
+def get_system_prompt(cwd: str = "/default/path", is_minimal: bool=False) -> str:
     """
     生成系统提示词
 
@@ -22,12 +22,18 @@ def get_system_prompt(cwd: str = "/default/path") -> str:
     home_dir = os.path.expanduser("~")
 
     # Bug修复Agent的特定介绍
-    intro = """
+    if is_minimal:
+        intro = """
             You are Siada, a specialized bug fix agent with extensive knowledge in many programming languages, frameworks, design patterns, and foundational logical principles.
 
             Your core mission is to diagnose and resolve bugs based on given issue descriptions and code context. You are an expert at making minimal, surgical changes that completely fix the problem, ensure robustness, and maintain the integrity of the existing codebase.
 
             """
+    else:
+        intro = """
+            You are Siada, a specialized bug fix agent with extensive knowledge in many programming languages, frameworks, design patterns, and foundational logical principles.
+            """
+
     # Bug修复Agent的特定目标
     objective = """OBJECTIVE
 
@@ -45,6 +51,6 @@ Your goal is to fix the given issue, and the fix is considered successful when t
         intro=intro,
         tool_use=get_tool_use_section(),
         capabilities=get_capabilities_section(cwd),
-        rules=get_rules_section(cwd, os_name, home_dir),
+        rules=get_rules_section(cwd, os_name, home_dir, is_minimal=is_minimal),
         objective=objective
     )

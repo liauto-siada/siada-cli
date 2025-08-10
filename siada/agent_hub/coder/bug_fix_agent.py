@@ -26,6 +26,7 @@ class BugFixAgent(CodeGenAgent):
     fix_result_checker: FixResultChecker
     enhanced_fix_result_checker: EnhancedFixResultChecker
     issue_review_agent: IssueReviewAgent  # Forward declaration for type hinting
+    is_minimal: bool = False  # Flag to control minimal rules section
 
     def __init__(self, *args, **kwargs):
 
@@ -47,7 +48,7 @@ class BugFixAgent(CodeGenAgent):
         self, run_context: RunContextWrapper[CodeAgentContext]
     ) -> str | None:
         root_dir = run_context.context.root_dir
-        system_prompt = bug_fix_prompt.get_system_prompt(root_dir)
+        system_prompt = bug_fix_prompt.get_system_prompt(root_dir, is_minimal=self.is_minimal)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
@@ -83,6 +84,8 @@ class BugFixAgent(CodeGenAgent):
         run_config, _ = await self.prepare_run_environment(context)
 
         while current_turn < max_turns:
+            # Set minimal rules after first turn
+            self.is_minimal = current_turn >= 1  
             # Run BugFixAgent for fixing
             result = await Runner.run(
                 starting_agent=self,
