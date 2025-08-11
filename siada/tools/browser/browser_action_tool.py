@@ -22,11 +22,17 @@ from .models import BrowserActionResult, BrowserSettings, ImageResult, Screensho
 from .chromium_installer import ChromiumAutoInstaller
 from ...foundation.code_agent_context import CodeAgentContext
 
+# Browser viewport configuration
+DEFAULT_VIEWPORT_WIDTH = 1200
+DEFAULT_VIEWPORT_HEIGHT = 600
+
 BROWSER_OPERATE_DOC ="""
-        Execute a browser action with comprehensive automation capabilities.
-        
-        This method provides a unified interface for all browser automation operations,
-        each with specialized functionality and visual feedback systems.
+        Request to interact with a Playwright browser. Every action, except `close`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.
+        - The sequence of actions **must always start with** launching the browser at a URL, and **must always end with** closing the browser. If you need to visit a new URL that is not possible to navigate to from the current webpage, you must first close the browser, then launch again at the new URL.
+        - While the browser is active, only the `browser_operate` tool can be used. No other tools should be called during this time. You may proceed to use other tools only after closing the browser. For example if you run into an error and need to fix a file, you must close the browser, then use other tools to make the necessary changes, then re-launch the browser to verify the result.
+        - The browser window has a resolution of **{DEFAULT_VIEWPORT_WIDTH}x{DEFAULT_VIEWPORT_HEIGHT}** pixels. When performing any click actions, ensure the coordinates are within this resolution range.
+        - Before clicking on any elements such as icons, links, or buttons, you must consult the provided screenshot of the page to determine the coordinates of the element. The click should be targeted at the **center of the element**, not on its edges.
+        - Except for close, after each action you must extract the information you need from the image, because to avoid an overly long context window, each image will be deleted after you have viewed it.
         
         Args:
             action (str): The action type to execute. Available actions:
@@ -940,7 +946,7 @@ async def browser_operate(
     # Get or create browser tool instance from context to maintain state across calls
     if not hasattr(context.context, '_browser_tool'):
         settings = BrowserSettings(
-            viewport={"width": 1200, "height": 600},
+            viewport={"width": DEFAULT_VIEWPORT_WIDTH, "height": DEFAULT_VIEWPORT_HEIGHT},
             headless=False,
             timeout=30000
         )
