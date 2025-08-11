@@ -10,12 +10,15 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import os
 from typing import Optional
+from io import BytesIO
 
 from agents import function_tool
 from playwright.async_api import async_playwright, Browser, Page, Playwright
+from PIL import Image
 
-from .models import BrowserActionResult, BrowserSettings
+from .models import BrowserActionResult, BrowserSettings, ImageResult, ScreenshotConfig, CompressionLevel
 from .chromium_installer import ChromiumAutoInstaller
 
 
@@ -511,21 +514,161 @@ class BrowserActionTool:
                 error=str(e)
             )
 
+    async def save_screenshot(self, file_path: str) -> bool:
+        """Save screenshot to specified file path.
+        
+        Args:
+            file_path: File path to save the screenshot
+            
+        Returns:
+            bool: True if screenshot was saved successfully, False otherwise
+        """
+        try:
+            # Call existing _take_screenshot method to get base64 data
+            screenshot_base64 = await self._take_screenshot()
+            
+            if not screenshot_base64:
+                self.logger.error("Failed to capture screenshot")
+                return False
+            
+            # Decode base64 data to bytes
+            screenshot_bytes = base64.b64decode(screenshot_base64)
+            
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            # Save to file
+            with open(file_path, 'wb') as f:
+                f.write(screenshot_bytes)
+            
+            self.logger.info(f"Screenshot saved to: {file_path}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to save screenshot: {str(e)}")
+            return False
+
     async def _take_screenshot(self) -> str:
-        """Take a screenshot and return base64 encoded string.
+        """Take a compressed screenshot and return base64 encoded string.
         
         Returns:
-            str: Base64 encoded screenshot, empty string if failed
+            str: Base64 encoded compressed screenshot, empty string if failed
         """
         if not self.page:
             return ""
             
         try:
+            # Get screenshot configuration
+            config = self.browser_settings.screenshot_config
+            optimized_settings = config.get_optimized_settings()
+            
+            # Take initial screenshot as PNG
             screenshot_bytes = await self.page.screenshot(full_page=False)
-            return base64.b64encode(screenshot_bytes).decode()
+            
+            # Apply compression and optimization
+            compressed_bytes = await self._compress_screenshot(
+                screenshot_bytes, 
+                optimized_settings
+            )
+            
+            # Log compression ratio for debugging
+            original_size = len(screenshot_bytes)
+            compressed_size = len(compressed_bytes)
+            compression_ratio = (1 - compressed_size / original_size) * 100
+            
+            self.logger.debug(
+                f"Screenshot compression: {original_size} -> {compressed_size} bytes "
+                f"({compression_ratio:.1f}% reduction)"
+            )
+            
+            return base64.b64encode(compressed_bytes).decode()
+            
         except Exception as e:
             self.logger.error(f"Screenshot failed: {str(e)}")
             return ""
+
+    async def _compress_screenshot(self, screenshot_bytes: bytes, settings: dict) -> bytes:
+        """Compress screenshot according to the specified settings.
+        
+        Args:
+            screenshot_bytes: Original screenshot bytes
+            settings: Compression settings dictionary
+            
+        Returns:
+            bytes: Compressed screenshot bytes
+        """
+        try:
+            # Open image with PIL
+            image = Image.open(BytesIO(screenshot_bytes))
+            
+            # Apply scaling if specified
+            if settings["max_width"] > 0 or settings["max_height"] > 0:
+                image = self._scale_image(image, settings["max_width"], settings["max_height"])
+            
+            # Convert and compress based on format
+            output_buffer = BytesIO()
+            
+            if settings["format"] == "jpeg":
+                # Convert to RGB if necessary (JPEG doesn't support transparency)
+                if image.mode in ("RGBA", "LA", "P"):
+                    # Create white background
+                    background = Image.new("RGB", image.size, (255, 255, 255))
+                    if image.mode == "P":
+                        image = image.convert("RGBA")
+                    background.paste(image, mask=image.split()[-1] if image.mode == "RGBA" else None)
+                    image = background
+                
+                # Save as JPEG with quality setting
+                image.save(
+                    output_buffer, 
+                    format="JPEG", 
+                    quality=settings["jpeg_quality"],
+                    optimize=True
+                )
+            else:
+                # Save as PNG with optimization
+                image.save(
+                    output_buffer, 
+                    format="PNG", 
+                    optimize=True,
+                    compress_level=6  # Good balance between compression and speed
+                )
+            
+            return output_buffer.getvalue()
+            
+        except Exception as e:
+            self.logger.error(f"Screenshot compression failed: {str(e)}")
+            # Return original bytes if compression fails
+            return screenshot_bytes
+
+    def _scale_image(self, image: Image.Image, max_width: int, max_height: int) -> Image.Image:
+        """Scale image while maintaining aspect ratio.
+        
+        Args:
+            image: PIL Image object
+            max_width: Maximum width (0 = no limit)
+            max_height: Maximum height (0 = no limit)
+            
+        Returns:
+            Image.Image: Scaled image
+        """
+        original_width, original_height = image.size
+        
+        # Calculate scaling factor
+        scale_x = max_width / original_width if max_width > 0 else 1.0
+        scale_y = max_height / original_height if max_height > 0 else 1.0
+        
+        # Use the smaller scale factor to maintain aspect ratio
+        scale_factor = min(scale_x, scale_y, 1.0)  # Don't upscale
+        
+        if scale_factor < 1.0:
+            new_width = int(original_width * scale_factor)
+            new_height = int(original_height * scale_factor)
+            
+            # Use high-quality resampling
+            return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        return image
 
     async def _add_click_indicator(self, x: int, y: int):
         """Add a visual indicator at the click position.
@@ -778,7 +921,9 @@ async def browser_operate(
         url: Optional[str] = None,
         coordinate: Optional[str] = None,
         text: Optional[str] = None
-    ) -> BrowserActionResult:
+    ) -> str:
+    import json
+    from dataclasses import asdict
 
     settings = BrowserSettings(
         viewport={"width": 1200, "height": 800},
@@ -789,5 +934,16 @@ async def browser_operate(
     tool = BrowserActionTool(settings)
 
     browser_action_result = await tool.execute_action(action, url, coordinate, text)
-    return browser_action_result
-
+    
+    # Convert BrowserActionResult to ImageResult and then to JSON string
+    if browser_action_result.screenshot and browser_action_result.success:
+        # Get the image format from screenshot config
+        image_format = settings.screenshot_config.get_optimized_settings()["format"]
+        # Create ImageResult from screenshot base64 data with correct format
+        image_result = ImageResult.from_base64(browser_action_result.screenshot, image_format)
+        return json.dumps(asdict(image_result))
+    else:
+        # Handle cases where screenshot is None or operation failed
+        # Return empty base64 data for failed operations or close action
+        image_result = ImageResult.from_base64("")
+        return json.dumps(asdict(image_result))

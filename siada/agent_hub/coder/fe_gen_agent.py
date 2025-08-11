@@ -15,7 +15,8 @@ class FeGenAgent(CodeGenAgent):
 
         super().__init__(
             name="FeGenAgent",
-            tools=[edit, regex_search_files, run_cmd, browser_operate],
+            #tools=[edit, regex_search_files, run_cmd, browser_operate],
+            tools=[browser_operate],
             *args,
             **kwargs
         )
@@ -26,6 +27,12 @@ class FeGenAgent(CodeGenAgent):
         system_prompt = fe_gen_prompt.get_system_prompt(root_dir, interactive_mode)
         return system_prompt
 
+        # instructions=f"""
+        #     You are an Browser Operate Agent.
+        #     Your task is to perform browser operations according to the user's instructions,
+        #     and you can use the browser_operate tool.
+        #     """,
+        # return instructions
 
     async def get_context(self) -> CodeAgentContext:
         current_working_dir = "/Users/yunan/code/test/fe_gen"

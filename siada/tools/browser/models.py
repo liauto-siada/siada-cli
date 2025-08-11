@@ -9,6 +9,77 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+from enum import Enum
+
+
+class CompressionLevel(Enum):
+    """Screenshot compression levels."""
+    LOW = "low"      # Minimal compression, highest quality
+    MEDIUM = "medium"  # Balanced compression and quality
+    HIGH = "high"    # Maximum compression, lower quality
+
+
+@dataclass
+class ScreenshotConfig:
+    """Configuration for screenshot compression and optimization.
+    
+    Attributes:
+        compression_level: Compression level (LOW/MEDIUM/HIGH)
+        jpeg_quality: JPEG quality (1-100, only used when format is JPEG)
+        max_width: Maximum width for screenshot scaling (0 = no limit)
+        max_height: Maximum height for screenshot scaling (0 = no limit)
+        format: Image format ('png' or 'jpeg')
+    """
+    compression_level: CompressionLevel = CompressionLevel.MEDIUM
+    jpeg_quality: int = 75
+    max_width: int = 0
+    max_height: int = 0
+    format: str = "jpeg"
+
+    def __post_init__(self):
+        """Validate screenshot configuration after initialization."""
+        if not isinstance(self.compression_level, CompressionLevel):
+            raise ValueError("compression_level must be a CompressionLevel enum")
+        
+        if not isinstance(self.jpeg_quality, int) or not (1 <= self.jpeg_quality <= 100):
+            raise ValueError("jpeg_quality must be an integer between 1 and 100")
+        
+        if not isinstance(self.max_width, int) or self.max_width < 0:
+            raise ValueError("max_width must be a non-negative integer")
+        
+        if not isinstance(self.max_height, int) or self.max_height < 0:
+            raise ValueError("max_height must be a non-negative integer")
+        
+        if self.format not in ["png", "jpeg"]:
+            raise ValueError("format must be 'png' or 'jpeg'")
+
+    def get_optimized_settings(self) -> dict:
+        """Get optimized settings based on compression level.
+        
+        Returns:
+            dict: Optimized settings for the current compression level
+        """
+        if self.compression_level == CompressionLevel.LOW:
+            return {
+                "jpeg_quality": 90,
+                "max_width": 0,  # No scaling
+                "max_height": 0,
+                "format": "png"
+            }
+        elif self.compression_level == CompressionLevel.MEDIUM:
+            return {
+                "jpeg_quality": 75,
+                "max_width": 1200,
+                "max_height": 800,
+                "format": "jpeg"
+            }
+        else:  # HIGH compression
+            return {
+                "jpeg_quality": 60,
+                "max_width": 800,
+                "max_height": 600,
+                "format": "jpeg"
+            }
 
 
 @dataclass
@@ -19,13 +90,15 @@ class BrowserSettings:
         viewport: Dictionary containing width and height of the browser viewport
         headless: Whether to run browser in headless mode (default: False)
         timeout: Default timeout in milliseconds for browser operations (default: 30000)
+        screenshot_config: Configuration for screenshot compression and optimization
     """
     viewport: Dict[str, int]
     headless: bool = False
     timeout: int = 30000
+    screenshot_config: ScreenshotConfig = None
 
     def __post_init__(self):
-        """Validate viewport settings after initialization."""
+        """Validate and initialize settings after initialization."""
         if not isinstance(self.viewport, dict):
             raise ValueError("viewport must be a dictionary")
         
@@ -40,6 +113,10 @@ class BrowserSettings:
         
         if self.timeout <= 0:
             raise ValueError("timeout must be a positive integer")
+        
+        # Initialize default screenshot config if not provided
+        if self.screenshot_config is None:
+            self.screenshot_config = ScreenshotConfig()
 
 
 @dataclass
@@ -73,3 +150,72 @@ class BrowserActionResult:
         
         if self.error is not None and not isinstance(self.error, str):
             raise ValueError("error must be a string or None")
+
+
+@dataclass
+class ImageUrl:
+    """Image URL data structure for ImageResult.
+    
+    Attributes:
+        url: Base64-encoded image data URL (e.g., "data:image/png;base64,...")
+    """
+    url: str
+
+    def __post_init__(self):
+        """Validate image URL data after initialization."""
+        if not isinstance(self.url, str):
+            raise ValueError("url must be a string")
+        
+        if not self.url:
+            raise ValueError("url cannot be empty")
+
+
+@dataclass
+class ImageResult:
+    """Result object for image data with structured format.
+    
+    This class represents image data in a standardized format suitable for
+    API responses and message content that includes images.
+    
+    Attributes:
+        type: Type identifier for the content, fixed as "image_url"
+        image_url: ImageUrl object containing the actual image data
+    """
+    type: str
+    image_url: ImageUrl
+
+    def __post_init__(self):
+        """Validate image result data after initialization."""
+        if not isinstance(self.type, str):
+            raise ValueError("type must be a string")
+        
+        if self.type != "image_url":
+            raise ValueError("type must be 'image_url'")
+        
+        if not isinstance(self.image_url, ImageUrl):
+            raise ValueError("image_url must be an ImageUrl instance")
+
+    @classmethod
+    def from_base64(cls, base64_data: str, image_format: str = "png") -> "ImageResult":
+        """Create ImageResult from base64 image data.
+        
+        Args:
+            base64_data: Base64-encoded image data
+            image_format: Image format ('png' or 'jpeg')
+            
+        Returns:
+            ImageResult: Constructed image result object
+        """
+        if not isinstance(base64_data, str):
+            raise ValueError("base64_data must be a string")
+        
+        if image_format not in ["png", "jpeg"]:
+            raise ValueError("image_format must be 'png' or 'jpeg'")
+        
+        # Construct the data URL with dynamic format
+        data_url = f"data:image/{image_format};base64,{base64_data}"
+        
+        return cls(
+            type="image_url",
+            image_url=ImageUrl(url=data_url)
+        )

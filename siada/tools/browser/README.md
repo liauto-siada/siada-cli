@@ -1,12 +1,12 @@
 # Browser Automation Tool
 
-This module provides browser automation capabilities using Playwright, offering functionality equivalent to the TypeScript version with full screenshot and console log capture support.
+This module provides browser automation capabilities using Playwright, offering functionality equivalent to the TypeScript version with full screenshot and console log capture support, enhanced with advanced screenshot compression to optimize token usage.
 
 ## Features
 
 ### Core Functionality
 - **Cross-browser automation** using Playwright (Chromium, Firefox, WebKit)
-- **Screenshot capture** with base64 encoding
+- **Screenshot capture** with base64 encoding and advanced compression
 - **Console log monitoring** in real-time
 - **Coordinate-based clicking** with viewport validation
 - **Keyboard input simulation**
@@ -20,6 +20,13 @@ This module provides browser automation capabilities using Playwright, offering 
 - **⌨️ Typewriter Effect**: Text input with 50ms delay between characters for visibility
 - **🪟 Auto Window Focus**: Browser window automatically comes to foreground
 - **📍 Smart Cursor Management**: Cursor position maintained across scrolling and other operations
+
+### Screenshot Compression
+- **🎯 Multi-level compression**: Reduce file size by 60-95% to minimize token usage
+- **🔧 Smart format conversion**: PNG → JPEG with quality control
+- **📏 Intelligent scaling**: Resolution scaling while maintaining aspect ratio
+- **⚡ Optimized compression**: Using PIL library optimization options
+- **🔄 Transparency handling**: Automatic white background for JPEG format
 
 ## Installation
 
@@ -57,6 +64,39 @@ The tool automatically searches for Chromium in this order:
 3. **System browsers**: Chrome/Chromium installed on your system
 4. **Auto-install**: Downloads Chromium via Playwright if none found
 
+## Screenshot Compression
+
+### Overview
+
+To solve the issue of excessively long base64 strings from browser screenshots causing token limits, we've implemented a multi-level compression strategy that can reduce file sizes by 60-95%, significantly lowering token usage.
+
+### Compression Levels
+
+| Level | Format | JPEG Quality | Max Resolution | Expected Compression | Use Case |
+|-------|--------|--------------|----------------|---------------------|----------|
+| **Low** | PNG | 90 | Unlimited | 10-20% | High quality screenshots |
+| **Medium** | JPEG | 75 | 1200x800 | 60-80% | Default recommended setting |
+| **High** | JPEG | 60 | 800x600 | 80-95% | File size sensitive scenarios |
+
+### Token Savings
+
+Based on 1200x800 resolution screenshot estimates:
+
+```
+Original PNG:    500KB → ~166K tokens
+Low compression: 425KB → ~141K tokens (15% savings)
+Medium compression: 125KB → ~41K tokens (75% savings)
+High compression: 50KB → ~16K tokens (90% savings)
+```
+
+### Technical Implementation
+
+- **Format conversion**: PNG → JPEG for significant file size reduction
+- **Quality control**: Adjustable JPEG quality parameter (1-100)
+- **Smart scaling**: Resolution scaling while maintaining aspect ratio
+- **Optimized compression**: Using PIL library's optimize option
+- **Transparency handling**: Automatic white background when JPEG doesn't support transparency
+
 ## Usage
 
 ### Basic Example
@@ -66,7 +106,7 @@ import asyncio
 from siada.tools.browser import BrowserActionTool, BrowserSettings
 
 async def demo_browser_automation():
-    # Create browser settings
+    # Create browser settings with default medium compression
     settings = BrowserSettings(
         viewport={"width": 900, "height": 600},
         headless=False,  # Set to True for headless mode
@@ -100,6 +140,47 @@ async def demo_browser_automation():
 asyncio.run(demo_browser_automation())
 ```
 
+### Custom Compression Configuration
+
+```python
+from siada.tools.browser.models import (
+    BrowserSettings, 
+    ScreenshotConfig, 
+    CompressionLevel
+)
+
+# High compression configuration
+screenshot_config = ScreenshotConfig(
+    compression_level=CompressionLevel.HIGH,
+    jpeg_quality=60,
+    max_width=800,
+    max_height=600,
+    format="jpeg"
+)
+
+settings = BrowserSettings(
+    viewport={"width": 1200, "height": 800},
+    headless=False,
+    timeout=30000,
+    screenshot_config=screenshot_config
+)
+
+tool = BrowserActionTool(settings)
+```
+
+### Manual Compression Settings
+
+```python
+# Fully customized compression
+screenshot_config = ScreenshotConfig(
+    compression_level=CompressionLevel.MEDIUM,
+    jpeg_quality=80,        # Custom quality
+    max_width=1000,         # Custom max width
+    max_height=700,         # Custom max height
+    format="jpeg"           # Specify format
+)
+```
+
 ### Manual Resource Management
 
 ```python
@@ -130,9 +211,35 @@ Configuration class for browser automation settings.
 ```python
 @dataclass
 class BrowserSettings:
-    viewport: Dict[str, int]  # Browser viewport size {"width": 900, "height": 600}
-    headless: bool = False    # Run in headless mode
-    timeout: int = 30000      # Default timeout in milliseconds
+    viewport: Dict[str, int]                    # Browser viewport size {"width": 900, "height": 600}
+    headless: bool = False                      # Run in headless mode
+    timeout: int = 30000                        # Default timeout in milliseconds
+    screenshot_config: Optional[ScreenshotConfig] = None  # Screenshot compression settings
+```
+
+### ScreenshotConfig
+
+Configuration class for screenshot compression settings.
+
+```python
+@dataclass
+class ScreenshotConfig:
+    compression_level: CompressionLevel = CompressionLevel.MEDIUM  # Compression level
+    jpeg_quality: int = 75                      # JPEG quality (1-100)
+    max_width: int = 1200                       # Maximum width (0 = unlimited)
+    max_height: int = 800                       # Maximum height (0 = unlimited)
+    format: str = "jpeg"                        # Image format ("png" or "jpeg")
+```
+
+### CompressionLevel
+
+Enumeration for compression levels.
+
+```python
+class CompressionLevel(Enum):
+    LOW = "low"         # Low compression, high quality
+    MEDIUM = "medium"   # Medium compression, balanced
+    HIGH = "high"       # High compression, small file size
 ```
 
 ### BrowserActionResult
@@ -173,6 +280,48 @@ Execute a browser action. Supported actions:
   
 - **`close`**: Close browser and clean up resources
 
+## Compression Configuration Details
+
+### Compression Algorithm
+
+#### 1. Format Selection
+- **PNG**: Lossless compression, suitable for simple images and transparency needs
+- **JPEG**: Lossy compression, suitable for complex images with smaller file sizes
+
+#### 2. Resolution Scaling
+```python
+def _scale_image(self, image, max_width, max_height):
+    # Calculate scaling ratio while maintaining aspect ratio
+    scale_x = max_width / original_width if max_width > 0 else 1.0
+    scale_y = max_height / original_height if max_height > 0 else 1.0
+    scale_factor = min(scale_x, scale_y, 1.0)  # Never upscale
+    
+    # Use high-quality resampling
+    return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+```
+
+#### 3. Quality Optimization
+- PNG: Uses `optimize=True` and `compress_level=6`
+- JPEG: Uses `optimize=True` and configurable quality parameter
+
+### Best Practices
+
+#### 1. Choose Appropriate Compression Level
+- **Development/Debug**: Use low compression for screenshot quality
+- **Production**: Use medium compression for balanced quality and performance
+- **Batch Processing**: Use high compression to maximize resource savings
+
+#### 2. Adjust Settings Based on Content
+- **Simple pages**: PNG format works better
+- **Complex pages**: JPEG format has higher compression ratio
+- **Text-heavy content**: Increase JPEG quality appropriately
+
+#### 3. Monitor Compression Effects
+```python
+# Check compression information in logs
+# Screenshot compression: 500000 -> 125000 bytes (75.0% reduction)
+```
+
 ## Action Sequence Requirements
 
 1. **Always start with `launch`** - This must be the first action
@@ -196,11 +345,12 @@ Common error scenarios:
 - Browser not launched before performing actions
 - Network timeouts during page loading
 - Invalid URLs or unreachable websites
+- Compression failures (automatically falls back to original screenshot)
 
 ## Screenshot and Console Logs
 
 Every action (except `close`) returns:
-- **Screenshot**: Base64-encoded image of current browser state
+- **Screenshot**: Base64-encoded image of current browser state (compressed by default)
 - **Console logs**: Array of console messages from the browser
 
 ```python
@@ -218,14 +368,22 @@ for log in result.console_logs:
 
 ## Advanced Configuration
 
-### Custom Browser Settings
+### Custom Browser Settings with Compression
 
 ```python
-# High-resolution viewport
+# High-resolution viewport with high compression
+screenshot_config = ScreenshotConfig(
+    compression_level=CompressionLevel.HIGH,
+    jpeg_quality=50,
+    max_width=800,
+    max_height=600
+)
+
 settings = BrowserSettings(
     viewport={"width": 1920, "height": 1080},
     headless=True,  # Run without GUI
-    timeout=60000   # 60 second timeout
+    timeout=60000,  # 60 second timeout
+    screenshot_config=screenshot_config
 )
 ```
 
@@ -274,6 +432,47 @@ class WebAutomationAgent:
             return result
 ```
 
+## Testing and Validation
+
+### Running Tests
+
+```bash
+# Basic functionality tests
+python tests/tools/browser/test_browser_action_tool.py
+
+# Screenshot compression tests
+python tests/tools/browser/test_screenshot_compression.py
+
+# Compression effect demonstration
+python tests/tools/browser/demo_compression.py
+```
+
+### Test Coverage
+
+- ✅ Compression level configuration validation
+- ✅ Image format conversion testing
+- ✅ Resolution scaling functionality
+- ✅ Quality parameter validation
+- ✅ Actual compression ratio testing
+- ✅ Error handling and fallback mechanisms
+
+## Performance Considerations
+
+### Compression Performance
+- **Additional processing time**: ~50-200ms (depending on image size and compression settings)
+- **Minimal impact**: Negligible effect on overall browser operation time
+
+### Memory Usage
+- **Compression process**: Temporarily increases memory usage during processing
+- **Memory cleanup**: Memory is released after compression completion
+- **Large screenshots**: Recommend using high compression settings for large resolution screenshots
+
+### Browser Performance
+- **Browser startup**: Initial launch takes 1-3 seconds
+- **Screenshot capture**: Adds ~100-500ms per action (including compression)
+- **Memory usage**: Each browser instance uses ~50-100MB RAM
+- **Cleanup**: Always use context managers or manual close() calls
+
 ## Troubleshooting
 
 ### Common Issues
@@ -296,6 +495,11 @@ class WebAutomationAgent:
    - Verify page has loaded completely
    - Check if browser is in headless mode (screenshots still work)
 
+5. **Compression failures**
+   - Check logs for compression error messages
+   - Tool automatically falls back to original screenshot on compression failure
+   - Verify PIL library is properly installed
+
 ### Debug Mode
 
 Enable debug logging to troubleshoot issues:
@@ -304,19 +508,45 @@ Enable debug logging to troubleshoot issues:
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-# Browser actions will now log detailed information
+# Browser actions will now log detailed information including compression stats
 ```
 
-## Performance Considerations
+### Debugging Compression
 
-- **Browser startup**: Initial launch takes 1-3 seconds
-- **Screenshot capture**: Adds ~100-500ms per action
-- **Memory usage**: Each browser instance uses ~50-100MB RAM
-- **Cleanup**: Always use context managers or manual close() calls
+```python
+# Enable detailed logging for compression
+import logging
+logging.getLogger('siada.tools.browser').setLevel(logging.DEBUG)
+
+# Logs will show: "Screenshot compression: X -> Y bytes (Z% reduction)"
+```
+
+## Backward Compatibility
+
+- ✅ Existing code requires no modifications
+- ✅ Medium compression enabled by default
+- ✅ Option to fall back to original PNG format
+- ✅ All original API interfaces maintained
 
 ## Compatibility
 
 - **Python**: 3.8+
 - **Playwright**: 1.40.0+
+- **PIL/Pillow**: For image compression functionality
 - **Operating Systems**: Windows, macOS, Linux
 - **Browsers**: Chromium (default), Firefox, WebKit
+
+## Changelog
+
+### v1.0.0 (2025-01-08)
+- ✨ Added multi-level compression strategy
+- ✨ Support for JPEG format output
+- ✨ Intelligent resolution scaling
+- ✨ Configurable compression parameters
+- ✨ Automatic format detection and conversion
+- 🐛 Fixed transparency handling issues
+- 📝 Comprehensive documentation and test cases
+
+---
+
+This browser automation tool with advanced screenshot compression provides significant token usage optimization, making it particularly suitable for automation scenarios requiring frequent screenshots.

@@ -247,7 +247,7 @@ class TestBrowserActionTool:
         mock_page.goto = AsyncMock()
         mock_page.screenshot = AsyncMock(return_value=b"fake_screenshot")
 
-        result = await browser_tool.execute_action("launch", url="https://example.com")
+        result = await browser_tool.execute_action("launch", url="https://www.baidu.com")
         
         assert result.success is True
         assert result.screenshot is not None
@@ -263,7 +263,7 @@ class TestBrowserActionTool:
         )
         mock_browser.new_page.assert_called_once()
         mock_page.set_viewport_size.assert_called_once_with({"width": 900, "height": 600})
-        mock_page.goto.assert_called_once_with("https://example.com", wait_until="networkidle")
+        mock_page.goto.assert_called_once_with("https://www.baidu.com", wait_until="networkidle")
 
     @pytest.mark.asyncio
     async def test_successful_click(self, browser_tool):
@@ -447,6 +447,94 @@ class TestBrowserActionTool:
         
         screenshot = await browser_tool._take_screenshot()
         assert screenshot == ""
+
+    @pytest.mark.asyncio
+    async def test_save_screenshot_to_file(self, browser_tool, tmp_path):
+        """Test saving screenshot to file functionality."""
+        # Create a real PNG image using PIL
+        from PIL import Image
+        from io import BytesIO
+        
+        # Create a simple 10x10 white image
+        image = Image.new('RGB', (10, 10), color='white')
+        
+        # Convert to PNG bytes
+        png_buffer = BytesIO()
+        image.save(png_buffer, format='PNG')
+        fake_png_data = png_buffer.getvalue()
+        
+        # Mock page and screenshot data
+        mock_page = AsyncMock()
+        mock_page.screenshot = AsyncMock(return_value=fake_png_data)
+        browser_tool.page = mock_page
+        
+        # Define save path using tmp_path fixture
+        screenshot_path = tmp_path / "test_screenshot.jpg"
+        
+        # Call save method
+        result = await browser_tool.save_screenshot(str(screenshot_path))
+        
+        # Verify result
+        assert result is True
+        assert screenshot_path.exists()
+        
+        # Verify file content (should be compressed/processed data, not raw)
+        with open(screenshot_path, 'rb') as f:
+            saved_data = f.read()
+        
+        # Verify saved data is not empty and has been processed
+        assert len(saved_data) > 0
+        # The saved data should be different from raw PNG data due to compression to JPEG
+        assert saved_data != fake_png_data
+        # Verify it's a JPEG file (starts with JPEG signature)
+        assert saved_data.startswith(b'\xff\xd8\xff')
+
+    @pytest.mark.asyncio
+    async def test_save_screenshot_no_page(self, browser_tool, tmp_path):
+        """Test saving screenshot when no page is available."""
+        screenshot_path = tmp_path / "test_screenshot.jpg"
+        
+        result = await browser_tool.save_screenshot(str(screenshot_path))
+        
+        assert result is False
+        assert not screenshot_path.exists()
+
+    @pytest.mark.asyncio
+    async def test_save_screenshot_capture_failed(self, browser_tool, tmp_path):
+        """Test saving screenshot when capture fails."""
+        # Mock page that fails to take screenshot
+        mock_page = AsyncMock()
+        mock_page.screenshot.side_effect = Exception("Screenshot failed")
+        browser_tool.page = mock_page
+        
+        screenshot_path = tmp_path / "test_screenshot.jpg"
+        
+        result = await browser_tool.save_screenshot(str(screenshot_path))
+        
+        assert result is False
+        assert not screenshot_path.exists()
+
+    @pytest.mark.asyncio
+    async def test_save_screenshot_directory_creation(self, browser_tool, tmp_path):
+        """Test that save_screenshot creates directories if they don't exist."""
+        # Mock page and screenshot data
+        mock_page = AsyncMock()
+        mock_page.screenshot = AsyncMock(return_value=b"fake_screenshot_data")
+        browser_tool.page = mock_page
+        
+        # Define path with nested directories that don't exist
+        screenshot_path = tmp_path / "nested" / "directories" / "test_screenshot.jpg"
+        
+        # Ensure the nested directories don't exist initially
+        assert not screenshot_path.parent.exists()
+        
+        # Call save method
+        result = await browser_tool.save_screenshot(str(screenshot_path))
+        
+        # Verify result and directory creation
+        assert result is True
+        assert screenshot_path.exists()
+        assert screenshot_path.parent.exists()
 
     @pytest.mark.asyncio
     async def test_context_manager(self, browser_tool):

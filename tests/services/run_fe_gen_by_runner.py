@@ -4,8 +4,10 @@ import asyncio
 from siada.services.siada_runner import SiadaRunner
 
 
-input="""生成一个日历卡片， 带农历公历，礼拜信息，节假日信息， 适用于手机尺寸
-"""
+# input="""生成一个日历卡片， 带农历公历，礼拜信息，节假日信息， 适用于手机尺寸
+# """
+
+input = "打开这个网页， 并总结网页的内容 https://www.huxiu.com/article/4668429.html"
 
 async def run_fegen():
     # 获取当前工作目录
