@@ -84,7 +84,7 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="kimi-k2",
         max_tokens=8192,
-        context_window=63_000,
+        context_window=131_072,
     ),
 ]
 
