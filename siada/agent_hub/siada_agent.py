@@ -8,6 +8,8 @@ from siada.agent_hub.coder.tracing.logger_tracing_processor import create_detail
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.models.converter import ModelSettingsConverter
 from siada.provider.provider_factory import get_provider
+from siada.services.input_processor import process_input
+from siada.services.model_wrapper import ModelProviderWrapper
 from siada.session import RunningSessionManager
 from siada.tools.coder.ask_followup_question import ask_followup_question
 from siada.tools.coder.repo_map.repo_map import RepoMap
@@ -147,6 +149,11 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
         model_provider_name = llm_config.provider
         model_provider = get_provider(model_provider_name)
+
+        provider_wrapper = ModelProviderWrapper(
+            base_provider=model_provider,
+            input_processor=process_input
+        )
         
         # Store provider name (string) in context for client factory
         context.provider = model_provider_name
@@ -159,7 +166,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         run_config = RunConfig(
             tracing_disabled=running_session.siada_config.tracing_disabled,
             model=llm_config.model_name,
-            model_provider=model_provider,
+            model_provider=provider_wrapper,
             model_settings=model_settings
         )
 
