@@ -1,6 +1,6 @@
 # Siada CLI
 
-**简体中文 | [English](./docs/zh-CN/README_zh.md)**
+**简体中文 | [English](../../README.md)**
 
 ![Siada CLI Screenshot](../assets/siada-cli-screenshot-zh.png)
 
