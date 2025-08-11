@@ -15,7 +15,12 @@ uv python install 3.12
 
 # Create or reuse a dedicated venv
 VENV_DIR="$HOME/.local/share/siada_cli_venv_3.12"
-uv venv --python 3.12 "$VENV_DIR"
+if [ ! -d "$VENV_DIR" ]; then
+  echo "Creating virtual environment at: $VENV_DIR"
+  uv venv --python 3.12 "$VENV_DIR"
+else
+  echo "Using existing virtual environment at: $VENV_DIR"
+fi
 
 # Optional: custom index mirror (using variables instead of arrays)
 if [ -n "${SIADA_PYPI_INDEX:-}" ]; then
@@ -28,7 +33,7 @@ fi
 uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
 # Install the wheel into the target venv via uv
 uv pip install --python "$VENV_DIR/bin/python" --no-cache-dir --force-reinstall \
-  "https://bj.bcebos.com/prod-cnhb01-siada/cli-install/test/siada_cli-0.0.1-py3-none-any.whl" \
+  "https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/siada_cli-0.0.1-py3-none-any.whl" \
   -i "$INDEX_URL"
 
 # Enforce executable name

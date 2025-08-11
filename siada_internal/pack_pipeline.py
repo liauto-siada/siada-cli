@@ -11,8 +11,6 @@ dist_directory = os.path.abspath(os.environ.get("SIADA_DIST_DIR", "dist/"))
 script_directory = "scripts/"
 remote_install_file = "remote_install.sh"
 test_remote_install_file = "test_remote_install.sh"
-remote_install_ps1_file = "remote_install.ps1"
-test_remote_install_ps1_file = "test_remote_install.ps1"
 
 REMOTE_INSTALL_TEMPLATE = None
 
@@ -120,12 +118,9 @@ if __name__ == '__main__':
 
     # Ensure scripts directory exists and load template content from file for syntax highlighting
     os.makedirs(script_directory, exist_ok=True)
-    template_sh_path = os.path.join(script_directory, "template.sh")
+    template_sh_path = os.path.join(script_directory, "template_sh_compatible.sh")
     with open(template_sh_path, "r") as tf:
         template_sh_content = tf.read()
-    template_ps1_path = os.path.join(script_directory, "template.ps1")
-    with open(template_ps1_path, "r") as pf:
-        template_ps1_content = pf.read()
 
     if siada_ois_env.lower() == SiadaOis.PROD.value:
         with open(script_directory + remote_install_file, "w") as f:
@@ -137,19 +132,9 @@ if __name__ == '__main__':
             )
             f.write(remote_script)
             prod_upload_files.append(script_directory + remote_install_file)
-        # Windows PowerShell script
-        with open(script_directory + remote_install_ps1_file, "w") as f:
-            remote_script_ps1 = (
-                template_ps1_content
-                .replace("$env", siada_ois_env)
-                .replace("$file_name", largest_whl_file)
-            )
-            f.write(remote_script_ps1)
-            prod_upload_files.append(script_directory + remote_install_ps1_file)
-            # upload wheel + scripts
-            upload_file_to_ois(common_upload_files + prod_upload_files, siada_ois_env)
-            print(f"Production install (macOS/Linux): curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/{siada_ois_env}/{remote_install_file} | bash")
-            print(f"Production install (Windows PowerShell): powershell -NoProfile -ExecutionPolicy Bypass -Command \"iwr -UseBasicParsing 'https://bj.bcebos.com/prod-cnhb01-siada/cli-install/{siada_ois_env}/{remote_install_ps1_file}' | iex\"")
+        # upload wheel + scripts
+        upload_file_to_ois(common_upload_files + prod_upload_files, siada_ois_env)
+        print(f"Production install (macOS/Linux): curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/{siada_ois_env}/{remote_install_file} | sh")
 
     if siada_ois_env.lower() == SiadaOis.TEST.value:
         with open(script_directory + test_remote_install_file, "w") as f:
@@ -160,19 +145,9 @@ if __name__ == '__main__':
             )
             f.write(remote_script)
             test_upload_files.append(script_directory + test_remote_install_file)
-        # Windows PowerShell script for test
-        with open(script_directory + test_remote_install_ps1_file, "w") as f:
-            remote_script_ps1 = (
-                template_ps1_content
-                .replace("$env", siada_ois_env)
-                .replace("$file_name", largest_whl_file)
-            )
-            f.write(remote_script_ps1)
-            test_upload_files.append(script_directory + test_remote_install_ps1_file)
-            # upload wheel + scripts
-            upload_file_to_ois(common_upload_files + test_upload_files, siada_ois_env)
-            print(f"Test install (macOS/Linux): curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/{siada_ois_env}/{test_remote_install_file} | bash")
-            print(f"Test install (Windows PowerShell): powershell -NoProfile -ExecutionPolicy Bypass -Command \"iwr -UseBasicParsing 'https://bj.bcebos.com/prod-cnhb01-siada/cli-install/{siada_ois_env}/{test_remote_install_ps1_file}' | iex\"")
+        # upload wheel + scripts
+        upload_file_to_ois(common_upload_files + test_upload_files, siada_ois_env)
+        print(f"Test install (macOS/Linux): curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/{siada_ois_env}/{test_remote_install_file} | sh")
 
     print("**********************Packaging and upload completed!**********************")
     print(f"**********************Current siada version: {siada_version}**********************")
