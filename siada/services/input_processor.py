@@ -1,4 +1,5 @@
 import json
+from typing import Dict, Any, Callable, List
 from agents import TResponseInputItem
 
 
@@ -58,66 +59,76 @@ def _check_output_for_image_result(output) -> bool:
         return False
 
 
-def _should_filter_function_call_output(item) -> bool:
+def _process_image_result_filter(item: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Determine if a function_call_output item should be filtered out.
+    Process function_call_output items with ImageResult structure.
     
     Args:
-        item: The item to check
+        item: Dictionary item to process
         
     Returns:
-        True if the item should be filtered out, False otherwise
+        Modified item with replaced output, or original item if no modification needed
     """
-    try:
-        # Check if item has type attribute equal to "function_call_output"
-        if hasattr(item, 'type') and getattr(item, 'type') == "function_call_output":
-            # Check if item has output attribute
-            if hasattr(item, 'output'):
-                output = getattr(item, 'output')
-                return _check_output_for_image_result(output)
-        elif isinstance(item, dict):
-            # Handle dictionary-style items
-            if item.get('type') == "function_call_output":
-                output = item.get('output')
-                return _check_output_for_image_result(output)
-    except (AttributeError, TypeError):
-        # If any attribute access fails, don't filter
-        pass
+    # Only process function_call_output items
+    if item.get('type') != "function_call_output":
+        return item
     
-    return False
+    # Check if output contains ImageResult structure
+    output = item.get('output')
+    if _check_output_for_image_result(output):
+        # Create a copy and replace the output
+        modified_item = item.copy()
+        modified_item['output'] = "This image has been cropped and read. To avoid an excessively long token, this message is ignored"
+        return modified_item
+    
+    return item
+
+
+# List of all processing functions to be applied
+PROCESSING_FUNCTIONS: List[Callable[[Dict[str, Any]], Dict[str, Any]]] = [
+    _process_image_result_filter,
+    # Future processing functions can be added here
+]
 
 
 def process_input(input: str | list[TResponseInputItem]) -> str | list[TResponseInputItem]:
     """
     Process the input to ensure it is in the correct format.
 
-    If the input is a string, it will be converted to a single-item list.
-    If it is already a list, it will be returned as is, but function_call_output
-    items with ImageResult structure in their output will be filtered out.
+    If the input is a string, it will be returned as is.
+    If it is a list, each item (except the last one) will be processed through
+    all registered processing functions to apply various filters and transformations.
 
     Args:
         input: The input to process, either a string or a list of TResponseInputItem.
 
     Returns:
-        A list containing the processed input.
+        The processed input.
     """
     if isinstance(input, str):
         return input
     elif isinstance(input, list):
         # Create a copy of the list to avoid modifying the original
-        filtered_list = []
+        processed_list = []
         
         # Process all elements except the last one
         for i, item in enumerate(input):
             # Skip the last element from processing
             if i == len(input) - 1:
-                filtered_list.append(item)
+                processed_list.append(item)
                 continue
             
-            # Check if this item should be filtered out
-            if not _should_filter_function_call_output(item):
-                filtered_list.append(item)
+            # Only process dictionary items
+            if isinstance(item, dict):
+                processed_item = item
+                # Apply all processing functions in sequence
+                for process_func in PROCESSING_FUNCTIONS:
+                    processed_item = process_func(processed_item)
+                processed_list.append(processed_item)
+            else:
+                # Non-dictionary items are added as-is
+                processed_list.append(item)
         
-        return filtered_list
+        return processed_list
     else:
         raise ValueError("Input must be a string or a list of TResponseInputItem.")

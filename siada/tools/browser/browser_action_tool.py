@@ -940,7 +940,7 @@ async def browser_operate(
     # Get or create browser tool instance from context to maintain state across calls
     if not hasattr(context.context, '_browser_tool'):
         settings = BrowserSettings(
-            viewport={"width": 1200, "height": 800},
+            viewport={"width": 1200, "height": 600},
             headless=False,
             timeout=30000
         )

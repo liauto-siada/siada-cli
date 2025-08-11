@@ -13,7 +13,7 @@ from siada.services.input_processor import (
     process_input, 
     _is_image_result_structure, 
     _check_output_for_image_result,
-    _should_filter_function_call_output
+    _process_image_result_filter
 )
 
 
@@ -104,8 +104,8 @@ class TestCheckOutputForImageResult:
         assert _check_output_for_image_result({"type": "image_url"}) is False
 
 
-class TestShouldFilterFunctionCallOutput:
-    """Test cases for _should_filter_function_call_output helper function."""
+class TestProcessImageResultFilter:
+    """Test cases for _process_image_result_filter function."""
     
     def test_dict_with_image_result_output(self):
         """Test dictionary item with ImageResult output."""
@@ -120,7 +120,11 @@ class TestShouldFilterFunctionCallOutput:
             "type": "function_call_output",
             "output": image_result_json
         }
-        assert _should_filter_function_call_output(item) is True
+        result = _process_image_result_filter(item)
+        assert result["type"] == "function_call_output"
+        assert result["output"] == "This image has been cropped and read. To avoid an excessively long token, this message is ignored"
+        # Ensure original item is not modified
+        assert item["output"] == image_result_json
     
     def test_dict_with_non_image_output(self):
         """Test dictionary item with non-ImageResult output."""
@@ -133,35 +137,8 @@ class TestShouldFilterFunctionCallOutput:
             "type": "function_call_output",
             "output": non_image_json
         }
-        assert _should_filter_function_call_output(item) is False
-    
-    def test_object_with_image_result_output(self):
-        """Test object item with ImageResult output."""
-        class MockItem:
-            def __init__(self):
-                self.type = "function_call_output"
-                self.output = json.dumps({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": "data:image/png;base64,test_data"
-                    }
-                })
-        
-        item = MockItem()
-        assert _should_filter_function_call_output(item) is True
-    
-    def test_object_with_non_image_output(self):
-        """Test object item with non-ImageResult output."""
-        class MockItem:
-            def __init__(self):
-                self.type = "function_call_output"
-                self.output = json.dumps({
-                    "type": "text",
-                    "content": "Some text"
-                })
-        
-        item = MockItem()
-        assert _should_filter_function_call_output(item) is False
+        result = _process_image_result_filter(item)
+        assert result == item  # Should return the same item unchanged
     
     def test_non_function_call_output_type(self):
         """Test item with different type."""
@@ -169,7 +146,8 @@ class TestShouldFilterFunctionCallOutput:
             "type": "user",
             "content": "Hello"
         }
-        assert _should_filter_function_call_output(item) is False
+        result = _process_image_result_filter(item)
+        assert result == item  # Should return the same item unchanged
     
     def test_missing_output_attribute(self):
         """Test function_call_output item without output attribute."""
@@ -177,23 +155,8 @@ class TestShouldFilterFunctionCallOutput:
             "type": "function_call_output"
             # Missing output attribute
         }
-        assert _should_filter_function_call_output(item) is False
-    
-    def test_object_missing_output_attribute(self):
-        """Test object function_call_output item without output attribute."""
-        class MockItem:
-            def __init__(self):
-                self.type = "function_call_output"
-                # Missing output attribute
-        
-        item = MockItem()
-        assert _should_filter_function_call_output(item) is False
-    
-    def test_invalid_item_structure(self):
-        """Test with invalid item structure."""
-        assert _should_filter_function_call_output(None) is False
-        assert _should_filter_function_call_output("not_an_item") is False
-        assert _should_filter_function_call_output(123) is False
+        result = _process_image_result_filter(item)
+        assert result == item  # Should return the same item unchanged
 
 
 class TestProcessInput:
@@ -202,8 +165,7 @@ class TestProcessInput:
     def test_string_input(self):
         """Test with string input."""
         result = process_input("test message")
-        assert len(result) == 1
-        assert result[0]["content"] == "test message"
+        assert result == "test message"
     
     def test_empty_list_input(self):
         """Test with empty list input."""
@@ -229,7 +191,7 @@ class TestProcessInput:
         assert result == input_list
     
     def test_filter_function_call_output_with_image_result(self):
-        """Test filtering of function_call_output with ImageResult structure."""
+        """Test replacing output of function_call_output with ImageResult structure."""
         image_result_json = json.dumps({
             "type": "image_url",
             "image_url": {
@@ -248,11 +210,13 @@ class TestProcessInput:
         ]
         
         result = process_input(input_list)
-        # Should filter out the function_call_output item but keep others
-        assert len(result) == 3
+        # Should keep all items but replace the output of function_call_output item
+        assert len(result) == 4
         assert result[0] == input_list[0]  # user message
-        assert result[1] == input_list[2]  # assistant message
-        assert result[2] == input_list[3]  # last user message (not processed)
+        assert result[1]["type"] == "function_call_output"  # function_call_output item
+        assert result[1]["output"] == "This image has been cropped and read. To avoid an excessively long token, this message is ignored"
+        assert result[2] == input_list[2]  # assistant message
+        assert result[3] == input_list[3]  # last user message (not processed)
     
     def test_keep_function_call_output_without_image_result(self):
         """Test keeping function_call_output without ImageResult structure."""
@@ -348,52 +312,49 @@ class TestProcessInput:
             {
                 "type": "function_call_output",
                 "output": image_result_json
-            },  # Should be filtered
+            },  # Should have output replaced
             {
                 "type": "function_call_output", 
                 "output": non_image_json
-            },  # Should be kept
+            },  # Should be kept unchanged
             {
                 "type": "function_call_output",
                 "output": image_result_json
-            },  # Should be filtered
+            },  # Should have output replaced
             {"type": "assistant", "content": "End"}
         ]
         
         result = process_input(input_list)
-        # Should filter out the two ImageResult items but keep others
-        assert len(result) == 3
+        # Should keep all items but replace output of ImageResult items
+        assert len(result) == 5
         assert result[0] == input_list[0]  # user message
-        assert result[1] == input_list[2]  # non-image function_call_output
-        assert result[2] == input_list[4]  # assistant message
+        assert result[1]["type"] == "function_call_output"  # first image function_call_output
+        assert result[1]["output"] == "This image has been cropped and read. To avoid an excessively long token, this message is ignored"
+        assert result[2] == input_list[2]  # non-image function_call_output (unchanged)
+        assert result[3]["type"] == "function_call_output"  # second image function_call_output
+        assert result[3]["output"] == "This image has been cropped and read. To avoid an excessively long token, this message is ignored"
+        assert result[4] == input_list[4]  # assistant message
     
-    def test_object_style_items(self):
-        """Test with object-style items (having attributes instead of dict access)."""
-        # Create mock objects with attributes
+    def test_non_dict_items_unchanged(self):
+        """Test that non-dictionary items are kept unchanged."""
         class MockItem:
             def __init__(self, type_val, output_val=None):
                 self.type = type_val
                 if output_val is not None:
                     self.output = output_val
         
-        image_result_json = json.dumps({
-            "type": "image_url",
-            "image_url": {
-                "url": "data:image/png;base64,test_image_data"
-            }
-        })
-        
         input_list = [
             {"type": "user", "content": "Start"},
-            MockItem("function_call_output", image_result_json),  # Should be filtered
+            MockItem("function_call_output", "some output"),  # Non-dict item, should be unchanged
             {"type": "assistant", "content": "End"}
         ]
         
         result = process_input(input_list)
-        # Should filter out the MockItem with ImageResult
-        assert len(result) == 2
+        # Should keep all items unchanged since non-dict items are not processed
+        assert len(result) == 3
         assert result[0] == input_list[0]
-        assert result[1] == input_list[2]
+        assert result[1] == input_list[1]  # MockItem should be unchanged
+        assert result[2] == input_list[2]
     
     def test_invalid_input_type(self):
         """Test with invalid input type."""
