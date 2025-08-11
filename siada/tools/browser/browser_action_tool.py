@@ -14,13 +14,13 @@ import os
 from typing import Optional
 from io import BytesIO
 
-from agents import function_tool
+from agents import function_tool, RunContextWrapper
 from playwright.async_api import async_playwright, Browser, Page, Playwright
 from PIL import Image
 
 from .models import BrowserActionResult, BrowserSettings, ImageResult, ScreenshotConfig, CompressionLevel
 from .chromium_installer import ChromiumAutoInstaller
-
+from ...foundation.code_agent_context import CodeAgentContext
 
 BROWSER_OPERATE_DOC ="""
         Execute a browser action with comprehensive automation capabilities.
@@ -916,28 +916,63 @@ class BrowserActionTool:
     name_override="browser_operate", description_override=BROWSER_OPERATE_DOC
 )
 async def browser_operate(
-        self,
+        context: RunContextWrapper[CodeAgentContext],
         action: str,
         url: Optional[str] = None,
         coordinate: Optional[str] = None,
         text: Optional[str] = None
     ) -> str:
     import json
+    import weakref
+    import asyncio
     from dataclasses import asdict
 
-    settings = BrowserSettings(
-        viewport={"width": 1200, "height": 800},
-        headless=False,
-        timeout=30000
-    )
-
-    tool = BrowserActionTool(settings)
-
-    browser_action_result = await tool.execute_action(action, url, coordinate, text)
+    # Get or create browser tool instance from context to maintain state across calls
+    if not hasattr(context.context, '_browser_tool'):
+        settings = BrowserSettings(
+            viewport={"width": 1200, "height": 800},
+            headless=False,
+            timeout=30000
+        )
+        context.context._browser_tool = BrowserActionTool(settings)
+        
+        # Register cleanup function to ensure browser resources are freed when context is destroyed
+        def cleanup_browser():
+            if hasattr(context.context, '_browser_tool') and context.context._browser_tool:
+                try:
+                    # Convert async cleanup to sync for finalization
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(context.context._browser_tool._close())
+                    loop.close()
+                except Exception:
+                    pass  # Ignore cleanup errors during finalization
+        
+        # Use weakref to register cleanup callback that runs when context is garbage collected
+        weakref.finalize(context.context, cleanup_browser)
+    
+    tool = context.context._browser_tool
+    
+    try:
+        browser_action_result = await tool.execute_action(action, url, coordinate, text)
+        
+        # If close action is successful, remove the tool instance from context
+        if action == "close" and browser_action_result.success:
+            if hasattr(context.context, '_browser_tool'):
+                delattr(context.context, '_browser_tool')
+                
+    except Exception as e:
+        # If browser operation fails (except for "Browser not launched" which is expected),
+        # the browser instance might be corrupted, so remove it from context
+        if "Browser not launched" not in str(e):
+            if hasattr(context.context, '_browser_tool'):
+                delattr(context.context, '_browser_tool')
+        raise
     
     # Convert BrowserActionResult to ImageResult and then to JSON string
     if browser_action_result.screenshot and browser_action_result.success:
         # Get the image format from screenshot config
+        settings = tool.browser_settings
         image_format = settings.screenshot_config.get_optimized_settings()["format"]
         # Create ImageResult from screenshot base64 data with correct format
         image_result = ImageResult.from_base64(browser_action_result.screenshot, image_format)
