@@ -197,7 +197,7 @@ class FixAttemptCompletionFormatter(ToolCallFormatter):
 
     @property
     def supports_streaming(self) -> bool:
-        return True
+        return False
 
     @property
     def supported_function(self) -> str:
