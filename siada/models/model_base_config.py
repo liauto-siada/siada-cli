@@ -80,6 +80,12 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         max_tokens=8192,
         context_window=128_000,
     ),
+
+    ModelBaseConfig(
+        model_name="kimi-k2",
+        max_tokens=8192,
+        context_window=63_000,
+    ),
 ]
 
 def is_gemini_model(model_name: str) -> bool:

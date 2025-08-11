@@ -78,28 +78,22 @@ class FileEditFormatter(ToolCallFormatter):
 
                 if path:
                     content = f"I will create the file `{path}"
-                    if file_text:
-                        content += f"` with the following content:\n```{fence}\n{file_text}"
-                        if complete:
-                            content += "\n```"
+                    if file_text and complete:
+                        content += f"` with the following content:\n```{fence}\n{file_text}\n```"
             elif command == "str_replace":
-
                 if path:
                     content = f"In the file `{path}"
                     if old_str is not None:
-                        content += f"`, I will replace the string:\n```{fence}\n{old_str}"
                         if new_str is not None:
-                            content += f"\n```\nwith:\n```{fence}\n{new_str}"
+                            content += f"`, I will replace the string:\n```{fence}\n{old_str}\n```"
                             if complete:
-                                content += "\n```"
+                                content += f"\nwith:\n```{fence}\n{new_str}\n```"
             elif command == "insert":
 
                 if path:
                     content = f"In the file `{path}"
-                    if insert_line is not None and new_str:
-                        content += f"`, I will insert the following text after line {insert_line}:\n```{fence}\n{new_str}"
-                        if complete:
-                            content += "\n```"
+                    if insert_line is not None and new_str and complete:
+                        content += f"`, I will insert the following text after line {insert_line}:\n```{fence}\n{new_str}\n```"
             elif command == "undo_edit":
                 if path:
                     content = f"I will undo the last edit for the file `{path}"
@@ -158,7 +152,7 @@ class CommandFormatter(ToolCallFormatter):
         try:
             args = json.loads(arguments)
             command = args.get("command", "")
-            return f"siada wants to run the following command: ```{command}```", True
+            return f"siada wants to run the following command: ```shell\n{command}\n```", True
         except json.JSONDecodeError:
             return f"failed to parse arguments: {arguments}", False
 
