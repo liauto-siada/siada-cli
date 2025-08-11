@@ -625,6 +625,16 @@ class BrowserActionTool:
                     quality=settings["jpeg_quality"],
                     optimize=True
                 )
+            elif settings["format"] == "webp":
+                # Save as WebP with quality setting and optimization
+                webp_quality = settings.get("webp_quality", 75)
+                image.save(
+                    output_buffer, 
+                    format="WEBP", 
+                    quality=webp_quality,
+                    optimize=True,
+                    method=6  # Best compression method (0-6, 6 is slowest but best compression)
+                )
             else:
                 # Save as PNG with optimization
                 image.save(

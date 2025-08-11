@@ -50,8 +50,8 @@ class ScreenshotConfig:
         if not isinstance(self.max_height, int) or self.max_height < 0:
             raise ValueError("max_height must be a non-negative integer")
         
-        if self.format not in ["png", "jpeg"]:
-            raise ValueError("format must be 'png' or 'jpeg'")
+        if self.format not in ["png", "jpeg", "webp"]:
+            raise ValueError("format must be 'png', 'jpeg', or 'webp'")
 
     def get_optimized_settings(self) -> dict:
         """Get optimized settings based on compression level.
@@ -69,16 +69,18 @@ class ScreenshotConfig:
         elif self.compression_level == CompressionLevel.MEDIUM:
             return {
                 "jpeg_quality": 75,
+                "webp_quality": 75,
                 "max_width": 1200,
                 "max_height": 800,
-                "format": "jpeg"
+                "format": "webp"
             }
         else:  # HIGH compression
             return {
                 "jpeg_quality": 60,
+                "webp_quality": 60,
                 "max_width": 800,
                 "max_height": 600,
-                "format": "jpeg"
+                "format": "webp"
             }
 
 
@@ -209,8 +211,8 @@ class ImageResult:
         if not isinstance(base64_data, str):
             raise ValueError("base64_data must be a string")
         
-        if image_format not in ["png", "jpeg"]:
-            raise ValueError("image_format must be 'png' or 'jpeg'")
+        if image_format not in ["png", "jpeg", "webp"]:
+            raise ValueError("image_format must be 'png', 'jpeg', or 'webp'")
         
         # Construct the data URL with dynamic format
         data_url = f"data:image/{image_format};base64,{base64_data}"
