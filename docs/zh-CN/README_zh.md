@@ -1,5 +1,7 @@
 # Siada CLI
 
+**简体中文 | [English](./docs/zh-CN/README_zh.md)**
+
 ![Siada CLI Screenshot](../assets/siada-cli-screenshot-zh.png)
 
 本仓库包含 Siada CLI，这是一个命令行 AI 工作流工具，为代码开发、调试和自动化任务提供专业化的智能代理。
@@ -11,7 +13,6 @@
 - 通过智能代码生成和测试自动化开发工作流程。
 - 执行系统命令并与开发环境交互。
 - 无缝支持多种编程语言和框架。
-
 
 ## 安装/更新
 
@@ -290,7 +291,6 @@ exit
 ### 前端生成代理 (`--agent fegen` / `-a fegen` / `--fegen`)
 专注于前端开发任务，包括 React 组件、CSS 样式和用户界面实现。
 
-
 ## 示例
 
 ### 激活虚拟环境（仅开发者模式需要）
@@ -382,7 +382,7 @@ deactivate
 
 **命令找不到 (command not found)：**
 如果直接运行 `siada-cli` 提示命令找不到：
-- 这是正常现象，因为命令安装在虚拟环境中
+- 在开发者模式中是正常现象，因为命令安装在虚拟环境中
 - 参考示例激活虚拟环境
 
 **模型 API 错误：**
