@@ -14,9 +14,41 @@ With Siada CLI you can:
 - Execute system commands and interact with development environments.
 - Seamlessly support multiple programming languages and frameworks.
 
-## Quick Start
+## Installation/Update
 
-### Installation (Developer Mode)
+1. System Requirements
+- MAC, Linux
+- GCC 11+
+
+2. Installation Command
+   ```bash
+   curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh
+   ```
+
+   The following output indicates successful installation
+   ![siada-cli installed successfully](./docs/assets/siada-cli-installed-successfully.png)
+
+   After installation, you need to add ~/.local/bin to PATH according to the prompt (skip if already added) to ensure siada-cli can be used in shell
+   ```bash
+   # Bash
+   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+   source ~/.bashrc
+
+   # Zsh 
+   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+   source ~/.zshrc
+   ```
+
+   Verify successful installation
+   ```bash
+   siada-cli --version
+
+   # Successfully outputting version number indicates successful installation
+   siada-cli 0.0.1
+   ```
+   
+
+## Installation (Developer Mode)
 
 1. **Prerequisites:** Ensure you have [Python 3.12](https://www.python.org/downloads/) or higher and [Poetry](https://python-poetry.org/docs/#installation) installed.
 
@@ -37,88 +69,98 @@ With Siada CLI you can:
    siada-cli
    ```
 
-### Configuration
+## Configuration
 
-1. **Configure Model:** Siada CLI provides multiple ways to configure AI models and providers. See the Model Configuration section for details:
+### Model Configuration
 
-   **Default/Configure via Configuration File**
+**Method 1: Default Configuration**
    - The system reads default configuration from `agent_config.yaml` file
    - Current defaults: model `claude-sonnet-4`, provider `openrouter`
-   - Edit the `llm_config` section in `agent_config.yaml` file:
-   ```yaml
-   llm_config:
-     provider: "openrouter"                    
-     model_name: "claude-sonnet-4"     # Change to your desired model
-   ```
-   - Set OPENROUTER_API_KEY
+
+   **Method 2: Customize via Configuration File**
+   - Regular Users
+      - Edit configuration file `~/.siada-cli/conf.yaml`
+         ```bash
+         # 1. Create configuration file in user home directory
+         cd ~
+         mkdir -p ~/.siada-cli
+         touch ~/.siada-cli/conf.yaml
+
+         # 2. Configuration file content example
+         llm_config:
+         model: "claude-sonnet-4"          # Change to your desired model
+         provider: "openrouter"
+         ```
+   - Developer Mode
+      - Edit the `llm_config` section in `agent_config.yaml` file:
+         ```yaml
+         llm_config:
+         provider: "openrouter"
+         model_name: "claude-sonnet-4"     # Change to your desired model
+         ```
+
+   **Method 3: Via Environment Variables**
    ```bash
+   # Set model
+   export SIADA_MODEL="claude-sonnet-4"
+   
+   # Set provider
+   export SIADA_PROVIDER="openrouter"
+
    # Required when using OpenRouter provider
    export OPENROUTER_API_KEY="your_openrouter_key"
    ```
 
-2. **Choose Your Agent:** Select from available specialized agents:
-   - `bugfix` - Bug fixing and debugging (non-interactive mode only)
-   - `coder` - General code development  
-   - `fegen` - Frontend code generation
-
+   **Method 4: Via Command Line Parameters (Highest Priority)**
    ```bash
-   # Use a specific agent
-   siada-cli --agent coder
+   # Only change model (keep provider unchanged)
+   siada-cli --model claude-sonnet-4
+   
+   # Change both model and provider
+   siada-cli --model gpt-4.1 --provider openrouter
+   
+   # Only change provider (keep model unchanged)
+   siada-cli --provider openrouter
    ```
 
-You are now ready to use Siada CLI!
+   > **Important Notes:**
+   > - **Complete Priority**: `Command line parameters` > `Environment variables (SIADA_ prefix)` > `Configuration file (agent_config.yaml)`
+   > - **Provider Requirements**: When using `openrouter`, must set `OPENROUTER_API_KEY` environment variable
 
-## Examples
+### Agent Configuration (Developer Mode)
 
-### Activate Virtual Environment
-First, enter the siada-agenthub project directory and activate the virtual environment:
+Edit `agent_config.yaml` to customize agent behavior:
 
-```bash
-# Enter project directory
-cd ~/path/to/siada-agenthub
+```yaml
+agents:
+  bugfix:
+    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
+    description: "Specialized agent for code bug fixing"
+    enabled: true
 
-# Activate virtual environment (recommended method)
-source $(poetry env info --path)/bin/activate
-
-# Or use Poetry run (no need to activate environment)
-# poetry run siada-cli
+llm_config:
+  provider: "openrouter"
+  model_name: "claude-sonnet-4"
+  repo_map_tokens: 8192
+  repo_map_mul_no_files: 16
+  repo_verbose: true
 ```
 
-### Usage Examples
+### Environment Variables
 
-After activating the environment, you can choose between interactive mode or non-interactive mode to interact with AI agents.
-
-**Interactive Mode:**
+Set environment variables to configure behavior:
 
 ```bash
-# Enter project directory
-cd my-project/
+# Siada-specific settings (use SIADA_ prefix)
+export SIADA_AGENT="bugfix"
+export SIADA_MODEL="claude-sonnet-4"
+export SIADA_THEME="dark"
 
-# Start interactive mode
-siada-cli --agent coder
+# Required when using OpenRouter provider
+export OPENROUTER_API_KEY="your_openrouter_key"
 
-# Then you can input prompts in the interactive interface
-> Create a REST API server with user authentication using FastAPI
-# AI will respond and you can continue the conversation...
-> Add logging functionality to this API
-```
-
-**Non-Interactive Mode (One-time execution):**
-
-```bash
-# Execute a single task and exit (uses coder agent by default)
-siada-cli --prompt "Create a user registration API"
-
-# Specify a specific agent to execute tasks
-siada-cli --agent bugfix --prompt "Fix authentication errors in login.py"
-siada-cli --agent fegen --prompt "Create a responsive navigation bar component using React and Tailwind CSS"
-```
-
-**Exit Virtual Environment:**
-
-```bash
-# Exit virtual environment after use
-deactivate
+# Unset environment variables in current terminal session
+unset SIADA_MODEL
 ```
 
 ## Usage Modes
@@ -192,6 +234,7 @@ siada-cli --verbose
 
 # List all available models
 siada-cli --list-models
+siada-cli --models
 ```
 
 ## Slash Commands
@@ -248,85 +291,57 @@ General-purpose code development agent for creating new features, refactoring co
 ### Frontend Generation Agent (`--agent fegen` / `-a fegen` / `--fegen`)
 Focused on frontend development tasks, including React components, CSS styling, and user interface implementation.
 
-## Configuration
+## Examples
 
-### Model Configuration
-
-**Method 1: Default Configuration**
-   - The system reads default configuration from `agent_config.yaml` file
-   - Current defaults: model `claude-sonnet-4`, provider `openrouter`
-
-   **Method 2: Customize via Configuration File**
-   - Edit the `llm_config` section in `agent_config.yaml` file:
-   ```yaml
-   llm_config:
-     provider: "openrouter"
-     model_name: "claude-sonnet-4"     # Change to your desired model
-   ```
-
-   **Method 3: Via Environment Variables**
-   ```bash
-   # Set model
-   export SIADA_MODEL="claude-sonnet-4"
-   
-   # Set provider
-   export SIADA_PROVIDER="openrouter"
-
-   # Required when using OpenRouter provider
-   export OPENROUTER_API_KEY="your_openrouter_key"
-   ```
-
-   **Method 4: Via Command Line Parameters (Highest Priority)**
-   ```bash
-   # Only change model (keep provider unchanged)
-   siada-cli --model claude-sonnet-4
-   
-   # Change both model and provider
-   siada-cli --model gpt-4.1 --provider openrouter
-   
-   # Only change provider (keep model unchanged)
-   siada-cli --provider openrouter
-   ```
-
-   > **Important Notes:**
-   > - **Model and Provider Association**: Different providers support different models, ensure provider compatibility when switching models
-   > - **Complete Priority**: `Command line parameters` > `Environment variables (SIADA_ prefix)` > `Configuration file (agent_config.yaml)`
-   > - **Provider Requirements**: When using `openrouter`, must set `OPENROUTER_API_KEY` environment variable
-
-### Agent Configuration
-
-Edit `agent_config.yaml` to customize agent behavior:
-
-```yaml
-agents:
-  bugfix:
-    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
-    description: "Specialized agent for code bug fixing"
-    enabled: true
-
-llm_config:
-  provider: "openrouter"
-  model_name: "claude-sonnet-4"
-  repo_map_tokens: 8192
-  repo_map_mul_no_files: 16
-  repo_verbose: true
-```
-
-### Environment Variables
-
-Set environment variables to configure behavior:
+### Activate Virtual Environment (Developer Mode Only)
+First, enter the siada-agenthub project directory and activate the virtual environment:
 
 ```bash
-# Siada-specific settings (use SIADA_ prefix)
-export SIADA_AGENT="bugfix"
-export SIADA_MODEL="claude-sonnet-4"
-export SIADA_THEME="dark"
+# Enter project directory
+cd ~/path/to/siada-agenthub
 
-# Required when using OpenRouter provider
-export OPENROUTER_API_KEY="your_openrouter_key"
+# Activate virtual environment (recommended method)
+source $(poetry env info --path)/bin/activate
 
-# Unset environment variables in current terminal session
-unset SIADA_MODEL
+# Or use Poetry run (no need to activate environment)
+# poetry run siada-cli
+```
+
+### Usage Examples
+
+After activating the environment, you can choose between interactive mode or non-interactive mode to interact with AI agents.
+
+**Interactive Mode:**
+
+```bash
+# Enter project directory
+cd my-project/
+
+# Start interactive mode
+siada-cli --agent coder
+
+# Then you can input prompts in the interactive interface
+> Create a REST API server with user authentication using FastAPI
+# AI will respond and you can continue the conversation...
+> Add logging functionality to this API
+```
+
+**Non-Interactive Mode (One-time execution):**
+
+```bash
+# Execute a single task and exit (uses coder agent by default)
+siada-cli --prompt "Create a user registration API"
+
+# Specify a specific agent to execute tasks
+siada-cli --agent bugfix --prompt "Fix authentication errors in login.py"
+siada-cli --agent fegen --prompt "Create a responsive navigation bar component using React and Tailwind CSS"
+```
+
+**Exit Virtual Environment (Developer Mode Only):**
+
+```bash
+# Exit virtual environment after use
+deactivate
 ```
 
 ## Common Tasks
@@ -367,7 +382,7 @@ unset SIADA_MODEL
 
 **Command not found:**
 If running `siada-cli` directly shows command not found:
-- This is normal behavior as the command is installed in the virtual environment
+- This is normal behavior in developer mode as the command is installed in the virtual environment
 - Refer to examples to activate the virtual environment
 
 **Model API errors:**
@@ -410,4 +425,4 @@ For a complete list of open source projects and licenses used in Siada CLI, plea
 
 ## License
 
-Distributed under the MIT License. See [`LICENSE`](./docs/LICENSE) for more information.
+Distributed under the MIT License. See [`LICENSE`](../../LICENSE) for more information.

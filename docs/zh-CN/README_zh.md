@@ -12,9 +12,42 @@
 - 执行系统命令并与开发环境交互。
 - 无缝支持多种编程语言和框架。
 
-## 快速开始
 
-### 安装（开发者模式）
+## 安装/更新
+
+1. 系统要求
+- MAC、 Linux
+- GCC 11+
+
+2. 安装命令
+   ```bash
+   curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh
+   ```
+
+   输出下面信息表示安装成功
+   ![siada-cli installed successfully](../assets/siada-cli-installed-successfully.png)
+
+   安装完成后需根据提示将 ~/.local/bin 添加到PATH 中(已添加可忽略)，以确保可在shell中使用 siada-cli
+   ```bash
+   # Bash
+   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+   source ~/.bashrc
+
+   # Zsh 
+   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+   source ~/.zshrc
+   ```
+
+   验证是否安装成功
+   ```bash
+   siada-cli --version
+
+   # 成功输出版本号表示安装成功
+   siada-cli 0.0.1
+   ```
+   
+
+## 安装（开发者模式）
 
 1. **前提条件：** 确保您已安装 [Python 3.12](https://www.python.org/downloads/) 或更高版本以及 [Poetry](https://python-poetry.org/docs/#installation)。
 
@@ -35,88 +68,98 @@
    siada-cli
    ```
 
-### 配置
+## 配置
 
-1. **配置模型：** Siada CLI 提供多种方式配置使用的 AI 模型和供应商，详情参考模型配置部分：
+### 模型配置
 
-   **默认/通过配置文件自定义**
+**方法1：默认配置**
    - 系统从 `agent_config.yaml` 文件读取默认配置
    - 当前默认：模型 `claude-sonnet-4`，供应商 `openrouter`
-   - 编辑 `agent_config.yaml` 文件中的 `llm_config` 部分：
-   ```yaml
-   llm_config:
-     provider: "openrouter"                    
-     model_name: "claude-sonnet-4"     # 更改为您想要的模型
-   ```
-   - 设置 OPENROUTER_API_KEY
+
+   **方法2：通过配置文件自定义**
+   - 普通用户
+      - 编辑配置文件 `~/.siada-cli/conf.yaml`
+         ```bash
+         # 1. 在用户主目录下创建配置文件
+         cd ~
+         mkdir -p ~/.siada-cli
+         touch ~/.siada-cli/conf.yaml
+
+         # 2. 配置文件内容示例
+         llm_config:
+         model: "claude-sonnet-4"          # 更改为您想要的模型
+         provider: "openrouter"
+         ```
+   - 开发者模式
+      - 编辑 `agent_config.yaml` 文件中的 `llm_config` 部分：
+         ```yaml
+         llm_config:
+         provider: "openrouter"
+         model_name: "claude-sonnet-4"     # 更改为您想要的模型
+         ```
+
+   **方法3：通过环境变量**
    ```bash
+   # 设置模型
+   export SIADA_MODEL="claude-sonnet-4"
+   
+   # 设置供应商
+   export SIADA_PROVIDER="openrouter"
+
    # 在使用 OpenRouter 提供商时需要
    export OPENROUTER_API_KEY="your_openrouter_key"
    ```
 
-2. **选择您的代理：** 从可用的专业化代理中选择：
-   - `bugfix` - 错误修复和调试（仅支持非交互模式）
-   - `coder` - 通用代码开发  
-   - `fegen` - 前端代码生成
-
+   **方法4：通过命令行参数（最高优先级）**
    ```bash
-   # 使用特定代理
-   siada-cli --agent coder
+   # 仅更改模型（保持供应商不变）
+   siada-cli --model claude-sonnet-4
+   
+   # 同时更改模型和供应商
+   siada-cli --model gpt-4.1 --provider openrouter
+   
+   # 仅更改供应商（保持模型不变）
+   siada-cli --provider openrouter
    ```
 
-现在您已准备好使用 Siada CLI！
+   > **重要提醒：**
+   > - **完整优先级**：`命令行参数` > `环境变量(SIADA_前缀)` > `配置文件(agent_config.yaml)`
+   > - **供应商要求**：使用 `openrouter` 时必须设置 `OPENROUTER_API_KEY` 环境变量
 
-## 示例
+### 代理配置(开发者模式)
 
-### 激活虚拟环境
-首先，进入 siada-agenthub 项目目录并激活虚拟环境：
+编辑 `agent_config.yaml` 以自定义代理行为：
 
-```bash
-# 进入项目目录
-cd ~/path/to/siada-agenthub
+```yaml
+agents:
+  bugfix:
+    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
+    description: "专门用于代码错误修复的代理"
+    enabled: true
 
-# 激活虚拟环境（推荐方法）
-source $(poetry env info --path)/bin/activate
-
-# 或者使用 Poetry 运行（无需激活环境）
-# poetry run siada-cli
+llm_config:
+  provider: "openrouter"
+  model_name: "claude-sonnet-4"
+  repo_map_tokens: 8192
+  repo_map_mul_no_files: 16
+  repo_verbose: true
 ```
 
-### 使用示例
+### 环境变量
 
-激活环境后，您可以选择交互模式或非交互模式与 AI 代理进行交互。
-
-**交互模式（默认）：**
+设置环境变量来配置行为：
 
 ```bash
-# 进入项目目录
-cd my-project/
+# Siada 特定设置（使用 SIADA_ 前缀）
+export SIADA_AGENT="bugfix"
+export SIADA_MODEL="claude-sonnet-4"
+export SIADA_THEME="dark"
 
-# 启动交互模式
-siada-cli --agent coder
+# 在使用 OpenRouter 提供商时需要
+export OPENROUTER_API_KEY="your_openrouter_key"
 
-# 然后您可以在交互界面中输入提示
-> 使用 FastAPI 创建一个带有用户认证的 REST API 服务器
-# AI 会响应并可以继续对话...
-> 为这个 API 添加日志记录功能
-```
-
-**非交互模式（一次性执行）：**
-
-```bash
-# 直接执行单个任务并退出（默认使用 coder agent）
-siada-cli --prompt "创建一个用户注册 API"
-
-# 指定特定代理执行任务
-siada-cli --agent bugfix --prompt "修复 login.py 中的认证错误"
-siada-cli --agent fegen --prompt "使用 React 和 Tailwind CSS 创建一个响应式导航栏组件"
-```
-
-**退出虚拟环境：**
-
-```bash
-# 使用完毕后退出虚拟环境
-deactivate
+# 在当前终端会话中取消环境变量
+unset SIADA_MODEL
 ```
 
 ## 使用模式
@@ -179,7 +222,7 @@ siada-cli -p "修复 login.py 中的认证错误"
 # 使用不同模型
 siada-cli --model claude-sonnet-4
 
-# 明确使用 OpenRouter 提供商（需要设置 API 密钥）
+# 明确使用 OpenRouter 供应商（需要设置 API 密钥）
 siada-cli --provider openrouter
 
 # 设置颜色主题
@@ -190,6 +233,7 @@ siada-cli --verbose
 
 # 列出所有可用模型
 siada-cli --list-models
+siada-cli --models
 ```
 
 ## 斜杠命令
@@ -246,85 +290,58 @@ exit
 ### 前端生成代理 (`--agent fegen` / `-a fegen` / `--fegen`)
 专注于前端开发任务，包括 React 组件、CSS 样式和用户界面实现。
 
-## 配置
 
-### 模型配置
+## 示例
 
-**方法1：默认配置**
-   - 系统从 `agent_config.yaml` 文件读取默认配置
-   - 当前默认：模型 `claude-sonnet-4`，供应商 `openrouter`
-
-   **方法2：通过配置文件自定义**
-   - 编辑 `agent_config.yaml` 文件中的 `llm_config` 部分：
-   ```yaml
-   llm_config:
-     provider: "openrouter"
-     model_name: "claude-sonnet-4"     # 更改为您想要的模型
-   ```
-
-   **方法3：通过环境变量**
-   ```bash
-   # 设置模型
-   export SIADA_MODEL="claude-sonnet-4"
-   
-   # 设置供应商
-   export SIADA_PROVIDER="openrouter"
-
-   # 在使用 OpenRouter 提供商时需要
-   export OPENROUTER_API_KEY="your_openrouter_key"
-   ```
-
-   **方法4：通过命令行参数（最高优先级）**
-   ```bash
-   # 仅更改模型（保持供应商不变）
-   siada-cli --model claude-sonnet-4
-   
-   # 同时更改模型和供应商
-   siada-cli --model gpt-4.1 --provider openrouter
-   
-   # 仅更改供应商（保持模型不变）
-   siada-cli --provider openrouter
-   ```
-
-   > **重要提醒：**
-   > - **模型与供应商关联**：不同供应商支持不同的模型，切换模型时请确保供应商兼容
-   > - **完整优先级**：`命令行参数` > `环境变量(SIADA_前缀)` > `配置文件(agent_config.yaml)`
-   > - **供应商要求**：使用 `openrouter` 时必须设置 `OPENROUTER_API_KEY` 环境变量
-
-### 代理配置
-
-编辑 `agent_config.yaml` 以自定义代理行为：
-
-```yaml
-agents:
-  bugfix:
-    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
-    description: "专门用于代码错误修复的代理"
-    enabled: true
-
-llm_config:
-  provider: "openrouter"
-  model_name: "claude-sonnet-4"
-  repo_map_tokens: 8192
-  repo_map_mul_no_files: 16
-  repo_verbose: true
-```
-
-### 环境变量
-
-设置环境变量来配置行为：
+### 激活虚拟环境（仅开发者模式需要）
+首先，进入 siada-agenthub 项目目录并激活虚拟环境：
 
 ```bash
-# Siada 特定设置（使用 SIADA_ 前缀）
-export SIADA_AGENT="bugfix"
-export SIADA_MODEL="claude-sonnet-4"
-export SIADA_THEME="dark"
+# 进入项目目录
+cd ~/path/to/siada-agenthub
 
-# 在使用 OpenRouter 提供商时需要
-export OPENROUTER_API_KEY="your_openrouter_key"
+# 激活虚拟环境（推荐方法）
+source $(poetry env info --path)/bin/activate
 
-# 在当前终端会话中取消环境变量
-unset SIADA_MODEL
+# 或者使用 Poetry 运行（无需激活环境）
+# poetry run siada-cli
+```
+
+### 使用示例
+
+激活环境后，您可以选择交互模式或非交互模式与 AI 代理进行交互。
+
+**交互模式（默认）：**
+
+```bash
+# 进入项目目录
+cd my-project/
+
+# 启动交互模式
+siada-cli --agent coder
+
+# 然后您可以在交互界面中输入提示
+> 使用 FastAPI 创建一个带有用户认证的 REST API 服务器
+# AI 会响应并可以继续对话...
+> 为这个 API 添加日志记录功能
+```
+
+**非交互模式（一次性执行）：**
+
+```bash
+# 直接执行单个任务并退出（默认使用 coder agent）
+siada-cli --prompt "创建一个用户注册 API"
+
+# 指定特定代理执行任务
+siada-cli --agent bugfix --prompt "修复 login.py 中的认证错误"
+siada-cli --agent fegen --prompt "使用 React 和 Tailwind CSS 创建一个响应式导航栏组件"
+```
+
+**退出虚拟环境（仅开发者模式需要）：**
+
+```bash
+# 使用完毕后退出虚拟环境
+deactivate
 ```
 
 ## 常见任务
