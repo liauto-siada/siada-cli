@@ -50,15 +50,46 @@ echo 'fish_add_path $HOME/.local/bin' >> ~/.config/fish/config.fish
 
 ## 🔧 配置选项
 
-### 环境变量
+### 开发者环境变量
 
-- **`SIADA_OIS`**：发布环境（`test` | `prod`，默认 `test`）
-- **`SIADA_PYPI_INDEX`**：用户安装时可指定自定义 PyPI 镜像
+- **`SIADA_OIS`**：发布环境
+  - `test`：测试环境（默认）
+  - `prod`：生产环境
+  - 示例：`SIADA_OIS=prod ./siada_internal/scripts/publish.sh`
 
-### 自定义镜像示例
+- **`SIADA_DIST_DIR`**：wheel 文件目录
+  - 默认：`dist/`（项目根目录下）
+  - 示例：`SIADA_DIST_DIR=/path/to/custom/dist python pack_pipeline.py`
+
+### 用户安装环境变量
+
+- **`SIADA_PYPI_INDEX`**：自定义 PyPI 镜像
+  - 默认：`https://pypi.tuna.tsinghua.edu.cn/simple`
+  - 支持任何兼容的 PyPI 镜像源
+  - 示例：
+    ```bash
+    # 使用官方源
+    SIADA_PYPI_INDEX=https://pypi.org/simple curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/test/test_remote_install.sh | sh
+    
+    # 使用阿里云源
+    SIADA_PYPI_INDEX=https://mirrors.aliyun.com/pypi/simple curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/test/test_remote_install.sh | sh
+    ```
+
+### PATH 配置
+
+安装完成后需要将 `~/.local/bin` 添加到 PATH：
 
 ```bash
-SIADA_PYPI_INDEX=https://pypi.org/simple curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/test/test_remote_install.sh | sh
+# Bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# Zsh 
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# 检查是否生效
+echo $PATH | grep -o "$HOME/.local/bin"
 ```
 
 ## 🐛 故障排除

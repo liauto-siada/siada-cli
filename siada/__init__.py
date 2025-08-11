@@ -5,7 +5,7 @@ except ImportError:
     from importlib_metadata import version
 
 try:
-    __version__ = version("siada-agenthub")
+    __version__ = version("siada-cli")
 except Exception:
     # Fallback for development environment
     __version__ = "dev"

@@ -15,7 +15,12 @@ uv python install 3.12
 
 # Create or reuse a dedicated venv
 VENV_DIR="$HOME/.local/share/siada_cli_venv_3.12"
-uv venv --python 3.12 "$VENV_DIR"
+if [ ! -d "$VENV_DIR" ]; then
+  echo "Creating virtual environment at: $VENV_DIR"
+  uv venv --python 3.12 "$VENV_DIR"
+else
+  echo "Using existing virtual environment at: $VENV_DIR"
+fi
 
 # Optional: custom index mirror (using variables instead of arrays)
 if [ -n "${SIADA_PYPI_INDEX:-}" ]; then
@@ -40,17 +45,13 @@ mkdir -p "$LINK_DIR"
 ln -sf "$VENV_DIR/bin/$BIN_NAME" "$LINK_DIR/$BIN_NAME"
 
 echo "**************************************"
-echo "siada-cli installed in venv: $VENV_DIR"
-echo "Symlink created: $LINK_DIR/$BIN_NAME"
+echo "siada-cli installed in venv: \$HOME/.local/share/siada_cli_venv_3.12"
+echo "Symlink created: \$HOME/.local/bin/$BIN_NAME"
 echo "Next Steps"
 echo "1. Add ~/.local/bin to your PATH:"
 echo "   For bash:"
-echo "   echo 'export PATH=\"$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+echo "   echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
 echo "   source ~/.bashrc"
 echo "   For zsh:"
-echo "   echo 'export PATH=\"$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+echo "   echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
 echo "   source ~/.zshrc"
-echo "   For fish:"
-echo "   mkdir -p \$HOME/.config/fish"
-echo "   echo 'fish_add_path \$HOME/.local/bin' >> \$HOME/.config/fish/config.fish"
-echo "   source \$HOME/.config/fish/config.fish"
