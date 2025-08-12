@@ -49,6 +49,7 @@ class LoggerTracingProcessor(TracingProcessor):
         show_handoffs: bool = True,
         show_trace_lifecycle: bool = True,
         show_timestamps: bool = True,
+        show_system_messages: bool = False,
         use_colors: bool = True,
         console_output: bool = True,
         output_file: Optional[str] = None,
@@ -63,6 +64,7 @@ class LoggerTracingProcessor(TracingProcessor):
             show_handoffs: Whether to show Agent handoffs
             show_trace_lifecycle: Whether to show Trace lifecycle
             show_timestamps: Whether to show timestamps
+            show_system_messages: Whether to show system messages (default: False)
             use_colors: Whether to use colored output
             console_output: Whether to output to console (default: True)
             output_file: Optional output file path
@@ -73,6 +75,7 @@ class LoggerTracingProcessor(TracingProcessor):
         self.show_handoffs = show_handoffs
         self.show_trace_lifecycle = show_trace_lifecycle
         self.show_timestamps = show_timestamps
+        self.show_system_messages = show_system_messages
         self.use_colors = use_colors
         self.console_output = console_output
         self.output_file = output_file
@@ -151,9 +154,24 @@ class LoggerTracingProcessor(TracingProcessor):
         if not new_messages:
             return
         
+        # Pre-filter messages to check if we have any to display
+        messages_to_display = []
+        for msg in new_messages:
+            role = msg.get('role', 'unknown')
+            # Skip system messages if show_system_messages is False
+            if role == 'system' and not self.show_system_messages:
+                continue
+            messages_to_display.append(msg)
+        
+        # Only print header if we have messages to display
+        if not messages_to_display:
+            # Update the count even if no messages are displayed
+            state.message_count = len(messages)
+            return
+            
         self._print(f"{self.colors['input']}📥 New Input Messages:{self.colors['reset']}")
         
-        for i, msg in enumerate(new_messages, start=state.message_count + 1):
+        for msg in messages_to_display:
             role = msg.get('role', 'unknown')
             content = msg.get('content', '')
             
