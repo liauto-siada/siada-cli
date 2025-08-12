@@ -20,6 +20,11 @@ agents:
     description: "Frontend code generation agent"
     enabled: false
 
+  browser:
+    class: "siada.agent_hub.coder.browser_agent.BrowserAgent"
+    description: "Browser operate agent"
+    enabled: true
+
   bugreproduce:
     class: "siada.agent_hub.coder.bug_reproduce_agent.BugReproduceAgent"
     description: "Bug reproduction agent"

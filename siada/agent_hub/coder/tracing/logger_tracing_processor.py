@@ -118,7 +118,7 @@ class LoggerTracingProcessor(TracingProcessor):
                 if self.console_output:
                     print(f"Warning: Failed to write to file {self.output_file}: {e}")
     
-    def _truncate_content(self, content: str, max_length: int = 500) -> str:
+    def _truncate_content(self, content: str, max_length: int = 2000) -> str:
         """Truncate overly long content"""
         if len(content) <= max_length:
             return content
@@ -182,7 +182,8 @@ class LoggerTracingProcessor(TracingProcessor):
                 for item in content:
                     if isinstance(item, dict):
                         if item.get('type') == 'text':
-                            content_summary.append(f"text: {item.get('text', '')}")
+                            text_content = item.get('text', '')
+                            content_summary.append(f"text: {self._truncate_content(str(text_content))}")
 
                         elif item.get('type') == 'image_url':
                             content_summary.append("image: [image data]")
@@ -190,7 +191,7 @@ class LoggerTracingProcessor(TracingProcessor):
                             content_summary.append(f"{item.get('type', 'unknown')}: [data]")
                 content_str = " | ".join(content_summary)
             else:
-                content_str = content
+                content_str = self._truncate_content(str(content))
             
             self._print(f"  [{role}]: {content_str}")
         
@@ -207,7 +208,8 @@ class LoggerTracingProcessor(TracingProcessor):
                 if 'role' in item:
                     role = item.get('role', 'assistant')
                     content = item.get('content', '')
-                    self._print(f"  [{role}]: {content}")
+                    truncated_content = self._truncate_content(str(content))
+                    self._print(f"  [{role}]: {truncated_content}")
                     continue
                 
                 # Check if there's a type field
@@ -216,17 +218,22 @@ class LoggerTracingProcessor(TracingProcessor):
                     # Message output
                     role = item.get('role', 'assistant')
                     content = item.get('content', '')
-                    self._print(f"  [{role}]: {content}")
+                    truncated_content = self._truncate_content(str(content))
+                    self._print(f"  [{role}]: {truncated_content}")
                 
                 elif item_type == 'function_call':
                     # Tool call
                     name = item.get('name', 'unknown')
                     args = item.get('arguments', {})
-                    self._print(f"  🔧 Tool Call: {name}({self._format_json(args)})")
+                    formatted_args = self._format_json(args)
+                    truncated_args = self._truncate_content(str(formatted_args))
+                    self._print(f"  🔧 Tool Call: {name}({truncated_args})")
                 
                 elif item_type:
                     # Other types with explicit type
-                    self._print(f"  [{item_type}]: {self._format_json(item)}")
+                    formatted_item = self._format_json(item)
+                    truncated_item = self._truncate_content(str(formatted_item))
+                    self._print(f"  [{item_type}]: {truncated_item}")
                 
                 else:
                     # No type field, try to identify intelligently
@@ -234,17 +241,24 @@ class LoggerTracingProcessor(TracingProcessor):
                         # Looks like a message
                         role = item.get('role', 'assistant')
                         content = item.get('content', '')
-                        self._print(f"  [{role}]: {content}")
+                        truncated_content = self._truncate_content(str(content))
+                        self._print(f"  [{role}]: {truncated_content}")
                     elif 'name' in item and 'arguments' in item:
                         # Looks like a function call
                         name = item.get('name', 'unknown')
                         args = item.get('arguments', {})
-                        self._print(f"  🔧 Tool Call: {name}({self._format_json(args)})")
+                        formatted_args = self._format_json(args)
+                        truncated_args = self._truncate_content(str(formatted_args))
+                        self._print(f"  🔧 Tool Call: {name}({truncated_args})")
                     else:
                         # Unrecognized structure, display as data
-                        self._print(f"  [data]: {self._format_json(item)}")
+                        formatted_item = self._format_json(item)
+                        truncated_item = self._truncate_content(str(formatted_item))
+                        self._print(f"  [data]: {truncated_item}")
             else:
-                self._print(f"  {self._format_json(item)}")
+                formatted_item = self._format_json(item)
+                truncated_item = self._truncate_content(str(formatted_item))
+                self._print(f"  {truncated_item}")
     
     def on_trace_start(self, trace) -> None:
         """Callback when Trace starts"""
@@ -363,15 +377,21 @@ class LoggerTracingProcessor(TracingProcessor):
         
         # 打印输入
         if data.input:
-            self._print(f"{self.colors['input']}📥 Input: {self._format_json(data.input)}{self.colors['reset']}")
+            formatted_input = self._format_json(data.input)
+            truncated_input = self._truncate_content(str(formatted_input))
+            self._print(f"{self.colors['input']}📥 Input: {truncated_input}{self.colors['reset']}")
         
         # 打印输出
         if data.output is not None:
-            self._print(f"{self.colors['output']}📤 Output: {self._format_json(data.output)}{self.colors['reset']}")
+            formatted_output = self._format_json(data.output)
+            truncated_output = self._truncate_content(str(formatted_output))
+            self._print(f"{self.colors['output']}📤 Output: {truncated_output}{self.colors['reset']}")
         
         # 打印 MCP 数据（如果有）
         if data.mcp_data:
-            self._print(f"{self.colors['tool']}🔗 MCP Data: {self._format_json(data.mcp_data)}{self.colors['reset']}")
+            formatted_mcp = self._format_json(data.mcp_data)
+            truncated_mcp = self._truncate_content(str(formatted_mcp))
+            self._print(f"{self.colors['tool']}🔗 MCP Data: {truncated_mcp}{self.colors['reset']}")
         
         self._print(f"{self.colors['tool']}==============={self.colors['reset']}")
     

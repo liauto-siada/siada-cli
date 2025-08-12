@@ -12,18 +12,16 @@ import base64
 import logging
 import os
 from typing import Optional
-from io import BytesIO
 
 from agents import function_tool, RunContextWrapper
 from playwright.async_api import async_playwright, Browser, Page, Playwright
-from PIL import Image
 
 from .models import BrowserActionResult, BrowserSettings, ImageResult, ScreenshotConfig, CompressionLevel
 from .chromium_installer import ChromiumAutoInstaller
 from ...foundation.code_agent_context import CodeAgentContext
 
 # Browser viewport configuration
-DEFAULT_VIEWPORT_WIDTH = 1200
+DEFAULT_VIEWPORT_WIDTH = 900
 DEFAULT_VIEWPORT_HEIGHT = 600
 
 BROWSER_OPERATE_DOC ="""
@@ -37,81 +35,27 @@ BROWSER_OPERATE_DOC ="""
         Args:
             action (str): The action type to execute. Available actions:
                 
-                🚀 **"launch"** - Launch browser and navigate to URL
-                    - Required parameter: url (str) - Target website URL
-                    - Features: Auto Chromium installation, cursor initialization, 
-                               page load waiting, network idle detection
-                    - Example: execute_action("launch", url="https://example.com")
+                **"launch"** - Launch a new Playwright-controlled browser instance at the specified URL. This **must always be the first action**.
+                             - Use with the `url` parameter to provide the URL.
+                             - Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:8000/page, file:///path/to/file.html, etc.)
                 
-                🖱️ **"click"** - Click at specific coordinates with visual feedback
-                    - Required parameter: coordinate (str) - Format "x,y" (e.g., "450,300")
-                    - Features: Coordinate validation, cursor movement animation,
-                               click indicators, smooth transitions, boundary checking
-                    - Example: execute_action("click", coordinate="450,300")
+                **"click"** - Click at a specific x,y coordinate.
+                            - Use with the `coordinate` parameter to specify the location.
+                            - Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot.
                 
-                ⌨️ **"type"** - Simulate keyboard text input
-                    - Required parameter: text (str) - Text content to type
-                    - Features: Character-by-character input with delays,
-                               enhanced visibility, DOM update waiting
-                    - Example: execute_action("type", text="Hello World!")
+                **"type"** - Type a string of text on the keyboard. You might use this after clicking on a text field to input text.
+                           - Use with the `text` parameter to provide the string to type.
                 
-                📜 **"scroll_down"** - Scroll down by one page height
-                    - No parameters required
-                    - Features: Intelligent page detection, content auto-generation
-                               for short pages, smooth scrolling, cursor position preservation
-                    - Example: execute_action("scroll_down")
+                **"scroll_down"** - Scroll down by one page height
                 
-                📜 **"scroll_up"** - Scroll up by one page height  
-                    - No parameters required
-                    - Features: Scroll state validation, smooth animation,
-                               error handling with fallback, cursor maintenance
-                    - Example: execute_action("scroll_up")
+                **"scroll_up"** - Scroll up by one page height  
                 
-                🔒 **"close"** - Close browser and cleanup resources
-                    - No parameters required
-                    - Features: Complete browser shutdown, Playwright cleanup,
-                               state reset, resource deallocation
-                    - Example: execute_action("close")
+                **"close"** - Close browser and cleanup resources
+                    
             
             url (Optional[str]): Target website URL. Required for "launch" action only.
             coordinate (Optional[str]): Click coordinates in "x,y" format. Required for "click" action only.
             text (Optional[str]): Text content to type. Required for "type" action only.
-        
-        Returns:
-            BrowserActionResult: Comprehensive result object containing:
-            
-                📊 **success** (bool): Operation success status
-                    - True: Action completed successfully
-                    - False: Action failed due to error or validation failure
-                
-                📸 **screenshot** (Optional[str]): Base64-encoded PNG screenshot
-                    - Contains current browser viewport state after action
-                    - None for "close" action or when screenshot capture fails
-                    - Empty string ("") when page is not available
-                    - Can be decoded to save as PNG file: base64.b64decode(screenshot)
-                
-                📝 **console_logs** (List[str]): Browser console messages
-                    - Captured during action execution
-                    - Format: "[LOG_LEVEL] message_content"
-                    - Examples: "[LOG] Page loaded", "[ERROR] Script error"
-                    - Useful for debugging and monitoring page behavior
-                
-                ❌ **error** (Optional[str]): Detailed error information
-                    - None when operation succeeds
-                    - Contains specific error description when action fails
-                    - Includes validation errors, runtime exceptions, and system issues
-        
-        Raises:
-            ValueError: For invalid action types or malformed parameters
-            RuntimeError: When browser operations fail or browser not initialized
-            
-        Note:
-            - Actions must follow proper sequence: launch → [click/type/scroll...] → close
-            - All coordinates are validated against viewport boundaries
-            - Each action automatically captures screenshots and console logs
-            - Cursor position is maintained across operations for visual continuity
-            - Error handling includes graceful fallbacks and detailed logging
-        
         """
 
 class BrowserActionTool:
@@ -555,10 +499,10 @@ class BrowserActionTool:
             return False
 
     async def _take_screenshot(self) -> str:
-        """Take a compressed screenshot and return base64 encoded string.
+        """Take a screenshot using Playwright's native compression and return base64 encoded string.
         
         Returns:
-            str: Base64 encoded compressed screenshot, empty string if failed
+            str: Base64 encoded screenshot, empty string if failed
         """
         if not self.page:
             return ""
@@ -568,123 +512,30 @@ class BrowserActionTool:
             config = self.browser_settings.screenshot_config
             optimized_settings = config.get_optimized_settings()
             
-            # Take initial screenshot as PNG
-            screenshot_bytes = await self.page.screenshot(full_page=False)
+            # Prepare Playwright screenshot parameters
+            screenshot_params = {
+                "full_page": False,
+                "type": optimized_settings["format"]
+            }
             
-            # Apply compression and optimization
-            compressed_bytes = await self._compress_screenshot(
-                screenshot_bytes, 
-                optimized_settings
-            )
+            # Add quality parameter for JPEG format
+            if optimized_settings["format"] == "jpeg":
+                screenshot_params["quality"] = optimized_settings["jpeg_quality"]
             
-            # Log compression ratio for debugging
-            original_size = len(screenshot_bytes)
-            compressed_size = len(compressed_bytes)
-            compression_ratio = (1 - compressed_size / original_size) * 100
+            # Take screenshot directly in target format
+            screenshot_bytes = await self.page.screenshot(**screenshot_params)
             
-            self.logger.debug(
-                f"Screenshot compression: {original_size} -> {compressed_size} bytes "
-                f"({compression_ratio:.1f}% reduction)"
-            )
+            # Convert bytes to base64 string (no need for .decode() as we return str)
+            screenshot_base64 = base64.b64encode(screenshot_bytes).decode()
             
-            return base64.b64encode(compressed_bytes).decode()
+            self.logger.debug(f"Screenshot captured in {screenshot_params['type'].upper()} format (requested: {optimized_settings['format'].upper()})")
+            
+            return screenshot_base64
             
         except Exception as e:
             self.logger.error(f"Screenshot failed: {str(e)}")
             return ""
 
-    async def _compress_screenshot(self, screenshot_bytes: bytes, settings: dict) -> bytes:
-        """Compress screenshot according to the specified settings.
-        
-        Args:
-            screenshot_bytes: Original screenshot bytes
-            settings: Compression settings dictionary
-            
-        Returns:
-            bytes: Compressed screenshot bytes
-        """
-        try:
-            # Open image with PIL
-            image = Image.open(BytesIO(screenshot_bytes))
-            
-            # Apply scaling if specified
-            if settings["max_width"] > 0 or settings["max_height"] > 0:
-                image = self._scale_image(image, settings["max_width"], settings["max_height"])
-            
-            # Convert and compress based on format
-            output_buffer = BytesIO()
-            
-            if settings["format"] == "jpeg":
-                # Convert to RGB if necessary (JPEG doesn't support transparency)
-                if image.mode in ("RGBA", "LA", "P"):
-                    # Create white background
-                    background = Image.new("RGB", image.size, (255, 255, 255))
-                    if image.mode == "P":
-                        image = image.convert("RGBA")
-                    background.paste(image, mask=image.split()[-1] if image.mode == "RGBA" else None)
-                    image = background
-                
-                # Save as JPEG with quality setting
-                image.save(
-                    output_buffer, 
-                    format="JPEG", 
-                    quality=settings["jpeg_quality"],
-                    optimize=True
-                )
-            elif settings["format"] == "webp":
-                # Save as WebP with quality setting and optimization
-                webp_quality = settings.get("webp_quality", 75)
-                image.save(
-                    output_buffer, 
-                    format="WEBP", 
-                    quality=webp_quality,
-                    optimize=True,
-                    method=6  # Best compression method (0-6, 6 is slowest but best compression)
-                )
-            else:
-                # Save as PNG with optimization
-                image.save(
-                    output_buffer, 
-                    format="PNG", 
-                    optimize=True,
-                    compress_level=6  # Good balance between compression and speed
-                )
-            
-            return output_buffer.getvalue()
-            
-        except Exception as e:
-            self.logger.error(f"Screenshot compression failed: {str(e)}")
-            # Return original bytes if compression fails
-            return screenshot_bytes
-
-    def _scale_image(self, image: Image.Image, max_width: int, max_height: int) -> Image.Image:
-        """Scale image while maintaining aspect ratio.
-        
-        Args:
-            image: PIL Image object
-            max_width: Maximum width (0 = no limit)
-            max_height: Maximum height (0 = no limit)
-            
-        Returns:
-            Image.Image: Scaled image
-        """
-        original_width, original_height = image.size
-        
-        # Calculate scaling factor
-        scale_x = max_width / original_width if max_width > 0 else 1.0
-        scale_y = max_height / original_height if max_height > 0 else 1.0
-        
-        # Use the smaller scale factor to maintain aspect ratio
-        scale_factor = min(scale_x, scale_y, 1.0)  # Don't upscale
-        
-        if scale_factor < 1.0:
-            new_width = int(original_width * scale_factor)
-            new_height = int(original_height * scale_factor)
-            
-            # Use high-quality resampling
-            return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        
-        return image
 
     async def _add_click_indicator(self, x: int, y: int):
         """Add a visual indicator at the click position.

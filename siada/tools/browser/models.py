@@ -30,7 +30,7 @@ class ScreenshotConfig:
         max_height: Maximum height for screenshot scaling (0 = no limit)
         format: Image format ('png' or 'jpeg')
     """
-    compression_level: CompressionLevel = CompressionLevel.MEDIUM
+    compression_level: CompressionLevel = CompressionLevel.HIGH
     jpeg_quality: int = 75
     max_width: int = 0
     max_height: int = 0
@@ -50,8 +50,8 @@ class ScreenshotConfig:
         if not isinstance(self.max_height, int) or self.max_height < 0:
             raise ValueError("max_height must be a non-negative integer")
         
-        if self.format not in ["png", "jpeg", "webp"]:
-            raise ValueError("format must be 'png', 'jpeg', or 'webp'")
+        if self.format not in ["png", "jpeg"]:
+            raise ValueError("format must be 'png' or 'jpeg'")
 
     def get_optimized_settings(self) -> dict:
         """Get optimized settings based on compression level.
@@ -61,26 +61,17 @@ class ScreenshotConfig:
         """
         if self.compression_level == CompressionLevel.LOW:
             return {
-                "jpeg_quality": 90,
-                "max_width": 0,  # No scaling
-                "max_height": 0,
-                "format": "png"
+                "format": "png"  # High quality, no compression
             }
         elif self.compression_level == CompressionLevel.MEDIUM:
             return {
-                "jpeg_quality": 75,
-                "webp_quality": 75,
-                "max_width": 1200,
-                "max_height": 800,
-                "format": "webp"
+                "format": "jpeg",
+                "jpeg_quality": 75  # Balanced quality and size
             }
         else:  # HIGH compression
             return {
-                "jpeg_quality": 60,
-                "webp_quality": 60,
-                "max_width": 800,
-                "max_height": 600,
-                "format": "webp"
+                "format": "jpeg",
+                "jpeg_quality": 60  # Higher compression, smaller size
             }
 
 

@@ -15,8 +15,7 @@ class FeGenAgent(CodeGenAgent):
 
         super().__init__(
             name="FeGenAgent",
-            #tools=[edit, regex_search_files, run_cmd, browser_operate],
-            tools=[browser_operate],
+            tools=[edit, regex_search_files, run_cmd, browser_operate],
             *args,
             **kwargs
         )
