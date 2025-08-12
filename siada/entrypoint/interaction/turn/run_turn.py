@@ -271,10 +271,6 @@ class ConversationTurn(RunTurn):
                     elif isinstance(stream_data, ResponseTextDeltaEvent):
                         if not self.got_content_part and stream_data.delta:
                             self.got_content_part = True
-                            # self.response_content += "\n"
-                            # self._live_incremental_response(
-                            #     "", self.response_content, flush=False
-                            # )
                             if not self.got_reasoning_part:
                                 self.print_split_line()
                             delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}"
@@ -400,7 +396,7 @@ class ConversationTurn(RunTurn):
                                 tool_call_formatter = (
                                     ToolCallFormatterFactory.get_formatter(tool_name)
                                 )
-                                content, is_complete = tool_call_formatter.format_input(
+                                content, _ = tool_call_formatter.format_input(
                                     call_id, tool_name, full_arguments
                                 )
                                 style = tool_call_formatter.get_style()
@@ -409,11 +405,7 @@ class ConversationTurn(RunTurn):
                                     # process the last tool call stream, stop the live
                                     if call_id in self.tool_call_mdstreams:
                                         self.tool_call_mdstreams[call_id].update(
-                                            tool_call_formatter.format_input(
-                                                call_id,
-                                                tool_name,
-                                                self.tool_calls[call_id]["arguments"],
-                                            )[0],
+                                            content,
                                             final=True,
                                         )
                                     if call_id in self.tool_call_mdstreams:

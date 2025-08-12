@@ -152,7 +152,7 @@ class CommandFormatter(ToolCallFormatter):
         try:
             args = json.loads(arguments)
             command = args.get("command", "")
-            return f"siada wants to run the following command: ```shell\n{command}\n```", True
+            return f"siada wants to run the following command: \n```bash \n{command}\n```", True
         except json.JSONDecodeError:
             return f"failed to parse arguments: {arguments}", False
 
