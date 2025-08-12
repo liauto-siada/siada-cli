@@ -1,8 +1,8 @@
 """
-BrowserGym environment management for browser automation.
+Modified BrowserGym environment management without chat window - Version 2.
 
-This module provides a singleton BrowserGym environment manager that handles
-the lifecycle of browser environments using the Gymnasium interface.
+This module provides a modified BrowserGym environment that completely disables
+the chat functionality by monkey-patching the Chat class itself.
 """
 
 import logging
@@ -13,11 +13,52 @@ import time
 from typing import Optional, Any, Dict, Callable, Tuple
 import gymnasium as gym
 from browsergym.core.action.highlevel import HighLevelActionSet
-from .browsergym_env_no_chat_v2 import BrowserGymEnvNoChatV2
+from browsergym.core.env import BrowserEnv
+from browsergym.core.task import OpenEndedTask
 
 
-class BrowserGymWorkerThread:
-    """Dedicated worker thread for BrowserGym operations."""
+# Monkey patch the Chat class to disable UI creation
+class NoUIChatPatch:
+    """Replacement Chat class that doesn't create any UI."""
+    
+    def __init__(self, *args, **kwargs):
+        """Initialize without creating any UI."""
+        self.messages = []
+        self.recording_start_time = None
+        self.page = None
+        # Don't call the original __init__ to avoid UI creation
+    
+    def add_message(self, role: str, msg: str):
+        """Add message to internal list but don't display anything."""
+        self.messages.append({
+            "role": role,
+            "message": msg,
+            "timestamp": time.time()
+        })
+    
+    def wait_for_user_message(self):
+        """Do nothing - no waiting."""
+        pass
+    
+    def close(self):
+        """Do nothing - no cleanup needed."""
+        pass
+
+
+def apply_chat_patch():
+    """Apply monkey patch to disable Chat UI creation."""
+    import browsergym.core.chat
+    import browsergym.core.env
+    
+    # Replace the Chat class in both modules
+    browsergym.core.chat.Chat = NoUIChatPatch
+    browsergym.core.env.Chat = NoUIChatPatch
+    
+    logging.getLogger(__name__).info("Chat UI patch applied successfully")
+
+
+class BrowserGymWorkerThreadNoChatV2:
+    """Dedicated worker thread for BrowserGym operations without chat."""
     
     def __init__(self):
         self.env: Optional[gym.Env] = None
@@ -35,14 +76,14 @@ class BrowserGymWorkerThread:
             self._stop_event.clear()
             self._thread = threading.Thread(target=self._worker_loop, daemon=True)
             self._thread.start()
-            self.logger.info("BrowserGym worker thread started")
+            self.logger.info("BrowserGym worker thread (no chat v2) started")
     
     def stop(self):
         """Stop the worker thread."""
         self._stop_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5)
-            self.logger.info("BrowserGym worker thread stopped")
+            self.logger.info("BrowserGym worker thread (no chat v2) stopped")
     
     def _worker_loop(self):
         """Main worker thread loop."""
@@ -88,8 +129,11 @@ class BrowserGymWorkerThread:
         """Initialize the environment in worker thread."""
         try:
             if self._initialized and self.env is not None:
-                self.logger.debug("BrowserGym environment already initialized")
+                self.logger.debug("BrowserGym environment (no chat v2) already initialized")
                 return True
+            
+            # Apply chat patch BEFORE creating environment
+            apply_chat_patch()
             
             # Initialize action set
             self.action_set = HighLevelActionSet(
@@ -98,13 +142,12 @@ class BrowserGymWorkerThread:
                 multiaction=False # Single action at a time
             )
             
-            # Create the environment
-            self.env = gym.make(
-                "browsergym/openended",
+            # Create the environment using standard BrowserEnv (now with patched Chat)
+            self.env = BrowserEnv(
+                task_entrypoint=OpenEndedTask,
                 task_kwargs={"start_url": start_url},
                 headless=headless,
-                wait_for_user_message=False,
-                disable_env_checker=True
+                wait_for_user_message=False
             )
             
             # Reset the environment to initial state
@@ -114,7 +157,7 @@ class BrowserGymWorkerThread:
             self._inject_cursor_functionality()
             
             self._initialized = True
-            self.logger.info(f"BrowserGym environment initialized in worker thread with start_url: {start_url}")
+            self.logger.info(f"BrowserGym environment (no chat v2) initialized with start_url: {start_url}")
             
             return True
             
@@ -268,7 +311,7 @@ class BrowserGymWorkerThread:
         try:
             if self.env is not None:
                 self.env.close()
-                self.logger.info("BrowserGym environment closed in worker thread")
+                self.logger.info("BrowserGym environment (no chat v2) closed in worker thread")
             
             self.env = None
             self.action_set = None
@@ -455,28 +498,28 @@ class BrowserGymWorkerThread:
             self.logger.error(f"Failed to inject cursor functionality: {str(e)}")
 
 
-class BrowserGymEnv:
-    """Singleton BrowserGym environment manager.
+class BrowserGymEnvNoChatV2:
+    """Singleton BrowserGym environment manager without chat functionality - Version 2.
     
     This class manages a single BrowserGym environment instance that can be
-    shared across multiple browser operations while maintaining thread safety.
+    shared across multiple browser operations while maintaining thread safety
+    and completely disabling the chat window using monkey patching.
     """
     
-    _instance: Optional['BrowserGymEnv'] = None
+    _instance: Optional['BrowserGymEnvNoChatV2'] = None
     _lock = threading.Lock()
     
     def __init__(self):
         """Initialize the BrowserGym environment manager."""
         self.logger = logging.getLogger(__name__)
-        # Use the no-chat version to prevent UI assistant chat window
-        self._no_chat_env = BrowserGymEnvNoChatV2.get_instance()
+        self._worker = BrowserGymWorkerThreadNoChatV2()
         
     @classmethod
-    def get_instance(cls) -> 'BrowserGymEnv':
-        """Get the singleton instance of BrowserGymEnv.
+    def get_instance(cls) -> 'BrowserGymEnvNoChatV2':
+        """Get the singleton instance of BrowserGymEnvNoChatV2.
         
         Returns:
-            BrowserGymEnv: The singleton instance
+            BrowserGymEnvNoChatV2: The singleton instance
         """
         if cls._instance is None:
             with cls._lock:
@@ -494,7 +537,16 @@ class BrowserGymEnv:
         Returns:
             bool: True if initialization was successful, False otherwise
         """
-        return self._no_chat_env.initialize(start_url, headless)
+        try:
+            command = {
+                'type': 'initialize',
+                'start_url': start_url,
+                'headless': headless
+            }
+            return self._worker.execute_command(command)
+        except Exception as e:
+            self.logger.error(f"Failed to initialize BrowserGym environment (no chat v2): {str(e)}")
+            return False
     
     def step(self, action: str) -> tuple[Dict[str, Any], float, bool, bool, Dict[str, Any]]:
         """Execute an action in the BrowserGym environment.
@@ -508,7 +560,15 @@ class BrowserGymEnv:
         Raises:
             RuntimeError: If environment is not initialized
         """
-        return self._no_chat_env.step(action)
+        try:
+            command = {
+                'type': 'step',
+                'action': action
+            }
+            return self._worker.execute_command(command)
+        except Exception as e:
+            self.logger.error(f"Failed to execute action '{action}': {str(e)}")
+            raise
     
     def get_current_observation(self) -> Optional[Dict[str, Any]]:
         """Get the current observation from the environment.
@@ -516,7 +576,12 @@ class BrowserGymEnv:
         Returns:
             Optional[Dict[str, Any]]: Current observation or None if not available
         """
-        return self._no_chat_env.get_current_observation()
+        try:
+            command = {'type': 'get_observation'}
+            return self._worker.execute_command(command)
+        except Exception as e:
+            self.logger.error(f"Failed to get current observation: {str(e)}")
+            return None
     
     def close(self) -> bool:
         """Close the BrowserGym environment and clean up resources.
@@ -524,7 +589,14 @@ class BrowserGymEnv:
         Returns:
             bool: True if cleanup was successful, False otherwise
         """
-        return self._no_chat_env.close()
+        try:
+            command = {'type': 'close'}
+            result = self._worker.execute_command(command)
+            self._worker.stop()
+            return result
+        except Exception as e:
+            self.logger.error(f"Error closing BrowserGym environment (no chat v2): {str(e)}")
+            return False
     
     def is_initialized(self) -> bool:
         """Check if the environment is initialized.
@@ -532,7 +604,12 @@ class BrowserGymEnv:
         Returns:
             bool: True if initialized, False otherwise
         """
-        return self._no_chat_env.is_initialized()
+        try:
+            command = {'type': 'is_initialized'}
+            return self._worker.execute_command(command)
+        except Exception as e:
+            self.logger.error(f"Failed to check initialization status: {str(e)}")
+            return False
     
     def get_action_description(self) -> str:
         """Get description of available actions.
@@ -540,7 +617,18 @@ class BrowserGymEnv:
         Returns:
             str: Description of the action space
         """
-        return self._no_chat_env.get_action_description()
+        # This doesn't need to go through the worker thread
+        try:
+            from browsergym.core.action.highlevel import HighLevelActionSet
+            action_set = HighLevelActionSet(
+                subsets=["bid"],
+                strict=False,
+                multiaction=False
+            )
+            return action_set.describe(with_long_description=True, with_examples=True)
+        except Exception as e:
+            self.logger.error(f"Failed to get action description: {str(e)}")
+            return "Failed to get action description"
     
     @classmethod
     def reset_instance(cls):
@@ -549,5 +637,3 @@ class BrowserGymEnv:
             if cls._instance is not None:
                 cls._instance.close()
                 cls._instance = None
-            # Also reset the no-chat instance
-            BrowserGymEnvNoChatV2.reset_instance()
