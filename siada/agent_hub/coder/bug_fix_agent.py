@@ -85,7 +85,7 @@ class BugFixAgent(CodeGenAgent):
 
         while current_turn < max_turns:
             # Set minimal rules after first turn
-            self.is_minimal = current_turn >= 1  
+            self.is_minimal = current_turn >= 3  
             # Run BugFixAgent for fixing
             result = await Runner.run(
                 starting_agent=self,
@@ -94,15 +94,19 @@ class BugFixAgent(CodeGenAgent):
                 run_config=run_config,
                 context=context
             )
+            
+            # git_diff_analysis = GitDiffUtil.get_git_diff_analysis(context.root_dir)
+            # diff_line=git_diff_analysis.get("line_changes").get("total",10**6+1)
+            # if (diff_line <= 6 ):
+            #     print("Small patch detected, skipping fix result checker.")
+            #     break
 
             # input_list = result.to_input_list()
 
             # Check if the issue is fixed using run_checker
             try:
                 check_result = await self.run_checker(user_input, context)
-                enhance_check_result = await self.run_enhanced_checker(
-                    user_input, context, result
-                )
+
 
                 if check_result.get("is_fixed", False):
                     # Issue is fixed, break the loop
@@ -115,6 +119,16 @@ class BugFixAgent(CodeGenAgent):
                     check_summary = check_result.get(
                         "check_summary", "Fix verification failed"
                     )
+
+                    feedback_message_last_checker = input_with_env + \
+                        f"content : Here is the previous fix logic:\n{result.final_output}" + \
+                        f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n" + \
+                        f"**Please continue fixing.**\n" + \
+                        "role: user"
+                    enhance_check_result = await self.run_enhanced_checker(
+                        feedback_message_last_checker, context, result
+                    )
+
                     print(
                         f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}"
                     )
