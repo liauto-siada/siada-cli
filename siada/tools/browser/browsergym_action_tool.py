@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 from dataclasses import asdict
 
 from agents import function_tool, RunContextWrapper
@@ -20,8 +20,6 @@ from .browsergym_utils import (
     format_action_command,
     validate_action_parameters,
     create_browsergym_result,
-    observation_to_text,
-    save_screenshot_to_file,
     format_accessibility_tree,
     extract_bids_from_observation
 )
@@ -233,8 +231,6 @@ class BrowserGymActionTool:
             Dict[str, Any]: Result dictionary with screenshot, axtree, and metadata
         """
         try:
-            self.logger.info(f"Executing BrowserGym action: {action}")
-            
             if action == "launch":
                 return self._launch(url or "https://www.google.com")
             elif action == "close":
@@ -288,14 +284,12 @@ class BrowserGymActionTool:
             if not success:
                 raise RuntimeError("Failed to initialize BrowserGym environment")
             
-            # Wait a moment for page to load, then get fresh observation
+            # Wait for page to load, then get observation
             import time
-            time.sleep(2)  # Give page time to load
+            time.sleep(2)
             
-            # Get fresh observation by performing a no-op action to ensure sync
+            # Get fresh observation by performing a no-op action
             obs, _, _, _, _ = self.env_manager.step("scroll(0, 0)")
-            
-            self.logger.info(f"BrowserGym environment launched successfully with URL: {url}")
             
             return create_browsergym_result(obs, success=True, action="launch")
             
@@ -317,7 +311,6 @@ class BrowserGymActionTool:
             success = self.env_manager.close()
             
             if success:
-                self.logger.info("BrowserGym environment closed successfully")
                 return {
                     "success": True,
                     "screenshot": "",
@@ -337,227 +330,6 @@ class BrowserGymActionTool:
                 error=f"Close failed: {str(e)}"
             )
 
-    def _find_bid_in_axtree(self, axtree_data: Dict[str, Any], target_bid: str) -> Optional[Dict[str, Any]]:
-        """在accessibility tree中查找指定的bid"""
-        if not axtree_data or 'nodes' not in axtree_data:
-            return None
-        
-        def search_nodes(nodes):
-            for node in nodes:
-                if isinstance(node, dict):
-                    # 检查当前节点的bid
-                    if node.get('browsergym_id') == target_bid:
-                        return node
-                    
-                    # 递归搜索子节点
-                    if 'children' in node and node['children']:
-                        result = search_nodes(node['children'])
-                        if result:
-                            return result
-            return None
-        
-        return search_nodes(axtree_data['nodes'])
-
-    def _validate_bid_before_action(self, bid: str, expected_action: str = None) -> tuple[bool, str, Optional[Dict[str, Any]]]:
-        """在执行操作前验证bid的有效性"""
-        try:
-            # 获取最新的观察状态
-            obs, _, _, _, _ = self.env_manager.step("scroll(0, 0)")
-            
-            if not obs:
-                return False, "无法获取当前页面状态", None
-            
-            # 检查bid是否存在于当前的accessibility tree中
-            axtree_data = obs.get('axtree_object')
-            if not axtree_data:
-                return False, "无法获取accessibility tree", None
-            
-            # 查找bid对应的元素
-            element_info = self._find_bid_in_axtree(axtree_data, bid)
-            
-            if not element_info:
-                return False, f"bid '{bid}' 在当前页面中不存在", None
-            
-            # 验证元素是否适合执行指定操作
-            validation_result = self._validate_element_for_action(element_info, expected_action)
-            
-            if validation_result[0]:
-                return True, "bid验证通过", element_info
-            else:
-                return False, validation_result[1], element_info
-                
-        except Exception as e:
-            return False, f"bid验证失败: {str(e)}", None
-
-    def _validate_element_for_action(self, element_info: Dict[str, Any], action: str) -> tuple[bool, str]:
-        """验证元素是否适合执行指定的操作"""
-        try:
-            role = element_info.get('role', {})
-            chrome_role = element_info.get('chromeRole', {})
-            ignored = element_info.get('ignored', False)
-            
-            # 检查元素是否被忽略
-            if ignored:
-                ignored_reasons = element_info.get('ignoredReasons', [])
-                reasons = [reason.get('name', 'unknown') for reason in ignored_reasons]
-                return False, f"元素被忽略，原因: {', '.join(reasons)}"
-            
-            # 获取元素角色
-            element_role = None
-            if isinstance(role, dict) and 'value' in role:
-                element_role = role['value']
-            elif isinstance(role, str):
-                element_role = role
-            
-            # 根据操作类型验证元素
-            if action == "click":
-                # 可点击的元素类型
-                clickable_roles = ['button', 'link', 'textbox', 'checkbox', 'radio', 'menuitem', 'tab']
-                clickable_chrome_roles = [9, 110, 170]  # button, link, textbox等
-                
-                chrome_role_value = chrome_role.get('value') if isinstance(chrome_role, dict) else None
-                
-                if element_role in clickable_roles or chrome_role_value in clickable_chrome_roles:
-                    return True, "元素可点击"
-                else:
-                    return False, f"元素角色 '{element_role}' (chrome: {chrome_role_value}) 不适合点击操作"
-            
-            elif action == "fill":
-                # 可填充的元素类型
-                fillable_roles = ['textbox', 'searchbox', 'combobox']
-                fillable_chrome_roles = [170]  # textbox
-                
-                chrome_role_value = chrome_role.get('value') if isinstance(chrome_role, dict) else None
-                
-                if element_role in fillable_roles or chrome_role_value in fillable_chrome_roles:
-                    # 检查是否可编辑
-                    properties = element_info.get('properties', [])
-                    is_editable = any(
-                        prop.get('name') == 'editable' and prop.get('value', {}).get('value') 
-                        for prop in properties
-                    )
-                    
-                    if is_editable:
-                        return True, "元素可填充"
-                    else:
-                        return False, "元素不可编辑"
-                else:
-                    return False, f"元素角色 '{element_role}' 不适合填充操作"
-            
-            # 其他操作类型的验证可以在这里添加
-            return True, "元素验证通过"
-            
-        except Exception as e:
-            return False, f"元素验证失败: {str(e)}"
-
-    def _validate_bid_consistency(self, obs: Dict[str, Any]) -> tuple[bool, str]:
-        """验证accessibility tree和available_bids的一致性"""
-        try:
-            # 从accessibility tree提取bid
-            formatted_axtree = format_accessibility_tree(obs)
-            axtree_bids = set()
-            
-            # 解析accessibility tree中的bid
-            import re
-            bid_pattern = r'\{bid:\s*[\'"]([^\'"]+)[\'"]\}'
-            matches = re.findall(bid_pattern, formatted_axtree)
-            axtree_bids.update(matches)
-            
-            # 从observation提取available_bids
-            available_bids = set(extract_bids_from_observation(obs))
-            
-            # 检查一致性
-            missing_in_available = axtree_bids - available_bids
-            missing_in_axtree = available_bids - axtree_bids
-            
-            if missing_in_available or missing_in_axtree:
-                inconsistency_msg = []
-                if missing_in_available:
-                    inconsistency_msg.append(f"在axtree中但不在available_bids中: {missing_in_available}")
-                if missing_in_axtree:
-                    inconsistency_msg.append(f"在available_bids中但不在axtree中: {missing_in_axtree}")
-                
-                return False, "; ".join(inconsistency_msg)
-            
-            return True, "bid数据一致"
-            
-        except Exception as e:
-            return False, f"一致性验证失败: {str(e)}"
-
-    def _analyze_bid_element(self, obs: Dict[str, Any], bid: str) -> str:
-        """分析bid对应的元素信息，用于错误诊断"""
-        try:
-            axtree_data = obs.get('axtree_object')
-            if not axtree_data:
-                return "无法获取accessibility tree"
-            
-            element_info = self._find_bid_in_axtree(axtree_data, bid)
-            
-            if not element_info:
-                return f"bid '{bid}' 不存在于当前页面"
-            
-            role = element_info.get('role', {})
-            chrome_role = element_info.get('chromeRole', {})
-            ignored = element_info.get('ignored', False)
-            name = element_info.get('name', {})
-            
-            element_role = role.get('value', 'unknown') if isinstance(role, dict) else str(role)
-            chrome_role_value = chrome_role.get('value', 'unknown') if isinstance(chrome_role, dict) else str(chrome_role)
-            element_name = name.get('value', '') if isinstance(name, dict) else str(name)
-            
-            analysis = f"""
-        元素信息:
-        - bid: {bid}
-        - 角色: {element_role}
-        - Chrome角色: {chrome_role_value}
-        - 名称: {element_name}
-        - 是否被忽略: {ignored}
-        """
-            
-            if ignored:
-                ignored_reasons = element_info.get('ignoredReasons', [])
-                reasons = [reason.get('name', 'unknown') for reason in ignored_reasons]
-                analysis += f"\n        - 忽略原因: {', '.join(reasons)}"
-            
-            return analysis.strip()
-            
-        except Exception as e:
-            return f"分析失败: {str(e)}"
-
-    def _log_accessibility_tree_summary(self, obs: Dict[str, Any]):
-        """记录accessibility tree的摘要信息，用于调试"""
-        try:
-            axtree_data = obs.get('axtree_object')
-            if not axtree_data or 'nodes' not in axtree_data:
-                return
-            
-            # 统计可交互元素
-            interactive_elements = []
-            
-            def collect_interactive_elements(nodes):
-                for node in nodes:
-                    if isinstance(node, dict) and not node.get('ignored', False):
-                        bid = node.get('browsergym_id')
-                        role = node.get('role', {})
-                        element_role = role.get('value', 'unknown') if isinstance(role, dict) else str(role)
-                        
-                        if bid and element_role in ['button', 'link', 'textbox', 'checkbox', 'radio']:
-                            name = node.get('name', {})
-                            element_name = name.get('value', '') if isinstance(name, dict) else str(name)
-                            interactive_elements.append(f"bid='{bid}' ({element_role}): {element_name}")
-                        
-                        if 'children' in node and node['children']:
-                            collect_interactive_elements(node['children'])
-            
-            collect_interactive_elements(axtree_data['nodes'])
-            
-            self.logger.debug(f"当前页面可交互元素: {len(interactive_elements)}")
-            for element in interactive_elements[:10]:  # 只记录前10个
-                self.logger.debug(f"  - {element}")
-            
-        except Exception as e:
-            self.logger.warning(f"记录accessibility tree摘要失败: {str(e)}")
-
     def _execute_browser_action(self, action: str, **kwargs) -> Dict[str, Any]:
         """Execute a browser action in the BrowserGym environment.
         
@@ -569,58 +341,22 @@ class BrowserGymActionTool:
             Dict[str, Any]: Result with updated page state
         """
         try:
-            # 对于需要bid的操作，先进行验证
-            if action in ["click", "fill", "hover", "focus", "clear", "dblclick", "press"] and kwargs.get("bid"):
-                bid = kwargs["bid"]
-                
-                # 验证bid
-                is_valid, validation_msg, element_info = self._validate_bid_before_action(bid, action)
-                
-                if not is_valid:
-                    self.logger.error(f"Bid验证失败: {validation_msg}")
-                    
-                    # 获取当前观察状态用于错误分析
-                    obs, _, _, _, _ = self.env_manager.step("scroll(0, 0)")
-                    element_analysis = self._analyze_bid_element(obs, bid)
-                    
-                    # 记录可交互元素摘要
-                    self._log_accessibility_tree_summary(obs)
-                    
-                    enhanced_error = f"""
-                操作验证失败: {validation_msg}
-                
-                {element_analysis}
-                
-                建议: 请检查accessibility tree中的可用元素bid
-                """
-                    
-                    return create_browsergym_result(
-                        obs=obs,
-                        success=False,
-                        error=enhanced_error.strip()
-                    )
-                
-                self.logger.info(f"Bid验证成功: {validation_msg}")
-            
             # Format the action command
             command = format_action_command(action, **kwargs)
-            self.logger.debug(f"Executing command: {command}")
             
             # Execute the action
             obs, reward, terminated, truncated, info = self.env_manager.step(command)
             
-            # For actions that might cause page changes, wait a bit and get fresh observation
+            # For actions that might cause page changes, wait and get fresh observation
             if action in ["click", "fill", "press"] and not (terminated or truncated):
                 import time
-                time.sleep(1)  # Wait for potential page changes
-                # Get fresh observation with a no-op action
+                time.sleep(1)
                 try:
                     fresh_obs, _, _, _, _ = self.env_manager.step("scroll(0, 0)")
                     if fresh_obs:
                         obs = fresh_obs
-                        self.logger.debug(f"Updated observation after {action}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to get fresh observation: {str(e)}")
+                except Exception:
+                    pass  # Use original observation if refresh fails
             
             # Check if action was successful
             success = not (terminated or truncated)
@@ -628,39 +364,11 @@ class BrowserGymActionTool:
             
             if terminated or truncated:
                 error_msg = f"Action terminated unexpectedly. Info: {info}"
-                
-                # 如果是点击操作失败，提供额外的诊断信息
-                if action == "click" and kwargs.get("bid"):
-                    bid = kwargs["bid"]
-                    element_analysis = self._analyze_bid_element(obs, bid)
-                    error_msg += f"\n\n{element_analysis}"
-                
-                self.logger.warning(error_msg)
-            
-            # Log action result
-            self.logger.info(f"Action '{action}' executed. Success: {success}")
             
             return create_browsergym_result(obs, success=success, error=error_msg, action=action)
             
         except Exception as e:
             self.logger.error(f"Failed to execute action '{action}': {str(e)}")
-            
-            # 如果是bid相关的错误，提供额外的诊断信息
-            if "bid" in str(e).lower() and kwargs.get("bid"):
-                try:
-                    obs, _, _, _, _ = self.env_manager.step("scroll(0, 0)")
-                    bid = kwargs["bid"]
-                    element_analysis = self._analyze_bid_element(obs, bid)
-                    enhanced_error = f"Action execution failed: {str(e)}\n\n{element_analysis}"
-                    
-                    return create_browsergym_result(
-                        obs=obs,
-                        success=False,
-                        error=enhanced_error
-                    )
-                except Exception:
-                    pass  # 如果诊断也失败，使用原始错误
-            
             return create_browsergym_result(
                 obs=None,
                 success=False,
@@ -732,23 +440,20 @@ def browser_operate_by_gym(
         
         # Convert result to ImageResult format for consistency with other browser tools
         if result.get("screenshot") and result.get("success", False):
-            # Extract base64 data for saving
+            # Extract base64 data
             screenshot_data = result["screenshot"].split(",")[-1] if "," in result["screenshot"] else result["screenshot"]
-            
-            # Save screenshot to file
-            save_screenshot_to_file(screenshot_data, action)
             
             # Get the observation from the result to format accessibility tree
             obs = result.get("_obs") if result else None
             
-            # 确保数据来源一致性：都从同一个obs中提取
+            # Extract data from the same observation for consistency
             formatted_axtree = format_accessibility_tree(obs) if obs else ""
             available_bids = extract_bids_from_observation(obs) if obs else []
             
             # Create axtree_info with consistent data
             axtree_info = {
                 "axtree": formatted_axtree,
-                "available_bids": available_bids,  # 使用从同一obs提取的bid列表
+                "available_bids": available_bids,
                 "page_info": result.get("page_info", {}),
                 "success": result.get("success", False),
                 "error": result.get("error")
