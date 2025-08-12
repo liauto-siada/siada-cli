@@ -4,6 +4,7 @@ from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import fe_gen_prompt
 from siada.tools.browser.browser_action_tool import browser_operate
+from siada.tools.browser.browsergym_action_tool import browser_operate_by_gym
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
@@ -16,7 +17,7 @@ class BrowserAgent(CodeGenAgent):
         super().__init__(
             name="BrowserAgent",
             #tools=[edit, regex_search_files, run_cmd, browser_operate],
-            tools=[browser_operate],
+            tools=[browser_operate_by_gym],
             *args,
             **kwargs
         )

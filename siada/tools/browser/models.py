@@ -151,8 +151,10 @@ class ImageUrl:
     
     Attributes:
         url: Base64-encoded image data URL (e.g., "data:image/png;base64,...")
+        axtree_info: Accessibility tree information (optional)
     """
     url: str
+    axtree_info: Optional[Dict] = None
 
     def __post_init__(self):
         """Validate image URL data after initialization."""
@@ -161,6 +163,9 @@ class ImageUrl:
         
         if not self.url:
             raise ValueError("url cannot be empty")
+        
+        if self.axtree_info is not None and not isinstance(self.axtree_info, dict):
+            raise ValueError("axtree_info must be a dictionary or None")
 
 
 @dataclass

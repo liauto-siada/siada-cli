@@ -18,4 +18,7 @@ output.jsonl
 .cca/
 .DS_Store
 
+# Ignore screenshots directory
+screenshots/
+
 .vscode/*
