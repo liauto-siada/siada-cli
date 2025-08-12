@@ -1,0 +1,17 @@
+instance_id,base_commit,patch_added_lines,patch_deleted_lines,patch_total_changes,patch_net_changes,files_changed,has_function_changes,test_patch_total_changes,total_changes
+sphinx-doc__sphinx-7686,752d3285d250bbaf673cff25e83f03f247502021,53,1,54,52,1,True,102,156
+sphinx-doc__sphinx-8801,7ca279e33aebb60168d35e6be4ed059f4a68f2c1,19,8,27,11,1,False,75,102
+sphinx-doc__sphinx-10451,195e911f1dab04b8ddeacbe04b7d214aaf81bb0b,17,3,20,14,1,False,112,132
+sphinx-doc__sphinx-11445,71db08c05197545944949d5aa76cd340e7143627,5,9,14,-4,1,False,55,69
+sphinx-doc__sphinx-7975,4ec6cbe341fd84468c448e20082c778043bbea4b,9,5,14,4,1,True,6,20
+sphinx-doc__sphinx-10325,7bdc11e87c7d86dcc2a087eccb7a7c129a473415,8,4,12,4,1,True,67,79
+sphinx-doc__sphinx-8273,88b81a06eb635a1596617f8971fa97a84c069e93,8,2,10,6,1,False,7,17
+sphinx-doc__sphinx-8282,2c2335bbb8af99fa132e1573bbf45dc91584d5a2,7,3,10,4,1,False,48,58
+sphinx-doc__sphinx-8713,3ed7590ed411bd93b26098faab4f23619cdb2267,7,1,8,6,1,False,9,17
+sphinx-doc__sphinx-8506,e4bd3bd3ddd42c6642ff779a4f7381f219655c2c,6,1,7,5,1,False,22,29
+sphinx-doc__sphinx-8627,332d80ba8433aea41c3709fa52737ede4405072b,7,0,7,7,1,False,3,10
+sphinx-doc__sphinx-8435,5d8d6275a54f2c5fb72b82383b5712c22d337634,4,2,6,2,1,False,50,56
+sphinx-doc__sphinx-8474,3ea1ec84cc610f7a9f4f6b354e264565254923ff,3,2,5,1,1,False,8,13
+sphinx-doc__sphinx-8721,82ef497a8c88f0f6e50d84520e7276bfbf65025d,4,0,4,4,1,False,15,19
+sphinx-doc__sphinx-7738,c087d717f6ed183dd422359bf91210dc59689d63,1,1,2,0,1,False,21,23
+sphinx-doc__sphinx-8595,b19bce971e82f2497d67fdacdeca8db08ae0ba56,1,1,2,0,1,False,43,45

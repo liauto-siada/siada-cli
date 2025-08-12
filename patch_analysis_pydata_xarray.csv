@@ -1,0 +1,6 @@
+instance_id,base_commit,patch_added_lines,patch_deleted_lines,patch_total_changes,patch_net_changes,files_changed,has_function_changes,test_patch_total_changes,total_changes
+pydata__xarray-3364,863e49066ca4d61c9adfe62aca3bf21b90e1af8c,2,8,10,-6,1,False,30,40
+pydata__xarray-4493,a5f53e203c52a7605d5db799864046471115d04f,10,0,10,10,1,False,13,23
+pydata__xarray-4094,a64cf2d5476e7bbda099b34c40b7be1880dbd39a,1,1,2,0,1,False,8,10
+pydata__xarray-4248,98dc1f4ea18738492e074e9e51ddfed5cd30ab94,2,0,2,2,1,False,39,41
+pydata__xarray-5131,e56905889c836c736152b11a7e6117a229715975,1,1,2,0,1,False,4,6

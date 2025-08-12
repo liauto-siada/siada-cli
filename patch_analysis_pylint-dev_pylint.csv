@@ -1,0 +1,7 @@
+instance_id,base_commit,patch_added_lines,patch_deleted_lines,patch_total_changes,patch_net_changes,files_changed,has_function_changes,test_patch_total_changes,total_changes
+pylint-dev__pylint-7228,d597f252915ddcaaa15ccdfcb35670152cb83587,11,2,13,9,1,True,30,43
+pylint-dev__pylint-7114,397c1703e8ae6349d33f7b99f45b2ccaf581e666,5,5,10,0,1,False,13,23
+pylint-dev__pylint-5859,182cc539b8154c0710fcea7e522267e42eba8899,2,2,4,0,1,False,10,14
+pylint-dev__pylint-6506,0a4204fd7555cfedd43f43017c94d24ef48244a5,1,2,3,-1,1,False,11,14
+pylint-dev__pylint-7993,e90702074e68e20dc8e5df5013ee3ecf22139c3e,1,1,2,0,1,False,28,30
+pylint-dev__pylint-7080,3c5eca2ded3dd2b59ebaf23eb289453b5d2930f0,1,0,1,1,1,False,21,22

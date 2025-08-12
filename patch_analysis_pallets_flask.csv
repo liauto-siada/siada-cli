@@ -1,0 +1,4 @@
+instance_id,base_commit,patch_added_lines,patch_deleted_lines,patch_total_changes,patch_net_changes,files_changed,has_function_changes,test_patch_total_changes,total_changes
+pallets__flask-5063,182ce3dd15dfa3537391c3efaf9c3ff407d134d4,39,26,65,13,1,False,51,116
+pallets__flask-4045,d8c37f43724cd9fb0870f77877b7c4c7e38a19e0,10,6,16,4,1,False,94,110
+pallets__flask-4992,4c288bc97ea371817199908d0d9b12de9dae327e,8,3,11,5,1,False,15,26

@@ -1,0 +1,7 @@
+instance_id,base_commit,patch_added_lines,patch_deleted_lines,patch_total_changes,patch_net_changes,files_changed,has_function_changes,test_patch_total_changes,total_changes
+astropy__astropy-14182,a5917978be39d13cd90b517e1de4e7a539ffaa48,31,10,41,21,1,True,28,69
+astropy__astropy-7746,d5bd3f68bb6d5ce3a61bdce9883ee750d1afade5,5,0,5,5,1,False,18,23
+astropy__astropy-14365,7269fa3e33e8d02485a647da91a5a2a60a06af61,2,2,4,0,1,False,15,19
+astropy__astropy-14995,b16c7d12ccbc7b2d20364b89fb44285bcbfede54,2,2,4,0,1,False,39,43
+astropy__astropy-12907,d16bfe05a744909de4b27f5875fe0d4ed41ce607,1,1,2,0,1,False,19,21
+astropy__astropy-6938,c76af9ed6bb89bfba45b9f5bc1e635188278e2fa,1,1,2,0,1,False,17,19
