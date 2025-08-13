@@ -86,7 +86,7 @@ class BugFixAgent(CodeGenAgent):
     
         while current_turn < max_turns:
             # Set minimal rules after first turn
-            # self.is_minimal = current_turn >= 1  
+            self.is_minimal = current_turn >= 1  
             # Run BugFixAgent for fixing
             result = await Runner.run(
                 starting_agent=self,
@@ -108,7 +108,6 @@ class BugFixAgent(CodeGenAgent):
             try:
                 check_result = await self.run_checker(user_input, context)
 
-
                 if check_result.get("is_fixed", False):
                     # Issue is fixed, break the loop
                     print(
@@ -117,51 +116,42 @@ class BugFixAgent(CodeGenAgent):
                     break
                 else:
                     # Issue not fixed, add the check_summary to input_list for next iteration
-                    self.is_minimal = True
-                    result = await Runner.run(
-                        starting_agent=self,
-                        input=input_list,
-                        max_turns=settings.MAX_TURNS,
-                        run_config=run_config,
-                        context=context
+                    check_summary = check_result.get(
+                        "check_summary", "Fix verification failed"
                     )
-                    break
-                    # check_summary = check_result.get(
-                    #     "check_summary", "Fix verification failed"
-                    # )
 
-                    # feedback_message_last_checker = input_with_env + \
-                    #     f"content : Here is the previous fix logic:\n{result.final_output}" + \
-                    #     f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n" + \
-                    #     f"**Please continue fixing.**\n" + \
-                    #     "role: user"
-                    # enhance_check_result = await self.run_enhanced_checker(
-                    #     feedback_message_last_checker, context, result
-                    # )
+                    feedback_message_last_checker = input_with_env + \
+                        f"content : Here is the previous fix logic:\n{result.final_output}" + \
+                        f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n" + \
+                        f"**Please continue fixing.**\n" + \
+                        "role: user"
+                    enhance_check_result = await self.run_enhanced_checker(
+                        feedback_message_last_checker, context, result
+                    )
 
-                    # print(
-                    #     f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}"
-                    # )
+                    print(
+                        f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}"
+                    )
 
-                    # # Add the unfixed check_summary to input_list for next round
+                    # Add the unfixed check_summary to input_list for next round
+                    feedback_message = {
+                        "content": self._build_enhanced_feedback(
+                            current_turn,
+                            result,
+                            check_result,
+                            check_summary,
+                            enhance_check_result,
+                        ),
+                        "role": "user",
+                    }
                     # feedback_message = {
-                    #     "content": self._build_enhanced_feedback(
-                    #         current_turn,
-                    #         result,
-                    #         check_result,
-                    #         check_summary,
-                    #         enhance_check_result,
-                    #     ),
+                    #     "content": f"Here is the previous fix logic:\n{result.final_output}"
+                    #     f"Here is the current code diff:\n{check_result.get('code_diff', '')}"
+                    #     f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n"
+                    #     f"**Please continue fixing.**",
                     #     "role": "user",
                     # }
-                    # # feedback_message = {
-                    # #     "content": f"Here is the previous fix logic:\n{result.final_output}"
-                    # #     f"Here is the current code diff:\n{check_result.get('code_diff', '')}"
-                    # #     f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n"
-                    # #     f"**Please continue fixing.**",
-                    # #     "role": "user",
-                    # # }
-                    # input_list = [task_message, feedback_message]
+                    input_list = [task_message, feedback_message]
             except Exception as e:
                 # If checker fails, log error and continue to next round
                 print(f"Fix result checker failed: {e}, stopping verification.")
