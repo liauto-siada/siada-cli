@@ -1,464 +1,424 @@
 
-siada/__init__.py
+benchmark/__init__.py
 
-siada/tools/coder/__init__.py
+benchmark/swe/__init__.py
 
-siada/tools/coder/action/__init__.py
+benchmark/swe/eval_framework.py:
+⋮
+│def run_evaluation(
+│    dataset: pd.DataFrame,
+│    output_file: str,
+│    process_instance_func: Callable[
+│        [pd.Series], EvalOutput
+│    ],
+│    target_instance: Optional[str] = None,
+│    excluded_instance_ids: Optional[Iterable[str]] = None,
+⋮
+│def cleanup():
+⋮
+│def update_progress(
+│    result: EvalOutput,
+│    pbar: tqdm,
+│    output_fp: TextIO,
+⋮
 
-siada/tools/coder/action/action.py:
+benchmark/swe/run_infer.py:
 ⋮
-│class ActionConfirmationStatus(str, Enum):
+│def find_git_root(start_path=None):
 ⋮
-│class ActionSecurityRisk(int, Enum):
-⋮
-│class ActionType(str, Enum):
+│def download_dataset():
 ⋮
 
-siada/tools/coder/action/file_actions.py:
+benchmark/swe/run_instance.py:
 ⋮
-│@dataclass
-│class FileReadAction:
-│    """Reads a file from a given path.
-│    Can be set to read specific lines using start and end
-│    Default lines 0:-1 (whole file)
+│def process_instance(
+│        instance: pd.Series,
 ⋮
-│    @property
-│    def message(self) -> str:
+│def process_instance_test(instance: pd.Series) -> EvalOutput:
 ⋮
-│@dataclass
-│class FileEditAction:
-│    """Edits a file using various commands including view, create, str_replace, insert, and undo_ed
+│def process_instance_reproduce(instance: pd.Series) -> EvalOutput:
+⋮
+│def get_instruction(instance: pd.Series):
+⋮
+│async def run_agent(agent_class: str, instruction: str, workspace: str = None):
+⋮
+│def run_test(workspace: str, instance) -> EvalOutput:
+⋮
+│def eval_output(workspace, instance, output: EvalOutput):
+⋮
+│def process_test_cases(test_cases, workspace, env_name, test_results):
+⋮
+│def run_pytest(test_case, workspace, env_name):
+⋮
+│def remove_unbalanced(test_case):
+⋮
+
+benchmark/swe/run_reproduce.py
+
+benchmark/swe/run_test.py
+
+benchmark/swe/tools/__init__.py
+
+benchmark/swe/tools/conda_env.py:
+⋮
+│def create_env(instance: pd.Series):
+⋮
+│def _get_swebench_workspace_dir_name(instance: pd.Series) -> tuple[str, str, str]:
+⋮
+│def get_repo_config(repo: str, version: str) -> dict:
+⋮
+│def generate_conda_env_script(env_name: str, config: dict) -> str:
+⋮
+│def generate_install_requirements_script(env_name: str, config: dict, root_path: str) -> str:
+⋮
+│def create_conda_env(instance_id: str, repo: str = None, version: str = None, is_delete_old: bool =
+⋮
+│def remove_conda_env(env_name: str):
+⋮
+│def install_requirements(env_name: str, root_path: str, repo: str = None, version: str = None):
+⋮
+
+benchmark/swe/tools/config.py:
+│SWE_DEFAULT_AGENT = 'coder'
+│SWE_MAX_AGENT_ITERATION = 100
+│PROXY_FOR_HUGGINGFACE = 'http://172.17.0.1:7899'
+
+benchmark/swe/tools/dataset.py:
+⋮
+│def load_huggingface_swe_bench_dataset(dataset_name, dataset_split):
+⋮
+│def filter_dataset(dataset: pd.DataFrame, filter_column: str) -> pd.DataFrame:
+⋮
+│def prepare_dataset(
+│    dataset: pd.DataFrame,
+│    output_file: str,
+│    eval_n_limit: int,
+│    eval_ids: list[str] = None,
+│    skip_num: Optional[int] = None,
+⋮
+
+benchmark/swe/tools/eval_output.py:
+⋮
+│class EvalOutput(BaseModel):
+│    # NOTE: User-specified
+│    instance_id: str
+⋮
+│    def model_dump(self, *args, **kwargs):
+⋮
+│    def model_dump_json(self, *args, **kwargs):
+⋮
+
+benchmark/swe/tools/gateway.py:
+⋮
+│def set_huggingface_gateway():
+⋮
+│def unset_huggingface_gateway():
+⋮
+
+benchmark/swe/tools/git_util.py:
+⋮
+│def reset_git_changes(repo_path="."):
+⋮
+│def checkout_to_commit(repo_path: str, commit: str):
+⋮
+│def apply_patch(repo: str, patch_text: str):
+⋮
+│def _handle_renames(patch_text, repo):
+⋮
+
+benchmark/swe/tools/logger.py:
+⋮
+│_INITIAL_CWD = os.path.dirname(os.path.dirname(siada.__file__))
+│_INITIAL_LOG_DIRS = {}
 │
-│    This class supports two main modes of operation:
-│    1. LLM-based editing (impl_source = FileEditSource.LLM_BASED_EDIT)
-│    2. ACI-based editing (impl_source = FileEditSource.OH_ACI)
+⋮
+│def reset_logger_for_multiprocessing(
+│        logger: logging.Logger, instance_id: str, log_dir: str
+⋮
+│def _get_initial_log_path(log_dir: str) -> str:
+⋮
+│def get_console_handler(log_level=logging.INFO, extra_info: Optional[str] = None):
+⋮
+
+benchmark/swe/tools/metadata.py:
+⋮
+│class EvalMetadata(BaseModel):
+│    agent_class: str
+⋮
+│    def model_dump(self, *args, **kwargs):
+⋮
+│    def model_dump_json(self, *args, **kwargs):
+⋮
+│def make_metadata(
+│        # llm_config: LLMConfig,
+│        dataset_name: str,
+│        agent_class: str,
+│        max_iterations: int,
+│        eval_note: Optional[str],
+│        eval_output_dir: str,
+│        data_split: Optional[str] = None,
+│        details: Optional[dict[str, Any]] = None,
+│        search_relevant_files: Optional[bool] = True,
+⋮
+
+benchmark/swe/tools/parser.py:
+⋮
+│def get_parser() -> argparse.ArgumentParser:
+⋮
+
+benchmark/swe/tools/run_instance_config/__init__.py
+
+benchmark/swe/tools/run_instance_config/sandbox_config.py:
+⋮
+│@dataclass
+│class SandboxConfig:
+│    """Configuration for the sandbox.
 │
 │    Attributes:
-│        path (str): The path to the file being edited. Works for both LLM-based and OH_ACI editing.
-│        OH_ACI only arguments:
-│            command (str): The editing command to be performed (view, create, str_replace, insert, 
+│        remote_runtime_api_url: The hostname for the Remote Runtime API.
+│        local_runtime_url: The default hostname for the local runtime. You may want to change to ht
+│        base_container_image: The base container image from which to build the runtime image.
+│        runtime_container_image: The runtime container image to use.
+│        user_id: The user ID for the sandbox.
+│        timeout: The timeout for the sandbox.
+│        enable_auto_lint: Whether to enable auto-lint.
 ⋮
-│    def __repr__(self) -> str:
+│    def defaults_to_dict(self) -> dict:
 ⋮
-
-siada/tools/coder/file_operator.py:
+│    def __str__(self):
 ⋮
-│@function_tool(
-│    name_override="read_file", description_override="Read the file."
-│)
-│async def read(
-│    context: RunContextWrapper[CodeAgentContext],
-│    path: str,
-│    start: int = 0,
-│    end: int = -1,
-│    impl_source: FileReadSource = FileReadSource.DEFAULT,
-│    view_range: list[int] | None = None
-⋮
-│@function_tool(
-│    name_override="edit_file", description_override=EDIT_DOCS
-│)
-│async def edit(
-│    context: RunContextWrapper[CodeAgentContext], 
-│    command: str,
-│    path: str,
-│    file_text: str | None = None,
-│    old_str: str | None = None,
-│    new_str: str | None = None,
-│    insert_line: int | None = None,
-│    view_range: list[int] | None = None
-⋮
-│def _execute_file_editor(
-│    editor: OHEditor,
-│    command: str,
-│    path: str,
-│    file_text: str | None = None,
-│    view_range: list[int] | None = None,
-│    old_str: str | None = None,
-│    new_str: str | None = None,
-│    insert_line: int | str | None = None,
-│    enable_linting: bool = False,
-⋮
-│def _resolve_path(path: str, working_dir: str) -> str:
+│    def __repr__(self):
 ⋮
 
-siada/tools/coder/file_search/__init__.py:
-⋮
-│__all__ = ['RipgrepSearcher', 'SearchResult', 'regex_search_files']
-│__version__ = '1.0.0'
-
-siada/tools/coder/file_search/search.py:
-⋮
-│@dataclass
-│class SearchResult:
-⋮
-│class RipgrepSearcher:
-│    """High-performance file search using ripgrep binary."""
-│    
-⋮
-│    def __init__(self):
-⋮
-│    def _find_ripgrep_binary(self) -> Optional[str]:
-⋮
-│    def _ensure_executable(self, binary_path: Path) -> None:
-⋮
-│    def _execute_ripgrep(self, args: List[str]) -> str:
-⋮
-│    def _parse_ripgrep_output(self, output: str) -> List[SearchResult]:
-⋮
-│    def search_in_files(
-│        self, 
-│        directory_path: str, 
-│        regex: str, 
-│        file_pattern: str = "*",
-│        cwd: Optional[str] = None
-⋮
-│    def _format_results(self, results: List[SearchResult], cwd: str) -> str:
-⋮
-│@function_tool(
-│    name_override="regex_search_files"
-│)
-│def regex_search_files(
-│    cwd: str,
-│    directory_path: str,
-│    regex: str,
-│    file_pattern: str = "*"
-⋮
-
-siada/tools/coder/file_search/setup_package.py:
-⋮
-│def setup_package_data():
-⋮
-│def ensure_binary_permissions():
-⋮
-│def get_pyproject_toml_config():
-⋮
-│def get_setup_py_config():
-⋮
-│def validate_package_structure():
-⋮
-
-siada/tools/coder/file_search/test_search.py:
-⋮
-│def create_test_files():
-⋮
-│def test_basic_functionality():
-⋮
-│def test_binary_detection():
-⋮
-
-siada/tools/coder/files.py:
-⋮
-│def resolve_path(
-│    file_path: str,
-│    working_directory: str,
-│    workspace_base: str,
-│    workspace_mount_path_in_sandbox: str,
-⋮
-│def read_lines(all_lines: list[str], start: int = 0, end: int = -1) -> list[str]:
-⋮
-│async def read_file(
-│    path: str,
-│    workdir: str,
-│    workspace_base: str,
-│    workspace_mount_path_in_sandbox: str,
-│    start: int = 0,
-│    end: int = -1,
-⋮
-│def insert_lines(
-│    to_insert: list[str], original: list[str], start: int = 0, end: int = -1
-⋮
-│async def write_file(
-│    path: str,
-│    workdir: str,
-│    workspace_base: str,
-│    workspace_mount_path_in_sandbox: str,
-│    content: str,
-│    start: int = 0,
-│    end: int = -1,
-⋮
-
-siada/tools/coder/repo_map/__init__.py:
-⋮
-│__all__ = [
-│    # 核心类
-│    'RepoMap',
-│    'Tag',
-│    
-│    # IO类
-│    'IO',
-│    'SilentIO', 
-│    'FileIO',
-│    
-⋮
-│__version__ = '1.0.0'
+benchmark/swe/tools/swe_const.py:
+│TEST_ASTROPY_PYTEST = "pytest -rA -vv -o console_output_style=classic --tb=no"
+│TEST_DJANGO = "./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1"
+│TEST_DJANGO_NO_PARALLEL = "./tests/runtests.py --verbosity 2"
+│TEST_SEABORN = "pytest --no-header -rA"
+│TEST_SEABORN_VERBOSE = "pytest -rA --tb=long"
+│TEST_PYTEST = "pytest -rA"
+│TEST_PYTEST_VERBOSE = "pytest -rA --tb=long"
+│TEST_SPHINX = "tox --current-env -epy39 -v --"
+│TEST_SYMPY = "PYTHONWARNINGS='ignore::UserWarning,ignore::SyntaxWarning' bin/test -C --verbose"
+│TEST_SYMPY_VERBOSE = "bin/test -C --verbose"
 │
 ⋮
-│def create_repo_map(
-│    root_path: str,
-│    model_name: str = "claude-3-5-sonnet-20241022",
-│    verbose: bool = False,
-│    map_tokens: int = 1024,
-│    **kwargs
+│SPECS_SKLEARN = {
+│    k: {
+│        "python": "3.6",
+│        "packages": "numpy scipy cython pytest pandas matplotlib",
+│        "install": "python -m pip install -v --no-use-pep517 --no-build-isolation -e .",
+│        "pip_packages": [
+│            "cython",
+│            "numpy==1.19.2",
+│            "setuptools",
+│            "scipy==1.5.2",
 ⋮
-│def create_optimized_repo_map(
-│    root_path: str,
-│    model_name: str = "claude-3-5-sonnet-20241022",
-│    verbose: bool = False,
-│    map_tokens: int = 8192,
-│    sampling_threshold: int = 10000,
-│    **kwargs
+│SPECS_FLASK = {
+│    "2.0": {
+│        "python": "3.9",
+│        "packages": "requirements.txt",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": [
+│            "setuptools==70.0.0",
+│            "Werkzeug==2.3.7",
+│            "Jinja2==3.0.1",
+│            "itsdangerous==2.1.2",
 ⋮
-│def create_silent_repo_map(
-│    root_path: str,
-│    model_name: str = "claude-3-5-sonnet-20241022",
-│    map_tokens: int = 1024,
-│    **kwargs
+│SPECS_DJANGO = {
+│    k: {
+│        "python": "3.5",
+│        "packages": "requirements.txt",
+│        "pre_install": [
+│            "apt-get update && apt-get install -y locales",
+│            "echo 'en_US UTF-8' > /etc/locale.gen",
+│            "locale-gen en_US.UTF-8",
+│        ],
+│        "install": "python setup.py install",
 ⋮
-
-siada/tools/coder/repo_map/dump.py:
+│SPECS_REQUESTS = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "pytest",
+│        "install": "python -m pip install .",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in ["0.7", "0.8", "0.9", "0.11", "0.13", "0.14", "1.1", "1.2", "2.0", "2.2"]
+│    + ["2.3", "2.4", "2.5", "2.7", "2.8", "2.9", "2.10", "2.11", "2.12", "2.17"]
+│    + ["2.18", "2.19", "2.22", "2.26", "2.25", "2.27", "2.31", "3.0"]
 ⋮
-│def cvt(s):
+│SPECS_SEABORN = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": [
+│            "contourpy==1.1.0",
+│            "cycler==0.11.0",
+│            "fonttools==4.42.1",
+│            "importlib-resources==6.0.1",
+│            "kiwisolver==1.4.5",
 ⋮
-│def dump(*vals):
+│SPECS_PYTEST = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "4.4",
+│        "4.5",
+│        "4.6",
 ⋮
-
-siada/tools/coder/repo_map/io.py:
+│SPECS_MATPLOTLIB = {
+│    k: {
+│        "python": "3.11",
+│        "packages": "environment.yml",
+│        "install": "python -m pip install -e .",
+│        "pre_install": [
+│            "apt-get -y update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-get inst
+│        ],
+│        "pip_packages": [
+│            "contourpy==1.1.0",
 ⋮
-│class IO:
-│    """
-│    标准IO类，提供文件读取和日志输出功能
-│    
-│    该类为RepoMap提供统一的IO接口，支持：
-│    - 多级别日志输出
-│    - 文件内容读取
-│    - 可配置的输出目标
-│    - 详细模式控制
+│SPECS_SPHINX = {
+│    k: {
+│        "python": "3.9",
+│        "pip_packages": ["tox==4.16.0", "tox-current-env==0.0.11", "Jinja2==3.0.3"],
+│        "install": "python -m pip install -e .[test]",
+│        "pre_install": ["sed -i '' 's/pytest/pytest -rA/' tox.ini"],
+│        "test_cmd": TEST_SPHINX,
+│    }
+│    for k in ["1.5", "1.6", "1.7", "1.8", "2.0", "2.1", "2.2", "2.3", "2.4", "3.0"]
+│    + ["3.1", "3.2", "3.3", "3.4", "3.5", "4.0", "4.1", "4.2", "4.3", "4.4"]
 ⋮
-│    def __init__(
-│        self, 
-│        verbose: bool = False,
-│        output_stream: Optional[TextIO] = None,
-│        error_stream: Optional[TextIO] = None
+│SPECS_ASTROPY = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .[test] --verbose",
+│        "pip_packages": [
+│            "attrs==23.1.0",
+│            "exceptiongroup==1.1.3",
+│            "execnet==2.0.2",
+│            "hypothesis==6.82.6",
+│            "iniconfig==2.0.0",
 ⋮
-│    def tool_output(self, message: str) -> None:
+│SPECS_SYMPY = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "mpmath flake8",
+│        "pip_packages": ["mpmath==1.3.0", "flake8-comprehensions"],
+│        "install": "python -m pip install -e .",
+│        "test_cmd": TEST_SYMPY,
+│    }
+│    for k in ["0.7", "1.0", "1.1", "1.10", "1.11", "1.12", "1.2", "1.4", "1.5", "1.6"]
+│    + ["1.7", "1.8", "1.9"] + ["1.10", "1.11", "1.12", "1.13", "1.14"]
 ⋮
-│    def tool_warning(self, message: str) -> None:
+│SPECS_PYLINT = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "requirements.txt",
+│        "install": "python -m pip install -e .",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "2.10",
+│        "2.11",
 ⋮
-│    def tool_error(self, message: str) -> None:
+│SPECS_XARRAY = {
+│    k: {
+│        "python": "3.10",
+│        "packages": "environment.yml",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": [
+│            "numpy==1.23.0",
+│            "packaging==23.1",
+│            "pandas==1.5.3",
+│            "pytest==7.4.0",
 ⋮
-│    def read_text(self, filepath: str) -> str:
+│SPECS_SQLFLUFF = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "requirements.txt",
+│        "install": "python -m pip install -e .",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "0.10",
+│        "0.11",
 ⋮
-│    def clear_stats(self) -> None:
+│SPECS_DBT_CORE = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "requirements.txt",
+│        "install": "python -m pip install -e .",
+│    }
+│    for k in [
+│        "0.13",
+│        "0.14",
+│        "0.15",
 ⋮
-│    def get_stats(self) -> dict:
+│SPECS_PYVISTA = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": ["pytest"],
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in ["0.20", "0.21", "0.22", "0.23"]
 ⋮
-│    def set_verbose(self, verbose: bool) -> None:
+│SPECS_ASTROID = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": ["pytest"],
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "2.10",
+│        "2.12",
 ⋮
-│class SilentIO(IO):
-│    """
-│    静默IO类，不输出任何信息到控制台
-│    
-│    适用于测试或需要静默运行的场景
+│SPECS_MARSHMALLOW = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e '.[dev]'",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "2.18",
+│        "2.19",
+│        "2.20",
 ⋮
-│    def __init__(self):
+│SPECS_PVLIB = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .[all]",
+│        "packages": "pandas scipy",
+│        "pip_packages": ["jupyter", "ipython", "matplotlib", "pytest", "flake8"],
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9"]
 ⋮
-│    def tool_output(self, message: str) -> None:
+│SPECS_PYDICOM = {
+│    k: {
+│        "python": "3.6",
+│        "install": "python -m pip install -e .",
+│        "packages": "numpy",
+│        "pip_packages": ["pytest"],
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "1.0",
 ⋮
-│    def tool_warning(self, message: str) -> None:
-⋮
-│    def tool_error(self, message: str) -> None:
-⋮
-│class FileIO(IO):
-│    """
-│    文件IO类，将输出重定向到文件
-│    
-│    适用于需要将日志保存到文件的场景
-⋮
-│    def __init__(
-│        self, 
-│        log_file: str,
-│        verbose: bool = True,
-│        append: bool = True
-⋮
-│    def __del__(self):
-⋮
-│    def close(self):
-⋮
-
-siada/tools/coder/repo_map/special.py:
-⋮
-│ROOT_IMPORTANT_FILES = [
-│    # Version Control
-│    ".gitignore",
-│    ".gitattributes",
-│    # Documentation
-│    "README",
-│    "README.md",
-│    "README.txt",
-│    "README.rst",
-│    "CONTRIBUTING",
-⋮
-│NORMALIZED_ROOT_IMPORTANT_FILES = set(os.path.normpath(path) for path in ROOT_IMPORTANT_FILES)
+│SPECS_HUMANEVAL = {k: {"python": "3.9", "test_cmd": "python"} for k in ["1.0"]}
 │
-⋮
-│def is_important(file_path):
-⋮
-│def filter_important_files(file_paths):
-⋮
-
-siada/tools/coder/repo_map/token_counter.py:
-⋮
-│class TokenCounterModel:
-│    """
-│    Token计数模型类 - 超级极简版本
-│    
-│    专注于核心功能：
-│    - 优先使用litellm进行精确计算
-│    - litellm不可用时使用简单估算（4字符≈1token）
-│    - 支持任何模型名称，零配置
-│    - 基础缓存机制
-⋮
-│    def __init__(self, model_name: str):
-⋮
-│    def token_count(self, text: str) -> int:
-⋮
-│    def _check_litellm_availability(self) -> bool:
-⋮
-│    def _count_with_litellm(self, text: str) -> int:
-⋮
-│    def _count_with_estimation(self, text: str) -> int:
-⋮
-│    def __str__(self) -> str:
-⋮
-│    def __repr__(self) -> str:
-⋮
-│class OptimizedTokenCounterModel(TokenCounterModel):
-│    """
-│    优化版本的Token计数模型
-│    
-│    针对长文本进行了优化，适用于处理大型代码库
-⋮
-│    def __init__(self, model_name: str, sampling_threshold: int = 10000):
-⋮
-│    def token_count(self, text: str) -> int:
-⋮
-│    def _count_with_sampling(self, text: str) -> int:
-⋮
-
-siada/tools/coder/repo_map/waiting.py:
-⋮
-│class Spinner:
-│    """
-│    Minimal spinner that scans a single marker back and forth across a line.
-│
-│    The animation is pre-rendered into a list of frames.  If the terminal
-│    cannot display unicode the frames are converted to plain ASCII.
-⋮
-│    def __init__(self, text: str, width: int = 7):
-⋮
-│    def _supports_unicode(self) -> bool:
-⋮
-│    def _next_frame(self) -> str:
-⋮
-│    def step(self, text: str = None) -> None:
-⋮
-│    def end(self) -> None:
-⋮
-│class WaitingSpinner:
-│    """Background spinner that can be started/stopped safely."""
-│
-│    def __init__(self, text: str = "Waiting for LLM", delay: float = 0.15):
-⋮
-│    def _spin(self):
-⋮
-│    def start(self):
-⋮
-│    def stop(self):
-⋮
-│    def __enter__(self):
-⋮
-│    def __exit__(self, exc_type, exc_val, exc_tb):
-⋮
-│def main():
-⋮
-
-siada/tools/coder/run_cmd.py:
-⋮
-│@function_tool
-│def run_cmd(context: RunContextWrapper[CodeAgentContext], command, verbose=False, error_print=None)
-⋮
-│def get_windows_parent_process_name():
-⋮
-│def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.encoding):
-⋮
-│def run_cmd_pexpect(command, verbose=False, cwd=None):
-│    """
-│    Run a shell command interactively using pexpect, capturing all output.
-│
-│    :param command: The command to run as a string.
-│    :param verbose: If True, print output in real-time.
-│    :return: A tuple containing (exit_status, output)
-⋮
-│    def output_callback(b):
-⋮
-
-siada/tools/coder/tool_docs.py:
-│EDIT_DOCS= """Custom editing tool for viewing, creating and editing files in plain-text format
-⋮
-
-siada/utils.py:
-⋮
-│class JsonUtils:
-│    """JSON相关工具类"""
-│    
-│    @staticmethod
-│    def format_json(json_data: Union[str, Dict[str, Any]]) -> str:
-⋮
-│class SSEUtils:
-│    """Server-Sent Events (SSE)相关工具类"""
-│    
-│    @staticmethod
-│    async def format_sse(data):
-⋮
-│class AgentLogger:
-│    """Agent日志格式化助手类"""
-│    
-│    @staticmethod
-│    def format_start(agent_name: str) -> str:
-⋮
-│    @staticmethod
-│    def format_finished(agent_name: str) -> str:
-⋮
-│    @staticmethod
-│    def format_tool_call(tool_name: str, tool_args: Any) -> str:
-⋮
-│    @staticmethod
-│    def format_tool_output(output: str) -> str:
-⋮
-│    @staticmethod
-│    def format_action(thought: str, action: str) -> str:
-⋮
-│    @staticmethod
-│    def format_final_output(output: str) -> str:
-⋮
-│    @staticmethod
-│    def log_user_input(input_text: str) -> None:
-⋮
-│    @staticmethod
-│    def log_tool_output(output: str) -> None:
-⋮
-│    @staticmethod
-│    def log_action(message: str) -> None:
-⋮
-│    @staticmethod
-│    def log_final_output(message: str) -> None:
-⋮
-│    @staticmethod
-│    def format_observation(thought: str) -> str:
-⋮
-│    @staticmethod
-│    def format_msg_action(thought: str) -> str:
-⋮
-│    @staticmethod
-│    def log_observation(message: str) -> None:
+│MAP_REPO_VERSION_TO_SPECS = {
+│    "astropy/astropy": SPECS_ASTROPY,
+│    "dbt-labs/dbt-core": SPECS_DBT_CORE,
+│    "django/django": SPECS_DJANGO,
+│    "matplotlib/matplotlib": SPECS_MATPLOTLIB,
+│    "marshmallow-code/marshmallow": SPECS_MARSHMALLOW,
+│    "mwaskom/seaborn": SPECS_SEABORN,
+│    "pallets/flask": SPECS_FLASK,
+│    "psf/requests": SPECS_REQUESTS,
+│    "pvlib/pvlib-python": SPECS_PVLIB,
 ⋮

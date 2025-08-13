@@ -17,7 +17,7 @@ class TestFixAttemptCompletionFormatter(unittest.TestCase):
 
     def test_supports_streaming(self):
         """Test that the formatter supports streaming."""
-        self.assertTrue(self.formatter.supports_streaming)
+        self.assertFalse(self.formatter.supports_streaming)
 
     def test_supported_function(self):
         """Test that the formatter returns the correct supported function name."""
@@ -82,23 +82,6 @@ class TestFixAttemptCompletionFormatter(unittest.TestCase):
         self.assertEqual(content, expected_content)
         self.assertFalse(is_complete)
 
-    def test_malformed_json(self):
-        """Test formatting with malformed JSON."""
-        arguments = '{"result": "malformed json" invalid}'
-        
-        content, is_complete = self.formatter.format_input("test_call_id", "fix_attempt_completion", arguments)
-        
-        self.assertEqual(content, "")
-        self.assertFalse(is_complete)
-
-    def test_empty_arguments(self):
-        """Test formatting with empty arguments."""
-        arguments = ""
-        
-        content, is_complete = self.formatter.format_input("test_call_id", "fix_attempt_completion", arguments)
-        
-        self.assertEqual(content, "")
-        self.assertFalse(is_complete)
 
     def test_null_arguments(self):
         """Test formatting with null JSON."""

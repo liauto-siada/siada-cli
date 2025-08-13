@@ -62,6 +62,53 @@ This indicates that the PR is not ready for formal review but welcomes discussio
 ### 4. Ensure All Test Cases Pass
 All PRs must pass the existing test suite before being merged.
 
+#### Running Tests
+We provide an automated test runner to help you run all tests easily:
+
+```bash
+# Run all tests
+python tests/run_tests.py
+
+# Run tests in quiet mode
+python tests/run_tests.py --quiet
+
+# List all test files without running them
+python tests/run_tests.py --list
+```
+
+Alternatively, you can use pytest directly:
+
+```bash
+# Run all tests with pytest
+pytest tests/
+
+# Run tests with verbose output
+pytest tests/ -v
+
+# Run a specific test file
+pytest tests/tools/test_example.py
+```
+
+#### Test File Naming Convention
+All test files must follow the naming convention `test_*.py` to be automatically discovered by the test runner. For example:
+- ✅ `test_file_operator.py`
+- ✅ `test_fix_attempt_completion_formatter.py`
+- ❌ `file_operator_test.py`
+- ❌ `example_test.py`
+
+#### Test Function Naming Convention
+All test functions within test files must start with `test_` to be recognized by the testing framework. For example:
+- ✅ `def test_file_creation():`
+- ✅ `def test_error_handling():`
+- ❌ `def check_file_creation():`
+- ❌ `def validate_error_handling():`
+
+#### Test Organization
+- Test files should be placed in the `tests/` directory
+- Test files should follow the same directory structure as the modules under test
+- Each test file should focus on testing a specific module or functionality
+- Use descriptive test names that clearly indicate what is being tested
+
 ### 5. Update Documentation
 If your PR introduces user-facing changes (e.g., new commands, modified parameters, or behavior changes), you must also update the relevant documentation in the `/docs` directory.
 

@@ -57,6 +57,54 @@
 这表明 PR 还未准备好进行正式审查，但欢迎讨论和初步意见。
 
 4. 确保通过所有测试用例
+所有 PR 在合并前都必须通过现有的测试套件。
+
+#### 运行测试
+我们提供了自动化测试运行器来帮助您轻松运行所有测试：
+
+```bash
+# 运行所有测试
+python tests/run_tests.py
+
+# 安静模式运行测试
+python tests/run_tests.py --quiet
+
+# 只列出测试文件，不运行
+python tests/run_tests.py --list
+```
+
+或者，您也可以直接使用 pytest：
+
+```bash
+# 使用 pytest 运行所有测试
+pytest tests/
+
+# 运行测试并显示详细输出
+pytest tests/ -v
+
+# 运行特定的测试文件
+pytest tests/tools/test_example.py
+```
+
+#### 测试文件命名规范
+所有测试文件必须遵循 `test_*.py` 的命名规范，以便测试运行器自动发现。例如：
+- ✅ `test_file_operator.py`
+- ✅ `test_fix_attempt_completion_formatter.py`
+- ❌ `file_operator_test.py`
+- ❌ `example_test.py`
+
+#### 测试函数命名规范
+测试文件中的所有测试函数必须以 `test_` 开头，以便测试框架识别。例如：
+- ✅ `def test_file_creation():`
+- ✅ `def test_error_handling():`
+- ❌ `def check_file_creation():`
+- ❌ `def validate_error_handling():`
+
+#### 测试组织结构
+- 测试文件应放在 `tests/` 目录中
+- 测试文件应遵循与被测试模块相同的目录结构
+- 每个测试文件应专注于测试特定的模块或功能
+- 使用描述性的测试名称，清楚地表明正在测试什么
 
 5. 更新文档
 如果你的 PR 引入了面向用户的变更（例如新增命令、修改参数或行为变化），你还必须更新 /docs 目录下的相关文档。

@@ -148,6 +148,27 @@ async def edit(
     insert_line: int | None = None,
     view_range: list[int] | None = None
 ) -> FunctionCallResult:
+    return _edit_file(
+        context=context,
+        command=command,
+        path=path,
+        file_text=file_text,
+        old_str=old_str,
+        new_str=new_str,
+        insert_line=insert_line,
+        view_range=view_range
+    )
+
+def _edit_file(
+    context: RunContextWrapper[CodeAgentContext], 
+    command: str,
+    path: str,
+    file_text: str | None = None,
+    old_str: str | None = None,
+    new_str: str | None = None,
+    insert_line: int | None = None,
+    view_range: list[int] | None = None
+) -> FunctionCallResult:
     file_editor = OHEditor(workspace_root=context.context.root_dir)
     result_str, (old_content, new_content) = _execute_file_editor(
         file_editor,

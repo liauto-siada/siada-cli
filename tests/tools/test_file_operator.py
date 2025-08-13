@@ -17,7 +17,7 @@ import shutil
 import os
 from pathlib import Path
 
-from siada.tools.coder.file_operator import edit
+from siada.tools.coder.file_operator import edit, _edit_file
 from siada.tools.coder.observation.file_observation import FileEditObservation
 from siada.tools.coder.observation.observation import FileEditSource
 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 """
         
         # 执行编辑操作
-        result = await edit.func(
+        result = _edit_file(
             context=self.context,
             command="create",
             path=new_file_path,
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         test_file = self._create_test_file("test_replace.py", original_content)
         
         # 执行编辑
-        result = await edit.func(
+        result = _edit_file(
             context=self.context,
             command="str_replace",
             path=test_file,
@@ -156,7 +156,7 @@ if __name__ == "__main__":
         test_file = self._create_test_file("calculator.py", original_content)
         
         # 执行编辑
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="str_replace",
             path=test_file,
@@ -199,7 +199,7 @@ if __name__ == "__main__":
         test_file = self._create_test_file("main.py", original_content)
         
         # 在第0行后插入（即文件开头）
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="insert",
             path=test_file,
@@ -238,7 +238,7 @@ def function_three():
         test_file = self._create_test_file("functions.py", original_content)
         
         # 在第2行后插入
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="insert",
             path=test_file,
@@ -275,7 +275,7 @@ def function_two():
         test_file = self._create_test_file("myclass.py", original_content)
         
         # 在最后一行后插入
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="insert",
             path=test_file,
@@ -310,7 +310,7 @@ def function_two():
         test_file = self._create_test_file("undo_test.py", original_content)
         
         # 先进行一次编辑
-        await edit(
+        _edit_file(
             context=self.context,
             command="str_replace",
             path=test_file,
@@ -323,7 +323,7 @@ def function_two():
         self.assertIn("modified", modified_content)
         
         # 执行撤销操作
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="undo_edit",
             path=test_file
@@ -354,7 +354,7 @@ def function_two():
         test_file = self._create_test_file("view_test.py", test_content)
         
         # 执行查看
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="view",
             path=test_file
@@ -374,7 +374,7 @@ def function_two():
         test_file = self._create_test_file("empty.py", "")
         
         # 向空文件插入内容
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="insert",
             path=test_file,
@@ -409,7 +409,7 @@ def 中文函数名():
         test_file = self._create_test_file("special_chars.py", original_content)
         
         # 替换包含特殊字符的内容
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="str_replace",
             path=test_file,
@@ -445,7 +445,7 @@ def 中文函数名():
         test_file = self._create_test_file("large_file.py", large_content)
         
         # 在大文件中进行替换
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="str_replace",
             path=test_file,
@@ -471,7 +471,7 @@ def 中文函数名():
         nonexistent_file = os.path.join(self.test_dir, "nonexistent.py")
         
         # 执行编辑
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="str_replace",
             path=nonexistent_file,
@@ -494,7 +494,7 @@ def 中文函数名():
         test_file = self._create_test_file("invalid_cmd.py", "print('test')")
         
         # 使用无效命令
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="invalid_command",
             path=test_file
@@ -514,7 +514,7 @@ def 中文函数名():
         test_file = self._create_test_file("structure_test.py", test_content)
         
         # 执行编辑操作
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="str_replace",
             path=test_file,
@@ -553,7 +553,7 @@ line 5"""
         test_file = self._create_test_file("diff_test.py", original_content)
         
         # 执行编辑操作
-        result = await edit(
+        result = _edit_file(
             context=self.context,
             command="str_replace",
             path=test_file,

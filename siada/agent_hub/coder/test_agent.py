@@ -53,13 +53,24 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
 
         result = await self.run_impl(
                     starting_agent=self,
-                    input=input,
+                    input=user_input,
                     max_turns=settings.MAX_TURNS,
                     context=context,
         )
 
         return result
 
-    def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
+    async def run_streamed(self, user_input: str, context: CodeAgentContext) -> RunResultStreaming:
+        """
+        Run the agent in streaming mode
+        """
+        add_trace_processor(create_detailed_logger())
 
-        pass
+        result = await self.run_impl_streamed(
+                    starting_agent=self,
+                    input=user_input,
+                    max_turns=settings.MAX_TURNS,
+                    context=context,
+        )
+
+        return result

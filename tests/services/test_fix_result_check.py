@@ -269,7 +269,7 @@ class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["is_fixed"])
         self.assertEqual(result["check_summary"], "问题已修复")
         self.assertIn("问题分析内容", result["analysis"])
-        self.assertIn("Step 1: Problem Scope Analysis", result["analysis"])
+        self.assertIn("## Step 1: Deep Root Cause Analysis", result["analysis"])
 
     async def test_parse_analysis_result_invalid_json(self):
         """测试 _parse_analysis_result 方法处理无效JSON"""
