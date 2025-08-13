@@ -56,6 +56,17 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         """
         pass
 
+    def get_interactive_mode(self) -> bool:
+        """
+        获取当前的交互模式状态
+        
+        Returns:
+            bool: True为交互模式，False为非交互模式
+        """
+        # 检查是否有--prompt参数，如果有则为非交互模式
+        import sys
+        return '--prompt' not in sys.argv and '-p' not in sys.argv
+
     def get_repo_map_model_name(self) -> str:
         """
         Get the model name used for repo map generation

@@ -3,14 +3,16 @@ import platform
 from .base.tool_use import get_tool_use_section
 from .base.capabilities import get_capabilities_section
 from .base.rules import get_rules_section
+from .base.prompt_builder import build_system_prompt
 
 
-def get_system_prompt(cwd: str = "/default/path") -> str:
+def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True) -> str:
     """
     生成系统提示词
 
     Args:
         cwd: 当前工作目录路径
+        interactive_mode: 是否为交互模式
 
     Returns:
         格式化后的系统提示词
@@ -33,13 +35,11 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 
 """
 
-    return f"""{intro}
-
-{get_tool_use_section()}
-
-{get_capabilities_section(cwd)}
-
-{get_rules_section(cwd, os_name, home_dir)}
-
-{objective}"""
-
+    return build_system_prompt(
+        intro=intro,
+        tool_use=get_tool_use_section(),
+        capabilities=get_capabilities_section(cwd),
+        rules=get_rules_section(cwd, os_name, home_dir),
+        objective=objective,
+        interactive_mode=interactive_mode
+    )

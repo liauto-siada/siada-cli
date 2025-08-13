@@ -17,6 +17,9 @@ class CodeAgentContext(BaseModel):
 
     provider: str | None = None
 
+    # 交互模式标识，True为交互模式，False为非交互模式
+    interactive_mode: bool = True
+
     # 完整的消息历史列表
     message_history: List[TResponseInputItem] = Field(default_factory=list)
 
