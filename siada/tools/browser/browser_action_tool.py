@@ -3,9 +3,20 @@ Browser automation tool using Playwright.
 
 This module provides browser automation capabilities equivalent to the TypeScript version,
 using Playwright for cross-browser automation with screenshot and console log capture.
+
+The current tool is temporarily abandoned because the model cannot correctly identify the component coordinates. Use browser_action_tool instead
 """
 
 from __future__ import annotations
+
+import warnings
+
+warnings.warn(
+    "browser_action_tool module is deprecated and will be removed in a future version. "
+    "Use browsergym_action_tool instead for better element-based interactions.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 import asyncio
 import base64
