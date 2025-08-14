@@ -3,18 +3,18 @@ from .non_interactive import get_non_interactive_constraints
 
 def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str, objective: str, interactive_mode: bool = True) -> str:
     """
-    构建系统提示词的通用函数
+    Common function for building system prompts
     
     Args:
-        intro: Agent特定的介绍部分
-        tool_use: 工具使用部分
-        capabilities: 能力部分  
-        rules: 规则部分
-        objective: 目标部分
-        interactive_mode: 是否为交互模式
+        intro: Agent-specific introduction section
+        tool_use: Tool usage section
+        capabilities: Capabilities section  
+        rules: Rules section
+        objective: Objective section
+        interactive_mode: Whether it's interactive mode
         
     Returns:
-        str: 完整的系统提示词
+        str: Complete system prompt
     """
     base_prompt = f"""{intro}
 
@@ -22,12 +22,12 @@ def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str
 
 {capabilities}
 
-{rules}"""
+{rules}
 
-    # 在非交互模式下添加特殊约束
+{objective}"""
+
+    # Add special constraints in non-interactive mode
     if not interactive_mode:
         base_prompt += f"\n{get_non_interactive_constraints()}"
-
-    base_prompt += f"\n{objective}"
     
     return base_prompt

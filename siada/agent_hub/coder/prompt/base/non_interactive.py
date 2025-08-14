@@ -1,25 +1,14 @@
 def get_non_interactive_constraints() -> str:
     """
-    获取非交互模式约束部分的内容
+    Get the non-interactive mode constraints content
     
     Returns:
-        str: 非交互模式约束部分的文本内容
+        str: The text content of non-interactive mode constraints
     """
-    return """
-NON-INTERACTIVE MODE CONSTRAINTS
+    return """====
 
-EXECUTION MODE: Autonomous completion without user interaction.
+CONSTRAINTS
 
-PROHIBITED ACTIONS:
-- Asking questions or requesting clarification
-- Using tools requiring user input/confirmation
-- Executing interactive commands or prompts
-- Suggesting manual intervention steps
+Prohibit operations requiring user interaction and participation.
 
-REQUIRED BEHAVIOR:
-- Make reasonable assumptions for unclear requirements
-- Provide complete, ready-to-use solutions
-- Document assumptions and decisions
-- Ensure definitive task completion
-
-===="""
+"""
