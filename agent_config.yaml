@@ -18,17 +18,17 @@ agents:
   fegen:
     class: "siada.agent_hub.coder.fe_gen_agent.FeGenAgent"
     description: "Frontend code generation agent"
-    enabled: true
+    enabled: false
 
   bugreproduce:
     class: "siada.agent_hub.coder.bug_reproduce_agent.BugReproduceAgent"
     description: "Bug reproduction agent"
-    enabled: true
+    enabled: false
 
   test:
     class: "siada.agent_hub.coder.test_agent.TestAgent"
     description: "Test agent"
-    enabled: true
+    enabled: false
 
 # LLM Configuration
 llm_config:

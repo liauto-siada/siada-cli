@@ -46,7 +46,7 @@ def get_parser(default_config_files, git_root):
         metavar="AGENT",
         choices=agent_choices,
         default="coder",
-        help=f"Specify the agent type to use (choices: {', '.join(agent_choices)}, default: bugfix)",
+        help=f"Specify the agent type to use (choices: {', '.join(agent_choices)}, default: coder)",
     )
 
     # Generate individual agent command arguments
