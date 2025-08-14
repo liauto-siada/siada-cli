@@ -12,6 +12,7 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
     """
     if is_minimal:
         minimal_rules = """
+            - When solving problems, prioritize using the existing functions and tool methods of the target project rather than reimplementing the same functionality.
             - Exception and Error Handling: Ensuring that the modified code does not introduce new exceptions or alter the existing exception-handling behavior of the original methods.
             - You need pass the test case that cover the following scenarios:
                 --Normal Functionality: Testing the core, expected behavior of the class methods.
@@ -53,7 +54,6 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
 - You are not allowed to ask questions to the user, generate commands requiring user input, or any other similar interactions. Each task must be completed independently. 
 - Avoid retrieving previous code versions via Git to infer the cause of the issue — the current version provides sufficient information for diagnosis.
 
-- When solving problems, prioritize using the existing functions and tool methods of the target project rather than reimplementing the same functionality.
 {minimal_rules}
 
 ====
