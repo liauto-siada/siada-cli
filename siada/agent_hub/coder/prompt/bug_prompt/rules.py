@@ -12,6 +12,12 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
     """
     if is_minimal:
         minimal_rules = """
+            - You need pass the test case that cover the following scenarios:
+                --Normal Functionality: Testing the core, expected behavior of the class methods.
+                --Edge Cases: Checking the behavior of methods with boundary values, such as empty lists, zero values, or maximum limits.
+                --State and Attribute Changes: Ensuring that the internal state and attributes of an object are updated correctly after a method is called.
+                --Uninitialized Attributes: Testing how the class behaves when an attribute is accessed before it has been explicitly assigned a value.
+                --Data Types and Format: Validating that the class methods accept and process the correct data types and reject incorrect ones.
             - Deep Root Cause Analysis: Don't just patch symptoms. You must trace the bug's origin, whether it stems from a flawed assumption, an incomplete logical condition, or an unhandled edge case. Your job is to understand why the problem occurs, not just where.
             - Surgical Precision: Apply fixes with the highest level of accuracy. Your changes should be minimal and localized. This often means:
                 --Adding a more precise conditional check.
