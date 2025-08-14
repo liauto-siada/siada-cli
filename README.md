@@ -88,15 +88,15 @@ With Siada CLI you can:
 
          # 2. Configuration file content example
          llm_config:
-         model: "claude-sonnet-4"          # Change to your desired model
-         provider: "openrouter"
+            model: "claude-sonnet-4"          # Change to your desired model
+            provider: "openrouter"
          ```
    - Developer Mode
       - Edit the `llm_config` section in `agent_config.yaml` file:
          ```yaml
          llm_config:
-         provider: "openrouter"
-         model_name: "claude-sonnet-4"     # Change to your desired model
+            provider: "openrouter"
+            model_name: "claude-sonnet-4"     # Change to your desired model
          ```
 
    **Method 3: Via Environment Variables**
@@ -425,7 +425,7 @@ For a complete list of open source projects and licenses used in Siada CLI, plea
 
 ## License
 
-Distributed under the MIT License. See [`LICENSE`](./docs/LICENSE) for more information.
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
 
 ## DISCLAIMERS
 See [disclaimers.md](./disclaimers.md)
