@@ -21,32 +21,7 @@
 - GCC 11+
 
 2. 安装命令
-   ```bash
-   curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh
-   ```
-
-   输出下面信息表示安装成功
-   ![siada-cli installed successfully](../assets/siada-cli-installed-successfully.png)
-
-   安装完成后需根据提示将 ~/.local/bin 添加到PATH 中(已添加可忽略)，以确保可在shell中使用 siada-cli
-   ```bash
-   # Bash
-   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-   source ~/.bashrc
-
-   # Zsh 
-   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-   source ~/.zshrc
-   ```
-
-   验证是否安装成功
-   ```bash
-   siada-cli --version
-
-   # 成功输出版本号表示安装成功
-   siada-cli 0.0.1
-   ```
-   
+   待补充
 
 ## 安装（开发者模式）
 
@@ -88,15 +63,19 @@
 
          # 2. 配置文件内容示例
          llm_config:
-         model: "claude-sonnet-4"          # 更改为您想要的模型
-         provider: "openrouter"
+            model: "claude-sonnet-4"          # 更改为您想要的模型
+            provider: "openrouter"
          ```
+      - 在使用 OpenRouter 提供商时需要
+        ```bash
+           export OPENROUTER_API_KEY="your_openrouter_key"
+        ```
    - 开发者模式
       - 编辑 `agent_config.yaml` 文件中的 `llm_config` 部分：
          ```yaml
          llm_config:
-         provider: "openrouter"
-         model_name: "claude-sonnet-4"     # 更改为您想要的模型
+            provider: "openrouter"
+            model_name: "claude-sonnet-4"     # 更改为您想要的模型
          ```
 
    **方法3：通过环境变量**

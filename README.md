@@ -21,31 +21,7 @@ With Siada CLI you can:
 - GCC 11+
 
 2. Installation Command
-   ```bash
-   curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh
-   ```
-
-   The following output indicates successful installation
-   ![siada-cli installed successfully](./docs/assets/siada-cli-installed-successfully.png)
-
-   After installation, you need to add ~/.local/bin to PATH according to the prompt (skip if already added) to ensure siada-cli can be used in shell
-   ```bash
-   # Bash
-   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-   source ~/.bashrc
-
-   # Zsh 
-   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-   source ~/.zshrc
-   ```
-
-   Verify successful installation
-   ```bash
-   siada-cli --version
-
-   # Successfully outputting version number indicates successful installation
-   siada-cli 0.0.1
-   ```
+   TODO
    
 
 ## Installation (Developer Mode)
@@ -91,6 +67,10 @@ With Siada CLI you can:
             model: "claude-sonnet-4"          # Change to your desired model
             provider: "openrouter"
          ```
+      - Required when using OpenRouter provider
+        ```bash
+           export OPENROUTER_API_KEY="your_openrouter_key"
+        ```
    - Developer Mode
       - Edit the `llm_config` section in `agent_config.yaml` file:
          ```yaml
