@@ -429,3 +429,8 @@ Distributed under the MIT License. See [`LICENSE`](./docs/LICENSE) for more info
 
 ## DISCLAIMERS
 See [disclaimers.md](./disclaimers.md)
+
+----
+<div align="center">
+Built with ❤️ by Li Auto Code Intelligence Team and the open source community
+</div>
