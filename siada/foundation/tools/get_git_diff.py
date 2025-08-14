@@ -63,7 +63,7 @@ class GitDiffUtil:
             else:
                 raise ValueError(f"Git diff failed: Path {repo_path} is not a valid Git repository.")
         
-        cmd = ['git', 'diff', '--', ':(exclude)test*/', ':(exclude)**/*test*']
+        cmd = ['git', 'diff', '--', ':(exclude)test*/', ':(exclude)**/*test*', ':!src/']
         try:
             result = subprocess.run(
                 cmd,
