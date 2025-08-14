@@ -14,6 +14,7 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
         minimal_rules = """
             - When solving problems, prioritize using the existing functions and tool methods of the target project rather than reimplementing the same functionality.
             - You need ensure that the modified code does not throw new exceptions.
+            - you can try to use the test in original codebase to reproduce the bug.
             - You need pass the test case that cover the following scenarios:
                 --Normal Functionality: Testing the core, expected behavior of the class methods.
                 --Edge Cases: Checking the behavior of methods with boundary values, such as empty lists, zero values, or maximum limits.
