@@ -12,6 +12,7 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
     """
     if is_minimal:
         minimal_rules = """
+            - Exception and Error Handling: Ensuring that the modified code does not introduce new exceptions or alter the existing exception-handling behavior of the original methods.
             - You need pass the test case that cover the following scenarios:
                 --Normal Functionality: Testing the core, expected behavior of the class methods.
                 --Edge Cases: Checking the behavior of methods with boundary values, such as empty lists, zero values, or maximum limits.
