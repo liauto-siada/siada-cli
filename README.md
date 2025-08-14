@@ -426,3 +426,6 @@ For a complete list of open source projects and licenses used in Siada CLI, plea
 ## License
 
 Distributed under the MIT License. See [`LICENSE`](./docs/LICENSE) for more information.
+
+## DISCLAIMERS
+See [disclaimers.md](./disclaimers.md)

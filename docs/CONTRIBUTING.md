@@ -16,6 +16,11 @@ To this end, we will focus on the following directions:
 
 Ultimately, we hope that programmers can focus on more creative work, while tedious and repetitive tasks are left to AI Agents to complete—making programming simpler and innovation freer.
 
+## Contributor Agreement
+To avoid conflicts with open-source license agreements or infringement of others’ intellectual property rights, you must sign a Contributor License Agreement (CLA) before contributing code or documentation. You should send the signed agreement to the designated email address as specified in the CLA. This ensures that the code or documentation you contribute is your own original work, or that any third-party code you reference does not conflict with the Apache License 2.0.
+
+[contributor agreement](./contributor_agreement.md)
+
 ## Project Directory Structure
 
 This project adopts a standard Python project structure. The following are explanations of the core first-level directories:

@@ -6,19 +6,16 @@ Siada CLI incorporates and adapts from the following open source projects. We ar
 
 ### [Cline](https://github.com/cline/cline)
 - **License**: Apache 2.0
-- **Contribution**: AI assistant interaction design and user experience concepts
+- **Contribution & Modifications**: Referenced its prompt design and made changes to tool usage and rules.
 
 ### [Aider](https://github.com/paul-gauthier/aider)
 - **License**: Apache 2.0
-- **Contribution**: Repository mapping and code context management techniques
+- **Contribution & Modifications**: Referenced its interaction approach and made modifications including @command handling, streaming output, and other changes. Also drew inspiration from its excellent repo map design concept.
 
 ### [OpenHands](https://github.com/All-Hands-AI/OpenHands)
 - **License**: MIT
-- **Contribution**: Multi-agent architecture design and task coordination patterns
+- **Contribution & Modifications**: Quoted the code from its file editing tool and modified its parameters to adapt to the openai-agent-sdk.
 
-### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
-- **License**: Apache 2.0
-- **Contribution**: Command-line interface design and user experience patterns
 
 ## Open Source licenses
 

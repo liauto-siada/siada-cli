@@ -6,19 +6,16 @@ Siada CLI 包含并改编了以下开源项目。我们对它们对开源社区�
 
 ### [Cline](https://github.com/cline/cline)
 - **开源协议**: Apache 2.0
-- **贡献内容**: AI 助手交互模式设计和用户体验理念
+- **贡献&修改内容**: 参考了其prompt的设计， 并对工具调用和规则做了修改。
 
 ### [Aider](https://github.com/paul-gauthier/aider)
 - **开源协议**: Apache 2.0
-- **贡献内容**: 代码仓库映射和上下文管理技术
+- **贡献&修改内容**: 参考了其交互方式， 并对交互方式做了包括@命令处理， 流式输出等修改。参考了其优秀的repo map 设计思路
 
 ### [OpenHands](https://github.com/All-Hands-AI/OpenHands )
 - **开源协议**: MIT
-- **贡献内容**: 多代理架构设计和任务协调模式
+- **贡献&修改内容**: 引用了其文件编辑工具的代码，并修改其参数以便适配openai-agent-sdk
 
-### [Gemini CLI](https://github.com/google-gemini/gemini-cli)
-- **开源协议**: Apache 2.0
-- **贡献内容**: 命令行界面设计和用户体验模式
 
 ## 开源许可证
 
