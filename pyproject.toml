@@ -16,7 +16,7 @@ classifiers = [
     "Topic :: Software Development",
 ]
 
-[project.urls]
+[tool.poetry.urls]
 Homepage = "https://github.com/liauto-siada/siada-cli"
 
 [tool.poetry.scripts]
