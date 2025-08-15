@@ -13,6 +13,9 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
     if is_minimal:
         minimal_rules = """
             - When solving problems, prioritize using the existing code block, functions and tool methods of the target project rather than reimplementing the same functionality.
+                --Prioritize the Project's Existing Tools: Before writing new code, familiarize yourself with the project's existing functions, classes, and helper methods. The most efficient and stable solutions often come from leveraging the tools that are already in place, rather than reinventing the wheel.
+                --Solve the Root Problem, Not Just the Symptom: Dig deeper than the surface-level issue. For example, instead of patching a complex error message after it's generated, consider if you can modify the underlying code structure (like the Abstract Syntax Tree, or AST) so that the framework's existing reporting mechanisms handle the problem automatically.
+                --Align with the Framework's Philosophy: Understand the core principles of the framework you're working in. The most effective solutions often embrace the framework's inherent mechanisms. This ensures your changes are robust and consistent with the rest of the codebase.
             - You need ensure that the modified code does not throw new exceptions.
             - you can try to use the test in original codebase to reproduce the bug.
             - You need to **create and pass test cases** that cover the following scenarios:
