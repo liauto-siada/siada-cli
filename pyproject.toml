@@ -4,6 +4,20 @@ version = "0.0.1"
 description = "Siada CLI is a Ai Pair Programming Tool in terminal"
 packages = [{include = "siada"}, {include = "agent_config.yaml"}]
 include = ["agent_config.yaml"]
+license = "Apache-2.0"
+readme = "README.md"
+
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python",
+    "Topic :: Software Development",
+]
+
+[project.urls]
+Homepage = "https://github.com/liauto-siada/siada-cli"
 
 [tool.poetry.scripts]
 siada-cli = "siada.entrypoint.siadahub:main"
