@@ -404,7 +404,7 @@ Siada CLI 的建设离不开众多开源项目的支持，我们对这些项目�
 
 ## 许可证
 
-本项目采用 MIT 许可证分发。更多信息请参见 [`LICENSE`](../../LICENSE)。
+本项目采用 Apache-2.0 许可证分发。更多信息请参见 [`LICENSE`](../../LICENSE)。
 
 ----
 <div align="center">
