@@ -1,0 +1,34 @@
+# Agent Configuration File
+# Defines the mapping from agent names to Agent classes
+
+agents:
+  # Bug Fix Agent
+  bugfix:
+    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
+    description: "Specialized agent for code bug fixing"
+    enabled: true
+  
+  # Code Development Agent (not implemented yet)
+  coder:
+    class: "siada.agent_hub.coder.code_gen_agent.CodeGenAgent"
+    description: "General-purpose code development agent"
+    enabled: true
+  
+  # Frontend Generation Agent
+  fegen:
+    class: "siada.agent_hub.coder.fe_gen_agent.FeGenAgent"
+    description: "Frontend code generation agent"
+    enabled: false
+
+# LLM Configuration
+llm_config:
+  provider: "openrouter"                    # Optional：“openrouter”
+  model_name: "claude-sonnet-4"
+  repo_map_tokens: 8192                     # repo map max token
+  repo_map_mul_no_files: 16                 # Multiple without chat files
+  repo_verbose: true                        # Enable detailed output or not
+
+# Configuration Options:
+# - class: Full import path of the Agent class, null means not implemented yet
+# - description: Description of the agent
+# - enabled: Whether the agent is enabled, false means temporarily disabled

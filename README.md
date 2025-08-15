@@ -1,92 +1,416 @@
-# siada-agenthub
+# Siada CLI
 
+**[简体中文](./docs/zh-CN/README_zh.md) | English**
 
+![Siada CLI Screenshot](./docs/assets/siada-cli-screenshot.png)
 
-## Getting started
+This repository contains Siada CLI, a command-line AI workflow tool that provides specialized intelligent agents for code development, debugging, and automation tasks.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+With Siada CLI you can:
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- Fix bugs in large codebases through intelligent analysis and automated solutions.
+- Generate new applications and components using specialized frontend and backend agents.
+- Automate development workflows through intelligent code generation and testing.
+- Execute system commands and interact with development environments.
+- Seamlessly support multiple programming languages and frameworks.
 
-## Add your files
+## Installation/Update
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+1. System Requirements
+- MAC, Linux
+- GCC 11+
 
+2. Installation Command
+   TODO
+   
+
+## Installation (Developer Mode)
+
+1. **Prerequisites:** Ensure you have [Python 3.12](https://www.python.org/downloads/) or higher and [Poetry](https://python-poetry.org/docs/#installation) installed.
+
+2. **Clone and Install:**
+   ```bash
+   git clone https://github.com/your-org/siada-agenthub.git
+   cd siada-agenthub
+   poetry install
+   ```
+
+3. **Run CLI:**
+   ```bash
+   # Method 1: Run with Poetry
+   poetry run siada-cli
+   
+   # Method 2: Activate virtual environment then use (recommended)
+   source $(poetry env info --path)/bin/activate
+   siada-cli
+   ```
+
+## Configuration
+
+### Model Configuration
+
+**Method 1: Default Configuration**
+   - The system reads default configuration from `agent_config.yaml` file
+   - Current defaults: model `claude-sonnet-4`, provider `openrouter`
+
+   **Method 2: Customize via Configuration File**
+   - Regular Users
+      - Edit configuration file `~/.siada-cli/conf.yaml`
+         ```bash
+         # 1. Create configuration file in user home directory
+         cd ~
+         mkdir -p ~/.siada-cli
+         touch ~/.siada-cli/conf.yaml
+
+         # 2. Configuration file content example
+         llm_config:
+            model: "claude-sonnet-4"          # Change to your desired model
+            provider: "openrouter"
+         ```
+      - Required when using OpenRouter provider
+        ```bash
+           export OPENROUTER_API_KEY="your_openrouter_key"
+        ```
+   - Developer Mode
+      - Edit the `llm_config` section in `agent_config.yaml` file:
+         ```yaml
+         llm_config:
+            provider: "openrouter"
+            model_name: "claude-sonnet-4"     # Change to your desired model
+         ```
+
+   **Method 3: Via Environment Variables**
+   ```bash
+   # Set model
+   export SIADA_MODEL="claude-sonnet-4"
+   
+   # Set provider
+   export SIADA_PROVIDER="openrouter"
+
+   # Required when using OpenRouter provider
+   export OPENROUTER_API_KEY="your_openrouter_key"
+   ```
+
+   **Method 4: Via Command Line Parameters (Highest Priority)**
+   ```bash
+   # Only change model (keep provider unchanged)
+   siada-cli --model claude-sonnet-4
+   
+   # Change both model and provider
+   siada-cli --model gpt-4.1 --provider openrouter
+   
+   # Only change provider (keep model unchanged)
+   siada-cli --provider openrouter
+   ```
+
+   > **Important Notes:**
+   > - **Complete Priority**: `Command line parameters` > `Environment variables (SIADA_ prefix)` > `Configuration file (agent_config.yaml)`
+   > - **Provider Requirements**: When using `openrouter`, must set `OPENROUTER_API_KEY` environment variable
+
+### Agent Configuration (Developer Mode)
+
+Edit `agent_config.yaml` to customize agent behavior:
+
+```yaml
+agents:
+  bugfix:
+    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
+    description: "Specialized agent for code bug fixing"
+    enabled: true
+
+llm_config:
+  provider: "openrouter"
+  model_name: "claude-sonnet-4"
+  repo_map_tokens: 8192
+  repo_map_mul_no_files: 16
+  repo_verbose: true
 ```
-cd existing_repo
-git remote add origin https://gitlab.chehejia.com/ssrde-da/siada-agenthub.git
-git branch -M master
-git push -uf origin master
+
+### Environment Variables
+
+Set environment variables to configure behavior:
+
+```bash
+# Siada-specific settings (use SIADA_ prefix)
+export SIADA_AGENT="bugfix"
+export SIADA_MODEL="claude-sonnet-4"
+export SIADA_THEME="dark"
+
+# Required when using OpenRouter provider
+export OPENROUTER_API_KEY="your_openrouter_key"
+
+# Unset environment variables in current terminal session
+unset SIADA_MODEL
 ```
 
-## Integrate with your tools
+## Usage Modes
 
-- [ ] [Set up project integrations](https://gitlab.chehejia.com/ssrde-da/siada-agenthub/-/settings/integrations)
+Siada CLI supports two usage modes to meet different usage scenarios:
 
-## Collaborate with your team
+### Non-Interactive Mode
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+**Features:**
+- One-time execution: Execute a single task and automatically exit
+- Stateless: Does not retain session context
+- Use cases: Automation scripts, CI/CD pipelines, single task execution
 
-## Test and Deploy
+**Usage:**
+```bash
+# Use --prompt parameter to trigger non-interactive mode
+siada-cli --agent bugfix --prompt "Fix login errors in auth.py"
 
-Use the built-in continuous integration in GitLab.
+# Combine with other parameters
+siada-cli --agent coder --model claude-sonnet-4 --prompt "Create a REST API endpoint"
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### Interactive Mode
 
-***
+**Features:**
+- Continuous conversation: Maintains session state after startup, allows continuous dialogue
+- Context memory: AI remembers previous conversation content
+- Real-time interaction: Supports slash commands, editor mode, and other advanced features
+- Use cases: Exploratory programming, complex tasks, development work requiring multiple rounds of dialogue
 
-# Editing this README
+**Usage:**
+```bash
+# Start directly (defaults to interactive mode)
+siada-cli --agent coder
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+**Interactive Process:**
+```
+> Create a user management API
+[AI response...]
+> Add data validation to this API
+[AI response...]
+> Write some unit tests
+[AI response...]
+```
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Command Line Options
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+# Use a specific agent
+siada-cli --agent coder
+# Supports abbreviations
+siada-cli -a coder
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# Non-interactive mode with a single prompt
+siada-cli --prompt "Fix authentication errors in login.py"
+# Supports abbreviations
+siada-cli -p "Fix authentication errors in login.py"
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+# Use a different model
+siada-cli --model claude-sonnet-4
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+# Use OpenRouter provider (requires API key setup)
+siada-cli --provider openrouter
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+# Set color theme
+siada-cli --theme dark
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# Enable verbose output
+siada-cli --verbose
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+# List all available models
+siada-cli --list-models
+siada-cli --models
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Slash Commands
+
+In the CLI, you can use slash commands for additional functionality:
+
+- `/shell` - Switch to shell mode to execute system commands (type `exit` or `quit` to exit shell mode)
+- `/models` - List available AI models
+- `/run <command>` or `!<command>` - Execute shell commands
+- `/editor` - Open editor for multiline input
+- `/exit` or `/quit` - Exit the application
+
+### Shell Mode Usage Guide
+
+Siada CLI provides two ways to execute system commands:
+
+#### Method 1: Use `/shell` to switch to shell mode
+Switch to persistent shell mode where you can continuously execute multiple system commands:
+
+```bash
+> /shell
+# After entering shell mode, you can execute multiple commands
+ls -la
+cd my-project
+npm install
+git status
+# Use exit or quit to exit shell mode
+exit
+```
+
+#### Method 2: Use `!` prefix to execute commands directly
+Execute single system commands directly in interactive mode without switching modes:
+
+```bash
+> !ls -la
+> !git status
+> !npm run dev
+```
+
+Differences between the two methods:
+- **`/shell`**: Suitable for scenarios requiring continuous execution of multiple system commands, switch once and use persistently
+- **`!<command>`**: Suitable for occasionally executing single system commands, returns to AI conversation mode immediately after execution
+
+## Agent Types
+
+### Bug Fix Agent (`--agent bugfix` / `-a bugfix` / `--bugfix`) 
+> **Only supports non-interactive mode!**
+
+Specialized for identifying, analyzing, and fixing bugs in codebases. Provides detailed analysis and automated fix suggestions.
+
+### Code Generation Agent (`--agent coder` / `-a coder` / `--coder`)
+General-purpose code development agent for creating new features, refactoring code, and implementing functionality in various programming languages.
+
+### Frontend Generation Agent (`--agent fegen` / `-a fegen` / `--fegen`)
+Focused on frontend development tasks, including React components, CSS styling, and user interface implementation.
+
+## Examples
+
+### Activate Virtual Environment (Developer Mode Only)
+First, enter the siada-agenthub project directory and activate the virtual environment:
+
+```bash
+# Enter project directory
+cd ~/path/to/siada-agenthub
+
+# Activate virtual environment (recommended method)
+source $(poetry env info --path)/bin/activate
+
+# Or use Poetry run (no need to activate environment)
+# poetry run siada-cli
+```
+
+### Usage Examples
+
+After activating the environment, you can choose between interactive mode or non-interactive mode to interact with AI agents.
+
+**Interactive Mode:**
+
+```bash
+# Enter project directory
+cd my-project/
+
+# Start interactive mode
+siada-cli --agent coder
+
+# Then you can input prompts in the interactive interface
+> Create a REST API server with user authentication using FastAPI
+# AI will respond and you can continue the conversation...
+> Add logging functionality to this API
+```
+
+**Non-Interactive Mode (One-time execution):**
+
+```bash
+# Execute a single task and exit (uses coder agent by default)
+siada-cli --prompt "Create a user registration API"
+
+# Specify a specific agent to execute tasks
+siada-cli --agent bugfix --prompt "Fix authentication errors in login.py"
+siada-cli --agent fegen --prompt "Create a responsive navigation bar component using React and Tailwind CSS"
+```
+
+**Exit Virtual Environment (Developer Mode Only):**
+
+```bash
+# Exit virtual environment after use
+deactivate
+```
+
+## Common Tasks
+
+### Debug and Fix Code Issues
+
+```text
+> Analyze this error message and suggest a fix: [paste error]
+```
+
+```text
+> Help me reproduce this intermittent bug that occurs during high load
+```
+
+### Code Generation and Development
+
+```text
+> Implement a caching layer for the database queries in this service
+```
+
+```text
+> Refactor this monolithic function into smaller, more maintainable pieces
+```
+
+### Frontend Development
+
+```text
+> Create a responsive dashboard layout with sidebar navigation
+```
+
+```text
+> Add form validation to the user registration form
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Command not found:**
+If running `siada-cli` directly shows command not found:
+- This is normal behavior in developer mode as the command is installed in the virtual environment
+- Refer to examples to activate the virtual environment
+
+**Model API errors:**
+- Check your internet connection
+- If using OpenRouter provider, ensure API key is set correctly
+- If using OpenRouter provider, verify your account has sufficient credits
+
+**Installation issues:**
+- Ensure you have Python 3.12+ installed
+- Install Poetry using the official installation method
+- Try removing `poetry.lock` and re-running `poetry install`
+
+**Agent not working:**
+- Check if the agent is enabled in `agent_config.yaml`
+- Verify the agent class path is correct
+- Use `--verbose` flag to see detailed output
+
+For more detailed troubleshooting, check logs and use the `--verbose` flag for additional debug information.
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+We welcome contributions to Siada CLI! Whether you want to fix bugs, add new features, improve documentation, or suggest enhancements, your contributions are greatly appreciated.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+To get started with contributing, please read our [Contributing Guide](./docs/CONTRIBUTING.md) which includes:
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+- Our project vision and development goals
+- Project directory structure and development guidelines
+- Pull request guidelines and best practices
+- Code organization principles
+
+Before submitting any changes, please make sure to check our issue tracker and follow the contribution workflow outlined in the guide.
+
+## Acknowledgements
+
+Siada CLI is built upon the foundation of numerous open source projects, and we extend our deepest respect and gratitude to their contributors.
+
+Special thanks to the [OpenAI Agent SDK](https://github.com/openai/openai-agent-sdk) for providing the foundational framework that powers our intelligent agent capabilities.
+
+For a complete list of open source projects and licenses used in Siada CLI, please see our [CREDITS.md](./docs/CREDITS.md) file.
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
+
+## DISCLAIMERS
+See [disclaimers.md](./disclaimers.md)
+
+----
+<div align="center">
+Built with ❤️ by Li Auto Code Intelligence Team and the open source community
+</div>

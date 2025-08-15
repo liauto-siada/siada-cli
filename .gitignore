@@ -1,0 +1,21 @@
+/venv
+.idea
+__pycache__
+logs/
+**/*.log
+*.pyc
+dist/
+*.tag.gz
+# Ignore test files
+test_get_git_diff.py
+# Ignore vscode configuration folder
+.vscode/*
+# Ignore runtime result logs
+output.jsonl
+
+# Ignore all .siada directories and their contents
+**/.siada*
+.cca
+.DS_Store
+
+.vscode/*

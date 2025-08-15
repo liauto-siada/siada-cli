@@ -1,0 +1,424 @@
+
+benchmark/__init__.py
+
+benchmark/swe/__init__.py
+
+benchmark/swe/eval_framework.py:
+⋮
+│def run_evaluation(
+│    dataset: pd.DataFrame,
+│    output_file: str,
+│    process_instance_func: Callable[
+│        [pd.Series], EvalOutput
+│    ],
+│    target_instance: Optional[str] = None,
+│    excluded_instance_ids: Optional[Iterable[str]] = None,
+⋮
+│def cleanup():
+⋮
+│def update_progress(
+│    result: EvalOutput,
+│    pbar: tqdm,
+│    output_fp: TextIO,
+⋮
+
+benchmark/swe/run_infer.py:
+⋮
+│def find_git_root(start_path=None):
+⋮
+│def download_dataset():
+⋮
+
+benchmark/swe/run_instance.py:
+⋮
+│def process_instance(
+│        instance: pd.Series,
+⋮
+│def process_instance_test(instance: pd.Series) -> EvalOutput:
+⋮
+│def process_instance_reproduce(instance: pd.Series) -> EvalOutput:
+⋮
+│def get_instruction(instance: pd.Series):
+⋮
+│async def run_agent(agent_class: str, instruction: str, workspace: str = None):
+⋮
+│def run_test(workspace: str, instance) -> EvalOutput:
+⋮
+│def eval_output(workspace, instance, output: EvalOutput):
+⋮
+│def process_test_cases(test_cases, workspace, env_name, test_results):
+⋮
+│def run_pytest(test_case, workspace, env_name):
+⋮
+│def remove_unbalanced(test_case):
+⋮
+
+benchmark/swe/run_reproduce.py
+
+benchmark/swe/run_test.py
+
+benchmark/swe/tools/__init__.py
+
+benchmark/swe/tools/conda_env.py:
+⋮
+│def create_env(instance: pd.Series):
+⋮
+│def _get_swebench_workspace_dir_name(instance: pd.Series) -> tuple[str, str, str]:
+⋮
+│def get_repo_config(repo: str, version: str) -> dict:
+⋮
+│def generate_conda_env_script(env_name: str, config: dict) -> str:
+⋮
+│def generate_install_requirements_script(env_name: str, config: dict, root_path: str) -> str:
+⋮
+│def create_conda_env(instance_id: str, repo: str = None, version: str = None, is_delete_old: bool =
+⋮
+│def remove_conda_env(env_name: str):
+⋮
+│def install_requirements(env_name: str, root_path: str, repo: str = None, version: str = None):
+⋮
+
+benchmark/swe/tools/config.py:
+│SWE_DEFAULT_AGENT = 'coder'
+│SWE_MAX_AGENT_ITERATION = 100
+│PROXY_FOR_HUGGINGFACE = 'http://172.17.0.1:7899'
+
+benchmark/swe/tools/dataset.py:
+⋮
+│def load_huggingface_swe_bench_dataset(dataset_name, dataset_split):
+⋮
+│def filter_dataset(dataset: pd.DataFrame, filter_column: str) -> pd.DataFrame:
+⋮
+│def prepare_dataset(
+│    dataset: pd.DataFrame,
+│    output_file: str,
+│    eval_n_limit: int,
+│    eval_ids: list[str] = None,
+│    skip_num: Optional[int] = None,
+⋮
+
+benchmark/swe/tools/eval_output.py:
+⋮
+│class EvalOutput(BaseModel):
+│    # NOTE: User-specified
+│    instance_id: str
+⋮
+│    def model_dump(self, *args, **kwargs):
+⋮
+│    def model_dump_json(self, *args, **kwargs):
+⋮
+
+benchmark/swe/tools/gateway.py:
+⋮
+│def set_huggingface_gateway():
+⋮
+│def unset_huggingface_gateway():
+⋮
+
+benchmark/swe/tools/git_util.py:
+⋮
+│def reset_git_changes(repo_path="."):
+⋮
+│def checkout_to_commit(repo_path: str, commit: str):
+⋮
+│def apply_patch(repo: str, patch_text: str):
+⋮
+│def _handle_renames(patch_text, repo):
+⋮
+
+benchmark/swe/tools/logger.py:
+⋮
+│_INITIAL_CWD = os.path.dirname(os.path.dirname(siada.__file__))
+│_INITIAL_LOG_DIRS = {}
+│
+⋮
+│def reset_logger_for_multiprocessing(
+│        logger: logging.Logger, instance_id: str, log_dir: str
+⋮
+│def _get_initial_log_path(log_dir: str) -> str:
+⋮
+│def get_console_handler(log_level=logging.INFO, extra_info: Optional[str] = None):
+⋮
+
+benchmark/swe/tools/metadata.py:
+⋮
+│class EvalMetadata(BaseModel):
+│    agent_class: str
+⋮
+│    def model_dump(self, *args, **kwargs):
+⋮
+│    def model_dump_json(self, *args, **kwargs):
+⋮
+│def make_metadata(
+│        # llm_config: LLMConfig,
+│        dataset_name: str,
+│        agent_class: str,
+│        max_iterations: int,
+│        eval_note: Optional[str],
+│        eval_output_dir: str,
+│        data_split: Optional[str] = None,
+│        details: Optional[dict[str, Any]] = None,
+│        search_relevant_files: Optional[bool] = True,
+⋮
+
+benchmark/swe/tools/parser.py:
+⋮
+│def get_parser() -> argparse.ArgumentParser:
+⋮
+
+benchmark/swe/tools/run_instance_config/__init__.py
+
+benchmark/swe/tools/run_instance_config/sandbox_config.py:
+⋮
+│@dataclass
+│class SandboxConfig:
+│    """Configuration for the sandbox.
+│
+│    Attributes:
+│        remote_runtime_api_url: The hostname for the Remote Runtime API.
+│        local_runtime_url: The default hostname for the local runtime. You may want to change to ht
+│        base_container_image: The base container image from which to build the runtime image.
+│        runtime_container_image: The runtime container image to use.
+│        user_id: The user ID for the sandbox.
+│        timeout: The timeout for the sandbox.
+│        enable_auto_lint: Whether to enable auto-lint.
+⋮
+│    def defaults_to_dict(self) -> dict:
+⋮
+│    def __str__(self):
+⋮
+│    def __repr__(self):
+⋮
+
+benchmark/swe/tools/swe_const.py:
+│TEST_ASTROPY_PYTEST = "pytest -rA -vv -o console_output_style=classic --tb=no"
+│TEST_DJANGO = "./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1"
+│TEST_DJANGO_NO_PARALLEL = "./tests/runtests.py --verbosity 2"
+│TEST_SEABORN = "pytest --no-header -rA"
+│TEST_SEABORN_VERBOSE = "pytest -rA --tb=long"
+│TEST_PYTEST = "pytest -rA"
+│TEST_PYTEST_VERBOSE = "pytest -rA --tb=long"
+│TEST_SPHINX = "tox --current-env -epy39 -v --"
+│TEST_SYMPY = "PYTHONWARNINGS='ignore::UserWarning,ignore::SyntaxWarning' bin/test -C --verbose"
+│TEST_SYMPY_VERBOSE = "bin/test -C --verbose"
+│
+⋮
+│SPECS_SKLEARN = {
+│    k: {
+│        "python": "3.6",
+│        "packages": "numpy scipy cython pytest pandas matplotlib",
+│        "install": "python -m pip install -v --no-use-pep517 --no-build-isolation -e .",
+│        "pip_packages": [
+│            "cython",
+│            "numpy==1.19.2",
+│            "setuptools",
+│            "scipy==1.5.2",
+⋮
+│SPECS_FLASK = {
+│    "2.0": {
+│        "python": "3.9",
+│        "packages": "requirements.txt",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": [
+│            "setuptools==70.0.0",
+│            "Werkzeug==2.3.7",
+│            "Jinja2==3.0.1",
+│            "itsdangerous==2.1.2",
+⋮
+│SPECS_DJANGO = {
+│    k: {
+│        "python": "3.5",
+│        "packages": "requirements.txt",
+│        "pre_install": [
+│            "apt-get update && apt-get install -y locales",
+│            "echo 'en_US UTF-8' > /etc/locale.gen",
+│            "locale-gen en_US.UTF-8",
+│        ],
+│        "install": "python setup.py install",
+⋮
+│SPECS_REQUESTS = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "pytest",
+│        "install": "python -m pip install .",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in ["0.7", "0.8", "0.9", "0.11", "0.13", "0.14", "1.1", "1.2", "2.0", "2.2"]
+│    + ["2.3", "2.4", "2.5", "2.7", "2.8", "2.9", "2.10", "2.11", "2.12", "2.17"]
+│    + ["2.18", "2.19", "2.22", "2.26", "2.25", "2.27", "2.31", "3.0"]
+⋮
+│SPECS_SEABORN = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": [
+│            "contourpy==1.1.0",
+│            "cycler==0.11.0",
+│            "fonttools==4.42.1",
+│            "importlib-resources==6.0.1",
+│            "kiwisolver==1.4.5",
+⋮
+│SPECS_PYTEST = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "4.4",
+│        "4.5",
+│        "4.6",
+⋮
+│SPECS_MATPLOTLIB = {
+│    k: {
+│        "python": "3.11",
+│        "packages": "environment.yml",
+│        "install": "python -m pip install -e .",
+│        "pre_install": [
+│            "apt-get -y update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-get inst
+│        ],
+│        "pip_packages": [
+│            "contourpy==1.1.0",
+⋮
+│SPECS_SPHINX = {
+│    k: {
+│        "python": "3.9",
+│        "pip_packages": ["tox==4.16.0", "tox-current-env==0.0.11", "Jinja2==3.0.3"],
+│        "install": "python -m pip install -e .[test]",
+│        "pre_install": ["sed -i '' 's/pytest/pytest -rA/' tox.ini"],
+│        "test_cmd": TEST_SPHINX,
+│    }
+│    for k in ["1.5", "1.6", "1.7", "1.8", "2.0", "2.1", "2.2", "2.3", "2.4", "3.0"]
+│    + ["3.1", "3.2", "3.3", "3.4", "3.5", "4.0", "4.1", "4.2", "4.3", "4.4"]
+⋮
+│SPECS_ASTROPY = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .[test] --verbose",
+│        "pip_packages": [
+│            "attrs==23.1.0",
+│            "exceptiongroup==1.1.3",
+│            "execnet==2.0.2",
+│            "hypothesis==6.82.6",
+│            "iniconfig==2.0.0",
+⋮
+│SPECS_SYMPY = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "mpmath flake8",
+│        "pip_packages": ["mpmath==1.3.0", "flake8-comprehensions"],
+│        "install": "python -m pip install -e .",
+│        "test_cmd": TEST_SYMPY,
+│    }
+│    for k in ["0.7", "1.0", "1.1", "1.10", "1.11", "1.12", "1.2", "1.4", "1.5", "1.6"]
+│    + ["1.7", "1.8", "1.9"] + ["1.10", "1.11", "1.12", "1.13", "1.14"]
+⋮
+│SPECS_PYLINT = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "requirements.txt",
+│        "install": "python -m pip install -e .",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "2.10",
+│        "2.11",
+⋮
+│SPECS_XARRAY = {
+│    k: {
+│        "python": "3.10",
+│        "packages": "environment.yml",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": [
+│            "numpy==1.23.0",
+│            "packaging==23.1",
+│            "pandas==1.5.3",
+│            "pytest==7.4.0",
+⋮
+│SPECS_SQLFLUFF = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "requirements.txt",
+│        "install": "python -m pip install -e .",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "0.10",
+│        "0.11",
+⋮
+│SPECS_DBT_CORE = {
+│    k: {
+│        "python": "3.9",
+│        "packages": "requirements.txt",
+│        "install": "python -m pip install -e .",
+│    }
+│    for k in [
+│        "0.13",
+│        "0.14",
+│        "0.15",
+⋮
+│SPECS_PYVISTA = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": ["pytest"],
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in ["0.20", "0.21", "0.22", "0.23"]
+⋮
+│SPECS_ASTROID = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .",
+│        "pip_packages": ["pytest"],
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "2.10",
+│        "2.12",
+⋮
+│SPECS_MARSHMALLOW = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e '.[dev]'",
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "2.18",
+│        "2.19",
+│        "2.20",
+⋮
+│SPECS_PVLIB = {
+│    k: {
+│        "python": "3.9",
+│        "install": "python -m pip install -e .[all]",
+│        "packages": "pandas scipy",
+│        "pip_packages": ["jupyter", "ipython", "matplotlib", "pytest", "flake8"],
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9"]
+⋮
+│SPECS_PYDICOM = {
+│    k: {
+│        "python": "3.6",
+│        "install": "python -m pip install -e .",
+│        "packages": "numpy",
+│        "pip_packages": ["pytest"],
+│        "test_cmd": TEST_PYTEST,
+│    }
+│    for k in [
+│        "1.0",
+⋮
+│SPECS_HUMANEVAL = {k: {"python": "3.9", "test_cmd": "python"} for k in ["1.0"]}
+│
+│MAP_REPO_VERSION_TO_SPECS = {
+│    "astropy/astropy": SPECS_ASTROPY,
+│    "dbt-labs/dbt-core": SPECS_DBT_CORE,
+│    "django/django": SPECS_DJANGO,
+│    "matplotlib/matplotlib": SPECS_MATPLOTLIB,
+│    "marshmallow-code/marshmallow": SPECS_MARSHMALLOW,
+│    "mwaskom/seaborn": SPECS_SEABORN,
+│    "pallets/flask": SPECS_FLASK,
+│    "psf/requests": SPECS_REQUESTS,
+│    "pvlib/pvlib-python": SPECS_PVLIB,
+⋮
