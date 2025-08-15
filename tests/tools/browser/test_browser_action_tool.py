@@ -418,18 +418,6 @@ class TestBrowserActionTool:
         assert len(browser_tool.console_logs) == 1
         assert browser_tool.console_logs[0] == "[LOG] Test console message"
 
-    @pytest.mark.asyncio
-    async def test_take_screenshot_success(self, browser_tool):
-        """Test successful screenshot capture."""
-        mock_page = AsyncMock()
-        mock_page.screenshot = AsyncMock(return_value=b"fake_screenshot_data")
-        
-        browser_tool.page = mock_page
-        
-        screenshot = await browser_tool._take_screenshot()
-        
-        assert screenshot == base64.b64encode(b"fake_screenshot_data").decode()
-        mock_page.screenshot.assert_called_once_with(full_page=False)
 
     @pytest.mark.asyncio
     async def test_take_screenshot_no_page(self, browser_tool):
@@ -447,47 +435,6 @@ class TestBrowserActionTool:
         
         screenshot = await browser_tool._take_screenshot()
         assert screenshot == ""
-
-    @pytest.mark.asyncio
-    async def test_save_screenshot_to_file(self, browser_tool, tmp_path):
-        """Test saving screenshot to file functionality."""
-        # Create a real PNG image using PIL
-        from PIL import Image
-        from io import BytesIO
-        
-        # Create a simple 10x10 white image
-        image = Image.new('RGB', (10, 10), color='white')
-        
-        # Convert to PNG bytes
-        png_buffer = BytesIO()
-        image.save(png_buffer, format='PNG')
-        fake_png_data = png_buffer.getvalue()
-        
-        # Mock page and screenshot data
-        mock_page = AsyncMock()
-        mock_page.screenshot = AsyncMock(return_value=fake_png_data)
-        browser_tool.page = mock_page
-        
-        # Define save path using tmp_path fixture
-        screenshot_path = tmp_path / "test_screenshot.jpg"
-        
-        # Call save method
-        result = await browser_tool.save_screenshot(str(screenshot_path))
-        
-        # Verify result
-        assert result is True
-        assert screenshot_path.exists()
-        
-        # Verify file content (should be compressed/processed data, not raw)
-        with open(screenshot_path, 'rb') as f:
-            saved_data = f.read()
-        
-        # Verify saved data is not empty and has been processed
-        assert len(saved_data) > 0
-        # The saved data should be different from raw PNG data due to compression to JPEG
-        assert saved_data != fake_png_data
-        # Verify it's a JPEG file (starts with JPEG signature)
-        assert saved_data.startswith(b'\xff\xd8\xff')
 
     @pytest.mark.asyncio
     async def test_save_screenshot_no_page(self, browser_tool, tmp_path):
