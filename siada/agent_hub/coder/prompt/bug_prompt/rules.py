@@ -12,6 +12,7 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
     """
     if is_minimal:
         minimal_rules = """
+            - If the user provides solutions and suggestions for solving problems within the  <task> </task> tags, you must implement and follow them unconditionally.
             - When solving problems, prioritize using the project's existing features and tools rather than redeveloping them from scratch.
             - When you need to get some data or a variable, consider calculating it from the current class's existing data or variables instead of starting from scratch.
             - You need ensure that the modified code does not throw new exceptions.
