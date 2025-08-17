@@ -12,6 +12,7 @@ from siada.foundation.config import settings
 from siada.foundation.tools.get_git_diff import GitDiffUtil
 from siada.services.fix_result_check import FixResultChecker
 from siada.services.execution_trace_collector import ExecutionTrace, ModelCall, ToolCall
+from siada.services.anomaly_checker import AnomalyChecker
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
@@ -33,6 +34,7 @@ class BugFixAgent(CodeGenAgent):
         self.fix_result_checker = FixResultChecker()
         self.issue_review_agent = IssueReviewAgent()
         self.enhanced_fix_result_checker = EnhancedFixResultChecker()
+        self.anomaly_checker = AnomalyChecker()
 
         super().__init__(
             name="BugFixAgent",
@@ -120,30 +122,41 @@ class BugFixAgent(CodeGenAgent):
                         "check_summary", "Fix verification failed"
                     )
 
-                    feedback_message_last_checker = input_with_env + \
-                        f"content : Here is the previous fix logic:\n{result.final_output}" + \
-                        f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n" + \
-                        f"**Please continue fixing.**\n" + \
-                        "role: user"
-                    enhance_check_result = await self.run_enhanced_checker(
-                        feedback_message_last_checker, context, result
+                    # 运行异常检查
+                    anomaly_result = await self.run_anomaly_check(
+                        user_input, check_summary, context
                     )
+                    
+                    if anomaly_result and anomaly_result.get("use_anomaly_feedback", False):
+                        # 使用异常检查的反馈
+                        feedback_message = anomaly_result["feedback_message"]
+                    else:
+                        # 使用正常的增强检查流程
+                        feedback_message_last_checker = input_with_env + \
+                            f"content : Here is the previous fix logic:\n{result.final_output}" + \
+                            f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n" + \
+                            f"**Please continue fixing.**\n" + \
+                            "role: user"
+                        enhance_check_result = await self.run_enhanced_checker(
+                            feedback_message_last_checker, context, result
+                        )
+                        # Add the unfixed check_summary to input_list for next round
+                        feedback_message = {
+                            "content": self._build_enhanced_feedback(
+                                current_turn,
+                                result,
+                                check_result,
+                                check_summary,
+                                enhance_check_result,
+                            ),
+                            "role": "user",
+                        }
 
                     print(
                         f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}"
                     )
 
-                    # Add the unfixed check_summary to input_list for next round
-                    feedback_message = {
-                        "content": self._build_enhanced_feedback(
-                            current_turn,
-                            result,
-                            check_result,
-                            check_summary,
-                            enhance_check_result,
-                        ),
-                        "role": "user",
-                    }
+
                     # feedback_message = {
                     #     "content": f"Here is the previous fix logic:\n{result.final_output}"
                     #     f"Here is the current code diff:\n{check_result.get('code_diff', '')}"
@@ -221,6 +234,96 @@ class BugFixAgent(CodeGenAgent):
 
         enhanced_result["code_diff"] = diff_patch
         return enhanced_result
+
+    async def run_anomaly_check(
+        self, 
+        user_input: str, 
+        check_summary: str, 
+        context: CodeAgentContext
+    ) -> Optional[Dict[str, Any]]:
+        """
+        运行异常检查，如果patch和task一致性低于4分则返回异常反馈
+
+        Args:
+            user_input: 用户输入的任务描述
+            check_summary: 修复结果检查摘要
+            context: 代码上下文
+
+        Returns:
+            Dict包含:
+            - use_anomaly_feedback: bool, 是否使用异常反馈
+            - feedback_message: dict, 反馈消息
+            - anomaly_result: dict, 异常检查结果
+        """
+        try:
+            diff_patch = GitDiffUtil.get_git_diff_exclude_test_files(context.root_dir)
+            
+            # 运行异常检查
+            anomaly_result = await self.anomaly_checker.check_anomaly(
+                fix_result_check_summary=check_summary,
+                patch_diff=diff_patch,
+                task_description=user_input,
+                context=context
+            )
+            
+            # 获取patch-task一致性评分
+            patch_task_consistency = anomaly_result.get("patch_task_consistency", {})
+            consistency_score = patch_task_consistency.get("consistency_score", 10.0)
+            
+            if consistency_score < 4.0:
+                # Patch-Task一致性太低，返回异常反馈
+                anomaly_summary = self.anomaly_checker.get_anomaly_summary(anomaly_result)
+                recommendations = anomaly_result.get("recommendations", [])
+                
+                feedback_content = f"""## 🚨 Anomaly Detection Alert
+
+**Critical Issue Detected:** Patch-Task consistency is critically low ({consistency_score:.1f}/10.0)
+
+**Anomaly Summary:** {anomaly_summary}
+
+**Key Recommendations:**
+{chr(10).join(f"- {rec}" for rec in recommendations[:5])}
+
+**Detailed Analysis:** {anomaly_result.get('detailed_analysis', 'No detailed analysis available')}
+
+## Critical Action Required
+The current patch significantly deviates from task requirements. Please completely revise your approach based on the anomaly analysis above.
+
+**Primary Focus:** {check_summary}
+
+**Task Requirements Analysis:**
+- Patch-Task Consistency Score: {consistency_score:.1f}/10.0
+- Anomaly Score: {anomaly_result.get('anomaly_score', 0):.1f}/10.0
+- Summary Quality Score: {anomaly_result.get('summary_quality', {}).get('overall_score', 0):.1f}/10.0
+
+Please ensure your next fix attempt directly addresses the task requirements rather than implementing a different approach."""
+
+                feedback_message = {
+                    "content": feedback_content,
+                    "role": "user",
+                }
+                
+                print(f"🚨 Anomaly detected: Patch-Task consistency too low ({consistency_score:.1f}/10.0)")
+                print(f"Anomaly summary: {anomaly_summary}")
+                
+                return {
+                    "use_anomaly_feedback": True,
+                    "feedback_message": feedback_message,
+                    "anomaly_result": anomaly_result,
+                    "consistency_score": consistency_score
+                }
+            else:
+                # 一致性评分正常，不使用异常反馈
+                print(f"✅ Patch-Task consistency acceptable ({consistency_score:.1f}/10.0)")
+                return {
+                    "use_anomaly_feedback": False,
+                    "anomaly_result": anomaly_result,
+                    "consistency_score": consistency_score
+                }
+                
+        except Exception as e:
+            print(f"Anomaly check failed: {e}, proceeding with normal flow")
+            return None
 
     def run_streamed(
         self, user_input: str, context: CodeAgentContext
