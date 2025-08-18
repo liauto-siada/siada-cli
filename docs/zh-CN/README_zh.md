@@ -16,12 +16,33 @@
 
 ## 安装/更新
 
-1. 系统要求
-- MAC、 Linux
+### 系统要求
+- MAC、Linux
 - GCC 11+
+- uv
 
-2. 安装命令
-   待补充
+### 安装
+
+1. 安装 uv
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+2. 安装 siada-cli
+   ```bash
+      uv tool install --force --python python3.12 --with pip siada-cli@latest
+   ```
+   如果 siada-cli 目录不在 PATH 中，运行以下命令更新 shell
+   ```bash
+      uv tool update-shell
+   ```
+### 更新
+   ```bash
+   uv tool upgrade siada-cli
+   ```
+### 卸载
+   ```bash
+   uv tool uninstall siada-cli
+   ```
 
 ## 安装（开发者模式）
 

@@ -16,13 +16,33 @@ With Siada CLI you can:
 
 ## Installation/Update
 
-1. System Requirements
+### System Requirements
 - MAC, Linux
 - GCC 11+
+- uv
 
-2. Installation Command
-   TODO
-   
+### Installation
+
+1. Install uv
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+2. Install siada-cli
+   ```bash
+      uv tool install --force --python python3.12 --with pip siada-cli@latest
+   ```
+   If the siada-cli directory is not present on the PATH, run the follow command to update the shell
+   ```bash
+      uv tool update-shell
+   ```
+### Update
+   ```bash
+   uv tool upgrade siada-cli
+   ```
+### Uninstall
+   ```bash
+   uv tool uninstall siada-cli
+   ```
 
 ## Installation (Developer Mode)
 
