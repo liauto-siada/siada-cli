@@ -127,6 +127,13 @@ class BugFixAgent(CodeGenAgent):
                         user_input, check_summary, context
                     )
                     
+                    if anomaly_result and anomaly_result.get("go_next_turns", True)==False:
+                        # 如果异常检查结果要求继续下一轮修复
+                        print(f"Anomaly check result: {anomaly_result}")
+                        consistency_score = anomaly_result.get("consistency_score", 10.0)
+                        print(f"Patch-Task consistency score: {consistency_score:.1f}/10.0")
+                        break
+                    
                     if anomaly_result and anomaly_result.get("use_anomaly_feedback", False):
                         # 使用异常检查的反馈
                         feedback_message = anomaly_result["feedback_message"]
@@ -310,7 +317,17 @@ Please ensure your next fix attempt directly addresses the task requirements rat
                     "use_anomaly_feedback": True,
                     "feedback_message": feedback_message,
                     "anomaly_result": anomaly_result,
-                    "consistency_score": consistency_score
+                    "consistency_score": consistency_score,
+                    "go_next_turns": True
+                }
+            elif consistency_score > 9.0:
+                # Patch-Task一致性非常高，直接返回正常结果
+                print(f"✅ Patch-Task consistency excellent ({consistency_score:.1f}/10.0)")
+                return {
+                    "use_anomaly_feedback": False,
+                    "anomaly_result": anomaly_result,
+                    "consistency_score": consistency_score,
+                    "go_next_turns": False
                 }
             else:
                 # 一致性评分正常，不使用异常反馈
@@ -318,7 +335,8 @@ Please ensure your next fix attempt directly addresses the task requirements rat
                 return {
                     "use_anomaly_feedback": False,
                     "anomaly_result": anomaly_result,
-                    "consistency_score": consistency_score
+                    "consistency_score": consistency_score,
+                    "go_next_turns": True
                 }
                 
         except Exception as e:
