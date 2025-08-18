@@ -1,4 +1,4 @@
-def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=False) -> str:
+def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=False, new_rule:str="") -> str:
     """
     获取 RULES 部分的内容
     
@@ -11,7 +11,8 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
         str: RULES 部分的文本内容
     """
     if is_minimal:
-        minimal_rules = """
+        minimal_rules = f"""
+            - {new_rule}
             - Deep Root Cause Analysis: Don't just patch symptoms. You must trace the bug's origin, whether it stems from a flawed assumption, an incomplete logical condition, or an unhandled edge case. Your job is to understand why the problem occurs, not just where.
             - Surgical Precision: Apply fixes with the highest level of accuracy. Your changes should be minimal and localized. This often means:
                 --Adding a more precise conditional check.

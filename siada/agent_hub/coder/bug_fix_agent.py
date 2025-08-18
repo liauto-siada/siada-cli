@@ -21,6 +21,7 @@ from siada.tools.coder.fix_attempt_completion import fix_attempt_completion
 from siada.services.enhanced_fix_result_check import EnhancedFixResultChecker
 from typing import Optional, List, Dict, Any
 from openai.types.responses import ResponseFunctionToolCall, ResponseOutputMessage
+import json
 
 
 class BugFixAgent(CodeGenAgent):
@@ -35,6 +36,7 @@ class BugFixAgent(CodeGenAgent):
         self.issue_review_agent = IssueReviewAgent()
         self.enhanced_fix_result_checker = EnhancedFixResultChecker()
         self.anomaly_checker = AnomalyChecker()
+        self.guidance=""
 
         super().__init__(
             name="BugFixAgent",
@@ -52,7 +54,7 @@ class BugFixAgent(CodeGenAgent):
         root_dir = run_context.context.root_dir
         # Get user memory from context
         user_memory = run_context.context.user_memory
-        system_prompt = bug_fix_prompt.get_system_prompt(root_dir, is_minimal=self.is_minimal, user_memory=user_memory)
+        system_prompt = bug_fix_prompt.get_system_prompt(root_dir, is_minimal=self.is_minimal, add_rule=self.guidance, user_memory=user_memory)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
@@ -76,8 +78,8 @@ class BugFixAgent(CodeGenAgent):
         Returns:
             Fix result, including final output, execution rounds, and other information
         """
-        #config = RunConfig(tracing_disabled=False)
-        #set_trace_processors([create_detailed_logger()])
+        # config = RunConfig(tracing_disabled=False)
+        # set_trace_processors([create_detailed_logger()])
         input_with_env = self.assemble_user_input(user_input, context)
 
         max_turns = 3
@@ -87,10 +89,9 @@ class BugFixAgent(CodeGenAgent):
 
         run_config, _ = await self.prepare_run_environment(context)
 
-    
         while current_turn < max_turns:
             # Set minimal rules after first turn
-            self.is_minimal = current_turn >= 1  
+            self.is_minimal = current_turn >= 1
             # Run BugFixAgent for fixing
             result = await Runner.run(
                 starting_agent=self,
@@ -123,40 +124,40 @@ class BugFixAgent(CodeGenAgent):
                     check_summary = check_result.get(
                         "check_summary", "Fix verification failed"
                     )
+
+                    combined_input = self._format_execution_trace_input(user_input, result)
                     anomaly_result = await self.run_anomaly_check(
-                        user_input, check_summary, context
+                        combined_input, check_summary, context
                     )
-                    
-                    
-                    if anomaly_result and anomaly_result.get("use_rule_guidance", False):
-                        # 使用规则指导反馈
-                        feedback_message = anomaly_result["best_rule"]
-                    else:
-                        # 使用正常的增强检查流程
-                        feedback_message_last_checker = input_with_env + \
-                            f"content : Here is the previous fix logic:\n{result.final_output}" + \
-                            f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n" + \
-                            f"**Please continue fixing.**\n" + \
-                            "role: user"
-                        enhance_check_result = await self.run_enhanced_checker(
-                            feedback_message_last_checker, context, result
-                        )
-                        # Add the unfixed check_summary to input_list for next round
-                        feedback_message = {
-                            "content": self._build_enhanced_feedback(
-                                current_turn,
-                                result,
-                                check_result,
-                                check_summary,
-                                enhance_check_result,
-                            ),
-                            "role": "user",
-                        }
+
+                    print(f"Using rule guidance: {anomaly_result['best_rule']}")
+                    self.guidance = anomaly_result["best_rule"]['guidance']
+
+                    feedback_message_last_checker = (
+                        input_with_env
+                        + f"content : Here is the previous fix logic:\n{result.final_output}"
+                        + f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n"
+                        + f"**Please continue fixing.**\n"
+                        + "role: user"
+                    )
+                    enhance_check_result = await self.run_enhanced_checker(
+                        feedback_message_last_checker, context, result
+                    )
+                    # Add the unfixed check_summary to input_list for next round
+                    feedback_message = {
+                        "content": self._build_enhanced_feedback(
+                            current_turn,
+                            result,
+                            check_result,
+                            check_summary,
+                            enhance_check_result,
+                        ),
+                        "role": "user",
+                    }
 
                     print(
                         f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}"
                     )
-
 
                     # feedback_message = {
                     #     "content": f"Here is the previous fix logic:\n{result.final_output}"
@@ -194,7 +195,6 @@ class BugFixAgent(CodeGenAgent):
 
         check_result["code_diff"] = diff_patch
         return check_result
-
 
     async def run_enhanced_checker(
         self,
@@ -264,9 +264,9 @@ class BugFixAgent(CodeGenAgent):
                 fix_result_check_summary=check_summary,
                 patch_diff=diff_patch,
                 task_description=user_input,
-                context=context
+                context=context,
             )
-            
+
             best_rule = rule_evaluation_result.get("best_matching_rule", {})
             rule_name = best_rule.get("rule_name", "task_solution_adherence")
             total_score = best_rule.get("total_score", 0.0)
@@ -414,8 +414,8 @@ Please follow the above rule guidance to improve your patch. Focus specifically 
             output_messages=[{"role": "assistant", "content": str(raw_item.content)}],
             usage=None,
             timestamp=datetime.now(),
-            duration_ms=0
-            )       
+            duration_ms=0,
+        )
         return model_call
 
     def _extract_tool_call_from_item(
@@ -432,9 +432,7 @@ Please follow the above rule guidance to improve your patch. Focus specifically 
             success=True,
             error_message=None,
             input_args=tool_call_raw_item.arguments,
-            output_result=(
-                tool_call_output_raw_item.get("output", None)
-            ),
+            output_result=(tool_call_output_raw_item.get("output", None)),
         )
 
         return tool_call
@@ -460,7 +458,7 @@ Please follow the above rule guidance to improve your patch. Focus specifically 
         Returns:
             Formatted feedback message for the next round
         """
-        
+
         enhanced_feedback_content = f"""## Previous Fix Attempt (Round {current_turn + 1})
 **Fix Logic:**
 {result.final_output}
@@ -524,3 +522,28 @@ The previous fix attempt was not sufficient. Please analyze the above feedback a
             )
 
         return strategic_improvements
+
+    def _format_execution_trace_input(self, user_input: str, result: RunResult) -> str:
+        """
+        Format user input with execution trace for anomaly check
+
+        Args:
+            user_input: Original user input
+            result: RunResult containing execution trace
+
+        Returns:
+            Combined input string with formatted execution trace
+        """
+        execution_trace = result.to_input_list()
+
+        try:
+            import json
+            trace_str = json.dumps(
+                execution_trace, indent=2, ensure_ascii=False
+            )
+        except (TypeError, ValueError):
+            print("fail to resolved JSON, fallback to str")
+            trace_str = str(execution_trace)
+
+        combined_input = f"{user_input}\n\n## Execution Trace\nThe following is the execution trace from the previous fix attempt:\n{trace_str}"
+        return combined_input

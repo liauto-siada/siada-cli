@@ -6,7 +6,7 @@ from ..base.prompt_builder import build_system_prompt
 from .rules import get_rules_section
 
 
-def get_system_prompt(cwd: str = "/default/path", is_minimal: bool=False, user_memory: str = None) -> str:
+def get_system_prompt(cwd: str = "/default/path", is_minimal: bool=False, new_rule:str="",  user_memory: str = None) -> str:
     """
     生成系统提示词
 
@@ -52,7 +52,7 @@ Your goal is to fix the given issue, and the fix is considered successful when t
         intro=intro,
         tool_use=get_tool_use_section(),
         capabilities=get_capabilities_section(cwd),
-        rules=get_rules_section(cwd, os_name, home_dir, is_minimal=is_minimal),
+        rules=get_rules_section(cwd, os_name, home_dir, is_minimal=is_minimal, new_rule=new_rule),
         objective=objective,
         user_memory=user_memory
     )
