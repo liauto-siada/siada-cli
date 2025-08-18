@@ -98,9 +98,9 @@ class BugFixAgent(CodeGenAgent):
                 input=input_list,
                 max_turns=settings.MAX_TURNS,
                 run_config=run_config,
-                context=context
+                context=context,
             )
-            
+
             # git_diff_analysis = GitDiffUtil.get_git_diff_analysis(context.root_dir)
             # diff_line=git_diff_analysis.get("line_changes").get("total",10**6+1)
             # if (diff_line <= 6 ):
@@ -124,7 +124,7 @@ class BugFixAgent(CodeGenAgent):
                     check_summary = check_result.get(
                         "check_summary", "Fix verification failed"
                     )
-
+                    
                     combined_input = self._format_execution_trace_input(user_input, result)
                     anomaly_result = await self.run_anomaly_check(
                         combined_input, check_summary, context
@@ -272,20 +272,20 @@ class BugFixAgent(CodeGenAgent):
             total_score = best_rule.get("total_score", 0.0)
             reasoning = best_rule.get("reasoning", "")
             guidance = best_rule.get("guidance", "")
-            
+
             rule_scores = rule_evaluation_result.get("rule_scores", {})
             evaluation_success = rule_evaluation_result.get("evaluation_success", False)
-            
+
             print(f"🎯 Rule Evaluation Complete:")
             print(f"📊 Best Matching Rule: {rule_name}")
             print(f"📈 Total Score: {total_score:.1f}")
             print(f"💡 Reasoning: {reasoning}")
-            
+
             print(f"\n📋 All Rule Scores:")
             for rule, scores in rule_scores.items():
                 score = scores.get("total_score", 0.0)
                 print(f"  {rule}: {score:.1f}")
-            
+
             if evaluation_success and total_score > 15.0:
                 feedback_content = f"""## 🎯 Rule-Based Improvement Guidance
 
@@ -316,25 +316,27 @@ Please follow the above rule guidance to improve your patch. Focus specifically 
                     "content": feedback_content,
                     "role": "user",
                 }
-                
+
                 print(f"✅ Using rule guidance: {rule_name}")
-                
+
                 return {
                     "use_rule_guidance": True,
                     "feedback_message": feedback_message,
                     "rule_evaluation_result": rule_evaluation_result,
                     "best_rule": best_rule,
-                    "go_next_turns": True
+                    "go_next_turns": True,
                 }
             else:
-                print(f"ℹ️ Rule evaluation score too low ({total_score:.1f}) or evaluation failed, using normal flow")
+                print(
+                    f"ℹ️ Rule evaluation score too low ({total_score:.1f}) or evaluation failed, using normal flow"
+                )
                 return {
                     "use_rule_guidance": False,
                     "rule_evaluation_result": rule_evaluation_result,
                     "best_rule": best_rule,
-                    "go_next_turns": True
+                    "go_next_turns": True,
                 }
-                
+
         except Exception as e:
             print(f"Rule evaluation failed: {e}, proceeding with normal flow")
             return None
