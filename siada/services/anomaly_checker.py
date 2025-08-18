@@ -1,6 +1,5 @@
 """
 Anomaly Checker for Fix Result Analysis
-检查修复结果是否存在异常，包括patch_diff合规性和summary质量评估
 """
 from __future__ import annotations
 
@@ -49,8 +48,8 @@ class AnomalyChecker:
             Dict[str, Any]: 
             {
                 "is_anomaly": bool,           
-                "anomaly_score": float,       # (0-10, 越高越异常)
-                "patch_compliance": {         # patch合规性检查结果
+                "anomaly_score": float,       # (0-10, higher means more anomalous)
+                "patch_compliance": {         
                     "overall_score": float,
                     "violations": List[Dict],
                     "compliances": List[Dict]
@@ -77,16 +76,16 @@ class AnomalyChecker:
                 "patch_compliance": {
                     "overall_score": 0.0,
                     "violations": [{"rule": "analysis_error", "severity": "Critical", 
-                                  "description": f"检查过程出错: {str(e)}"}],
+                                  "description": f"error: {str(e)}"}],
                     "compliances": []
                 },
                 "summary_quality": {
                     "overall_score": 0.0,
-                    "issues": [{"type": "analysis_error", "description": f"分析失败: {str(e)}"}],
+                    "issues": [{"type": "analysis_error", "description": f"fail: {str(e)}"}],
                     "strengths": []
                 },
-                "recommendations": [f"**CRITICAL**: 修复异常检查错误: {str(e)}"],
-                "detailed_analysis": f"异常检查过程中发生错误: {str(e)}"
+                "recommendations": [f"**CRITICAL**: error: {str(e)}"],
+                "detailed_analysis": f"error: {str(e)}"
             }
 
     async def _call_model_for_anomaly_analysis(
@@ -96,8 +95,7 @@ class AnomalyChecker:
         task_description: str,
         context: Any
     ) -> str:
-        """调用模型进行异常分析"""
-        
+                
         user_task = self._build_anomaly_check_prompt(
             fix_result_check_summary, patch_diff, task_description
         )
@@ -108,23 +106,13 @@ class AnomalyChecker:
         
         print("Running anomaly check analysis...")
 
-        # 调用模型
         default_kwargs = {
             "model": settings.Claude_4_0_SONNET,
             "messages": model_messages,
             "stream": False,
-            "temperature": 0.1,  # 更低的温度确保一致性
+            "temperature": 0.1,  
         }
 
-        # 如果没有提供context，创建一个简单的context对象
-        if context is None:
-            # 创建一个简单的context对象，使用默认的provider
-            class SimpleContext:
-                def __init__(self):
-                    self.provider = "li"  # 使用默认的li provider
-            context = SimpleContext()
-
-        # 使用 get_client_with_kwargs 支持上下文参数覆盖
         client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
         response = await client.chat_complete(**complete_kwargs)
         
@@ -133,7 +121,7 @@ class AnomalyChecker:
             if analysis:
                 return analysis.strip()
         
-        raise Exception("无法从模型响应中获取异常分析结果")
+        raise Exception("Failed to get valid response from model")
 
     def _build_anomaly_check_prompt(
         self, 
@@ -141,7 +129,6 @@ class AnomalyChecker:
         patch_diff: str,
         task_description: str
     ) -> str:
-        """构建异常检查的提示词"""
         
         return f"""
 # 🔍 **SIADA Fix Result Anomaly Detection Expert**
@@ -331,11 +318,9 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
 """
 
     def _parse_anomaly_analysis_result(self, analysis_result: str) -> Dict[str, Any]:
-        """解析异常分析结果"""
         try:
             json_content = analysis_result.strip()
             
-            # 提取JSON内容
             if '```json' in json_content:
                 json_start = json_content.find('```json') + len('```json')
                 json_end = json_content.rfind('```')
@@ -344,7 +329,6 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
             
             parsed_json = json.loads(json_content)
             
-            # 提取异常分析结果
             anomaly_analysis = parsed_json.get("anomaly_analysis", {})
             
             result = {
@@ -359,12 +343,12 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
                     },
                     "implementation_alignment": {
                         "score": 0.0,
-                        "description": "未提供对齐分析",
-                        "evidence": "无证据"
+                        "description": "",
+                        "evidence": ""
                     },
                     "completeness_assessment": {
                         "score": 0.0,
-                        "description": "未提供完整性评估",
+                        "description": "",
                         "gaps": []
                     }
                 }),
@@ -381,16 +365,14 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
                     "strengths": []
                 }),
                 "recommendations": anomaly_analysis.get("recommendations", []),
-                "detailed_analysis": anomaly_analysis.get("detailed_analysis", "未提供详细分析")
+                "detailed_analysis": anomaly_analysis.get("detailed_analysis", "No detailed analysis provided")
             }
             
-            # 确保异常评分在合理范围内
             if result["anomaly_score"] > 10.0:
                 result["anomaly_score"] = 10.0
             elif result["anomaly_score"] < 0.0:
                 result["anomaly_score"] = 0.0
                 
-            # 根据评分自动判断是否异常
             if result["anomaly_score"] >= 5.0:
                 result["is_anomaly"] = True
             
@@ -401,21 +383,18 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
             return self._fallback_anomaly_parsing(analysis_result, str(e))
     
     def _fallback_anomaly_parsing(self, analysis_result: str, error_msg: str) -> Dict[str, Any]:
-        """异常分析结果解析失败时的回退处理"""
         
-        # 简单的文本分析来提取关键信息
         analysis_lower = analysis_result.lower()
         
-        # 检测是否存在异常指标
         anomaly_indicators = [
-            "violation", "违反", "问题", "异常", "错误", "缺失", 
-            "不符合", "未遵循", "过于客观", "缺乏针对性"
+            "violation", "error", "problem", "issue", "missing", "failure", 
+            "incorrect", "invalid", "generic", "lack of specificity"
         ]
         
         anomaly_count = sum(1 for indicator in anomaly_indicators 
                           if indicator in analysis_lower)
         
-        # 基于指标数量估算异常评分
+        # Calculate anomaly score based on indicator count
         anomaly_score = min(10.0, anomaly_count * 1.5)
         is_anomaly = anomaly_score >= 5.0
         
@@ -426,11 +405,11 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
                 "overall_score": max(0.0, 10.0 - anomaly_score),
                 "violations": [
                     {
-                        "rule": "解析错误",
+                        "rule": "parsing_error",
                         "severity": "Critical",
-                        "description": f"无法解析分析结果: {error_msg}",
-                        "evidence": "JSON解析失败",
-                        "suggestion": "检查模型输出格式"
+                        "description": f"Failed to parse analysis result: {error_msg}",
+                        "evidence": "JSON parsing failed",
+                        "suggestion": "Check model output format"
                     }
                 ],
                 "compliances": []
@@ -439,28 +418,28 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
                 "overall_score": max(0.0, 10.0 - anomaly_score),
                 "issues": [
                     {
-                        "type": "解析错误",
-                        "description": f"分析结果格式错误: {error_msg}",
-                        "suggestion": "确保输出符合JSON格式要求"
+                        "type": "parsing_error",
+                        "description": f"Analysis result format error: {error_msg}",
+                        "suggestion": "Ensure output conforms to JSON format requirements"
                     }
                 ],
                 "strengths": []
             },
             "recommendations": [
-                f"**CRITICAL**: 修复分析结果解析错误: {error_msg}",
-                "**IMPORTANT**: 确保模型输出符合预期的JSON格式"
+                f"**CRITICAL**: Fix analysis result parsing error: {error_msg}",
+                "**IMPORTANT**: Ensure model output conforms to expected JSON format"
             ],
-            "detailed_analysis": f"解析失败的原始分析结果:\n{analysis_result}\n\n错误信息: {error_msg}"
+            "detailed_analysis": f"Failed to parse original analysis result:\n{analysis_result}\n\nError message: {error_msg}"
         }
 
     def get_anomaly_summary(self, anomaly_result: Dict[str, Any]) -> str:
-        """生成异常检查摘要"""
+        """Generate anomaly check summary"""
         
         is_anomaly = anomaly_result.get("is_anomaly", False)
         anomaly_score = anomaly_result.get("anomaly_score", 0.0)
         
         if not is_anomaly:
-            return f"✅ 未发现异常 (评分: {anomaly_score:.1f}/10.0) - 修复结果符合质量标准"
+            return f"✅ No anomaly detected (Score: {anomaly_score:.1f}/10.0) - Fix result meets quality standards"
         
         patch_compliance = anomaly_result.get("patch_compliance", {})
         summary_quality = anomaly_result.get("summary_quality", {})
@@ -470,17 +449,17 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
         
         severity_levels = []
         if anomaly_score >= 8.0:
-            severity_levels.append("🔴 严重异常")
+            severity_levels.append("🔴 Critical Anomaly")
         elif anomaly_score >= 6.0:
-            severity_levels.append("🟠 中等异常")
+            severity_levels.append("🟠 Moderate Anomaly")
         else:
-            severity_levels.append("🟡 轻微异常")
+            severity_levels.append("🟡 Minor Anomaly")
             
-        summary = f"{' '.join(severity_levels)} (评分: {anomaly_score:.1f}/10.0)"
+        summary = f"{' '.join(severity_levels)} (Score: {anomaly_score:.1f}/10.0)"
         
         if violations_count > 0:
-            summary += f" - 发现 {violations_count} 项规则违反"
+            summary += f" - Found {violations_count} rule violations"
         if issues_count > 0:
-            summary += f" - 发现 {issues_count} 项质量问题"
+            summary += f" - Found {issues_count} quality issues"
             
         return summary

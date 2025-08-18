@@ -19,6 +19,12 @@ class TestAnomalyCheckerRealMethod(unittest.IsolatedAsyncioTestCase):
     async def test_check_anomaly_real_django_case(self):
         """使用真实的 Django shell 案例测试 check_anomaly 方法"""
         
+        class SimpleContext:
+            def __init__(self):
+                self.provider = "li"  
+        
+        context = SimpleContext()
+        
         # 真实案例数据
         task_description = """shell command crashes when passing (with -c) the python code with functions.
 
@@ -104,7 +110,8 @@ exec should be passed a dictionary containing a minimal set of globals. This can
             result = await self.checker.check_anomaly(
                 fix_result_check_summary=fix_result_check_summary,
                 patch_diff=patch_diff,
-                task_description=task_description
+                task_description=task_description,
+                context=context
             )
             
             print("✅ check_anomaly 方法调用成功!")
@@ -186,6 +193,14 @@ exec should be passed a dictionary containing a minimal set of globals. This can
 
     async def test_call_model_for_anomaly_analysis_real_api(self):
         """测试 _call_model_for_anomaly_analysis 方法真实API调用"""
+        
+        # 创建简单的context对象
+        class SimpleContext:
+            def __init__(self):
+                self.provider = "li"  # 使用默认的li provider
+        
+        context = SimpleContext()
+        
         # 准备测试数据
         fix_result_check_summary = """
         修复结果检查摘要：代码修改正确解决了问题，添加了必要的空值检查。
@@ -206,7 +221,7 @@ exec should be passed a dictionary containing a minimal set of globals. This can
         try:
             # 执行真实的模型调用
             result = await self.checker._call_model_for_anomaly_analysis(
-                fix_result_check_summary, patch_diff, task_description, None
+                fix_result_check_summary, patch_diff, task_description, context
             )
             
             # 验证返回结果不为空
@@ -311,13 +326,21 @@ exec should be passed a dictionary containing a minimal set of globals. This can
         fix_result_check_summary = "修复结果良好，正确解决了问题"
         patch_diff = "添加了必要的边界检查"
         task_description = "修复数组越界问题"
+            # 创建简单的context对象
+        class SimpleContext:
+            def __init__(self):
+                self.provider = "li"  # 使用默认的li provider
         
+        context = SimpleContext()
+
+
         try:
             # 测试完整的check_anomaly方法
             result = await self.checker.check_anomaly(
                 fix_result_check_summary=fix_result_check_summary,
                 patch_diff=patch_diff,
-                task_description=task_description
+                task_description=task_description,
+                context=context
             )
             
             # 验证返回结构
@@ -473,12 +496,12 @@ exec should be passed a dictionary containing a minimal set of globals. This can
     def test_parse_anomaly_analysis_result_invalid_json(self):
         """测试 _parse_anomaly_analysis_result 方法处理无效JSON"""
         # 准备无效的JSON响应
-        invalid_json = "这不是有效的JSON格式，包含异常关键词：违反、问题、异常"
+        invalid_json = "This is not valid JSON format, contains anomaly keywords: violation, problem, error"
         
         result = self.checker._parse_anomaly_analysis_result(invalid_json)
         
         # 验证回退到文本解析
-        self.assertIn("解析错误", result["patch_compliance"]["violations"][0]["rule"])
+        self.assertIn("parsing_error", result["patch_compliance"]["violations"][0]["rule"])
         self.assertIn(invalid_json, result["detailed_analysis"])
         # 修复：回退解析会根据异常关键词数量判断，这里应该检测到异常
         self.assertTrue(result["anomaly_score"] > 0)  # 应该有异常评分
@@ -501,7 +524,7 @@ exec should be passed a dictionary containing a minimal set of globals. This can
         }
         
         summary = self.checker.get_anomaly_summary(no_anomaly_result)
-        self.assertIn("✅ 未发现异常", summary)
+        self.assertIn("✅ No anomaly detected", summary)
         self.assertIn("2.1/10.0", summary)
         
         # 测试有异常情况
@@ -523,10 +546,10 @@ exec should be passed a dictionary containing a minimal set of globals. This can
         }
         
         summary = self.checker.get_anomaly_summary(anomaly_result)
-        self.assertIn("🔴 严重异常", summary)
+        self.assertIn("🔴 Critical Anomaly", summary)
         self.assertIn("8.5/10.0", summary)
-        self.assertIn("发现 2 项规则违反", summary)
-        self.assertIn("发现 2 项质量问题", summary)
+        self.assertIn("Found 2 rule violations", summary)
+        self.assertIn("Found 2 quality issues", summary)
         
         print(f"✅ 异常摘要生成功能测试通过")
 
