@@ -396,6 +396,26 @@ def main():
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
     )
+    
+    # Validate agent compatibility with interactive mode
+    try:
+        from siada.config.agent_config_loader import load_agent_config
+        agent_config_collection = load_agent_config()
+        agent_config = agent_config_collection.get_agent_config(args.agent)
+        
+        if agent_config and agent_config.supported_modes == "non_interactive" and interactive_mode:
+            io.print_error(f"Agent '{args.agent}' only supports non-interactive mode, but current execution is in interactive mode.")
+            io.print_info(f"Please use --prompt (-p) option to run in non-interactive mode.")
+            return 1
+        elif agent_config and agent_config.supported_modes == "interactive" and not interactive_mode:
+            io.print_error(f"Agent '{args.agent}' only supports interactive mode, but current execution is in non-interactive mode.")
+            io.print_info(f"Please remove --prompt (-p) option to run in interactive mode.")
+            return 1
+    except Exception as e:
+        # If validation fails, only log warning without blocking program execution
+        if args.verbose:
+            io.print_warning(f"Warning: Failed to validate agent compatibility: {e}")
+    
     show_banner(io)
 
     if not interactive_mode:

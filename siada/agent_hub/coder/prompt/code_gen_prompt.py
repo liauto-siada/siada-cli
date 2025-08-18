@@ -39,7 +39,6 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
         intro=intro,
         tool_use=get_tool_use_section(),
         capabilities=get_capabilities_section(cwd),
-        rules=get_rules_section(cwd, os_name, home_dir),
-        objective=objective,
-        interactive_mode=interactive_mode
+        rules=get_rules_section(cwd, os_name, home_dir, interactive_mode),
+        objective=objective
     )

@@ -22,8 +22,7 @@ class FeGenAgent(CodeGenAgent):
 
     async def get_system_prompt(self, run_context: RunContextWrapper[CodeAgentContext]) -> str | None:
         root_dir = run_context.context.root_dir
-        interactive_mode = run_context.context.interactive_mode
-        system_prompt = fe_gen_prompt.get_system_prompt(root_dir, interactive_mode)
+        system_prompt = fe_gen_prompt.get_system_prompt(root_dir)
         return system_prompt
 
         # instructions=f"""
@@ -35,10 +34,5 @@ class FeGenAgent(CodeGenAgent):
 
     async def get_context(self) -> CodeAgentContext:
         current_working_dir = "/Users/yunan/code/test/fe_gen"
-        interactive_mode = self.get_interactive_mode()
-            
-        context = CodeAgentContext(
-            root_dir=current_working_dir,
-            interactive_mode=interactive_mode
-        )
+        context = CodeAgentContext(root_dir=current_working_dir)
         return context
