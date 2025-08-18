@@ -90,7 +90,7 @@ class BugFixAgent(CodeGenAgent):
     
         while current_turn < max_turns:
             # Set minimal rules after first turn
-            self.is_minimal = current_turn >= 3  
+            self.is_minimal = current_turn >= 1  
             # Run BugFixAgent for fixing
             result = await Runner.run(
                 starting_agent=self,
@@ -130,7 +130,7 @@ class BugFixAgent(CodeGenAgent):
                     
                     if anomaly_result and anomaly_result.get("use_rule_guidance", False):
                         # 使用规则指导反馈
-                        feedback_message = anomaly_result["feedback_message"]
+                        feedback_message = anomaly_result["best_rule"]
                     else:
                         # 使用正常的增强检查流程
                         feedback_message_last_checker = input_with_env + \
