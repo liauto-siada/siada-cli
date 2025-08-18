@@ -279,7 +279,7 @@ class TestFixResultChecker(unittest.IsolatedAsyncioTestCase):
         result = self.checker._parse_analysis_result(invalid_json)
         
         # 验证回退到文本解析
-        self.assertIn("JSON解析失败", result["analysis"])
+        self.assertIn("Fail to resolved JSON", result["analysis"])
         self.assertIn(invalid_json, result["analysis"])
 
 
