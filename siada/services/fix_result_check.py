@@ -93,7 +93,7 @@ Please systematically analyze whether the code modifications truly fix the probl
    - Compensatory fix: Avoids the problem through other mechanisms
 2. **Solution Alignment**: Whether the fix solution directly targets the root cause
 3. **Complexity Rationality**: Assess whether there is over-complication or over-engineering
-4. **Minimal Intrusion Principle**: Whether it follows the principle of minimal changes, avoiding unnecessary modifications
+4. **Minimal Change Principle**: Whether it follows the principle of minimal changes, avoiding unnecessary modifications
 
 ## Step 3: Fix Code Implementation Quality Analysis
 ### 3.1 Coverage Assessment
