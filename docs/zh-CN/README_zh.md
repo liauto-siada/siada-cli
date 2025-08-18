@@ -29,11 +29,11 @@
    ```
 2. 安装 siada-cli
    ```bash
-      uv tool install --force --python python3.12 --with pip siada-cli@latest
+   uv tool install --force --python python3.12 --with pip siada-cli@latest
    ```
    如果 siada-cli 目录不在 PATH 中，运行以下命令更新 shell
    ```bash
-      uv tool update-shell
+   uv tool update-shell
    ```
 ### 更新
    ```bash
