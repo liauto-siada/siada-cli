@@ -1,7 +1,7 @@
 """
 Real method test for AnomalyChecker.check_anomaly
-对 anomaly_checker.py 的 check_anomaly 方法进行真实测试
-参考 fix_result_check 的测试方式
+Real testing of the check_anomaly method in anomaly_checker.py
+Following the testing approach of fix_result_check
 """
 import unittest
 import json
@@ -10,14 +10,14 @@ from siada.services.anomaly_checker import AnomalyChecker
 
 
 class TestAnomalyCheckerRealMethod(unittest.IsolatedAsyncioTestCase):
-    """对 AnomalyChecker.check_anomaly 方法的真实测试"""
+    """Real testing of AnomalyChecker.check_anomaly method"""
     
     def setUp(self):
-        """设置测试环境"""
+        """Setup test environment"""
         self.checker = AnomalyChecker()
     
     async def test_check_anomaly_real_django_case(self):
-        """使用真实的 Django shell 案例测试 check_anomaly 方法"""
+        """Test check_anomaly method with real Django shell case (now returns rule matching results)"""
         
         class SimpleContext:
             def __init__(self):
@@ -25,7 +25,7 @@ class TestAnomalyCheckerRealMethod(unittest.IsolatedAsyncioTestCase):
         
         context = SimpleContext()
         
-        # 真实案例数据
+        # Real case data
         task_description = """shell command crashes when passing (with -c) the python code with functions.
 
 The examples below use Python 3.7 and Django 2.2.16, but I checked that the code is the same on master and works the same in Python 3.8.
@@ -102,11 +102,11 @@ exec should be passed a dictionary containing a minimal set of globals. This can
 
         fix_result_check_summary = """Fix_check_result, Issue not fixed, continue fixing (round 1): The fix is fundamentally incorrect and will make the problem worse. The root cause is that functions defined in exec'd code don't have access to the same global namespace, but the proposed solution of using an empty globals dictionary `{}` will prevent access to built-in functions like `print()`, `len()`, etc., creating more NameErrors rather than solving the original issue. The correct solution would need to provide a proper globals dictionary that includes `__builtins__` and maintains access to imported modules. This change breaks backward compatibility and doesn't address the actual scoping problem described in the issue. The fix direction is opposite to what's needed - instead of restricting the global namespace further, it should be ensuring proper variable scoping for function definitions."""
 
-        print("🔍 开始真实测试 AnomalyChecker.check_anomaly 方法...")
+        print("🔍 Starting real test of AnomalyChecker.check_anomaly method (rule matching mode)...")
         print("=" * 60)
         
         try:
-            # 调用真实的 check_anomaly 方法
+            # Call real check_anomaly method (now returns rule matching results)
             result = await self.checker.check_anomaly(
                 fix_result_check_summary=fix_result_check_summary,
                 patch_diff=patch_diff,
@@ -114,78 +114,67 @@ exec should be passed a dictionary containing a minimal set of globals. This can
                 context=context
             )
             
-            print("✅ check_anomaly 方法调用成功!")
-            print(f"返回结果类型: {type(result)}")
-            print(f"结果包含的键: {list(result.keys())}")
+            print("✅ check_anomaly method call successful!")
+            print(f"Return result type: {type(result)}")
+            print(f"Result contains keys: {list(result.keys())}")
             
-            # 检查基本结构
-            assert isinstance(result, dict), "返回结果应该是字典类型"
-            assert "is_anomaly" in result, "结果应该包含 is_anomaly 字段"
-            assert "anomaly_score" in result, "结果应该包含 anomaly_score 字段"
-            assert "summary_quality" in result, "结果应该包含 summary_quality 字段"
-            assert "patch_compliance" in result, "结果应该包含 patch_compliance 字段"
-            assert "recommendations" in result, "结果应该包含 recommendations 字段"
+            # Check new rule matching result structure
+            assert isinstance(result, dict), "Return result should be dict type"
+            assert "rule_scores" in result, "Result should contain rule_scores field"
+            assert "best_matching_rule" in result, "Result should contain best_matching_rule field"
+            assert "summary" in result, "Result should contain summary field"
+            assert "evaluation_success" in result, "Result should contain evaluation_success field"
             
-            # 检查是否是错误情况（没有LLM客户端）
-            if "No LLM clients found" in result.get("detailed_analysis", ""):
-                print("⚠️ 检测到LLM客户端未配置，测试异常处理分支")
-                assert result["is_anomaly"] is True
-                assert result["anomaly_score"] == 10.0
-                print("✅ 异常处理分支工作正常")
+            # Check if error case (evaluation failed)
+            if not result.get("evaluation_success", False):
+                print("⚠️ Detected rule evaluation failure, testing exception handling branch")
+                assert "best_matching_rule" in result
+                assert result["best_matching_rule"]["rule_name"] == "task_solution_adherence"
+                print("✅ Exception handling branch works correctly")
                 return result
             
-            # 如果不是错误情况，检查完整结构
-            assert "patch_task_consistency" in result, "结果应该包含 patch_task_consistency 字段"
+            # Check rule scores structure
+            rule_scores = result.get("rule_scores", {})
+            assert len(rule_scores) == 6, "Should contain scores for 6 rules"
             
-            # 输出关键结果
-            print("\n📊 检测结果:")
-            print(f"是否异常: {result['is_anomaly']}")
-            print(f"异常评分: {result['anomaly_score']:.1f}/10.0")
+            # Check best matching rule
+            best_rule = result.get("best_matching_rule", {})
+            assert "rule_name" in best_rule, "Best rule should contain rule name"
+            assert "total_score" in best_rule, "Best rule should contain total score"
+            assert "reasoning" in best_rule, "Best rule should contain reasoning"
+            assert "guidance" in best_rule, "Best rule should contain guidance"
             
-            if "patch_task_consistency" in result:
-                consistency_score = result["patch_task_consistency"].get("consistency_score", "N/A")
-                print(f"Patch-Task 一致性: {consistency_score}/10.0")
+            # Output key results
+            print("\n📊 Rule Matching Results:")
+            print(f"Evaluation Success: {result['evaluation_success']}")
+            print(f"Best Matching Rule: {best_rule.get('rule_name', 'N/A')}")
+            print(f"Rule Score: {best_rule.get('total_score', 0):.1f}/30.0")
+            print(f"Reasoning: {best_rule.get('reasoning', 'N/A')}")
             
-            if "summary_quality" in result:
-                summary_score = result["summary_quality"].get("overall_score", "N/A")
-                print(f"Summary 质量: {summary_score}/10.0")
+            print(f"\n📋 All Rule Scores:")
+            for rule_name, scores in rule_scores.items():
+                total_score = scores.get("total_score", 0)
+                relevance = scores.get("relevance_score", 0)
+                compliance = scores.get("compliance_score", 0)
+                improvement = scores.get("improvement_potential", 0)
+                print(f"  {rule_name}: {total_score:.1f} (R:{relevance:.1f}, C:{compliance:.1f}, I:{improvement:.1f})")
             
-            if "patch_compliance" in result:
-                violations = result["patch_compliance"].get("violations", [])
-                print(f"发现违规: {len(violations)}项")
-                
-                if violations:
-                    print("\n🚨 主要违规:")
-                    for i, violation in enumerate(violations[:3], 1):
-                        rule = violation.get("rule", "未知规则")
-                        severity = violation.get("severity", "未知")
-                        description = violation.get("description", "无描述")
-                        print(f"  {i}. {rule} ({severity}): {description}")
+            print(f"\n🎯 Rule Guidance:")
+            guidance = best_rule.get("guidance", "")
+            print(f"  {guidance[:100]}..." if len(guidance) > 100 else f"  {guidance}")
             
-            if "recommendations" in result:
-                recommendations = result["recommendations"]
-                print(f"\n💡 建议数量: {len(recommendations)}")
-                if recommendations:
-                    print("主要建议:")
-                    for i, rec in enumerate(recommendations[:3], 1):
-                        print(f"  {i}. {rec}")
+            print("\n✅ Rule matching test completed!")
             
-            # 获取异常摘要
-            summary = self.checker.get_anomaly_summary(result)
-            print(f"\n📋 异常摘要: {summary}")
-            
-            print("\n✅ 真实测试完成!")
-            
-            # 基本断言
-            assert isinstance(result["is_anomaly"], bool)
-            assert isinstance(result["anomaly_score"], (int, float))
-            assert 0 <= result["anomaly_score"] <= 10
+            # Basic assertions
+            assert isinstance(result["evaluation_success"], bool)
+            assert isinstance(best_rule.get("total_score", 0), (int, float))
+            assert best_rule.get("total_score", 0) >= 0
             
             return result
             
         except Exception as e:
-            print(f"❌ 测试失败: {e}")
-            print(f"错误类型: {type(e).__name__}")
+            print(f"❌ Test failed: {e}")
+            print(f"Error type: {type(e).__name__}")
             import traceback
             traceback.print_exc()
             raise

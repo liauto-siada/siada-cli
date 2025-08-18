@@ -33,6 +33,27 @@ class AnomalyChecker:
             "technical_specificity",
             "solution_orientation"
         ]
+        
+        # Rule library mapping
+        self.rule_library = {
+            "task_solution_adherence": "You need to find solutions and suggestions from the task tags, and you must implement and follow them unconditionally.",
+            "existing_feature_reuse": "When solving problems, prioritize using the project's existing features and tools rather than redeveloping them from scratch.",
+            "data_calculation_strategy": "When you need to get some data or a variable, consider calculating it from the current class's existing data or variables instead of starting from scratch.",
+            "exception_safety": "You need ensure that the modified code does not throw new exceptions.",
+            "test_coverage_completeness": """you can try to use the test in original codebase to reproduce the bug.
+You need to **create and pass test cases** that cover the following scenarios:
+--Normal Functionality: Testing the core, expected behavior of the class methods.
+--Edge Cases: Checking the behavior of methods with boundary values, such as empty lists, zero values, or maximum limits.
+--State and Attribute Changes: Ensuring that the internal state and attributes of an object are updated correctly after a method is called.
+--Uninitialized Attributes: Testing how the class behaves when an attribute is accessed before it has been explicitly assigned a value.
+--Data Types and Format: Validating that the class methods accept and process the correct data types and reject incorrect ones.""",
+            "root_cause_analysis_depth": """Deep Root Cause Analysis: Don't just patch symptoms. You must trace the bug's origin, whether it stems from a flawed assumption, an incomplete logical condition, or an unhandled edge case. Your job is to understand why the problem occurs, not just where.
+Surgical Precision: Apply fixes with the highest level of accuracy. Your changes should be minimal and localized. This often means:
+--Adding a more precise conditional check.
+--Constraining a loop or iteration's boundary.
+--Preventing an incorrect type conversion or improper simplification.
+--Using the most suitable underlying primitive or data structure for the task."""
+        }
 
     async def check_anomaly(
         self, 
@@ -42,50 +63,41 @@ class AnomalyChecker:
         context: Any = None
     ) -> Dict[str, Any]:
         """
-        check anmaly in the fix result and last check summary
+        Evaluate patch against six compliance rules and return the best matching rule guidance
         
         Returns:
             Dict[str, Any]: 
             {
-                "is_anomaly": bool,           
-                "anomaly_score": float,       # (0-10, higher means more anomalous)
-                "patch_compliance": {         
-                    "overall_score": float,
-                    "violations": List[Dict],
-                    "compliances": List[Dict]
+                "rule_scores": Dict[str, Dict],  # Scores for all 6 rules
+                "best_matching_rule": {          # Highest scoring rule with guidance
+                    "rule_name": str,
+                    "total_score": float,
+                    "reasoning": str,
+                    "guidance": str
                 },
-                "summary_quality": {        
-                    "overall_score": float,
-                    "issues": List[Dict],
-                    "strengths": List[str]
-                },
-                "recommendations": List[str],
-                "detailed_analysis": str     
+                "summary": Dict[str, Any],       # Evaluation summary
+                "evaluation_success": bool      # Whether evaluation succeeded
             }
         """
         try:
-            analysis_result = await self._call_model_for_anomaly_analysis(
-                fix_result_check_summary, patch_diff, task_description, context
+            # Execute six-rule compliance evaluation
+            rule_evaluation_result = await self.evaluate_patch_compliance_rules(
+                patch_diff, task_description, fix_result_check_summary, context
             )
-            return self._parse_anomaly_analysis_result(analysis_result)
+            return rule_evaluation_result
         except Exception as e:
-            logger.error(f"Anomaly check failed: {e}", exc_info=True)
+            logger.error(f"Rule evaluation failed: {e}", exc_info=True)
+            # Return fallback with default rule
             return {
-                "is_anomaly": True,
-                "anomaly_score": 10.0,
-                "patch_compliance": {
-                    "overall_score": 0.0,
-                    "violations": [{"rule": "analysis_error", "severity": "Critical", 
-                                  "description": f"error: {str(e)}"}],
-                    "compliances": []
+                "rule_scores": {rule: {"total_score": 0.0} for rule in self.compliance_rules},
+                "best_matching_rule": {
+                    "rule_name": "task_solution_adherence",
+                    "total_score": 0.0,
+                    "reasoning": f"Rule evaluation failed: {str(e)}",
+                    "guidance": self.rule_library["task_solution_adherence"]
                 },
-                "summary_quality": {
-                    "overall_score": 0.0,
-                    "issues": [{"type": "analysis_error", "description": f"fail: {str(e)}"}],
-                    "strengths": []
-                },
-                "recommendations": [f"**CRITICAL**: error: {str(e)}"],
-                "detailed_analysis": f"error: {str(e)}"
+                "summary": {"error": f"Evaluation failed: {str(e)}"},
+                "evaluation_success": False
             }
 
     async def _call_model_for_anomaly_analysis(
@@ -463,3 +475,270 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
             summary += f" - Found {issues_count} quality issues"
             
         return summary
+
+    async def evaluate_patch_compliance_rules(
+        self, 
+        patch_diff: str, 
+        task_description: str, 
+        fix_result_check_summary: str,
+        context: Any = None
+    ) -> Dict[str, Any]:
+        """
+        Use LLM to evaluate patch against six compliance rules and return the best matching rule
+        
+        Returns:
+            Dict containing rule scores and the highest scoring rule with its guidance
+        """
+        
+        rule_evaluation_result = await self._call_model_for_rule_evaluation(
+            patch_diff, task_description, fix_result_check_summary, context
+        )
+        
+        return self._parse_rule_evaluation_result(rule_evaluation_result)
+
+    async def _call_model_for_rule_evaluation(
+        self, 
+        patch_diff: str,
+        task_description: str,
+        fix_result_check_summary: str,
+        context: Any
+    ) -> str:
+        """Call LLM to evaluate patch against compliance rules"""
+        
+        user_task = self._build_rule_evaluation_prompt(
+            patch_diff, task_description, fix_result_check_summary
+        )
+        
+        model_messages: list[ChatCompletionMessageParam] = [
+            {"role": "user", "content": user_task},
+        ]
+        
+        print("Running patch compliance rule evaluation...")
+
+        default_kwargs = {
+            "model": settings.Claude_4_0_SONNET,
+            "messages": model_messages,
+            "stream": False,
+            "temperature": 0.1,  
+        }
+
+        client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
+        response = await client.chat_complete(**complete_kwargs)
+        
+        if response and response.choices and response.choices[0].message:
+            analysis = response.choices[0].message.content
+            if analysis:
+                return analysis.strip()
+        
+        raise Exception("Failed to get valid response from model for rule evaluation")
+
+    def _build_rule_evaluation_prompt(
+        self, 
+        patch_diff: str,
+        task_description: str,
+        fix_result_check_summary: str
+    ) -> str:
+        """Build prompt for rule evaluation"""
+        
+        return f"""
+# 🎯 **SIADA Patch Compliance Rule Evaluation Expert**
+
+You are a **Senior Code Review Expert** specializing in evaluating code patches against specific compliance rules.
+
+## **📋 Mission**
+
+Evaluate the given patch against **6 specific compliance rules** and determine which rule is most relevant for guiding the next round of model improvement.
+
+## **🔍 Six Compliance Rules to Evaluate**
+
+### **1. Task Solution Adherence**
+**Rule**: {self.rule_library["task_solution_adherence"]}
+
+### **2. Existing Feature Reuse**
+**Rule**: {self.rule_library["existing_feature_reuse"]}
+
+### **3. Data Calculation Strategy**
+**Rule**: {self.rule_library["data_calculation_strategy"]}
+
+### **4. Exception Safety**
+**Rule**: {self.rule_library["exception_safety"]}
+
+### **5. Test Coverage Completeness**
+**Rule**: {self.rule_library["test_coverage_completeness"]}
+
+### **6. Root Cause Analysis Depth**
+**Rule**: {self.rule_library["root_cause_analysis_depth"]}
+
+---
+
+## **📊 Input Data**
+
+### **📝 Task Description**
+```
+{task_description}
+```
+
+### **🔧 Patch Diff**
+```
+{patch_diff}
+```
+
+### **📋 Fix Result Check Summary**
+```
+{fix_result_check_summary}
+```
+
+---
+
+## **🎯 Evaluation Requirements**
+
+For each of the 6 rules, provide:
+1. **Relevance Score (0-10)**: How relevant is this rule to the current patch?
+2. **Compliance Score (0-10)**: How well does the patch comply with this rule?
+3. **Evidence**: Specific evidence from the patch/task/summary
+4. **Improvement Potential**: How much could following this rule improve the patch?
+
+**Scoring Guidelines:**
+- **Relevance Score**: 
+  - 10 = Extremely relevant to this type of patch/task
+  - 5 = Moderately relevant
+  - 0 = Not relevant at all
+- **Compliance Score**:
+  - 10 = Perfect compliance with the rule
+  - 5 = Partial compliance
+  - 0 = No compliance or violation of the rule
+
+---
+
+## **📋 Required Output Format**
+
+```json
+{{
+  "rule_evaluation": {{
+    "task_solution_adherence": {{
+      "relevance_score": 8.5,
+      "compliance_score": 6.0,
+      "evidence": "Patch modifies exec() call but doesn't follow task requirement for empty dictionary",
+      "improvement_potential": 9.0,
+      "total_score": 23.5
+    }},
+    "existing_feature_reuse": {{
+      "relevance_score": 3.0,
+      "compliance_score": 7.0,
+      "evidence": "Patch uses existing exec() function appropriately",
+      "improvement_potential": 2.0,
+      "total_score": 12.0
+    }},
+    "data_calculation_strategy": {{
+      "relevance_score": 2.0,
+      "compliance_score": 8.0,
+      "evidence": "No complex data calculations involved in this patch",
+      "improvement_potential": 1.0,
+      "total_score": 11.0
+    }},
+    "exception_safety": {{
+      "relevance_score": 7.0,
+      "compliance_score": 5.0,
+      "evidence": "Patch doesn't add exception handling for exec() calls",
+      "improvement_potential": 6.0,
+      "total_score": 18.0
+    }},
+    "test_coverage_completeness": {{
+      "relevance_score": 6.0,
+      "compliance_score": 3.0,
+      "evidence": "No test cases provided with the patch",
+      "improvement_potential": 8.0,
+      "total_score": 17.0
+    }},
+    "root_cause_analysis_depth": {{
+      "relevance_score": 9.0,
+      "compliance_score": 4.0,
+      "evidence": "Patch addresses symptom but may not solve root cause of namespace issue",
+      "improvement_potential": 9.0,
+      "total_score": 22.0
+    }},
+    "best_matching_rule": {{
+      "rule_name": "task_solution_adherence",
+      "total_score": 23.5,
+      "reasoning": "This rule has the highest total score and is most relevant for improving the patch to better follow task requirements"
+    }},
+    "summary": {{
+      "highest_relevance_rule": "root_cause_analysis_depth",
+      "lowest_compliance_rule": "test_coverage_completeness", 
+      "most_improvement_potential": "task_solution_adherence",
+      "overall_assessment": "Patch needs better task adherence and deeper root cause analysis"
+    }}
+  }}
+}}
+```
+
+---
+
+## **⚠️ Evaluation Principles**
+
+1. **Evidence-Based**: Every score must be supported by specific evidence
+2. **Context-Aware**: Consider the specific task and patch context
+3. **Improvement-Focused**: Identify which rule would most improve the patch
+4. **Balanced Assessment**: Don't just focus on violations, also recognize good practices
+5. **Actionable Insights**: Provide clear guidance for the next model iteration
+
+**Focus on identifying the rule that would provide the most valuable guidance for improving this specific patch!**
+"""
+
+    def _parse_rule_evaluation_result(self, evaluation_result: str) -> Dict[str, Any]:
+        """Parse the rule evaluation result from LLM"""
+        try:
+            json_content = evaluation_result.strip()
+            
+            if '```json' in json_content:
+                json_start = json_content.find('```json') + len('```json')
+                json_end = json_content.rfind('```')
+                if json_start != -1 and json_end != -1 and json_end > json_start:
+                    json_content = json_content[json_start:json_end]
+            
+            parsed_json = json.loads(json_content)
+            rule_evaluation = parsed_json.get("rule_evaluation", {})
+            
+            # Extract rule scores
+            rule_scores = {}
+            for rule_name in self.compliance_rules:
+                rule_data = rule_evaluation.get(rule_name, {})
+                rule_scores[rule_name] = {
+                    "relevance_score": rule_data.get("relevance_score", 0.0),
+                    "compliance_score": rule_data.get("compliance_score", 0.0),
+                    "evidence": rule_data.get("evidence", ""),
+                    "improvement_potential": rule_data.get("improvement_potential", 0.0),
+                    "total_score": rule_data.get("total_score", 0.0)
+                }
+            
+            # Get best matching rule
+            best_rule_info = rule_evaluation.get("best_matching_rule", {})
+            best_rule_name = best_rule_info.get("rule_name", "task_solution_adherence")
+            
+            return {
+                "rule_scores": rule_scores,
+                "best_matching_rule": {
+                    "rule_name": best_rule_name,
+                    "total_score": best_rule_info.get("total_score", 0.0),
+                    "reasoning": best_rule_info.get("reasoning", ""),
+                    "guidance": self.rule_library.get(best_rule_name, "")
+                },
+                "summary": rule_evaluation.get("summary", {}),
+                "evaluation_success": True
+            }
+            
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            logger.error(f"Failed to parse rule evaluation result: {e}")
+            
+            # Fallback to default rule
+            return {
+                "rule_scores": {rule: {"total_score": 5.0} for rule in self.compliance_rules},
+                "best_matching_rule": {
+                    "rule_name": "task_solution_adherence",
+                    "total_score": 5.0,
+                    "reasoning": f"Evaluation parsing failed: {str(e)}",
+                    "guidance": self.rule_library["task_solution_adherence"]
+                },
+                "summary": {"error": f"Parsing failed: {str(e)}"},
+                "evaluation_success": False
+            }

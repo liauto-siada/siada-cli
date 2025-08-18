@@ -88,7 +88,7 @@ class BugFixAgent(CodeGenAgent):
     
         while current_turn < max_turns:
             # Set minimal rules after first turn
-            self.is_minimal = current_turn >= 1  
+            self.is_minimal = current_turn >= 3  
             # Run BugFixAgent for fixing
             result = await Runner.run(
                 starting_agent=self,
@@ -121,21 +121,13 @@ class BugFixAgent(CodeGenAgent):
                     check_summary = check_result.get(
                         "check_summary", "Fix verification failed"
                     )
-
-                    # 运行异常检查
                     anomaly_result = await self.run_anomaly_check(
                         user_input, check_summary, context
                     )
                     
-                    if anomaly_result and anomaly_result.get("go_next_turns", True)==False:
-                        # 如果异常检查结果要求继续下一轮修复
-                        print(f"Anomaly check result: {anomaly_result}")
-                        consistency_score = anomaly_result.get("consistency_score", 10.0)
-                        print(f"Patch-Task consistency score: {consistency_score:.1f}/10.0")
-                        break
                     
-                    if anomaly_result and anomaly_result.get("use_anomaly_feedback", False):
-                        # 使用异常检查的反馈
+                    if anomaly_result and anomaly_result.get("use_rule_guidance", False):
+                        # 使用规则指导反馈
                         feedback_message = anomaly_result["feedback_message"]
                     else:
                         # 使用正常的增强检查流程
@@ -249,98 +241,100 @@ class BugFixAgent(CodeGenAgent):
         context: CodeAgentContext
     ) -> Optional[Dict[str, Any]]:
         """
-        运行异常检查，如果patch和task一致性低于4分则返回异常反馈
+        run anomaly check to evaluate the patch against predefined rules
 
         Args:
-            user_input: 用户输入的任务描述
-            check_summary: 修复结果检查摘要
-            context: 代码上下文
+            user_input: user input task description
+            check_summary: last fix result check summary
+            context
 
         Returns:
             Dict包含:
-            - use_anomaly_feedback: bool, 是否使用异常反馈
-            - feedback_message: dict, 反馈消息
-            - anomaly_result: dict, 异常检查结果
+            - use_rule_guidance: bool, if rule guidance should be used
+            - feedback_message: dict,
+            - rule_evaluation_result: dict,
+            - best_rule: dict,
         """
         try:
             diff_patch = GitDiffUtil.get_git_diff_exclude_test_files(context.root_dir)
             
-            # 运行异常检查
-            anomaly_result = await self.anomaly_checker.check_anomaly(
+            rule_evaluation_result = await self.anomaly_checker.check_anomaly(
                 fix_result_check_summary=check_summary,
                 patch_diff=diff_patch,
                 task_description=user_input,
                 context=context
             )
             
-            # 获取patch-task一致性评分
-            patch_task_consistency = anomaly_result.get("patch_task_consistency", {})
-            consistency_score = patch_task_consistency.get("consistency_score", 10.0)
+            best_rule = rule_evaluation_result.get("best_matching_rule", {})
+            rule_name = best_rule.get("rule_name", "task_solution_adherence")
+            total_score = best_rule.get("total_score", 0.0)
+            reasoning = best_rule.get("reasoning", "")
+            guidance = best_rule.get("guidance", "")
             
-            if consistency_score < 4.0:
-                # Patch-Task一致性太低，返回异常反馈
-                anomaly_summary = self.anomaly_checker.get_anomaly_summary(anomaly_result)
-                recommendations = anomaly_result.get("recommendations", [])
-                
-                feedback_content = f"""## 🚨 Anomaly Detection Alert
+            rule_scores = rule_evaluation_result.get("rule_scores", {})
+            evaluation_success = rule_evaluation_result.get("evaluation_success", False)
+            
+            print(f"🎯 Rule Evaluation Complete:")
+            print(f"📊 Best Matching Rule: {rule_name}")
+            print(f"📈 Total Score: {total_score:.1f}")
+            print(f"💡 Reasoning: {reasoning}")
+            
+            print(f"\n📋 All Rule Scores:")
+            for rule, scores in rule_scores.items():
+                score = scores.get("total_score", 0.0)
+                print(f"  {rule}: {score:.1f}")
+            
+            if evaluation_success and total_score > 15.0:
+                feedback_content = f"""## 🎯 Rule-Based Improvement Guidance
 
-**Critical Issue Detected:** Patch-Task consistency is critically low ({consistency_score:.1f}/10.0)
+**Best Matching Rule:** {rule_name}
+**Rule Score:** {total_score:.1f}/30.0
+**Evaluation Reasoning:** {reasoning}
 
-**Anomaly Summary:** {anomaly_summary}
+## 📋 Rule Guidance
+{guidance}
 
-**Key Recommendations:**
-{chr(10).join(f"- {rec}" for rec in recommendations[:5])}
+## 🔍 Current Situation Analysis
+**Fix Result Check:** {check_summary}
 
-**Detailed Analysis:** {anomaly_result.get('detailed_analysis', 'No detailed analysis available')}
+**Rule Evaluation Summary:**
+{rule_evaluation_result.get('summary', {}).get('overall_assessment', 'No summary available')}
 
-## Critical Action Required
-The current patch significantly deviates from task requirements. Please completely revise your approach based on the anomaly analysis above.
+## 🚀 Next Steps
+Please follow the above rule guidance to improve your patch. Focus specifically on the requirements outlined in the **{rule_name}** rule.
 
-**Primary Focus:** {check_summary}
+**Key Focus Areas:**
+- Ensure strict adherence to the rule guidance above
+- Address the specific issues identified in the rule evaluation
+- Implement the suggested improvements systematically
 
-**Task Requirements Analysis:**
-- Patch-Task Consistency Score: {consistency_score:.1f}/10.0
-- Anomaly Score: {anomaly_result.get('anomaly_score', 0):.1f}/10.0
-- Summary Quality Score: {anomaly_result.get('summary_quality', {}).get('overall_score', 0):.1f}/10.0
-
-Please ensure your next fix attempt directly addresses the task requirements rather than implementing a different approach."""
+**Previous Fix Attempt Issues:** {check_summary}"""
 
                 feedback_message = {
                     "content": feedback_content,
                     "role": "user",
                 }
                 
-                print(f"🚨 Anomaly detected: Patch-Task consistency too low ({consistency_score:.1f}/10.0)")
-                print(f"Anomaly summary: {anomaly_summary}")
+                print(f"✅ Using rule guidance: {rule_name}")
                 
                 return {
-                    "use_anomaly_feedback": True,
+                    "use_rule_guidance": True,
                     "feedback_message": feedback_message,
-                    "anomaly_result": anomaly_result,
-                    "consistency_score": consistency_score,
+                    "rule_evaluation_result": rule_evaluation_result,
+                    "best_rule": best_rule,
                     "go_next_turns": True
                 }
-            elif consistency_score > 9.0:
-                # Patch-Task一致性非常高，直接返回正常结果
-                print(f"✅ Patch-Task consistency excellent ({consistency_score:.1f}/10.0)")
-                return {
-                    "use_anomaly_feedback": False,
-                    "anomaly_result": anomaly_result,
-                    "consistency_score": consistency_score,
-                    "go_next_turns": False
-                }
             else:
-                # 一致性评分正常，不使用异常反馈
-                print(f"✅ Patch-Task consistency acceptable ({consistency_score:.1f}/10.0)")
+                print(f"ℹ️ Rule evaluation score too low ({total_score:.1f}) or evaluation failed, using normal flow")
                 return {
-                    "use_anomaly_feedback": False,
-                    "anomaly_result": anomaly_result,
-                    "consistency_score": consistency_score,
+                    "use_rule_guidance": False,
+                    "rule_evaluation_result": rule_evaluation_result,
+                    "best_rule": best_rule,
                     "go_next_turns": True
                 }
                 
         except Exception as e:
-            print(f"Anomaly check failed: {e}, proceeding with normal flow")
+            print(f"Rule evaluation failed: {e}, proceeding with normal flow")
             return None
 
     def run_streamed(
