@@ -125,13 +125,13 @@ class BugFixAgent(CodeGenAgent):
                         "check_summary", "Fix verification failed"
                     )
                     
-                    combined_input = self._format_execution_trace_input(user_input, result)
-                    anomaly_result = await self.run_anomaly_check(
-                        combined_input, check_summary, context
-                    )
+                    # combined_input = self._format_execution_trace_input(user_input, result)
+                    # anomaly_result = await self.run_anomaly_check(
+                    #     combined_input, check_summary, context
+                    # )
 
-                    print(f"Using rule guidance: {anomaly_result['best_rule']}")
-                    self.guidance = anomaly_result["best_rule"]['guidance']
+                    # print(f"Using rule guidance: {anomaly_result['best_rule']}")
+                    # self.guidance = anomaly_result["best_rule"]['guidance']
 
                     feedback_message_last_checker = (
                         input_with_env
