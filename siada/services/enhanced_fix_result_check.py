@@ -125,7 +125,7 @@ class EnhancedFixResultChecker:
 
         # Use get_client_with_kwargs to support context parameter overrides
         client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
-        response = await client.chat_complete(**complete_kwargs)
+        response = await client.completion(**complete_kwargs)
         
         if response and response.choices and response.choices[0].message:
             analysis = response.choices[0].message.content
