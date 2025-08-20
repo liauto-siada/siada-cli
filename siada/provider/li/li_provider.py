@@ -358,15 +358,15 @@ class LiModel(Model):
             
             for attempt in range(max_retries + 1):
                 try:
-                    ret = await self._client.chat_complete(**complete_kwargs)
+                    ret = await self._client.completion(**complete_kwargs)
                     break
                 except Exception as e:
                     if attempt < max_retries:
-                        logger.warning(f"chat_complete failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
+                        logger.warning(f"completion failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
                         logger.info(f"Waiting {retry_delay} seconds before retry...")
                         await asyncio.sleep(retry_delay)
                     else:
-                        logger.error(f"chat_complete failed after maximum retries: {str(e)}")
+                        logger.error(f"completion failed after maximum retries: {str(e)}")
                         raise
         if isinstance(ret, LitellmModelResponse):
             return ret
@@ -394,10 +394,6 @@ class LiModel(Model):
         return value
 
 
-
-
-
-
 class LiProvider(ModelProvider):
     """The base interface for a model provider.
 
@@ -416,4 +412,3 @@ class LiProvider(ModelProvider):
 
         covert_model_name = covert_to_li_model_name(model_name)
         return LiModel(model=covert_model_name)
-

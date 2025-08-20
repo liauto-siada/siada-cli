@@ -126,7 +126,7 @@ Surgical Precision: Apply fixes with the highest level of accuracy. Your changes
         }
 
         client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
-        response = await client.chat_complete(**complete_kwargs)
+        response = await client.completion(**complete_kwargs)
         
         if response and response.choices and response.choices[0].message:
             analysis = response.choices[0].message.content
@@ -523,7 +523,7 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
         }
 
         client, complete_kwargs = get_client_with_kwargs(context, default_kwargs)
-        response = await client.chat_complete(**complete_kwargs)
+        response = await client.completion(**complete_kwargs)
         
         if response and response.choices and response.choices[0].message:
             analysis = response.choices[0].message.content
