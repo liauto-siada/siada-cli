@@ -1,4 +1,8 @@
 import inspect
+import os
+import asyncio
+import threading
+import concurrent.futures
 from siada.services.model_info_service import ModelInfoService
 import siada.session.session_models
 import sys
@@ -11,6 +15,7 @@ import siada.io.io
 from siada.models.model_run_config import ModelRunConfig
 from siada.support.editor import pipe_editor
 from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
+from siada.support.spinner import WaitingSpinner
 
 
 class SwitchEvent:
@@ -350,6 +355,87 @@ class SlashCommands:
     def cmd_edit(self, args=""):
         "Siada for /editor: Open an editor to write a prompt"
         return self.cmd_editor(args)
+
+    def cmd_init(self, session, args):
+        """Analyze the project and create a tailored siada.md file"""
+        try:
+            # Get workspace directory from session
+            workspace = session.siada_config.workspace
+            siada_md_path = os.path.join(workspace, 'siada.md')
+            
+            # Parse command arguments
+            force_overwrite = '--force' in args.strip()
+            
+            # Check if file already exists before any operations
+            file_exists = os.path.exists(siada_md_path)
+            
+            # Check if siada.md already exists and user doesn't want to force overwrite
+            if file_exists and not force_overwrite:
+                self.io.print_info('A siada.md file already exists in this directory. No changes were made.')
+                self.io.print_info('Use `/init --force` to overwrite the existing file.')
+                return
+            
+            # Create/overwrite siada.md file
+            with open(siada_md_path, 'w', encoding='utf-8') as f:
+                f.write('')
+            
+            # Display appropriate message based on whether file existed
+            if file_exists:
+                self.io.print_info('Existing siada.md overwritten. Now analyzing the project...')
+            else:
+                self.io.print_info('Empty siada.md created. Now analyzing the project...')
+            
+            # Generate the analysis prompt
+            init_prompt = self._create_init_analysis_prompt(workspace)
+            
+            # Return special event to trigger AI analysis with full streaming support
+            return SwitchEvent(ai_analysis_prompt=init_prompt)
+            
+        except PermissionError:
+            self.io.print_error('Permission denied: Unable to create siada.md file.')
+        except Exception as e:
+            self.io.print_error(f'Error during project analysis: {str(e)}')
+            import traceback
+            self.io.print_error(traceback.format_exc())
+
+    def _create_init_analysis_prompt(self, workspace):
+        """Create the analysis prompt for /init command"""
+        
+        init_prompt = f"""You are an AI agent that brings the power of Siada directly into the terminal. Your task is to analyze the current directory and generate a comprehensive siada.md file to be used as instructional context for future interactions.
+
+**Analysis Process:**
+
+1.  **Initial Exploration:**
+    *   Start by listing the files and directories to get a high-level overview of the structure.
+    *   Read the README file (e.g., `README.md`, `README.txt`) if it exists. This is often the best place to start.
+
+2.  **Iterative Deep Dive (up to 10 files):**
+    *   Based on your initial findings, select a few files that seem most important (e.g., configuration files, main source files, documentation).
+    *   Read them. As you learn more, refine your understanding and decide which files to read next. You don't need to decide all 10 files at once. Let your discoveries guide your exploration.
+
+3.  **Identify Project Type:**
+    *   **Code Project:** Look for clues like `package.json`, `requirements.txt`, `pom.xml`, `go.mod`, `Cargo.toml`, `build.gradle`, or a `src` directory. If you find them, this is likely a software project.
+    *   **Non-Code Project:** If you don't find code-related files, this might be a directory for documentation, research papers, notes, or something else.
+
+**siada.md Content Generation:**
+
+**For a Code Project:**
+
+*   **Project Overview:** Write a clear and concise summary of the project's purpose, main technologies, and architecture.
+*   **Building and Running:** Document the key commands for building, running, and testing the project. Infer these from the files you've read (e.g., `scripts` in `package.json`, `Makefile`, etc.). If you can't find explicit commands, provide a placeholder with a TODO.
+*   **Development Conventions:** Describe any coding styles, testing practices, or contribution guidelines you can infer from the codebase.
+
+**For a Non-Code Project:**
+
+*   **Directory Overview:** Describe the purpose and contents of the directory. What is it for? What kind of information does it hold?
+*   **Key Files:** List the most important files and briefly explain what they contain.
+*   **Usage:** Explain how the contents of this directory are intended to be used.
+
+**Final Output:**
+
+Write the complete content to the `siada.md` file. The output must be well-formatted Markdown."""
+
+        return init_prompt.strip()
 
     # def cmd_think_tokens(self, session, args):
     #     """Set the thinking token budget, eg: 8096, 8k, 10.5k, 0.5M, or 0 to disable."""

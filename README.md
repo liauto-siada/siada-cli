@@ -244,7 +244,9 @@ In the CLI, you can use slash commands for additional functionality:
 - `/shell` - Switch to shell mode to execute system commands (type `exit` or `quit` to exit shell mode)
 - `/models` - List available AI models
 - `/run <command>` or `!<command>` - Execute shell commands
-- `/editor` - Open editor for multiline input
+- `/editor` or `/edit` - Open editor for multiline input
+- `/multiline-mode` - Toggle multiline mode (swaps behavior of Enter and Meta+Enter keys)
+- `/init [--force]` - Analyze the project and create a tailored siada.md file
 - `/exit` or `/quit` - Exit the application
 
 ### Shell Mode Usage Guide

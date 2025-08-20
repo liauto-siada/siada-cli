@@ -244,7 +244,9 @@ siada-cli --models
 - `/shell` - 切换到 shell 模式执行系统命令（输入 `exit` 或 `quit` 退出 shell 模式）
 - `/models` - 列出可用的 AI 模型
 - `/run <命令>` 或 `!<命令>` - 执行 shell 命令
-- `/editor` - 打开编辑器进行多行输入
+- `/editor` 或 `/edit` - 打开编辑器进行多行输入
+- `/multiline-mode` - 切换多行模式（改变 Enter 键和 Meta+Enter 键的行为）
+- `/init [--force]` - 分析项目并创建定制的 siada.md 文件
 - `/exit` 或 `/quit` - 退出应用程序
 
 ### Shell 模式使用说明

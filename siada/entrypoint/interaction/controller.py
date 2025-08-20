@@ -35,17 +35,25 @@ class Controller:
             siada_config=self.config,
         )
         display_rule = True
+        pending_input = None  # Pending input to process in next iteration
+        
         while True:
             try:
-                user_input = self.config.io.get_input(
-                    completer=self.config.completer if not self.shell_mode else None,
-                    display_rule=display_rule,
-                    color=(
-                        self.config.running_color_settings.user_input_color
-                        if not self.shell_mode
-                        else self.config.running_color_settings.shell_model_color
-                    ),
-                )
+                # Check if there's pending input to process
+                if pending_input:
+                    user_input = pending_input
+                    pending_input = None
+                else:
+                    # Get user input normally
+                    user_input = self.config.io.get_input(
+                        completer=self.config.completer if not self.shell_mode else None,
+                        display_rule=display_rule,
+                        color=(
+                            self.config.running_color_settings.user_input_color
+                            if not self.shell_mode
+                            else self.config.running_color_settings.shell_model_color
+                        ),
+                    )
 
                 display_rule = True
                 if user_input.strip() == "":
@@ -75,6 +83,12 @@ class Controller:
 
                     elif turn_output.output.kwargs.get("model"):
                         self.config.model = turn_output.output.kwargs.get("model")
+                    
+                    elif turn_output.output.kwargs.get("ai_analysis_prompt"):
+                        # Set pending input for next iteration - reuse existing flow
+                        pending_input = turn_output.output.kwargs.get("ai_analysis_prompt")
+                        continue
+                    
                     # show the announcements in every switch event
                     if turn_output.output.kwargs.get("shell"):
                         self.shell_mode = True
