@@ -246,6 +246,8 @@ siada-cli --models
 - `/run <命令>` 或 `!<命令>` - 执行 shell 命令
 - `/editor` 或 `/edit` - 打开编辑器进行多行输入
 - `/multiline-mode` - 切换多行模式（改变 Enter 键和 Meta+Enter 键的行为）
+  - Enter 键换行
+  - Meta+Enter 键结束多行模式，将内容发送给模型
 - `/init [--force]` - 分析项目并创建定制的 siada.md 文件
 - `/exit` 或 `/quit` - 退出应用程序
 
