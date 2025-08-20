@@ -56,7 +56,7 @@ Here is the issue description and the code patch that fixes the problem.
 {patch}
 """
 
-        set_trace_processors([create_detailed_logger(output_file="agent_trace.log")]), 
+        # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")]), 
 
         result = await self.run_impl(
             starting_agent=self,

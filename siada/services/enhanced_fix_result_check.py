@@ -108,7 +108,7 @@ class EnhancedFixResultChecker:
             str: the analysis result in JSON format
         """
         user_task = self._build_enhanced_prompt(issue_desc, fix_code, execution_trace)
-        
+        print("EnhancedFixResultChecker prompt:", user_task)
         model_messages: list[ChatCompletionMessageParam] = [
             {"role": "user", "content": user_task},
         ]

@@ -6,13 +6,18 @@ from agents import RunContextWrapper, RunConfig, RunResult, RunResultStreaming, 
 
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.issue_review_agent import IssueReviewAgent
+from siada.agent_hub.coder.select_agent import SelectAgent
 from siada.agent_hub.coder.prompt.bug_prompt import bug_fix_prompt
+from siada.agent_hub.coder.tracing.bug_fix_trace_collector import BugFixTraceCollector,create_custom_bug_fix_trace_collector
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.setting import settings
 from siada.foundation.tools.get_git_diff import GitDiffUtil
+from siada.services.bug_desc_optimizer import BugDescOptimizer, LessOriginBugDescOptimizer
 from siada.services.fix_result_check import FixResultChecker
+from siada.services.issue_type_checker import IssueTypeChecker
 from siada.services.execution_trace_collector import ExecutionTrace, ModelCall, ToolCall
 from siada.services.anomaly_checker import AnomalyChecker
+from siada.services.strict_fix_result_check import StrictFixResultChecker
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
@@ -22,21 +27,32 @@ from siada.services.enhanced_fix_result_check import EnhancedFixResultChecker
 from typing import Optional, List, Dict, Any
 from openai.types.responses import ResponseFunctionToolCall, ResponseOutputMessage
 import json
-
+from agents import add_trace_processor
 
 class BugFixAgent(CodeGenAgent):
     fix_result_checker: FixResultChecker
+    strict_fix_result_checker: StrictFixResultChecker
+    bug_desc_optimizer: BugDescOptimizer
+    LessOriginBugDescOptimizer: LessOriginBugDescOptimizer
     enhanced_fix_result_checker: EnhancedFixResultChecker
-    issue_review_agent: IssueReviewAgent  # Forward declaration for type hinting
-    is_minimal: bool = False  # Flag to control minimal rules section
-
+    issue_review_agent: IssueReviewAgent
+    is_minimal: bool = False
+    Issue_type_checker: IssueTypeChecker
     def __init__(self, *args, **kwargs):
 
         self.fix_result_checker = FixResultChecker()
+        self.strict_fix_result_checker = StrictFixResultChecker()
         self.issue_review_agent = IssueReviewAgent()
         self.enhanced_fix_result_checker = EnhancedFixResultChecker()
         self.anomaly_checker = AnomalyChecker()
+        self.bug_desc_optimizer = BugDescOptimizer()
+        self.less_origin_bug_desc_optimizer = LessOriginBugDescOptimizer()
         self.guidance=""
+        self.issue_type_checker = IssueTypeChecker()
+        self.code_patch_list = []
+        self.select_agent = SelectAgent()
+
+        self.trace_collector = create_custom_bug_fix_trace_collector()
 
         super().__init__(
             name="BugFixAgent",
@@ -54,14 +70,13 @@ class BugFixAgent(CodeGenAgent):
         root_dir = run_context.context.root_dir
         # Get user memory from context
         user_memory = run_context.context.user_memory
-        system_prompt = bug_fix_prompt.get_system_prompt(root_dir, is_minimal=self.is_minimal, add_rule=self.guidance, user_memory=user_memory)
+        system_prompt = bug_fix_prompt.get_system_prompt(root_dir, is_minimal=self.is_minimal, new_rule=self.guidance, user_memory=user_memory)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
         current_working_dir = os.getcwd()
         context = CodeAgentContext(root_dir=current_working_dir)
 
-        # 将 context 值赋给 model 对象
         if hasattr(self, "model") and hasattr(self.model, "context"):
             self.model.context = context
 
@@ -78,21 +93,37 @@ class BugFixAgent(CodeGenAgent):
         Returns:
             Fix result, including final output, execution rounds, and other information
         """
-        # config = RunConfig(tracing_disabled=False)
-        # set_trace_processors([create_detailed_logger()])
-        input_with_env = self.assemble_user_input(user_input, context)
 
+        run_config, _ = await self.prepare_run_environment(context)
+        add_trace_processor(self.trace_collector)
+
+        print(f"1.Issue clarify stage: (1).identify the problem domain; (2).optimize problem description")
+        print("Starting problem domain analysis")
+        project_analysis = await self.issue_type_checker.analyze_project_type(
+            issue_desc=user_input, context=context, trace_collector=self.trace_collector)
+        project_type = project_analysis.get("project_type", "unknown")
+        print("Problem domain analysis result:", project_type)
+
+        print(f"\nStarting bug desc optimize")
+        opt_user_input = await self.bug_desc_optimizer.optimize(user_input, context, project_type, trace_collector=self.trace_collector)
+        print(f"Bug desc optimize result:{opt_user_input}\n")
+
+        input_with_env = self.struct_user_input(opt_user_input)
         max_turns = 3
         current_turn = 0
         task_message = {"content": input_with_env, "role": "user"}
         input_list = [task_message]
 
-        run_config, _ = await self.prepare_run_environment(context)
-
+        print(f"2. Issue fix stage: (1) Propose fix; (2) Verify fix; (3) Confirm fix")
         while current_turn < max_turns:
-            # Set minimal rules after first turn
-            self.is_minimal = current_turn >= 1
-            # Run BugFixAgent for fixing
+            self.is_minimal = current_turn >= 3
+            print(f"\n Fix round {current_turn+1}")
+
+            self.trace_collector.start_run_round([
+                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                for msg in input_list
+            ])
+
             result = await Runner.run(
                 starting_agent=self,
                 input=input_list,
@@ -101,80 +132,55 @@ class BugFixAgent(CodeGenAgent):
                 context=context,
             )
 
-            # git_diff_analysis = GitDiffUtil.get_git_diff_analysis(context.root_dir)
-            # diff_line=git_diff_analysis.get("line_changes").get("total",10**6+1)
-            # if (diff_line <= 6 ):
-            #     print("Small patch detected, skipping fix result checker.")
-            #     break
+            self.trace_collector.end_run_round(str(result.final_output))
 
             # input_list = result.to_input_list()
 
-            # Check if the issue is fixed using run_checker
             try:
-                check_result = await self.run_checker(user_input, context)
-
-                if check_result.get("is_fixed", False):
-                    # Issue is fixed, break the loop
-                    print(
-                        f"Fix_check_result, Issue fixed: {check_result.get('check_summary', 'Fix verified')}"
+                print(f"Project type detected: {project_type}")
+                if project_type == "web_framework":
+                    should_break, conbine_task_message_with_check_summary = await self._handle_web_framework_check(
+                        user_input, result, context, task_message, current_turn
                     )
-                    break
+                    if should_break:
+                        break
+                    else:
+                        input_list = conbine_task_message_with_check_summary
                 else:
-                    # Issue not fixed, add the check_summary to input_list for next iteration
-                    check_summary = check_result.get(
-                        "check_summary", "Fix verification failed"
-                    )
-                    
-                    # combined_input = self._format_execution_trace_input(user_input, result)
-                    # anomaly_result = await self.run_anomaly_check(
-                    #     combined_input, check_summary, context
-                    # )
-
-                    # print(f"Using rule guidance: {anomaly_result['best_rule']}")
-                    # self.guidance = anomaly_result["best_rule"]['guidance']
-
-                    feedback_message_last_checker = (
-                        input_with_env
-                        + f"content : Here is the previous fix logic:\n{result.final_output}"
-                        + f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n"
-                        + f"**Please continue fixing.**\n"
-                        + "role: user"
-                    )
-                    enhance_check_result = await self.run_enhanced_checker(
-                        feedback_message_last_checker, context, result
-                    )
-                    # Add the unfixed check_summary to input_list for next round
-                    feedback_message = {
-                        "content": self._build_enhanced_feedback(
-                            current_turn,
-                            result,
-                            check_result,
-                            check_summary,
-                            enhance_check_result,
-                        ),
-                        "role": "user",
-                    }
-
-                    print(
-                        f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}"
-                    )
-
-                    # feedback_message = {
-                    #     "content": f"Here is the previous fix logic:\n{result.final_output}"
-                    #     f"Here is the current code diff:\n{check_result.get('code_diff', '')}"
-                    #     f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n"
-                    #     f"**Please continue fixing.**",
-                    #     "role": "user",
-                    # }
-                    input_list = [task_message, feedback_message]
+                    break
             except Exception as e:
-                # If checker fails, log error and continue to next round
                 print(f"Fix result checker failed: {e}, stopping verification.")
                 break
 
             current_turn += 1
 
+        # When max turns reached, use selection agent to choose optimal patch from code_patch_list for final fix
+        # if current_turn == max_turns:
+        #     print(f"Reached maximum fix rounds ({max_turns}), starting optimal patch selection for final fix")
+        #     await self._select_and_apply_best_patch(user_input, context, task_message, result)
+
+
+        self.trace_collector.collect_submission_diff(context)
+
+        trace_path_v2 = self.trace_collector.export_to_json_v2("trace_test.json")
+        print(f"successfully export v2 format: {trace_path_v2}")
+
         return result
+
+    def test_best_patch_selection(self, context: CodeAgentContext) -> bool:
+        self.trace_collector.load_from_json(f"/siada-agenthub/trace_test.json")
+        patch_list=self.trace_collector.trace_session.patch_selection.input_patches
+        self.select_agent._apply_selected_patch(patch_list[1], context)
+
+    def struct_user_input(self, user_input: str) -> str:
+        task = f"""
+                **Issue Description:**
+                <task>
+                {user_input}
+                </task>
+                """
+
+        return task
 
     async def run_checker_by_agent(self, user_input: str, context: CodeAgentContext):
 
@@ -183,14 +189,15 @@ class BugFixAgent(CodeGenAgent):
         output = ast.literal_eval(result.final_output)
         return output
 
-    async def run_checker(self, user_input: str, context: CodeAgentContext) -> dict:
+    async def run_checker(self, user_input: str, context: CodeAgentContext, trace_collector: Optional[BugFixTraceCollector] = None) -> dict:
 
         diff_patch = GitDiffUtil.get_git_diff_exclude_test_files(context.root_dir)
 
-        check_result = await self.fix_result_checker.check(
+        check_result = await self.strict_fix_result_checker.check(
             issue_desc=user_input,
             fix_code=diff_patch,
-            context=context
+            context=context,
+            trace_collector=trace_collector
         )
 
         check_result["code_diff"] = diff_patch
@@ -251,7 +258,7 @@ class BugFixAgent(CodeGenAgent):
             context
 
         Returns:
-            Dict包含:
+            Dict including:
             - use_rule_guidance: bool, if rule guidance should be used
             - feedback_message: dict,
             - rule_evaluation_result: dict,
@@ -324,12 +331,10 @@ Please follow the above rule guidance to improve your patch. Focus specifically 
                     "feedback_message": feedback_message,
                     "rule_evaluation_result": rule_evaluation_result,
                     "best_rule": best_rule,
-                    "go_next_turns": True,
+                    "go_next_turns": True
                 }
             else:
-                print(
-                    f"ℹ️ Rule evaluation score too low ({total_score:.1f}) or evaluation failed, using normal flow"
-                )
+                print(f"ℹ️ Rule evaluation score too low ({total_score:.1f}) or evaluation failed, using normal flow")
                 return {
                     "use_rule_guidance": False,
                     "rule_evaluation_result": rule_evaluation_result,
@@ -549,3 +554,95 @@ The previous fix attempt was not sufficient. Please analyze the above feedback a
 
         combined_input = f"{user_input}\n\n## Execution Trace\nThe following is the execution trace from the previous fix attempt:\n{trace_str}"
         return combined_input
+
+    async def _handle_web_framework_check(
+        self,
+        user_input: str,
+        result: RunResult,
+        context: CodeAgentContext,
+        task_message: dict,
+        current_turn: int
+    ) -> tuple[bool, list]:
+        """
+        Handle web framework specific checking logic
+
+        Args:
+            user_int: user input
+            result: Current run result
+            context: Code agent context
+            task_message: Task message
+            current_turn: Current turn number
+
+        Returns:
+            Tuple of (should_break, input_list)
+        """
+        check_result = await self.run_checker(user_input, context, trace_collector=self.trace_collector)
+        enhanced_check_result = await self.run_enhanced_checker(user_input, context, run_result=result)
+        if check_result.get("is_fixed", False):
+            # Issue is fixed, break the loop
+            print(
+                f"Fix_check_result, Issue fixed: {check_result.get('check_summary', 'Fix verified')}"
+            )
+            return True, []
+        else:
+            # Issue not fixed, add the check_summary to input_list for next iteration
+            check_summary = check_result.get(
+                "check_summary", "Fix verification failed"
+            )
+            # if current_turn<3:
+            # feedback_message = {
+            #     "content": f"Here is the previous fix logic:\n{result.final_output}"
+            #             f"Here is the current code diff:\n{check_result.get('code_diff', '')}"
+            #             f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n"
+            #             f"**Please continue fixing.**",
+            #     "role": "user"
+            # }
+            # else:
+            #     feedback_message = {
+            #         "content": f"Here is the previous fix logic:\n{result.final_output}"
+            #                 f"Here is the current code diff:\n{check_result.get('code_diff', '')}"
+            #                 f"But previous fix attempt was not sufficient. Reason: {check_summary}.\n"
+            #                 f"**Please use git to discard changes in the working, and continue fixing.**",
+            #         "role": "user"
+            #     }
+            self.code_patch_list.append(check_result.get('code_diff', ''))
+            enhanced_feedback_content = self._build_enhanced_feedback(
+                current_turn, result, check_result, check_summary, enhanced_check_result
+            )
+
+            print(
+                f"Fix_check_result, Issue not fixed, continue fixing (round {current_turn + 1}): {check_summary}"
+            )
+            feedback_message = {
+                "content": enhanced_feedback_content,
+                "role": "user"
+            }
+
+            input_list = [task_message, feedback_message]
+            return False, input_list
+
+    async def _select_and_apply_best_patch(
+        self,
+        user_input: str,
+        context: CodeAgentContext,
+        task_message: dict,
+        last_result: RunResult
+    ) -> None:
+        """
+        Delegate patch selection and application to SelectAgent
+
+        Args:
+            user_input: User input problem description
+            context: Code agent context
+            task_message: Task message
+            last_result: Last run result
+        """
+        # Use SelectAgent to handle patch selection and application
+        success = await self.select_agent.select_and_apply_best_patch(
+            user_input, context, self.code_patch_list, trace_collector=self.trace_collector
+        )
+
+        if success:
+            print("SelectAgent successfully applied the optimal patch")
+        else:
+            print("SelectAgent was unable to apply any patch")

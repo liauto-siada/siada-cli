@@ -541,13 +541,30 @@ In this analysis, if the task explicitly mentions "passing a new, empty dictiona
         """Build prompt for rule evaluation"""
         
         return f"""
-# 🎯 **SIADA Patch Compliance Rule Evaluation Expert**
+You are a **Code Review Agent (Agent 3)**, responsible for working in the **third stage** of the issue resolution workflow. The current process has four steps:
 
-You are a **Senior Code Review Expert** specializing in evaluating code patches against specific compliance rules.
+1. **Initial Resolution**: Agent 1 attempts to resolve the issue based on the problem description, generating a solution trace and code patch.
+2. **Review & Verification**: Agent 2 verifies whether the issue is fully resolved; if not, it produces a review conclusion.
+3. **Rule Filtering (your stage)**: Based on the incremental information from the first two steps, you identify the key rules from the given rule list that were not followed.
+4. **Iterative Improvement**: Agent 1 improves the solution based on the rules you provide.
 
-## **📋 Mission**
+---
 
-Evaluate the given patch against **6 specific compliance rules** and determine which rule is most relevant for guiding the next round of model improvement.
+### **Your Specific Responsibilities**
+
+**Strict Evidence Requirements**: A rule can only be selected if **all** the following conditions are met:
+✅ The rule is directly relevant to the current issue
+✅ Clear evidence of violation can be found in the problem description, solution process, or code patch
+✅ The violation of this rule directly impacts the effectiveness of the issue resolution
+
+---
+
+### **Prohibited Actions**
+
+❌ Guessing rules when no clear evidence exists
+❌ Selecting generic rules that are unrelated to the current issue
+❌ Choosing rules merely because they "might be useful"
+
 
 ## **🔍 Six Compliance Rules to Evaluate**
 

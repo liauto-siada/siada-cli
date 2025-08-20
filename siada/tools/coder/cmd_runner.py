@@ -7,6 +7,9 @@ from io import BytesIO
 import pexpect
 import psutil
 
+# Global timeout for command execution (in seconds)
+COMMAND_TIMEOUT = 60
+
 
 def run_cmd_impl(command, verbose=False, cwd=None, error_print=None):
     try:
@@ -72,16 +75,50 @@ def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.enc
             cwd=cwd,
         )
 
+        import time
         output = []
-        while True:
-            chunk = process.stdout.read(1)
-            if not chunk:
-                break
-            # print(chunk, end="", flush=True)  # Print the chunk in real-time
-            output.append(chunk)  # Store the chunk for later use
+        start_time = time.time()
+        
+        try:
+            while True:
+                # Check for timeout
+                if time.time() - start_time > COMMAND_TIMEOUT:
+                    process.kill()
+                    process.wait()
+                    return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
+                
+                # Check if process has finished
+                if process.poll() is not None:
+                    # Read any remaining output
+                    remaining = process.stdout.read()
+                    if remaining:
+                        output.append(remaining)
+                    break
+                
+                # Try to read one character with a short timeout
+                try:
+                    chunk = process.stdout.read(1)
+                    if chunk:
+                        output.append(chunk)
+                        # print(chunk, end="", flush=True)  # Print the chunk in real-time
+                    else:
+                        # No data available, sleep briefly to avoid busy waiting
+                        time.sleep(0.01)
+                except Exception:
+                    # Handle any read errors
+                    time.sleep(0.01)
 
-        process.wait()
-        return process.returncode, "".join(output)
+            return process.returncode, "".join(output)
+        finally:
+            # Ensure the process and its streams are properly closed
+            try:
+                if process.stdout:
+                    process.stdout.close()
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait()
+            except Exception:
+                pass
     except Exception as e:
         return 1, str(e)
 

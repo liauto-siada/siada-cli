@@ -46,7 +46,6 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, is_minimal:bool=Fal
 
 - You are not allowed to ask questions to the user, generate commands requiring user input, or any other similar interactions. Each task must be completed independently. 
 - Avoid retrieving previous code versions via Git to infer the cause of the issue — the current version provides sufficient information for diagnosis.
-
 {minimal_rules}
 
 ====

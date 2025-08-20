@@ -118,11 +118,12 @@ class LoggerTracingProcessor(TracingProcessor):
                 if self.console_output:
                     print(f"Warning: Failed to write to file {self.output_file}: {e}")
     
-    def _truncate_content(self, content: str, max_length: int = 2000) -> str:
+    def _truncate_content(self, content: str, max_length: int = 8000) -> str:
         """Truncate overly long content"""
         if len(content) <= max_length:
             return content
-        return content[:max_length] + "..."
+        # return content[:max_length] + "..."
+        return content
     
     def _format_timestamp(self) -> str:
         """Format timestamp"""
