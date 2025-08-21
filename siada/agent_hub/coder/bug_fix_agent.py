@@ -8,7 +8,7 @@ from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.issue_review_agent import IssueReviewAgent
 from siada.agent_hub.coder.prompt.bug_prompt import bug_fix_prompt
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 from siada.foundation.tools.get_git_diff import GitDiffUtil
 from siada.services.fix_result_check import FixResultChecker
 from siada.services.execution_trace_collector import ExecutionTrace, ModelCall, ToolCall

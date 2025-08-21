@@ -1,15 +1,14 @@
 """
-Run Turn Module
+Conversation Turn Module
 
-Manages individual interaction turns between user and AI, including command processing
-and model conversations. Encapsulates the logic for a single interaction cycle.
+Handles AI conversation turns including streaming responses and tool calls.
 """
 
-import grep_ast
 from siada.foundation.logging import logger
 import re
 import siada.io.components.mdstream
-from typing import Optional, Dict, Any, Tuple
+import stat
+from typing import List, Optional, Dict, Any, Tuple
 
 from agents import (
     RawResponsesStreamEvent,
@@ -24,13 +23,12 @@ from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 
 # Import existing InteractionConfig
-from ..config import RunningConfig
+from ..running_config import RunningConfig
 
 # Import models and interface from the same directory
 from .models import TurnType, TurnInput, TurnOutput
 from .interface import RunTurn
-from rich.markdown import Markdown
-from rich.text import Text
+from agents import ItemHelpers
 
 
 # Standard tag identifier
@@ -112,6 +110,7 @@ class ConversationTurn(RunTurn):
         text = re.sub(r'\s?</thinking>', '', text)
 
         return text
+
     tool_calls: Dict[str, Dict[str, Any]] = None
     tool_call_mdstreams: Dict[str, siada.io.components.mdstream.MarkdownRender] = None
     response_content: str = None
@@ -191,8 +190,10 @@ class ConversationTurn(RunTurn):
     def get_turn_type(self) -> TurnType:
         return TurnType.CONVERSATION
 
-    def can_handle(self, user_input: str) -> bool:
+    def can_handle(self, user_input: str | List[Any]) -> bool:
         """Handle non-command input"""
+        if isinstance(user_input, list):
+            return True
         return not self.slash_commands.is_command(user_input)
 
     async def output_stream_content(self, result: RunResultStreaming) -> None:
@@ -210,7 +211,6 @@ class ConversationTurn(RunTurn):
             ResponseOutputItemDoneEvent,
             ResponseContentPartDoneEvent,
         )
-        from openai.types.responses.response_input_item_param import FunctionCallOutput
 
         stream_iterator = None
         try:
@@ -507,20 +507,38 @@ class ConversationTurn(RunTurn):
             from siada.services.siada_runner import SiadaRunner
             import asyncio
 
+            result: RunResultStreaming = None
+
             # Define async execution logic
             async def _async_execute():
-                # Recording Users' usage of agents
                 telemetry.captureAgentUsage(agent_name=self.config.agent_name)
-                # Run agent for conversation
-                result: RunResultStreaming = await SiadaRunner.run_agent(
-                    agent_name=self.config.agent_name,
-                    user_input=turn_input.use_input,
-                    workspace=self.config.workspace,
-                    session=self.session,
-                    stream=True,
-                )
+                try:
+                    user_input = turn_input.use_input
+                    # assemble input list for agent
+                    old_items = await self.session.state.openai_session.get_items()
+                    if old_items and len(old_items) > 0:
+                        input_list = old_items + ItemHelpers.input_to_new_input_list(
+                            turn_input.use_input
+                        )
+                        user_input = input_list
 
-                await self.output_stream_content(result)
+                    # Run agent for conversation
+                    result = await SiadaRunner.run_agent(
+                        agent_name=self.config.agent_name,
+                        user_input=user_input,
+                        workspace=self.config.workspace,
+                        session=self.session,
+                        stream=True,
+                    )
+
+                    await self.output_stream_content(result)
+
+                    # Sync messages from openai_session to task_message_state after agent run
+                    # await self.session.state.sync_messages_from_openai_session()
+
+                finally:
+                    if result:
+                        await self.session.state.openai_session.reset_items(result.to_input_list())
                 return result
 
             # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
@@ -564,7 +582,7 @@ class ConversationTurn(RunTurn):
         )
         mdStream = siada.io.components.mdstream.MarkdownRender(mdargs=mdargs)
         return mdStream
-    
+
     def _stop_waiting_spinner(self):
         """Stop and clear the waiting spinner if it is running."""
         spinner = getattr(self, "spinner", None)
@@ -573,72 +591,3 @@ class ConversationTurn(RunTurn):
                 spinner.stop()
             finally:
                 self.spinner = None
-
-
-class CommandTurn(RunTurn):
-    """Handles slash command turns"""
-
-    def get_turn_type(self) -> TurnType:
-        return TurnType.COMMAND
-
-    def can_handle(self, user_input: str) -> bool:
-        """Handle slash commands"""
-        return self.slash_commands.is_command(user_input)
-
-    def execute(self, turn_input: TurnInput) -> TurnOutput:
-        """Execute slash command
-
-        Args:
-            turn_input: Command input
-
-        Returns:
-            TurnOutput: Command result
-        """
-        self.input_data = turn_input
-        self.start_time = self._get_timestamp()
-
-        try:
-            result = self.slash_commands.run(self.session, turn_input.use_input)
-            self.end_time = self._get_timestamp()
-
-            output = TurnOutput(
-                output=result,
-                metadata={"execution_time": self.end_time - self.start_time},
-                next_action=None,
-            )
-
-            return output
-
-        except Exception as e:
-            self.end_time = self._get_timestamp()
-            return self.handle_error(e)
-
-
-class TurnFactory:
-    """Factory for creating appropriate turn instances"""
-
-    @staticmethod
-    def create_turn(
-        config: RunningConfig, session: Any, slash_commands: Any, user_input: str
-    ) -> RunTurn:
-        """Create appropriate turn for user input
-
-        Args:
-            user_input: Raw user input
-
-        Returns:
-            RunTurn: Appropriate turn handler
-        """
-        # Always create new instances to avoid state pollution
-        turn_types = [
-            CommandTurn,
-            ConversationTurn,
-        ]
-
-        for turn_class in turn_types:
-            # Create a temporary instance to test if it can handle the input
-            temp_turn = turn_class(config, session, slash_commands)
-            if temp_turn.can_handle(user_input):
-                return temp_turn
-
-        raise ValueError(f"No turn can handle the input: {user_input}")

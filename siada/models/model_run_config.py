@@ -18,7 +18,6 @@ class ModelRunConfig(ModelBaseConfig):
     provider: Optional[str] = None
 
 
-
     def __init__(self, model): 
         self.configure_model_settings(model)
 
@@ -70,11 +69,6 @@ class ModelRunConfig(ModelBaseConfig):
         """Get reasoning effort value if available"""
         return self.reasoning_effort
     
-
-    def set_reasoning_effort(self, effort):
-        """Set the reasoning effort parameter for models that support it"""
-        if effort is not None:
-            self.reasoning_effort = effort
     
 
     def set_thinking_tokens(self, value):

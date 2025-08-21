@@ -4,15 +4,16 @@ Code Generation Agent Module
 Provides specialized Agent implementation for code generation tasks.
 """
 import os
+from typing import List
 
-from agents import RunContextWrapper, RunResult, RunResultStreaming
+from agents import RunContextWrapper, RunResult, RunResultStreaming, TResponseInputItem
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 from siada.agent_hub.coder.prompt import code_gen_prompt
 from siada.services.handle_at_command import handle_at_command
 import logging
@@ -50,7 +51,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
     async def get_context(self) -> CodeAgentContext:
         current_working_dir = os.getcwd()
         interactive_mode = self.get_interactive_mode()
-            
+
         context = CodeAgentContext(
             root_dir=current_working_dir,
             interactive_mode=interactive_mode
@@ -72,23 +73,23 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             # Check if input contains @ commands
             if '@' not in user_input:
                 return user_input
-            
+
             # Create configuration object for at command processing
             class AtCommandConfig:
                 def __init__(self, root_dir: str):
                     self.root_dir = root_dir
-            
+
             config = AtCommandConfig(context.root_dir)
-            
+
             # Create callback functions
             def add_item(item, message_id):
                 # Log the item for debugging
                 logging.debug(f"AtCommand item added: {item}")
-            
+
             def on_debug_message(message):
                 # Log debug messages
                 logging.debug(f"AtCommand debug: {message}")
-            
+
             # Process at commands
             result = await handle_at_command(
                 query=user_input,
@@ -97,19 +98,19 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
                 on_debug_message=on_debug_message,
                 message_id=1
             )
-            
+
             if result.should_proceed and result.processed_query:
                 # Combine all text parts from processed query
                 processed_text = ""
                 for part in result.processed_query:
                     if isinstance(part, dict) and 'text' in part:
                         processed_text += part['text']
-                
+
                 return processed_text.strip() if processed_text else user_input
             else:
                 # If processing failed, return original input
                 return user_input
-                
+
         except Exception as e:
             # If any error occurs, log it and return original input
             logging.warning(f"Failed to process @ commands: {e}")
@@ -128,7 +129,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
         # Process @ commands first
         processed_input = await self.process_at_commands(user_input, context)
-        
+
         input_with_env = self.assemble_user_input(processed_input, context)
         result = await self.run_impl(
             starting_agent=self,
@@ -154,7 +155,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
         # Process @ commands first
         processed_input = await self.process_at_commands(user_input, context)
-        
+
         input_with_env = self.assemble_user_input(processed_input, context)
         result = await self.run_streamed_impl(
             starting_agent=self,
@@ -165,8 +166,12 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
         return result
 
-    def assemble_user_input(self, user_input: str, context: CodeAgentContext) -> str:
-        task = f'<task>\n{user_input}\n</task>'
+    def assemble_user_input(
+        self, user_input: str | List[TResponseInputItem], context: CodeAgentContext
+    ) -> any:
+        if isinstance(user_input, list):
+            return user_input
+        task = f"<task>\n{user_input}\n</task>"
         return task
         # repo_map_content = self.generate_repo_map(context)
 

@@ -2,8 +2,6 @@
 
 import argparse
 import os
-import sys
-from pathlib import Path
 
 import configargparse
 import shtab
@@ -176,6 +174,14 @@ def get_parser(default_config_files, git_root):
         action="version",
         version=f"%(prog)s {__version__}",
         help="Show the version number and exit",
+    )
+    #####
+    group = parser.add_argument_group("Checkpointing settings")
+    group.add_argument(
+        "--checkpointing",
+        action="store_true",
+        help="Enable checkpointing (default: False)",
+        default=False,
     )
 
     ######

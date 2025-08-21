@@ -11,7 +11,7 @@ def get_log_directory():
     """
     Get log directory with the following priority:
     - Development mode: Project root ./logs (detected by pyproject.toml)
-    - 1. Environment variable SIADAHUB_LOG_DIR
+    - 1. Environment variable SIADA_CLI_LOG_DIR
     - 2. User home directory ~/.siada-cli/logs
     - 3. XDG cache directory ~/.cache/siada-cli/logs  
     - 4. System temp directory /tmp/siada-cli/logs
@@ -24,7 +24,7 @@ def get_log_directory():
             return dev_log_dir
     
     # 1. Check environment variable
-    if env_log_dir := os.getenv('SIADAHUB_LOG_DIR'):
+    if env_log_dir := os.getenv('SIADA_CLI_LOG_DIR'):
         log_dir = Path(env_log_dir)
         if _ensure_log_dir(log_dir):
             return str(log_dir)
@@ -54,13 +54,13 @@ def get_log_directory():
 def _is_development_mode():
     """
     Detect if running in development mode by checking environment variables:
-    - SIADAHUB_ENV=development
+    - SIADA_CLI_ENV=development
     - SIADA_ENV=dev/development
     - DEVELOPMENT=true/1/yes
     """
     # Check specific environment variables
     env_vars = [
-        ('SIADAHUB_ENV', ['development', 'dev']),
+        ('SIADA_CLI_ENV', ['development', 'dev']),
         ('SIADA_ENV', ['development', 'dev']),
         ('DEVELOPMENT', ['true', '1', 'yes']),
     ]

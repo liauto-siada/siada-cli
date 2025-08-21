@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 from openai.types.chat import ChatCompletionMessageParam
 
 from siada.provider.client_factory import get_client_with_kwargs
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 from siada.services.execution_trace_collector import ExecutionTrace
 
 

@@ -1,25 +1,25 @@
 import json
 import os
 import sys
+import time
 from dataclasses import fields
-from pathlib import Path
 import warnings
 
 from prompt_toolkit.completion import Completer
 
 from siada.config.config_loader import Config, load_conf
 from siada.entrypoint.args_parser.args import get_parser
-from siada.entrypoint.interaction.config import RunningConfig
+from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.entrypoint.interaction.controller import Controller
 from siada.entrypoint.interaction.nointeractive_controller import NoInteractiveController
 from siada.foundation.logging import toggle_console_output, logger
 from siada.io.color_settings import RunningConfigColorSettings
 from siada.models.model_run_config import ModelRunConfig
-from siada.models.model_base_config import ModelBaseConfig
+from siada.session.session_manager import RunningSessionManager
 from siada.support.completer import AutoCompleter
-from siada.support.slash_commands import SlashCommands, SwitchEvent
 from siada.support.envprocessor import load_dotenv_files
 from siada.support.repo import get_git_root
+from siada.support.slash_commands import SlashCommands
 from siada.utils import SettingsUtils
 from siada.io.io import InputOutput
 from siada.services.siada_memory import load_siada_memory
@@ -30,10 +30,9 @@ try:
 except ImportError:
     git = None
 
-import shtab
-from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
 from siada.services.model_info_service import ModelInfoService
+from siada.support.checkpoint_tracker import create_checkpoint_tracker
 
 
 def _suppress_third_party_warnings():
@@ -225,6 +224,30 @@ def get_workspace(workspace_arg, git_root):
     return workspace
 
 
+def validate_agent_compatibility(agent_name, interactive_mode, io, verbose=False):
+    """
+    Validate agent compatibility with the execution mode
+
+    Args:
+        agent_name: Name of the agent to validate
+        interactive_mode: Whether running in interactive mode
+        io: InputOutput instance for displaying messages
+        verbose: Whether to show verbose warnings
+    """
+    from siada.config.agent_config_loader import load_agent_config
+    agent_config_collection = load_agent_config()
+    agent_config = agent_config_collection.get_agent_config(agent_name)
+
+    if agent_config and agent_config.supported_modes == "non_interactive" and interactive_mode:
+        io.print_error(f"Agent '{agent_name}' only supports non-interactive mode, but current execution is in interactive mode.")
+        io.print_info("Please use --prompt (-p) option to run in non-interactive mode.")
+        sys.exit(1)
+    elif agent_config and agent_config.supported_modes == "interactive" and not interactive_mode:
+        io.print_error(f"Agent '{agent_name}' only supports interactive mode, but current execution is in non-interactive mode.")
+        io.print_info("Please remove --prompt (-p) option to run in interactive mode.")
+        sys.exit(1)
+
+
 def show_banner(io):
     """
     Display SIADA HUB banner with error handling
@@ -325,9 +348,6 @@ def main():
     # Suppress harmless warnings from third-party libraries
     _suppress_third_party_warnings()
 
-    # Configure litellm globally to suppress debug logs
-    _configure_litellm_logging()
-    
     conf: Config = load_conf()
 
     argv = sys.argv[1:]
@@ -375,7 +395,7 @@ def main():
 
     if model is None:
         return 0
-    
+
     if args.just_check_update:
         update_available = version_checker.check_version(io, just_check=True, verbose=args.verbose)
         return 0 if not update_available else 1
@@ -393,15 +413,21 @@ def main():
         editor=args.editor,
     )
 
+    session_id = str(int(time.time() * 1000))
+
     completer: Completer = AutoCompleter(
         root=workspace,
         commands=commands,
         encoding=args.encoding,
+        session_id=session_id
     )
+
+    # get the enable_checkpointing flag
+    enable_checkpointing = args.checkpointing if interactive_mode else False
 
     # Load user memory from siada.md file
     user_memory = load_siada_memory(workspace)
-    
+
     running_config = RunningConfig(
         llm_config=model,
         io=io,
@@ -413,34 +439,31 @@ def main():
         interactive=interactive_mode,
         user_memory=user_memory,
     )
-    
+
+    # create session
+    session = RunningSessionManager.create_session(
+        siada_config=running_config,
+        session_id=session_id
+    )
+
+    if enable_checkpointing:
+        session.checkpoint_tracker = create_checkpoint_tracker(
+            cwd=workspace, session_id=session_id
+        )
+
     # Validate agent compatibility with interactive mode
-    try:
-        from siada.config.agent_config_loader import load_agent_config
-        agent_config_collection = load_agent_config()
-        agent_config = agent_config_collection.get_agent_config(args.agent)
-        
-        if agent_config and agent_config.supported_modes == "non_interactive" and interactive_mode:
-            io.print_error(f"Agent '{args.agent}' only supports non-interactive mode, but current execution is in interactive mode.")
-            io.print_info(f"Please use --prompt (-p) option to run in non-interactive mode.")
-            return 1
-        elif agent_config and agent_config.supported_modes == "interactive" and not interactive_mode:
-            io.print_error(f"Agent '{args.agent}' only supports interactive mode, but current execution is in non-interactive mode.")
-            io.print_info(f"Please remove --prompt (-p) option to run in interactive mode.")
-            return 1
-    except Exception as e:
-        # If validation fails, only log warning without blocking program execution
-        if args.verbose:
-            io.print_warning(f"Warning: Failed to validate agent compatibility: {e}")
-    
+    validate_agent_compatibility(args.agent, interactive_mode, io, args.verbose)
+
     show_banner(io)
 
     if not interactive_mode:
-        controller = NoInteractiveController(running_config)
+        controller = NoInteractiveController(config=running_config, session=session)
         controller.run(args.prompt)
         return 0
 
-    controller = Controller(running_config, commands)
+    controller = Controller(
+        config=running_config, slash_commands=commands, session=session
+    )
     controller.show_announcements()
     controller.run()
 

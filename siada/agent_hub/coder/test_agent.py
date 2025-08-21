@@ -17,7 +17,7 @@ from siada.tools.coder.test_completion import test_completion
 from siada.agent_hub.coder.prompt import test_prompt
 from siada.agent_hub.coder.tracing import create_detailed_logger
 import logging
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 
 logging.getLogger().setLevel(logging.INFO)
 

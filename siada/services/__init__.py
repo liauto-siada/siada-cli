@@ -18,6 +18,13 @@ from .file_recommendation import (
     DEFAULT_COMPLETION_CONFIG
 )
 
+from .git_service import (
+    GitService,
+    GitServiceError
+)
+
+from .file_session import FileSession
+
 __all__ = [
     'AtCommandProcessor',
     'HandleAtCommandParams', 
@@ -26,5 +33,8 @@ __all__ = [
     'FileRecommendationEngine',
     'CompletionConfig',
     'FilterOptions',
-    'DEFAULT_COMPLETION_CONFIG'
+    'DEFAULT_COMPLETION_CONFIG',
+    'GitService',
+    'GitServiceError',
+    'FileSession'
 ]

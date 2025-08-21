@@ -4,21 +4,31 @@ import yaml
 import os
 
 from agents import Agent, RunConfig, RunHooks, RunResult, RunResultStreaming, Runner, TContext, TResponseInputItem, set_trace_processors
-from siada.agent_hub.coder.tracing.logger_tracing_processor import create_detailed_logger
-from siada.foundation.code_agent_context import CodeAgentContext
+from siada.agent_hub.hooks.context_capture_filter import context_capture_filter
+from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
 from siada.models.converter import ModelSettingsConverter
 from siada.provider.provider_factory import get_provider
 from siada.services.input_processor import process_input
 from siada.services.model_wrapper import ModelProviderWrapper
 from siada.session import RunningSessionManager
-from siada.tools.coder.ask_followup_question import ask_followup_question
 from siada.tools.coder.repo_map.repo_map import RepoMap
 from siada.tools.coder.repo_map.token_counter import TokenCounterModel
 from siada.tools.coder.repo_map.io import SilentIO
 
-import logging
+from siada.foundation.logging import logger as logging
+from siada.agent_hub.hooks.siada_agent_hooks import SiadaAgentHooks
 
 class SiadaAgent(Agent[Generic[TContext]], ABC):
+
+    def __init__(self, *args, **kwargs):
+
+        if 'hooks' not in kwargs:
+            kwargs['hooks'] = SiadaAgentHooks()
+
+        super().__init__(
+            *args,
+            **kwargs
+        )
 
     @abstractmethod
     async def get_context(self) -> TContext:
@@ -60,12 +70,12 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
 
     def get_interactive_mode(self) -> bool:
         """
-        获取当前的交互模式状态
+        Get the current interactive mode status
         
         Returns:
-            bool: True为交互模式，False为非交互模式
+            bool: True for interactive mode, False for non-interactive mode
         """
-        # 检查是否有--prompt参数，如果有则为非交互模式
+        # Check if there's a --prompt argument, if so it's non-interactive mode
         import sys
         return '--prompt' not in sys.argv and '-p' not in sys.argv
 
@@ -136,7 +146,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             # If creation fails, return None
             return None
 
-    async def prepare_run_environment(
+    async def prepare_run_config_and_session(
         self,
         context: TContext | None = None,
     ):
@@ -167,7 +177,8 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             tracing_disabled=running_session.siada_config.tracing_disabled,
             model=llm_config.model_name,
             model_provider=provider_wrapper,
-            model_settings=model_settings
+            model_settings=model_settings,
+            call_model_input_filter=context_capture_filter
         )
 
         session = running_session.state.openai_session
@@ -183,7 +194,11 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         previous_response_id: str | None = None,
     ) -> RunResult:
 
-        run_config, session = await self.prepare_run_environment(context)
+        run_config, session = await self.prepare_run_config_and_session(context)
+        
+        # Use SiadaAgentHooks with default processors if no hooks provided
+        if hooks is None:
+            hooks = SiadaRunHooks()
 
         return await Runner.run(
             starting_agent=starting_agent,
@@ -193,7 +208,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             hooks=hooks,
             run_config=run_config,
             previous_response_id=previous_response_id,
-            session=session,
+            session=None,
         )
 
     async def run_streamed_impl(
@@ -207,7 +222,11 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         previous_response_id: str | None = None,
     ) -> RunResultStreaming:
 
-        run_config, session = await self.prepare_run_environment(context)
+        run_config, session = await self.prepare_run_config_and_session(context)
+        
+        # Use SiadaAgentHooks with default processors if no hooks provided
+        if hooks is None:
+            hooks = SiadaRunHooks()
 
         return Runner.run_streamed(
             starting_agent=starting_agent,
@@ -217,5 +236,5 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             hooks=hooks,
             run_config=run_config,
             previous_response_id=previous_response_id,
-            session=session,
+            session=None,
         )

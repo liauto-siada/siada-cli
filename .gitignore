@@ -25,3 +25,4 @@ screenshots/
 patch_diff_analysis.ipynb
 *.csv
 patch_analysis_summary.txt
+.aider*

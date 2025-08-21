@@ -1,10 +1,10 @@
 """
-Agent模块
+Agent Module
 
-提供预定义的Agent实例和初始化功能
+Provides predefined Agent instances and initialization functionality
 """
 from typing import Dict, Any
 
 
-# 存储创建的Agent，key是agent名称，value是agent实例
+# Store created Agents, key is agent name, value is agent instance
 agent_map: Dict[str, Any] = {}

@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 from openai.types.chat import ChatCompletionMessageParam
 
 from siada.provider.client_factory import get_client_with_kwargs
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 
 logger = logging.getLogger(__name__)
 

@@ -5,34 +5,34 @@ from typing import Optional, ClassVar
 
 class Settings(BaseSettings):
     """
-    应用配置类
+    Application configuration class
     
-    使用pydantic_settings管理配置，支持从环境变量加载
+    Manages configuration using pydantic_settings, supports loading from environment variables
     """
-    # 应用基本信息
+    # Application basic information
     APP_NAME: str = "Siada API"
     APP_VERSION: str = "0.1.0"
-    APP_DESCRIPTION: str = "提供Siada agent对外的RPC能力"
+    APP_DESCRIPTION: str = "Provides RPC capabilities for Siada agent"
 
-    # API配置
+    # API configuration
     API_PREFIX: str = "/api/v1"
 
-    # 服务器配置
+    # Server configuration
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     RELOAD: bool = True
 
-    # 日志配置
+    # Logging configuration
     LOG_LEVEL: str = "INFO"
 
-    # OpenAI API配置
+    # OpenAI API configuration
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_API_BASE: Optional[str] = None
     OPENAI_API_VERSION: Optional[str] = None
     OPENAI_API_TYPE: Optional[str] = None
     OPENAI_ORGANIZATION: Optional[str] = None
 
-    # Agent配置
+    # Agent configuration
     Claude_4_0_SONNET: str = "claude-sonnet-4"
     Gemini_2_5_PRO: str = "gemini-2.5-pro"
     Deepseek_V3_0324: str = "deepseek-v3-0324"
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = Claude_4_0_SONNET
 
 
-    # 将RunConfig设置为ClassVar，这样它不会被包含在模型验证中
+    # Set RunConfig as ClassVar so it won't be included in model validation
     _DEFAULT_RUN_CONFIG: ClassVar[agents.RunConfig] = None
 
     class Config:
@@ -50,10 +50,10 @@ class Settings(BaseSettings):
         case_sensitive = True
 
     class Constants:
-        # Agent名称
+        # Agent name
         JANK_PROBLEM_AGENT_NAME: str = "JankProblemAgent"
 
 
-# 创建全局设置对象
+# Create global settings object
 settings = Settings()
-settings.model_rebuild()  # 确保模型完全构建
+settings.model_rebuild()  # Ensure model is fully built

@@ -1,14 +1,12 @@
 from typing import Optional
 import logging
-from uuid import uuid4
+import time
 
-from siada.entrypoint.interaction.config import RunningConfig
+from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
-from siada.support.slash_commands import SlashCommands
 
-from .session_models import RunningSession, SessionState
-from siada.models.model_base_config import ModelBaseConfig
+from .session_models import RunningSession
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +28,10 @@ class RunningSessionManager:
         Returns:
             Session: Created session object
         """
-        # Use provided session_id or generate new UUID
+        # Use provided session_id or generate timestamp-based ID
         if session_id is None:
-            session_id = str(uuid4())
+            # Generate session_id as current timestamp in milliseconds (13 digits)
+            session_id = str(int(time.time() * 1000))
         
         # Create interaction session
         session = RunningSession(
@@ -40,14 +39,17 @@ class RunningSessionManager:
             siada_config=siada_config,
         )
         
-        # Create associated OpenAI SQLiteSession with same ID
-        from agents import SQLiteSession
+        # Create associated FileSession with same ID
+        from siada.services.file_session import FileSession
+        from siada.utils import DirectoryUtils
         
-        # Create OpenAI Session
-        openai_session = SQLiteSession(
+        # Create File Session with proper sessions directory
+        sessions_dir = DirectoryUtils.get_global_sessions_dir(siada_config.workspace)
+        file_session = FileSession(
             session_id=session_id,  # Use same ID
+            sessions_dir=sessions_dir,
         )
-        session.state.openai_session = openai_session
+        session.state.openai_session = file_session
         return session
 
     @staticmethod

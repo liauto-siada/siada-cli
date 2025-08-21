@@ -1,26 +1,23 @@
 import asyncio
-from unittest import result
-from siada.entrypoint.interaction.config import RunningConfig
+from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.services.siada_runner import SiadaRunner
-from siada.session.session_manager import RunningSessionManager
+from siada.session.session_models import RunningSession
 
 
 class NoInteractiveController:
     """Controls user-AI coding interactions and manages coder lifecycle"""
 
-    def __init__(self, config: RunningConfig):
+    def __init__(self, config: RunningConfig, session: RunningSession):
         self.config = config
+        self.session = session
 
     def run(self, user_input: str) -> int:
-        session = RunningSessionManager.create_session(
-            siada_config=self.config,
-        )
         result = asyncio.run(
             SiadaRunner.run_agent(
                 agent_name=self.config.agent_name,
                 user_input=user_input,
                 workspace=self.config.workspace,
-                session=session,
+                session=self.session,
             )
         )
         self.config.io.print(result)

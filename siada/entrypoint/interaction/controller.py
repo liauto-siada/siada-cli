@@ -5,48 +5,59 @@ Manages the AI coding interaction lifecycle and controls the main interaction fl
 Separates core interaction logic from main entry point for better code organization.
 """
 
-from dataclasses import dataclass
-
-import siada.support.completer
+from siada.session.session_models import RunningSession
 from siada import __version__
-from siada.entrypoint.interaction.config import RunningConfig
-from siada.entrypoint.interaction.turn.run_turn import TurnFactory, TurnInput
-from siada.io.io import InputOutput
-from siada.models.model_run_config import ModelRunConfig
-from siada.session.session_manager import RunningSessionManager
+from siada.entrypoint.interaction.running_config import RunningConfig
+from siada.entrypoint.interaction.turn import TurnFactory, TurnInput
 from siada.support.slash_commands import SlashCommands, SwitchEvent
 from rich.console import Console
 
-import time
 import sys
 
 
 class Controller:
     """Controls user-AI coding interactions and manages coder lifecycle"""
 
-    def __init__(self, config: RunningConfig, slash_commands: SlashCommands, shell_mode: bool = False):
+    def __init__(
+        self,
+        config: RunningConfig,
+        slash_commands: SlashCommands,
+        shell_mode: bool = False,
+        session: RunningSession = None,
+    ):
         self.config = config
         self.slash_commands = slash_commands
         self.shell_mode = shell_mode
         self.last_keyboard_interrupt = None
+        self.session = session
 
     def run(self) -> int:
-        session = RunningSessionManager.create_session(
-            siada_config=self.config,
-        )
+        session = self.session
         display_rule = True
         pending_input = None  # Pending input to process in next iteration
-        
+        restored_history = None
+
         while True:
             try:
                 # Check if there's pending input to process
-                if pending_input:
+                if restored_history:
+                    user_input = restored_history
+                    restored_history = None
+                    # After restoration, set tool_choice to "none" to prevent the LLM from 
+                    # attempting to invoke functions automatically. This ensures the user 
+                    # can provide new instructions before the conversation continues.
+                    if not self.config.llm_config.extra_params:
+                        self.config.llm_config.extra_params = {}
+                        self.config.llm_config.extra_params["tool_choice"] = "none"
+                elif pending_input:
                     user_input = pending_input
                     pending_input = None
                 else:
                     # Get user input normally
                     user_input = self.config.io.get_input(
-                        completer=self.config.completer if not self.shell_mode else None,
+                        completer=(
+                            self.config.completer if not self.shell_mode else None
+                        ),
                         display_rule=display_rule,
                         color=(
                             self.config.running_color_settings.user_input_color
@@ -54,41 +65,45 @@ class Controller:
                             else self.config.running_color_settings.shell_model_color
                         ),
                     )
+                if isinstance(user_input, str):
+                    display_rule = True
+                    if user_input.strip() == "":
+                        display_rule = False
+                        continue
 
-                display_rule = True
-                if user_input.strip() == "":
-                    display_rule = False
-                    continue
+                    if self.shell_mode and user_input.strip() in ["exit", "quit"]:
+                        # exit the shell mode
+                        self.shell_mode = False
+                        self.config.io.print_info("Switching to agent mode...")
+                        continue
 
-                if self.shell_mode and user_input.strip() in ["exit", "quit"]:
-                    # exit the shell mode
-                    self.shell_mode = False
-                    self.config.io.print_info("Switching to agent mode...")
-                    continue
-
-                if self.shell_mode:
-                    user_input = f"!{user_input}"
+                    # Add shell command prefix in shell mode
+                    if self.shell_mode:
+                        user_input = f"!{user_input}"
 
                 turn = TurnFactory.create_turn(
                     self.config, session, self.slash_commands, user_input
                 )
                 turn_output = turn.execute(TurnInput(use_input=user_input))
 
+                # reset the tool_choice to "auto" after each turn
+                if (self.config.llm_config.extra_params
+                    and "tool_choice" in self.config.llm_config.extra_params): 
+                    self.config.llm_config.extra_params["tool_choice"] = "auto"
+
+
                 if isinstance(turn_output.output, SwitchEvent):
-                    if turn_output.output.kwargs.get("agent"):
-
-                        self.config.agent_name = turn_output.output.kwargs.get("agent")
-                        # clear the session to avoid the previous agent's messages
-                        session.state.openai_session.clear_session()
-
-                    elif turn_output.output.kwargs.get("model"):
+                    if turn_output.output.kwargs.get("model"):
                         self.config.model = turn_output.output.kwargs.get("model")
-                    
+
                     elif turn_output.output.kwargs.get("ai_analysis_prompt"):
                         # Set pending input for next iteration - reuse existing flow
                         pending_input = turn_output.output.kwargs.get("ai_analysis_prompt")
                         continue
-                    
+                    elif turn_output.output.kwargs.get("restored"):
+                        restored_history = turn_output.output.kwargs.get("history")
+                        continue
+
                     # show the announcements in every switch event
                     if turn_output.output.kwargs.get("shell"):
                         self.shell_mode = True

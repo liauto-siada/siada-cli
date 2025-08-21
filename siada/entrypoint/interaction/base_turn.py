@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any
 import traceback
 
-from siada.entrypoint.interaction.config import RunningConfig
+from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.entrypoint.interaction.turn_models import TurnInput, TurnOutput, TurnType
 
 

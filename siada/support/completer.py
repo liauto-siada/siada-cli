@@ -2,7 +2,7 @@ from prompt_toolkit.completion import Completer, Completion
 import os
 
 from siada.services.file_recommendation import FileRecommendationEngine, CompletionConfig
-
+from siada.services.checkpointer_recommendation import create_checkpoint_recommend_engine
 
 class CommandCompletionException(Exception):
     """Raised when a command should use the normal autocompleter instead of
@@ -13,10 +13,11 @@ class CommandCompletionException(Exception):
 
 class AutoCompleter(Completer):
     def __init__(
-        self, root, commands, encoding
+        self, root, commands, encoding, session_id
     ):
         self.encoding = encoding
         self.root = root
+        self.session_id = session_id
 
         self.words = set()
 
@@ -45,6 +46,57 @@ class AutoCompleter(Completer):
             'last_at_command': None,
             'last_completion_text': None
         }
+        
+        # Initialize checkpoint service directly
+        self._checkpoint_service = create_checkpoint_recommend_engine(
+            cwd=self.root
+        )
+
+    def _get_checkpoint_service(self):
+        return self._checkpoint_service
+
+    def get_restore_completions(self, text, words):
+        """
+        Get completion suggestions for /restore command
+        
+        Args:
+            text: Complete input text
+            words: Split word list
+            
+        Yields:
+            Completion: Checkpoint file completion suggestions
+        """
+        checkpoint_service = self._get_checkpoint_service()
+        if not checkpoint_service:
+            return
+        
+        try:
+            # If only /restore command with single space, show all checkpoints
+            if len(words) == 1 and text.endswith(' ') and not text.endswith('  '):
+                checkpoints = checkpoint_service.list_checkpoint_files(self.session_id)
+                for checkpoint in checkpoints[:20]:  # Limit display count
+                    display_text = checkpoint.file_name
+                    yield Completion(
+                        checkpoint.file_name,
+                        start_position=0,
+                        display=display_text
+                    )
+            
+            # If there's a query prefix, perform search
+            elif len(words) >= 2:
+                query = words[-1]  # Last word as query condition
+                checkpoints = checkpoint_service.get_suggestions(self.session_id, query, limit=20)
+
+                for checkpoint in checkpoints:
+                    # Format: timestamp - tool - files
+                    yield Completion(
+                        text=checkpoint.file_name,
+                        start_position=-len(words[-1]),
+                        display=checkpoint.file_name
+                    )
+        except Exception as e:
+            # Silently handle errors to avoid affecting other completion features
+            pass
 
     def get_command_completions(self, document, complete_event, text, words):
         if len(words) == 1 and not text[-1].isspace():
@@ -52,6 +104,10 @@ class AutoCompleter(Completer):
             candidates = [cmd for cmd in self.command_names if cmd.startswith(partial)]
             for candidate in sorted(candidates):
                 yield Completion(candidate, start_position=-len(words[-1]))
+            return
+
+        if len(words) >= 1 and words[0].lower() == "/restore":
+            yield from self.get_restore_completions(text, words)
             return
 
         if len(words) <= 1 or text[-1].isspace():
@@ -92,8 +148,12 @@ class AutoCompleter(Completer):
             return
 
         if text and text[-1].isspace():
-            # don't keep completing after a space
-            return
+            # Special case: allow /restore command to continue completion after space
+            if text.strip().startswith('/restore'):
+                pass  # Allow /restore command to continue completion
+            else:
+                # don't keep completing after a space
+                return
 
         if text[0] == "/":
             try:
@@ -175,7 +235,6 @@ class AutoCompleter(Completer):
         candidates = self.words
         candidates = [word if type(word) is tuple else (word, word) for word in candidates]
 
-        last_word = words[-1]
     
     def _prepare_completion_state(self, completion_text: str, completion_pos: int):
         """

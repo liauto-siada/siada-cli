@@ -1,8 +1,18 @@
-from typing import Any
+"""
+Turn Factory Module
 
-from siada.entrypoint.interaction.base_turn import RunTurn
-from siada.entrypoint.interaction.running_config import RunningConfig
-from siada.entrypoint.interaction.turn.run_turn import CommandTurn, ConversationTurn
+Factory for creating appropriate turn instances based on user input.
+"""
+
+from typing import List, Any
+
+# Import existing InteractionConfig
+from ..running_config import RunningConfig
+
+# Import turn classes
+from .conversation_turn import ConversationTurn
+from .command_turn import CommandTurn
+from .interface import RunTurn
 
 
 class TurnFactory:
@@ -10,11 +20,14 @@ class TurnFactory:
 
     @staticmethod
     def create_turn(
-        config: RunningConfig, session: Any, slash_commands: Any, user_input: str
+        config: RunningConfig, session: Any, slash_commands: Any, user_input: str | List[Any]
     ) -> RunTurn:
         """Create appropriate turn for user input
 
         Args:
+            config: Running configuration
+            session: Current session
+            slash_commands: Slash commands handler
             user_input: Raw user input
 
         Returns:
@@ -32,4 +45,4 @@ class TurnFactory:
             if temp_turn.can_handle(user_input):
                 return temp_turn
 
-        raise ValueError(f"No turn can handle the input: {user_input}") 
+        raise ValueError(f"No turn can handle the input: {user_input}")

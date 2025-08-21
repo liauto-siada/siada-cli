@@ -10,7 +10,7 @@ from agents import RunContextWrapper, function_tool
 from agents.items import TResponseInputItem
 from openai.types.chat import ChatCompletionMessageParam
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 from siada.provider.client_factory import get_client_with_kwargs
 COMPRESS_DOCS = """Intelligently compress or summarize the conversation history within a specified range.
 

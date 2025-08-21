@@ -24,7 +24,7 @@ fastapi = ">=0.110.0,<1.0.0"
 uvicorn = ">=0.27.0,<1.0.0"
 pydantic = ">=2.6.0,<3.0.0"
 pydantic-settings = ">=2.2.0,<3.0.0"
-openai-agents = "0.2.5"
+openai-agents = "0.2.9"
 openai = "1.99.9"
 litellm = ">=1.72.6,<2.0.0"
 openhands-aci = "0.3.0"
@@ -46,6 +46,7 @@ prompt-toolkit = ">=3.0.51,<4.0.0"
 partial-json-parser = ">=0.2.1.1.post6,<1.0.0"
 networkx = ">=3.5.0,<4.0.0"
 playwright = ">=1.40.0,<2.0.0"
+gitpython = ">=3.1.0,<4.0.0"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -2,7 +2,7 @@
 Suggestion data structures for file recommendation.
 """
 
-from typing import Dict, List, TypedDict, Tuple
+from typing import List, TypedDict, Tuple
 import os
 
 

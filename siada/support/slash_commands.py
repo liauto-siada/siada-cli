@@ -1,21 +1,15 @@
 import inspect
 import os
-import asyncio
-import threading
-import concurrent.futures
-from siada.services.model_info_service import ModelInfoService
-import siada.session.session_models
 import sys
 
-import litellm
 from prompt_toolkit.completion import Completion, PathCompleter
 from prompt_toolkit.document import Document
 
 import siada.io.io
-from siada.models.model_run_config import ModelRunConfig
+from siada.services.model_info_service import ModelInfoService
 from siada.support.editor import pipe_editor
 from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
-from siada.support.spinner import WaitingSpinner
+from siada.support.checkpoint_tracker import CheckPointData
 
 
 class SwitchEvent:
@@ -64,7 +58,7 @@ class SlashCommands:
     #         # Load agent configurations
     #         agent_configs = SiadaRunner._load_agent_config()
     #         # Get all available agent types (only enabled ones)
-    #         available_agents = {name: config for name, config in agent_configs.items() 
+    #         available_agents = {name: config for name, config in agent_configs.items()
     #                           if config.get('class') and config.get('enabled', True)}
 
     #         if not agent_name:
@@ -104,7 +98,6 @@ class SlashCommands:
     #             import traceback
     #             self.io.print_error(traceback.format_exc())
 
-
     def cmd_shell(self, args):
         "Open a shell"
         self.io.print_info("Switching to shell mode...")
@@ -122,8 +115,6 @@ class SlashCommands:
         models = ModelInfoService.get_model_names()
         for model in models:
             self.io.print_info(f"- {model}")
-
-
 
     def is_command(self, inp):
         return inp[0] in "/!"
@@ -169,7 +160,7 @@ class SlashCommands:
             # 检查方法的参数签名
             sig = inspect.signature(cmd_method)
             params = list(sig.parameters.keys())
-            
+
             # 如果方法有 session 参数，则传递 session 和 args
             if 'session' in params:
                 return cmd_method(session, args)
@@ -340,7 +331,6 @@ class SlashCommands:
     #     if repo_map:
     #         self.io.print_info("The repo map has been refreshed, use /map to view it.")
 
-
     def cmd_multiline_mode(self, args):
         "Toggle multiline mode (swaps behavior of Enter and Meta+Enter)"
         self.io.toggle_multiline_mode()
@@ -362,35 +352,35 @@ class SlashCommands:
             # Get workspace directory from session
             workspace = session.siada_config.workspace
             siada_md_path = os.path.join(workspace, 'siada.md')
-            
+
             # Parse command arguments
             force_overwrite = '--force' in args.strip()
-            
+
             # Check if file already exists before any operations
             file_exists = os.path.exists(siada_md_path)
-            
+
             # Check if siada.md already exists and user doesn't want to force overwrite
             if file_exists and not force_overwrite:
                 self.io.print_info('A siada.md file already exists in this directory. No changes were made.')
                 self.io.print_info('Use `/init --force` to overwrite the existing file.')
                 return
-            
+
             # Create/overwrite siada.md file
             with open(siada_md_path, 'w', encoding='utf-8') as f:
                 f.write('')
-            
+
             # Display appropriate message based on whether file existed
             if file_exists:
                 self.io.print_info('Existing siada.md overwritten. Now analyzing the project...')
             else:
                 self.io.print_info('Empty siada.md created. Now analyzing the project...')
-            
+
             # Generate the analysis prompt
             init_prompt = self._create_init_analysis_prompt(workspace)
-            
+
             # Return special event to trigger AI analysis with full streaming support
             return SwitchEvent(ai_analysis_prompt=init_prompt)
-            
+
         except PermissionError:
             self.io.print_error('Permission denied: Unable to create siada.md file.')
         except Exception as e:
@@ -454,8 +444,8 @@ class SlashCommands:
 
     def _create_init_analysis_prompt(self, workspace):
         """Create the analysis prompt for /init command"""
-        
-        init_prompt = f"""You are an AI agent that brings the power of Siada directly into the terminal. Your task is to analyze the current directory and generate a comprehensive siada.md file to be used as instructional context for future interactions.
+
+        init_prompt = """You are an AI agent that brings the power of Siada directly into the terminal. Your task is to analyze the current directory and generate a comprehensive siada.md file to be used as instructional context for future interactions.
 
 **Analysis Process:**
 
@@ -491,53 +481,87 @@ Write the complete content to the `siada.md` file. The output must be well-forma
 
         return init_prompt.strip()
 
-    # def cmd_think_tokens(self, session, args):
-    #     """Set the thinking token budget, eg: 8096, 8k, 10.5k, 0.5M, or 0 to disable."""
+    def cmd_restore(self, session, args: str):
+        "Restore files from a checkpoint"
 
-    #     model = session.interaction_config.model
+        # Parse checkpoint filename from args
+        checkpoint_filename = args.strip()
+        if not checkpoint_filename:
+            self.io.print_error("Please provide a checkpoint filename. Usage: /restore <checkpoint_filename>")
+            return
 
-    #     if not args.strip():
-    #         # Display current value if no args are provided
-    #         formatted_budget = model.get_thinking_tokens()
-    #         if formatted_budget is None:
-    #             self.io.print_info("Thinking tokens are not currently set.")
-    #         else:
-    #             budget = model.get_raw_thinking_tokens()
-    #             self.io.print_info(
-    #                 f"Current thinking token budget: {budget:,} tokens ({formatted_budget})."
-    #             )
-    #         return
+        # Check if checkpoint_tracker is available
+        if not hasattr(session, 'checkpoint_tracker') or not session.checkpoint_tracker:
+            self.io.print_error("Checkpoint tracking is not enabled for this session")
+            return
 
-    #     value = args.strip()
-    #     model.set_thinking_tokens(value)
+        try:
+            # Get the checkpoint data
+            checkpoint_data: CheckPointData = (
+                session.checkpoint_tracker.get_checkpoint_data_by_file_name(
+                    checkpoint_filename
+                )
+            )
+            if not checkpoint_data:
+                self.io.print_error(
+                    f"Checkpoint file '{checkpoint_filename}' not found"
+                )
+                return
 
-    #     # Handle the special case of 0 to disable thinking tokens
-    #     if value == "0":
-    #         self.io.print_info("Thinking tokens disabled.")
-    #     else:
-    #         formatted_budget = model.get_thinking_tokens()
-    #         budget = model.get_raw_thinking_tokens()
-    #         self.io.print_info(
-    #             f"Set thinking token budget to {budget:,} tokens ({formatted_budget})."
-    #         )
+            # Display checkpoint information
+            self.io.print_info(f"Restoring from checkpoint: {checkpoint_filename}")
+            self.io.print_info(f"Timestamp: {checkpoint_data.timestamp}")
+            self.io.print_info(f"Last tool used: {checkpoint_data.use_tool_name}")
+            self.io.print_info(f"Modified files: {', '.join(checkpoint_data.modified_file_names)}")
 
-    # def cmd_reasoning_effort(self, session, args):
-    #     "Set the reasoning effort level (values: number or low/medium/high depending on model)"
-    #     model = session.interaction_config.model
+            # Create a copy of the history to avoid modifying checkpoint data
+            import copy
+            restored_history = copy.deepcopy(checkpoint_data.history)
 
-    #     if not args.strip():
-    #         # Display current value if no args are provided
-    #         reasoning_value = model.get_reasoning_effort()
-    #         if reasoning_value is None:
-    #             self.io.print_info("Reasoning effort is not currently set.")
-    #         else:
-    #             self.io.print_info(f"Current reasoning effort: {reasoning_value}")
-    #         return
+            if restored_history:
+                last_message = restored_history[-1]
+                ## compute the edge case
+                if "role" in last_message:
+                    if last_message["role"] == "assistant":
+                        # if the last message is from the assistant, need to add a use message
+                        restored_history.append(
+                            {
+                                "role": "user",
+                                "content": "Checkpoint restored. User has new instructions. Give a concise response asking for next steps.",
+                                "type": "message",
+                            }
+                        )
+                if "type" in last_message:
+                    ## only process type: function_call
+                    if last_message["type"] in ["function_call"]:
+                        call_id = last_message["call_id"]
+                        function = last_message.get("name", "unknown_function")
+                        restored_history.append(
+                            {
+                                "call_id": call_id,
+                                "output": f"{function} executed successfully. Checkpoint restored. Briefly ask user how to continue.",
+                                "type": "function_call_output",
+                            }
+                        )
 
-    #     value = args.strip()
-    #     model.set_reasoning_effort(value)
-    #     reasoning_value = model.get_reasoning_effort()
-    #     self.io.print_info(f"Set reasoning effort to {reasoning_value}")
+            # clear the openai session
+            import asyncio
+            asyncio.run(session.state.openai_session.clear_session())
+
+            # Restore the file states using GitService
+            session.checkpoint_tracker.git_service.restore_project_from_snapshot(
+                checkpoint_data.last_commit_hash
+            )
+
+            self.io.print_info(f"Successfully restored from checkpoint '{checkpoint_filename}'")
+            self.io.print_info("Note: The conversation history has been reset to the checkpoint state")
+            return SwitchEvent(restored=True, history=restored_history)
+
+        except Exception as e:
+            self.io.print_error(f"Failed to restore from checkpoint: {str(e)}")
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
 
 
 def main():
