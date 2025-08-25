@@ -33,7 +33,7 @@ fi
 uv pip install --python "$VENV_DIR/bin/python" --upgrade pip
 # Install the wheel into the target venv via uv
 uv pip install --python "$VENV_DIR/bin/python" --no-cache-dir --force-reinstall \
-  "https://bj.bcebos.com/prod-cnhb01-siada/cli-install/test/siada_cli-1.0.0-py3-none-any.whl" \
+  "https://bj.bcebos.com/prod-cnhb01-siada/cli-install/test/siada_cli-1.1.0-py3-none-any.whl" \
   -i "$INDEX_URL"
 
 # Enforce executable name
