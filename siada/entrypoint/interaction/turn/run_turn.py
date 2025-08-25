@@ -18,6 +18,7 @@ from agents import (
     ToolCallOutputItem,
 )
 
+from siada.foundation.telemetry import telemetry
 from siada.support.spinner import WaitingSpinner
 from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
@@ -508,6 +509,8 @@ class ConversationTurn(RunTurn):
 
             # Define async execution logic
             async def _async_execute():
+                # Recording Users' usage of agents
+                telemetry.captureAgentUsage(agent_name=self.config.agent_name)
                 # Run agent for conversation
                 result: RunResultStreaming = await SiadaRunner.run_agent(
                     agent_name=self.config.agent_name,
