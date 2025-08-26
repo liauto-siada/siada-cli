@@ -249,6 +249,8 @@ In the CLI, you can use slash commands for additional functionality:
   - Enter key for line break
   - Meta+Enter key to end multiline mode and send content to the model
 - `/init [--force]` - Analyze the project and create a tailored siada.md file
+- `/memory-refresh` - Refresh user memory content from siada.md file
+- `/memory-status` - Display current user memory status (file info, size, loaded status)
 - `/exit` or `/quit` - Exit the application
 
 ### Shell Mode Usage Guide

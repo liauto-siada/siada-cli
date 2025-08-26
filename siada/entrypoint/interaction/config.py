@@ -28,3 +28,4 @@ class RunningConfig:
     tracing_disabled: bool = False
     console_output: bool = False
     interactive: bool = True
+    user_memory: Optional[str] = None  # User memory content from siada.md

@@ -1,4 +1,4 @@
-def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str, objective: str) -> str:
+def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str, objective: str, user_memory: str = None) -> str:
     """
     Common function for building system prompts
     
@@ -8,7 +8,7 @@ def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str
         capabilities: Capabilities section  
         rules: Rules section
         objective: Objective section
-        interactive_mode: Whether it's interactive mode
+        user_memory: User memory content from siada.md file
         
     Returns:
         str: Complete system prompt
@@ -22,5 +22,10 @@ def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str
 {rules}
 
 {objective}"""
+    
+    # Add user memory content if available
+    if user_memory and user_memory.strip():
+        memory_suffix = f"====\n\n{user_memory.strip()}"
+        return f"{base_prompt}{memory_suffix}"
     
     return base_prompt

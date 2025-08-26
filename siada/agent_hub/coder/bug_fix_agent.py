@@ -50,7 +50,9 @@ class BugFixAgent(CodeGenAgent):
         self, run_context: RunContextWrapper[CodeAgentContext]
     ) -> str | None:
         root_dir = run_context.context.root_dir
-        system_prompt = bug_fix_prompt.get_system_prompt(root_dir, is_minimal=self.is_minimal)
+        # Get user memory from context
+        user_memory = run_context.context.user_memory
+        system_prompt = bug_fix_prompt.get_system_prompt(root_dir, is_minimal=self.is_minimal, user_memory=user_memory)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:

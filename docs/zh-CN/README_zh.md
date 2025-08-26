@@ -249,6 +249,8 @@ siada-cli --models
   - Enter 键换行
   - Meta+Enter 键结束多行模式，将内容发送给模型
 - `/init [--force]` - 分析项目并创建定制的 siada.md 文件
+- `/memory-refresh` - 从 siada.md 文件刷新用户内存内容
+- `/memory-status` - 显示当前用户内存状态（文件信息、大小、加载状态）
 - `/exit` 或 `/quit` - 退出应用程序
 
 ### Shell 模式使用说明

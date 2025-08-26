@@ -398,6 +398,60 @@ class SlashCommands:
             import traceback
             self.io.print_error(traceback.format_exc())
 
+    def cmd_memory_refresh(self, session, args):
+        """Refresh user memory content from siada.md file"""
+        try:
+            from siada.services.siada_memory import refresh_siada_memory
+            
+            workspace = session.siada_config.workspace
+            user_memory, status_message = refresh_siada_memory(workspace)
+            
+            # Update the session config with new memory content
+            if hasattr(session.siada_config, 'user_memory'):
+                session.siada_config.user_memory = user_memory
+            
+            self.io.print_info(status_message)
+            
+        except Exception as e:
+            self.io.print_error(f'Error refreshing memory: {str(e)}')
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
+
+    def cmd_memory_status(self, session, args):
+        """Display current user memory status"""
+        try:
+            workspace = session.siada_config.workspace
+            siada_md_path = os.path.join(workspace, 'siada.md')
+            
+            if os.path.exists(siada_md_path):
+                # Get file size
+                file_size = os.path.getsize(siada_md_path)
+                if file_size > 0:
+                    # Get content preview
+                    with open(siada_md_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                        lines_count = len(content.split('\n')) if content else 0
+                    
+                    self.io.print_info(f"Memory file: {siada_md_path}")
+                    self.io.print_info(f"File size: {file_size} bytes")
+                    self.io.print_info(f"Lines: {lines_count}")
+                    
+                    # Check if memory is loaded in current session
+                    has_memory = hasattr(session.siada_config, 'user_memory') and session.siada_config.user_memory
+                    self.io.print_info(f"Loaded in current session: {'Yes' if has_memory else 'No'}")
+                else:
+                    self.io.print_info(f"Memory file exists but is empty: {siada_md_path}")
+            else:
+                self.io.print_info("No siada.md file found in current workspace")
+                self.io.print_info("Use `/init` to create and analyze project structure")
+                
+        except Exception as e:
+            self.io.print_error(f'Error checking memory status: {str(e)}')
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
+
     def _create_init_analysis_prompt(self, workspace):
         """Create the analysis prompt for /init command"""
         

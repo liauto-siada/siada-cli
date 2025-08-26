@@ -42,7 +42,9 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
     async def get_system_prompt(self, run_context: RunContextWrapper[CodeAgentContext]) -> str | None:
         root_dir = run_context.context.root_dir        
-        system_prompt = code_gen_prompt.get_system_prompt(root_dir, run_context.context.interactive_mode)
+        # Get user memory from context
+        user_memory = run_context.context.user_memory
+        system_prompt = code_gen_prompt.get_system_prompt(root_dir, run_context.context.interactive_mode, user_memory)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:

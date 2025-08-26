@@ -6,13 +6,14 @@ from ..base.prompt_builder import build_system_prompt
 from .rules import get_rules_section
 
 
-def get_system_prompt(cwd: str = "/default/path", is_minimal: bool=False) -> str:
+def get_system_prompt(cwd: str = "/default/path", is_minimal: bool=False, user_memory: str = None) -> str:
     """
     生成系统提示词
 
     Args:
         cwd: 当前工作目录路径
-        interactive_mode: 是否为交互模式
+        is_minimal: 是否使用最小化规则
+        user_memory: 用户内存内容（来自siada.md文件）
 
     Returns:
         格式化后的系统提示词
@@ -52,5 +53,6 @@ Your goal is to fix the given issue, and the fix is considered successful when t
         tool_use=get_tool_use_section(),
         capabilities=get_capabilities_section(cwd),
         rules=get_rules_section(cwd, os_name, home_dir, is_minimal=is_minimal),
-        objective=objective
+        objective=objective,
+        user_memory=user_memory
     )

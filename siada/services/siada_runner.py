@@ -68,6 +68,16 @@ class SiadaRunner:
         if session:
             context.session = session
 
+        # Load user memory from siada.md file
+        if workspace or (session and session.siada_config.workspace):
+            workspace_path = workspace or session.siada_config.workspace
+            try:
+                from siada.services.siada_memory import load_siada_memory
+                user_memory = load_siada_memory(workspace_path)
+                context.user_memory = user_memory
+            except Exception as e:
+                logging.debug(f"Failed to load user memory: {e}")
+
         # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
         console_output = session.siada_config.console_output if session else True
         context_tracing_processor = ContextTracingProcessor(context)

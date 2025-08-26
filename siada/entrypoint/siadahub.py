@@ -22,6 +22,7 @@ from siada.support.envprocessor import load_dotenv_files
 from siada.support.repo import get_git_root
 from siada.utils import SettingsUtils
 from siada.io.io import InputOutput
+from siada.services.siada_memory import load_siada_memory
 
 try:
     import git
@@ -386,6 +387,9 @@ def main():
         encoding=args.encoding,
     )
 
+    # Load user memory from siada.md file
+    user_memory = load_siada_memory(workspace)
+    
     running_config = RunningConfig(
         llm_config=model,
         io=io,
@@ -395,6 +399,7 @@ def main():
         running_color_settings=running_color_settings,
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
+        user_memory=user_memory,
     )
     
     # Validate agent compatibility with interactive mode
