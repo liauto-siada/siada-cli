@@ -7,7 +7,6 @@ Handles slash command execution turns.
 from typing import List, Any
 
 # Import existing InteractionConfig
-from ..running_config import RunningConfig
 
 # Import models and interface from the same directory
 from .models import TurnType, TurnInput, TurnOutput

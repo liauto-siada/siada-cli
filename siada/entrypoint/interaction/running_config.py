@@ -28,4 +28,8 @@ class RunningConfig:
     tracing_disabled: bool = False
     console_output: bool = False
     interactive: bool = True
+<<<<<<< HEAD
     user_memory: Optional[str] = None  # User memory content from siada.md
+=======
+    enable_checkpointing: bool = False
+>>>>>>> 84c2b26 (support compare)

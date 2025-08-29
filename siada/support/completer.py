@@ -55,7 +55,7 @@ class AutoCompleter(Completer):
     def _get_checkpoint_service(self):
         return self._checkpoint_service
 
-    def get_restore_completions(self, text, words):
+    def get_checkpoints_completions(self, text, words):
         """
         Get completion suggestions for /restore command
         
@@ -106,8 +106,8 @@ class AutoCompleter(Completer):
                 yield Completion(candidate, start_position=-len(words[-1]))
             return
 
-        if len(words) >= 1 and words[0].lower() == "/restore":
-            yield from self.get_restore_completions(text, words)
+        if len(words) >= 1 and words[0].lower() in ["/restore", "/compare"]:
+            yield from self.get_checkpoints_completions(text, words)
             return
 
         if len(words) <= 1 or text[-1].isspace():
@@ -149,8 +149,8 @@ class AutoCompleter(Completer):
 
         if text and text[-1].isspace():
             # Special case: allow /restore command to continue completion after space
-            if text.strip().startswith('/restore'):
-                pass  # Allow /restore command to continue completion
+            if text.strip().startswith('/restore') or text.strip().startswith('/compare'):
+                pass  # Allow /restore and /compare commands to continue completion
             else:
                 # don't keep completing after a space
                 return

@@ -30,6 +30,23 @@ class LLMConfig:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class CheckpointConfig:
+    """Checkpoint configuration class"""
+    enable: Optional[bool] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CheckpointConfig':
+        """Create CheckpointConfig instance from dictionary"""
+        return cls(
+            enable=data.get('enable')
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return asdict(self)
+
+
 def _get_default_config_path() -> Path:
     """Get default configuration file path"""
     home_dir = Path.home()
@@ -39,6 +56,7 @@ def _get_default_config_path() -> Path:
 class Config:
     """Main configuration class (immutable)"""
     llm_config: LLMConfig = field(default_factory=LLMConfig)
+    checkpoint_config: CheckpointConfig = field(default_factory=CheckpointConfig)
 
 def load_conf(config_path: Optional[Path] = None) -> 'Config':
     """Load configuration from YAML file"""
@@ -46,6 +64,7 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
         config_path = _get_default_config_path()
     
     llm_config = LLMConfig()
+    checkpoint_config = CheckpointConfig()
     
     try:
         if config_path.exists():
@@ -55,6 +74,10 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
                 # Load LLM configuration
                 if 'llm_config' in data:
                     llm_config = LLMConfig.from_dict(data['llm_config'])
+                
+                # Load Checkpoint configuration
+                if 'checkpoint_config' in data:
+                    checkpoint_config = CheckpointConfig.from_dict(data['checkpoint_config'])
         # If config file doesn't exist, return default values without creating directories
             
     except yaml.YAMLError as e:
@@ -62,6 +85,6 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
     except Exception as e:
         print(f"Warning: Failed to load configuration file: {e}")
     
-    return Config(llm_config=llm_config)
+    return Config(llm_config=llm_config, checkpoint_config=checkpoint_config)
 
 

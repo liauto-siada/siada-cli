@@ -151,7 +151,8 @@ class GitService:
                 GIT_DIR=str(self.shadow_repo_dir / ".git"),
                 GIT_WORK_TREE=str(self.project_root),
                 HOME=str(self.shadow_repo_dir),
-                XDG_CONFIG_HOME=str(self.shadow_repo_dir)
+                XDG_CONFIG_HOME=str(self.shadow_repo_dir),
+                PAGER='cat'  # Disable pager for programmatic access
             )
             return repo_with_env
         except (InvalidGitRepositoryError, NoSuchPathError) as e:
@@ -269,45 +270,25 @@ class GitService:
         
         Args:
             commit_hash: Hash of the commit to get diff for
-            base_commit: Base commit to compare against (defaults to parent)
+            base_commit: Base commit to compare against (defaults to working directory)
             
         Returns:
             Diff output as string
         """
-        if not self._repo:
+        repo = self.shadow_git_repository
+        if not repo:
             raise RuntimeError("Repository not initialized")
 
         try:
-            target_commit = self._repo.commit(commit_hash)
-
             if base_commit:
                 # Compare between two specific commits
-                base_commit_obj = self._repo.commit(base_commit)
-                diff = base_commit_obj.diff(target_commit, create_patch=True)
+                diff_output = repo.git.diff(base_commit, commit_hash)
             else:
-                # Compare with parent (or show entire commit if no parent)
-                if target_commit.parents:
-                    parent_commit = target_commit.parents[0]
-                    diff = parent_commit.diff(target_commit, create_patch=True)
-                else:
-                    # First commit - show all files as additions
-                    diff = target_commit.diff(None, create_patch=True)
-
-            # Convert diff objects to string
-            diff_text = ""
-            for item in diff:
-                if item.diff:
-                    diff_text += item.diff.decode('utf-8', errors='replace')
-                else:
-                    # Handle binary files or files without diff
-                    diff_text += f"diff --git a/{item.a_path} b/{item.b_path}\n"
-                    if item.new_file:
-                        diff_text += "new file mode 100644\n"
-                    elif item.deleted_file:
-                        diff_text += "deleted file mode 100644\n"
-                    diff_text += "Binary files differ\n"
-
-            return diff_text
+                # Compare specified commit with current working directory
+                # This shows all changes from that snapshot to now
+                diff_output = repo.git.diff(commit_hash)
+                
+            return diff_output
 
         except (GitCommandError, ValueError, BadName) as e:
             raise RuntimeError(f"Failed to get diff for snapshot {commit_hash}: {e}")

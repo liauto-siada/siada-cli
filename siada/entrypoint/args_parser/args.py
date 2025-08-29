@@ -181,7 +181,7 @@ def get_parser(default_config_files, git_root):
         "--checkpointing",
         action="store_true",
         help="Enable checkpointing (default: False)",
-        default=False,
+        default=None
     )
 
     ######

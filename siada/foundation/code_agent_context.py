@@ -2,9 +2,9 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from siada.session.session_models import RunningSession
-from pydantic import BaseModel, Field
 
 from siada.support.checkpoint_tracker import CheckPointTracker
+from siada.foundation.logging import logger as logging
 
 
 class CodeAgentContext(BaseModel):
@@ -26,7 +26,10 @@ class CodeAgentContext(BaseModel):
 
     def save_checkpoints(self):
         if self.checkpoint_tracker and self.session:
-            self.checkpoint_tracker.save_checkpoints(
-                task_id=self.session.session_id,
-                task_message_state=self.session.state.task_message_state,
-            )
+            try:
+                self.checkpoint_tracker.save_checkpoints(
+                    task_id=self.session.session_id,
+                    task_message_state=self.session.state.task_message_state,
+                )
+            except Exception as e:
+                logging.error(f"Error saving checkpoints: {e}")

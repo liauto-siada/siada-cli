@@ -5,6 +5,7 @@ import time
 from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
+from siada.support.checkpoint_tracker import create_checkpoint_tracker
 
 from .session_models import RunningSession
 
@@ -50,6 +51,11 @@ class RunningSessionManager:
             sessions_dir=sessions_dir,
         )
         session.state.openai_session = file_session
+
+        if siada_config.enable_checkpointing:
+            session.checkpoint_tracker = create_checkpoint_tracker(
+                cwd=siada_config.workspace, session_id=session_id
+            )
         return session
 
     @staticmethod

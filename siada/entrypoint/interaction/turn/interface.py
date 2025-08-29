@@ -7,7 +7,6 @@ Contains abstract base classes and interfaces for interaction turns.
 from typing import Optional, Any
 from abc import ABC, abstractmethod
 
-from agents import TResponseInputItem
 
 # Import existing config and models
 from ..running_config import RunningConfig

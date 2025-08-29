@@ -7,7 +7,6 @@ Handles AI conversation turns including streaming responses and tool calls.
 from siada.foundation.logging import logger
 import re
 import siada.io.components.mdstream
-import stat
 from typing import List, Optional, Dict, Any, Tuple
 
 from agents import (
@@ -17,7 +16,11 @@ from agents import (
     ToolCallOutputItem,
 )
 
+<<<<<<< HEAD
 from siada.foundation.telemetry import telemetry
+=======
+from siada.support.message_classifier import get_role_and_type_from_item, get_role_from_item
+>>>>>>> 84c2b26 (support compare)
 from siada.support.spinner import WaitingSpinner
 from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
@@ -533,13 +536,15 @@ class ConversationTurn(RunTurn):
 
                     await self.output_stream_content(result)
 
+<<<<<<< HEAD
                     # Sync messages from openai_session to task_message_state after agent run
                     # await self.session.state.sync_messages_from_openai_session()
 
+=======
+>>>>>>> 84c2b26 (support compare)
                 finally:
-                    if result:
-                        await self.session.state.openai_session.reset_items(result.to_input_list())
-                return result
+                    await self.session.state.openai_session.reset_items(result.to_input_list())
+                    return result
 
             # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
             self._ensure_dedicated_loop()

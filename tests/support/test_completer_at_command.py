@@ -13,8 +13,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from siada.support.completer import AutoCompleter
-from siada.services.file_recommendation import CompletionConfig
-from prompt_toolkit.completion import Completion
 from prompt_toolkit.document import Document
 
 
@@ -38,7 +36,7 @@ def test_at_command_completion():
             full_path.touch()
         
         # Initialize completer
-        completer = AutoCompleter(root=temp_dir, commands=None, encoding="utf-8")
+        completer = AutoCompleter(root=temp_dir, commands=None, encoding="utf-8", session_id="test_session")
         
         # Test completion for "@"
         print("Testing @ command completion...")

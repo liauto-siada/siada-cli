@@ -32,7 +32,6 @@ except ImportError:
 
 from prompt_toolkit.enums import EditingMode
 from siada.services.model_info_service import ModelInfoService
-from siada.support.checkpoint_tracker import create_checkpoint_tracker
 
 
 def _suppress_third_party_warnings():
@@ -272,6 +271,32 @@ def show_banner(io):
         sys.exit(1)
 
 
+def get_enable_checkpointing(args, conf: Config = None, interactive_mode: bool = True):
+    """
+    Get enable_checkpointing setting with priority: args > config file > default
+    
+    Args:
+        args: Parsed command line arguments
+        conf: Loaded configuration from config file
+        interactive_mode: Whether running in interactive mode
+        
+    Returns:
+        bool: Final enable_checkpointing value
+    """
+    # Non-interactive mode always disables checkpointing
+    if not interactive_mode:
+        return False
+
+    # Priority: args > config file > default (False)
+    if args.checkpointing is not None:
+        return args.checkpointing
+
+    if conf and conf.checkpoint_config and conf.checkpoint_config.enable is not None:
+        return conf.checkpoint_config.enable
+
+    return False
+
+
 def get_config(args, io, conf: Config = None):
     """
     Configure and create model instance
@@ -422,8 +447,8 @@ def main():
         session_id=session_id
     )
 
-    # get the enable_checkpointing flag
-    enable_checkpointing = args.checkpointing if interactive_mode else False
+    # get the enable_checkpointing flag with priority: args > config file > default
+    enable_checkpointing = get_enable_checkpointing(args, conf, interactive_mode)
 
     # Load user memory from siada.md file
     user_memory = load_siada_memory(workspace)
@@ -437,7 +462,11 @@ def main():
         running_color_settings=running_color_settings,
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
+<<<<<<< HEAD
         user_memory=user_memory,
+=======
+        enable_checkpointing=enable_checkpointing,
+>>>>>>> 84c2b26 (support compare)
     )
 
     # create session
@@ -445,11 +474,6 @@ def main():
         siada_config=running_config,
         session_id=session_id
     )
-
-    if enable_checkpointing:
-        session.checkpoint_tracker = create_checkpoint_tracker(
-            cwd=workspace, session_id=session_id
-        )
 
     # Validate agent compatibility with interactive mode
     validate_agent_compatibility(args.agent, interactive_mode, io, args.verbose)

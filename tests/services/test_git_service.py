@@ -282,16 +282,20 @@ class TestGitService(unittest.TestCase):
         # Create initial snapshot
         self.git_service.create_snapshot("Initial commit")
         
-        # Modify file and create another snapshot
-        (self.project_root / "test_file.txt").write_text("Modified content for diff test")
-        commit2 = self.git_service.create_snapshot("Modified commit")
+        # Create a file and snapshot it
+        (self.project_root / "test_file.txt").write_text("Initial content")
+        commit2 = self.git_service.create_snapshot("Add test file")
         
-        # Get diff
+        # Now modify the file in working directory
+        (self.project_root / "test_file.txt").write_text("Modified content for diff test")
+        
+        # Get diff from commit2 to current working directory
         diff = self.git_service.get_snapshot_diff(commit2)
         
         self.assertIsInstance(diff, str)
-        # Check that diff contains the content changes
+        # Check that diff shows the working directory changes
         self.assertIn("Modified content for diff test", diff)
+        self.assertIn("Initial content", diff)  # Should show what was replaced
         self.assertIn("@@", diff)  # Diff hunk marker
     
     def test_get_snapshot_diff_with_base(self):

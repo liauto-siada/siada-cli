@@ -10,6 +10,7 @@ from siada.services.model_info_service import ModelInfoService
 from siada.support.editor import pipe_editor
 from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
 from siada.support.checkpoint_tracker import CheckPointData
+from siada.tools.read_many_files.models import ProcessingStats
 
 
 class SwitchEvent:
@@ -481,6 +482,112 @@ Write the complete content to the `siada.md` file. The output must be well-forma
 
         return init_prompt.strip()
 
+
+    def cmd_compare(self, session, args: str):
+        "Compare files between working directory and checkpoint"
+        
+        from rich.syntax import Syntax
+        from rich.panel import Panel
+        from rich import box
+        
+        # Parse checkpoint filename from args
+        checkpoint_filename = args.strip()
+        if not checkpoint_filename:
+            self.io.print_error("Please provide a checkpoint filename. Usage: /compare <checkpoint_filename>")
+            return
+
+        # Check if checkpoint_tracker is available
+        if not hasattr(session, 'checkpoint_tracker') or not session.checkpoint_tracker:
+            self.io.print_error("Checkpoint tracking is not enabled for this session")
+            return
+
+        try:
+            # Get the checkpoint data
+            checkpoint_data: CheckPointData = (
+                session.checkpoint_tracker.get_checkpoint_data_by_file_name(
+                    checkpoint_filename
+                )
+            )
+            if not checkpoint_data:
+                self.io.print_error(f"Checkpoint file '{checkpoint_filename}' not found")
+                return
+
+            # Get diff hunks between checkpoint and working directory
+            diff_hunks = session.checkpoint_tracker.get_diff_set_hunks(
+                checkpoint_data.last_commit_hash,
+                None  # None means compare with working directory
+            )
+
+            # Check if pretty output is enabled
+            if self.io.pretty:
+                # Pretty output with Rich formatting
+                # Create a header panel
+                header_text = f"[bold cyan]Comparing with checkpoint:[/bold cyan] [yellow]{checkpoint_filename}[/yellow]"
+                header_panel = Panel(
+                    header_text,
+                    box=box.DOUBLE_EDGE,
+                    border_style="bright_blue",
+                    padding=(0, 2)
+                )
+                
+                # Use io.console to print Rich components
+                self.io.console.print(header_panel)
+                self.io.console.print()
+
+                # Print the diff hunks with syntax highlighting
+                if diff_hunks.strip():
+                    # Get code theme from running config
+                    code_theme = session.siada_config.running_color_settings.code_theme or "monokai"
+                    
+                    # Create a diff syntax object with highlighting
+                    syntax = Syntax(
+                        diff_hunks,
+                        "diff",
+                        theme=code_theme,  # Use theme from running config
+                        line_numbers=True,
+                        word_wrap=True,
+                        background_color="default"
+                    )
+                    
+                    # Wrap the syntax-highlighted diff in a panel
+                    diff_panel = Panel(
+                        syntax,
+                        title="[bold]Differences between checkpoint and working directory[/bold]",
+                        border_style="green",
+                        box=box.ROUNDED,
+                        padding=(1, 2)
+                    )
+                    
+                    # Use io.console to print the diff panel
+                    self.io.console.print(diff_panel)
+                else:
+                    # No differences found - display a friendly message
+                    no_diff_panel = Panel(
+                        "[green]✓[/green] No differences found between checkpoint and working directory",
+                        border_style="green",
+                        box=box.ROUNDED,
+                        padding=(0, 2)
+                    )
+                    # Use io.console to print the panel
+                    self.io.console.print(no_diff_panel)
+            else:
+                # Simple text output for non-pretty mode
+                self.io.print_info(f"Comparing with checkpoint: {checkpoint_filename}")
+                self.io.print_info("")
+                
+                if diff_hunks.strip():
+                    self.io.print_info("Differences between checkpoint and working directory:")
+                    self.io.print_info("=" * 60)
+                    self.io.print_info(diff_hunks)
+                else:
+                    self.io.print_info("No differences found between checkpoint and working directory")
+
+        except Exception as e:
+            self.io.print_error(f"Failed to compare with checkpoint: {str(e)}")
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
+
     def cmd_restore(self, session, args: str):
         "Restore files from a checkpoint"
 
@@ -510,7 +617,6 @@ Write the complete content to the `siada.md` file. The output must be well-forma
 
             # Display checkpoint information
             self.io.print_info(f"Restoring from checkpoint: {checkpoint_filename}")
-            self.io.print_info(f"Timestamp: {checkpoint_data.timestamp}")
             self.io.print_info(f"Last tool used: {checkpoint_data.use_tool_name}")
             self.io.print_info(f"Modified files: {', '.join(checkpoint_data.modified_file_names)}")
 
@@ -554,7 +660,6 @@ Write the complete content to the `siada.md` file. The output must be well-forma
             )
 
             self.io.print_info(f"Successfully restored from checkpoint '{checkpoint_filename}'")
-            self.io.print_info("Note: The conversation history has been reset to the checkpoint state")
             return SwitchEvent(restored=True, history=restored_history)
 
         except Exception as e:
