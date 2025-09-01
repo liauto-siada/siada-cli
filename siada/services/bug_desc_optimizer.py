@@ -5,7 +5,7 @@ from openai.types.chat import ChatCompletionMessageParam
 if TYPE_CHECKING:
     from siada.agent_hub.coder.tracing.bug_fix_trace_collector import BugFixTraceCollector
 
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 from siada.provider.client_factory import get_client_with_kwargs
 
 

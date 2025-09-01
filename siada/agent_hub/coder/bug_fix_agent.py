@@ -94,7 +94,7 @@ class BugFixAgent(CodeGenAgent):
             Fix result, including final output, execution rounds, and other information
         """
 
-        run_config, _ = await self.prepare_run_environment(context)
+        run_config, _ = await self.prepare_run_config_and_session(context)
         add_trace_processor(self.trace_collector)
 
         print(f"1.Issue clarify stage: (1).identify the problem domain; (2).optimize problem description")
