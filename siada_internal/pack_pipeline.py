@@ -132,6 +132,7 @@ if __name__ == '__main__':
             )
             f.write(remote_script)
             prod_upload_files.append(script_directory + remote_install_file)
+                
         # upload wheel + scripts
         upload_file_to_ois(common_upload_files + prod_upload_files, siada_ois_env)
         print(f"Production install (macOS/Linux): curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/{siada_ois_env}/{remote_install_file} | sh")

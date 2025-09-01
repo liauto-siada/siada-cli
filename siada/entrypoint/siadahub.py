@@ -23,6 +23,7 @@ from siada.support.repo import get_git_root
 from siada.utils import SettingsUtils
 from siada.io.io import InputOutput
 from siada.services.siada_memory import load_siada_memory
+from siada.services.version_checker import version_checker
 
 try:
     import git
@@ -374,6 +375,17 @@ def main():
 
     if model is None:
         return 0
+    
+    if args.just_check_update:
+        update_available = version_checker.check_version(io, just_check=True, verbose=args.verbose)
+        return 0 if not update_available else 1
+
+    if args.upgrade:
+        success = version_checker.install_upgrade(io)
+        return 0 if success else 1
+
+    if args.check_update:
+        version_checker.check_version(io, verbose=args.verbose)
 
     commands = SlashCommands(
         io=io,

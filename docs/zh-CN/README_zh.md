@@ -235,7 +235,12 @@ siada-cli --verbose
 # 列出所有可用模型
 siada-cli --list-models
 siada-cli --models
-```
+
+# 版本检查与更新
+siada-cli --just-check-update  # 仅检查版本，不执行更新
+siada-cli --upgrade            # 立即升级到最新版本  
+siada-cli --check-update       # 启动时检查并提示更新（默认开启）
+、、、
 
 ## 斜杠命令
 

@@ -235,6 +235,12 @@ siada-cli --verbose
 # List all available models
 siada-cli --list-models
 siada-cli --models
+
+## Version Check and Update
+siada-cli --just-check-update  # Check version only, without executing update
+siada-cli --upgrade            # Upgrade to the latest version immediately
+siada-cli --check-update       # Check and prompt for updates on startup (enabled by default)
+
 ```
 
 ## Slash Commands
