@@ -1,5 +1,6 @@
 import inspect
 import os
+import stat
 import sys
 
 from prompt_toolkit.completion import Completion, PathCompleter
@@ -10,7 +11,7 @@ from siada.services.model_info_service import ModelInfoService
 from siada.support.editor import pipe_editor
 from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
 from siada.support.checkpoint_tracker import CheckPointData
-from siada.tools.read_many_files.models import ProcessingStats
+from siada.support.message_classifier import get_role_and_type_from_item
 
 
 class SwitchEvent:
@@ -98,6 +99,14 @@ class SlashCommands:
     #         if self.verbose:
     #             import traceback
     #             self.io.print_error(traceback.format_exc())
+
+    def cmd_status(self, session, args):
+        "Show the current status"
+        # get the current agent
+        self.io.print_info(f"Current agent: {session.siada_config.agent_name}")
+        # get the current session id
+        self.io.print_info(f"Current session id: {session.session_id}")
+        # Here you would include logic to display the current status
 
     def cmd_shell(self, args):
         "Open a shell"
@@ -482,14 +491,13 @@ Write the complete content to the `siada.md` file. The output must be well-forma
 
         return init_prompt.strip()
 
-
     def cmd_compare(self, session, args: str):
         "Compare files between working directory and checkpoint"
-        
+
         from rich.syntax import Syntax
         from rich.panel import Panel
         from rich import box
-        
+
         # Parse checkpoint filename from args
         checkpoint_filename = args.strip()
         if not checkpoint_filename:
@@ -529,7 +537,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                     border_style="bright_blue",
                     padding=(0, 2)
                 )
-                
+
                 # Use io.console to print Rich components
                 self.io.console.print(header_panel)
                 self.io.console.print()
@@ -538,7 +546,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 if diff_hunks.strip():
                     # Get code theme from running config
                     code_theme = session.siada_config.running_color_settings.code_theme or "monokai"
-                    
+
                     # Create a diff syntax object with highlighting
                     syntax = Syntax(
                         diff_hunks,
@@ -548,7 +556,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                         word_wrap=True,
                         background_color="default"
                     )
-                    
+
                     # Wrap the syntax-highlighted diff in a panel
                     diff_panel = Panel(
                         syntax,
@@ -557,7 +565,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                         box=box.ROUNDED,
                         padding=(1, 2)
                     )
-                    
+
                     # Use io.console to print the diff panel
                     self.io.console.print(diff_panel)
                 else:
@@ -574,7 +582,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 # Simple text output for non-pretty mode
                 self.io.print_info(f"Comparing with checkpoint: {checkpoint_filename}")
                 self.io.print_info("")
-                
+
                 if diff_hunks.strip():
                     self.io.print_info("Differences between checkpoint and working directory:")
                     self.io.print_info("=" * 60)
@@ -588,76 +596,189 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 import traceback
                 self.io.print_error(traceback.format_exc())
 
-    def cmd_restore(self, session, args: str):
-        "Restore files from a checkpoint"
-
+    def _validate_checkpoint_operation(self, session, checkpoint_filename: str, operation_name: str) -> CheckPointData:
+        """
+        Validate checkpoint operation prerequisites and return checkpoint data.
+        
+        Args:
+            session: The current session
+            checkpoint_filename: Name of the checkpoint file
+            operation_name: Name of the operation (for error messages)
+            
+        Returns:
+            CheckPointData if validation successful, None otherwise
+        """
         # Parse checkpoint filename from args
-        checkpoint_filename = args.strip()
         if not checkpoint_filename:
-            self.io.print_error("Please provide a checkpoint filename. Usage: /restore <checkpoint_filename>")
-            return
+            self.io.print_error(f"Please provide a checkpoint filename. Usage: /{operation_name} <checkpoint_filename>")
+            return None
 
         # Check if checkpoint_tracker is available
         if not hasattr(session, 'checkpoint_tracker') or not session.checkpoint_tracker:
             self.io.print_error("Checkpoint tracking is not enabled for this session")
-            return
+            return None
+
+        # Get the checkpoint data
+        checkpoint_data: CheckPointData = (
+            session.checkpoint_tracker.get_checkpoint_data_by_file_name(
+                checkpoint_filename
+            )
+        )
+        if not checkpoint_data:
+            self.io.print_error(f"Checkpoint file '{checkpoint_filename}' not found")
+            return None
+            
+        return checkpoint_data
+
+    def _process_checkpoint_history(self, checkpoint_data: CheckPointData, operation_type: str) -> list:
+        """
+        Process checkpoint history and add appropriate function call output.
+        
+        Args:
+            checkpoint_data: The checkpoint data
+            operation_type: 'undo' or 'restore' to determine the message content
+            
+        Returns:
+            Processed history list or None if processing failed
+        """
+        import copy
+        restored_history = copy.deepcopy(checkpoint_data.history)
+
+        if restored_history:
+            last_message = restored_history[-1]
+            # Use message_classifier to identify message type
+            role, item_type = get_role_and_type_from_item(last_message)
+
+            # Fast fail: only process function_call from assistant
+            if not (role == "assistant" and item_type == "function_call"):
+                # Not a function call, skip processing
+                self.io.print_error(
+                    f"{operation_type} checkpoint failed: last message is not a function call from assistant"
+                )
+                return None
+            else:
+                # Process function_call
+                call_id = last_message.get("call_id")
+                function = last_message.get("name", "unknown_function")
+                if call_id:  # Ensure call_id exists
+                    # Different messages for undo vs restore
+                    if operation_type == "undo":
+                        output_message = f"The checkpoint has been restored from a point saved before the {function} executed. You MUST ask the user how they want to continue. The question must be generic and neutral. Do NOT mention or imply any tools, functions, files, checkpoints, rollbacks, errors, problems, success, or failure. Do NOT offer options or suggestions. Do NOT summarize or add any other text. Output exactly ONE short question, in the user's language, ending with a question mark. It must be a direct translation of 'What should I do next?' and nothing else. Do not proceed until the user responds."
+                    else:  # restore
+                        # output_message = f"The checkpoint has been restored from a point saved after the {function} executed. You MUST ask the user how they want to continue. Do NOT summarize, describe results, list features, propose options, apologize, add greetings, or include any extra text. Output exactly ONE short question, in the user's language, ending with a question mark. Respond in the user's language. Do not proceed until the user responds."
+                        output_message = f"The checkpoint has been restored from a point saved after the {function} executed. You MUST ask the user how they want to continue. The question must be generic and neutral. Do NOT mention or imply any tools, functions, files, checkpoints, rollbacks, errors, problems, success, or failure. Do NOT offer options or suggestions. Do NOT summarize or add any other text. Output exactly ONE short question, in the user's language, ending with a question mark. It must be a direct translation of 'What should I do next?' and nothing else. Do not proceed until the user responds."
+
+                    restored_history.append(
+                        {
+                            "call_id": call_id,
+                            "output": output_message,
+                            "type": "function_call_output",
+                        }
+                    )
+                else:
+                    self.io.print_error(
+                        f"{operation_type} checkpoint failed: last message is missing call_id"
+                    )
+                    return None
+                    
+        return restored_history
+
+    def _manage_session_and_restore(self, session, target_commit_hash: str):
+        """
+        Manage OpenAI session clearing and project state restoration with rollback.
+        
+        Args:
+            session: The current session
+            target_commit_hash: The commit hash to restore to
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        import asyncio
+        
+        # Clear the openai session and save backup
+        old_items = asyncio.run(session.state.openai_session.get_items())
+        asyncio.run(session.state.openai_session.clear_session())
 
         try:
-            # Get the checkpoint data
-            checkpoint_data: CheckPointData = (
-                session.checkpoint_tracker.get_checkpoint_data_by_file_name(
-                    checkpoint_filename
-                )
+            # Restore the project state
+            session.checkpoint_tracker.git_service.restore_project_from_snapshot(
+                target_commit_hash
             )
+            return True
+        except Exception as e:
+            # When restoring project state fails, recover the OpenAI session
+            self.io.print_error(f"Failed to restore project state: {str(e)}")
+            asyncio.run(session.state.openai_session.reset_items(old_items))
+            return False
+
+    def cmd_undo(self, session, args: str):
+        "Undo the target checkpoint"
+        
+        checkpoint_filename = args.strip()
+        
+        try:
+            # Validate checkpoint operation
+            checkpoint_data = self._validate_checkpoint_operation(session, checkpoint_filename, "undo")
             if not checkpoint_data:
-                self.io.print_error(
-                    f"Checkpoint file '{checkpoint_filename}' not found"
-                )
+                return
+
+            # Get the commit_hash from checkpoint data
+            current_commit_hash = checkpoint_data.last_commit_hash
+
+            # Get the previous commit_hash (the state before this checkpoint)
+            previous_commit_hash = session.checkpoint_tracker.git_service.get_previous_commit_hash(current_commit_hash)
+            if not previous_commit_hash:
+                self.io.print_error(f"Cannot undo checkpoint '{checkpoint_filename}': No previous commit found (this might be the first checkpoint)")
+                return
+
+            # Display undo information
+            self.io.print_info(f"Undoing checkpoint: {checkpoint_filename}")
+            self.io.print_info(f"Reverting files: {', '.join(checkpoint_data.modified_file_names)}")
+
+            # Process checkpoint history
+            restored_history = self._process_checkpoint_history(checkpoint_data, "undo")
+            if restored_history is None:
+                return
+
+            # Manage session and restore project state
+            if not self._manage_session_and_restore(session, previous_commit_hash):
+                return
+
+            self.io.print_info(f"Successfully undone checkpoint '{checkpoint_filename}'")
+
+            # Return the SwitchEvent with the restored history
+            return SwitchEvent(undone=True, history=restored_history)
+
+        except Exception as e:
+            self.io.print_error(f"Failed to undo checkpoint: {str(e)}")
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
+
+    def cmd_restore(self, session, args: str):
+        "Restore files from a checkpoint"
+        
+        checkpoint_filename = args.strip()
+        
+        try:
+            # Validate checkpoint operation
+            checkpoint_data = self._validate_checkpoint_operation(session, checkpoint_filename, "restore")
+            if not checkpoint_data:
                 return
 
             # Display checkpoint information
             self.io.print_info(f"Restoring from checkpoint: {checkpoint_filename}")
-            self.io.print_info(f"Last tool used: {checkpoint_data.use_tool_name}")
-            self.io.print_info(f"Modified files: {', '.join(checkpoint_data.modified_file_names)}")
+            self.io.print_info(f"Restoring files: {', '.join(checkpoint_data.modified_file_names)}")
 
-            # Create a copy of the history to avoid modifying checkpoint data
-            import copy
-            restored_history = copy.deepcopy(checkpoint_data.history)
+            # Process checkpoint history
+            restored_history = self._process_checkpoint_history(checkpoint_data, "restore")
+            if restored_history is None:
+                return
 
-            if restored_history:
-                last_message = restored_history[-1]
-                ## compute the edge case
-                if "role" in last_message:
-                    if last_message["role"] == "assistant":
-                        # if the last message is from the assistant, need to add a use message
-                        restored_history.append(
-                            {
-                                "role": "user",
-                                "content": "Checkpoint restored. User has new instructions. Give a concise response asking for next steps.",
-                                "type": "message",
-                            }
-                        )
-                if "type" in last_message:
-                    ## only process type: function_call
-                    if last_message["type"] in ["function_call"]:
-                        call_id = last_message["call_id"]
-                        function = last_message.get("name", "unknown_function")
-                        restored_history.append(
-                            {
-                                "call_id": call_id,
-                                "output": f"{function} executed successfully. Checkpoint restored. Briefly ask user how to continue.",
-                                "type": "function_call_output",
-                            }
-                        )
-
-            # clear the openai session
-            import asyncio
-            asyncio.run(session.state.openai_session.clear_session())
-
-            # Restore the file states using GitService
-            session.checkpoint_tracker.git_service.restore_project_from_snapshot(
-                checkpoint_data.last_commit_hash
-            )
+            # Manage session and restore project state
+            if not self._manage_session_and_restore(session, checkpoint_data.last_commit_hash):
+                return
 
             self.io.print_info(f"Successfully restored from checkpoint '{checkpoint_filename}'")
             return SwitchEvent(restored=True, history=restored_history)

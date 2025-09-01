@@ -28,7 +28,7 @@ class CodeAgentContext(BaseModel):
         if self.checkpoint_tracker and self.session:
             try:
                 self.checkpoint_tracker.save_checkpoints(
-                    task_id=self.session.session_id,
+                    session_id=self.session.session_id,
                     task_message_state=self.session.state.task_message_state,
                 )
             except Exception as e:

@@ -4,6 +4,9 @@ import os
 from siada.services.file_recommendation import FileRecommendationEngine, CompletionConfig
 from siada.services.checkpointer_recommendation import create_checkpoint_recommend_engine
 
+# Constants for checkpoint-related commands
+CHECKPOINT_CMDS = ['/restore', '/compare', "/undo"]
+
 class CommandCompletionException(Exception):
     """Raised when a command should use the normal autocompleter instead of
     command-specific completion."""
@@ -106,7 +109,7 @@ class AutoCompleter(Completer):
                 yield Completion(candidate, start_position=-len(words[-1]))
             return
 
-        if len(words) >= 1 and words[0].lower() in ["/restore", "/compare"]:
+        if len(words) >= 1 and words[0].lower() in CHECKPOINT_CMDS:
             yield from self.get_checkpoints_completions(text, words)
             return
 
@@ -148,9 +151,9 @@ class AutoCompleter(Completer):
             return
 
         if text and text[-1].isspace():
-            # Special case: allow /restore command to continue completion after space
-            if text.strip().startswith('/restore') or text.strip().startswith('/compare'):
-                pass  # Allow /restore and /compare commands to continue completion
+            # Special case: allow checkpoint commands to continue completion after space
+            if any(text.strip().startswith(cmd) for cmd in CHECKPOINT_CMDS):
+                pass  # Allow checkpoint commands to continue completion
             else:
                 # don't keep completing after a space
                 return

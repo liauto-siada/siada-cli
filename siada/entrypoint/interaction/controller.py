@@ -43,8 +43,8 @@ class Controller:
                 if restored_history:
                     user_input = restored_history
                     restored_history = None
-                    # After restoration, set tool_choice to "none" to prevent the LLM from 
-                    # attempting to invoke functions automatically. This ensures the user 
+                    # After restoration, set tool_choice to "none" to prevent the LLM from
+                    # attempting to invoke functions automatically. This ensures the user
                     # can provide new instructions before the conversation continues.
                     if not self.config.llm_config.extra_params:
                         self.config.llm_config.extra_params = {}
@@ -91,7 +91,6 @@ class Controller:
                     and "tool_choice" in self.config.llm_config.extra_params): 
                     self.config.llm_config.extra_params["tool_choice"] = "auto"
 
-
                 if isinstance(turn_output.output, SwitchEvent):
                     if turn_output.output.kwargs.get("model"):
                         self.config.model = turn_output.output.kwargs.get("model")
@@ -100,7 +99,9 @@ class Controller:
                         # Set pending input for next iteration - reuse existing flow
                         pending_input = turn_output.output.kwargs.get("ai_analysis_prompt")
                         continue
-                    elif turn_output.output.kwargs.get("restored"):
+                    elif turn_output.output.kwargs.get(
+                        "restored"
+                    ) or turn_output.output.kwargs.get("undone"):
                         restored_history = turn_output.output.kwargs.get("history")
                         continue
 

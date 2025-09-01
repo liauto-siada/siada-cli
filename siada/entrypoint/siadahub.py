@@ -462,11 +462,8 @@ def main():
         running_color_settings=running_color_settings,
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
-<<<<<<< HEAD
         user_memory=user_memory,
-=======
         enable_checkpointing=enable_checkpointing,
->>>>>>> 84c2b26 (support compare)
     )
 
     # create session

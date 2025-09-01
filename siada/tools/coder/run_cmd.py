@@ -33,7 +33,7 @@ class RunCmdResult(FunctionCallResult):
         if self.code == 0:
             return f"`{self.command}` executed successfully!"
         else:
-            return f"`{self.command}` executed with error!"
+            return f"`{self.command}` executed with code: {self.code}!"
 
     def __str__(self):
         return self.content

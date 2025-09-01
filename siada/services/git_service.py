@@ -345,6 +345,30 @@ class GitService:
 
         return modified_files
 
+    def get_previous_commit_hash(self, commit_hash: str) -> Optional[str]:
+        """
+        Get the previous commit hash for a given commit.
+        
+        Args:
+            commit_hash: Hash of the commit to get the previous commit for
+            
+        Returns:
+            Previous commit hash as string, or None if it's the first commit
+        """
+        repo = self.shadow_git_repository
+        if not repo:
+            raise RuntimeError("Repository not initialized")
+
+        try:
+            # Use git to get the parent commit hash
+            # git rev-parse commit_hash^1 gets the first parent of the commit
+            parent_hash = repo.git.rev_parse(f"{commit_hash}^1")
+            return parent_hash.strip()
+        except (GitCommandError, BadName) as e:
+            # This could mean it's the first commit (no parent) or invalid commit hash
+            logger.warning(f"Could not get previous commit for {commit_hash}: {e}")
+            return None
+
 
 class GitServiceError(Exception):
     """Exception raised by GitService operations."""

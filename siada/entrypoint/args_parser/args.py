@@ -179,7 +179,7 @@ def get_parser(default_config_files, git_root):
     group = parser.add_argument_group("Checkpointing settings")
     group.add_argument(
         "--checkpointing",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         help="Enable checkpointing (default: False)",
         default=None
     )

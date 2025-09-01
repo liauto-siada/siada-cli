@@ -1,3 +1,5 @@
+import asyncio
+import copy
 import dataclasses
 import hashlib
 import json
@@ -85,8 +87,7 @@ class CheckPointTracker:
             # `view`, `create`, `str_replace`, `insert`, `undo_edit`.
             return command
         elif function_tool_name == "run_cmd":
-            return "cmd_edit"
-            # TODO: identify common write commands
+            return "command"
 
         return None
 
@@ -157,12 +158,12 @@ class CheckPointTracker:
         """
         function_tool_name = "unknown"
         arguments = ""
-        
+
         # Validate message history exists and is not empty
         if not task_message_state or not hasattr(task_message_state, 'message_history'):
             logger.warning("Task message state or message history is invalid.")
             return function_tool_name, arguments
-            
+
         if task_message_state.message_history:
             try:
                 last_message = task_message_state.message_history[-1]
@@ -177,22 +178,40 @@ class CheckPointTracker:
             except (IndexError, TypeError, AttributeError) as e:
                 logger.warning(f"Failed to extract tool information from message history: {e}")
                 # Return defaults
-        
+
         return function_tool_name, arguments
 
-    def save_checkpoints(self, task_id: str, task_message_state: TaskMessageState):
+    async def _write_checkpoint_file_async(self, checkpoint_file: Path, checkpoint_data: CheckPointData):
+        """Asynchronously write checkpoint data to file."""
+        try:
+            # Run the file writing operation in an executor to avoid blocking
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: checkpoint_file.write_text(
+                    json.dumps(checkpoint_data.to_dict(), ensure_ascii=False, indent=2),
+                    encoding='utf-8'
+                )
+            )
+            logger.info(f"Successfully saved checkpoint to {checkpoint_file.name}")
+        except (OSError, IOError, PermissionError) as e:
+            logger.error(f"Failed to write checkpoint file: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error while saving checkpoint: {e}")
+
+    def save_checkpoints(self, session_id: str, task_message_state: TaskMessageState):
         """Save checkpoint with comprehensive error handling"""
-        
-        # Extract tool name and arguments from the last message
-        function_tool_name, arguments = self._extract_tool_info_from_message(task_message_state)
-        
-        if function_tool_name == "unknown" and not arguments:
-            logger.debug("No valid tool information found, may skip checkpoint.")
+
+        # Create a copy of task_message_state to avoid modifying the original
+        task_message_state_copy = copy.deepcopy(task_message_state)
+
+        # Extract tool name and arguments from the copied message state
+        function_tool_name, arguments = self._extract_tool_info_from_message(task_message_state_copy)
 
         # Check if we should save checkpoint
         if not self._should_save_checkpoint(function_tool_name, arguments):
             return
-        
+
         try:
             # Create checkpoint directory
             checkpoint_dir_path = Path(self.checkpoint_dir)
@@ -207,8 +226,7 @@ class CheckPointTracker:
         if tool_place_holder is None:
             tool_place_holder = "UNKNOWN"
 
-        snapshot_commit_msg = f"Snapshot for task {task_id} at {datetime.now()} with {function_tool_name}"
-
+        timestamp = datetime.now()
         try:
             # Get modified files from git service
             modified_file_names = self.git_service.get_modified_files()
@@ -221,47 +239,48 @@ class CheckPointTracker:
             return
 
         try:
+            snapshot_commit_msg = f"snapshot for session: {session_id} at {timestamp.strftime('%Y_%m_%d_%H%M%S')} with {function_tool_name}"
             last_commit_hash = self.git_service.create_snapshot(snapshot_commit_msg)
         except Exception as e:
             logger.error(f"Failed to create git snapshot: {e}")
             return
 
-        timestamp = datetime.now()
+        # Use the copied message history instead of the original
         checkpoint_data = CheckPointData(
             timestamp=timestamp,
             last_commit_hash=last_commit_hash,
-            history=task_message_state.message_history,
+            history=task_message_state_copy.message_history,
             use_tool_name=function_tool_name,
             modified_file_names=modified_file_names,
         )
-        
+
         # Sanitize and limit file names for the filename
         modified_file_names_placeholder = "#".join(modified_file_names)
         # Remove potentially problematic characters from filename
         modified_file_names_placeholder = re.sub(r'[<>:"/\\|?*]', '_', modified_file_names_placeholder)
-        modified_file_names_placeholder = modified_file_names_placeholder[:50]
+
+        # Only add truncation indicator if the filename was actually truncated
+        if len(modified_file_names_placeholder) > 47:
+            modified_file_names_placeholder = f"{modified_file_names_placeholder[:47]}_truncated"
 
         # Build checkpoint file directory and name
         checkpoint_file_name = f"{timestamp.strftime('%Y_%m_%d_%H%M%S')}__{tool_place_holder.upper()}__{modified_file_names_placeholder}.json"
-        
-        # Validate path length (most OS have 255 char filename limit)
-        if len(checkpoint_file_name) > 250:
-            # Use a hash if the name is too long
-            name_hash = hashlib.md5(checkpoint_file_name.encode()).hexdigest()[:8]
-            checkpoint_file_name = f"{timestamp.strftime('%Y_%m_%d_%H%M%S')}__{tool_place_holder.upper()}__{name_hash}.json"
-        
+
         checkpoint_file = checkpoint_dir_path / checkpoint_file_name
 
-        # Write checkpoint data to file with error handling
+        # Write checkpoint data to file asynchronously
+        # Create and run the async task without blocking
         try:
-            with open(checkpoint_file, "w", encoding='utf-8') as f:
-                json.dump(checkpoint_data.to_dict(), f, ensure_ascii=False, indent=2)
-            logger.info(f"Successfully saved checkpoint to {checkpoint_file_name}")
-        except (OSError, IOError, PermissionError) as e:
-            logger.error(f"Failed to write checkpoint file: {e}")
-            return
+            # Check if there's already an event loop running
+            try:
+                asyncio.get_running_loop()
+                # Schedule the async write operation as a task
+                asyncio.create_task(self._write_checkpoint_file_async(checkpoint_file, checkpoint_data))
+            except RuntimeError:
+                # No event loop is running, create a new one
+                asyncio.run(self._write_checkpoint_file_async(checkpoint_file, checkpoint_data))
         except Exception as e:
-            logger.error(f"Unexpected error while saving checkpoint: {e}")
+            logger.error(f"Failed to initiate async checkpoint write: {e}")
             return
 
     def _clean_commit_hash(self, hash_str: str) -> str:
@@ -293,13 +312,13 @@ class CheckPointTracker:
             RuntimeError: If git operations fail or repository is not initialized
         """
         start_time = time.time()
-        
+
         # Clean commit hashes to handle backward compatibility
         clean_lhs = self._clean_commit_hash(lhs_hash)
         clean_rhs = self._clean_commit_hash(rhs_hash) if rhs_hash else None
-        
+
         logger.info(f"Getting diff between commits: {clean_lhs or 'initial'} -> {clean_rhs or 'working directory'}")
-        
+
         try:
             if clean_rhs:
                 # Compare between two specific commits
@@ -309,12 +328,12 @@ class CheckPointTracker:
                 # Compare commit with working directory
                 # Use clean_lhs as target commit, base_commit=None means compare with working directory
                 diff_output = self.git_service.get_snapshot_diff(clean_lhs, None)
-            
+
             duration_ms = round((time.time() - start_time) * 1000)
             logger.info(f"Diff generation completed in {duration_ms}ms")
-            
+
             return diff_output
-            
+
         except Exception as e:
             logger.error(f"Failed to get diff set hunks: {e}")
             raise RuntimeError(f"Failed to get diff set hunks: {e}")
