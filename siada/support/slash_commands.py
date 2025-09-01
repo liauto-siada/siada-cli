@@ -1,5 +1,6 @@
 import inspect
 import os
+import siada
 import stat
 import sys
 
@@ -102,11 +103,15 @@ class SlashCommands:
 
     def cmd_status(self, session, args):
         "Show the current status"
+        # get the current model
+        self.io.print_info(f"Model: {session.siada_config.llm_config.model_name}")
         # get the current agent
-        self.io.print_info(f"Current agent: {session.siada_config.agent_name}")
+        self.io.print_info(f"Agent: {session.siada_config.agent_name}")
         # get the current session id
-        self.io.print_info(f"Current session id: {session.session_id}")
+        self.io.print_info(f"Session id: {session.session_id}")
         # Here you would include logic to display the current status
+        # display the current work_space
+        self.io.print_info(f"WorkSpace: {session.siada_config.workspace}")
 
     def cmd_shell(self, args):
         "Open a shell"

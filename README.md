@@ -305,6 +305,7 @@ In the CLI, you can use slash commands for additional functionality:
 - `/compare <checkpoint_file>` - Compare current state with a checkpoint file to see differences
 - `/memory-refresh` - Refresh user memory content from siada.md file
 - `/memory-status` - Display current user memory status (file info, size, loaded status)
+- `/status` - Display current session status (model, agent, session ID, and workspace)
 - `/exit` or `/quit` - Exit the application
 
 ### Shell Mode Usage Guide

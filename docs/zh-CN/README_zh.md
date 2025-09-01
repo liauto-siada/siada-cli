@@ -305,6 +305,7 @@ siada-cli --check-update       # 启动时检查并提示更新（默认开启�
 - `/compare <checkpoint_file>` - 将当前状态与检查点文件进行比较以查看差异
 - `/memory-refresh` - 从 siada.md 文件刷新用户内存内容
 - `/memory-status` - 显示当前用户内存状态（文件信息、大小、加载状态）
+- `/status` - 显示当前会话状态（模型、代理、会话ID和工作空间）
 - `/exit` 或 `/quit` - 退出应用程序
 
 ### Shell 模式使用说明
