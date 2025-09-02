@@ -532,10 +532,11 @@ class ConversationTurn(RunTurn):
                     )
 
                     await self.output_stream_content(result)
-                    # Sync messages from openai_session to task_message_state after agent run
-                    # await self.session.state.sync_messages_from_openai_session()
-                finally:
+                    # Sync messages from result to openai_session after agent run
                     await self.session.state.openai_session.reset_items(result.to_input_list())
+                finally:
+                    # In the current version of agents-sdk, resetting history in the finally statement may cause an edge case where the run loop throws an error when the last history item is a function call
+                    # await self.session.state.openai_session.reset_items(result.to_input_list())
                     return result
 
             # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
