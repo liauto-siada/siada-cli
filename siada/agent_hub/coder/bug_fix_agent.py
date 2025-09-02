@@ -28,7 +28,8 @@ from typing import Optional, List, Dict, Any
 from openai.types.responses import ResponseFunctionToolCall, ResponseOutputMessage
 import json
 from agents import add_trace_processor
-
+from siada.services.siada_runner import SiadaRunner
+from siada.support.slash_commands import SlashCommands
 class BugFixAgent(CodeGenAgent):
     fix_result_checker: FixResultChecker
     strict_fix_result_checker: StrictFixResultChecker
@@ -108,7 +109,7 @@ class BugFixAgent(CodeGenAgent):
         opt_user_input = await self.bug_desc_optimizer.optimize(user_input, context, project_type, trace_collector=self.trace_collector)
         print(f"Bug desc optimize result:{opt_user_input}\n")
 
-        input_with_env = self.struct_user_input(opt_user_input)
+        input_with_env = await self.struct_user_input(opt_user_input, context)
         max_turns = 3
         current_turn = 0
         task_message = {"content": input_with_env, "role": "user"}
@@ -172,13 +173,47 @@ class BugFixAgent(CodeGenAgent):
         patch_list=self.trace_collector.trace_session.patch_selection.input_patches
         self.select_agent._apply_selected_patch(patch_list[1], context)
 
-    def struct_user_input(self, user_input: str) -> str:
+    async def run_init_analysis(self, context: CodeAgentContext) -> str:
+        """        
+        Args:
+            context: Code agent context
+        """
+        try:
+            print("🔍 Starting project analysis...")
+            
+            init_prompt = SlashCommands(io=None)._create_init_analysis_prompt(context.root_dir)
+            
+            result = await SiadaRunner.run_agent(
+                agent_name="coder",
+                user_input=init_prompt,
+                workspace=context.root_dir,
+                session=context.session,
+                stream=False,
+            )
+            
+            print("✅ Project analysis completed!")
+            return result.final_output
+            
+        except Exception as e:
+            print(f"⚠️ Project analysis failed: {e}")
+            return f"Project analysis failed: {str(e)}"
+
+    async def struct_user_input(self, user_input: str, context: CodeAgentContext = None) -> str:
         task = f"""
                 **Issue Description:**
                 <task>
                 {user_input}
                 </task>
                 """
+
+        if context:
+            try:
+                project_analysis = await self.run_init_analysis(context)
+                if project_analysis and project_analysis.strip():
+                    environment_details = f'<Project Description>\n{project_analysis}\n</Project Description>'
+                    return task + '\n' + environment_details
+            except Exception as e:
+                print(f"Failed to get project analysis: {e}")
 
         return task
 
