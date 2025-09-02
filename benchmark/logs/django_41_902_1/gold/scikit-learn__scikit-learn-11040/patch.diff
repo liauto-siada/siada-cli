@@ -1,0 +1,124 @@
+diff --git a/sklearn/neighbors/approximate.py b/sklearn/neighbors/approximate.py
+index 6a3fd571b..97a95f94b 100644
+--- a/sklearn/neighbors/approximate.py
++++ b/sklearn/neighbors/approximate.py
+@@ -207,11 +207,14 @@ class LSHForest(BaseEstimator, KNeighborsMixin, RadiusNeighborsMixin):
+     def __init__(self, n_estimators=10, radius=1.0, n_candidates=50,
+                  n_neighbors=5, min_hash_match=4, radius_cutoff_ratio=.9,
+                  random_state=None):
++        # Import locally to avoid circular imports
++        from .base import _check_n_neighbors
++        
+         self.n_estimators = n_estimators
+         self.radius = radius
+         self.random_state = random_state
+         self.n_candidates = n_candidates
+-        self.n_neighbors = n_neighbors
++        self.n_neighbors = _check_n_neighbors(n_neighbors)
+         self.min_hash_match = min_hash_match
+         self.radius_cutoff_ratio = radius_cutoff_ratio
+ 
+@@ -430,6 +433,10 @@ class LSHForest(BaseEstimator, KNeighborsMixin, RadiusNeighborsMixin):
+ 
+         if n_neighbors is None:
+             n_neighbors = self.n_neighbors
++        else:
++            # Import locally to avoid circular imports
++            from .base import _check_n_neighbors
++            n_neighbors = _check_n_neighbors(n_neighbors)
+ 
+         X = check_array(X, accept_sparse='csr')
+ 
+diff --git a/sklearn/neighbors/base.py b/sklearn/neighbors/base.py
+index 3e5e729c2..d8579aed9 100644
+--- a/sklearn/neighbors/base.py
++++ b/sklearn/neighbors/base.py
+@@ -8,6 +8,7 @@
+ # License: BSD 3 clause (C) INRIA, University of Amsterdam
+ import warnings
+ from abc import ABCMeta, abstractmethod
++import numbers
+ 
+ import numpy as np
+ from scipy.sparse import csr_matrix, issparse
+@@ -55,6 +56,53 @@ def _check_weights(weights):
+                          "'distance', or a callable function")
+ 
+ 
++def _check_n_neighbors(n_neighbors, context=""):
++    """Check to make sure n_neighbors is a valid integer.
++    
++    Parameters
++    ----------
++    n_neighbors : int or None
++        Number of neighbors to validate
++    context : str, optional
++        Additional context for error message
++        
++    Returns
++    -------
++    n_neighbors : int or None
++        Validated n_neighbors parameter
++        
++    Raises
++    ------
++    ValueError
++        If n_neighbors is not a valid integer or is <= 0
++    """
++    if n_neighbors is None:
++        return n_neighbors
++        
++    # Check if it's a float
++    if isinstance(n_neighbors, float):
++        raise ValueError(
++            "n_neighbors must be an integer, got float ({:.1f}). "
++            "Please provide an integer value greater than 0.".format(n_neighbors)
++        )
++    
++    # Check if it's a valid integer type  
++    if not isinstance(n_neighbors, (numbers.Integral, np.integer)):
++        raise ValueError(
++            "n_neighbors must be an integer, got {} ({}). "
++            "Please provide an integer value greater than 0.".format(
++                type(n_neighbors).__name__, n_neighbors)
++        )
++    
++    # Check if it's positive
++    if n_neighbors <= 0:
++        raise ValueError(
++            "n_neighbors must be greater than 0, got {}".format(n_neighbors)
++        )
++    
++    return n_neighbors
++
++
+ def _get_weights(dist, weights):
+     """Get the weights from an array of distances and a parameter ``weights``
+ 
+@@ -107,7 +155,7 @@ class NeighborsBase(six.with_metaclass(ABCMeta, BaseEstimator)):
+                  algorithm='auto', leaf_size=30, metric='minkowski',
+                  p=2, metric_params=None, n_jobs=1):
+ 
+-        self.n_neighbors = n_neighbors
++        self.n_neighbors = _check_n_neighbors(n_neighbors)
+         self.radius = radius
+         self.algorithm = algorithm
+         self.leaf_size = leaf_size
+@@ -327,6 +375,8 @@ class KNeighborsMixin(object):
+ 
+         if n_neighbors is None:
+             n_neighbors = self.n_neighbors
++        else:
++            n_neighbors = _check_n_neighbors(n_neighbors)
+ 
+         if X is not None:
+             query_is_train = False
+@@ -466,6 +516,8 @@ class KNeighborsMixin(object):
+         """
+         if n_neighbors is None:
+             n_neighbors = self.n_neighbors
++        else:
++            n_neighbors = _check_n_neighbors(n_neighbors)
+ 
+         # kneighbors does the None handling.
+         if X is not None:

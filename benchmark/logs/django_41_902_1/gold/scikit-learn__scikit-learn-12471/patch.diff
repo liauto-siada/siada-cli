@@ -1,0 +1,141 @@
+diff --git a/sklearn/preprocessing/_encoders.py b/sklearn/preprocessing/_encoders.py
+index 1e05aba59..83cfd45e2 100644
+--- a/sklearn/preprocessing/_encoders.py
++++ b/sklearn/preprocessing/_encoders.py
+@@ -111,7 +111,51 @@ class _BaseEncoder(BaseEstimator, TransformerMixin):
+                     # removed later.
+                     X_mask[:, i] = valid_mask
+                     Xi = Xi.copy()
+-                    Xi[~valid_mask] = self.categories_[i][0]
++                    
++                    # Handle string dtype potential truncation issue
++                    replacement_value = self.categories_[i][0]
++                    if (np.issubdtype(Xi.dtype, np.str_) or 
++                        np.issubdtype(Xi.dtype, np.unicode_) or 
++                        np.issubdtype(Xi.dtype, np.bytes_)):
++                        # For string arrays, ensure we have enough space for replacement value
++                        # Check if replacement would be truncated by trying a test assignment
++                        try:
++                            test_array = np.array([replacement_value], dtype=Xi.dtype)
++                            # Compare the values appropriately based on dtype
++                            if np.issubdtype(Xi.dtype, np.bytes_):
++                                # For bytes, compare as bytes
++                                test_val = test_array[0]
++                                orig_val = replacement_value
++                                if isinstance(orig_val, str):
++                                    orig_val = orig_val.encode('utf-8')
++                                is_truncated = test_val != orig_val
++                            else:
++                                # For unicode strings, compare as strings
++                                is_truncated = str(test_array[0]) != str(replacement_value)
++                                
++                            if is_truncated:
++                                # Replacement would be truncated, need to resize array
++                                # Calculate max length needed: max of existing values and replacement
++                                if np.issubdtype(Xi.dtype, np.bytes_):
++                                    max_existing_len = max(len(val) for val in Xi) if len(Xi) > 0 else 0
++                                    if isinstance(replacement_value, str):
++                                        replacement_len = len(replacement_value.encode('utf-8'))
++                                    else:
++                                        replacement_len = len(replacement_value)
++                                    max_len = max(max_existing_len, replacement_len)
++                                    new_dtype = f'S{max_len}'
++                                else:
++                                    max_existing_len = max(len(str(val)) for val in Xi) if len(Xi) > 0 else 0
++                                    replacement_len = len(str(replacement_value))
++                                    max_len = max(max_existing_len, replacement_len)
++                                    new_dtype = f'<U{max_len}'
++                                
++                                Xi = Xi.astype(new_dtype)
++                        except (ValueError, TypeError):
++                            # If we can't create test array, just proceed - other errors will catch it
++                            pass
++                    
++                    Xi[~valid_mask] = replacement_value
+             _, encoded = _encode(Xi, self.categories_[i], encode=True)
+             X_int[:, i] = encoded
+ 
+diff --git a/sklearn/preprocessing/tests/test_encoders.py b/sklearn/preprocessing/tests/test_encoders.py
+index d5ac50a25..e1ddc0b00 100644
+--- a/sklearn/preprocessing/tests/test_encoders.py
++++ b/sklearn/preprocessing/tests/test_encoders.py
+@@ -659,3 +659,79 @@ def test_one_hot_encoder_warning():
+     enc = OneHotEncoder()
+     X = [['Male', 1], ['Female', 3]]
+     np.testing.assert_no_warnings(enc.fit_transform, X)
++
++
++def test_one_hot_encoder_string_length_mismatch():
++    """Test that OneHotEncoder handles string arrays with unknown categories
++    when replacement string is longer than original strings.
++    
++    This is a regression test for the bug where string truncation occurred
++    during in-place replacement of unknown values with the first category,
++    causing validation errors when handle_unknown='ignore'.
++    """
++    # Test case 1: Basic string length mismatch (primary bug case)
++    train = np.array(['22', '333', '4444', '11111111']).reshape((-1, 1))
++    test = np.array(['55555', '22']).reshape((-1, 1))
++    
++    ohe = OneHotEncoder(dtype=bool, handle_unknown='ignore')
++    ohe.fit(train)
++    
++    # This should work without raising ValueError
++    result = ohe.transform(test)
++    
++    # Expected: 2x4 matrix with False everywhere except position (1,0) for '22'
++    expected = np.array([[False, False, False, False],
++                        [False, True, False, False]])
++    
++    assert_equal(result.shape, (2, 4))
++    assert_array_equal(result.toarray(), expected)
++
++    # Test case 2: Multi-column scenario with mixed string lengths
++    train = np.array([
++        ['short', 'verylongcategory'],
++        ['med', 'short'],
++        ['verylongname', 'med']
++    ])
++    test = np.array([
++        ['unknown1', 'short'],
++        ['short', 'unknownverylongname']
++    ])
++    
++    ohe = OneHotEncoder(handle_unknown='ignore')
++    ohe.fit(train)
++    
++    # Should work without error
++    result = ohe.transform(test)
++    
++    # Check that output has correct shape (2 samples, 6 features total)
++    assert_equal(result.shape, (2, 6))
++
++    # Test case 3: Bytes strings  
++    train_bytes = np.array([b'22', b'333', b'4444', b'11111111']).reshape((-1, 1))
++    test_bytes = np.array([b'55555', b'22']).reshape((-1, 1))
++    
++    ohe_bytes = OneHotEncoder(dtype=bool, handle_unknown='ignore')
++    ohe_bytes.fit(train_bytes)
++    
++    # Should work without error
++    result_bytes = ohe_bytes.transform(test_bytes)
++    assert_equal(result_bytes.shape, (2, 4))
++
++    # Test case 4: Ensure string and object arrays produce consistent results
++    train_obj = np.array(['22', '333', '4444', '11111111'], dtype=object).reshape((-1, 1))
++    test_obj = np.array(['55555', '22'], dtype=object).reshape((-1, 1))
++    
++    ohe_obj = OneHotEncoder(dtype=bool, handle_unknown='ignore')
++    ohe_obj.fit(train_obj)
++    result_obj = ohe_obj.transform(test_obj)
++    
++    # Results should be identical to string array version (from test case 1)
++    train_str = np.array(['22', '333', '4444', '11111111']).reshape((-1, 1))
++    test_str = np.array(['55555', '22']).reshape((-1, 1))
++    
++    ohe_str = OneHotEncoder(dtype=bool, handle_unknown='ignore')
++    ohe_str.fit(train_str)
++    result_str = ohe_str.transform(test_str)
++    
++    assert_array_equal(result_str.toarray(), result_obj.toarray())
++    assert_equal(result_str.shape, result_obj.shape)

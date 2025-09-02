@@ -1,0 +1,95 @@
+diff --git a/pylint/__init__.py b/pylint/__init__.py
+index 3aa4b7f9d..97e7e0fc2 100644
+--- a/pylint/__init__.py
++++ b/pylint/__init__.py
+@@ -20,11 +20,22 @@ def run_pylint(argv: Sequence[str] | None = None) -> None:
+     argv can be a sequence of strings normally supplied as arguments on the command line
+     """
+     from pylint.lint import Run as PylintRun
++    from pylint.config.exceptions import _UnrecognizedOptionError
+ 
+     try:
+-        PylintRun(argv or sys.argv[1:])
++        PylintRun(argv or sys.argv[1:], _called_from_command_line=True)
+     except KeyboardInterrupt:
+         sys.exit(1)
++    except _UnrecognizedOptionError as ex:
++        # Format unrecognized options for user-friendly error message
++        if len(ex.options) == 1:
++            msg = f"pylint: error: unrecognized option: {ex.options[0]}"
++        else:
++            opts = ", ".join(ex.options)
++            msg = f"pylint: error: unrecognized options: {opts}"
++        msg += "\nTry 'pylint --help' for more information."
++        print(msg, file=sys.stderr)
++        sys.exit(2)
+ 
+ 
+ def run_epylint(argv: Sequence[str] | None = None) -> NoReturn:
+diff --git a/pylint/config/config_initialization.py b/pylint/config/config_initialization.py
+index 24e453a73..5a962d606 100644
+--- a/pylint/config/config_initialization.py
++++ b/pylint/config/config_initialization.py
+@@ -23,6 +23,7 @@ def _config_initialization(
+     reporter: reporters.BaseReporter | reporters.MultiReporter | None = None,
+     config_file: None | str | Path = None,
+     verbose_mode: bool = False,
++    called_from_command_line: bool = False,
+ ) -> list[str]:
+     """Parse all available options, read config files and command line arguments and
+     set options accordingly.
+@@ -74,14 +75,19 @@ def _config_initialization(
+ 
+     # Check if there are any options that we do not recognize
+     unrecognized_options: list[str] = []
++    unrecognized_options_msg: list[str] = []
+     for opt in parsed_args_list:
+         if opt.startswith("--"):
+-            unrecognized_options.append(opt[2:])
++            unrecognized_options.append(opt)
++            unrecognized_options_msg.append(opt[2:])
+         elif opt.startswith("-"):
+-            unrecognized_options.append(opt[1:])
++            unrecognized_options.append(opt)
++            unrecognized_options_msg.append(opt[1:])
+     if unrecognized_options:
+-        msg = ", ".join(unrecognized_options)
+-        linter.add_message("unrecognized-option", line=0, args=msg)
++        if not called_from_command_line:
++            # For programmatic usage, add the E0015 message
++            msg = ", ".join(unrecognized_options_msg)
++            linter.add_message("unrecognized-option", line=0, args=msg)
+         raise _UnrecognizedOptionError(options=unrecognized_options)
+ 
+     # Set the current module to configuration as we don't know where
+diff --git a/pylint/lint/run.py b/pylint/lint/run.py
+index 778e64441..75aece53f 100644
+--- a/pylint/lint/run.py
++++ b/pylint/lint/run.py
+@@ -13,7 +13,7 @@ from typing import Any
+ 
+ from pylint import config
+ from pylint.config.config_initialization import _config_initialization
+-from pylint.config.exceptions import ArgumentPreprocessingError
++from pylint.config.exceptions import ArgumentPreprocessingError, _UnrecognizedOptionError
+ from pylint.config.utils import _preprocess_options
+ from pylint.constants import full_version
+ from pylint.lint.base_options import _make_run_options
+@@ -95,6 +95,7 @@ group are mutually exclusive.",
+         reporter: BaseReporter | None = None,
+         exit: bool = True,  # pylint: disable=redefined-builtin
+         do_exit: Any = UNUSED_PARAM_SENTINEL,
++        _called_from_command_line: bool = False,
+     ) -> None:
+         # Immediately exit if user asks for version
+         if "--version" in args:
+@@ -133,7 +134,8 @@ group are mutually exclusive.",
+         linter.enable("c-extension-no-member")
+ 
+         args = _config_initialization(
+-            linter, args, reporter, config_file=self._rcfile, verbose_mode=self.verbose
++            linter, args, reporter, config_file=self._rcfile, verbose_mode=self.verbose,
++            called_from_command_line=_called_from_command_line
+         )
+ 
+         if linter.config.jobs < 0:

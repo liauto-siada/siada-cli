@@ -77,6 +77,21 @@ class PatchSelectionTrace:
 class BugFixTraceSession:
     session_id: str
     original_issue: str = ""
+    execution_overview: Optional[str] =""
+    classify: Optional[ProjectAnalysisTrace] = None
+    issue_optimize: Optional[OptimizationTrace] = None
+    bug_fix_rounds: List[RunRoundTrace] = field(default_factory=list)
+    check_rounds: List[CheckerTrace] = field(default_factory=list)
+    patch_selection: Optional[PatchSelectionTrace] = None
+    final_result: str = ""
+    success: bool = False
+    error_message: str = ""
+
+@dataclass
+class BugFixTraceSessionOld:
+    session_id: str
+    original_issue: str = ""
+    execution_overview: Optional[str] =""
     project_domain_classification: Optional[ProjectAnalysisTrace] = None
     issue_description_optimization: Optional[OptimizationTrace] = None
     bug_fix_run_rounds: List[RunRoundTrace] = field(default_factory=list)
@@ -86,6 +101,18 @@ class BugFixTraceSession:
     success: bool = False
     error_message: str = ""
 
+@dataclass
+class HistoryItem:
+    execution_stage: str="" 
+    content: dict=field(default_factory=dict)
+
+@dataclass
+class OutputData:
+    trajectory: BugFixTraceSession
+    history: List[HistoryItem] = field(default_factory=list)
+    info: dict=field(default_factory=dict)
+    replay_config: str=""
+    environment: str=""
 
 class BugFixTraceCollector(TracingProcessor):    
     def __init__(self, session_id: Optional[str] = None, output_dir: str = "bug_fix_traces", **kwargs):
@@ -105,6 +132,7 @@ class BugFixTraceCollector(TracingProcessor):
         
         self.agent_name = "siada"
         self.submission_diff = ""
+        self.exit_status = ""
         
     
     def _generate_session_id(self) -> str:
@@ -114,7 +142,7 @@ class BugFixTraceCollector(TracingProcessor):
         self.trace_session.original_issue = original_issue
     
     def record_project_analysis(self, prompt: str, user_input: str, result: Dict[str, Any]) -> None:
-        self.trace_session.project_domain_classification = ProjectAnalysisTrace(
+        self.trace_session.classify = ProjectAnalysisTrace(
             prompt=prompt,
             user_input=user_input,
             classification_result=result
@@ -122,7 +150,7 @@ class BugFixTraceCollector(TracingProcessor):
     
     def record_optimization(self, prompt: str, original_input: str, 
                           optimized_result: str, project_type: str) -> None:
-        self.trace_session.issue_description_optimization = OptimizationTrace(
+        self.trace_session.issue_optimize = OptimizationTrace(
             prompt=prompt,
             original_input=original_input,
             optimized_result=optimized_result,
@@ -135,7 +163,7 @@ class BugFixTraceCollector(TracingProcessor):
             round_number=self.current_round,
             input_list=input_list
         )
-        self.trace_session.bug_fix_run_rounds.append(round_trace)
+        self.trace_session.bug_fix_rounds.append(round_trace)
     
     def start_model_call(self) -> None:
         pass
@@ -143,7 +171,7 @@ class BugFixTraceCollector(TracingProcessor):
     def end_model_call(self, input_messages: List[Dict[str, Any]], 
                       output_message: Dict[str, Any], model_name: str = "", 
                       usage: Optional[Dict[str, Any]] = None) -> None:
-        if not self.trace_session.bug_fix_run_rounds:
+        if not self.trace_session.bug_fix_rounds:
             return
         
         model_call = ModelCall(
@@ -152,14 +180,14 @@ class BugFixTraceCollector(TracingProcessor):
             model_name=model_name
         )
         
-        self.trace_session.bug_fix_run_rounds[-1].model_calls.append(model_call)
+        self.trace_session.bug_fix_rounds[-1].model_calls.append(model_call)
     
     def start_tool_call(self) -> None:
         pass
     
     def end_tool_call(self, tool_name: str, input_args: Dict[str, Any], 
                      output_result: Any) -> None:
-        if not self.trace_session.bug_fix_run_rounds:
+        if not self.trace_session.bug_fix_rounds:
             return
         
         tool_call = ToolCall(
@@ -168,11 +196,11 @@ class BugFixTraceCollector(TracingProcessor):
             output_result=output_result
         )
         
-        self.trace_session.bug_fix_run_rounds[-1].tool_calls.append(tool_call)
+        self.trace_session.bug_fix_rounds[-1].tool_calls.append(tool_call)
     
     def end_run_round(self, final_output: str) -> None:
-        if self.trace_session.bug_fix_run_rounds:
-            self.trace_session.bug_fix_run_rounds[-1].final_output = final_output
+        if self.trace_session.bug_fix_rounds:
+            self.trace_session.bug_fix_rounds[-1].final_output = final_output
     
     def record_checker_trace(self, prompt: str, user_input: str, check_summary: str,
                            feedback_message: Dict[str, Any], should_break: bool) -> None:
@@ -183,7 +211,7 @@ class BugFixTraceCollector(TracingProcessor):
             feedback_message=feedback_message,
             should_break=should_break
         )
-        self.trace_session.checker_traces.append(checker_trace)
+        self.trace_session.check_rounds.append(checker_trace)
     
     def start_patch_selection(self, patches: List[str], selection_prompt: str) -> None:
         self.is_in_patch_selection = True  
@@ -266,7 +294,7 @@ class BugFixTraceCollector(TracingProcessor):
         span_type = span.span_data.type
         
         if span_type == "generation":
-            if not self.is_in_patch_selection and self.trace_session.bug_fix_run_rounds:
+            if not self.is_in_patch_selection and self.trace_session.bug_fix_rounds:
                 pass  
                 
         elif span_type == "function":
@@ -329,8 +357,8 @@ class BugFixTraceCollector(TracingProcessor):
         
         if self.is_in_patch_selection and self.trace_session.patch_selection:
             self.trace_session.patch_selection.model_calls.append(model_call)
-        elif self.trace_session.bug_fix_run_rounds:
-            self.trace_session.bug_fix_run_rounds[-1].model_calls.append(model_call)
+        elif self.trace_session.bug_fix_rounds:
+            self.trace_session.bug_fix_rounds[-1].model_calls.append(model_call)
     
     def _record_tool_call_from_span(self, span) -> None:
         data = span.span_data
@@ -359,17 +387,19 @@ class BugFixTraceCollector(TracingProcessor):
         
         if self.is_in_patch_selection and self.trace_session.patch_selection:
             self.trace_session.patch_selection.tool_calls.append(tool_call)
-        elif self.trace_session.bug_fix_run_rounds:
-            self.trace_session.bug_fix_run_rounds[-1].tool_calls.append(tool_call)
+        elif self.trace_session.bug_fix_rounds:
+            self.trace_session.bug_fix_rounds[-1].tool_calls.append(tool_call)
     
     def export_to_json(self, filename: Optional[str] = None) -> str:
         if filename is None:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"bugfix_trace_{self.session_id}_{timestamp}.json"
         
+        output:OutputData = self.formatter_export_data(self.trace_session)
+
         filepath = self.output_dir / filename
         
-        trace_dict = asdict(self.trace_session)
+        trace_dict = asdict(output)
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(trace_dict, f, indent=2, ensure_ascii=False)
@@ -409,10 +439,10 @@ class BugFixTraceCollector(TracingProcessor):
         return {
             "session_id": self.session_id,
             "original_issue": self.trace_session.original_issue,
-            "total_rounds": len(self.trace_session.bug_fix_run_rounds),
-            "total_model_calls": sum(len(round_trace.model_calls) for round_trace in self.trace_session.bug_fix_run_rounds),
-            "total_tool_calls": sum(len(round_trace.tool_calls) for round_trace in self.trace_session.bug_fix_run_rounds),
-            "checker_runs": len(self.trace_session.checker_traces),
+            "total_rounds": len(self.trace_session.bug_fix_rounds),
+            "total_model_calls": sum(len(round_trace.model_calls) for round_trace in self.trace_session.bug_fix_rounds),
+            "total_tool_calls": sum(len(round_trace.tool_calls) for round_trace in self.trace_session.bug_fix_rounds),
+            "checker_runs": len(self.trace_session.check_rounds),
             "patch_selection_used": self.trace_session.patch_selection is not None,
             "success": self.trace_session.success,
             "final_result": self.trace_session.final_result[:200] + "..." if len(self.trace_session.final_result) > 200 else self.trace_session.final_result
@@ -430,18 +460,18 @@ class BugFixTraceCollector(TracingProcessor):
             error_message=data.get('error_message', '')
         )
         
-        if data.get('project_domain_classification'):
-            trace_session.project_domain_classification = ProjectAnalysisTrace(**data['project_domain_classification'])
+        if data.get('classify'):
+            trace_session.classify = ProjectAnalysisTrace(**data['classify'])
         elif data.get('project_analysis'):  
-            trace_session.project_domain_classification = ProjectAnalysisTrace(**data['project_analysis'])
+            trace_session.classify = ProjectAnalysisTrace(**data['project_analysis'])
         
-        if data.get('issue_description_optimization'):
-            trace_session.issue_description_optimization = OptimizationTrace(**data['issue_description_optimization'])
+        if data.get('issue_optimize'):
+            trace_session.issue_optimize = OptimizationTrace(**data['issue_optimize'])
         elif data.get('optimization'): 
-            trace_session.issue_description_optimization = OptimizationTrace(**data['optimization'])
+            trace_session.issue_optimize = OptimizationTrace(**data['optimization'])
         
-        if data.get('bug_fix_run_rounds'):
-            for round_data in data['bug_fix_run_rounds']:
+        if data.get('bug_fix_rounds'):
+            for round_data in data['bug_fix_rounds']:
                 round_trace = RunRoundTrace(
                     round_number=round_data.get('round_number', 0),
                     input_list=round_data.get('input_list', []),
@@ -456,7 +486,7 @@ class BugFixTraceCollector(TracingProcessor):
                     tool_call = ToolCall(**tc_data)
                     round_trace.tool_calls.append(tool_call)
                 
-                trace_session.bug_fix_run_rounds.append(round_trace)
+                trace_session.bug_fix_rounds.append(round_trace)
         elif data.get('run_rounds'):  
             for round_data in data['run_rounds']:
                 round_trace = RunRoundTrace(
@@ -473,12 +503,12 @@ class BugFixTraceCollector(TracingProcessor):
                     tool_call = ToolCall(**tc_data)
                     round_trace.tool_calls.append(tool_call)
                 
-                trace_session.bug_fix_run_rounds.append(round_trace)
+                trace_session.bug_fix_rounds.append(round_trace)
         
-        if data.get('checker_traces'):
-            for ct_data in data['checker_traces']:
+        if data.get('check_rounds'):
+            for ct_data in data['check_rounds']:
                 checker_trace = CheckerTrace(**ct_data)
-                trace_session.checker_traces.append(checker_trace)
+                trace_session.check_rounds.append(checker_trace)
         
         if data.get('patch_selection'):
             ps_data = data['patch_selection']
@@ -528,6 +558,155 @@ class BugFixTraceCollector(TracingProcessor):
     
     def _load_trajectory_data(self, data: Dict[str, Any]) -> None:
         trace_session = BugFixTraceSession(
+            session_id=data.get('session_id', ''),
+            original_issue=data.get('original_issue', ''),
+            final_result=data.get('final_result', ''),
+            success=data.get('success', False),
+            error_message=data.get('error_message', '')
+        )
+        
+        if data.get('classify'):
+            trace_session.classify = ProjectAnalysisTrace(**data['classify'])
+        elif data.get('project_analysis'):
+            trace_session.classify = ProjectAnalysisTrace(**data['project_analysis'])
+        
+        if data.get('issue_optimize'):
+            trace_session.issue_optimize = OptimizationTrace(**data['issue_optimize'])
+        elif data.get('optimization'):
+            trace_session.issue_optimize = OptimizationTrace(**data['optimization'])
+        
+        if data.get('bug_fix_rounds'):
+            for round_data in data['bug_fix_rounds']:
+                round_trace = RunRoundTrace(
+                    round_number=round_data.get('round_number', 0),
+                    input_list=round_data.get('input_list', []),
+                    final_output=round_data.get('final_output', '')
+                )
+                
+                for mc_data in round_data.get('model_calls', []):
+                    model_call = ModelCall(**mc_data)
+                    round_trace.model_calls.append(model_call)
+                
+                for tc_data in round_data.get('tool_calls', []):
+                    tool_call = ToolCall(**tc_data)
+                    round_trace.tool_calls.append(tool_call)
+                
+                trace_session.bug_fix_rounds.append(round_trace)
+        elif data.get('run_rounds'):
+            for round_data in data['run_rounds']:
+                round_trace = RunRoundTrace(
+                    round_number=round_data.get('round_number', 0),
+                    input_list=round_data.get('input_list', []),
+                    final_output=round_data.get('final_output', '')
+                )
+                
+                for mc_data in round_data.get('model_calls', []):
+                    model_call = ModelCall(**mc_data)
+                    round_trace.model_calls.append(model_call)
+                
+                for tc_data in round_data.get('tool_calls', []):
+                    tool_call = ToolCall(**tc_data)
+                    round_trace.tool_calls.append(tool_call)
+                
+                trace_session.bug_fix_rounds.append(round_trace)
+        
+        if data.get('check_rounds'):
+            for ct_data in data['check_rounds']:
+                checker_trace = CheckerTrace(**ct_data)
+                trace_session.check_rounds.append(checker_trace)
+        
+        if data.get('patch_selection'):
+            ps_data = data['patch_selection']
+            patch_selection = PatchSelectionTrace(
+                input_patches=ps_data.get('input_patches', []),
+                selection_prompt=ps_data.get('selection_prompt', ''),
+                selected_patch_index=ps_data.get('selected_patch_index', -1),
+                reasoning=ps_data.get('reasoning', ''),
+                application_success=ps_data.get('application_success', False)
+            )
+            
+            for mc_data in ps_data.get('model_calls', []):
+                model_call = ModelCall(**mc_data)
+                patch_selection.model_calls.append(model_call)
+            
+            for tc_data in ps_data.get('tool_calls', []):
+                tool_call = ToolCall(**tc_data)
+                patch_selection.tool_calls.append(tool_call)
+            
+            trace_session.patch_selection = patch_selection
+        
+        self.trace_session = trace_session
+        self.session_id = self.trace_session.session_id
+    
+    def formatter_export_data(self, trace_session:BugFixTraceSession)->OutputData:
+        output=OutputData(trace_session)
+
+        output.info["agent"]=self.agent_name
+        output.info["submission"]=self.submission_diff
+        output.info["exit_status"]=self.exit_status
+
+        classify= trace_session.classify
+        issue_optimize= trace_session.issue_optimize
+        check_rounds= trace_session.check_rounds
+        bug_fix_rounds= trace_session.bug_fix_rounds
+        overreview="Execution stage: classify"
+
+        output.history.append(
+            HistoryItem(execution_stage="classify", content=classify)
+        )
+
+        if (issue_optimize!=None):
+            overreview+=" -> issue optimize"
+            output.history.append(
+                HistoryItem(execution_stage="issue optimize", content=issue_optimize)
+            )
+
+        check_idx=0
+        for id, run in enumerate(bug_fix_rounds):
+            overreview+=f" -> bug fix (round {id+1})"
+            output.history.append(
+                HistoryItem(execution_stage="bug fix", content=run.model_calls[-1])
+            )
+        
+            check_idx+=2
+            if (check_idx-2<len(check_rounds)):
+                overreview+=f" -> check (round {id+1})" 
+                output.history.append(
+                    HistoryItem(execution_stage="check", content=check_rounds[check_idx-2])
+                )
+            if (check_idx-1<len(check_rounds)):
+                overreview+=f" -> enhance check (round {id+1})" 
+                output.history.append(
+                    HistoryItem(execution_stage="enhance check", content=check_rounds[check_idx-1])
+                )
+        output.trajectory.execution_overview=overreview
+        return output
+
+    def load_from_json_v3(self, filepath: Union[str, Path]) -> None:
+        """
+        {
+            "trajectory": { BugFixTraceSession content },
+            "info": {
+                "agent": "siada",
+                "submission": "diff content"
+            }
+        }
+        """
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if 'trajectory' not in data or 'info' not in data:
+            raise ValueError("Invalid v3 format: missing 'trajectory' or 'info' fields")
+        
+        trajectory_data = data['trajectory']
+        self._load_trajectory_data_old(trajectory_data)
+        
+        info_data = data['info']
+        self.agent_name = info_data.get('agent', 'siada')
+        self.submission_diff = info_data.get('submission', '')
+
+    def _load_trajectory_data_old(self, data: Dict[str, Any]) -> None:
+        trace_session = BugFixTraceSessionOld(
             session_id=data.get('session_id', ''),
             original_issue=data.get('original_issue', ''),
             final_result=data.get('final_result', ''),
@@ -605,9 +784,18 @@ class BugFixTraceCollector(TracingProcessor):
             
             trace_session.patch_selection = patch_selection
         
-        self.trace_session = trace_session
+        trace=BugFixTraceSession(
+            trace_session.session_id,trace_session.original_issue,
+            trace_session.execution_overview,trace_session.project_domain_classification,
+            trace_session.issue_description_optimization,trace_session.bug_fix_run_rounds,
+            trace_session.checker_traces,trace_session.patch_selection,trace_session.final_result,
+            trace_session.success,trace_session.error_message
+        )
+
+        self.trace_session = trace
         self.session_id = self.trace_session.session_id
     
+
     @classmethod
     def create_analyzer(cls, traces_dir: str = "bug_fix_traces") -> "BugFixTraceAnalyzer":
         return BugFixTraceAnalyzer(traces_dir)
@@ -649,13 +837,13 @@ class BugFixTraceAnalyzer:
         if not traces:
             return {}
         
-        round_counts = [len(trace.bug_fix_run_rounds) for trace in traces]
+        round_counts = [len(trace.bug_fix_rounds) for trace in traces]
         model_call_counts = [
-            sum(len(round_trace.model_calls) for round_trace in trace.bug_fix_run_rounds)
+            sum(len(round_trace.model_calls) for round_trace in trace.bug_fix_rounds)
             for trace in traces
         ]
         tool_call_counts = [
-            sum(len(round_trace.tool_calls) for round_trace in trace.bug_fix_run_rounds)
+            sum(len(round_trace.tool_calls) for round_trace in trace.bug_fix_rounds)
             for trace in traces
         ]
         

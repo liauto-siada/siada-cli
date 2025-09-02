@@ -2,21 +2,19 @@ import ast
 from datetime import datetime
 import os
 
-from agents import RunContextWrapper, RunConfig, RunResult, RunResultStreaming, Runner
+from agents import RunContextWrapper, RunResult, RunResultStreaming, Runner
 
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
-from siada.agent_hub.coder.issue_review_agent import IssueReviewAgent
 from siada.agent_hub.coder.select_agent import SelectAgent
 from siada.agent_hub.coder.prompt.bug_prompt import bug_fix_prompt
 from siada.agent_hub.coder.tracing.bug_fix_trace_collector import BugFixTraceCollector,create_custom_bug_fix_trace_collector
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.setting import settings
 from siada.foundation.tools.get_git_diff import GitDiffUtil
-from siada.services.bug_desc_optimizer import BugDescOptimizer, LessOriginBugDescOptimizer
+from siada.services.bug_desc_optimizer import BugDescOptimizer
 from siada.services.fix_result_check import FixResultChecker
 from siada.services.issue_type_checker import IssueTypeChecker
 from siada.services.execution_trace_collector import ExecutionTrace, ModelCall, ToolCall
-from siada.services.anomaly_checker import AnomalyChecker
 from siada.services.strict_fix_result_check import StrictFixResultChecker
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
@@ -33,22 +31,15 @@ class BugFixAgent(CodeGenAgent):
     fix_result_checker: FixResultChecker
     strict_fix_result_checker: StrictFixResultChecker
     bug_desc_optimizer: BugDescOptimizer
-    LessOriginBugDescOptimizer: LessOriginBugDescOptimizer
     enhanced_fix_result_checker: EnhancedFixResultChecker
-    issue_review_agent: IssueReviewAgent
     is_minimal: bool = False
-    Issue_type_checker: IssueTypeChecker
     def __init__(self, *args, **kwargs):
 
         self.fix_result_checker = FixResultChecker()
         self.strict_fix_result_checker = StrictFixResultChecker()
-        self.issue_review_agent = IssueReviewAgent()
         self.enhanced_fix_result_checker = EnhancedFixResultChecker()
-        self.anomaly_checker = AnomalyChecker()
         self.bug_desc_optimizer = BugDescOptimizer()
-        self.less_origin_bug_desc_optimizer = LessOriginBugDescOptimizer()
         self.guidance=""
-        self.issue_type_checker = IssueTypeChecker()
         self.code_patch_list = []
         self.select_agent = SelectAgent()
 
@@ -97,15 +88,9 @@ class BugFixAgent(CodeGenAgent):
         run_config, _ = await self.prepare_run_config_and_session(context)
         add_trace_processor(self.trace_collector)
 
-        print(f"1.Issue clarify stage: (1).identify the problem domain; (2).optimize problem description")
-        print("Starting problem domain analysis")
-        project_analysis = await self.issue_type_checker.analyze_project_type(
-            issue_desc=user_input, context=context, trace_collector=self.trace_collector)
-        project_type = project_analysis.get("project_type", "unknown")
-        print("Problem domain analysis result:", project_type)
 
         print(f"\nStarting bug desc optimize")
-        opt_user_input = await self.bug_desc_optimizer.optimize(user_input, context, project_type, trace_collector=self.trace_collector)
+        opt_user_input = await self.bug_desc_optimizer.optimize(description=user_input, context=context, trace_collector=self.trace_collector)
         print(f"Bug desc optimize result:{opt_user_input}\n")
 
         input_with_env = self.struct_user_input(opt_user_input)
@@ -115,6 +100,8 @@ class BugFixAgent(CodeGenAgent):
         input_list = [task_message]
 
         print(f"2. Issue fix stage: (1) Propose fix; (2) Verify fix; (3) Confirm fix")
+
+
         while current_turn < max_turns:
             self.is_minimal = current_turn >= 3
             print(f"\n Fix round {current_turn+1}")
@@ -134,35 +121,24 @@ class BugFixAgent(CodeGenAgent):
 
             self.trace_collector.end_run_round(str(result.final_output))
 
-            # input_list = result.to_input_list()
-
             try:
-                print(f"Project type detected: {project_type}")
-                if project_type == "web_framework":
-                    should_break, conbine_task_message_with_check_summary = await self._handle_web_framework_check(
-                        user_input, result, context, task_message, current_turn
-                    )
-                    if should_break:
-                        break
-                    else:
-                        input_list = conbine_task_message_with_check_summary
-                else:
+                should_break, conbine_task_message_with_check_summary = await self.check(
+                    opt_user_input, result, context, task_message, current_turn
+                )
+                if should_break:
                     break
+                else:
+                    input_list = conbine_task_message_with_check_summary
+            
             except Exception as e:
                 print(f"Fix result checker failed: {e}, stopping verification.")
                 break
 
             current_turn += 1
 
-        # When max turns reached, use selection agent to choose optimal patch from code_patch_list for final fix
-        # if current_turn == max_turns:
-        #     print(f"Reached maximum fix rounds ({max_turns}), starting optimal patch selection for final fix")
-        #     await self._select_and_apply_best_patch(user_input, context, task_message, result)
-
-
         self.trace_collector.collect_submission_diff(context)
 
-        trace_path_v2 = self.trace_collector.export_to_json_v2("trace_test.json")
+        trace_path_v2 = self.trace_collector.export_to_json("trace_test.json")
         print(f"successfully export v2 format: {trace_path_v2}")
 
         return result
@@ -193,7 +169,7 @@ class BugFixAgent(CodeGenAgent):
 
         diff_patch = GitDiffUtil.get_git_diff_exclude_test_files(context.root_dir)
 
-        check_result = await self.strict_fix_result_checker.check(
+        check_result = await self.fix_result_checker.check(
             issue_desc=user_input,
             fix_code=diff_patch,
             context=context,
@@ -242,109 +218,6 @@ class BugFixAgent(CodeGenAgent):
 
         enhanced_result["code_diff"] = diff_patch
         return enhanced_result
-
-    async def run_anomaly_check(
-        self, 
-        user_input: str, 
-        check_summary: str, 
-        context: CodeAgentContext
-    ) -> Optional[Dict[str, Any]]:
-        """
-        run anomaly check to evaluate the patch against predefined rules
-
-        Args:
-            user_input: user input task description
-            check_summary: last fix result check summary
-            context
-
-        Returns:
-            Dict including:
-            - use_rule_guidance: bool, if rule guidance should be used
-            - feedback_message: dict,
-            - rule_evaluation_result: dict,
-            - best_rule: dict,
-        """
-        try:
-            diff_patch = GitDiffUtil.get_git_diff_exclude_test_files(context.root_dir)
-            
-            rule_evaluation_result = await self.anomaly_checker.check_anomaly(
-                fix_result_check_summary=check_summary,
-                patch_diff=diff_patch,
-                task_description=user_input,
-                context=context,
-            )
-
-            best_rule = rule_evaluation_result.get("best_matching_rule", {})
-            rule_name = best_rule.get("rule_name", "task_solution_adherence")
-            total_score = best_rule.get("total_score", 0.0)
-            reasoning = best_rule.get("reasoning", "")
-            guidance = best_rule.get("guidance", "")
-
-            rule_scores = rule_evaluation_result.get("rule_scores", {})
-            evaluation_success = rule_evaluation_result.get("evaluation_success", False)
-
-            print(f"🎯 Rule Evaluation Complete:")
-            print(f"📊 Best Matching Rule: {rule_name}")
-            print(f"📈 Total Score: {total_score:.1f}")
-            print(f"💡 Reasoning: {reasoning}")
-
-            print(f"\n📋 All Rule Scores:")
-            for rule, scores in rule_scores.items():
-                score = scores.get("total_score", 0.0)
-                print(f"  {rule}: {score:.1f}")
-
-            if evaluation_success and total_score > 15.0:
-                feedback_content = f"""## 🎯 Rule-Based Improvement Guidance
-
-**Best Matching Rule:** {rule_name}
-**Rule Score:** {total_score:.1f}/30.0
-**Evaluation Reasoning:** {reasoning}
-
-## 📋 Rule Guidance
-{guidance}
-
-## 🔍 Current Situation Analysis
-**Fix Result Check:** {check_summary}
-
-**Rule Evaluation Summary:**
-{rule_evaluation_result.get('summary', {}).get('overall_assessment', 'No summary available')}
-
-## 🚀 Next Steps
-Please follow the above rule guidance to improve your patch. Focus specifically on the requirements outlined in the **{rule_name}** rule.
-
-**Key Focus Areas:**
-- Ensure strict adherence to the rule guidance above
-- Address the specific issues identified in the rule evaluation
-- Implement the suggested improvements systematically
-
-**Previous Fix Attempt Issues:** {check_summary}"""
-
-                feedback_message = {
-                    "content": feedback_content,
-                    "role": "user",
-                }
-
-                print(f"✅ Using rule guidance: {rule_name}")
-
-                return {
-                    "use_rule_guidance": True,
-                    "feedback_message": feedback_message,
-                    "rule_evaluation_result": rule_evaluation_result,
-                    "best_rule": best_rule,
-                    "go_next_turns": True
-                }
-            else:
-                print(f"ℹ️ Rule evaluation score too low ({total_score:.1f}) or evaluation failed, using normal flow")
-                return {
-                    "use_rule_guidance": False,
-                    "rule_evaluation_result": rule_evaluation_result,
-                    "best_rule": best_rule,
-                    "go_next_turns": True,
-                }
-
-        except Exception as e:
-            print(f"Rule evaluation failed: {e}, proceeding with normal flow")
-            return None
 
     def run_streamed(
         self, user_input: str, context: CodeAgentContext
@@ -555,7 +428,7 @@ The previous fix attempt was not sufficient. Please analyze the above feedback a
         combined_input = f"{user_input}\n\n## Execution Trace\nThe following is the execution trace from the previous fix attempt:\n{trace_str}"
         return combined_input
 
-    async def _handle_web_framework_check(
+    async def check(
         self,
         user_input: str,
         result: RunResult,
@@ -576,6 +449,7 @@ The previous fix attempt was not sufficient. Please analyze the above feedback a
         Returns:
             Tuple of (should_break, input_list)
         """
+        print(f"Starting fix result verification")
         check_result = await self.run_checker(user_input, context, trace_collector=self.trace_collector)
         enhanced_check_result = await self.run_enhanced_checker(user_input, context, run_result=result)
         if check_result.get("is_fixed", False):
@@ -620,29 +494,3 @@ The previous fix attempt was not sufficient. Please analyze the above feedback a
 
             input_list = [task_message, feedback_message]
             return False, input_list
-
-    async def _select_and_apply_best_patch(
-        self,
-        user_input: str,
-        context: CodeAgentContext,
-        task_message: dict,
-        last_result: RunResult
-    ) -> None:
-        """
-        Delegate patch selection and application to SelectAgent
-
-        Args:
-            user_input: User input problem description
-            context: Code agent context
-            task_message: Task message
-            last_result: Last run result
-        """
-        # Use SelectAgent to handle patch selection and application
-        success = await self.select_agent.select_and_apply_best_patch(
-            user_input, context, self.code_patch_list, trace_collector=self.trace_collector
-        )
-
-        if success:
-            print("SelectAgent successfully applied the optimal patch")
-        else:
-            print("SelectAgent was unable to apply any patch")

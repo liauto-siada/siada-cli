@@ -1,0 +1,79 @@
+diff --git a/lib/matplotlib/axis.py b/lib/matplotlib/axis.py
+index af0815d41d..d5306725cc 100644
+--- a/lib/matplotlib/axis.py
++++ b/lib/matplotlib/axis.py
+@@ -1987,6 +1987,63 @@ class Axis(martist.Artist):
+             self.set_major_locator(mticker.FixedLocator(ticks))
+             return self.get_major_ticks(len(ticks))
+ 
++    def _validate_tick_kwargs(self, kwargs, labels):
++        """
++        Validate kwargs for set_ticks method.
++        
++        This method validates that all provided kwargs are valid Text properties
++        and provides helpful error messages for common mistakes.
++        
++        Parameters
++        ----------
++        kwargs : dict
++            Keyword arguments to validate
++        labels : list or None
++            The labels parameter from set_ticks to determine context
++        """
++        if not kwargs:
++            return
++            
++        # Check for common typos first
++        common_typos = {
++            'xticklabels': 'labels',
++            'yticklabels': 'labels',
++            'xtick_labels': 'labels',
++            'ytick_labels': 'labels',
++        }
++        
++        for typo, correct in common_typos.items():
++            if typo in kwargs:
++                raise TypeError(f"set_ticks() got an unexpected keyword argument "
++                              f"'{typo}'. Did you mean to use the '{correct}' "
++                              f"parameter instead?")
++        
++        # Use a temporary Text object to validate kwargs as Text properties
++        from matplotlib.text import Text
++        temp_text = Text()
++        
++        try:
++            # This will raise AttributeError for invalid properties
++            temp_text._internal_update(kwargs)
++            # If we get here, all kwargs are valid Text properties
++            if labels is None:
++                # Valid Text properties but no labels - error with helpful message
++                prop_names = ', '.join(f"'{k}'" for k in kwargs.keys())
++                raise TypeError(
++                    f"Text properties {prop_names} in set_ticks() require the "
++                    f"'labels' parameter. Use tick_params() to style ticks without labels."
++                )
++        except AttributeError as e:
++            # Invalid property name - re-raise with more helpful context
++            if labels is None:
++                raise TypeError(
++                    f"{e}. Text properties in set_ticks() require the 'labels' "
++                    f"parameter. Use tick_params() to style ticks without labels."
++                ) from None
++            else:
++                # If labels is provided, just re-raise the original error
++                raise
++
+     def set_ticks(self, ticks, labels=None, *, minor=False, **kwargs):
+         """
+         Set this Axis' tick locations and optionally labels.
+@@ -2021,6 +2078,10 @@ class Axis(martist.Artist):
+         other limits, you should set the limits explicitly after setting the
+         ticks.
+         """
++        # Validate kwargs regardless of whether labels is provided
++        if kwargs:
++            self._validate_tick_kwargs(kwargs, labels)
++        
+         result = self._set_tick_locations(ticks, minor=minor)
+         if labels is not None:
+             self.set_ticklabels(labels, minor=minor, **kwargs)

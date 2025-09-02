@@ -1,0 +1,37 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index e287a6f55a..acdf8cebb8 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -107,10 +107,28 @@ class SQLCompiler:
+         # Note that even if the group_by is set, it is only the minimal
+         # set to group by. So, we need to add cols in select, order_by, and
+         # having into the select in any case.
+-        for expr, _, _ in select:
+-            cols = expr.get_group_by_cols()
+-            for col in cols:
+-                expressions.append(col)
++        # 
++        # However, when group_by is explicitly set to a non-empty list (has actual
++        # grouping expressions), we should not automatically add non-aggregate SELECT 
++        # columns, as this can break the semantics of queries with explicit grouping
++        # (e.g., when used as subqueries).
++        if self.query.group_by is True or (self.query.group_by is not None and len(self.query.group_by) == 0):
++            # group_by=True means group by all selected fields
++            # group_by=[] (empty list) means no grouping was explicitly set, so use default behavior
++            for expr, _, _ in select:
++                cols = expr.get_group_by_cols()
++                for col in cols:
++                    expressions.append(col)
++        else:
++            # group_by is a non-empty list of explicit expressions. Only add SELECT columns
++            # that contain aggregates or are necessary for query correctness.
++            for expr, _, _ in select:
++                if getattr(expr, 'contains_aggregate', False):
++                    # Aggregate expressions might need their source expressions
++                    # in the GROUP BY clause
++                    cols = expr.get_group_by_cols()
++                    for col in cols:
++                        expressions.append(col)
+         for expr, (sql, params, is_ref) in order_by:
+             # Skip References to the select clause, as all expressions in the
+             # select clause are already part of the group by.

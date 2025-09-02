@@ -1,0 +1,32 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 63ca817355..85deca29e6 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -6,7 +6,7 @@ from itertools import chain
+ from django.core.exceptions import EmptyResultSet, FieldError
+ from django.db import DatabaseError, NotSupportedError
+ from django.db.models.constants import LOOKUP_SEP
+-from django.db.models.expressions import OrderBy, Random, RawSQL, Ref, Value
++from django.db.models.expressions import OrderBy, Random, RawSQL, Ref, Subquery, Value
+ from django.db.models.functions import Cast
+ from django.db.models.query_utils import Q, select_related_descend
+ from django.db.models.sql.constants import (
+@@ -133,7 +133,17 @@ class SQLCompiler:
+         expressions = self.collapse_group_by(expressions, having_group_by)
+ 
+         for expr in expressions:
+-            sql, params = self.compile(expr)
++            # Check if this is a Ref to a Subquery annotation that might cause
++            # ambiguous column references in GROUP BY clause
++            if (isinstance(expr, Ref) and 
++                expr.refs in self.query.annotation_select and
++                isinstance(self.query.annotation_select[expr.refs], Subquery)):
++                # Use the actual subquery expression instead of the alias
++                # to avoid ambiguous column references
++                subquery_expr = self.query.annotation_select[expr.refs]
++                sql, params = self.compile(subquery_expr)
++            else:
++                sql, params = self.compile(expr)
+             params_hash = make_hashable(params)
+             if (sql, params_hash) not in seen:
+                 result.append((sql, params))

@@ -8,6 +8,9 @@ import threading
 from datetime import datetime
 
 from siada.services.fix_result_check import FixResultChecker
+from siada.services.strict_fix_result_check import StrictFixResultChecker
+from siada.services.enhanced_fix_result_check import EnhancedFixResultChecker
+from siada.services.bug_desc_optimizer import BugDescOptimizer
 
 
 class FixResultCheckerValidator:
@@ -15,6 +18,7 @@ class FixResultCheckerValidator:
 
     def __init__(self):
         self.fix_result_checker = FixResultChecker()
+        self.opt = BugDescOptimizer()
         self.output_lock = threading.Lock()
         self.output_file = None
 
@@ -131,6 +135,92 @@ class FixResultCheckerValidator:
                 
                 self.output_file.flush()
 
+    def display_validation_progress(self, completed_count: int, total_count: int, 
+                                   instance_id: str, status: str, result: Dict[str, Any]):
+        """
+        统一的验证进度显示方法，集中管理所有进度打印信息。
+        
+        Args:
+            completed_count: 已完成数量
+            total_count: 总数量
+            instance_id: 实例ID
+            status: 状态 (success/warning/error/exception)
+            result: 验证结果
+        """
+        progress_prefix = f"[{completed_count}/{total_count}]"
+        
+        if status == "success":
+            analysis = result["analysis_result"]
+            is_fixed = analysis.get("is_fixed", False)
+            message = f"{progress_prefix} ✓ 成功 - {instance_id}: 修复状态={is_fixed}"
+        elif status == "warning":
+            warning_msg = result.get('warning', '未知警告')
+            message = f"{progress_prefix} ⚠ 警告 - {instance_id}: {warning_msg}"
+        elif status == "error":
+            error_msg = result.get('error', '未知错误')
+            message = f"{progress_prefix} ✗ 错误 - {instance_id}: {error_msg}"
+        elif status == "exception":
+            error_msg = result.get('error', '未知异常')
+            message = f"{progress_prefix} ✗ 异常 - {instance_id}: {error_msg}"
+        else:
+            message = f"{progress_prefix} ? 未知状态 - {instance_id}: {status}"
+        
+        # 统一打印并记录到日志
+        print(message)
+        if status in ["error", "exception"]:
+            self.log_to_file(f"异常 - {instance_id}: {result.get('error', '未知错误')}")
+
+    def _display_progress_summary(self, progress_results: List[Dict[str, Any]], total_count: int):
+        """
+        统一显示所有进度结果的汇总方法。
+        
+        Args:
+            progress_results: 进度结果列表
+            total_count: 总实例数
+        """
+        if not progress_results:
+            return
+        
+        print("\n" + "=" * 60)
+        print("📊 验证进度汇总:")
+        print("=" * 60)
+        
+        # 按类型分组显示
+        success_results = [r for r in progress_results if r["status"] == "success"]
+        warning_results = [r for r in progress_results if r["status"] == "warning"]
+        error_results = [r for r in progress_results if r["status"] == "error"]
+        
+        # 显示成功的实例
+        if success_results:
+            print(f"\n✅ 成功验证 ({len(success_results)} 个):")
+            fixed_count = 0
+            for result in success_results:
+                if result.get("is_fixed", False):
+                    fixed_count += 1
+                    status_icon = "🔧"
+                else:
+                    status_icon = "❌"
+                print(f"   {result['order']:2d}. {status_icon} {result['instance_id']}: 修复状态={result.get('is_fixed', False)}")
+            print(f"   → 其中 {fixed_count} 个实例修复成功")
+        
+        # 显示警告的实例
+        if warning_results:
+            print(f"\n⚠️  警告 ({len(warning_results)} 个):")
+            for result in warning_results:
+                print(f"   {result['order']:2d}. {result['instance_id']}: {result['message']}")
+        
+        # 显示错误的实例
+        if error_results:
+            print(f"\n❌ 错误 ({len(error_results)} 个):")
+            for result in error_results:
+                # 截断过长的错误信息
+                error_msg = result['message']
+                if len(error_msg) > 50:
+                    error_msg = error_msg[:47] + "..."
+                print(f"   {result['order']:2d}. {result['instance_id']}: {error_msg}")
+        
+        print("=" * 60)
+
     async def validate_single_instance(
         self, 
         instance_id: str, 
@@ -228,7 +318,7 @@ class FixResultCheckerValidator:
         
         try:
             self.log_to_file(f"开始调用FixResultChecker分析 - {instance_id}")
-            
+            problem_statement=await self.opt.optimize(problem_statement, context, project_type="core_libraries")
             # 调用fix_result_checker进行分析，使用正确的方法
             result = await self.fix_result_checker.check(
                 issue_desc=problem_statement,
@@ -277,50 +367,67 @@ class FixResultCheckerValidator:
         max_workers: int = 5
     ) -> Dict[str, Any]:
         """
-        使用ThreadPoolExecutor并发验证所有30个实例的fix_result_checker结果。
+        使用ThreadPoolExecutor并发验证base_dir目录中所有实例的fix_result_checker结果。
         
         Args:
-            base_dir: 基础目录路径
+            base_dir: 基础目录路径，将扫描此目录下的文件夹名称作为instance_id列表
             max_workers: 最大并发线程数
             
         Returns:
             Dict[str, Any]: 所有实例的验证结果汇总
         """
-        # 预定义的30个instance_id
-        target_instances = [
-            "django__django-12308",
-            "django__django-12747", 
-            "django__django-13321",
-            "django__django-13448",
-            "django__django-14016",
-            "django__django-15061",
-            "django__django-15202",
-            "django__django-15320",
-            "django__django-15388",
-            "django__django-15781",
-            "matplotlib__matplotlib-23476",
-            "matplotlib__matplotlib-23987",
-            "matplotlib__matplotlib-24265",
-            "matplotlib__matplotlib-26011",
-            "mwaskom__seaborn-2848",
-            "pallets__flask-4045",
-            "psf__requests-2317",
-            "psf__requests-2674",
-            "pylint-dev__pylint-6506",
-            "scikit-learn__scikit-learn-13497",
-            "scikit-learn__scikit-learn-25500",
-            "sphinx-doc__sphinx-10451",
-            "sympy__sympy-12454",
-            "sympy__sympy-13437",
-            "sympy__sympy-13971",
-            "sympy__sympy-14774",
-            "sympy__sympy-18835",
-            "sympy__sympy-21379",
-            "sympy__sympy-22840",
-            "sympy__sympy-24909"
-        ]
+        base_path = Path(base_dir)
         
-        print(f"开始并发验证 {len(target_instances)} 个实例的fix_result_checker结果...")
+        # 检查基础目录是否存在
+        if not base_path.exists():
+            error_msg = f"基础目录不存在: {base_path}"
+            print(f"❌ {error_msg}")
+            return {
+                "total_instances": 0,
+                "success_count": 0,
+                "warning_count": 0,
+                "error_count": 1,
+                "success_rate": 0.0,
+                "detailed_results": {},
+                "error": error_msg
+            }
+        
+        # 扫描基础目录，获取所有子文件夹名称作为instance_id
+        target_instances = []
+        for item in base_path.iterdir():
+            if item.is_dir():
+                instance_id = item.name
+                # 验证文件夹名称是否符合instance_id格式（包含双下划线）
+                if '__' in instance_id:
+                    target_instances.append(instance_id)
+                else:
+                    print(f"⚠️  跳过不符合格式的文件夹: {instance_id}")
+        
+        if not target_instances:
+            error_msg = "在基础目录中没有找到任何符合格式的instance_id文件夹"
+            print(f"❌ {error_msg}")
+            print("提示: instance_id文件夹格式应为 'project__repo-number'，例如 'django__django-12308'")
+            return {
+                "total_instances": 0,
+                "success_count": 0,
+                "warning_count": 0,
+                "error_count": 1,
+                "success_rate": 0.0,
+                "detailed_results": {},
+                "error": error_msg
+            }
+        
+        # 按字母顺序排序
+        target_instances.sort()
+        
+        print(f"📁 从基础目录扫描到 {len(target_instances)} 个instance_id:")
+        for i, instance_id in enumerate(target_instances, 1):
+            if i <= 10:  # 只显示前10个
+                print(f"   {i:2d}. {instance_id}")
+            elif i == 11:
+                print(f"   ... 还有 {len(target_instances) - 10} 个实例")
+        
+        print(f"\n开始并发验证 {len(target_instances)} 个实例的fix_result_checker结果...")
         print(f"基础目录: {base_dir}")
         print(f"并发线程数: {max_workers}")
         print("-" * 80)
@@ -362,8 +469,10 @@ class FixResultCheckerValidator:
                 for instance_id in target_instances
             }
             
-            # 收集结果
+            # 收集结果（不在处理过程中打印，统一汇总后显示）
             completed_count = 0
+            progress_results = []  # 存储进度信息
+            
             for future in future_to_instance:
                 instance_id = future_to_instance[future]
                 completed_count += 1
@@ -372,17 +481,34 @@ class FixResultCheckerValidator:
                     result = future.result()
                     results[instance_id] = result
                     
+                    # 收集进度信息，稍后统一显示
                     if result["status"] == "success":
                         success_count += 1
                         analysis = result["analysis_result"]
                         is_fixed = analysis.get("is_fixed", False)
-                        print(f"[{completed_count}/{len(target_instances)}] ✓ 成功 - {instance_id}: 修复状态={is_fixed}")
+                        progress_results.append({
+                            "order": completed_count,
+                            "status": "success",
+                            "instance_id": instance_id,
+                            "is_fixed": is_fixed,
+                            "message": f"修复状态={is_fixed}"
+                        })
                     elif result["status"] == "warning":
                         warning_count += 1
-                        print(f"[{completed_count}/{len(target_instances)}] ⚠ 警告 - {instance_id}: {result.get('warning', '未知警告')}")
+                        progress_results.append({
+                            "order": completed_count,
+                            "status": "warning", 
+                            "instance_id": instance_id,
+                            "message": result.get('warning', '未知警告')
+                        })
                     else:
                         error_count += 1
-                        print(f"[{completed_count}/{len(target_instances)}] ✗ 错误 - {instance_id}: {result.get('error', '未知错误')}")
+                        progress_results.append({
+                            "order": completed_count,
+                            "status": "error",
+                            "instance_id": instance_id, 
+                            "message": result.get('error', '未知错误')
+                        })
                         
                 except Exception as e:
                     error_count += 1
@@ -392,8 +518,16 @@ class FixResultCheckerValidator:
                         "status": "error",
                         "error": error_msg
                     }
-                    print(f"[{completed_count}/{len(target_instances)}] ✗ 异常 - {instance_id}: {error_msg}")
+                    progress_results.append({
+                        "order": completed_count,
+                        "status": "error",
+                        "instance_id": instance_id,
+                        "message": error_msg
+                    })
                     self.log_to_file(f"异常 - {instance_id}: {error_msg}")
+            
+            # 统一显示所有进度结果
+            self._display_progress_summary(progress_results, len(target_instances))
         
         # 生成汇总统计
         summary = {
@@ -549,6 +683,6 @@ class FixResultCheckerValidator:
 if __name__ == "__main__":
     async def main():
         validator = FixResultCheckerValidator()
-        await validator.run_validation_concurrent(max_workers=5)
+        await validator.run_validation_concurrent(max_workers=10,base_dir="/Users/caoxin/Projects/latest_agent/logs/django_41_902_1/gold/",)
     
     asyncio.run(main())

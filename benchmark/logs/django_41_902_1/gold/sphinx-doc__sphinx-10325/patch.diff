@@ -1,0 +1,170 @@
+diff --git a/doc/usage/extensions/autodoc.rst b/doc/usage/extensions/autodoc.rst
+index e3d551dd4..a64b222f2 100644
+--- a/doc/usage/extensions/autodoc.rst
++++ b/doc/usage/extensions/autodoc.rst
+@@ -261,6 +261,11 @@ inserting them into the page source under a suitable :rst:dir:`py:module`,
+      option ``:inherited-members: list`` to avoid special members of list
+      class.
+ 
++     .. versionchanged:: 5.1
++        ``inherited-members`` can now take multiple class names separated by commas
++        or spaces. For example: ``:inherited-members: list, dict`` or
++        ``:inherited-members: BaseA BaseB``.
++
+      Another example; If your class Foo has ``__str__`` special method and
+      autodoc directive has both ``inherited-members`` and ``special-members``,
+      ``__str__`` will be documented as in the past, but other special method
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 62631f7ff..d878f4a7c 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -110,11 +110,25 @@ def exclude_members_option(arg: Any) -> Union[object, Set[str]]:
+ 
+ 
+ def inherited_members_option(arg: Any) -> Union[object, Set[str]]:
+-    """Used to convert the :members: option to auto directives."""
++    """Used to convert the :inherited-members: option to auto directives."""
+     if arg in (None, True):
+         return 'object'
++    elif arg is False:
++        return False
+     else:
+-        return arg
++        # Split on both comma and whitespace to support multiple formats
++        import re
++        # Support comma-separated and/or space-separated class names
++        arg_str = str(arg).strip()
++        if not arg_str:
++            return set()
++        
++        # Split on comma and/or whitespace, then clean up each part
++        parts = re.split(r'[,\s]+', arg_str)
++        classes = {part.strip() for part in parts if part.strip()}
++        
++        # Return the set of classes, even if empty
++        return classes
+ 
+ 
+ def member_order_option(arg: Any) -> Optional[str]:
+@@ -681,11 +695,22 @@ class Documenter:
+         """
+         def is_filtered_inherited_member(name: str, obj: Any) -> bool:
+             if inspect.isclass(self.object):
++                inherited_members = self.options.inherited_members
+                 for cls in self.object.__mro__:
+-                    if cls.__name__ == self.options.inherited_members and cls != self.object:
+-                        # given member is a member of specified *super class*
+-                        return True
+-                    elif name in cls.__dict__:
++                    # Handle both single class name (str) and multiple class names (set)
++                    if isinstance(inherited_members, set):
++                        # Multiple classes case - check if class name is in the set
++                        if cls.__name__ in inherited_members and cls != self.object:
++                            # given member is a member of specified *super class*
++                            return True
++                    elif isinstance(inherited_members, str):
++                        # Single class case - maintain backward compatibility
++                        if cls.__name__ == inherited_members and cls != self.object:
++                            # given member is a member of specified *super class*
++                            return True
++                    
++                    # Check if this member is defined at this level
++                    if name in cls.__dict__:
+                         return False
+                     elif name in self.get_attr(cls, '__annotations__', {}):
+                         return False
+diff --git a/tests/test_ext_autodoc.py b/tests/test_ext_autodoc.py
+index 1f1c7e9e7..c3cb31dab 100644
+--- a/tests/test_ext_autodoc.py
++++ b/tests/test_ext_autodoc.py
+@@ -794,6 +794,77 @@ def test_autodoc_inherited_members_None(app):
+     assert '   .. py:method:: Derived.__str__()' in actual
+ 
+ 
++@pytest.mark.sphinx('html', testroot='ext-autodoc')
++def test_autodoc_inherited_members_multiple_classes(app):
++    # Test multiple classes exclusion using comma-separated format
++    from sphinx.ext.autodoc import inherited_members_option
++    
++    # Test the option parsing function
++    result = inherited_members_option("BaseB, BaseC")
++    assert isinstance(result, set)
++    assert result == {"BaseB", "BaseC"}
++    
++    # Test space-separated format
++    result = inherited_members_option("BaseB BaseC")
++    assert isinstance(result, set)
++    assert result == {"BaseB", "BaseC"}
++    
++    # Test mixed format
++    result = inherited_members_option("BaseB, BaseC BaseD")
++    assert isinstance(result, set)
++    assert result == {"BaseB", "BaseC", "BaseD"}
++    
++    # Test single class (backward compatibility)
++    result = inherited_members_option("BaseB")
++    assert isinstance(result, set)
++    assert result == {"BaseB"}
++    
++    # Test empty string edge case
++    result = inherited_members_option("")
++    assert result == set()
++    
++    # Test whitespace and comma edge case
++    result = inherited_members_option("  ,  ,  ")
++    assert result == set()
++    
++    # Test None/True cases
++    assert inherited_members_option(None) == 'object'
++    assert inherited_members_option(True) == 'object'
++    assert inherited_members_option(False) == False
++
++
++@pytest.mark.sphinx('html', testroot='ext-autodoc')
++def test_autodoc_inherited_members_multiple_classes_filtering(app):
++    # Test actual filtering behavior with multiple inheritance
++    options = {"members": None,
++               "inherited-members": "BaseB, BaseC"}
++    actual = do_autodoc(app, 'class', 'target.multiple_inheritance.MultipleInheritanceClass', options)
++    
++    # Should include method from BaseA and the class's own method
++    assert '   .. py:method:: MultipleInheritanceClass.method_a()' in actual
++    assert '   .. py:method:: MultipleInheritanceClass.my_method()' in actual
++    
++    # Should exclude methods from BaseB and BaseC
++    assert 'method_b' not in '\n'.join(actual)
++    assert 'method_c' not in '\n'.join(actual)
++
++
++@pytest.mark.sphinx('html', testroot='ext-autodoc')
++def test_autodoc_inherited_members_builtin_classes(app):
++    # Test excluding built-in classes
++    options = {"members": None,
++               "inherited-members": "list, set"}
++    actual = do_autodoc(app, 'module', 'target.multiple_inheritance', options)
++    
++    # Should include custom methods
++    assert 'custom_list_method' in '\n'.join(actual)
++    assert 'custom_set_method' in '\n'.join(actual)
++    
++    # Should exclude built-in methods
++    assert 'append(' not in '\n'.join(actual)
++    assert '.add(' not in '\n'.join(actual)
++
++
+ @pytest.mark.sphinx('html', testroot='ext-autodoc')
+ def test_autodoc_imported_members(app):
+     options = {"members": None,
+diff --git a/tox.ini b/tox.ini
+index f0afd779b..30ca90275 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:du-latest]
+ commands =

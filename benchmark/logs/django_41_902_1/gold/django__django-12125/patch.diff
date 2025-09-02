@@ -1,0 +1,111 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 7d226955d5..15ae48034a 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -269,7 +269,15 @@ class TypeSerializer(BaseSerializer):
+             if module == builtins.__name__:
+                 return self.value.__name__, set()
+             else:
+-                return "%s.%s" % (module, self.value.__name__), {"import %s" % module}
++                # Use __qualname__ for proper inner classes, but fall back to __name__
++                # for local classes (those with '<locals>' in qualname) to maintain
++                # backward compatibility.
++                if '<' in self.value.__qualname__:
++                    # This is a local class - use __name__ for backward compatibility
++                    return "%s.%s" % (module, self.value.__name__), {"import %s" % module}
++                else:
++                    # This is a proper inner class - use __qualname__ for correct path
++                    return "%s.%s" % (module, self.value.__qualname__), {"import %s" % module}
+ 
+ 
+ class UUIDSerializer(BaseSerializer):
+diff --git a/tests/migrations/models.py b/tests/migrations/models.py
+index 440aa582d6..191fd99d23 100644
+--- a/tests/migrations/models.py
++++ b/tests/migrations/models.py
+@@ -66,3 +66,24 @@ class FoodManager(BaseFoodManager.from_queryset(FoodQuerySet)):
+ 
+ class NoMigrationFoodManager(BaseFoodManager.from_queryset(FoodQuerySet)):
+     pass
++
++
++# Test classes for inner class serialization
++class OuterModelClass:
++    """Test outer class containing inner model field."""
++    
++    class InnerField(models.CharField):
++        """Test inner model field."""
++        def __init__(self, *args, **kwargs):
++            kwargs.setdefault('max_length', 100)
++            super().__init__(*args, **kwargs)
++
++
++class NestedLevelOne:
++    """Test multiple nesting levels."""
++    
++    class NestedLevelTwo:
++        class DeepInnerField(models.CharField):
++            def __init__(self, *args, **kwargs):
++                kwargs.setdefault('max_length', 200)
++                super().__init__(*args, **kwargs)
+diff --git a/tests/migrations/test_writer.py b/tests/migrations/test_writer.py
+index ca924f35ec..192bc100bf 100644
+--- a/tests/migrations/test_writer.py
++++ b/tests/migrations/test_writer.py
+@@ -593,6 +593,56 @@ class WriterTests(SimpleTestCase):
+     def test_serialize_type_none(self):
+         self.assertSerializedEqual(type(None))
+ 
++    def test_serialize_inner_classes(self):
++        """
++        Tests that inner/nested classes are correctly serialized.
++        Local classes (defined in function scope) fall back to backward-compatible
++        behavior, while proper inner classes use __qualname__.
++        """
++        # Test local classes (backward compatibility)
++        class LocalOuter:
++            class InnerField(models.CharField):
++                pass
++        
++        # Local classes should use __name__ for backward compatibility 
++        # (not the full __qualname__ with <locals>)
++        string, imports = MigrationWriter.serialize(LocalOuter.InnerField)
++        self.assertIn("InnerField", string)
++        self.assertNotIn("<locals>", string)  # Should not contain <locals>
++        
++        # Use the existing NestedEnum as an example of a proper inner class
++        self.assertSerializedResultEqual(
++            self.NestedEnum,
++            (
++                "migrations.test_writer.WriterTests.NestedEnum",
++                {'import migrations.test_writer'}
++            )
++        )
++
++    def test_serialize_module_level_inner_classes(self):
++        """
++        Tests that module-level inner classes use __qualname__ correctly.
++        """
++        from .models import OuterModelClass, NestedLevelOne
++        
++        # Test basic inner class at module level
++        self.assertSerializedResultEqual(
++            OuterModelClass.InnerField,
++            (
++                "migrations.models.OuterModelClass.InnerField",
++                {'import migrations.models'}
++            )
++        )
++        
++        # Test deeply nested class
++        self.assertSerializedResultEqual(
++            NestedLevelOne.NestedLevelTwo.DeepInnerField,
++            (
++                "migrations.models.NestedLevelOne.NestedLevelTwo.DeepInnerField",
++                {'import migrations.models'}
++            )
++        )
++
+     def test_simple_migration(self):
+         """
+         Tests serializing a simple migration.

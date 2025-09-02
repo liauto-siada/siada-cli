@@ -1,0 +1,190 @@
+diff --git a/sklearn/cluster/_affinity_propagation.py b/sklearn/cluster/_affinity_propagation.py
+index 4806afee9..a380741da 100644
+--- a/sklearn/cluster/_affinity_propagation.py
++++ b/sklearn/cluster/_affinity_propagation.py
+@@ -32,7 +32,7 @@ def _equal_similarities_and_preferences(S, preference):
+ 
+ def affinity_propagation(S, preference=None, convergence_iter=15, max_iter=200,
+                          damping=0.5, copy=True, verbose=False,
+-                         return_n_iter=False):
++                         return_n_iter=False, return_converged=False):
+     """Perform Affinity Propagation Clustering of data
+ 
+     Read more in the :ref:`User Guide <affinity_propagation>`.
+@@ -72,6 +72,9 @@ def affinity_propagation(S, preference=None, convergence_iter=15, max_iter=200,
+     return_n_iter : bool, default False
+         Whether or not to return the number of iterations.
+ 
++    return_converged : bool, default False
++        Whether or not to return the convergence status.
++
+     Returns
+     -------
+ 
+@@ -85,6 +88,10 @@ def affinity_propagation(S, preference=None, convergence_iter=15, max_iter=200,
+         number of iterations run. Returned only if `return_n_iter` is
+         set to True.
+ 
++    converged : bool
++        whether the algorithm converged. Returned only if `return_converged` is
++        set to True.
++
+     Notes
+     -----
+     For an example, see :ref:`examples/cluster/plot_affinity_propagation.py
+@@ -124,14 +131,22 @@ def affinity_propagation(S, preference=None, convergence_iter=15, max_iter=200,
+         # n_samples clusters, depending on preferences
+         warnings.warn("All samples have mutually equal similarities. "
+                       "Returning arbitrary cluster center(s).")
++        
++        # Prepare return values for special cases
+         if preference.flat[0] >= S.flat[n_samples - 1]:
+-            return ((np.arange(n_samples), np.arange(n_samples), 0)
+-                    if return_n_iter
+-                    else (np.arange(n_samples), np.arange(n_samples)))
++            results = [np.arange(n_samples), np.arange(n_samples)]
++        else:
++            results = [np.array([0]), np.array([0] * n_samples)]
++        
++        if return_n_iter:
++            results.append(0)
++        if return_converged:
++            results.append(True)  # Consider this as converged since it's a trivial case
++        
++        if len(results) == 2:
++            return results[0], results[1]
+         else:
+-            return ((np.array([0]), np.array([0] * n_samples), 0)
+-                    if return_n_iter
+-                    else (np.array([0]), np.array([0] * n_samples)))
++            return tuple(results)
+ 
+     random_state = np.random.RandomState(0)
+ 
+@@ -151,6 +166,7 @@ def affinity_propagation(S, preference=None, convergence_iter=15, max_iter=200,
+     e = np.zeros((n_samples, convergence_iter))
+ 
+     ind = np.arange(n_samples)
++    converged = False
+ 
+     for it in range(max_iter):
+         # tmp = A + S; compute responsibilities
+@@ -193,10 +209,15 @@ def affinity_propagation(S, preference=None, convergence_iter=15, max_iter=200,
+             se = np.sum(e, axis=1)
+             unconverged = (np.sum((se == convergence_iter) + (se == 0))
+                            != n_samples)
+-            if (not unconverged and (K > 0)) or (it == max_iter):
++            if not unconverged and (K > 0):
++                converged = True
+                 if verbose:
+                     print("Converged after %d iterations." % it)
+                 break
++            elif it == max_iter - 1:  # Last iteration
++                if verbose:
++                    print("Did not converge")
++                break
+     else:
+         if verbose:
+             print("Did not converge")
+@@ -204,7 +225,7 @@ def affinity_propagation(S, preference=None, convergence_iter=15, max_iter=200,
+     I = np.flatnonzero(E)
+     K = I.size  # Identify exemplars
+ 
+-    if K > 0:
++    if converged and K > 0:
+         c = np.argmax(S[:, I], axis=1)
+         c[I] = np.arange(K)  # Identify clusters
+         # Refine the final set of exemplars and clusters and return results
+@@ -220,15 +241,23 @@ def affinity_propagation(S, preference=None, convergence_iter=15, max_iter=200,
+         cluster_centers_indices = np.unique(labels)
+         labels = np.searchsorted(cluster_centers_indices, labels)
+     else:
+-        warnings.warn("Affinity propagation did not converge, this model "
+-                      "will not have any cluster centers.", ConvergenceWarning)
++        if not converged:
++            warnings.warn("Affinity propagation did not converge, this model "
++                          "will not have any cluster centers.", ConvergenceWarning)
+         labels = np.array([-1] * n_samples)
+-        cluster_centers_indices = []
++        cluster_centers_indices = np.array([])
+ 
++    # Prepare return values
++    results = [cluster_centers_indices, labels]
+     if return_n_iter:
+-        return cluster_centers_indices, labels, it + 1
++        results.append(it + 1)
++    if return_converged:
++        results.append(converged)
++    
++    if len(results) == 2:
++        return results[0], results[1]
+     else:
+-        return cluster_centers_indices, labels
++        return tuple(results)
+ 
+ 
+ ###############################################################################
+@@ -290,6 +319,9 @@ class AffinityPropagation(ClusterMixin, BaseEstimator):
+     n_iter_ : int
+         Number of iterations taken to converge.
+ 
++    converged_ : bool
++        True if the algorithm converged, False otherwise.
++
+     Examples
+     --------
+     >>> from sklearn.cluster import AffinityPropagation
+@@ -382,14 +414,19 @@ class AffinityPropagation(ClusterMixin, BaseEstimator):
+                              "'euclidean'. Got %s instead"
+                              % str(self.affinity))
+ 
+-        self.cluster_centers_indices_, self.labels_, self.n_iter_ = \
++        self.cluster_centers_indices_, self.labels_, self.n_iter_, self.converged_ = \
+             affinity_propagation(
+                 self.affinity_matrix_, self.preference, max_iter=self.max_iter,
+                 convergence_iter=self.convergence_iter, damping=self.damping,
+-                copy=self.copy, verbose=self.verbose, return_n_iter=True)
++                copy=self.copy, verbose=self.verbose, return_n_iter=True,
++                return_converged=True)
+ 
+         if self.affinity != "precomputed":
+-            self.cluster_centers_ = X[self.cluster_centers_indices_].copy()
++            if len(self.cluster_centers_indices_) > 0:
++                self.cluster_centers_ = X[self.cluster_centers_indices_].copy()
++            else:
++                # No cluster centers when not converged
++                self.cluster_centers_ = np.empty((0, X.shape[1]))
+ 
+         return self
+ 
+@@ -412,7 +449,7 @@ class AffinityPropagation(ClusterMixin, BaseEstimator):
+             raise ValueError("Predict method is not supported when "
+                              "affinity='precomputed'.")
+ 
+-        if self.cluster_centers_.shape[0] > 0:
++        if hasattr(self, 'cluster_centers_') and self.cluster_centers_.shape[0] > 0:
+             return pairwise_distances_argmin(X, self.cluster_centers_)
+         else:
+             warnings.warn("This model does not have any cluster centers "
+diff --git a/sklearn/cluster/tests/test_affinity_propagation.py b/sklearn/cluster/tests/test_affinity_propagation.py
+index 98f0f79ee..018828568 100644
+--- a/sklearn/cluster/tests/test_affinity_propagation.py
++++ b/sklearn/cluster/tests/test_affinity_propagation.py
+@@ -52,6 +52,8 @@ def test_affinity_propagation():
+     n_clusters_ = len(cluster_centers_indices)
+     assert np.unique(labels).size == n_clusters_
+     assert n_clusters == n_clusters_
++    # Test the new converged_ attribute for converged case
++    assert af.converged_ is True
+ 
+     # Test also with no copy
+     _, labels_no_copy = affinity_propagation(S, preference=preference,
+@@ -105,6 +107,8 @@ def test_affinity_propagation_fit_non_convergence():
+     assert_warns(ConvergenceWarning, af.fit, X)
+     assert_array_equal(np.empty((0, 2)), af.cluster_centers_)
+     assert_array_equal(np.array([-1, -1, -1]), af.labels_)
++    # Test the new converged_ attribute
++    assert af.converged_ is False
+ 
+ 
+ def test_affinity_propagation_equal_mutual_similarities():

@@ -1,0 +1,281 @@
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 02aa32b207..2424700594 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -52,29 +52,144 @@ class Media:
+         self._js_lists = [js]
+ 
+     def __repr__(self):
+-        return 'Media(css=%r, js=%r)' % (self._css, self._js)
++        # Convert to tuples for consistent representation
++        css_repr = {}
++        for medium, files in self._css.items():
++            css_repr[medium] = tuple(files) if isinstance(files, list) else files
++        js_repr = tuple(self._js) if isinstance(self._js, list) else self._js
++        return 'Media(css=%r, js=%r)' % (css_repr, js_repr)
+ 
+     def __str__(self):
+         return self.render()
+ 
+     @property
+     def _css(self):
+-        css = self._css_lists[0]
+-        # filter(None, ...) avoids calling merge with empty dicts.
+-        for obj in filter(None, self._css_lists[1:]):
+-            css = {
+-                medium: self.merge(css.get(medium, []), obj.get(medium, []))
+-                for medium in css.keys() | obj.keys()
+-            }
+-        return css
++        if not self._css_lists:
++            return {}
++        
++        # Collect all media types across all CSS lists
++        all_media_types = set()
++        for css_list in self._css_lists:
++            if css_list:
++                all_media_types.update(css_list.keys())
++        
++        result = {}
++        for medium in all_media_types:
++            # Extract all lists for this medium type
++            medium_lists = []
++            for css_list in self._css_lists:
++                if css_list and medium in css_list:
++                    medium_lists.append(css_list[medium])
++            
++            if not medium_lists:
++                continue
++                
++            # If only one list, we still need to deduplicate
++            if len(medium_lists) == 1:
++                seen = set()
++                css_result = []
++                for item in medium_lists[0]:
++                    if item not in seen:
++                        css_result.append(item)
++                        seen.add(item)
++                result[medium] = css_result
++            else:
++                # Try the traditional pairwise merge first  
++                css = medium_lists[0]
++                warnings_count = 0
++                
++                # Capture warnings during pairwise merge
++                import warnings as warnings_module
++                with warnings_module.catch_warnings(record=True) as warning_list:
++                    warnings_module.simplefilter("always")
++                    
++                    for css_list in medium_lists[1:]:
++                        css = self.merge(css, css_list)
++                    
++                    # Count MediaOrderConflictWarnings
++                    warnings_count = len([w for w in warning_list 
++                                        if issubclass(w.category, MediaOrderConflictWarning)])
++                
++                # If there were conflicts in pairwise merge, try global approach for 3+ lists
++                if warnings_count > 0 and len(medium_lists) >= 3:
++                    global_result = self.merge(*medium_lists)
++                    
++                    # Verify global result doesn't violate explicit dependencies
++                    if self._validate_dependencies(global_result, medium_lists):
++                        result[medium] = global_result
++                    else:
++                        result[medium] = css
++                else:
++                    result[medium] = css
++        
++        return result
+ 
+     @property
+     def _js(self):
+-        js = self._js_lists[0]
+-        # filter(None, ...) avoids calling merge() with empty lists.
+-        for obj in filter(None, self._js_lists[1:]):
+-            js = self.merge(js, obj)
++        if not self._js_lists:
++            return []
++        
++        # Filter out empty lists
++        non_empty_lists = [js_list for js_list in self._js_lists if js_list]
++        if not non_empty_lists:
++            return []
++        
++        # If only one list, we still need to deduplicate
++        if len(non_empty_lists) == 1:
++            seen = set()
++            result = []
++            for item in non_empty_lists[0]:
++                if item not in seen:
++                    result.append(item)
++                    seen.add(item)
++            return result
++        
++        # Try the traditional pairwise merge first
++        js = non_empty_lists[0]
++        warnings_count = 0
++        
++        # Capture warnings during pairwise merge
++        import warnings as warnings_module
++        with warnings_module.catch_warnings(record=True) as warning_list:
++            warnings_module.simplefilter("always")
++            
++            for js_list in non_empty_lists[1:]:
++                js = self.merge(js, js_list)
++            
++            # Count MediaOrderConflictWarnings
++            warnings_count = len([w for w in warning_list 
++                                if issubclass(w.category, MediaOrderConflictWarning)])
++        
++        # If there were conflicts in pairwise merge, try global approach for 3+ lists
++        if warnings_count > 0 and len(non_empty_lists) >= 3:
++            global_result = self.merge(*non_empty_lists)
++            
++            # Verify global result doesn't violate explicit dependencies
++            if self._validate_dependencies(global_result, non_empty_lists):
++                return global_result
++        
+         return js
++    
++    @staticmethod
++    def _validate_dependencies(result, original_lists):
++        """
++        Validate that the result preserves all explicit dependencies
++        from the original lists.
++        """
++        for lst in original_lists:
++            for i in range(len(lst) - 1):
++                current = lst[i]
++                next_item = lst[i + 1]
++                
++                try:
++                    current_idx = result.index(current)
++                    next_idx = result.index(next_item)
++                    if current_idx >= next_idx:
++                        return False
++                except ValueError:
++                    # Item not found in result
++                    return False
++        return True
+ 
+     def render(self):
+         return mark_safe('\n'.join(chain.from_iterable(getattr(self, 'render_' + name)() for name in MEDIA_TYPES)))
+@@ -115,9 +230,9 @@ class Media:
+         raise KeyError('Unknown media type "%s"' % name)
+ 
+     @staticmethod
+-    def merge(list_1, list_2):
++    def merge(*lists):
+         """
+-        Merge two lists while trying to keep the relative order of the elements.
++        Merge multiple lists while trying to keep the relative order of the elements.
+         Warn if the lists have the same two elements in a different relative
+         order.
+ 
+@@ -125,6 +240,21 @@ class Media:
+         in a certain order. In JavaScript you may not be able to reference a
+         global or in CSS you might want to override a style.
+         """
++        if len(lists) == 0:
++            return []
++        if len(lists) == 1:
++            return list(lists[0])
++        if len(lists) == 2:
++            return Media._merge_two(lists[0], lists[1])
++        
++        # For multiple lists, use global topological sort
++        return Media._merge_multiple(lists)
++    
++    @staticmethod
++    def _merge_two(list_1, list_2):
++        """
++        Original merge algorithm for backwards compatibility with two lists.
++        """
+         # Start with a copy of list_1.
+         combined_list = list(list_1)
+         last_insert_index = len(list_1)
+@@ -149,6 +279,84 @@ class Media:
+                 last_insert_index = index
+         return combined_list
+ 
++    @staticmethod
++    def _merge_multiple(lists):
++        """
++        Merge multiple lists using a global topological sort algorithm.
++        This avoids creating artificial ordering constraints during
++        intermediate merges that can conflict with explicit dependencies.
++        """
++        from collections import defaultdict, deque
++        
++        # Collect all unique items
++        all_items = []
++        item_set = set()
++        for lst in lists:
++            for item in lst:
++                if item not in item_set:
++                    all_items.append(item)
++                    item_set.add(item)
++        
++        if not all_items:
++            return []
++        
++        # Build dependency graph from explicit ordering within each list
++        graph = defaultdict(set)
++        in_degree = defaultdict(int)
++        
++        # Initialize in_degree for all items
++        for item in all_items:
++            in_degree[item] = 0
++        
++        # Add dependencies based on relative ordering within each list
++        for lst in lists:
++            for i in range(len(lst) - 1):
++                current = lst[i]
++                next_item = lst[i + 1]
++                if next_item not in graph[current]:
++                    graph[current].add(next_item)
++                    in_degree[next_item] += 1
++        
++        # Perform topological sort using Kahn's algorithm
++        queue = deque([item for item in all_items if in_degree[item] == 0])
++        result = []
++        
++        while queue:
++            current = queue.popleft()
++            result.append(current)
++            
++            for neighbor in graph[current]:
++                in_degree[neighbor] -= 1
++                if in_degree[neighbor] == 0:
++                    queue.append(neighbor)
++        
++        # Check for circular dependencies
++        if len(result) != len(all_items):
++            # We have a cycle - fall back to pairwise merge and warn about conflicts
++            remaining_items = [item for item in all_items if item not in result]
++            
++            # Find example of circular dependency for warning
++            for item in remaining_items:
++                for neighbor in graph[item]:
++                    if neighbor in remaining_items:
++                        warnings.warn(
++                            'Detected duplicate Media files in an opposite order:\n'
++                            '%s\n%s' % (neighbor, item),
++                            MediaOrderConflictWarning,
++                        )
++                        break
++                break
++            
++            # Fall back to sequential pairwise merge
++            if not lists:
++                return []
++            merged = list(lists[0])
++            for lst in lists[1:]:
++                merged = Media._merge_two(merged, lst)
++            return merged
++        
++        return result
++
+     def __add__(self, other):
+         combined = Media()
+         combined._css_lists = self._css_lists + other._css_lists

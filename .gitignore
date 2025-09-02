@@ -1,7 +1,7 @@
 /venv
 .idea
 __pycache__
-logs/
+# logs/
 **/*.log
 *.pyc
 dist/
@@ -23,7 +23,7 @@ screenshots/
 
 .vscode/*
 patch_diff_analysis.ipynb
-*.csv
+# *.csv
 patch_analysis_summary.txt
 *.txt
 *.json
@@ -31,6 +31,5 @@ tests/services/test_behavior_fix_result_check.py
 tests/services/test_bug_fix_agent_top_k_rules.py
 tests/services/test_build_enhanced_feedback.py
 tests/services/demo_top_k_rules_guidance.py
-siada/foundation/tools/swebench_extractor.py
 test_bug_fix_agent_mock.py
 test_bug_fix_agent.py

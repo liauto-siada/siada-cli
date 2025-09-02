@@ -1,0 +1,105 @@
+diff --git a/lib/matplotlib/offsetbox.py b/lib/matplotlib/offsetbox.py
+index 77768e7383..c70b9a5e45 100644
+--- a/lib/matplotlib/offsetbox.py
++++ b/lib/matplotlib/offsetbox.py
+@@ -1508,7 +1508,7 @@ class DraggableBase:
+         ]
+ 
+     # A property, not an attribute, to maintain picklability.
+-    canvas = property(lambda self: self.ref_artist.figure.canvas)
++    canvas = property(lambda self: self.ref_artist.figure.canvas if self.ref_artist.figure is not None else None)
+ 
+     def on_motion(self, evt):
+         if self._check_still_parented() and self.got_artist:
+@@ -1558,14 +1558,15 @@ class DraggableBase:
+ 
+     def disconnect(self):
+         """Disconnect the callbacks."""
+-        for cid in self.cids:
+-            self.canvas.mpl_disconnect(cid)
+-        try:
+-            c1 = self._c1
+-        except AttributeError:
+-            pass
+-        else:
+-            self.canvas.mpl_disconnect(c1)
++        if self.canvas is not None:
++            for cid in self.cids:
++                self.canvas.mpl_disconnect(cid)
++            try:
++                c1 = self._c1
++            except AttributeError:
++                pass
++            else:
++                self.canvas.mpl_disconnect(c1)
+ 
+     def save_offset(self):
+         pass
+diff --git a/lib/matplotlib/tests/test_offsetbox.py b/lib/matplotlib/tests/test_offsetbox.py
+index cd57122272..4c36c68f55 100644
+--- a/lib/matplotlib/tests/test_offsetbox.py
++++ b/lib/matplotlib/tests/test_offsetbox.py
+@@ -450,3 +450,63 @@ def test_paddedbox():
+     pb = PaddedBox(ta, pad=15, draw_frame=True)
+     ab = AnchoredOffsetbox('lower right', child=pb)
+     ax.add_artist(ab)
++
++
++def test_draggable_base_figure_none():
++    """
++    Test DraggableBase when ref_artist.figure becomes None.
++    
++    This addresses the AttributeError: 'NoneType' object has no attribute 'canvas'
++    that occurred in matplotlib 3.7.1 with mplcursor integration.
++    """
++    from matplotlib.offsetbox import DraggableBase
++    
++    fig, ax = plt.subplots()
++    scatter = ax.scatter([1, 2, 3], [1, 2, 3])
++    
++    class MockDraggable(DraggableBase):
++        def save_offset(self): pass
++        def update_offset(self, dx, dy): pass
++        def finalize_offset(self): pass
++    
++    # Create draggable object
++    draggable = MockDraggable(scatter)
++    
++    # Test that canvas property works with valid figure
++    assert draggable.canvas is not None
++    assert draggable.canvas is scatter.figure.canvas
++    
++    # Set figure to None (simulates the problematic scenario)
++    scatter.figure = None
++    
++    # Test that canvas property returns None instead of raising AttributeError
++    assert draggable.canvas is None
++    
++    # Test that disconnect works without raising AttributeError
++    draggable.disconnect()  # Should not raise
++    
++    # Test that _check_still_parented handles None figure correctly
++    assert draggable._check_still_parented() is False
++    
++    # Test callback methods are protected
++    class MockEvent:
++        x = 10
++        y = 10
++        xdata = 1.0
++        ydata = 1.0
++        artist = scatter
++        mouseevent = None
++        
++        def __init__(self):
++            self.mouseevent = self
++    
++    draggable.got_artist = True
++    draggable.mouse_x = 5
++    draggable.mouse_y = 5
++    
++    # These should not raise AttributeError due to _check_still_parented protection
++    draggable.on_motion(MockEvent())
++    draggable.on_release(MockEvent())
++    draggable.on_pick(MockEvent())
++    
++    plt.close(fig)

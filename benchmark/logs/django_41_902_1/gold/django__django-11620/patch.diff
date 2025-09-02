@@ -1,0 +1,47 @@
+diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py
+index 2154a46320..3f123f3a58 100644
+--- a/django/urls/resolvers.py
++++ b/django/urls/resolvers.py
+@@ -17,6 +17,7 @@ from django.conf import settings
+ from django.core.checks import Error, Warning
+ from django.core.checks.urls import check_resolver
+ from django.core.exceptions import ImproperlyConfigured, ViewDoesNotExist
++from django.http import Http404
+ from django.utils.datastructures import MultiValueDict
+ from django.utils.functional import cached_property
+ from django.utils.http import RFC3986_SUBDELIMS, escape_leading_slashes
+@@ -260,6 +261,10 @@ class RoutePattern(CheckURLMixin):
+                     kwargs[key] = converter.to_python(value)
+                 except ValueError:
+                     return None
++                except Http404:
++                    # Http404 in path converters should bubble up and stop pattern
++                    # matching, unlike ValueError which continues to the next pattern.
++                    raise
+             return path[match.end():], (), kwargs
+         return None
+ 
+diff --git a/django/views/debug.py b/django/views/debug.py
+index cb3e8c7ec1..3a5f156607 100644
+--- a/django/views/debug.py
++++ b/django/views/debug.py
+@@ -5,7 +5,7 @@ import types
+ from pathlib import Path
+ 
+ from django.conf import settings
+-from django.http import HttpResponse, HttpResponseNotFound
++from django.http import Http404, HttpResponse, HttpResponseNotFound
+ from django.template import Context, Engine, TemplateDoesNotExist
+ from django.template.defaultfilters import pprint
+ from django.urls import Resolver404, resolve
+@@ -483,7 +483,9 @@ def technical_404_response(request, exception):
+     caller = ''
+     try:
+         resolver_match = resolve(request.path)
+-    except Resolver404:
++    except (Resolver404, Http404):
++        # Resolver404: URL doesn't match any patterns
++        # Http404: URL matches pattern but path converter raised Http404
+         pass
+     else:
+         obj = resolver_match.func

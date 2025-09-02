@@ -1,0 +1,225 @@
+diff --git a/pylint/config/argument.py b/pylint/config/argument.py
+index 3c2951517..32815665a 100644
+--- a/pylint/config/argument.py
++++ b/pylint/config/argument.py
+@@ -99,11 +99,87 @@ def _py_version_transformer(value: str) -> tuple[int, ...]:
+     return version
+ 
+ 
++def _safe_regex_compile(pattern: str) -> Pattern[str]:
++    """Safely compile a regex pattern, handling Unicode property escapes.
++    
++    This function first attempts to compile the pattern with Python's standard 
++    're' module. If that fails due to Unicode property escapes (like \\p{Han}),
++    it tries to use the 'regex' module if available, or provides helpful error
++    messages with alternative solutions.
++    """
++    if not pattern:
++        return re.compile("")
++    
++    try:
++        return re.compile(pattern)
++    except re.error as e:
++        error_msg = str(e)
++        # Check if the error is related to Unicode property escapes
++        if "bad escape \\p" in error_msg:
++            # Try to use the regex module if available
++            try:
++                import regex  # type: ignore[import]
++                return regex.compile(pattern)
++            except ImportError:
++                # Provide helpful error message with Unicode range alternatives
++                unicode_mappings = {
++                    r'\p{Han}': r'[\u4e00-\u9fff\u3400-\u4dbf]',  # Han characters (Chinese, Japanese, Korean)
++                    r'\p{Hiragana}': r'[\u3040-\u309f]',  # Hiragana
++                    r'\p{Katakana}': r'[\u30a0-\u30ff]',  # Katakana  
++                    r'\p{L}': r'[\w]',  # Any Unicode letter (approximation)
++                    r'\p{Lu}': r'[A-Z\u00c0-\u00d6\u00d8-\u00de]',  # Uppercase letters (partial)
++                    r'\p{Ll}': r'[a-z\u00df-\u00f6\u00f8-\u00ff]',  # Lowercase letters (partial)
++                    r'\p{N}': r'[0-9]',  # Numbers (basic ASCII)
++                }
++                
++                suggested_pattern = pattern
++                found_mappings = []
++                for unicode_escape, replacement in unicode_mappings.items():
++                    if unicode_escape in pattern:
++                        suggested_pattern = suggested_pattern.replace(unicode_escape, replacement)
++                        found_mappings.append(f"  {unicode_escape} -> {replacement}")
++                
++                error_message = (
++                    f"Regular expression pattern contains unsupported Unicode property escape: {pattern}\n"
++                    f"Python's 're' module doesn't support Unicode property escapes like \\p{{Han}}.\n\n"
++                )
++                
++                if found_mappings:
++                    error_message += (
++                        f"Suggested alternative using Unicode ranges:\n"
++                        f"  {suggested_pattern}\n\n"
++                        f"Unicode property mappings used:\n" +
++                        "\n".join(found_mappings) + "\n\n"
++                    )
++                
++                error_message += (
++                    "For full Unicode property support, consider:\n"
++                    "1. Installing the 'regex' module: pip install regex\n"
++                    "2. Using Unicode code point ranges instead of property escapes\n"
++                    "3. Using simpler patterns that work with Python's 're' module\n\n"
++                    "Common Unicode ranges:\n"
++                    "  Chinese/Japanese/Korean: [\\u4e00-\\u9fff\\u3400-\\u4dbf]\n"
++                    "  Hiragana: [\\u3040-\\u309f]\n"
++                    "  Katakana: [\\u30a0-\\u30ff]"
++                )
++                
++                raise argparse.ArgumentTypeError(error_message) from e
++            except Exception:
++                # If regex module is available but compilation still fails
++                raise argparse.ArgumentTypeError(
++                    f"Regular expression compilation failed: {error_msg}\n"
++                    f"Pattern: {pattern}"
++                ) from e
++        else:
++            # Re-raise other regex errors as-is to preserve original behavior
++            raise
++
++
+ def _regexp_csv_transfomer(value: str) -> Sequence[Pattern[str]]:
+     """Transforms a comma separated list of regular expressions."""
+     patterns: list[Pattern[str]] = []
+     for pattern in _csv_transformer(value):
+-        patterns.append(re.compile(pattern))
++        patterns.append(_safe_regex_compile(pattern))
+     return patterns
+ 
+ 
+@@ -112,7 +188,7 @@ def _regexp_paths_csv_transfomer(value: str) -> Sequence[Pattern[str]]:
+     patterns: list[Pattern[str]] = []
+     for pattern in _csv_transformer(value):
+         patterns.append(
+-            re.compile(
++            _safe_regex_compile(
+                 str(pathlib.PureWindowsPath(pattern)).replace("\\", "\\\\")
+                 + "|"
+                 + pathlib.PureWindowsPath(pattern).as_posix()
+@@ -130,7 +206,7 @@ _TYPE_TRANSFORMERS: dict[str, Callable[[str], _ArgumentTypes]] = {
+     "non_empty_string": _non_empty_string_transformer,
+     "path": _path_transformer,
+     "py_version": _py_version_transformer,
+-    "regexp": re.compile,
++    "regexp": _safe_regex_compile,
+     "regexp_csv": _regexp_csv_transfomer,
+     "regexp_paths_csv": _regexp_paths_csv_transfomer,
+     "string": pylint_utils._unquote,
+diff --git a/pylint/config/option.py b/pylint/config/option.py
+index 5043fe765..dfd738397 100644
+--- a/pylint/config/option.py
++++ b/pylint/config/option.py
+@@ -14,6 +14,82 @@ from re import Pattern
+ from pylint import utils
+ 
+ 
++def _safe_regex_compile(pattern: str) -> Pattern[str]:
++    """Safely compile a regex pattern, handling Unicode property escapes.
++    
++    This function first attempts to compile the pattern with Python's standard 
++    're' module. If that fails due to Unicode property escapes (like \\p{Han}),
++    it tries to use the 'regex' module if available, or provides helpful error
++    messages with alternative solutions.
++    """
++    if not pattern:
++        return re.compile("")
++    
++    try:
++        return re.compile(pattern)
++    except re.error as e:
++        error_msg = str(e)
++        # Check if the error is related to Unicode property escapes
++        if "bad escape \\p" in error_msg:
++            # Try to use the regex module if available
++            try:
++                import regex  # type: ignore[import]
++                return regex.compile(pattern)
++            except ImportError:
++                # Provide helpful error message with Unicode range alternatives
++                unicode_mappings = {
++                    r'\p{Han}': r'[\u4e00-\u9fff\u3400-\u4dbf]',  # Han characters (Chinese, Japanese, Korean)
++                    r'\p{Hiragana}': r'[\u3040-\u309f]',  # Hiragana
++                    r'\p{Katakana}': r'[\u30a0-\u30ff]',  # Katakana  
++                    r'\p{L}': r'[\w]',  # Any Unicode letter (approximation)
++                    r'\p{Lu}': r'[A-Z\u00c0-\u00d6\u00d8-\u00de]',  # Uppercase letters (partial)
++                    r'\p{Ll}': r'[a-z\u00df-\u00f6\u00f8-\u00ff]',  # Lowercase letters (partial)
++                    r'\p{N}': r'[0-9]',  # Numbers (basic ASCII)
++                }
++                
++                suggested_pattern = pattern
++                found_mappings = []
++                for unicode_escape, replacement in unicode_mappings.items():
++                    if unicode_escape in pattern:
++                        suggested_pattern = suggested_pattern.replace(unicode_escape, replacement)
++                        found_mappings.append(f"  {unicode_escape} -> {replacement}")
++                
++                error_message = (
++                    f"Regular expression pattern contains unsupported Unicode property escape: {pattern}\n"
++                    f"Python's 're' module doesn't support Unicode property escapes like \\p{{Han}}.\n\n"
++                )
++                
++                if found_mappings:
++                    error_message += (
++                        f"Suggested alternative using Unicode ranges:\n"
++                        f"  {suggested_pattern}\n\n"
++                        f"Unicode property mappings used:\n" +
++                        "\n".join(found_mappings) + "\n\n"
++                    )
++                
++                error_message += (
++                    "For full Unicode property support, consider:\n"
++                    "1. Installing the 'regex' module: pip install regex\n"
++                    "2. Using Unicode code point ranges instead of property escapes\n"
++                    "3. Using simpler patterns that work with Python's 're' module\n\n"
++                    "Common Unicode ranges:\n"
++                    "  Chinese/Japanese/Korean: [\\u4e00-\\u9fff\\u3400-\\u4dbf]\n"
++                    "  Hiragana: [\\u3040-\\u309f]\n"
++                    "  Katakana: [\\u30a0-\\u30ff]"
++                )
++                
++                raise optparse.OptionValueError(error_message) from e
++            except Exception:
++                # If regex module is available but compilation still fails
++                raise optparse.OptionValueError(
++                    f"Regular expression compilation failed: {error_msg}\n"
++                    f"Pattern: {pattern}"
++                ) from e
++        else:
++            # Re-raise other regex errors as-is to preserve original behavior
++            raise
++
++
+ # pylint: disable=unused-argument
+ def _csv_validator(_, name, value):
+     return utils._check_csv(value)
+@@ -23,7 +99,7 @@ def _csv_validator(_, name, value):
+ def _regexp_validator(_, name, value):
+     if hasattr(value, "pattern"):
+         return value
+-    return re.compile(value)
++    return _safe_regex_compile(value)
+ 
+ 
+ # pylint: disable=unused-argument
+@@ -39,7 +115,7 @@ def _regexp_paths_csv_validator(
+     patterns = []
+     for val in _csv_validator(_, name, value):
+         patterns.append(
+-            re.compile(
++            _safe_regex_compile(
+                 str(pathlib.PureWindowsPath(val)).replace("\\", "\\\\")
+                 + "|"
+                 + pathlib.PureWindowsPath(val).as_posix()
+@@ -103,7 +179,7 @@ VALIDATORS = {
+     "string": utils._unquote,
+     "int": int,
+     "float": float,
+-    "regexp": lambda pattern: re.compile(pattern or ""),
++    "regexp": lambda pattern: _safe_regex_compile(pattern or ""),
+     "regexp_csv": _regexp_csv_validator,
+     "regexp_paths_csv": _regexp_paths_csv_validator,
+     "csv": _csv_validator,

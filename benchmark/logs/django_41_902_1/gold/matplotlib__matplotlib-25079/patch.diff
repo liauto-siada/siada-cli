@@ -1,0 +1,27 @@
+diff --git a/lib/matplotlib/colorbar.py b/lib/matplotlib/colorbar.py
+index 966eb0760b..6f1e6c4011 100644
+--- a/lib/matplotlib/colorbar.py
++++ b/lib/matplotlib/colorbar.py
+@@ -1102,8 +1102,20 @@ class Colorbar:
+ 
+         # transform from 0-1 to vmin-vmax:
+         if not self.norm.scaled():
+-            self.norm.vmin = 0
+-            self.norm.vmax = 1
++            # For LogNorm and other scale-based norms that have domain restrictions,
++            # we cannot use vmin=0 as it would be invalid (log(0) is undefined).
++            # Use appropriate default values instead.
++            if (hasattr(self.norm, '_scale') and 
++                self.norm._scale is not None and
++                hasattr(self.norm._scale, '__class__') and
++                'LogScale' in str(self.norm._scale.__class__)):
++                # For LogNorm, use positive default values
++                self.norm.vmin = 1e-3
++                self.norm.vmax = 1
++            else:
++                # For other norms, use the original logic
++                self.norm.vmin = 0
++                self.norm.vmax = 1
+         self.norm.vmin, self.norm.vmax = mtransforms.nonsingular(
+             self.norm.vmin, self.norm.vmax, expander=0.1)
+         if (not isinstance(self.norm, colors.BoundaryNorm) and

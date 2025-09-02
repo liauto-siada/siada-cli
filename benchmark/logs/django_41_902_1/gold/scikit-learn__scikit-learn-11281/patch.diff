@@ -1,0 +1,339 @@
+diff --git a/sklearn/mixture/base.py b/sklearn/mixture/base.py
+index a9f66740f..74f68e3a0 100644
+--- a/sklearn/mixture/base.py
++++ b/sklearn/mixture/base.py
+@@ -14,7 +14,7 @@ import numpy as np
+ 
+ from .. import cluster
+ from ..base import BaseEstimator
+-from ..base import DensityMixin
++from ..base import DensityMixin, ClusterMixin
+ from ..externals import six
+ from ..exceptions import ConvergenceWarning
+ from ..utils import check_array, check_random_state
+@@ -64,7 +64,7 @@ def _check_X(X, n_components=None, n_features=None, ensure_min_samples=1):
+     return X
+ 
+ 
+-class BaseMixture(six.with_metaclass(ABCMeta, DensityMixin, BaseEstimator)):
++class BaseMixture(six.with_metaclass(ABCMeta, ClusterMixin, DensityMixin, BaseEstimator)):
+     """Base class for mixture models.
+ 
+     This abstract class specifies an interface for all mixture classes and
+@@ -239,6 +239,9 @@ class BaseMixture(six.with_metaclass(ABCMeta, DensityMixin, BaseEstimator)):
+ 
+         self._set_parameters(best_params)
+         self.n_iter_ = best_n_iter
++        
++        # Store hard cluster assignments for training data to be compatible with clusterer interface
++        self.labels_ = self.predict(X)
+ 
+         return self
+ 
+diff --git a/sklearn/mixture/bayesian_mixture.py b/sklearn/mixture/bayesian_mixture.py
+index aef6828fa..0a552fe40 100644
+--- a/sklearn/mixture/bayesian_mixture.py
++++ b/sklearn/mixture/bayesian_mixture.py
+@@ -5,6 +5,7 @@
+ 
+ import math
+ import numpy as np
++import warnings
+ from scipy.special import betaln, digamma, gammaln
+ 
+ from .base import BaseMixture, _check_shape
+@@ -89,6 +90,13 @@ class BayesianGaussianMixture(BaseMixture):
+         close to zero. The number of effective components is therefore smaller
+         than n_components.
+ 
++    n_clusters : int, optional
++        Alias for n_clusters for compatibility with clustering interface.
++        
++        .. deprecated:: 0.22
++            Parameter `n_clusters` is deprecated and will be removed in v0.24.
++            Use `n_components` instead.
++
+     covariance_type : {'full', 'tied', 'diag', 'spherical'}, defaults to 'full'
+         String describing the type of covariance parameters to use.
+         Must be one of::
+@@ -313,7 +321,21 @@ class BayesianGaussianMixture(BaseMixture):
+                  mean_precision_prior=None, mean_prior=None,
+                  degrees_of_freedom_prior=None, covariance_prior=None,
+                  random_state=None, warm_start=False, verbose=0,
+-                 verbose_interval=10):
++                 verbose_interval=10, n_clusters=None):
++        
++        # Handle n_clusters parameter for clustering interface compatibility
++        if n_clusters is not None:
++            if n_components != 1:  # n_components was explicitly set
++                raise ValueError("Cannot specify both 'n_components' and 'n_clusters'. "
++                               "Use 'n_clusters' for consistency with clustering interface, "
++                               "or 'n_components' for backward compatibility.")
++            n_components = n_clusters
++            warnings.warn("Parameter 'n_clusters' is deprecated and will be removed in version 0.24. "
++                         "Use 'n_components' instead, which has the same meaning. "
++                         "For clustering workflows, the mixture model will now store "
++                         "hard cluster assignments in the 'labels_' attribute after fitting.",
++                         FutureWarning)
++        
+         super(BayesianGaussianMixture, self).__init__(
+             n_components=n_components, tol=tol, reg_covar=reg_covar,
+             max_iter=max_iter, n_init=n_init, init_params=init_params,
+diff --git a/sklearn/mixture/gaussian_mixture.py b/sklearn/mixture/gaussian_mixture.py
+index d58a9e326..b371b4e38 100644
+--- a/sklearn/mixture/gaussian_mixture.py
++++ b/sklearn/mixture/gaussian_mixture.py
+@@ -5,6 +5,7 @@
+ # License: BSD 3 clause
+ 
+ import numpy as np
++import warnings
+ 
+ from scipy import linalg
+ 
+@@ -448,6 +449,13 @@ class GaussianMixture(BaseMixture):
+     n_components : int, defaults to 1.
+         The number of mixture components.
+ 
++    n_clusters : int, optional
++        Alias for n_clusters for compatibility with clustering interface.
++        
++        .. deprecated:: 0.22
++            Parameter `n_clusters` is deprecated and will be removed in v0.24.
++            Use `n_components` instead.
++
+     covariance_type : {'full', 'tied', 'diag', 'spherical'},
+             defaults to 'full'.
+         String describing the type of covariance parameters to use.
+@@ -584,7 +592,21 @@ class GaussianMixture(BaseMixture):
+                  reg_covar=1e-6, max_iter=100, n_init=1, init_params='kmeans',
+                  weights_init=None, means_init=None, precisions_init=None,
+                  random_state=None, warm_start=False,
+-                 verbose=0, verbose_interval=10):
++                 verbose=0, verbose_interval=10, n_clusters=None):
++        
++        # Handle n_clusters parameter for clustering interface compatibility
++        if n_clusters is not None:
++            if n_components != 1:  # n_components was explicitly set
++                raise ValueError("Cannot specify both 'n_components' and 'n_clusters'. "
++                               "Use 'n_clusters' for consistency with clustering interface, "
++                               "or 'n_components' for backward compatibility.")
++            n_components = n_clusters
++            warnings.warn("Parameter 'n_clusters' is deprecated and will be removed in version 0.24. "
++                         "Use 'n_components' instead, which has the same meaning. "
++                         "For clustering workflows, the mixture model will now store "
++                         "hard cluster assignments in the 'labels_' attribute after fitting.",
++                         FutureWarning)
++        
+         super(GaussianMixture, self).__init__(
+             n_components=n_components, tol=tol, reg_covar=reg_covar,
+             max_iter=max_iter, n_init=n_init, init_params=init_params,
+diff --git a/sklearn/mixture/tests/test_bayesian_mixture.py b/sklearn/mixture/tests/test_bayesian_mixture.py
+index e678c07d9..9eb7815d3 100644
+--- a/sklearn/mixture/tests/test_bayesian_mixture.py
++++ b/sklearn/mixture/tests/test_bayesian_mixture.py
+@@ -3,10 +3,12 @@
+ # License: BSD 3 clause
+ 
+ import numpy as np
++import warnings
+ from scipy.special import gammaln
+ 
+ from sklearn.utils.testing import assert_raise_message
+ from sklearn.utils.testing import assert_almost_equal
++from sklearn.utils.testing import assert_array_equal
+ 
+ from sklearn.mixture.bayesian_mixture import _log_dirichlet_norm
+ from sklearn.mixture.bayesian_mixture import _log_wishart_norm
+@@ -419,3 +421,93 @@ def test_invariant_translation():
+             assert_almost_equal(bgmm1.means_, bgmm2.means_ - 100)
+             assert_almost_equal(bgmm1.weights_, bgmm2.weights_)
+             assert_almost_equal(bgmm1.covariances_, bgmm2.covariances_)
++
++
++def test_bayesian_mixture_n_clusters_parameter():
++    """Test that BayesianGaussianMixture accepts n_clusters parameter with warning."""
++    rng = np.random.RandomState(0)
++    X = rng.rand(50, 2)
++    
++    # Test n_clusters parameter
++    with warnings.catch_warnings(record=True) as w:
++        warnings.simplefilter("always")
++        bgmm = BayesianGaussianMixture(n_clusters=3, random_state=rng)
++        
++        # Check that deprecation warning is raised
++        assert len(w) == 1
++        assert issubclass(w[0].category, FutureWarning)
++        assert "n_clusters" in str(w[0].message)
++        
++        # Check that n_components is set correctly
++        assert bgmm.n_components == 3
++
++
++def test_bayesian_mixture_labels_attribute():
++    """Test that BayesianGaussianMixture stores labels_ after fitting."""
++    rng = np.random.RandomState(0)
++    X = rng.rand(50, 2)
++    
++    bgmm = BayesianGaussianMixture(n_components=3, random_state=rng)
++    
++    # Check labels_ doesn't exist before fitting
++    assert not hasattr(bgmm, 'labels_')
++    
++    # Fit and check labels_
++    bgmm.fit(X)
++    assert hasattr(bgmm, 'labels_')
++    assert bgmm.labels_.shape == (X.shape[0],)
++    assert bgmm.labels_.dtype.kind == 'i'  # integer type
++    
++    # Check that labels_ matches predict() on training data
++    predicted = bgmm.predict(X)
++    assert_array_equal(bgmm.labels_, predicted)
++
++
++def test_bayesian_mixture_fit_predict():
++    """Test fit_predict method for BayesianGaussianMixture."""
++    rng = np.random.RandomState(0)
++    X = rng.rand(50, 2)
++    
++    bgmm = BayesianGaussianMixture(n_components=3, random_state=0)
++    
++    # Test fit_predict
++    labels = bgmm.fit_predict(X)
++    assert labels.shape == (X.shape[0],)
++    assert labels.dtype.kind == 'i'
++    
++    # Check consistency with fit + predict
++    bgmm2 = BayesianGaussianMixture(n_components=3, random_state=0)
++    bgmm2.fit(X)
++    predicted = bgmm2.predict(X)
++    assert_array_equal(labels, predicted)
++    
++    # Check that labels_ is set after fit_predict
++    assert hasattr(bgmm, 'labels_')
++    assert_array_equal(bgmm.labels_, labels)
++
++
++def test_bayesian_mixture_clusterer_interface():
++    """Test that BayesianGaussianMixture has clusterer interface."""
++    rng = np.random.RandomState(0)
++    X = rng.rand(50, 2)
++    
++    bgmm = BayesianGaussianMixture(n_components=3, random_state=rng)
++    
++    # Should inherit clusterer estimator type from ClusterMixin
++    assert bgmm._estimator_type == "clusterer"
++    
++    # Should have fit_predict method
++    assert hasattr(bgmm, 'fit_predict')
++    
++    # Test that fit_predict works
++    labels = bgmm.fit_predict(X)
++    assert labels.shape == (X.shape[0],)
++
++
++def test_bayesian_mixture_error_both_parameters():
++    """Test error when both n_components and n_clusters are specified."""
++    from sklearn.utils.testing import assert_raise_message
++    
++    assert_raise_message(ValueError, 
++                        "Cannot specify both 'n_components' and 'n_clusters'",
++                        BayesianGaussianMixture, n_components=3, n_clusters=3)
+diff --git a/sklearn/mixture/tests/test_gaussian_mixture.py b/sklearn/mixture/tests/test_gaussian_mixture.py
+index 08a083abf..75b1f7e82 100644
+--- a/sklearn/mixture/tests/test_gaussian_mixture.py
++++ b/sklearn/mixture/tests/test_gaussian_mixture.py
+@@ -981,3 +981,93 @@ def test_init():
+                            max_iter=1, random_state=random_state).fit(X)
+ 
+     assert_greater(gmm2.lower_bound_, gmm1.lower_bound_)
++
++
++def test_gaussian_mixture_n_clusters_parameter():
++    """Test that GaussianMixture accepts n_clusters parameter with warning."""
++    rng = np.random.RandomState(0)
++    X = rng.rand(50, 2)
++    
++    # Test n_clusters parameter
++    with warnings.catch_warnings(record=True) as w:
++        warnings.simplefilter("always")
++        gmm = GaussianMixture(n_clusters=3, random_state=rng)
++        
++        # Check that deprecation warning is raised
++        assert len(w) == 1
++        assert issubclass(w[0].category, FutureWarning)
++        assert "n_clusters" in str(w[0].message)
++        
++        # Check that n_components is set correctly
++        assert gmm.n_components == 3
++
++
++def test_gaussian_mixture_labels_attribute():
++    """Test that GaussianMixture stores labels_ after fitting."""
++    rng = np.random.RandomState(0)
++    X = rng.rand(50, 2)
++    
++    gmm = GaussianMixture(n_components=3, random_state=rng)
++    
++    # Check labels_ doesn't exist before fitting
++    assert not hasattr(gmm, 'labels_')
++    
++    # Fit and check labels_
++    gmm.fit(X)
++    assert hasattr(gmm, 'labels_')
++    assert gmm.labels_.shape == (X.shape[0],)
++    assert gmm.labels_.dtype.kind == 'i'  # integer type
++    
++    # Check that labels_ matches predict() on training data
++    predicted = gmm.predict(X)
++    assert_array_equal(gmm.labels_, predicted)
++
++
++def test_gaussian_mixture_fit_predict():
++    """Test fit_predict method for GaussianMixture."""
++    rng = np.random.RandomState(0)
++    X = rng.rand(50, 2)
++    
++    gmm = GaussianMixture(n_components=3, random_state=0)
++    
++    # Test fit_predict
++    labels = gmm.fit_predict(X)
++    assert labels.shape == (X.shape[0],)
++    assert labels.dtype.kind == 'i'
++    
++    # Check consistency with fit + predict
++    gmm2 = GaussianMixture(n_components=3, random_state=0)
++    gmm2.fit(X)
++    predicted = gmm2.predict(X)
++    assert_array_equal(labels, predicted)
++    
++    # Check that labels_ is set after fit_predict
++    assert hasattr(gmm, 'labels_')
++    assert_array_equal(gmm.labels_, labels)
++
++
++def test_gaussian_mixture_clusterer_interface():
++    """Test that GaussianMixture has clusterer interface."""
++    rng = np.random.RandomState(0)
++    X = rng.rand(50, 2)
++    
++    gmm = GaussianMixture(n_components=3, random_state=rng)
++    
++    # Should inherit clusterer estimator type from ClusterMixin
++    assert gmm._estimator_type == "clusterer"
++    
++    # Should have fit_predict method
++    assert hasattr(gmm, 'fit_predict')
++    
++    # Test that fit_predict works
++    labels = gmm.fit_predict(X)
++    assert labels.shape == (X.shape[0],)
++
++
++def test_gaussian_mixture_error_both_parameters():
++    """Test error when both n_components and n_clusters are specified."""
++    from sklearn.utils.testing import assert_raise_message
++    
++    assert_raise_message(ValueError, 
++                        "Cannot specify both 'n_components' and 'n_clusters'",
++                        GaussianMixture, n_components=3, n_clusters=3)

@@ -1,0 +1,100 @@
+diff --git a/seaborn/_core/plot.py b/seaborn/_core/plot.py
+index 2469df00..90f4b78c 100644
+--- a/seaborn/_core/plot.py
++++ b/seaborn/_core/plot.py
+@@ -1162,7 +1162,7 @@ class Plotter:
+         for view in subplots:
+             view_df = self._filter_subplot_data(df, view)
+             axes_df = view_df[coord_cols]
+-            with pd.option_context("mode.use_inf_as_null", True):
++            with pd.option_context("mode.use_inf_as_na", True):
+                 axes_df = axes_df.dropna()
+             for var, values in axes_df.items():
+                 scale = view[f"{var[0]}scale"]
+@@ -1288,7 +1288,7 @@ class Plotter:
+ 
+                 axes_df = self._filter_subplot_data(df, view)
+ 
+-                with pd.option_context("mode.use_inf_as_null", True):
++                with pd.option_context("mode.use_inf_as_na", True):
+                     if keep_na:
+                         # The simpler thing to do would be x.dropna().reindex(x.index).
+                         # But that doesn't work with the way that the subset iteration
+diff --git a/seaborn/_oldcore.py b/seaborn/_oldcore.py
+index c9218c1f..6a20339d 100644
+--- a/seaborn/_oldcore.py
++++ b/seaborn/_oldcore.py
+@@ -154,7 +154,11 @@ class HueMapping(SemanticMapping):
+             try:
+                 normed = self.norm(key)
+             except TypeError as err:
+-                if np.isnan(key):
++                try:
++                    is_nan = np.isnan(key)
++                except (TypeError, ValueError):
++                    is_nan = False
++                if is_nan:
+                     value = (0, 0, 0, 0)
+                 else:
+                     raise err
+@@ -1093,7 +1097,7 @@ class VectorPlotter:
+                 parts = []
+                 grouped = self.plot_data[var].groupby(self.converters[var], sort=False)
+                 for converter, orig in grouped:
+-                    with pd.option_context('mode.use_inf_as_null', True):
++                    with pd.option_context('mode.use_inf_as_na', True):
+                         orig = orig.dropna()
+                         if var in self.var_levels:
+                             # TODO this should happen in some centralized location
+diff --git a/seaborn/axisgrid.py b/seaborn/axisgrid.py
+index 8526f44b..92883cc4 100644
+--- a/seaborn/axisgrid.py
++++ b/seaborn/axisgrid.py
+@@ -1251,7 +1251,6 @@ class PairGrid(Grid):
+ 
+         self._figure = fig
+         self.axes = axes
+-        self.data = data
+ 
+         # Save what we are going to do with the diagonal
+         self.diag_sharey = diag_sharey
+@@ -1269,6 +1268,8 @@ class PairGrid(Grid):
+             self.hue_names = hue_order = ["_nolegend_"]
+             self.hue_vals = pd.Series(["_nolegend_"] * len(data),
+                                       index=data.index)
++            # Set the data
++            self.data = data
+         else:
+             # We need hue_order and hue_names because the former is used to control
+             # the order of drawing and the latter is used to control the order of
+@@ -1283,8 +1284,17 @@ class PairGrid(Grid):
+                 # Filter NA from the list of unique hue names
+                 hue_names = list(filter(pd.notnull, hue_names))
+             self.hue_names = hue_names
++            
++            # Filter data to only include rows where hue value is in hue_order
++            if hue_order is not None:
++                mask = data[hue].isin(hue_order)
++                data = data[mask]
++            
+             self.hue_vals = data[hue]
+ 
++        # Set the filtered data
++        self.data = data
++
+         # Additional dict of kwarg -> list of values for mapping the hue var
+         self.hue_kws = hue_kws if hue_kws is not None else {}
+ 
+diff --git a/seaborn/categorical.py b/seaborn/categorical.py
+index 7df91b05..01087311 100644
+--- a/seaborn/categorical.py
++++ b/seaborn/categorical.py
+@@ -1842,7 +1842,7 @@ class _LVPlotter(_CategoricalPlotter):
+         vals = np.asarray(vals)
+         # Remove infinite values while handling a 'object' dtype
+         # that can come from pd.Float64Dtype() input
+-        with pd.option_context('mode.use_inf_as_null', True):
++        with pd.option_context('mode.use_inf_as_na', True):
+             vals = vals[~pd.isnull(vals)]
+         n = len(vals)
+         p = self.outlier_prop

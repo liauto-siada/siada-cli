@@ -1,0 +1,82 @@
+diff --git a/pylint/checkers/misc.py b/pylint/checkers/misc.py
+index 69149e61a..28978365f 100644
+--- a/pylint/checkers/misc.py
++++ b/pylint/checkers/misc.py
+@@ -121,9 +121,9 @@ class EncodingChecker(BaseChecker):
+ 
+         notes = "|".join(re.escape(note) for note in self.config.notes)
+         if self.config.notes_rgx:
+-            regex_string = rf"#\s*({notes}|{self.config.notes_rgx})\b"
++            regex_string = rf"#\s*({notes}|{self.config.notes_rgx})(?=\W|$)"
+         else:
+-            regex_string = rf"#\s*({notes})\b"
++            regex_string = rf"#\s*({notes})(?=\W|$)"
+ 
+         self._fixme_pattern = re.compile(regex_string, re.I)
+ 
+diff --git a/tests/checkers/unittest_misc.py b/tests/checkers/unittest_misc.py
+index 23e19a9d0..8b0eaee9c 100644
+--- a/tests/checkers/unittest_misc.py
++++ b/tests/checkers/unittest_misc.py
+@@ -120,3 +120,61 @@ class TestFixme(CheckerTestCase):
+         """
+         with self.assertNoMessages():
+             self.checker.process_tokens(_tokenize_str(code))
++
++    @set_config(notes=["???", "!!!", "@@@"])
++    def test_punctuation_only_notes(self) -> None:
++        """Test that note tags consisting entirely of punctuation are detected."""
++        code = """a = 1
++                # ???: question marks only
++                # !!!: exclamation marks only
++                # @@@: at symbols only
++                """
++        with self.assertAddsMessages(
++            MessageTest(msg_id="fixme", line=2, args="???: question marks only", col_offset=17),
++            MessageTest(msg_id="fixme", line=3, args="!!!: exclamation marks only", col_offset=17),
++            MessageTest(msg_id="fixme", line=4, args="@@@: at symbols only", col_offset=17),
++        ):
++            self.checker.process_tokens(_tokenize_str(code))
++
++    @set_config(notes=["?", "!", "*", "@"])
++    def test_single_character_punctuation_notes(self) -> None:
++        """Test that single punctuation character note tags are detected."""
++        code = """a = 1
++                # ?: single question
++                # !: single exclamation
++                # *: single asterisk
++                # @: single at symbol
++                """
++        with self.assertAddsMessages(
++            MessageTest(msg_id="fixme", line=2, args="?: single question", col_offset=17),
++            MessageTest(msg_id="fixme", line=3, args="!: single exclamation", col_offset=17),
++            MessageTest(msg_id="fixme", line=4, args="*: single asterisk", col_offset=17),
++            MessageTest(msg_id="fixme", line=5, args="@: single at symbol", col_offset=17),
++        ):
++            self.checker.process_tokens(_tokenize_str(code))
++
++    @set_config(notes=["TODO!", "A1", "?!"])
++    def test_mixed_character_notes(self) -> None:
++        """Test that note tags with mixed alphanumeric and punctuation are detected."""
++        code = """a = 1
++                # TODO!: alphanumeric with punctuation
++                # A1: alphanumeric
++                # ?!: mixed punctuation
++                """
++        with self.assertAddsMessages(
++            MessageTest(msg_id="fixme", line=2, args="TODO!: alphanumeric with punctuation", col_offset=17),
++            MessageTest(msg_id="fixme", line=3, args="A1: alphanumeric", col_offset=17),
++            MessageTest(msg_id="fixme", line=4, args="?!: mixed punctuation", col_offset=17),
++        ):
++            self.checker.process_tokens(_tokenize_str(code))
++
++    @set_config(notes=["TODO"])
++    def test_note_in_middle_of_word_not_detected(self) -> None:
++        """Test that note tags in the middle of larger words are not detected."""
++        code = """a = 1
++                # MYTODOLIST: not a proper tag
++                # TODOISH: not a proper tag  
++                # TODO_THING: not a proper tag (underscore is word char)
++                """
++        with self.assertNoMessages():
++            self.checker.process_tokens(_tokenize_str(code))

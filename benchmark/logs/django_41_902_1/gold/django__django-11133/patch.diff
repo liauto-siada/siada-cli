@@ -1,0 +1,115 @@
+diff --git a/django/http/response.py b/django/http/response.py
+index 6a84e193ba..5cf3d178ae 100644
+--- a/django/http/response.py
++++ b/django/http/response.py
+@@ -233,6 +233,9 @@ class HttpResponseBase:
+             return bytes(value)
+         if isinstance(value, str):
+             return bytes(value.encode(self.charset))
++        # Handle memoryview objects by converting to bytes.
++        if isinstance(value, memoryview):
++            return bytes(value)
+         # Handle non-string types.
+         return str(value).encode(self.charset)
+ 
+diff --git a/tests/responses/tests.py b/tests/responses/tests.py
+index 934e4dfe60..1908082a12 100644
+--- a/tests/responses/tests.py
++++ b/tests/responses/tests.py
+@@ -154,3 +154,96 @@ class HttpResponseTests(SimpleTestCase):
+         cache.set('my-response-key', response)
+         response = cache.get('my-response-key')
+         self.assertEqual(response.content, b'0123456789')
++
++    def test_memoryview_content(self):
++        """HttpResponse should handle memoryview objects correctly."""
++        # Basic memoryview test
++        original_data = b"My Content"
++        mv = memoryview(original_data)
++        response = HttpResponse(mv)
++        self.assertEqual(response.content, original_data)
++        self.assertIsInstance(response.content, bytes)
++
++    def test_memoryview_vs_bytes_consistency(self):
++        """Memoryview and bytes should produce identical HttpResponse content."""
++        data = b"Test data for consistency"
++        
++        # Compare responses from memoryview and bytes
++        mv_response = HttpResponse(memoryview(data))
++        bytes_response = HttpResponse(data)
++        
++        self.assertEqual(mv_response.content, bytes_response.content)
++        self.assertEqual(len(mv_response.content), len(bytes_response.content))
++
++    def test_empty_memoryview(self):
++        """Empty memoryview should produce empty response content."""
++        empty_mv = memoryview(b"")
++        response = HttpResponse(empty_mv)
++        self.assertEqual(response.content, b"")
++        self.assertEqual(len(response.content), 0)
++
++    def test_large_memoryview(self):
++        """Large memoryview objects should be handled efficiently."""
++        # Test with 10KB of data
++        large_data = b"x" * 10240
++        large_mv = memoryview(large_data)
++        response = HttpResponse(large_mv)
++        
++        self.assertEqual(response.content, large_data)
++        self.assertEqual(len(response.content), len(large_data))
++
++    def test_sliced_memoryview(self):
++        """Sliced memoryview objects should work correctly."""
++        data = b"Hello World"
++        
++        # Test various slices
++        test_cases = [
++            (slice(6, None), b"World"),      # [6:]
++            (slice(0, 5), b"Hello"),         # [:5]
++            (slice(6, 11), b"World"),        # [6:11]
++            (slice(2, 8), b"llo Wo"),        # [2:8]
++        ]
++        
++        for slice_obj, expected in test_cases:
++            with self.subTest(slice=slice_obj):
++                sliced_mv = memoryview(data)[slice_obj]
++                response = HttpResponse(sliced_mv)
++                self.assertEqual(response.content, expected)
++
++    def test_memoryview_with_different_charsets(self):
++        """Memoryview should work with different response charsets."""
++        # Binary data should be unaffected by charset
++        binary_data = b"\x00\x01\x02\x03\xFF"
++        mv = memoryview(binary_data)
++        
++        # Test with different charsets
++        for charset in ['utf-8', 'iso-8859-1', 'ascii']:
++            with self.subTest(charset=charset):
++                response = HttpResponse(mv, charset=charset)
++                self.assertEqual(response.content, binary_data)
++
++    def test_memoryview_write_method(self):
++        """HttpResponse.write() should handle memoryview objects."""
++        response = HttpResponse()
++        
++        # Write different types including memoryview
++        response.write(b"Part 1 ")
++        response.write(memoryview(b"Part 2 "))
++        response.write("Part 3")
++        
++        expected = b"Part 1 Part 2 Part 3"
++        self.assertEqual(response.content, expected)
++
++    def test_memoryview_edge_cases(self):
++        """Test edge cases with memoryview objects."""
++        # Test memoryview of different buffer types
++        test_data = [
++            bytearray(b"bytearray data"),
++            bytes(b"bytes data"),
++        ]
++        
++        for data in test_data:
++            with self.subTest(data_type=type(data).__name__):
++                mv = memoryview(data)
++                response = HttpResponse(mv)
++                self.assertEqual(response.content, bytes(data))

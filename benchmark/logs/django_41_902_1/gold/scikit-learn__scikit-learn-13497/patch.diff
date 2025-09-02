@@ -1,0 +1,74 @@
+diff --git a/sklearn/feature_selection/mutual_info_.py b/sklearn/feature_selection/mutual_info_.py
+index d5d1b7fb5..7a760d175 100644
+--- a/sklearn/feature_selection/mutual_info_.py
++++ b/sklearn/feature_selection/mutual_info_.py
+@@ -247,7 +247,7 @@ def _estimate_mi(X, y, discrete_features='auto', discrete_target=False,
+     X, y = check_X_y(X, y, accept_sparse='csc', y_numeric=not discrete_target)
+     n_samples, n_features = X.shape
+ 
+-    if discrete_features == 'auto':
++    if isinstance(discrete_features, str) and discrete_features == 'auto':
+         discrete_features = issparse(X)
+ 
+     if isinstance(discrete_features, bool):
+diff --git a/sklearn/feature_selection/tests/test_mutual_info.py b/sklearn/feature_selection/tests/test_mutual_info.py
+index 7ba7d37e8..f9cbd89d2 100644
+--- a/sklearn/feature_selection/tests/test_mutual_info.py
++++ b/sklearn/feature_selection/tests/test_mutual_info.py
+@@ -198,3 +198,56 @@ def test_mutual_info_options():
+         assert_array_equal(mi_3, mi_4)
+ 
+     assert not np.allclose(mi_1, mi_3)
++
++
++def test_discrete_features_comparison_no_warnings():
++    """
++    Test that no FutureWarning is generated when using arrays for discrete_features.
++    
++    This is a regression test for the bug where comparing arrays to strings using ==
++    would generate NumPy FutureWarnings.
++    """
++    # Create test data with proper discrete features
++    X = np.array([[0, 0.5, 1],
++                  [1, 0.3, 0], 
++                  [2, 0.8, 1],
++                  [0, 0.2, 0],
++                  [1, 0.9, 1],
++                  [2, 0.1, 0]], dtype=float)
++    y_reg = np.array([0.1, 0.9, 0.2, 0.8, 0.3, 0.7])
++    y_class = np.array([0, 1, 0, 1, 0, 1])
++    
++    # Test cases that should not generate warnings
++    discrete_features_cases = [
++        np.array([0, 2]),  # Array of indices
++        np.array([True, False, True]),  # Boolean mask
++        [0, 2],  # List of indices
++    ]
++    
++    for discrete_features in discrete_features_cases:
++        # Test mutual_info_regression
++        import warnings
++        with warnings.catch_warnings(record=True) as w:
++            warnings.simplefilter("always")
++            
++            result = mutual_info_regression(X, y_reg, discrete_features=discrete_features)
++            
++            # Check for NumPy comparison warnings specifically
++            numpy_warnings = [warn for warn in w 
++                            if 'elementwise comparison failed' in str(warn.message)]
++            
++            assert_equal(len(numpy_warnings), 0)
++            assert_equal(result.shape, (X.shape[1],))
++        
++        # Test mutual_info_classif  
++        with warnings.catch_warnings(record=True) as w:
++            warnings.simplefilter("always")
++            
++            result = mutual_info_classif(X, y_class, discrete_features=discrete_features)
++            
++            # Check for NumPy comparison warnings specifically
++            numpy_warnings = [warn for warn in w 
++                            if 'elementwise comparison failed' in str(warn.message)]
++            
++            assert_equal(len(numpy_warnings), 0)
++            assert_equal(result.shape, (X.shape[1],))

@@ -1,0 +1,121 @@
+diff --git a/setup.py b/setup.py
+index ca08a6d4a..21cb67b8f 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 5):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 171a3e7b0..e70c11fad 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -247,6 +247,46 @@ def between(marker: str, what: Sequence[str] = None, keepempty: bool = False,
+ 
+ # This class is used only in ``sphinx.ext.autodoc.directive``,
+ # But we define this class here to keep compatibility (see #4538)
++def stringify_annotation(annotation: Any, type_aliases: Dict[str, str] = None, parent_obj: Any = None) -> str:
++    """Stringify type annotation with type alias resolution.
++    
++    This function applies autodoc_type_aliases to resolve type names before
++    converting the annotation to a string representation.
++    """
++
++    if type_aliases and parent_obj:
++        # Try to resolve the annotation using type aliases
++        try:
++            # Create a mock object with __annotations__ to use get_type_hints
++            mock_obj = type('MockObj', (), {'__annotations__': {'_': annotation}})
++            # Try to get the parent module's __globals__ for context
++            globalns = getattr(parent_obj, '__globals__', None)
++            if globalns is None:
++                # Check if parent_obj is a class and get its module's globals
++                module_name = getattr(parent_obj, '__module__', None)
++                if module_name:
++                    import sys
++                    if module_name in sys.modules:
++                        module_obj = sys.modules[module_name]
++                        globalns = getattr(module_obj, '__dict__', {})
++                else:
++                    # Fallback: If parent_obj is a module, use its own dict as globals
++                    globalns = getattr(parent_obj, '__dict__', {})
++            
++            # Convert mappingproxy to dict if needed
++            if hasattr(globalns, 'items') and not isinstance(globalns, dict):
++                globalns = dict(globalns)
++            
++            resolved_annotations = get_type_hints(mock_obj, globalns, type_aliases)
++            if '_' in resolved_annotations:
++                annotation = resolved_annotations['_']
++        except Exception:
++            # If type alias resolution fails, use the original annotation
++            pass
++    
++    return stringify_typehint(annotation)
++
++
+ class Options(dict):
+     """A dict/attribute hybrid that returns None on nonexisting keys."""
+     def __getattr__(self, name: str) -> Any:
+@@ -1716,7 +1756,9 @@ class DataDocumenter(ModuleLevelDocumenter):
+                 annotations = {}
+ 
+             if self.objpath[-1] in annotations:
+-                objrepr = stringify_typehint(annotations.get(self.objpath[-1]))
++                objrepr = stringify_annotation(annotations.get(self.objpath[-1]), 
++                                               self.config.autodoc_type_aliases, 
++                                               self.parent)
+                 self.add_line('   :type: ' + objrepr, sourcename)
+             else:
+                 key = ('.'.join(self.objpath[:-1]), self.objpath[-1])
+@@ -2107,7 +2149,9 @@ class AttributeDocumenter(DocstringStripSignatureMixin, ClassLevelDocumenter):
+                 annotations = {}
+ 
+             if self.objpath[-1] in annotations:
+-                objrepr = stringify_typehint(annotations.get(self.objpath[-1]))
++                objrepr = stringify_annotation(annotations.get(self.objpath[-1]), 
++                                               self.config.autodoc_type_aliases, 
++                                               self.parent)
+                 self.add_line('   :type: ' + objrepr, sourcename)
+             else:
+                 key = ('.'.join(self.objpath[:-1]), self.objpath[-1])
+diff --git a/tox.ini b/tox.ini
+index dbb705a3a..9f4fc3a32 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

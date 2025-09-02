@@ -1,0 +1,27 @@
+diff --git a/requests/models.py b/requests/models.py
+index d8456375..7c015d4a 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -463,7 +463,21 @@ class Request(object):
+     def register_hook(self, event, hook):
+         """Properly register a hook."""
+ 
+-        self.hooks[event].append(hook)
++        # Handle None values gracefully
++        if hook is None:
++            return
++        
++        # Handle both single hooks and lists of hooks
++        if isinstance(hook, list):
++            for h in hook:
++                if h is not None and not hasattr(h, '__call__'):
++                    raise TypeError('Hook %r is not callable' % h)
++                elif h is not None:
++                    self.hooks[event].append(h)
++        else:
++            if not hasattr(hook, '__call__'):
++                raise TypeError('Hook %r is not callable' % hook)
++            self.hooks[event].append(hook)
+ 
+     def deregister_hook(self, event, hook):
+         """Deregister a previously registered hook.

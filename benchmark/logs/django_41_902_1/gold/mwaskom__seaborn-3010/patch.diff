@@ -1,0 +1,104 @@
+diff --git a/seaborn/_stats/regression.py b/seaborn/_stats/regression.py
+index 7b7ddc8d..623ed799 100644
+--- a/seaborn/_stats/regression.py
++++ b/seaborn/_stats/regression.py
+@@ -21,8 +21,27 @@ class PolyFit(Stat):
+ 
+     def _fit_predict(self, data):
+ 
+-        x = data["x"]
+-        y = data["y"]
++        # Remove rows where either x or y has missing values (None, NaN)
++        clean_data = data.dropna(subset=["x", "y"])
++        
++        # Also remove rows where either x or y has infinite values
++        # Only apply isfinite if we have numeric data to avoid TypeError with object dtypes
++        if not clean_data.empty:
++            try:
++                finite_mask = np.isfinite(clean_data["x"]) & np.isfinite(clean_data["y"])
++                clean_data = clean_data[finite_mask]
++            except (TypeError, ValueError):
++                # If isfinite fails (e.g., with object dtypes), the data is already cleaned by dropna
++                pass
++        
++        # If no data remains after cleaning, return empty result
++        if clean_data.empty:
++            return pd.DataFrame(dict(x=[], y=[]))
++            
++        x = clean_data["x"]
++        y = clean_data["y"]
++        
++        # Check if we have enough unique data points for the polynomial order
+         if x.nunique() <= self.order:
+             # TODO warn?
+             xx = yy = []
+diff --git a/tests/_stats/test_regression.py b/tests/_stats/test_regression.py
+index 7facf75d..e378072b 100644
+--- a/tests/_stats/test_regression.py
++++ b/tests/_stats/test_regression.py
+@@ -50,3 +50,65 @@ class TestPolyFit:
+             grid = np.linspace(part["x"].min(), part["x"].max(), gridsize)
+             assert_array_equal(part["x"], grid)
+             assert part["y"].diff().diff().dropna().abs().gt(0).all()
++
++    def test_missing_data_handling(self):
++        """Test that PolyFit handles missing data gracefully."""
++
++        # Test with None values
++        df_none = pd.DataFrame({
++            "x": [1, 2, 3, None, 4],
++            "y": [1, 2, 3, 4, 5],
++            "group": ["a"] * 5
++        })
++        groupby = GroupBy(["group"])
++        res = PolyFit(order=1, gridsize=10)(df_none, groupby, "x", {})
++        assert len(res) == 10  # Should work with 4 valid points
++
++        # Test with NaN values
++        df_nan = pd.DataFrame({
++            "x": [1, 2, 3, 4, 5],
++            "y": [1, 2, np.nan, 4, 5],
++            "group": ["a"] * 5
++        })
++        res = PolyFit(order=1, gridsize=10)(df_nan, groupby, "x", {})
++        assert len(res) == 10  # Should work with 4 valid points
++
++        # Test with infinite values
++        df_inf = pd.DataFrame({
++            "x": [1, 2, np.inf, 4, 5],
++            "y": [1, 2, 3, np.inf, 5],
++            "group": ["a"] * 5
++        })
++        res = PolyFit(order=1, gridsize=10)(df_inf, groupby, "x", {})
++        assert len(res) == 10  # Should work with 3 valid points
++
++        # Test with all missing data
++        df_all_missing = pd.DataFrame({
++            "x": [None, None, None],
++            "y": [None, None, None],
++            "group": ["a"] * 3
++        })
++        res = PolyFit(order=1)(df_all_missing, groupby, "x", {})
++        assert len(res) == 0  # Should return empty result
++
++    def test_insufficient_data_after_cleaning(self):
++        """Test behavior when insufficient data remains after cleaning."""
++
++        # Only one valid data point for order=2 polynomial
++        df = pd.DataFrame({
++            "x": [1, None, None],
++            "y": [2, None, None], 
++            "group": ["a"] * 3
++        })
++        groupby = GroupBy(["group"])
++        res = PolyFit(order=2)(df, groupby, "x", {})
++        assert len(res) == 0  # Should return empty due to insufficient data
++
++        # Only two points with same x value (not enough unique points)
++        df_dup = pd.DataFrame({
++            "x": [1, 1, None],
++            "y": [2, 3, None],
++            "group": ["a"] * 3
++        })
++        res = PolyFit(order=1)(df_dup, groupby, "x", {})
++        assert len(res) == 0  # Should return empty due to insufficient unique x values

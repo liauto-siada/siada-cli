@@ -1,0 +1,106 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..31c51c6343 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -332,7 +332,22 @@ class FileSystemStorage(Storage):
+         url = filepath_to_uri(name)
+         if url is not None:
+             url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++        final_url = urljoin(self.base_url, url)
++        
++        # Add SCRIPT_NAME prefix if available and URL is relative
++        try:
++            from .script_name import get_script_name_for_storage
++            script_name = get_script_name_for_storage()
++            if script_name and not final_url.startswith(('http://', 'https://', '//')):
++                # Only add SCRIPT_NAME to relative URLs
++                if script_name.endswith('/'):
++                    script_name = script_name.rstrip('/')
++                final_url = script_name + final_url
++        except ImportError:
++            # If the script_name module isn't available, just use the original URL
++            pass
++        
++        return final_url
+ 
+     def _datetime_from_timestamp(self, ts):
+         """
+diff --git a/django/templatetags/static.py b/django/templatetags/static.py
+index 39712aaba0..c91dd8bc06 100644
+--- a/django/templatetags/static.py
++++ b/django/templatetags/static.py
+@@ -37,17 +37,33 @@ class PrefixNode(template.Node):
+         return cls(varname, name)
+ 
+     @classmethod
+-    def handle_simple(cls, name):
++    def handle_simple(cls, name, context=None):
+         try:
+             from django.conf import settings
+         except ImportError:
+             prefix = ''
+         else:
+             prefix = iri_to_uri(getattr(settings, name, ''))
++        
++        # Add SCRIPT_NAME prefix if available in context
++        if context is not None:
++            try:
++                request = getattr(context, 'request', None)
++                if request is not None:
++                    script_name = request.META.get('SCRIPT_NAME', '')
++                    if script_name and not prefix.startswith(('http://', 'https://', '//')):
++                        # Only add SCRIPT_NAME to relative URLs
++                        if script_name.endswith('/'):
++                            script_name = script_name.rstrip('/')
++                        prefix = script_name + prefix
++            except (AttributeError, TypeError):
++                # If anything goes wrong accessing the request, just use the original prefix
++                pass
++        
+         return prefix
+ 
+     def render(self, context):
+-        prefix = self.handle_simple(self.name)
++        prefix = self.handle_simple(self.name, context)
+         if self.varname is None:
+             return prefix
+         context[self.varname] = prefix
+@@ -100,7 +116,7 @@ class StaticNode(template.Node):
+ 
+     def url(self, context):
+         path = self.path.resolve(context)
+-        return self.handle_simple(path)
++        return self.handle_simple(path, context)
+ 
+     def render(self, context):
+         url = self.url(context)
+@@ -112,12 +128,26 @@ class StaticNode(template.Node):
+         return ''
+ 
+     @classmethod
+-    def handle_simple(cls, path):
++    def handle_simple(cls, path, context=None):
++        # Set SCRIPT_NAME in thread-local storage if available in context
++        if context is not None:
++            try:
++                request = getattr(context, 'request', None)
++                if request is not None:
++                    script_name = request.META.get('SCRIPT_NAME', '')
++                    try:
++                        from django.core.files.script_name import set_script_name_for_storage
++                        set_script_name_for_storage(script_name)
++                    except ImportError:
++                        pass
++            except (AttributeError, TypeError):
++                pass
++        
+         if apps.is_installed('django.contrib.staticfiles'):
+             from django.contrib.staticfiles.storage import staticfiles_storage
+             return staticfiles_storage.url(path)
+         else:
+-            return urljoin(PrefixNode.handle_simple("STATIC_URL"), quote(path))
++            return urljoin(PrefixNode.handle_simple("STATIC_URL", context), quote(path))
+ 
+     @classmethod
+     def handle_token(cls, parser, token):

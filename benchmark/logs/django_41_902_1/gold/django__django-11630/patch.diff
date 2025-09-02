@@ -1,0 +1,114 @@
+diff --git a/django/core/checks/model_checks.py b/django/core/checks/model_checks.py
+index 5c2266ca1d..d3c24b7ba4 100644
+--- a/django/core/checks/model_checks.py
++++ b/django/core/checks/model_checks.py
+@@ -5,10 +5,13 @@ from itertools import chain
+ 
+ from django.apps import apps
+ from django.core.checks import Error, Tags, register
++from django.db import router
+ 
+ 
+ @register(Tags.models)
+ def check_all_models(app_configs=None, **kwargs):
++    # Group models by (database, db_table) instead of just db_table to allow
++    # the same table name across different databases
+     db_table_models = defaultdict(list)
+     indexes = defaultdict(list)
+     constraints = defaultdict(list)
+@@ -19,7 +22,18 @@ def check_all_models(app_configs=None, **kwargs):
+         models = chain.from_iterable(app_config.get_models() for app_config in app_configs)
+     for model in models:
+         if model._meta.managed and not model._meta.proxy:
+-            db_table_models[model._meta.db_table].append(model._meta.label)
++            # Determine which database this model uses for both read and write operations
++            read_db = router.db_for_read(model)
++            write_db = router.db_for_write(model)
++            
++            # Models should use the same database for reads and writes in most cases.
++            # If they differ, we'll use the write database as it's more restrictive for conflicts.
++            # In practice, most routers return the same database for both operations for a given model.
++            target_db = write_db
++            
++            # Group by (database, table_name) to allow same table names in different databases
++            db_table_key = (target_db, model._meta.db_table)
++            db_table_models[db_table_key].append(model._meta.label)
+         if not inspect.ismethod(model.check):
+             errors.append(
+                 Error(
+@@ -35,12 +49,12 @@ def check_all_models(app_configs=None, **kwargs):
+             indexes[model_index.name].append(model._meta.label)
+         for model_constraint in model._meta.constraints:
+             constraints[model_constraint.name].append(model._meta.label)
+-    for db_table, model_labels in db_table_models.items():
+-        if len(model_labels) != 1:
++    for (database, db_table), model_labels in db_table_models.items():
++        if len(model_labels) > 1:
+             errors.append(
+                 Error(
+                     "db_table '%s' is used by multiple models: %s."
+-                    % (db_table, ', '.join(db_table_models[db_table])),
++                    % (db_table, ', '.join(model_labels)),
+                     obj=db_table,
+                     id='models.E028',
+                 )
+diff --git a/tests/check_framework/test_model_checks.py b/tests/check_framework/test_model_checks.py
+index 79177e38f7..14c2dd256f 100644
+--- a/tests/check_framework/test_model_checks.py
++++ b/tests/check_framework/test_model_checks.py
+@@ -74,6 +74,55 @@ class DuplicateDBTableTests(SimpleTestCase):
+         self.assertEqual(Model._meta.db_table, ProxyModel._meta.db_table)
+         self.assertEqual(checks.run_checks(app_configs=self.apps.get_app_configs()), [])
+ 
++    def test_no_collision_across_databases(self):
++        """
++        Test that models with the same db_table name should be allowed if they use different databases.
++        This test ensures that the multi-database table name conflict fix works correctly.
++        """
++        from django.test.utils import override_settings
++        from django.db import router
++        
++        # Create a router that sends models to different databases
++        original_routers = router.routers
++        
++        class MultiDbRouter:
++            def db_for_read(self, model, **hints):
++                if model._meta.app_label == 'check_framework':
++                    return 'default'
++                elif model._meta.app_label == 'other_app':  
++                    return 'other'
++                return None
++            
++            def db_for_write(self, model, **hints):
++                return self.db_for_read(model, **hints)
++        
++        # Temporarily replace router
++        router.routers = [MultiDbRouter()]
++        
++        try:
++            class Model1(models.Model):
++                class Meta:
++                    app_label = 'check_framework'
++                    db_table = 'shared_table'
++
++            class Model2(models.Model):
++                class Meta:
++                    app_label = 'other_app'
++                    db_table = 'shared_table'
++            
++            # These models use the same table name but different databases,
++            # so no error should be raised
++            from django.core.checks.model_checks import check_all_models
++            errors = check_all_models()
++            
++            # Filter for only E028 errors about our specific table
++            e028_errors = [e for e in errors if e.id == 'models.E028' and 'shared_table' in e.msg]
++            self.assertEqual(e028_errors, [])
++            
++        finally:
++            # Restore original routers
++            router.routers = original_routers
++
+ 
+ @isolate_apps('check_framework', attr_name='apps')
+ @override_system_checks([checks.model_checks.check_all_models])
