@@ -35,21 +35,10 @@ class Controller:
         session = self.session
         display_rule = True
         pending_input = None  # Pending input to process in next iteration
-        restored_history = None
 
         while True:
             try:
-                # Check if there's pending input to process
-                if restored_history:
-                    user_input = restored_history
-                    restored_history = None
-                    # After restoration, set tool_choice to "none" to prevent the LLM from
-                    # attempting to invoke functions automatically. This ensures the user
-                    # can provide new instructions before the conversation continues.
-                    if not self.config.llm_config.extra_params:
-                        self.config.llm_config.extra_params = {}
-                        self.config.llm_config.extra_params["tool_choice"] = "none"
-                elif pending_input:
+                if pending_input:
                     user_input = pending_input
                     pending_input = None
                 else:
@@ -86,11 +75,6 @@ class Controller:
                 )
                 turn_output = turn.execute(TurnInput(use_input=user_input))
 
-                # reset the tool_choice to "auto" after each turn
-                if (self.config.llm_config.extra_params
-                    and "tool_choice" in self.config.llm_config.extra_params): 
-                    self.config.llm_config.extra_params["tool_choice"] = "auto"
-
                 if isinstance(turn_output.output, SwitchEvent):
                     if turn_output.output.kwargs.get("model"):
                         self.config.model = turn_output.output.kwargs.get("model")
@@ -98,11 +82,6 @@ class Controller:
                     elif turn_output.output.kwargs.get("ai_analysis_prompt"):
                         # Set pending input for next iteration - reuse existing flow
                         pending_input = turn_output.output.kwargs.get("ai_analysis_prompt")
-                        continue
-                    elif turn_output.output.kwargs.get(
-                        "restored"
-                    ) or turn_output.output.kwargs.get("undone"):
-                        restored_history = turn_output.output.kwargs.get("history")
                         continue
 
                     # show the announcements in every switch event

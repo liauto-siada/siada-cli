@@ -373,6 +373,8 @@ def main():
     # Suppress harmless warnings from third-party libraries
     _suppress_third_party_warnings()
 
+    _configure_litellm_logging()
+
     conf: Config = load_conf()
 
     argv = sys.argv[1:]

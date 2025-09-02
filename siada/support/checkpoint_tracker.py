@@ -164,9 +164,9 @@ class CheckPointTracker:
             logger.warning("Task message state or message history is invalid.")
             return function_tool_name, arguments
 
-        if task_message_state.message_history:
+        if len(task_message_state.message_history) >= 2:
             try:
-                last_message = task_message_state.message_history[-1]
+                last_message = task_message_state.message_history[-2]
                 # Check if the message is a function tool call by examining its structure
                 if isinstance(last_message, dict) and "name" in last_message and "arguments" in last_message:
                     # Validate types before assignment

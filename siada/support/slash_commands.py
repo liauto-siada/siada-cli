@@ -1,7 +1,6 @@
 import inspect
 import os
 import siada
-import stat
 import sys
 
 from prompt_toolkit.completion import Completion, PathCompleter
@@ -407,16 +406,16 @@ class SlashCommands:
         """Refresh user memory content from siada.md file"""
         try:
             from siada.services.siada_memory import refresh_siada_memory
-            
+
             workspace = session.siada_config.workspace
             user_memory, status_message = refresh_siada_memory(workspace)
-            
+
             # Update the session config with new memory content
             if hasattr(session.siada_config, 'user_memory'):
                 session.siada_config.user_memory = user_memory
-            
+
             self.io.print_info(status_message)
-            
+
         except Exception as e:
             self.io.print_error(f'Error refreshing memory: {str(e)}')
             if self.verbose:
@@ -428,7 +427,7 @@ class SlashCommands:
         try:
             workspace = session.siada_config.workspace
             siada_md_path = os.path.join(workspace, 'siada.md')
-            
+
             if os.path.exists(siada_md_path):
                 # Get file size
                 file_size = os.path.getsize(siada_md_path)
@@ -437,11 +436,11 @@ class SlashCommands:
                     with open(siada_md_path, 'r', encoding='utf-8') as f:
                         content = f.read().strip()
                         lines_count = len(content.split('\n')) if content else 0
-                    
+
                     self.io.print_info(f"Memory file: {siada_md_path}")
                     self.io.print_info(f"File size: {file_size} bytes")
                     self.io.print_info(f"Lines: {lines_count}")
-                    
+
                     # Check if memory is loaded in current session
                     has_memory = hasattr(session.siada_config, 'user_memory') and session.siada_config.user_memory
                     self.io.print_info(f"Loaded in current session: {'Yes' if has_memory else 'No'}")
@@ -450,7 +449,7 @@ class SlashCommands:
             else:
                 self.io.print_info("No siada.md file found in current workspace")
                 self.io.print_info("Use `/init` to create and analyze project structure")
-                
+
         except Exception as e:
             self.io.print_error(f'Error checking memory status: {str(e)}')
             if self.verbose:
@@ -632,7 +631,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
         if not checkpoint_data:
             self.io.print_error(f"Checkpoint file '{checkpoint_filename}' not found")
             return None
-            
+
         return checkpoint_data
 
     def _process_checkpoint_history(self, checkpoint_data: CheckPointData, operation_type: str) -> list:
@@ -654,41 +653,28 @@ Write the complete content to the `siada.md` file. The output must be well-forma
             # Use message_classifier to identify message type
             role, item_type = get_role_and_type_from_item(last_message)
 
-            # Fast fail: only process function_call from assistant
-            if not (role == "assistant" and item_type == "function_call"):
+            # Fast fail: only process function_call_output from tool
+            if not (role == "tool" and item_type == "function_call_output"):
                 # Not a function call, skip processing
                 self.io.print_error(
                     f"{operation_type} checkpoint failed: last message is not a function call from assistant"
                 )
                 return None
             else:
-                # Process function_call
-                call_id = last_message.get("call_id")
-                function = last_message.get("name", "unknown_function")
-                if call_id:  # Ensure call_id exists
-                    # Different messages for undo vs restore
-                    if operation_type == "undo":
-                        output_message = f"The checkpoint has been restored from a point saved before the {function} executed. You MUST ask the user how they want to continue. The question must be generic and neutral. Do NOT mention or imply any tools, functions, files, checkpoints, rollbacks, errors, problems, success, or failure. Do NOT offer options or suggestions. Do NOT summarize or add any other text. Output exactly ONE short question, in the user's language, ending with a question mark. It must be a direct translation of 'What should I do next?' and nothing else. Do not proceed until the user responds."
-                    else:  # restore
-                        # output_message = f"The checkpoint has been restored from a point saved after the {function} executed. You MUST ask the user how they want to continue. Do NOT summarize, describe results, list features, propose options, apologize, add greetings, or include any extra text. Output exactly ONE short question, in the user's language, ending with a question mark. Respond in the user's language. Do not proceed until the user responds."
-                        output_message = f"The checkpoint has been restored from a point saved after the {function} executed. You MUST ask the user how they want to continue. The question must be generic and neutral. Do NOT mention or imply any tools, functions, files, checkpoints, rollbacks, errors, problems, success, or failure. Do NOT offer options or suggestions. Do NOT summarize or add any other text. Output exactly ONE short question, in the user's language, ending with a question mark. It must be a direct translation of 'What should I do next?' and nothing else. Do not proceed until the user responds."
-
+                if operation_type == "undo":
+                    # if operation_type = undo, add a user message indicating undo
+                    last_message = restored_history[-2]
+                    function = last_message.get("name", "unknown_function")
                     restored_history.append(
                         {
-                            "call_id": call_id,
-                            "output": output_message,
-                            "type": "function_call_output",
+                            "role": "user",
+                            "content": f"The user reverted the changes made by the {function} tool",
                         }
                     )
-                else:
-                    self.io.print_error(
-                        f"{operation_type} checkpoint failed: last message is missing call_id"
-                    )
-                    return None
-                    
+
         return restored_history
 
-    def _manage_session_and_restore(self, session, target_commit_hash: str):
+    def _manage_session_and_restore(self, session, target_commit_hash: str, restore_history):
         """
         Manage OpenAI session clearing and project state restoration with rollback.
         
@@ -700,10 +686,11 @@ Write the complete content to the `siada.md` file. The output must be well-forma
             True if successful, False otherwise
         """
         import asyncio
-        
+
         # Clear the openai session and save backup
         old_items = asyncio.run(session.state.openai_session.get_items())
-        asyncio.run(session.state.openai_session.clear_session())
+        # Reset the openai session with the restore history
+        asyncio.run(session.state.openai_session.reset_items(restore_history))
 
         try:
             # Restore the project state
@@ -711,17 +698,17 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 target_commit_hash
             )
             return True
-        except Exception as e:
-            # When restoring project state fails, recover the OpenAI session
+        except BaseException as e:
+            # When restoring project state fails, rollback the OpenAI session
             self.io.print_error(f"Failed to restore project state: {str(e)}")
             asyncio.run(session.state.openai_session.reset_items(old_items))
             return False
 
     def cmd_undo(self, session, args: str):
         "Undo the target checkpoint"
-        
+
         checkpoint_filename = args.strip()
-        
+
         try:
             # Validate checkpoint operation
             checkpoint_data = self._validate_checkpoint_operation(session, checkpoint_filename, "undo")
@@ -747,13 +734,14 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 return
 
             # Manage session and restore project state
-            if not self._manage_session_and_restore(session, previous_commit_hash):
+            if not self._manage_session_and_restore(session, previous_commit_hash, restored_history):
                 return
 
             self.io.print_info(f"Successfully undone checkpoint '{checkpoint_filename}'")
 
             # Return the SwitchEvent with the restored history
-            return SwitchEvent(undone=True, history=restored_history)
+            # return SwitchEvent(undone=True, history=restored_history)
+            return
 
         except Exception as e:
             self.io.print_error(f"Failed to undo checkpoint: {str(e)}")
@@ -763,9 +751,9 @@ Write the complete content to the `siada.md` file. The output must be well-forma
 
     def cmd_restore(self, session, args: str):
         "Restore files from a checkpoint"
-        
+
         checkpoint_filename = args.strip()
-        
+
         try:
             # Validate checkpoint operation
             checkpoint_data = self._validate_checkpoint_operation(session, checkpoint_filename, "restore")
@@ -782,11 +770,12 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 return
 
             # Manage session and restore project state
-            if not self._manage_session_and_restore(session, checkpoint_data.last_commit_hash):
+            if not self._manage_session_and_restore(session, checkpoint_data.last_commit_hash, restored_history):
                 return
 
             self.io.print_info(f"Successfully restored from checkpoint '{checkpoint_filename}'")
-            return SwitchEvent(restored=True, history=restored_history)
+            # return SwitchEvent(restored=True, history=restored_history)
+            return
 
         except Exception as e:
             self.io.print_error(f"Failed to restore from checkpoint: {str(e)}")
