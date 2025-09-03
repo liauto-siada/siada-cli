@@ -12,6 +12,7 @@ from siada.support.editor import pipe_editor
 from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
 from siada.support.checkpoint_tracker import CheckPointData
 from siada.support.message_classifier import get_role_and_type_from_item
+from siada.utils import DirectoryUtils
 
 
 class SwitchEvent:
@@ -111,6 +112,8 @@ class SlashCommands:
         # Here you would include logic to display the current status
         # display the current work_space
         self.io.print_info(f"WorkSpace: {session.siada_config.workspace}")
+        # get the project hash
+        self.io.print_info(f"Project Hash: {DirectoryUtils.get_file_path_hash(session.siada_config.workspace)}")
 
     def cmd_shell(self, args):
         "Open a shell"

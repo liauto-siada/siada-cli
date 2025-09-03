@@ -200,10 +200,9 @@ Siada CLI 提供检查点跟踪功能，可以自动保存会话状态，并支�
 - 使用 `/restore <checkpoint_file>` 恢复到先前状态
 - 使用 `/undo <checkpoint_file>` 撤销检查点的更改，恢复到检查点创建之前的状态
 - 使用 `/compare <checkpoint_file>` 查看当前状态与检查点的差异
-- 检查点文件在本地存储并按会话组织
 
 **存储位置：**
-- 常规安装：`~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id`
+- 文件地址：`~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id/`
 
 ## 使用模式
 
@@ -305,7 +304,7 @@ siada-cli --check-update       # 启动时检查并提示更新（默认开启�
 - `/compare <checkpoint_file>` - 将当前状态与检查点文件进行比较以查看差异
 - `/memory-refresh` - 从 siada.md 文件刷新用户内存内容
 - `/memory-status` - 显示当前用户内存状态（文件信息、大小、加载状态）
-- `/status` - 显示当前会话状态（模型、代理、会话ID和工作空间）
+- `/status` - 显示当前会话状态（模型、Agent、会话ID和工作空间）
 - `/exit` 或 `/quit` - 退出应用程序
 
 ### Shell 模式使用说明

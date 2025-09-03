@@ -200,10 +200,9 @@ Siada CLI provides checkpoint tracking functionality to automatically save sessi
 - Use `/restore <checkpoint_file>` to restore to a previous state
 - Use `/undo <checkpoint_file>` to undo changes made by a checkpoint, restoring to the state before the checkpoint was created
 - Use `/compare <checkpoint_file>` to see differences between current state and a checkpoint
-- Checkpoint files are stored locally and organized by session
 
 **Storage Location:**
-- Regular installation: `~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id`
+- location: `~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id/`
 
 ## Usage Modes
 
