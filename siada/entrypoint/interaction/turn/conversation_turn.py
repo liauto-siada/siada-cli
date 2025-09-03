@@ -17,7 +17,6 @@ from agents import (
 )
 
 from siada.foundation.telemetry import telemetry
-from siada.support.message_classifier import get_role_and_type_from_item, get_role_from_item
 from siada.support.spinner import WaitingSpinner
 from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
@@ -29,6 +28,7 @@ from ..running_config import RunningConfig
 from .models import TurnType, TurnInput, TurnOutput
 from .interface import RunTurn
 from agents import ItemHelpers
+from siada.foundation.logging import logger
 
 
 # Standard tag identifier
