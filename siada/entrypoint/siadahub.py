@@ -1,14 +1,13 @@
 import json
 import os
 import sys
+import threading
 import time
 from dataclasses import fields
 import warnings
-
 from prompt_toolkit.completion import Completer
 
 from siada.config.config_loader import Config, load_conf
-from siada.entrypoint.args_parser.args import get_parser
 from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.entrypoint.interaction.controller import Controller
 from siada.entrypoint.interaction.nointeractive_controller import NoInteractiveController
@@ -104,7 +103,7 @@ def _parse_args_and_setup_environment(argv):
         git_root = None
     else:
         git_root = get_git_root(temp_args.workspace)
-
+    from siada.entrypoint.args_parser.args import get_parser
     parser = get_parser(git_root=git_root, default_config_files=[])
     try:
         args, unknown = parser.parse_known_args(argv)
@@ -373,7 +372,8 @@ def main():
     # Suppress harmless warnings from third-party libraries
     _suppress_third_party_warnings()
 
-    _configure_litellm_logging()
+    thread = threading.Thread(target=_configure_litellm_logging)
+    thread.start()
 
     conf: Config = load_conf()
 

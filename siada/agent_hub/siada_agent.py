@@ -7,7 +7,6 @@ from agents import Agent, RunConfig, RunHooks, RunResult, RunResultStreaming, Ru
 from siada.agent_hub.hooks.context_capture_filter import context_capture_filter
 from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
 from siada.models.converter import ModelSettingsConverter
-from siada.provider.provider_factory import get_provider
 from siada.services.input_processor import process_input
 from siada.services.model_wrapper import ModelProviderWrapper
 from siada.session import RunningSessionManager
@@ -150,6 +149,8 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         self,
         context: TContext | None = None,
     ):
+        from siada.provider.provider_factory import get_provider
+
         running_session = context.session
         if running_session is None:
             running_session = RunningSessionManager.get_default_session()
