@@ -674,7 +674,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
 
         return restored_history
 
-    def _manage_session_and_restore(self, session, target_commit_hash: str, restore_history):
+    def _manage_session_and_restore(self, session, target_commit_hash, restore_history):
         """
         Manage OpenAI session clearing and project state restoration with rollback.
         
@@ -725,8 +725,8 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 return
 
             # Display undo information
-            self.io.print_info(f"Undoing checkpoint: {checkpoint_filename}")
-            self.io.print_info(f"Reverting files: {', '.join(checkpoint_data.modified_file_names)}")
+            # self.io.print_info(f"Undoing checkpoint: {checkpoint_filename}")
+            # self.io.print_info(f"Reverting files: {', '.join(checkpoint_data.modified_file_names)}")
 
             # Process checkpoint history
             restored_history = self._process_checkpoint_history(checkpoint_data, "undo")
@@ -761,8 +761,8 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 return
 
             # Display checkpoint information
-            self.io.print_info(f"Restoring from checkpoint: {checkpoint_filename}")
-            self.io.print_info(f"Restoring files: {', '.join(checkpoint_data.modified_file_names)}")
+            # self.io.print_info(f"Restoring from checkpoint: {checkpoint_filename}")
+            # self.io.print_info(f"Restoring files: {', '.join(checkpoint_data.modified_file_names)}")
 
             # Process checkpoint history
             restored_history = self._process_checkpoint_history(checkpoint_data, "restore")
