@@ -97,7 +97,7 @@ class Controller:
 
     def get_announcements(self):
         lines = []
-        lines.append(f"Siada CLI v{__version__}")
+        lines.append(f"Siada CLI v{__version__} supported by Li Auto")
 
         output = f"Agent: {self.config.agent_name}, Provider: {self.config.llm_config.provider}, Model: {self.config.llm_config.model_name}"
 
