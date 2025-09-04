@@ -219,9 +219,7 @@ class SiadaRunner:
             if not mcp_service.has_config():
                 logging.debug("No MCP configuration available, skipping MCP server configuration")
                 return
-            
-            await mcp_service.initialize()
-            
+                        
             # Get MCP servers from the initialized service
             mcp_servers = mcp_service.get_mcp_servers_for_agent()
             if mcp_servers:

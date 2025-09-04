@@ -17,6 +17,7 @@ from agents import (
 )
 
 from siada.foundation.telemetry import telemetry
+from siada.services import mcp_service
 from siada.support.spinner import WaitingSpinner
 from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
@@ -500,12 +501,16 @@ class ConversationTurn(RunTurn):
         self.spinner = None
         if self.config.io.pretty:
             self.spinner = WaitingSpinner(f"Waiting for Agent {self.config.agent_name}...")
-            self.spinner.start()
 
         try:
             # Import here to avoid circular imports
             from siada.services.siada_runner import SiadaRunner
             import asyncio
+
+            async def _mcp_initialize():
+                if mcp_service and not mcp_service.is_initialized:
+                    self.config.io.print_info("Initializing MCP service...")
+                    await mcp_service.initialize()
 
             result: RunResultStreaming = None
 
@@ -541,6 +546,13 @@ class ConversationTurn(RunTurn):
 
             # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
             self._ensure_dedicated_loop()
+
+            asyncio.run_coroutine_threadsafe(
+                _mcp_initialize(), self._dedicated_loop
+            ).result()
+            
+            # start spinner
+            self.spinner.start()
 
             # Execute async task in dedicated loop
             future = asyncio.run_coroutine_threadsafe(

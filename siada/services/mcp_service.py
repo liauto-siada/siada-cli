@@ -145,7 +145,7 @@ class MCPService:
         """Check if MCP service is initialized"""
         return self._initialized
         
-    async def initialize(self) -> None:
+    async def initialize(self) -> List[Any]:
         """Initialize MCP service"""
         if not self.has_config():
             logger.info("MCP service is disabled or no config available")
@@ -158,6 +158,14 @@ class MCPService:
         try:
             logger.info("Initializing MCP service using SDK...")
             
+            # Set mcp.client.streamable_http logger level to ERROR to reduce verbose output
+            mcp_http_logger = logging.getLogger('mcp.client')
+            mcp_http_logger.setLevel(logging.ERROR)
+            
+            # # Set openai.agents logger level to CRITICAL to filter out cleanup error messages
+            # openai_agents_logger = logging.getLogger('openai.agents')
+            # openai_agents_logger.setLevel(logging.CRITICAL)
+            
             # Create all MCP servers
             self.mcp_servers = await self._create_mcp_servers()
             
@@ -165,7 +173,9 @@ class MCPService:
             await self._connect_all_servers()
             
             self._initialized = True
-            
+
+            return self.mcp_servers
+
         except Exception as e:
             logger.error(f"Failed to initialize MCP service: {e}")
             self._initialized = False
@@ -395,54 +405,36 @@ class MCPService:
             shutdown_tasks = [
                 self._cleanup_server(server) for server in self.mcp_servers
             ]
-            
             await asyncio.wait_for(
                 asyncio.gather(*shutdown_tasks, return_exceptions=True),
                 timeout=1.5  # Unified 1.5 second timeout
             )
+            logger.info("MCP service shutdown completed")
             
         except asyncio.TimeoutError:
-            logger.debug("MCP shutdown timeout, forcing cleanup")
-            self._force_close_all_servers()
+            logger.error("MCP shutdown timeout, forcing cleanup")
         except Exception as e:
-            logger.debug(f"Error during MCP service shutdown: {e}")
-            self._force_close_all_servers()
+            logger.error(f"Error during MCP service shutdown: {e}")
         
         self._reset_state()
-        logger.debug("MCP service shutdown completed")
     
     async def _cleanup_server(self, server):
         """Clean up a single server"""
         try:
             await asyncio.wait_for(server.cleanup(), timeout=1.0)
-            logger.debug(f"Successfully cleaned up server: {server.name}")
+            logger.info(f"Successfully cleaned up server: {server.name}")
         except asyncio.TimeoutError:
-            logger.debug(f"Server cleanup timeout: {server.name}")
-            self._force_close_server(server)
+            logger.error(f"Server cleanup timeout: {server.name}")
         except Exception as e:
-            logger.debug(f"Server cleanup error {server.name}: {e}")
-            self._force_close_server(server)
-    
-    def _force_close_server(self, server):
-        """Force close a single server connection"""
-        try:
-            if hasattr(server, '_transport') and server._transport:
-                server._transport.close()
-        except Exception:
-            pass  # Ignore force close errors
-    
-    def _force_close_all_servers(self):
-        """Force close all server connections"""
-        for server in self.mcp_servers:
-            self._force_close_server(server)
-    
+            logger.error(f"Server cleanup error {server.name}: {e}")
+
     def _reset_state(self):
         """Reset service state"""
         self.mcp_servers = []
         self._initialized = False
     
     def cleanup_sync(self):
-        """Synchronous cleanup method for synchronous contexts like KeyboardInterrupt"""
+        """Synchronous cleanup method - force cleanup to avoid async conflicts"""
         if not self.is_initialized:
             return
             
@@ -457,9 +449,8 @@ class MCPService:
                 finally:
                     loop.close()
             except Exception:
+                logger.error("Error during MCP synchronous cleanup")
                 # If async cleanup fails, try force cleanup
-                self._force_close_all_servers()
-                self._reset_state()
         
         cleanup_thread = threading.Thread(target=run_cleanup, daemon=True)
         cleanup_thread.start()

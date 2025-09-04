@@ -13,7 +13,7 @@ from siada.config.config_loader import Config, load_conf
 from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.entrypoint.interaction.controller import Controller
 from siada.entrypoint.interaction.nointeractive_controller import NoInteractiveController
-from siada.foundation.logging import toggle_console_output, logger
+from siada.foundation.logging import redirect_agents_logger, toggle_console_output, logger
 from siada.io.color_settings import RunningConfigColorSettings
 from siada.models.model_run_config import ModelRunConfig
 from siada.session.session_manager import RunningSessionManager
@@ -50,7 +50,8 @@ def _init_mcp_service(config):
         mcp_service.set_mcp_config(config.mcp_config)
 
         # Register cleanup hook for program exit
-        atexit.register(lambda: mcp_service.cleanup_sync())
+        if config.interactive:
+            atexit.register(lambda: mcp_service.cleanup_sync())
 
         # Show configuration summary
         server_count = len(config.mcp_config.servers) if config.mcp_config.servers else 0
@@ -114,6 +115,8 @@ def _suppress_third_party_warnings():
         message="invalid escape sequence.*", 
         category=SyntaxWarning
     )
+    
+    redirect_agents_logger()
 
 
 def _parse_args_and_setup_environment(argv):

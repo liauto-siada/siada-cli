@@ -336,6 +336,25 @@ def toggle_console_output(enable: bool = True, target_logger=None):
     else:
         remove_console_handler(target_logger)
 
+def redirect_agents_logger():
+    """
+    Process the agents logger to set appropriate log levels and handlers.
+    """
+    agents_logger = logging.getLogger('openai.agents')
+    agents_logger.propagate = False
+
+    # If logger already has handlers, don't add duplicates
+    if agents_logger.handlers:
+        return
+
+    # Create console handler
+    # console_handler = get_console_handler()
+    # Create file handler - rotate daily, keep 30 days of logs
+    file_handler = get_file_handler()
+
+    # Add handlers to logger
+    # agents_logger.addHandler(console_handler)
+    agents_logger.addHandler(file_handler)
 
 # Global accessible logger instance
 logger = setup_logger()
