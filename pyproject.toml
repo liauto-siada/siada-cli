@@ -47,6 +47,8 @@ partial-json-parser = ">=0.2.1.1.post6,<1.0.0"
 networkx = ">=3.5.0,<4.0.0"
 playwright = ">=1.40.0,<2.0.0"
 gitpython = ">=3.1.0,<4.0.0"
+mcp = ">=1.0.0,<2.0.0"
+aiohttp = ">=3.8.0,<4.0.0"
 
 
 [tool.poetry.group.dev.dependencies]

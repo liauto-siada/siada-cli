@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 from pydantic import BaseModel, ConfigDict
 
 from siada.session.session_models import RunningSession
@@ -23,6 +23,11 @@ class CodeAgentContext(BaseModel):
     user_memory: Optional[str] = None
 
     checkpoint_tracker: Optional[CheckPointTracker] = None
+
+    # MCP相关扩展
+    mcp_service: Optional[Any] = None
+    mcp_config: Optional[Any] = None
+    mcp_enabled: bool = False
 
     def save_checkpoints(self):
         if self.checkpoint_tracker and self.session:

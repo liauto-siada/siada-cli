@@ -9,6 +9,7 @@ from rlcompleter import Completer
 from siada.io.color_settings import RunningConfigColorSettings
 from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
+from siada.config.mcp_config import MCPConfig
 
 
 @dataclass
@@ -30,3 +31,5 @@ class RunningConfig:
     interactive: bool = True
     user_memory: Optional[str] = None  # User memory content from siada.md
     enable_checkpointing: bool = False
+    mcp_config: Optional[MCPConfig] = None  # MCP configuration
+    mcp_service = None  # MCP service instance (will be initialized later)

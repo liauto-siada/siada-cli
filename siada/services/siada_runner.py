@@ -160,7 +160,12 @@ class SiadaRunner:
         # Dynamically import and instantiate Agent class
         try:
             agent_class = SiadaRunner._import_agent_class(class_path)
-            return agent_class()
+            agent = agent_class()
+            
+            # Configure MCP servers for the agent
+            await SiadaRunner._configure_mcp_servers(agent)
+            
+            return agent
         except (ImportError, AttributeError) as e:
             raise ImportError(f"Failed to import agent class '{class_path}': {e}")
 
@@ -198,3 +203,36 @@ class SiadaRunner:
         module_path, class_name = class_path.rsplit('.', 1)
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
+
+    @staticmethod
+    async def _configure_mcp_servers(agent: SiadaAgent):
+        """
+        Configure MCP servers for the agent using delayed connection strategy
+        
+        Args:
+            agent: The agent instance to configure
+        """
+        try:
+            from siada.services.mcp_service import mcp_service
+            
+            # Check if MCP configuration is available
+            if not mcp_service.has_config():
+                logging.debug("No MCP configuration available, skipping MCP server configuration")
+                return
+            
+            await mcp_service.initialize()
+            
+            # Get MCP servers from the initialized service
+            mcp_servers = mcp_service.get_mcp_servers_for_agent()
+            if mcp_servers:
+                # Configure the agent with MCP servers using official SDK mechanism
+                agent.mcp_servers = mcp_servers
+                agent.mcp_config = {"convert_schemas_to_strict": True}
+                
+                for server in mcp_servers:
+                    logging.debug(f"   - {server.name}")
+            else:
+                logging.warning("MCP service initialized but no servers available for agent configuration")
+                
+        except Exception as e:
+            logging.error(f"Failed to configure MCP servers for agent: {e}")

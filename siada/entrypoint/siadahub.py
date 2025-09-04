@@ -3,6 +3,8 @@ import os
 import sys
 import threading
 import time
+import atexit
+import asyncio
 from dataclasses import fields
 import warnings
 from prompt_toolkit.completion import Completer
@@ -31,6 +33,70 @@ except ImportError:
 
 from prompt_toolkit.enums import EditingMode
 from siada.services.model_info_service import ModelInfoService
+
+def _init_mcp_service(config):
+    """Validate and store MCP configuration (no connection establishment)"""
+    if not config.mcp_config or not config.mcp_config.enabled:
+        return
+
+    try:
+        from siada.services.mcp_service import mcp_service
+
+        # Validate MCP configuration
+        _validate_mcp_config(config)
+
+        # Store configuration in global manager for delayed initialization
+        mcp_service.set_io(config.io)
+        mcp_service.set_mcp_config(config.mcp_config)
+
+        # Register cleanup hook for program exit
+        atexit.register(lambda: mcp_service.cleanup_sync())
+
+        # Show configuration summary
+        server_count = len(config.mcp_config.servers) if config.mcp_config.servers else 0
+        config.io.print_info(f"MCP: Configuration validated with {server_count} servers")
+
+    except Exception as e:
+        if hasattr(config, 'io'):
+            config.io.print_warning(f"MCP configuration validation failed: {e}")
+        import logging
+        logging.error(f"MCP config validation error: {e}")
+
+
+def _validate_mcp_config(config):
+    """Validate MCP configuration without establishing connections"""
+    mcp_config = config.mcp_config
+
+    if not mcp_config.servers:
+        raise ValueError("No MCP servers configured")
+
+    for server_name, server_config in mcp_config.servers.items():
+        try:
+            # Validate server configuration
+            transport_type = server_config.get_transport_type()
+
+            if transport_type.value == "stdio":
+                if not server_config.command:
+                    raise ValueError(f"Server '{server_name}': command is required for stdio transport")
+            elif transport_type.value == "http":
+                # HTTP transport can use either url or http_url field
+                if not (server_config.url or server_config.http_url):
+                    raise ValueError(f"Server '{server_name}': url or http_url is required for http transport")
+            elif transport_type.value == "sse":
+                if not server_config.url:
+                    raise ValueError(f"Server '{server_name}': url is required for sse transport")
+            else:
+                raise ValueError(f"Server '{server_name}': unsupported transport type '{transport_type}'")
+
+            # Validate timeout
+            if server_config.timeout <= 0:
+                raise ValueError(f"Server '{server_name}': timeout must be positive")
+
+        except Exception as e:
+            raise ValueError(f"Invalid configuration for server '{server_name}': {e}")
+
+    import logging
+    logging.info(f"MCP configuration validation passed for {len(mcp_config.servers)} servers")
 
 
 def _suppress_third_party_warnings():
@@ -242,12 +308,12 @@ def show_banner(io):
 def get_enable_checkpointing(args, conf: Config = None, interactive_mode: bool = True):
     """
     Get enable_checkpointing setting with priority: args > config file > default
-    
+
     Args:
         args: Parsed command line arguments
         conf: Loaded configuration from config file
         interactive_mode: Whether running in interactive mode
-        
+
     Returns:
         bool: Final enable_checkpointing value
     """
@@ -431,6 +497,7 @@ def main():
         console_output=not args.disable_console_output if interactive_mode else True,
         interactive=interactive_mode,
         user_memory=user_memory,
+        mcp_config=conf.mcp_config,
         enable_checkpointing=enable_checkpointing,
     )
 
@@ -444,6 +511,9 @@ def main():
     validate_agent_compatibility(args.agent, interactive_mode, io, args.verbose)
 
     show_banner(io)
+
+    # Initialize MCP service if configured
+    _init_mcp_service(running_config)
 
     if not interactive_mode:
         controller = NoInteractiveController(config=running_config, session=session)

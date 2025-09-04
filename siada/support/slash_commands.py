@@ -2,6 +2,7 @@ import inspect
 import os
 import siada
 import sys
+import json
 
 from prompt_toolkit.completion import Completion, PathCompleter
 from prompt_toolkit.document import Document
@@ -459,6 +460,148 @@ class SlashCommands:
                 import traceback
                 self.io.print_error(traceback.format_exc())
 
+    # ==================== MCP Commands ====================
+
+    def cmd_mcp_server(self, session, args):
+        """List all MCP servers and their connection status"""
+        try:
+            from siada.services.mcp_service import mcp_service
+
+            if not mcp_service.has_config():
+                self.io.print_info("No MCP servers configured")
+                return
+
+            if not mcp_service.is_initialized:
+                self.io.print_info("MCP service not initialized")
+                self.io.print_info("MCP servers will be initialized when first needed")
+                return
+
+            # Get server status using asyncio in a thread
+            def get_status():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        return loop.run_until_complete(mcp_service.get_real_server_status())
+                    finally:
+                        loop.close()
+                except Exception as e:
+                    self.io.print_error(f"Failed to get server status: {e}")
+                    return {}
+
+            with WaitingSpinner("Checking server status..."):
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(get_status)
+                    server_status = future.result()
+
+            if not server_status:
+                self.io.print_info("No MCP servers available")
+                return
+
+            self.io.print_info("MCP Server Status:")
+            self.io.print_info()
+
+            for server_name, status in server_status.items():
+                # Status icon
+                if status == "connected":
+                    icon = "🟢"
+                    status_text = "Ready"
+                elif status == "timeout":
+                    icon = "🟡"
+                    status_text = "Timeout"
+                else:
+                    icon = "🔴"
+                    status_text = "Failed"
+
+                self.io.print_info(f"{icon} {server_name} - {status_text}")
+
+        except Exception as e:
+            self.io.print_error(f"Error listing MCP servers: {e}")
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
+
+    def cmd_mcp_list(self, session, args):
+        """List all MCP servers and their available tools"""
+        try:
+            from siada.services.mcp_service import mcp_service
+
+            if not mcp_service.has_config():
+                self.io.print_info("No MCP servers configured")
+                return
+
+            if not mcp_service.is_initialized:
+                self.io.print_info("MCP service not initialized")
+                self.io.print_info("MCP servers will be initialized when first needed")
+                return
+
+            # Get server status and tools using asyncio in a thread
+            def get_server_info():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        status_task = mcp_service.get_real_server_status()
+                        tools_task = mcp_service.list_tools_async()
+                        status = loop.run_until_complete(status_task)
+                        tools_by_server = loop.run_until_complete(tools_task)
+                        return status, tools_by_server
+                    finally:
+                        loop.close()
+                except Exception as e:
+                    self.io.print_error(f"Failed to get server info: {e}")
+                    return {}, {}
+
+            with WaitingSpinner("Loading MCP server information..."):
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(get_server_info)
+                    server_status, tools_by_server = future.result()
+
+            if not server_status and not tools_by_server:
+                self.io.print_info("No MCP servers available")
+                return
+
+            self.io.print_info("MCP Servers and Tools:")
+            self.io.print_info()
+
+            # Combine all server names from status and tools
+            all_servers = set(server_status.keys()) | set(tools_by_server.keys())
+
+            for server_name in sorted(all_servers):
+                status = server_status.get(server_name, "unknown")
+                tools = tools_by_server.get(server_name, [])
+
+                # Status icon
+                if status == "connected":
+                    icon = "🟢"
+                    status_text = "Ready"
+                elif status == "timeout":
+                    icon = "🟡"
+                    status_text = "Timeout"
+                else:
+                    icon = "🔴"
+                    status_text = "Failed"
+
+                # Display server info with tool count
+                tool_count = len(tools)
+                self.io.print_info(f"{icon} {server_name} - {status_text} ({tool_count} tools)")
+
+                # Display tools if available
+                if tools:
+                    self.io.print_info("  Tools:")
+                    for tool_name in sorted(tools):
+                        self.io.print_info(f"  - {tool_name}")
+                elif status == "connected":
+                    self.io.print_info("  No tools available")
+
+                self.io.print_info()
+
+        except Exception as e:
+            self.io.print_error(f"Error listing MCP tools: {e}")
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
+
     def _create_init_analysis_prompt(self, workspace):
         """Create the analysis prompt for /init command"""
 
@@ -606,12 +749,12 @@ Write the complete content to the `siada.md` file. The output must be well-forma
     def _validate_checkpoint_operation(self, session, checkpoint_filename: str, operation_name: str) -> CheckPointData:
         """
         Validate checkpoint operation prerequisites and return checkpoint data.
-        
+
         Args:
             session: The current session
             checkpoint_filename: Name of the checkpoint file
             operation_name: Name of the operation (for error messages)
-            
+
         Returns:
             CheckPointData if validation successful, None otherwise
         """
@@ -640,11 +783,11 @@ Write the complete content to the `siada.md` file. The output must be well-forma
     def _process_checkpoint_history(self, checkpoint_data: CheckPointData, operation_type: str) -> list:
         """
         Process checkpoint history and add appropriate function call output.
-        
+
         Args:
             checkpoint_data: The checkpoint data
             operation_type: 'undo' or 'restore' to determine the message content
-            
+
         Returns:
             Processed history list or None if processing failed
         """
@@ -680,11 +823,11 @@ Write the complete content to the `siada.md` file. The output must be well-forma
     def _manage_session_and_restore(self, session, target_commit_hash, restore_history):
         """
         Manage OpenAI session clearing and project state restoration with rollback.
-        
+
         Args:
             session: The current session
             target_commit_hash: The commit hash to restore to
-            
+
         Returns:
             True if successful, False otherwise
         """
