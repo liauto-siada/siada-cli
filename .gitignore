@@ -35,3 +35,4 @@ test_bug_fix_agent_mock.py
 test_bug_fix_agent.py
 benchmark/logs
 *.traj
+benchmark_bp
