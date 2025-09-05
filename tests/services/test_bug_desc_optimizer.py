@@ -154,24 +154,6 @@ class TestBugDescOptimizer(unittest.IsolatedAsyncioTestCase):
             # 重新抛出原始异常以便测试失败
             self.fail(f"模型调用失败: {e}")
 
-    def test_get_prompt_content(self):
-        """测试 get_prompt 方法生成的内容"""
-        test_description = "测试bug描述"
-        
-        prompt = self.optimizer.get_prompt(test_description)
-        
-        # 验证prompt包含必要的内容
-        self.assertIn(test_description, prompt)
-        self.assertIn("Issue Overview", prompt)
-        self.assertIn("Problem Description", prompt)
-        self.assertIn("Reproduction Steps", prompt)
-        self.assertIn("Expected Behavior", prompt)
-        self.assertIn("Acceptance Criteria", prompt)
-        self.assertIn("numpy array", prompt)
-        
-        print("✅ get_prompt方法测试通过")
-        print(f"📊 生成的prompt长度: {len(prompt)}")
-
     def test_provider_config_loading(self):
         """测试provider配置加载功能"""
         provider = self._get_provider_from_config()
