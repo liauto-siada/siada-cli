@@ -39,6 +39,11 @@ def _init_mcp_service(config):
     if not config.mcp_config or not config.mcp_config.enabled:
         return
 
+    # Check if there are any servers configured
+    if not config.mcp_config.servers:
+        # No servers configured, return silently without any prompts
+        return
+
     try:
         from siada.services.mcp_service import mcp_service
 
