@@ -1,0 +1,27 @@
+:root {
+    --color-bar-chart-x-axis: rgba(0, 0, 0, 0.5);
+    --color-bar-chart-x-axis-selected: rgba(0, 0, 0, 0.9);
+    --color-bar-chart-y-axis: rgba(34, 39, 50, 0.3);
+    --color-bar-chart-y-axis-selected: rgba(0, 0, 0, 0.9);
+    --color-cartesian-grid: rgba(0, 0, 0, 0.1);
+
+    --bar-color-blue: #0A5BFC;
+    --bar-color-green: #00803E;
+    --bar-color-yellow: #AC7414;
+    --bar-color-red: #B93A3A;
+    --bar-color-gay: rgba(34, 39, 50, 0.4);
+}
+
+.dark {
+    --color-bar-chart-x-axis: rgba(255, 255, 255, 0.5);
+    --color-bar-chart-x-axis-selected: rgba(255, 255, 255, 0.9);
+    --color-bar-chart-y-axis: rgba(255, 255, 255, 0.3);
+    --color-bar-chart-y-axis-selected: rgba(255, 255, 255, 0.9);
+    --color-cartesian-grid: rgba(255, 255, 255, 0.1);
+
+    --bar-color-blue: #1A79FF;
+    --bar-color-green: #059B53;
+    --bar-color-yellow: #CF8225;
+    --bar-color-red: #BF1D1D;
+    --bar-color-gray: rgba(255, 255, 255, 0.5);
+}

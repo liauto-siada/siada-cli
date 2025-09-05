@@ -1,0 +1,19 @@
+:root {
+    --radial-bar-chart-color-bg: #C1C7CF;
+
+    --radial-bar-chart-color-blue: #0A5BFC;
+    --radial-bar-chart-color-green: #00803E;
+    --radial-bar-chart-color-yellow: #AC7414;
+    --radial-bar-chart-color-red: #B93A3A;
+    --radial-bar-chart-color-gay: rgba(34, 39, 50, 0.4);
+}
+
+.dark {
+    --radial-bar-chart-color-bg: #292929;
+
+    --radial-bar-chart-color-blue: #1A79FF;
+    --radial-bar-chart-color-green: #059B53;
+    --radial-bar-chart-color-yellow: #CF8225;
+    --radial-bar-chart-color-red: #BF1D1D;
+    --radial-bar-chart-color-gray: rgba(255, 255, 255, 0.5);
+}

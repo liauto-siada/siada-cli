@@ -1,0 +1,49 @@
+{
+    "name": "set_seat_massage_control",
+    "description": "设置座椅按摩功能的开关状态。通过传入目标控制类型type，调整主驾、副驾和二排座椅的按摩功能开关。0 表示关闭，1 表示开启。",
+    "type": "skill",
+    "field_names": {
+      "CarControlTpuPlugin_SeatMassageRow1LeftSw": "主驾座椅按摩",
+      "CarControlTpuPlugin_SeatMassageRow1RightSw": "副驾座椅按摩",
+      "CarControlTpuPlugin_SeatMassageRow2LeftSw": "二排左侧座椅按摩",
+      "CarControlTpuPlugin_SeatMassageRow2RightSw": "二排右侧座椅按摩"
+    },
+    "input_schema": {
+      "type": "string",
+      "description": "指定要设置的座椅按摩控制类型",
+      "example": "CarControlTpuPlugin_SeatMassageRow1LeftSw",
+      "enum": [
+        "CarControlTpuPlugin_SeatMassageRow1LeftSw", 
+        "CarControlTpuPlugin_SeatMassageRow1RightSw", 
+        "CarControlTpuPlugin_SeatMassageRow2LeftSw", 
+        "CarControlTpuPlugin_SeatMassageRow2RightSw"
+    ],
+      "enumDescriptions": {
+        "CarControlTpuPlugin_SeatMassageRow1LeftSw": "设置主驾座椅按摩开关状态，0:关闭，1:打开",
+        "CarControlTpuPlugin_SeatMassageRow1RightSw": "设置副驾座椅按摩开关状态，0:关闭，1:打开",
+        "CarControlTpuPlugin_SeatMassageRow2LeftSw": "设置二排左座椅按摩开关状态，0:关闭，1:打开",
+        "CarControlTpuPlugin_SeatMassageRow2RightSw": "设置二排右座椅按摩开关状态，0:关闭，1:打开"
+      }
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "设置是否成功",
+          "example": true
+        },
+        "code": {
+          "type": "integer",
+          "description": "设置操作的返回状态码，0 表示成功",
+          "example": 0
+        },
+        "message": {
+          "type": "string",
+          "description": "附加说明信息",
+          "example": "设置成功"
+        }
+      }
+    }
+  }
+  

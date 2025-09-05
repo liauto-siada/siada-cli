@@ -6,13 +6,14 @@ from .base.rules import get_rules_section
 from .base.prompt_builder import build_system_prompt
 
 
-def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True) -> str:
+def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True, user_memory: str = None) -> str:
     """
     生成系统提示词
 
     Args:
         cwd: 当前工作目录路径
         interactive_mode: 是否为交互模式
+        user_memory: 用户内存内容（来自siada.md文件）
 
     Returns:
         格式化后的系统提示词
@@ -39,7 +40,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
         intro=intro,
         tool_use=get_tool_use_section(),
         capabilities=get_capabilities_section(cwd),
-        rules=get_rules_section(cwd, os_name, home_dir),
+        rules=get_rules_section(cwd, os_name, home_dir, interactive_mode),
         objective=objective,
-        interactive_mode=interactive_mode
+        user_memory=user_memory
     )

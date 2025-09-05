@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
-import re
 from siada.tools.coder.observation.observation import FunctionCallResult, FileReadSource, ObservationType, FileEditSource
 
 
@@ -54,7 +53,7 @@ class FileEditObservation(FunctionCallResult):
       - Git diff in LLM-based editing mode
       - the rendered message sent to the LLM in OH_ACI mode (e.g., "The file /path/to/file.txt is created with the provided content.")
     """
-
+    error: bool = False
     path: str = ''
     prev_exist: bool = False
     old_content: str | None = None
@@ -78,7 +77,8 @@ class FileEditObservation(FunctionCallResult):
         except Exception:
             # if path is invalid, default to directory
             is_file = False
-            
+        if self.error:
+            return f"✗ Operation failed on {'file' if is_file else 'directory'} {self.path}"
         if self.command == "view":
             return "✓ File content loaded" if is_file else "✓ Directory listing completed"
         elif self.command == "create":

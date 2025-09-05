@@ -1,0 +1,173 @@
+{
+    "name": "GetPoetryInfo",
+    "description": "古诗词查询工具，可以根据输入的文本查询相关的古诗词信息，包括诗名、作者、朝代、内容等",
+    "type": "tool",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "vector": {
+                "type": "string",
+                "description": "查询文本，例如：帮我生成李白的诗词、查找关于思乡的古诗、杜甫的山水诗等",
+                "example": "帮我生成李白的诗词卡片"
+            },
+            "topK": {
+                "type": "integer",
+                "description": "返回结果数量，默认为1，最大建议不超过10",
+                "example": 2,
+                "default": 1,
+                "minimum": 1,
+                "maximum": 10
+            },
+            "Vehicle": {
+                "type": "string",
+                "description": "古诗词查询API服务器地址，必须传入完整的API端点地址。",
+                "example": "https://crs-hmi-testtwo.chehejia.com/crs-mindcloud-api/api/v1/tool/knowledge/poetry",
+                "default": "https://crs-hmi-testtwo.chehejia.com/crs-mindcloud-api/api/v1/tool/knowledge/poetry"
+            },
+            "Cloud": {
+                "type": "string",
+                "description": "古诗词查询API服务器地址，必须传入完整的API端点地址。",
+                "example": "https://crs-mindcloud-service-testtwo.inner.chj.cloud/api/v1/tool/knowledge/poetry",
+                "default": "https://crs-mindcloud-service-testtwo.inner.chj.cloud/api/v1/tool/knowledge/poetry"
+            }
+        },
+        "required": ["vector"]
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "业务状态码，0表示成功",
+                "example": 0
+            },
+            "msg": {
+                "type": "string",
+                "description": "返回消息",
+                "example": "成功"
+            },
+            "data": {
+                "type": "object",
+                "description": "返回的数据主体",
+                "properties": {
+                    "vfsData": {
+                        "type": "array",
+                        "description": "向量化数据结果列表",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "text": {
+                                    "type": "string",
+                                    "description": "诗词文本内容",
+                                    "example": "诗名:静夜思|类别:唐诗|作者:李白|描述:举头望明月"
+                                },
+                                "score": {
+                                    "type": "number",
+                                    "description": "相似度分数",
+                                    "example": 0.6949999809265137
+                                },
+                                "knowledgeChunkId": {
+                                    "type": "string",
+                                    "description": "知识块ID",
+                                    "example": "db405df117f648e590b9929341563b21"
+                                },
+                                "distance": {
+                                    "type": ["number", "null"],
+                                    "description": "距离值",
+                                    "example": null
+                                },
+                                "fields": {
+                                    "type": "object",
+                                    "description": "字段信息",
+                                    "properties": {
+                                        "bizExtraId": {
+                                            "type": "string",
+                                            "description": "业务扩展ID",
+                                            "example": "1940699220277264393"
+                                        },
+                                        "bizExtraPayload": {
+                                            "type": "string",
+                                            "description": "业务扩展载荷JSON字符串",
+                                            "example": "{\"content\":\"窗前明月光， 疑似地上霜，举头望明月，低头思故乡\"}"
+                                        },
+                                        "createTime": {
+                                            "type": "string",
+                                            "description": "创建时间",
+                                            "example": "1751533737000"
+                                        },
+                                        "dynasty": {
+                                            "type": "string",
+                                            "description": "朝代",
+                                            "example": "唐"
+                                        },
+                                        "author": {
+                                            "type": "string",
+                                            "description": "作者",
+                                            "example": "李白"
+                                        },
+                                        "TEXT": {
+                                            "type": "string",
+                                            "description": "文本内容",
+                                            "example": "诗名:静夜思|类别:唐诗|作者:李白|描述:举头望明月"
+                                        },
+                                        "label": {
+                                            "type": "string",
+                                            "description": "标签",
+                                            "example": "山水, 思乡"
+                                        },
+                                        "category": {
+                                            "type": "string",
+                                            "description": "分类",
+                                            "example": "诗"
+                                        },
+                                        "title": {
+                                            "type": "string",
+                                            "description": "诗名",
+                                            "example": "静夜思"
+                                        },
+                                        "VECTOR": {
+                                            "type": "string",
+                                            "description": "向量",
+                                            "example": ""
+                                        }
+                                    }
+                                },
+                                "bizExtraPayload": {
+                                    "type": "object",
+                                    "description": "业务扩展载荷对象",
+                                    "properties": {
+                                        "content": {
+                                            "type": "string",
+                                            "description": "诗词内容",
+                                            "example": "窗前明月光， 疑似地上霜，举头望明月，低头思故乡"
+                                        }
+                                    }
+                                },
+                                "bizExtraId": {
+                                    "type": ["string", "null"],
+                                    "description": "业务扩展ID",
+                                    "example": null
+                                },
+                                "bizCreateTime": {
+                                    "type": ["string", "null"],
+                                    "description": "业务创建时间",
+                                    "example": null
+                                }
+                            }
+                        }
+                    },
+                    "graphData": {
+                        "type": "array",
+                        "description": "图形数据",
+                        "example": []
+                    }
+                }
+            }
+        }
+    }
+} 

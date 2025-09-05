@@ -1,0 +1,67 @@
+{
+    "name": "get_seat_ventilation_system",
+    "description": "获取前排和后排座椅通风功能的状态信息。返回内容包括：主驾座椅通风档位(0-3档)、副驾座椅通风档位(0-3档)、二排左座椅通风档位(0-3档)、二排右座椅通风档位(0-3档)等4项座椅通风功能的当前档位设置，其中0档表示关闭，1-3档表示不同通风强度，提供夏季座椅散热和透气功能。",
+    "type": "skill",
+    "field_names": {
+        "SeatAcRow1LeftVent": "主驾座椅通风",
+        "SeatAcRow1RightVent": "副驾座椅通风",
+        "SeatAcRow2LeftVent": "二排左座椅通风",
+        "SeatAcRow2RightVent": "二排右座椅通风"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "座椅通风控制类型，指定要获取的控制数据类型，与输出参数一一对应",
+        "example": "SeatAcRow1LeftVent",
+        "enum": ["SeatAcRow1LeftVent", "SeatAcRow1RightVent", "SeatAcRow2LeftVent", "SeatAcRow2RightVent"],
+        "enumDescriptions": {
+            "SeatAcRow1LeftVent": "获取主驾座椅通风档位",
+            "SeatAcRow1RightVent": "获取副驾座椅通风档位",
+            "SeatAcRow2LeftVent": "获取二排左座椅通风档位",
+            "SeatAcRow2RightVent": "获取二排右座椅通风档位"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "SeatAcRow1LeftVent": {
+                        "type": ["string", "null"],
+                        "description": "主驾座椅通风档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    },
+                    "SeatAcRow1RightVent": {
+                        "type": ["string", "null"],
+                        "description": "副驾座椅通风档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    },
+                    "SeatAcRow2LeftVent": {
+                        "type": ["string", "null"],
+                        "description": "二排左座椅通风档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    },
+                    "SeatAcRow2RightVent": {
+                        "type": ["string", "null"],
+                        "description": "二排右座椅通风档位，0: 关闭，1: 1档，2: 2档，3: 3档",
+                        "example": "0",
+                        "range": "0-3"
+                    }
+                }
+            }
+        }
+    }
+} 

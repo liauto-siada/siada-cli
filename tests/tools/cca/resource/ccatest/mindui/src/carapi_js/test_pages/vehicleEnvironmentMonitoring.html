@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>车辆环境监测接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>车辆环境监测接口</h1>
+    <div id="button-list">
+        <div class="button-row"><button id="ACIncarTemp">获取车内温度</button><span class="result-span" id="ACIncarTemp_result"></span></div>
+        <div class="button-row"><button id="RearACIncarTemp">获取车内后排温度</button><span class="result-span" id="RearACIncarTemp_result"></span></div>
+        <div class="button-row"><button id="DspOtsdTemp">获取车外温度</button><span class="result-span" id="DspOtsdTemp_result"></span></div>
+        <div class="button-row"><button id="InCarHumidity">获取车内相对湿度</button><span class="result-span" id="InCarHumidity_result"></span></div>
+        <div class="button-row"><button id="AcAirPm25Value">获取车内PM2.5空气质量</button><span class="result-span" id="AcAirPm25Value_result"></span></div>
+        <div class="button-row"><button id="AcAirCo2Value">获取车内二氧化碳浓度</button><span class="result-span" id="AcAirCo2Value_result"></span></div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+
+            [
+                "ACIncarTemp", "RearACIncarTemp", "DspOtsdTemp", "InCarHumidity", "AcAirPm25Value", "AcAirCo2Value"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_vehicle_environment_monitoring(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+        }
+    </script>
+</body>
+
+</html>

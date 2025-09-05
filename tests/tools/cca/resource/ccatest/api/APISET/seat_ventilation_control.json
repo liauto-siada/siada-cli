@@ -1,0 +1,49 @@
+{
+    "name": "set_seat_ventilation_system",
+    "description": "设置前排和后排座椅通风功能的状态。通过传入目标座椅位置，调整主驾、副驾或二排左右座椅的通风强度。0 表示关闭，1-3 表示不同通风强度，数值越大表示风力越强。",
+    "type": "skill",
+    "field_names": {
+      "CarControlTpuPlugin_SeatAcRow1LeftVent": "主驾座椅通风",
+      "CarControlTpuPlugin_SeatAcRow1RightVent": "副驾座椅通风",
+      "CarControlTpuPlugin_SeatAcRow2LeftVent": "二排左侧座椅通风",
+      "CarControlTpuPlugin_SeatAcRow2RightVent": "二排右侧座椅通风"
+    },
+    "input_schema": {
+      "type": "string",
+      "description": "指定要设置通风的目标座椅",
+      "example": "CarControlTpuPlugin_SeatAcRow1LeftVent",
+      "enum": [
+        "CarControlTpuPlugin_SeatAcRow1LeftVent",
+        "CarControlTpuPlugin_SeatAcRow1RightVent",
+        "CarControlTpuPlugin_SeatAcRow2LeftVent",
+        "CarControlTpuPlugin_SeatAcRow2RightVent"
+      ],
+      "enumDescriptions": {
+        "CarControlTpuPlugin_SeatAcRow1LeftVent": "设置主驾座椅通风档位，0:关闭，1:一档，2:二档，3:三档",
+        "CarControlTpuPlugin_SeatAcRow1RightVent": "设置副驾座椅通风档位，0:关闭，1:一档，2:二档，3:三档",
+        "CarControlTpuPlugin_SeatAcRow2LeftVent": "设置二排左座椅通风档位，0:关闭，1:一档，2:二档，3:三档",
+        "CarControlTpuPlugin_SeatAcRow2RightVent": "设置二排右座椅通风档位，0:关闭，1:一档，2:二档，3:三档"
+      }
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "设置是否成功",
+          "example": true
+        },
+        "code": {
+          "type": "integer",
+          "description": "设置操作的返回状态码，0 表示成功",
+          "example": 0
+        },
+        "message": {
+          "type": "string",
+          "description": "附加说明信息",
+          "example": "设置成功"
+        }
+      }
+    }
+  }
+  

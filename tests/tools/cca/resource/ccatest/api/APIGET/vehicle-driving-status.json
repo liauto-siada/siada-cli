@@ -1,0 +1,150 @@
+{
+    "name": "get_vehicle_driving_status",
+    "description": "获取车辆驾驶状态关键信息的综合数据接口。该API提供车辆当前驾驶状态的关键信息，包括：档位信息、电量百分比、能源模式、动力模式、魔毯悬架状态、CDC悬架状态、海拔高度、悬架舒适度、悬架高度、便捷上下车开关、转向模式、能量回收、低速警示音、增程器温度（水温）等。支持按需获取特定类型的驾驶相关数据，适用于车载信息系统、驾驶辅助应用、车辆状态监控等场景。返回数据为当前驾驶状态的实时信息，可用于仪表盘显示、驾驶辅助控制、车辆健康监测等功能模块。",
+    "type": "skill",
+    "field_names": {
+        "VehicleGearShift": "当前档位",
+        "PowerPercent": "电量百分比",
+        "DriveMode": "能源模式",
+        "DrivingMode": "动力模式",
+        "AirSuspension": "魔毯悬架",
+        "SpringSuspension": "CDC悬架",
+        "Altitude": "海拔高度",
+        "SuspensionAdjustment": "悬架舒适度",
+        "SuspensionHeight": "悬架高度",
+        "LowSuspension": "便捷上下车",
+        "TurnRound": "转向模式",
+        "EnergyRecovery": "能量回收",
+        "VESS": "低速警示音",
+        "RangeExtenderTemp": "水温"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "驾驶相关参数，用于指定需要获取的具体统计数据类型。该参数采用枚举值形式，每个枚举值对应一种特定的驾驶相关数据。通过传入不同的参数值，可以精确获取所需的数据项，避免不必要的数据传输。参数值与API返回的data对象中的字段名称一一对应，确保数据获取的准确性和一致性。",
+        "example": "VehicleGearShift",
+        "enum": [
+            "VehicleGearShift", "PowerPercent", "DriveMode", "DrivingMode", "AirSuspension", 
+            "SpringSuspension", "Altitude", "SuspensionAdjustment","SuspensionHeight", 
+            "LowSuspension", "TurnRound", "EnergyRecovery", "VESS", "RangeExtenderTemp"],
+        "enumDescriptions": {
+            "VehicleGearShift": "获取当前档位",
+            "PowerPercent": "获取电量百分比",
+            "DriveMode": "获取能源模式",
+            "DrivingMode": "获取动力模式",
+            "AirSuspension": "获取魔毯悬架",
+            "SpringSuspension": "获取CDC悬架",
+            "Altitude": "获取海拔高度",
+            "SuspensionAdjustment": "获取悬架舒适度",
+            "SuspensionHeight": "获取悬架高度",
+            "LowSuspension": "获取便捷上下车开关",
+            "TurnRound": "获取转向模式",
+            "EnergyRecovery": "获取能量回收",
+            "VESS": "获取低速警示音",
+            "RangeExtenderTemp": "获取增程器温度（水温）"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "API调用是否成功的标识，true表示成功获取数据，false表示调用失败或数据获取异常",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "API返回状态码，0表示成功，非0表示各种错误状态（如网络异常、数据不可用等）",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "VehicleGearShift": {
+                        "type": ["int", "null"],
+                        "description": "车辆当前档位，1:R档，2:N档，3:D档，4:P档。车辆静止时显示N档，行驶时显示D档，倒车时显示R档，停车时显示P档。",
+                        "example": "4",
+                        "range": "1-4"
+                    },
+                    "PowerPercent": {
+                        "type": ["String", "null"],
+                        "description": "当前电量百分比，表示电池剩余电量占电池总容量的百分比。取值范围为0到100，表示电池剩余电量占电池总容量的百分比。如果数据不可用则返回null",
+                        "example": "19%",
+                        "range": ""
+                    },
+                    "DriveMode": {
+                        "type": ["int", "null"],
+                        "description": "能源模式，表示车辆当前的能源模式，0:纯电优先，1:燃油优先，2:油电混合。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-2"
+                    },
+                    "DrivingMode": {
+                        "type": ["int", "null"],
+                        "description": "动力模式，表示车辆当前的动力模式，0:舒适，1:标准，2:运动，3: 高性能，4:节能，5:后排舒适。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-5"
+                    },
+                    "AirSuspension": {
+                        "type": ["int", "null"],
+                        "description": "魔毯悬架，表示车辆当前的悬架模式，0: 舒适魔毯，1: 运动魔毯。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "SpringSuspension": {
+                        "type": ["int", "null"],
+                        "description": "CDC悬架，表示车辆当前的悬架模式，0: 舒适CDC，1: 运动CDC。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "Altitude": {
+                        "type": ["int", "null"],
+                        "description": "海拔高度，表示车辆当前的海拔高度，单位为米。如果数据不可用则返回null",
+                        "example": "1000",
+                        "range": "-2147483648 ~ 2147483647"
+                    },
+                    "SuspensionAdjustment": {
+                        "type": ["int", "null"],
+                        "description": "悬架舒适度，表示车辆当前的悬架舒适度，0: 舒适，1: 标准，2: 运动。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-2"
+                    },
+                    "SuspensionHeight": {
+                        "type": ["int", "null"],
+                        "description": "悬架高度，表示车辆当前的悬架高度，0:低，1:标准，2:高，3: 较高。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-3"
+                    },
+                    "LowSuspension": {
+                        "type": ["int", "null"],
+                        "description": "便捷上下车开关，表示车辆当前的便捷上下车开关状态，0: 关闭，1: 开启。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "TurnRound": {
+                        "type": ["int", "null"],
+                        "description": "转向模式，表示车辆当前的转向模式，0: 舒适，1: 标准，2: 运动。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-2"
+                    },
+                    "EnergyRecovery": {
+                        "type": ["int", "null"],
+                        "description": "能量回收，表示车辆当前的能量回收状态，0:舒适，1:标准，2:强。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-2"
+                    },
+                    "VESS": {
+                        "type": ["int", "null"],
+                        "description": "低速警示音，表示车辆当前的低速警示音状态，0: 关闭，1: 开启。如果数据不可用则返回null",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "RangeExtenderTemp": {
+                        "type": ["float", "null"],
+                        "description": "增程器温度（水温），表示车辆当前的增程器温度（水温），单位为摄氏度。如果数据不可用则返回null",
+                        "example": "32.2",
+                        "range": "-36 ~ 137"
+                    }
+                }
+            }
+        }
+    }
+} 

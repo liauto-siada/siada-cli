@@ -163,6 +163,77 @@ export OPENROUTER_API_KEY="your_openrouter_key"
 unset SIADA_MODEL
 ```
 
+### Checkpoints Configuration
+
+Siada CLI provides checkpoint tracking functionality to automatically save session states and enable recovery from previous points in your development workflow.
+
+**What are Checkpoints?**
+- Automatic snapshots of your session state after significant tool operations
+- Includes conversation history, modified files, and git state
+- Enables rollback to previous states and comparison between different points in time
+
+**Enable Checkpoint Tracking:**
+
+   **Method 1: Command Line Parameter**
+   ```bash
+   # Enable checkpoints when starting CLI
+   siada-cli --checkpointing
+   ```
+
+   **Method 2: Environment Variable**
+   ```bash
+   # Enable checkpoints globally
+   export SIADA_CHECKPOINTING=true
+   siada-cli --agent coder
+   ```
+
+   **Method 3: Configuration File**
+   
+   edit `~/.siada-cli/conf.yaml`:
+   ```yaml
+   checkpoint_config:
+     enable: true
+   ```
+
+**Checkpoint Usage:**
+- Checkpoints are automatically created after tool operations like file edits and command executions
+- Use `/restore <checkpoint_file>` to restore to a previous state
+- Use `/undo <checkpoint_file>` to undo changes made by a checkpoint, restoring to the state before the checkpoint was created
+- Use `/compare <checkpoint_file>` to see differences between current state and a checkpoint
+
+**Storage Location:**
+- location: `~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id/`
+
+### MCP Configuration
+
+Siada CLI integrates MCP (Model Context Protocol) service to provide extended tools and resources for AI agents.
+
+**MCP Configuration File `~/.siada-cli/mcp_config.json`**
+
+   Parameter descriptions:
+   - `enabled`: Controls global/individual MCP server switches
+   - `type`: Connection type (`stdio`/`http`/`sse`)
+
+   Configuration file example:
+   ```json
+   {
+      "enabled": true,
+      "mcpServers": {
+         "filesystem": {
+            "enabled": true,
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocolserver-filesystem", "./"]
+         }
+      }
+   }
+   ```
+
+**MCP Slash Commands**
+
+   - `/mcp-server`: List all MCP servers
+   - `/mcp-list`: List all MCP servers and their available tools
+
 ## Usage Modes
 
 Siada CLI supports two usage modes to meet different usage scenarios:
@@ -235,6 +306,15 @@ siada-cli --verbose
 # List all available models
 siada-cli --list-models
 siada-cli --models
+
+# Enable checkpoint tracking (for session recovery)
+siada-cli --checkpointing
+
+## Version Check and Update
+siada-cli --just-check-update  # Check version only, without executing update
+siada-cli --upgrade            # Upgrade to the latest version immediately
+siada-cli --check-update       # Check and prompt for updates on startup (enabled by default)
+
 ```
 
 ## Slash Commands
@@ -244,7 +324,17 @@ In the CLI, you can use slash commands for additional functionality:
 - `/shell` - Switch to shell mode to execute system commands (type `exit` or `quit` to exit shell mode)
 - `/models` - List available AI models
 - `/run <command>` or `!<command>` - Execute shell commands
-- `/editor` - Open editor for multiline input
+- `/editor` or `/edit` - Open editor for multiline input
+- `/multiline-mode` - Toggle multiline mode (changes behavior of Enter and Meta+Enter keys)
+  - Enter key for line break
+  - Meta+Enter key to end multiline mode and send content to the model
+- `/init [--force]` - Analyze the project and create a tailored siada.md file
+- `/restore <checkpoint_file>` - Restore session state from a checkpoint file (requires checkpoint tracking enabled)
+- `/undo <checkpoint_file>` - Undo changes made by a checkpoint, restoring to the state before the checkpoint was created (requires checkpoint tracking enabled)
+- `/compare <checkpoint_file>` - Compare current state with a checkpoint file to see differences
+- `/memory-refresh` - Refresh user memory content from siada.md file
+- `/memory-status` - Display current user memory status (file info, size, loaded status)
+- `/status` - Display current session status (model, agent, session ID, and workspace)
 - `/exit` or `/quit` - Exit the application
 
 ### Shell Mode Usage Guide

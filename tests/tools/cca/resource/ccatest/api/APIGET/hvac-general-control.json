@@ -1,0 +1,67 @@
+{
+    "name": "get_hvac_general_control",
+    "description": "获取空调系统通用控制功能的状态信息。返回内容包括：A/C制冷开关状态(开启/关闭)、前后排同步控制开关状态(开启/关闭)、节能空调ECO模式状态(开启/关闭)、空气循环模式状态(内循环/外循环/自动)等4项空调通用功能的当前设置状态。",
+    "type": "skill",
+    "field_names": {
+        "FrontAcAc": "A/C开关",
+        "FrontAcSync": "SYNC开关",
+        "AcEcoMode": "节能空调",
+        "AcAirRecycle": "循环模式"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "空调通用控制类型，指定要获取的控制数据类型，与输出参数一一对应",
+        "example": "FrontAcAc",
+        "enum": ["FrontAcAc", "FrontAcSync", "AcEcoMode", "AcAirRecycle"],
+        "enumDescriptions": {
+            "FrontAcAc": "获取A/C制冷开关状态",
+            "FrontAcSync": "获取前后排同步开关状态",
+            "AcEcoMode": "获取节能空调模式状态",
+            "AcAirRecycle": "获取空气循环模式状态"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "FrontAcAc": {
+                        "type": ["string", "null"],
+                        "description": "A/C制冷开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "FrontAcSync": {
+                        "type": ["string", "null"],
+                        "description": "前后排同步开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "AcEcoMode": {
+                        "type": ["string", "null"],
+                        "description": "节能空调模式状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "AcAirRecycle": {
+                        "type": ["string", "null"],
+                        "description": "空气循环模式状态，1: 外循环，2: 内循环，3：自动",
+                        "example": "1",
+                        "range": "1-3"
+                    }
+                }
+            }
+        }
+    }
+} 

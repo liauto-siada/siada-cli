@@ -10,7 +10,7 @@ from agents import RunContextWrapper, function_tool
 from agents.items import TResponseInputItem
 from openai.types.chat import ChatCompletionMessageParam
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.foundation.config import settings
+from siada.foundation.setting import settings
 from siada.provider.client_factory import get_client_with_kwargs
 COMPRESS_DOCS = """Intelligently compress or summarize the conversation history within a specified range.
 
@@ -127,7 +127,7 @@ Please generate a summary based on the following conversation history:
     
     # Use get_client_with_kwargs to support context parameter overrides
     client, complete_kwargs = get_client_with_kwargs(context.context, default_kwargs)
-    response = await client.chat_complete(**complete_kwargs)
+    response = await client.completion(**complete_kwargs)
     
     # Extract the summary content from the response
     if response and response.choices and response.choices[0].message:

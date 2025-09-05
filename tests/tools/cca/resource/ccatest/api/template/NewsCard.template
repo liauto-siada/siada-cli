@@ -1,0 +1,42 @@
+import { StrictMode, useState, useMemo  } from 'react'
+import { createRoot } from 'react-dom/client'
+import '../index.css'
+import { NewsTemplates } from '../templates/newsTemplates/newsTemplates'
+import { ScrollArea } from '@/components/ui/scroll-area'
+${apiImports}
+
+// 新闻卡片组件定义
+const ${CardName} = () => {
+    const data = useMemo(() => (${data}), []);
+
+    return (
+        <NewsTemplates 
+            data={data}
+        />
+    );
+};
+
+export default ${CardName}
+
+// App应用
+const App = () => {
+  return (
+    <div className="w-[933px] h-[1360px] bg-slate-200 rounded-[20px] py-[60px] relative">
+      {/* 标题区域 */}
+        <h1 className="px-[60px] text-[52px] leading-none font-bold text-gray-950 mb-[138px]">${title}</h1>
+
+      {/* 内容区域 */}
+      <div className="pl-[60px] pr-[20px] h-[1050px]">
+        <ScrollArea className="h-full w-full">
+            <${CardName} />
+        </ScrollArea>
+      </div>
+    </div>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+)

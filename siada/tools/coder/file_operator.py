@@ -6,6 +6,7 @@ from agents import RunContextWrapper, function_tool
 from openhands_aci.editor import OHEditor, ToolResult, ToolError
 from openhands_aci.utils.diff import get_diff
 
+import re
 from siada.foundation.logging import logger
 
 from binaryornot.check import is_binary
@@ -182,7 +183,9 @@ def _edit_file(
         enable_linting=False,
     )
 
+
     return FileEditObservation(
+        error=True if result_str.startswith('ERROR:') else False,
         content=result_str,
         path=path,
         old_content=old_str,

@@ -1,0 +1,130 @@
+.markdown-body {
+  font-size: 36px;
+  font-family: "sans-serif";
+  line-height: 58px;
+  color: rgba(34, 39, 50, 0.9);
+}
+
+.dark .markdown-body {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.markdown-body p {
+  text-align: justify;
+  margin-block-end: 30px;
+}
+
+.markdown-body h1 {
+  font-size: 42px;
+  font-weight: bold;
+  line-height: 56px;
+  letter-spacing: normal;
+  margin-block-end: 30px;
+}
+
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-block-end: 30px;
+}
+
+.markdown-body ul {
+  list-style-type: disc;
+  padding-inline-start: 40px;
+  margin-block-end: 30px;
+}
+
+.markdown-body ul ul {
+  list-style-type: circle;
+  margin-block-end: 0px;
+}
+
+.markdown-body ul ul ul {
+  list-style-type: disc;
+  margin-block-end: 0px;
+}
+
+.markdown-body ul ul ul ul {
+  list-style-type: circle;
+  margin-block-end: 0px;
+}
+
+.markdown-body ul ul ul ul ul {
+  list-style-type: disc;
+  margin-block-end: 0px;
+}
+
+.markdown-body ol {
+  display: block;
+  list-style-type: decimal;
+  margin-block-end: 50px;
+  padding-inline-start: 40px;
+  unicode-bidi: isolate;
+}
+
+.markdown-body hr {
+  display: none;
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  overflow: auto;
+  width: 100%;
+  border-radius: 20px;
+  margin-block-end: 30px;
+}
+
+.markdown-body table td,
+.markdown-body table th {
+  border: 1px solid #dfe2e5;
+  padding: 10px;
+}
+
+.markdown-body table th {
+  font-weight: 600;
+  font-size: 32px;
+  color: rgba(34, 39, 50, 0.9);
+  background-color: #e4e8ee;
+}
+
+.dark .markdown-body table th {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.markdown-body table tr {
+  background-color: #eef2f9;
+  border-top: 1px solid #c6cbd1;
+}
+
+.markdown-body table tr:nth-child(2n) {
+  background-color: #e4e8ee;
+}
+
+.markdown-body table td {
+  font-size: 28px;
+  font-weight: normal;
+  line-height: 40px;
+  letter-spacing: normal;
+  color: rgba(34, 39, 50, 0.6);
+}
+
+.dark .markdown-body table td {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.markdown-body a {
+  color: #428cca;
+}
+
+.markdown-body blockquote {
+  padding: 10px 20px;
+  border-left: 5px solid #e4e8ef;
+}
+
+.markdown-body blockquote p {
+  margin: 0;
+}

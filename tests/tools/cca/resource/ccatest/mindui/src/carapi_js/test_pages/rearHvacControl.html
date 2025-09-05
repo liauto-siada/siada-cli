@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后排空调控制接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>后排空调控制接口</h1>
+    <div style="display: flex; gap: 40px; align-items: flex-start;">
+        <div id="button-list">
+            <div class="button-row"><button id="RearAcSw">获取后排空调开关状态</button><span class="result-span" id="RearAcPowerState_result"></span></div>
+            <div class="button-row"><button id="RearAcAuto">获取后排空调自动开关状态</button><span class="result-span" id="RearAcAutoModeEnabled_result"></span></div>
+            <div class="button-row"><button id="RearAcTemp">获取后排空调温度设置</button><span class="result-span" id="RearAcTemp_result"></span></div>
+            <div class="button-row"><button id="RearAcWindAuto">获取后排空调自动风量档位</button><span class="result-span" id="RearAcAutoFanLevel_result"></span></div>
+            <div class="button-row"><button id="RearAcWind">获取后排空调手动风量档位</button><span class="result-span" id="RearAcManualFanLevel_result"></span></div>
+            <div class="button-row"><button id="RearAcWindDirection">获取后排空调吹风方向模式</button><span class="result-span" id="RearAcWindDirection_result"></span></div>
+        </div>
+        <div id="set-button-list">
+            <div class="button-row">
+                <span>后排空调开关</span>
+                <button id="set_CarControlTpuPlugin_RearAcPowerState_1">开</button>
+                <button id="set_CarControlTpuPlugin_RearAcPowerState_0">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_RearAcPowerState_result"></span>
+            </div>
+            <div class="button-row">
+                <span>自动空调</span>
+                <button id="set_CarControlTpuPlugin_RearAcAutoModeEnabled_1">开</button>
+                <button id="set_CarControlTpuPlugin_RearAcAutoModeEnabled_0">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_RearAcAutoModeEnabled_result"></span>
+            </div>
+            <div class="button-row">
+                <span>温度</span>
+                <input id="input_CarControlTpuPlugin_RearAcTemp" type="number" min="16" max="28" style="width:60px;">
+                <button id="set_CarControlTpuPlugin_RearAcTemp">设置</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_RearAcTemp_result"></span>
+            </div>
+            <div class="button-row">
+                <span>手动风量</span>
+                <input id="input_CarControlTpuPlugin_RearAcManualFanLevel" type="number" min="1" max="9" style="width:60px;">
+                <button id="set_CarControlTpuPlugin_RearAcManualFanLevel">设置</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_RearAcManualFanLevel_result"></span>
+            </div>
+            <div class="button-row">
+                <span>自动风量</span>
+                <input id="input_CarControlTpuPlugin_RearAcAutoFanLevel" type="number" min="1" max="5" style="width:60px;">
+                <button id="set_CarControlTpuPlugin_RearAcAutoFanLevel">设置</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_RearAcAutoFanLevel_result"></span>
+            </div>
+            <div class="button-row">
+                <span>吹风方向</span>
+                <button id="set_CarControlTpuPlugin_RearAcWindDirection_1">吹脸</button>
+                <button id="set_CarControlTpuPlugin_RearAcWindDirection_2">吹脸&吹脚</button>
+                <button id="set_CarControlTpuPlugin_RearAcWindDirection_3">吹脚</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_RearAcWindDirection_result"></span>
+            </div>
+        </div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+            [
+                "RearAcSw", "RearAcAuto", "RearAcTemp", "RearAcWindAuto", "RearAcWind", "RearAcWindDirection"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_rear_hvac_control(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+            // 设置按钮事件
+            document.getElementById('set_CarControlTpuPlugin_RearAcPowerState_1').onclick = function() {
+                let result = myCarApi.set_rear_hvac_control('CarControlTpuPlugin_RearAcPowerState', 1);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_RearAcPowerState_1', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_RearAcPowerState_0').onclick = function() {
+                let result = myCarApi.set_rear_hvac_control('CarControlTpuPlugin_RearAcPowerState', 0);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_RearAcPowerState_0', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_RearAcAutoModeEnabled_1').onclick = function() {
+                let result = myCarApi.set_rear_hvac_control('CarControlTpuPlugin_RearAcAutoModeEnabled', 1);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_RearAcAutoModeEnabled_1', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_RearAcAutoModeEnabled_0').onclick = function() {
+                let result = myCarApi.set_rear_hvac_control('CarControlTpuPlugin_RearAcAutoModeEnabled', 0);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_RearAcAutoModeEnabled_0', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_RearAcTemp').onclick = function() {
+                const val = parseFloat(document.getElementById('input_CarControlTpuPlugin_RearAcTemp').value);
+                if (val < 16 || val > 28) {
+                    document.getElementById('set_CarControlTpuPlugin_RearAcTemp_result').textContent = '温度范围16-28';
+                    return;
+                }
+                let result = myCarApi.set_rear_hvac_control('CarControlTpuPlugin_RearAcTemp', val);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_RearAcTemp', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_RearAcManualFanLevel').onclick = function() {
+                const val = parseInt(document.getElementById('input_CarControlTpuPlugin_RearAcManualFanLevel').value);
+                if (val < 1 || val > 9) {
+                    document.getElementById('set_CarControlTpuPlugin_RearAcManualFanLevel_result').textContent = '范围1-9';
+                    return;
+                }
+                let result = myCarApi.set_rear_hvac_control('CarControlTpuPlugin_RearAcManualFanLevel', val);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_RearAcManualFanLevel', "result: ", result);
+            };
+            document.getElementById('set_CarControlTpuPlugin_RearAcAutoFanLevel').onclick = function() {
+                const val = parseInt(document.getElementById('input_CarControlTpuPlugin_RearAcAutoFanLevel').value);
+                if (val < 1 || val > 5) {
+                    document.getElementById('set_CarControlTpuPlugin_RearAcAutoFanLevel_result').textContent = '范围1-5';
+                    return;
+                }
+                let result = myCarApi.set_rear_hvac_control('CarControlTpuPlugin_RearAcAutoFanLevel', val);
+                console.log("btnId: ", 'set_CarControlTpuPlugin_RearAcAutoFanLevel', "result: ", result);
+            };
+            [1, 2, 3].forEach(val => {
+                document.getElementById(`set_CarControlTpuPlugin_RearAcWindDirection_${val}`).onclick = function() {
+                    let result = myCarApi.set_rear_hvac_control('CarControlTpuPlugin_RearAcWindDirection', val);
+                    console.log("btnId: ", `set_CarControlTpuPlugin_RearAcWindDirection_${val}`, "result: ", result);
+                };
+            });
+        }
+    </script>
+</body>
+
+</html>

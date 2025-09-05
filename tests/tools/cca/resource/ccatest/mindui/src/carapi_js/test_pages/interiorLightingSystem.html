@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>车内照明系统接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>车内照明系统接口</h1>
+    <div style="display: flex; gap: 40px; align-items: flex-start;">
+        <div id="button-list">
+            <div class="button-row"><button id="ReadingLight_FL">获取主驾阅读灯开关状态</button><span class="result-span" id="ReadingLight_FL_result"></span></div>
+            <div class="button-row"><button id="ReadingLight_FR">获取副驾阅读灯开关状态</button><span class="result-span" id="ReadingLight_FR_result"></span></div>
+            <div class="button-row"><button id="ReadingLight_SecL">获取二排左阅读灯开关状态</button><span class="result-span" id="ReadingLight_SecL_result"></span></div>
+            <div class="button-row"><button id="ReadingLight_SecR">获取二排右阅读灯开关状态</button><span class="result-span" id="ReadingLight_SecR_result"></span></div>
+            <div class="button-row"><button id="ReadingLight_ThirdL">获取三排左阅读灯开关状态</button><span class="result-span" id="ReadingLight_ThirdL_result"></span></div>
+            <div class="button-row"><button id="ReadingLight_ThirdR">获取三排右阅读灯开关状态</button><span class="result-span" id="ReadingLight_ThirdR_result"></span></div>
+            <div class="button-row"><button id="ReadingLight_ThirdM">获取三排中阅读灯开关状态</button><span class="result-span" id="ReadingLight_ThirdM_result"></span></div>
+        </div>
+        <div id="set-button-list">
+            <div class="button-row">
+                <span>主驾阅读灯</span>
+                <button id="set_CarControlTpuPlugin_LightReadingRow1LLamp_on">开</button>
+                <button id="set_CarControlTpuPlugin_LightReadingRow1LLamp_off">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_LightReadingRow1LLamp_result"></span>
+            </div>
+            <div class="button-row">
+                <span>副驾阅读灯</span>
+                <button id="set_CarControlTpuPlugin_LightReadingRow1RLamp_on">开</button>
+                <button id="set_CarControlTpuPlugin_LightReadingRow1RLamp_off">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_LightReadingRow1RLamp_result"></span>
+            </div>
+            <div class="button-row">
+                <span>二排左阅读灯</span>
+                <button id="set_CarControlTpuPlugin_LightReadingRow2LLamp_on">开</button>
+                <button id="set_CarControlTpuPlugin_LightReadingRow2LLamp_off">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_LightReadingRow2LLamp_result"></span>
+            </div>
+            <div class="button-row">
+                <span>二排右阅读灯</span>
+                <button id="set_CarControlTpuPlugin_LightReadingRow2RLamp_on">开</button>
+                <button id="set_CarControlTpuPlugin_LightReadingRow2RLamp_off">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_LightReadingRow2RLamp_result"></span>
+            </div>
+            <div class="button-row">
+                <span>三排左阅读灯</span>
+                <button id="set_CarControlTpuPlugin_LightReadingRow3LLamp_on">开</button>
+                <button id="set_CarControlTpuPlugin_LightReadingRow3LLamp_off">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_LightReadingRow3LLamp_result"></span>
+            </div>
+            <div class="button-row">
+                <span>三排右阅读灯</span>
+                <button id="set_CarControlTpuPlugin_LightReadingRow3RLamp_on">开</button>
+                <button id="set_CarControlTpuPlugin_LightReadingRow3RLamp_off">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_LightReadingRow3RLamp_result"></span>
+            </div>
+            <div class="button-row">
+                <span>三排中阅读灯</span>
+                <button id="set_CarControlTpuPlugin_LightReadingRow3MLamp_on">开</button>
+                <button id="set_CarControlTpuPlugin_LightReadingRow3MLamp_off">关</button>
+                <span class="result-span" id="set_CarControlTpuPlugin_LightReadingRow3MLamp_result"></span>
+            </div>
+        </div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+
+            [
+                "ReadingLight_FL", "ReadingLight_FR", "ReadingLight_SecL", "ReadingLight_SecR", "ReadingLight_ThirdL", "ReadingLight_ThirdR", "ReadingLight_ThirdM"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_interior_lighting_system(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+            // 设置按钮事件
+            const setMap = [{
+                key: 'CarControlTpuPlugin_LightReadingRow1LLamp',
+                label: '主驾阅读灯'
+            }, {
+                key: 'CarControlTpuPlugin_LightReadingRow1RLamp',
+                label: '副驾阅读灯'
+            }, {
+                key: 'CarControlTpuPlugin_LightReadingRow2LLamp',
+                label: '二排左阅读灯'
+            }, {
+                key: 'CarControlTpuPlugin_LightReadingRow2RLamp',
+                label: '二排右阅读灯'
+            }, {
+                key: 'CarControlTpuPlugin_LightReadingRow3LLamp',
+                label: '三排左阅读灯'
+            }, {
+                key: 'CarControlTpuPlugin_LightReadingRow3RLamp',
+                label: '三排右阅读灯'
+            }, {
+                key: 'CarControlTpuPlugin_LightReadingRow3MLamp',
+                label: '三排中阅读灯'
+            }];
+            setMap.forEach(item => {
+                [1, 0].forEach(val => {
+                    const btnId = `set_${item.key}_${val ? 'on' : 'off'}`;
+                    document.getElementById(btnId).onclick = function() {
+                        let res = myCarApi.set_interior_lighting_system(item.key, val);
+                        console.log("set_interior_lighting_system", item.key, val, res);
+                    };
+                });
+            });
+        }
+    </script>
+</body>
+
+</html>

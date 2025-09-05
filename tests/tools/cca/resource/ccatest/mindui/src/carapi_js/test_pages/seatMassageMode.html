@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>座椅按摩模式接口</title>
+    <link rel="stylesheet" href="common-test-page.css">
+</head>
+
+<body>
+    <h1>座椅按摩模式接口</h1>
+    <div id="button-list">
+        <div class="button-row"><button id="Mode_FL">获取主驾座椅按摩模式</button><span class="result-span" id="Mode_FL_result"></span></div>
+        <div class="button-row"><button id="Mode_FR">获取副驾座椅按摩模式</button><span class="result-span" id="Mode_FR_result"></span></div>
+        <div class="button-row"><button id="Mode_SecL">获取二排左座椅按摩模式</button><span class="result-span" id="Mode_SecL_result"></span></div>
+        <div class="button-row"><button id="Mode_SecR">获取二排右座椅按摩模式</button><span class="result-span" id="Mode_SecR_result"></span></div>
+        <div class="button-row"><button id="Strength_FL">获取主驾座椅按摩强度</button><span class="result-span" id="Strength_FL_result"></span></div>
+        <div class="button-row"><button id="Strength_FR">获取副驾座椅按摩强度</button><span class="result-span" id="Strength_FR_result"></span></div>
+        <div class="button-row"><button id="Strength_SecL">获取二排左座椅按摩强度</button><span class="result-span" id="Strength_SecL_result"></span></div>
+        <div class="button-row"><button id="Strength_SecR">获取二排右座椅按摩强度</button><span class="result-span" id="Strength_SecR_result"></span></div>
+    </div>
+    <script src="../dist/carapi-js-lib.umd.cjs"></script>
+    <script>
+        const myCarApi = window.carapiJsLib;
+        if (!myCarApi) {
+            console.log('myCarApi is not defined');
+        } else {
+
+            [
+                "Mode_FL", "Mode_FR", "Mode_SecL", "Mode_SecR", "Strength_FL", "Strength_FR", "Strength_SecL", "Strength_SecR"
+            ].forEach(param => {
+                document.getElementById(param).onclick = function() {
+                    myCarApi.get_seat_massage_mode(param, "card", (value) => {
+                        // 处理返回的数据
+                        let displayValue = value;
+                        if (typeof value === 'object') {
+                            displayValue = JSON.stringify(value);
+                        }
+                        document.getElementById(param + "_result").textContent = displayValue !== undefined ? displayValue : '-';
+                    });
+                };
+            });
+        }
+    </script>
+</body>
+
+</html>

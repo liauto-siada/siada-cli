@@ -1,0 +1,59 @@
+{
+    "name": "get_defrost_defogging_control",
+    "description": "获取车辆除雾除霜和特殊制冷功能的控制状态信息。返回内容包括：车内除雾开关状态(开启/关闭)、后窗加热除霜开关状态(开启/关闭)、急速制冷模式状态(开启/关闭)等3项除雾除霜相关功能的当前工作状态，用于确保行车视野清晰和快速降温。",
+    "type": "skill",
+    "field_names": {
+        "AcDefrost": "车内除雾",
+        "AcRearDefrost": "后窗加热",
+        "AcMaxCold": "急速制冷"
+    },
+    "input_schema": {
+        "type": "string",
+        "description": "除雾除霜控制类型，指定要获取的控制数据类型，与输出参数一一对应",
+        "example": "AcDefrost",
+        "enum": ["AcDefrost", "AcRearDefrost", "AcMaxCold"],
+        "enumDescriptions": {
+            "AcDefrost": "获取车内除雾开关状态",
+            "AcRearDefrost": "获取后窗加热除霜开关状态",
+            "AcMaxCold": "获取急速制冷模式状态"
+        }
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "请求是否成功",
+                "example": true
+            },
+            "code": {
+                "type": "integer",
+                "description": "状态码",
+                "example": 0
+            },
+            "data": {
+                "type": "object",
+                "properties": {
+                    "AcDefrost": {
+                        "type": ["string", "null"],
+                        "description": "车内除雾开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "AcRearDefrost": {
+                        "type": ["string", "null"],
+                        "description": "后窗加热除霜开关状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    },
+                    "AcMaxCold": {
+                        "type": ["string", "null"],
+                        "description": "急速制冷模式状态，0: 关，1: 开",
+                        "example": "1",
+                        "range": "0-1"
+                    }
+                }
+            }
+        }
+    }
+} 

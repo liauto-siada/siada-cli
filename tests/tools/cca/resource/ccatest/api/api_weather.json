@@ -1,0 +1,347 @@
+{
+  "name": "天气信息API",
+"raw": {},
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "longitude": {
+        "type": "string",
+        "description": "RequestParam参数：经度坐标，格式为字符串类型的浮点数",
+        "example": "116.388",
+        "range": "-180.000 ~ 180.000"
+      },
+      "latitude": {
+        "type": "string",
+        "description": "RequestParam参数：纬度坐标，格式为字符串类型的浮点数",
+        "example": "39.929",
+        "range": "-90.000 ~ 90.000"
+      },
+      "district": {
+        "type": "string",
+        "description": "RequestParam参数：城市或区域名称，用于天气查询，精确到区",
+        "example": "浙江省杭州市余杭区",
+        "range": "任意中国行政区 (省/市/区) 完整名称"
+      },
+      "tripartiteDeviceId": {
+        "type": "string",
+        "description": "RequestHeader参数：车架号或设备ID，可选参数",
+        "example": "1122344",
+        "range": "≤ 64 字符"
+      },
+      "appId": {
+        "type": "string",
+        "description": "RequestHeader参数：应用标识符，可选参数",
+        "example": "com.chehejia.car.cca",
+        "range": "符合 reverse-DNS 规范"
+      }
+    },
+    "required": ["district"]
+  },
+  "output_schema": {
+    "title": "天气信息",
+    "description": "查询未来七天的天气信息的响应参数schema",
+    "type": "object",
+    "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "请求是否成功",
+      "example": true
+    },
+    "code": {
+      "type": "integer",
+      "description": "状态码",
+      "example": 0
+    },
+    "data": {
+      "type": "object",
+      "description": "天气数据主体",
+      "properties": {
+        "alert": {
+          "type": "object",
+          "description": "天气预警信息",
+        "properties": {
+          "status": {
+            "type": ["string", "null"],
+            "description": "预警状态",
+            "example": "ok",
+            "range": "ok / error / null"
+          },
+          "adcodes": {
+            "type": ["array", "null"],
+              "description": "行政区划代码列表",
+              "items": {
+                "type": "object",
+        "properties": {
+                  "name": {"type": ["string", "null"], "description": "区域名称", "example": "北京市"},
+                  "adcode": {"type": ["string", "null"], "description": "行政区划代码", "example": "110000"}
+                }
+              },
+            "example": [
+                {"name": "北京市", "adcode": "110000"},
+                {"name": "北京城区", "adcode": "110100"},
+                {"name": "朝阳区", "adcode": "110105"}
+              ]
+          },
+          "content": {
+            "type": ["array", "null"],
+              "description": "预警内容列表",
+              "items": {
+                "type": "object",
+        "properties": {
+                  "province": {"type": ["string", "null"], "description": "省份", "example": "北京市"},
+                  "status": {"type": ["string", "null"], "description": "预警状态", "example": "预警中"},
+                  "code": {"type": ["string", "null"], "description": "预警代码", "example": "0702"},
+                  "description": {"type": ["string", "null"], "description": "预警描述", "example": "朝阳区气象台20日14时50分发布高温黄色预警..."},
+                  "title": {"type": ["string", "null"], "description": "预警标题", "example": "朝阳区气象台发布高温黄色预警[III/较重]"},
+                  "city": {"type": ["string", "null"], "description": "城市", "example": "北京城区"}
+                }
+              }
+            }
+          }
+        },
+        "realtime": {
+          "type": "object",
+        "description": "实时天气信息",
+        "properties": {
+            "status": {"type": ["string", "null"], "description": "状态", "example": "ok"},
+            "temperature": {"type": ["string", "null"], "description": "温度(°C)", "example": "33.46", "range": "-50 ~ 60"},
+            "humidity": {"type": ["string", "null"], "description": "湿度(0-1)", "example": "0.21", "range": "0.0 ~ 1.0"},
+            "cloudrate": {"type": ["string", "null"], "description": "云量(0-1)", "example": "0.0", "range": "0.0 ~ 1.0"},
+            "skycon": {"type": ["string", "null"], "description": "天空状况", "example": "CLEAR_DAY", "range": "CLEAR_DAY/CLOUDY/RAIN/..."},
+            "visibility": {"type": ["string", "null"], "description": "能见度(km)", "example": "59.44", "range": "0 ~ 60"},
+            "dswrf": {"type": ["string", "null"], "description": "短波辐射(W/m²)", "example": "607.5", "range": "0 ~ 1200"},
+            "wind": {
+              "type": "object",
+        "description": "风力信息",
+        "properties": {
+                "speed": {"type": ["string", "null"], "description": "风速(m/s)", "example": "12.95", "range": "0 ~ 60"},
+                "direction": {"type": ["string", "null"], "description": "风向(°)", "example": "329.65", "range": "0 ~ 360"},
+                "datetime": {"type": ["string", "null"], "description": "时间", "example": null}
+              }
+            },
+            "pressure": {"type": ["string", "null"], "description": "气压(Pa)", "example": "99848.83", "range": "30000 ~ 110000"},
+            "apparent_temperature": {"type": ["string", "null"], "description": "体感温度(°C)", "example": "31.9", "range": "-50 ~ 70"},
+            "precipitation": {
+              "type": "object",
+        "description": "实时降水",
+        "properties": {
+                "local": {
+                  "type": "object",
+        "description": "本地降水信息",
+        "properties": {
+                    "status": {"type": ["string", "null"], "description": "状态", "example": "ok"},
+                    "datasource": {"type": ["string", "null"], "description": "数据源", "example": "radar"},
+                    "intensity": {"type": ["string", "null"], "description": "降水强度(mm/h)", "example": "0.0", "range": "0.0 ~ 500.0"}
+                  }
+                },
+                "nearest": {
+                  "type": "object",
+        "description": "最近降水信息",
+        "properties": {
+                    "status": {"type": ["string", "null"], "description": "状态", "example": "ok"},
+                    "intensity": {"type": ["string", "null"], "description": "强度(mm/h)", "example": "0.1875", "range": "0.0 ~ 500.0"},
+                    "distance": {"type": ["string", "null"], "description": "距离(km)", "example": "128.98", "range": "0 ~ 500"}
+                  }
+                }
+              }
+            },
+            "air_quality": {
+              "type": "object",
+        "description": "实时空气质量",
+        "properties": {
+                "aqi": {
+                  "type": "object",
+                  "description": "空气质量指数",
+        "properties": {
+                    "chn": {"type": ["string", "null"], "description": "中国AQI", "example": "35", "range": "0 ~ 500"},
+                    "usa": {"type": ["string", "null"], "description": "美国AQI", "example": "72", "range": "0 ~ 500"}
+                  }
+                },
+                "pm25": {"type": ["string", "null"], "description": "PM2.5(µg/m³)", "example": "3", "range": "0 ~ 500"},
+                "pm10": {"type": ["string", "null"], "description": "PM10(µg/m³)", "example": "6", "range": "0 ~ 500"},
+                "co": {"type": ["string", "null"], "description": "一氧化碳(mg/m³)", "example": "0.2", "range": "0 ~ 50"},
+                "no2": {"type": ["string", "null"], "description": "二氧化氮(µg/m³)", "example": "8", "range": "0 ~ 500"},
+                "o3": {"type": ["string", "null"], "description": "臭氧(µg/m³)", "example": "111", "range": "0 ~ 500"},
+                "so2": {"type": ["string", "null"], "description": "二氧化硫(µg/m³)", "example": "2", "range": "0 ~ 500"},
+                "description": {
+                  "type": "object",
+                  "description": "空气质量描述",
+        "properties": {
+                    "chn": {"type": ["string", "null"], "description": "中文描述", "example": "优", "range": "优/良/轻度污染/中度污染/重度污染/严重污染"},
+                    "usa": {"type": ["string", "null"], "description": "英文描述", "example": "良", "range": "Good/Moderate/Unhealthy/Very Unhealthy/Hazardous"}
+                  }
+                }
+              }
+            },
+            "life_index": {
+              "type": "object",
+        "description": "实时生活指数",
+        "properties": {
+                "ultraviolet": {
+                  "type": "object",
+                  "description": "紫外线指数",
+        "properties": {
+                    "index": {"type": ["string", "null"], "description": "指数值", "example": "6.0"},
+                    "desc": {"type": ["string", "null"], "description": "描述", "example": "中等"}
+                  }
+                },
+                "comfort": {
+                  "type": "object",
+                  "description": "舒适度指数",
+        "properties": {
+                    "index": {"type": ["string", "null"], "description": "指数值", "example": "0"},
+                    "desc": {"type": ["string", "null"], "description": "描述", "example": "闷热"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "daily": {
+          "type": "object",
+          "description": "每日天气信息（未来7天）",
+        "properties": {
+            "status": {"type": ["string", "null"], "description": "状态", "example": "ok"},
+            "astro": {
+              "type": ["array", "null"],
+              "description": "七日日出日落信息",
+              "items": {
+                "type": "object",
+        "properties": {
+                  "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                  "sunrise": {"type": "object", "properties": {"time": {"type": ["string", "null"], "description": "日出时间", "example": "04:44"}}},
+                  "sunset": {"type": "object", "properties": {"time": {"type": ["string", "null"], "description": "日落时间", "example": "19:45"}}}
+                }
+              },
+              "example": [{"date": "2025-06-20T00:00+08:00", "sunrise": {"time": "04:44"}, "sunset": {"time": "19:45"}}]
+            },
+            "temperature": {
+              "type": ["array", "null"],
+              "description": "七日温度预报",
+              "items": {
+                "type": "object",
+        "properties": {
+                  "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                  "max": {"type": ["string", "null"], "description": "最高温度(°C)", "example": "33.46"},
+                  "min": {"type": ["string", "null"], "description": "最低温度(°C)", "example": "20.0"},
+                  "avg": {"type": ["string", "null"], "description": "平均温度(°C)", "example": "30.14"}
+                }
+              },
+              "example": [{"date": "2025-06-20T00:00+08:00", "max": "33.46", "min": "20.0", "avg": "30.14"}]
+            },
+            "skycon": {
+              "type": ["array", "null"],
+              "description": "七日天空状况",
+              "items": {
+                "type": "object",
+        "properties": {
+                  "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                  "value": {"type": ["string", "null"], "description": "天气状况代码", "example": "CLEAR_DAY"}
+                }
+              },
+              "example": [{"date": "2025-06-20T00:00+08:00", "value": "CLEAR_DAY"}]
+            },
+            "skycon_08h_20h": {
+              "type": ["array", "null"],
+              "description": "七日白天天空状况(08:00-20:00)",
+              "items": {
+                "type": "object",
+        "properties": {
+                  "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                  "value": {"type": ["string", "null"], "description": "天气状况代码", "example": "PARTLY_CLOUDY_DAY"}
+                }
+              }
+            },
+            "skycon_20h_32h": {
+              "type": ["array", "null"],
+              "description": "七日夜间天空状况(20:00-次日08:00)",
+              "items": {
+                "type": "object",
+        "properties": {
+                  "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                  "value": {"type": ["string", "null"], "description": "天气状况代码", "example": "CLEAR_NIGHT"}
+                }
+              }
+            },
+            "air_quality": {
+              "type": "object",
+              "description": "七日空气质量预报",
+        "properties": {
+          "aqi": {
+                  "type": ["array", "null"],
+                  "description": "七日AQI预报",
+                  "items": {
+                    "type": "object",
+        "properties": {
+                      "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                      "max": {"type": "object", "properties": {"chn": {"type": ["string", "null"], "description": "最大中国AQI", "example": "62"}}},
+                      "min": {"type": "object", "properties": {"chn": {"type": ["string", "null"], "description": "最小中国AQI", "example": "24"}}},
+                      "avg": {"type": "object", "properties": {"chn": {"type": ["string", "null"], "description": "平均中国AQI", "example": "38"}}}
+                    }
+                  }
+          },
+          "pm25": {
+                  "type": ["array", "null"],
+                  "description": "七日PM2.5预报",
+                  "items": {
+                    "type": "object",
+        "properties": {
+                      "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                      "max": {"type": ["string", "null"], "description": "最大值(µg/m³)", "example": "44"},
+                      "min": {"type": ["string", "null"], "description": "最小值(µg/m³)", "example": "3"},
+                      "avg": {"type": ["string", "null"], "description": "平均值(µg/m³)", "example": "6"}
+                    }
+                  }
+                }
+              }
+            },
+            "life_index": {
+              "type": "object",
+              "description": "七日生活指数预报",
+        "properties": {
+          "ultraviolet": {
+                  "type": ["array", "null"],
+                  "description": "七日紫外线指数",
+                  "items": {
+                    "type": "object",
+        "properties": {
+                      "index": {"type": ["string", "null"], "description": "指数值", "example": "2"},
+                      "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                      "desc": {"type": ["string", "null"], "description": "描述", "example": "弱"}
+                    }
+                  },
+                  "example": [{"index": "2", "date": "2025-06-20T00:00+08:00", "desc": "弱"}]
+          },
+          "comfort": {
+                  "type": ["array", "null"],
+                  "description": "七日舒适度指数",
+                  "items": {
+                    "type": "object",
+        "properties": {
+                      "index": {"type": ["string", "null"], "description": "指数值", "example": "0"},
+                      "date": {"type": ["string", "null"], "description": "日期", "example": "2025-06-20T00:00+08:00"},
+                      "desc": {"type": ["string", "null"], "description": "描述", "example": "闷热"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+      },
+      "forecast_keypoint": {
+        "type": ["string", "null"],
+        "description": "预报要点",
+          "example": "最近的降雨带在南边129公里外呢"
+        }
+      }
+    },
+    "msg": {
+      "type": "string",
+      "description": "响应消息",
+      "example": "成功"
+    }
+  }
+}
+}
+
+

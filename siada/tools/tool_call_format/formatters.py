@@ -79,21 +79,33 @@ class FileEditFormatter(ToolCallFormatter):
                 if path:
                     content = f"I will create the file `{path}"
                     if file_text and complete:
-                        content += f"` with the following content:\n```{fence}\n{file_text}\n```"
+                        if fence.lower() in ['md', 'markdown']:
+                            content += f"` with the following content:\n{file_text}"
+                        else:
+                            content += f"` with the following content:\n```{fence}\n{file_text}\n```"
             elif command == "str_replace":
                 if path:
                     content = f"In the file `{path}"
                     if old_str is not None:
                         if new_str is not None:
-                            content += f"`, I will replace the string:\n```{fence}\n{old_str}\n```"
-                            if complete:
-                                content += f"\nwith:\n```{fence}\n{new_str}\n```"
+                            if fence.lower() in ['md', 'markdown']:
+                                old_str = old_str if old_str else f"```\n{old_str}\n```"
+                                content += f"`, I will replace the string:\n{old_str}"
+                                if complete:
+                                    content += f"\nwith:\n{new_str}"
+                            else:
+                                content += f"`, I will replace the string:\n```{fence}\n{old_str}\n```"
+                                if complete:
+                                    content += f"\nwith:\n```{fence}\n{new_str}\n```"
             elif command == "insert":
 
                 if path:
                     content = f"In the file `{path}"
                     if insert_line is not None and new_str and complete:
-                        content += f"`, I will insert the following text after line {insert_line}:\n```{fence}\n{new_str}\n```"
+                        if fence.lower() in ['md', 'markdown']:
+                            content += f"`, I will insert the following text after line {insert_line}:\n{new_str}"
+                        else:
+                            content += f"`, I will insert the following text after line {insert_line}:\n```{fence}\n{new_str}\n```"
             elif command == "undo_edit":
                 if path:
                     content = f"I will undo the last edit for the file `{path}"

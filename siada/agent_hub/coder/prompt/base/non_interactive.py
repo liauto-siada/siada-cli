@@ -5,10 +5,4 @@ def get_non_interactive_constraints() -> str:
     Returns:
         str: The text content of non-interactive mode constraints
     """
-    return """====
-
-CONSTRAINTS
-
-Prohibit operations requiring user interaction and participation.
-
-"""
+    return """- Prohibit operations requiring user interaction and participation."""
