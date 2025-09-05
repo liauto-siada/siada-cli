@@ -4,7 +4,7 @@ from siada.provider.li.domian.li_chat_complete_chunk import LiChatCompletionChun
 import time
 import asyncio
 from typing import Any, AsyncIterator, Literal, cast, overload
-
+import io
 import litellm
 # Import directly from specific modules to avoid going through the main agents module
 # Import directly from the tracing submodule to avoid circular dependencies
@@ -37,11 +37,12 @@ from agents.models.chatcmpl_helpers import HEADERS
 
 class LiModel(Model):
 
-    def __init__(self, model: str):
+    def __init__(self, model: str, io=None):
         super().__init__()
         self._client = SiadaClient()
         self.model = model
         self.context = None  # Add context variable
+        self.io = io  # Add io for printing retry information
         
 
     def _non_null_or_not_given(self, value: Any) -> Any:
@@ -361,12 +362,22 @@ class LiModel(Model):
                     ret = await self._client.completion(**complete_kwargs)
                     break
                 except Exception as e:
+                    # Check if this is a non-retryable error (like prompt too long)
+                    error_str = str(e).lower()
+                    is_non_retryable = (
+                        "413" in error_str or
+                        "prompt is too long" in error_str or
+                        "prompt too long" in error_str 
+                        )
+                    if is_non_retryable:
+                        self.io.print_error(f"Non-retryable error encountered: {str(e)}")
+                        raise           
                     if attempt < max_retries:
-                        logger.warning(f"completion failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
-                        logger.info(f"Waiting {retry_delay} seconds before retry...")
+                        self.io.print_info(f"completion failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
+                        self.io.print_info(f"Waiting {retry_delay} seconds before retry...")
                         await asyncio.sleep(retry_delay)
                     else:
-                        logger.error(f"completion failed after maximum retries: {str(e)}")
+                        self.io.print_error(f"completion failed after maximum retries: {str(e)}")
                         raise
         if isinstance(ret, LitellmModelResponse):
             return ret
