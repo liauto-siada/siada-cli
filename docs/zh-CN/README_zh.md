@@ -163,7 +163,7 @@ export OPENROUTER_API_KEY="your_openrouter_key"
 unset SIADA_MODEL
 ```
 
-### Checkpoint配置
+### Checkpoint 配置
 
 Siada CLI 提供检查点跟踪功能，可以自动保存会话状态，并支持从开发工作流程中的先前点进行恢复。
 
@@ -203,6 +203,36 @@ Siada CLI 提供检查点跟踪功能，可以自动保存会话状态，并支�
 
 **存储位置：**
 - 文件地址：`~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id/`
+
+### MCP 配置
+
+Siada CLI 集成了 MCP（Model Context Protocol）服务，为 AI 代理提供扩展的工具和资源
+
+**MCP 配置文件 `~/.siada-cli/mcp_config.json`**
+
+   参数说明：
+   - `enabled`：控制全局/单个mcp server的开关
+   - `type`：连接类型（`stdio`/`http`/`sse`）
+
+   配置文件示例：
+   ```json
+   {
+      "enabled": true,
+      "mcpServers": {
+         "filesystem": {
+            "enabled": true,
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocolserver-filesystem", "./"]
+         }
+      }
+   }
+   ```
+
+**MCP 斜杠命令**
+
+   - `/mcp-server`：列出所有mcp服务
+   - `/mcp-list`：列出所有mcp服务及提供的工具
 
 ## 使用模式
 

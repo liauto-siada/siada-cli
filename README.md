@@ -204,6 +204,36 @@ Siada CLI provides checkpoint tracking functionality to automatically save sessi
 **Storage Location:**
 - location: `~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id/`
 
+### MCP Configuration
+
+Siada CLI integrates MCP (Model Context Protocol) service to provide extended tools and resources for AI agents.
+
+**MCP Configuration File `~/.siada-cli/mcp_config.json`**
+
+   Parameter descriptions:
+   - `enabled`: Controls global/individual MCP server switches
+   - `type`: Connection type (`stdio`/`http`/`sse`)
+
+   Configuration file example:
+   ```json
+   {
+      "enabled": true,
+      "mcpServers": {
+         "filesystem": {
+            "enabled": true,
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocolserver-filesystem", "./"]
+         }
+      }
+   }
+   ```
+
+**MCP Slash Commands**
+
+   - `/mcp-server`: List all MCP servers
+   - `/mcp-list`: List all MCP servers and their available tools
+
 ## Usage Modes
 
 Siada CLI supports two usage modes to meet different usage scenarios:
