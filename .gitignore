@@ -33,3 +33,5 @@ tests/services/test_build_enhanced_feedback.py
 tests/services/demo_top_k_rules_guidance.py
 test_bug_fix_agent_mock.py
 test_bug_fix_agent.py
+benchmark/logs
+*.traj
