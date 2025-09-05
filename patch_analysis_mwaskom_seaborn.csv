@@ -1,5 +1,0 @@
-instance_id,base_commit,patch_added_lines,patch_deleted_lines,patch_total_changes,patch_net_changes,files_changed,has_function_changes,test_patch_total_changes,total_changes
-mwaskom__seaborn-2848,94621cef29f80282436d73e8d2c0aa76dab81273,7,0,7,7,1,False,11,18
-mwaskom__seaborn-3010,0f5a013e2cf43562deec3b879458e59a73853813,4,1,5,3,1,False,9,14
-mwaskom__seaborn-3407,515286e02be3e4c0ff2ef4addb34a53c4a676ee4,2,2,4,0,1,False,7,11
-mwaskom__seaborn-3190,4a9e54962a29c12a8b103d75f838e0e795a6974d,1,1,2,0,1,False,6,8
