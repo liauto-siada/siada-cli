@@ -1,10 +1,29 @@
+## Introduction
 
-`Siada CLI` is a command-line based code generation tool, similar to `gemini-cli` and `claude-code`, built upon Large Language Models (LLMs) and Agent-based design.
+**Siada CLI** is an open-source, command-line AI workflow tool that provides professional intelligent agents for code development, debugging, and automation tasks. Among these, the code generation agent serves as the starting point for all agents within Siada CLI. We believe that code generation based on large language models has the potential to empower every stage of the software engineering lifecycle. Based on this belief, we have conducted internal practice at LI Auto and open-sourced some of the capabilities within Siada CLI.
 
-Software development is a systematic engineering process that encompasses multiple stages, including design, coding, testing, deployment, and operations. Although code implementation is a critical component, engineers often spend a significant amount of time on non-coding tasks such as requirement analysis, design reviews, and debugging.
+This report presents our application of Siada CLI to automatically resolve issues in the **SWE-bench-Lite benchmark**. Different from many existing approaches that indiscriminately attempt to solve an issue multiple times, Siada CLI adopts a **three-stage process**—**issue description optimization, bug fixing (including issue reproduction, resolution, and related testing), and patch checking**—to solve issues with minimal model usage and cost.
+On the SWE-bench-Lite benchmark, Siada CLI achieved a **57.67% issue resolution rate (173/300)**, **ranking #3 among all models**. The following sections introduce the system design and experimental results of the bug fix agent in Siada CLI.
+![Siada CLI Leaderboard](leadboard.png)
 
-We believe that current AI capabilities have the potential to revolutionize software development efficiency, but this potential should not be confined to just the code generation phase. We believe many peers in the industry share a similar view.  LLM-based code generation tools have the potential to empower the entire software development lifecycle, which is the reason for the creation and open-sourcing of `Siada CLI`.
+## System Overview
+**Bug Fix of Siada CLI: A Three-Stage, Single-Agent System Design**
 
-Looking at the software development lifecycle, it is noteworthy that these seemingly distinct stages actually share a common foundation of capabilities—they all require fundamental computer science literacy, an understanding of the project's context, and even coding skills. For example, architectural design requires an assessment of the new feature's impact on the existing system, writing test cases demands an understanding of the business logic within the code, and operational troubleshooting also relies on the ability to read code.
+In the beginning, we studied and reviewed the designs of various agents listed on the **SWE-Bench leaderboard**, which often use **multiple agents** to generate multiple outputs at different stages and then select from them. For example, we have attempted pipelines involving an issue reproduce agent, test case agent, check agent, and result selection agent. However, these approaches did not yield satisfactory results.
 
-This commonality in required capabilities suggests that job roles are merely superficial; the underlying skills and objectives are what truly matter. The various intelligent code tools currently available in the industry possess precisely these capabilities. In `Siada CLI`, we have developed a **"delegation mode,"** which allows for end-to-end task completion without the need for multiple rounds of human interaction, currently limited to code development-related tasks. `Siada CLI` currently provides a `CodeGenAgent` with basic programming abilities, adopting an Agentic model and using Openrouter to connect to the models. It supports both delegation and non-delegation modes. In the future, more task-specific scenarios will be developed based on the `CodeGenAgent`.
+Through experimentation, we discovered that a **direct and clear workflow design**—consisting of **issue description optimization, bug fixing (including issue reproduction, resolution, and associated testing), and patch checking** is more effective at addressing ambiguous model outputs, thereby improving the model's ability to repair bugs.
+
+Specifically:
+
+- To mitigate the negative impact of vague task specifications, as also mentioned in Lingxi, we propose an **issue description optimizer**. It directly ingests the original issue description, clarifies the problem, and provides strategies for reproducing the issue along with boundary test cases. This optimizer does not require tool invocation or iterative interactions, yet effectively enhances the capability of subsequent agents to solve the proble.
+- the **bug fix agent** contains **issue reproduction, resolution, and related testing**
+- In the **patch check stage**, we verify whether the patched fix aligns with the issue description to decide if the bug needs to be fixed again—this avoids unnecessary repeated model calls that waste computational resources. The checking process follows a **two-phase design**:
+    In the **first phase**, the decision of whether to re-run the bug fixing is made solely based on the issue description.
+    In the **second phase**, the decision considers both the issue description and the execution trace from the previous bug fix iteration, providing more targeted recommendations to help the next bug fix cycle resolve the issue more precisely.
+
+
+References
+
+Lingxi v1.5: https://github.com/nimasteryang/Lingxi/blob/master/docs/Lingxi%20v1.5%20Technical%20Report%20200725.pdf
+
+ExpeRepair v1.0: https://github.com/ExpeRepair/ExpeRepair/tree/main/ExpeRepair-v1.0
