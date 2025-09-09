@@ -37,12 +37,11 @@ from agents.models.chatcmpl_helpers import HEADERS
 
 class LiModel(Model):
 
-    def __init__(self, model: str, io=None):
+    def __init__(self, model: str):
         super().__init__()
         self._client = SiadaClient()
         self.model = model
         self.context = None  # Add context variable
-        self.io = io  # Add io for printing retry information
         
 
     def _non_null_or_not_given(self, value: Any) -> Any:
@@ -352,7 +351,12 @@ class LiModel(Model):
         }
         
         if stream:
-            ret = await self._client.chat_complete_stream(**complete_kwargs)
+            try:
+                ret = await self._client.chat_complete_stream(**complete_kwargs)
+            except Exception as e:
+                print(f"\nException while running stream completion: {e}")
+                raise
+
         else:
             max_retries = 3
             retry_delay = 30
@@ -370,14 +374,14 @@ class LiModel(Model):
                         "prompt too long" in error_str 
                         )
                     if is_non_retryable:
-                        self.io.print_error(f"Non-retryable error encountered: {str(e)}")
+                        print(f"\n Non-retryable error encountered: {str(e)}")
                         raise           
                     if attempt < max_retries:
-                        self.io.print_info(f"completion failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
-                        self.io.print_info(f"Waiting {retry_delay} seconds before retry...")
+                        print(f"completion failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
+                        print(f"Waiting {retry_delay} seconds before retry...")
                         await asyncio.sleep(retry_delay)
                     else:
-                        self.io.print_error(f"completion failed after maximum retries: {str(e)}")
+                        print(f"completion failed after maximum retries: {str(e)}")
                         raise
         if isinstance(ret, LitellmModelResponse):
             return ret

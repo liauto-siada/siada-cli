@@ -542,6 +542,7 @@ class ConversationTurn(RunTurn):
                 finally:
                     # In the current version of agents-sdk, resetting history in the finally statement may cause an edge case where the run loop throws an error when the last history item is a function call
                     # await self.session.state.openai_session.reset_items(result.to_input_list())
+                    self._stop_waiting_spinner()
                     return result
 
             # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
