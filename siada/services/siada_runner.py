@@ -43,6 +43,16 @@ class SiadaRunner:
                 # start add current changes to save current state
                 context.checkpoint_tracker.start()
 
+        # Load user memory from siada.md file
+        if workspace or (session and session.siada_config.workspace):
+            workspace_path = workspace or session.siada_config.workspace
+            try:
+                from siada.services.siada_memory import load_siada_memory
+                user_memory = load_siada_memory(workspace_path)
+                context.user_memory = user_memory
+            except Exception as e:
+                logging.debug(f"Failed to load user memory: {e}")
+
         return context
 
     @overload
@@ -90,16 +100,6 @@ class SiadaRunner:
         """
         agent = await SiadaRunner.get_agent(agent_name)
         context = await SiadaRunner.build_context(agent, workspace, session)
-
-        # Load user memory from siada.md file
-        if workspace or (session and session.siada_config.workspace):
-            workspace_path = workspace or session.siada_config.workspace
-            try:
-                from siada.services.siada_memory import load_siada_memory
-                user_memory = load_siada_memory(workspace_path)
-                context.user_memory = user_memory
-            except Exception as e:
-                logging.debug(f"Failed to load user memory: {e}")
 
         # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
         console_output = session.siada_config.console_output if session else True

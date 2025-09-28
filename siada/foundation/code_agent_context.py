@@ -6,7 +6,6 @@ from siada.session.session_models import RunningSession
 from siada.support.checkpoint_tracker import CheckPointTracker
 from siada.foundation.logging import logger as logging
 
-
 class CodeAgentContext(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -29,6 +28,14 @@ class CodeAgentContext(BaseModel):
     mcp_config: Optional[Any] = None
     mcp_enabled: bool = False
 
+    @property
+    def task_message_state(self):
+        return self.session.state.task_message_state
+
+    @property
+    def model_run_config(self):
+        return self.session.siada_config.llm_config
+
     def save_checkpoints(self):
         if self.checkpoint_tracker and self.session:
             try:
@@ -38,3 +45,15 @@ class CodeAgentContext(BaseModel):
                 )
             except Exception as e:
                 logging.error(f"Error saving checkpoints: {e}")
+
+    @property
+    def session_id(self):
+        if self.session:
+            return self.session.session_id
+        return None
+    
+    @property
+    def auto_compact(self):
+        if self.session:
+            return self.session.siada_config.auto_compact
+        return False

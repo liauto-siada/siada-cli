@@ -16,7 +16,6 @@ class ModelBaseConfig:
 
 # Simple list of all model configurations
 MODEL_SETTING: List[ModelBaseConfig] = [
-
     # ModelBaseConfig(
     #     model_name="o3-pro",
     #     max_tokens=8192,
@@ -30,7 +29,6 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         context_window=200_000,
         supports_extra_params=[],
     ),
-
     ModelBaseConfig(
         model_name="gpt-5",
         max_tokens=8192,
@@ -38,7 +36,6 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_images=True,
         supports_extra_params=["reasoning_effort"],
     ),
-
     ModelBaseConfig(
         model_name="gpt-5-mini",
         max_tokens=8192,
@@ -46,14 +43,12 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_images=True,
         supports_extra_params=["reasoning_effort"],
     ),
-
     ModelBaseConfig(
         model_name="gpt-4.1",
         max_tokens=8192,
         context_window=1_047_576,
         supports_images=True,
     ),
-
     ModelBaseConfig(
         model_name="claude-opus-4",
         max_tokens=8192,
@@ -75,26 +70,32 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_images=True,
         supports_extra_params=[],
     ),
-
     ModelBaseConfig(
         model_name="gemini-2.5-pro",
         max_tokens=8192,
         context_window=1_048_576,
         supports_extra_params=["thinking_tokens"],
     ),
-
     ModelBaseConfig(
         model_name="deepseek-v3-0324",
         max_tokens=8192,
         context_window=128_000,
     ),
-
+    ModelBaseConfig(
+        model_name="deepseek-v3.1",
+        max_tokens=8192,
+        context_window=163_840,
+        supports_extra_params=[],
+    ),
     ModelBaseConfig(
         model_name="kimi-k2",
         max_tokens=8192,
         context_window=131_072,
     ),
 ]
+
+def is_claude_model(model_name: str) -> bool:
+    return model_name.startswith("claude")
 
 def is_gemini_model(model_name: str) -> bool:
     return model_name.startswith("gemini-")

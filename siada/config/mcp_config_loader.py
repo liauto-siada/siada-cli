@@ -31,7 +31,7 @@ class MCPConfigLoader:
             
             if not config_file.exists():
                 logger.debug("MCP config file not found, using default configuration")
-                return MCPConfig()
+                return MCPConfig(enabled=False)
             
             # Read and parse JSON configuration
             with open(config_file, 'r', encoding='utf-8') as f:

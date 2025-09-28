@@ -32,7 +32,7 @@ from siada.services.siada_runner import SiadaRunner
 
 async def run_bugfix():
     # 获取当前工作目录
-    current_dir = '/Users/yunan/code/test/test_ai'
+    current_dir = '/Users/caoxin/code/test/test_ai'
 
     # Define the user input and agent name
     agent_name: str = "bugfix"

@@ -33,3 +33,4 @@ class RunningConfig:
     enable_checkpointing: bool = False
     mcp_config: Optional[MCPConfig] = None  # MCP configuration
     mcp_service = None  # MCP service instance (will be initialized later)
+    auto_compact: bool = True  # Enable automatic context compression

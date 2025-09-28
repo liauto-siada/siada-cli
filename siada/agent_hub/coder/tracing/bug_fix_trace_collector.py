@@ -1,5 +1,10 @@
+from calendar import c
 import json
 import os
+from token import OP
+import trace
+from turtle import st
+import uuid
 from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional, Union
@@ -61,6 +66,29 @@ class CheckerTrace:
     feedback_message: Dict[str, Any] = field(default_factory=dict)
     should_break: bool = False
 
+@dataclass
+class CompareTrace:
+    """PS-FR Comparison trace"""
+    # Patch summary step
+    patch_summary_prompt: str = ""
+    patch_content: str = ""
+    patch_summary: str = ""
+    
+    # Comparison step
+    comparison_prompt: str = ""
+    problem_statement: str = ""
+    comparison_result: str = ""
+    is_covered: bool = True
+    reason: str = ""
+
+
+@dataclass
+class AnomalyDetectTrace:
+    """Anomaly detection trace"""
+    user_input: str = ""
+    is_easy: int = 0
+
+    
 
 @dataclass
 class PatchSelectionTrace:
@@ -76,16 +104,44 @@ class PatchSelectionTrace:
 @dataclass
 class BugFixTraceSession:
     session_id: str
-    original_issue: str = ""
-    execution_overview: Optional[str] =""
-    classify: Optional[ProjectAnalysisTrace] = None
+    original_issue: str = None 
+    execution_overview: Optional[str] = None
+    classify: Optional[ProjectAnalysisTrace] = None # classify project domain
+    anomaly_detect: Optional[AnomalyDetectTrace] = None # anomaly detection
     issue_optimize: Optional[OptimizationTrace] = None
     bug_fix_rounds: List[RunRoundTrace] = field(default_factory=list)
     check_rounds: List[CheckerTrace] = field(default_factory=list)
+    compare_rounds: List[CompareTrace] = field(default_factory=list)
     patch_selection: Optional[PatchSelectionTrace] = None
-    final_result: str = ""
-    success: bool = False
-    error_message: str = ""
+    final_result: str = None 
+    success: bool = None
+    error_message: str = None 
+    
+    def to_dict(self, exclude_none: bool = True) -> Dict[str, Any]:
+
+        data = asdict(self)
+        
+        if exclude_none:
+            # 递归过滤None值
+            return self._filter_none_values(data)
+        
+        return data
+    
+    def _filter_none_values(self, obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return {
+                key: self._filter_none_values(value) 
+                for key, value in obj.items() 
+                if value is not None
+            }
+        else:
+            return obj
+    
+    def to_json(self, exclude_none: bool = True, indent: int = 2) -> str:
+
+        data = self.to_dict(exclude_none=exclude_none)
+        return json.dumps(data, indent=indent, ensure_ascii=False)
+
 
 @dataclass
 class BugFixTraceSessionOld:
@@ -111,8 +167,39 @@ class OutputData:
     trajectory: BugFixTraceSession
     history: List[HistoryItem] = field(default_factory=list)
     info: dict=field(default_factory=dict)
-    replay_config: str=""
-    environment: str=""
+    replay_config: str=None
+    environment: str=None
+    
+    def to_dict(self, exclude_none: bool = True) -> Dict[str, Any]:
+        if exclude_none:
+            trajectory_dict = self.trajectory.to_dict(exclude_none=True) if hasattr(self.trajectory, 'to_dict') else asdict(self.trajectory)
+            
+            data = {
+                "trajectory": trajectory_dict,
+                "history": [asdict(item) for item in self.history],
+                "info": self.info,
+                "replay_config": self.replay_config,
+                "environment": self.environment
+            }
+            
+            # 递归过滤None值
+            return self._filter_none_values(data)
+        else:
+            return asdict(self)
+    
+    def _filter_none_values(self, obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return {
+                key: self._filter_none_values(value) 
+                for key, value in obj.items() 
+                if value is not None
+            }
+        else:
+            return obj
+    
+    def to_json(self, exclude_none: bool = True, indent: int = 2) -> str:
+        data = self.to_dict(exclude_none=exclude_none)
+        return json.dumps(data, indent=indent, ensure_ascii=False)
 
 class BugFixTraceCollector(TracingProcessor):    
     def __init__(self, session_id: Optional[str] = None, output_dir: str = "bug_fix_traces", **kwargs):
@@ -133,10 +220,10 @@ class BugFixTraceCollector(TracingProcessor):
         self.agent_name = "siada"
         self.submission_diff = ""
         self.exit_status = ""
-        
+        self.bug_fix_stage = []
     
     def _generate_session_id(self) -> str:
-        return f"bugfix_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{id(self) % 10000:04d}"
+        return f"bugfix_{uuid.uuid4().hex[:8]}"
     
     def start_session(self, original_issue: str) -> None:
         self.trace_session.original_issue = original_issue
@@ -146,6 +233,12 @@ class BugFixTraceCollector(TracingProcessor):
             prompt=prompt,
             user_input=user_input,
             classification_result=result
+        )
+    
+    def record_anomaly_detection(self, user_input: str, is_easy: int) -> None:
+        self.trace_session.anomaly_detect = AnomalyDetectTrace(
+            user_input=user_input,
+            is_easy=is_easy
         )
     
     def record_optimization(self, prompt: str, original_input: str, 
@@ -164,6 +257,8 @@ class BugFixTraceCollector(TracingProcessor):
             input_list=input_list
         )
         self.trace_session.bug_fix_rounds.append(round_trace)
+        self.bug_fix_stage.append([])
+        print(f"bug_fix_stage number:{len(self.bug_fix_stage)}")
     
     def start_model_call(self) -> None:
         pass
@@ -212,6 +307,52 @@ class BugFixTraceCollector(TracingProcessor):
             should_break=should_break
         )
         self.trace_session.check_rounds.append(checker_trace)
+        # classify -> anomaly detect -> issue optimize -> (bug fix -> check -> enhance check -> ps-fr compare) * n
+        self.bug_fix_stage[-1].append("check")  
+
+    def record_enhance_checker_trace(self, prompt: str, user_input: str, check_summary: str,
+                           feedback_message: Dict[str, Any], should_break: bool) -> None:
+        checker_trace = CheckerTrace(
+            prompt=prompt,
+            user_input=user_input,
+            check_summary=check_summary,
+            feedback_message=feedback_message,
+            should_break=should_break
+        )
+        self.trace_session.check_rounds.append(checker_trace)
+        # classify -> anomaly detect -> issue optimize -> (bug fix -> check -> enhance check -> ps-fr compare) * n
+        self.bug_fix_stage[-1].append("enhance check") 
+
+    def record_compare_trace(self, patch_summary_prompt: str, patch_content: str, patch_summary: str,
+                           comparison_prompt: str, problem_statement: str, comparison_result: Dict[str, Any]) -> None:
+        """
+        Record comparison trace information from PsFrComparator
+        
+        Args:
+            patch_summary_prompt: Prompt used for patch summary generation
+            patch_content: Original patch content
+            patch_summary: Generated patch summary
+            comparison_prompt: Prompt used for PS-FR comparison
+            problem_statement: Problem statement
+            comparison_result: Result of comparison analysis (dict with is_covered and reason)
+        """
+        # Extract is_covered and reason from comparison_result
+        is_covered = comparison_result.get("is_covered", True)
+        reason = comparison_result.get("reason", "")
+        
+        compare_trace = CompareTrace(
+            patch_summary_prompt=patch_summary_prompt,
+            patch_content=patch_content,
+            patch_summary=patch_summary,
+            comparison_prompt=comparison_prompt,
+            problem_statement=problem_statement,
+            comparison_result=str(comparison_result),
+            is_covered=is_covered,
+            reason=reason
+        )
+        self.trace_session.compare_rounds.append(compare_trace)
+        # classify -> anomaly detect -> issue optimize -> (bug fix -> check -> enhance check -> ps-fr compare) * n
+        self.bug_fix_stage[-1].append("ps-fr compare") 
     
     def start_patch_selection(self, patches: List[str], selection_prompt: str) -> None:
         self.is_in_patch_selection = True  
@@ -390,7 +531,7 @@ class BugFixTraceCollector(TracingProcessor):
         elif self.trace_session.bug_fix_rounds:
             self.trace_session.bug_fix_rounds[-1].tool_calls.append(tool_call)
     
-    def export_to_json(self, filename: Optional[str] = None) -> str:
+    def export_to_json(self, filename: Optional[str] = None, exclude_none: bool = True) -> str:
         if filename is None:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"bugfix_trace_{self.session_id}_{timestamp}.json"
@@ -399,14 +540,14 @@ class BugFixTraceCollector(TracingProcessor):
 
         filepath = self.output_dir / filename
         
-        trace_dict = asdict(output)
+        trace_dict = output.to_dict(exclude_none=exclude_none)
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(trace_dict, f, indent=2, ensure_ascii=False)
         
         return str(filepath)
     
-    def export_to_json_v2(self, filename: Optional[str] = None) -> str:
+    def export_to_json_v2(self, filename: Optional[str] = None, exclude_none: bool = True) -> str:
         """
         {
             "trajectory": { BugFixTraceSession },
@@ -422,8 +563,11 @@ class BugFixTraceCollector(TracingProcessor):
         
         filepath = self.output_dir / filename
         
+        # 使用BugFixTraceSession的to_dict方法来控制是否排除None字段
+        trajectory_data = self.trace_session.to_dict(exclude_none=exclude_none)
+        
         export_data = {
-            "trajectory": asdict(self.trace_session),
+            "trajectory": trajectory_data,
             "info": {
                 "agent": self.agent_name,
                 "submission": self.submission_diff
@@ -509,6 +653,11 @@ class BugFixTraceCollector(TracingProcessor):
             for ct_data in data['check_rounds']:
                 checker_trace = CheckerTrace(**ct_data)
                 trace_session.check_rounds.append(checker_trace)
+        
+        if data.get('compare_rounds'):
+            for comp_data in data['compare_rounds']:
+                compare_trace = CompareTrace(**comp_data)
+                trace_session.compare_rounds.append(compare_trace)
         
         if data.get('patch_selection'):
             ps_data = data['patch_selection']
@@ -615,6 +764,11 @@ class BugFixTraceCollector(TracingProcessor):
                 checker_trace = CheckerTrace(**ct_data)
                 trace_session.check_rounds.append(checker_trace)
         
+        if data.get('compare_rounds'):
+            for comp_data in data['compare_rounds']:
+                compare_trace = CompareTrace(**comp_data)
+                trace_session.compare_rounds.append(compare_trace)
+        
         if data.get('patch_selection'):
             ps_data = data['patch_selection']
             patch_selection = PatchSelectionTrace(
@@ -646,40 +800,67 @@ class BugFixTraceCollector(TracingProcessor):
         output.info["exit_status"]=self.exit_status
 
         classify= trace_session.classify
+        anomaly_detect= trace_session.anomaly_detect
         issue_optimize= trace_session.issue_optimize
         check_rounds= trace_session.check_rounds
+        compare_rounds= trace_session.compare_rounds
         bug_fix_rounds= trace_session.bug_fix_rounds
-        overreview="Execution stage: classify"
+        patch_selection=trace_session.patch_selection
 
-        output.history.append(
-            HistoryItem(execution_stage="classify", content=classify)
-        )
+        overreviews = []
+        # easy model: 
+        # middle model: classify -> anomaly detect -> issue optimize -> (bug fix -> check -> enhance check -> ps-fr compare) * n
+        # hard model: classify -> anomaly detec -> issue optimize -> bug fix -> bug fix -> bug fix -> select
+        if (classify!=None):
+            overreviews.append("classify")
+            output.history.append(
+                HistoryItem(execution_stage="classify", content=classify)
+            )
+
+        if (anomaly_detect!=None):
+            overreviews.append("anomaly detect")
+            output.history.append(
+                HistoryItem(execution_stage="anomaly detect", content=anomaly_detect)
+            )
 
         if (issue_optimize!=None):
-            overreview+=" -> issue optimize"
+            overreviews.append("issue optimize")
             output.history.append(
                 HistoryItem(execution_stage="issue optimize", content=issue_optimize)
             )
 
         check_idx=0
+        compare_idx=0
         for id, run in enumerate(bug_fix_rounds):
-            overreview+=f" -> bug fix (round {id+1})"
+            overreviews.append(f"bug fix (round {id+1})")
             output.history.append(
                 HistoryItem(execution_stage="bug fix", content=run.model_calls[-1])
             )
+            for stage in self.bug_fix_stage[id]:
+                overreviews.append(stage)
+                if (stage=="check" or stage=="enhance check"):
+                    output.history.append(
+                        HistoryItem(execution_stage=stage, content=check_rounds[check_idx])
+                    )
+                    check_idx+=1
+                elif (stage=="ps-fr compare"):
+                    output.history.append(
+                        HistoryItem(execution_stage=stage, content=compare_rounds[compare_idx])
+                    )
+                    compare_idx+=1
+
+        if (patch_selection!=None):
+            overreviews.append("patch selection")
+            output.history.append(
+                HistoryItem(execution_stage="patch selection", content=patch_selection)
+            )
+            
         
-            check_idx+=2
-            if (check_idx-2<len(check_rounds)):
-                overreview+=f" -> check (round {id+1})" 
-                output.history.append(
-                    HistoryItem(execution_stage="check", content=check_rounds[check_idx-2])
-                )
-            if (check_idx-1<len(check_rounds)):
-                overreview+=f" -> enhance check (round {id+1})" 
-                output.history.append(
-                    HistoryItem(execution_stage="enhance check", content=check_rounds[check_idx-1])
-                )
-        output.trajectory.execution_overview=overreview
+        execution_overview=f"Execution stage: {overreviews[0]}"
+        for id in range(1, len(overreviews)):
+            execution_overview+=f" -> {overreviews[id]}"
+
+        output.trajectory.execution_overview=execution_overview
         return output
 
     def load_from_json_v3(self, filepath: Union[str, Path]) -> None:

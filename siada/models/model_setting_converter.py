@@ -1,6 +1,7 @@
 from agents import ModelSettings
-from siada.models.model_base_config import is_gemini_model
+from siada.models.model_base_config import is_claude_model
 from siada.models.model_run_config import ModelRunConfig
+from openai.types.shared import Reasoning
 
 
 class ModelSettingsConverter:
@@ -22,10 +23,16 @@ class ModelSettingsConverter:
         if model_running_config.extra_params and "tool_choice" in model_running_config.extra_params:
             tool_choice = model_running_config.extra_params["tool_choice"]
 
+        # for the litellm model, we set the reasoning effort to "medium" if not specified to save the thinking blocks
+        reasoning_item: Reasoning = None
+        if is_claude_model(model_running_config.model_name):
+            reasoning_item = Reasoning(effort="medium")
         model_settings = ModelSettings(
             max_tokens=model_running_config.max_tokens,
             extra_body=extra_body,
             tool_choice=tool_choice,
+            include_usage=True,
+            reasoning=reasoning_item,
         )
 
         return model_settings

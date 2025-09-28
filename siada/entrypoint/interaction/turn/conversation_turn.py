@@ -4,8 +4,10 @@ Conversation Turn Module
 Handles AI conversation turns including streaming responses and tool calls.
 """
 
+from concurrent.futures._base import CancelledError as FutureCancelledError
 from siada.foundation.logging import logger
 import re
+import threading
 import siada.io.components.mdstream
 from typing import List, Optional, Dict, Any, Tuple
 
@@ -28,8 +30,6 @@ from ..running_config import RunningConfig
 # Import models and interface from the same directory
 from .models import TurnType, TurnInput, TurnOutput
 from .interface import RunTurn
-from agents import ItemHelpers
-from siada.foundation.logging import logger
 
 
 # Standard tag identifier
@@ -53,18 +53,18 @@ class ConversationTurn(RunTurn):
     def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:
         """
         Process thinking tags and return (processed_text, should_render)
-        
+
         Args:
             text (str): Streaming input text
-            
+
         Returns:
             tuple: (processed_text, should_render)
                 - If text ends with incomplete thinking tag, return (previous_safe_text, False)
                 - Otherwise remove all thinking tags (preserve content) and return (clean_text, True)
         """
         # Define complete tags
-        thinking_start = '<thinking>'
-        thinking_end = '</thinking>'
+        thinking_start = "<thinking>"
+        thinking_end = "</thinking>"
 
         # Check if text ends with incomplete thinking tag
         def is_partial_tag_at_end(text: str, full_tag: str) -> bool:
@@ -75,14 +75,18 @@ class ConversationTurn(RunTurn):
             return False
 
         # If text ends with incomplete <thinking> or </thinking> part, pause rendering
-        if is_partial_tag_at_end(text, thinking_start) or is_partial_tag_at_end(text, thinking_end):
+        if is_partial_tag_at_end(text, thinking_start) or is_partial_tag_at_end(
+            text, thinking_end
+        ):
             # Find the last complete tag position and get safe part
             safe_end = len(text)
             for i in range(len(text) - 1, -1, -1):
-                if text[i] == '<':
+                if text[i] == "<":
                     # Check if this position might be start of incomplete thinking tag
                     remaining = text[i:]
-                    if thinking_start.startswith(remaining) or thinking_end.startswith(remaining):
+                    if thinking_start.startswith(remaining) or thinking_end.startswith(
+                        remaining
+                    ):
                         safe_end = i
                         break
 
@@ -97,18 +101,18 @@ class ConversationTurn(RunTurn):
     def _remove_thinking_content(self, text: str) -> str:
         """
         Remove thinking tags from text but preserve content inside
-        
+
         Args:
             text (str): Input text
-            
+
         Returns:
             str: Text with thinking tags removed
         """
         # Remove start tag <thinking> and possible whitespace
-        text = re.sub(r'<thinking>\s?', '', text)
+        text = re.sub(r"<thinking>\s?", "", text)
 
         # Remove end tag </thinking> and possible surrounding whitespace
-        text = re.sub(r'\s?</thinking>', '', text)
+        text = re.sub(r"\s?</thinking>", "", text)
 
         return text
 
@@ -133,6 +137,11 @@ class ConversationTurn(RunTurn):
             code_theme=self.config.running_color_settings.code_theme,
             inline_code_lexer="text",
         )
+        # Instance variable to store current running result for cancellation
+        self.current_result: Optional[RunResultStreaming] = None
+        # Thread synchronization events for proper cleanup handling
+        self._cleanup_done = threading.Event()
+        self._result_ready = threading.Event()
 
     @classmethod
     def _ensure_dedicated_loop(cls):
@@ -311,7 +320,9 @@ class ConversationTurn(RunTurn):
                                 "arguments_render": "",
                             }
 
-                            tool_call_formatter = ToolCallFormatterFactory.get_formatter(tool_name)
+                            tool_call_formatter = (
+                                ToolCallFormatterFactory.get_formatter(tool_name)
+                            )
 
                             if (
                                 self.config.io.pretty
@@ -332,14 +343,19 @@ class ConversationTurn(RunTurn):
                                 ].update(
                                     tool_call_formatter.format_input(
                                         self.current_active_call_id,
-                                        self.tool_calls[self.current_active_call_id]["name"],
+                                        self.tool_calls[self.current_active_call_id][
+                                            "name"
+                                        ],
                                         self.tool_calls[self.current_active_call_id][
                                             "arguments"
                                         ],
                                     )[0],
                                     final=True,
                                 )
-                                if self.current_active_call_id in self.tool_call_mdstreams:
+                                if (
+                                    self.current_active_call_id
+                                    in self.tool_call_mdstreams
+                                ):
                                     del self.tool_call_mdstreams[
                                         self.current_active_call_id
                                     ]
@@ -366,18 +382,24 @@ class ConversationTurn(RunTurn):
                         # if supports streaming, update the tool call mdstream
                         if tool_call_formatter.supports_streaming():
                             content, is_complete = tool_call_formatter.format_input(
-                                    self.current_active_call_id,
-                                    self.tool_calls[self.current_active_call_id][
-                                        "name"
-                                    ],
-                                    self.tool_calls[self.current_active_call_id][
-                                        "arguments"
-                                    ],
-                                )
+                                self.current_active_call_id,
+                                self.tool_calls[self.current_active_call_id]["name"],
+                                self.tool_calls[self.current_active_call_id][
+                                    "arguments"
+                                ],
+                            )
 
                             # compute the content_delta
-                            arguments_delta = content[len(self.tool_calls[self.current_active_call_id]["arguments_render"]):]
-                            self.tool_calls[self.current_active_call_id]["arguments_render"] = content
+                            arguments_delta = content[
+                                len(
+                                    self.tool_calls[self.current_active_call_id][
+                                        "arguments_render"
+                                    ]
+                                ) :
+                            ]
+                            self.tool_calls[self.current_active_call_id][
+                                "arguments_render"
+                            ] = content
 
                             if self.current_active_call_id in self.tool_call_mdstreams:
                                 self.tool_call_mdstreams[
@@ -443,8 +465,7 @@ class ConversationTurn(RunTurn):
                                     )
                                 else:
                                     self.config.io.print_tool_result(str(output))
-
-        except Exception as e:
+        finally:
             # Clean up MarkdownStream if it exists on stream error
             if hasattr(self, "mdstream") and self.mdstream is not None:
                 try:
@@ -465,7 +486,6 @@ class ConversationTurn(RunTurn):
                     self.tool_call_mdstreams.clear()
                 except Exception:
                     pass  # Ignore cleanup errors
-            raise e
 
     def _live_incremental_response(
         self,
@@ -475,10 +495,14 @@ class ConversationTurn(RunTurn):
     ):
         if self.mdstream:
             # Process thinking tags
-            processed_content, should_render = self._process_thinking_tags(response_content)
+            processed_content, should_render = self._process_thinking_tags(
+                response_content
+            )
 
             if should_render or final:
-                self.mdstream.update(processed_content if processed_content else "", final)
+                self.mdstream.update(
+                    processed_content if processed_content else "", final
+                )
             # If should_render is False, pause mdstream.update temporarily
         else:
             if not self.config.io.pretty:
@@ -500,7 +524,13 @@ class ConversationTurn(RunTurn):
         self.start_time = self._get_timestamp()
         self.spinner = None
         if self.config.io.pretty:
-            self.spinner = WaitingSpinner(f"Waiting for Agent {self.config.agent_name}...")
+            self.spinner = WaitingSpinner(
+                f"Waiting for Agent {self.config.agent_name}..."
+            )
+
+        # Reset event flags at the beginning of each execution
+        self._cleanup_done.clear()
+        self._result_ready.clear()
 
         try:
             # Import here to avoid circular imports
@@ -508,27 +538,22 @@ class ConversationTurn(RunTurn):
             import asyncio
 
             async def _mcp_initialize():
-                if mcp_service and not mcp_service.is_initialized:
+                if (
+                    mcp_service
+                    and not mcp_service.is_initialized
+                    and mcp_service.has_config()
+                ):
                     self.config.io.print_info("Initializing MCP service...")
                     await mcp_service.initialize()
-
-            result: RunResultStreaming = None
 
             # Define async execution logic
             async def _async_execute():
                 telemetry.captureAgentUsage(agent_name=self.config.agent_name)
                 try:
                     user_input = turn_input.use_input
-                    # assemble input list for agent
-                    old_items = await self.session.state.openai_session.get_items()
-                    if old_items and len(old_items) > 0:
-                        input_list = old_items + ItemHelpers.input_to_new_input_list(
-                            turn_input.use_input
-                        )
-                        user_input = input_list
 
                     # Run agent for conversation
-                    result = await SiadaRunner.run_agent(
+                    result: RunResultStreaming = await SiadaRunner.run_agent(
                         agent_name=self.config.agent_name,
                         user_input=user_input,
                         workspace=self.config.workspace,
@@ -536,14 +561,19 @@ class ConversationTurn(RunTurn):
                         stream=True,
                     )
 
+                    # Store result immediately for potential cancellation
+                    self.current_result = result
+                    # Set result ready flag to ensure memory visibility
+                    self._result_ready.set()
+
                     await self.output_stream_content(result)
-                    # Sync messages from result to openai_session after agent run
-                    await self.session.state.openai_session.reset_items(result.to_input_list())
-                finally:
-                    # In the current version of agents-sdk, resetting history in the finally statement may cause an edge case where the run loop throws an error when the last history item is a function call
-                    # await self.session.state.openai_session.reset_items(result.to_input_list())
-                    self._stop_waiting_spinner()
                     return result
+                finally:
+                    self._stop_waiting_spinner()
+                    # Clear current_result after execution completes
+                    self.current_result = None
+                    # Set cleanup done flag to notify main thread
+                    self._cleanup_done.set()
 
             # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
             self._ensure_dedicated_loop()
@@ -551,17 +581,40 @@ class ConversationTurn(RunTurn):
             asyncio.run_coroutine_threadsafe(
                 _mcp_initialize(), self._dedicated_loop
             ).result()
-            
+
             # start spinner
             self.spinner.start()
 
-            # Execute async task in dedicated loop
-            future = asyncio.run_coroutine_threadsafe(
-                _async_execute(), self._dedicated_loop
-            )
-            result = future.result()
+            try:
+                # Execute async task in dedicated loop
+                future = asyncio.run_coroutine_threadsafe(
+                    _async_execute(), self._dedicated_loop
+                )
+                result = future.result()
+            except KeyboardInterrupt:
+                # Use thread-safe event mechanism to check and cancel result
+                if self._result_ready.wait(timeout=0.1):  # Non-blocking check with 100ms timeout
+                    if self.current_result and not self.current_result.is_complete:
+                        logger.info("Cancelling streaming result due to KeyboardInterrupt")
+                        self.current_result.cancel()
+
+                # Cancel the future and wait for actual cleanup completion
+                if not future.done():
+                    future.cancel()
+
+                    # Wait for the background thread's cleanup to actually complete
+                    cleanup_completed = self._cleanup_done.wait(timeout=2.0)
+
+                    if cleanup_completed:
+                        logger.info("Async task cleanup completed successfully")
+                    else:
+                        logger.warning("Cleanup did not complete within 2 seconds timeout, proceeding anyway")
+
+                asyncio.run(self.handle_interrupt())
+                raise
 
             self.end_time = self._get_timestamp()
+            self._print_context_usage()
 
             output = TurnOutput(
                 output=result.final_output,
@@ -575,13 +628,23 @@ class ConversationTurn(RunTurn):
             self.output_data = output
             return output
 
-        except Exception as e:
+        except KeyboardInterrupt as e:
+            from rich.console import Console
+
+            Console().show_cursor(True)
+            self.config.io.print_warning("Conversation interrupted by user.")
+            self.end_time = self._get_timestamp()
+            raise e
+
+        except BaseException as e:
             self.end_time = self._get_timestamp()
             return self.handle_error(e)
 
     def print_split_line(self):
         if self.config.io.pretty:
-            self.config.io.rule(color=self.config.running_color_settings.split_line_color)
+            self.config.io.rule(
+                color=self.config.running_color_settings.split_line_color
+            )
         else:
             self.config.io.console.print(SPLIT_TAG, end="")
 
@@ -602,3 +665,42 @@ class ConversationTurn(RunTurn):
                 spinner.stop()
             finally:
                 self.spinner = None
+
+    def _print_context_usage(self):
+        """Print context usage information with percentage and remaining tokens."""
+        context_size = self.session.state.usage.total_tokens if self.session.state.usage and self.session.state.usage.total_tokens else 0
+        context_max = self.config.llm_config.context_window
+        context_percentage = (context_size / context_max * 100) if context_max > 0 else 0
+
+        self.config.io.print_info(
+            f"Context: {context_size:,} / {context_max:,} tokens ({context_percentage:.1f}% used, {context_max - context_size:,} tokens left) - Model max window: {context_max:,} tokens"
+        )
+
+    async def handle_interrupt(self):
+        """Handle user interruption by adding appropriate interrupt marker to session."""
+        history = await self.session.openai_session.get_items()
+        if not history:
+            return
+
+        from agents.models.chatcmpl_converter import Converter
+
+        last_item = history[-1]
+        interrupt_note = {
+            "role": "user",
+            "content": "Note: This Conversation Was Interrupted By User",
+        }
+
+        # Check if we need to add interrupt note based on last item type
+        should_add_note = any(
+            [
+                Converter.maybe_input_message(last_item),
+                Converter.maybe_easy_input_message(last_item),
+                Converter.maybe_function_tool_call_output(last_item),
+            ]
+        )
+
+        if should_add_note:
+            await self.session.openai_session.add_items([interrupt_note])
+
+        # Note: Assistant messages don't need interrupt notes
+        # They are handled by checking maybe_response_output_message

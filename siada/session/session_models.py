@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from uuid import uuid4
 
 from siada.services.file_session import FileSession
@@ -7,6 +7,7 @@ from siada.services.file_session import FileSession
 from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.session.task_message_state import TaskMessageState
 from siada.support.checkpoint_tracker import CheckPointTracker
+from agents.usage import Usage
 
 
 @dataclass
@@ -32,19 +33,9 @@ class SessionState:
     # Task message state
     task_message_state: TaskMessageState = field(default_factory=TaskMessageState)
     """Task message state for managing conversation history"""
-    
-    async def sync_messages_from_openai_session(self, limit: Optional[int] = None) -> None:
-        """
-        Sync messages from openai_session to task_message_state.
-        
-        Args:
-            limit: Maximum number of messages to sync. If None, syncs all messages.
-        """
-        if self.openai_session:
-            messages = await self.openai_session.get_items(limit=limit)
-            self.task_message_state.sync_from_openai_session(messages)
 
-    
+    usage: Optional[Usage] = None  
+
 
 
 @dataclass
@@ -58,5 +49,15 @@ class RunningSession:
 
     checkpoint_tracker: Optional[CheckPointTracker] = None
 
+
+    @property
+    def task_message_state(self) -> TaskMessageState:
+        return self.state.task_message_state
+    
+
     def get_input(self) -> str:
         return self.siada_config.io.get_input()
+    
+    @property
+    def openai_session(self) -> Optional[FileSession]:
+        return self.state.openai_session

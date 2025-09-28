@@ -1,6 +1,6 @@
 from agents import Agent, RunContextWrapper, RunHooks, TContext, Tool
 from agents.tool_context import ToolContext
-import re
+from siada.foundation.logging import logger
 
 
 class CheckpointingProcessor(RunHooks):
@@ -23,6 +23,7 @@ class CheckpointingProcessor(RunHooks):
         # Initialize checkpoint tracker with context workspace and session ID
         # Save checkpoint using the current API
         # add the function_call_out_to_the_task_message_state
+        # logger.info(f"CheckpointingProcessor: on_tool_end called, saving checkpoint. output: {result}")
         if isinstance(context, ToolContext):
             context.context.session.state.task_message_state.add_message(
                 {
