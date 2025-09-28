@@ -1,4 +1,4 @@
-from agents import Agent, ModelResponse, AgentHooks, TContext, TResponseInputItem, RunContextWrapper
+from agents import Agent, ModelResponse, AgentHooks, TContext, RunContextWrapper
 from siada.foundation.code_agent_context import CodeAgentContext
 
 
@@ -24,3 +24,5 @@ class ContextTrackProcessor(AgentHooks):
         siada_context.session.state.task_message_state.add_messages(
            messages=input_items
        )
+        # update the usage info in session
+        siada_context.session.state.usage = response.usage

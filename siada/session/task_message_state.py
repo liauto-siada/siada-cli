@@ -1,34 +1,79 @@
 from dataclasses import dataclass, field
+import re
 from typing import List, Optional
 
 from agents import TResponseInputItem
 
-
 @dataclass
-class TaskMessageState:
+class RealApiMessage:
     """
-    Task message state for managing conversation history.
-    
-    This state manages the message history instead of storing it directly in CodeAgentContext,
-    providing better separation of concerns and memory management.
+    Represents a real API message in the conversation.
     """
-    task_id: str = ""
-    # Complete message history list
-    message_history: List[TResponseInputItem] = field(default_factory=list)
     
-    def add_message(self, message: TResponseInputItem) -> None:
+    real_api_history: List[TResponseInputItem] = field(default_factory=list)
+    # last_index_at_message_history
+    last_index: int = -1
+    # the signature of the last message
+    last_signature: str = ""
+    
+    def add(self, message: TResponseInputItem) -> None:
+        """Add a single message to real API history."""
+        self.real_api_history.append(message)
+    
+    def add_multiple(self, messages: List[TResponseInputItem]) -> None:
+        """Add multiple messages to real API history."""
+        self.real_api_history.extend(messages)
+    
+    def get(self, limit: Optional[int] = None) -> List[TResponseInputItem]:
+        """Get real API messages."""
+        if limit is None:
+            return self.real_api_history.copy()
+        return self.real_api_history[-limit:] if len(self.real_api_history) > limit else self.real_api_history.copy()
+    
+    def reset(self, messages: List[TResponseInputItem]) -> None:
+        """Reset real API history with new messages."""
+        self.real_api_history = messages
+    
+    def clear(self) -> None:
+        """Clear all real API messages."""
+        self.real_api_history.clear()
+    
+    def update_index(self, index: int) -> None:
+        """Update the last index."""
+        self.last_index = index
+    
+    def get_count(self) -> int:
+        """Get the count of real API messages."""
+        return len(self.real_api_history)
+    
+    def set_last_signature(self, last_message_signiture):
+        self.last_signature = last_message_signiture
+
+    def get_last_signature(self):
+        return self.last_signature
+
+
+    
+@dataclass
+class ApiMessageHistory:
+    """
+    Encapsulates message history operations.
+    """
+    _messages: List[TResponseInputItem] = field(default_factory=list)
+    
+    def append(self, message: TResponseInputItem) -> None:
         """Add a single message to the history."""
-        self.message_history.append(message)
+        self._messages.append(message)
     
-    def add_messages(self, messages: List[TResponseInputItem]) -> None:
+    def extend(self, messages: List[TResponseInputItem]) -> None:
         """Add multiple messages to the history."""
-        self.message_history.extend(messages)
+        self._messages.extend(messages)
     
-    def reset_message_history(self, message_history: List[TResponseInputItem]) -> None:
+    def reset(self, messages: List[TResponseInputItem]) -> None:
         """Reset the entire message history."""
-        self.message_history = message_history
+        self._messages = messages
     
-    def remove_old_messages(self, remove_count: int) -> List[TResponseInputItem]:
+    def remove_old(self, remove_count: int) -> List[TResponseInputItem]:
         """
         Remove old messages, return remaining message list, always keep the first message.
         
@@ -39,26 +84,26 @@ class TaskMessageState:
             Copy of the remaining message history
         """
         if remove_count <= 0:
-            return self.message_history.copy()
+            return self._messages.copy()
         
         # If history is empty or has only one message, don't remove any messages
-        if len(self.message_history) <= 1:
-            return self.message_history.copy()
+        if len(self._messages) <= 1:
+            return self._messages.copy()
         
         # Calculate actual removable message count (keep first message)
-        max_removable = len(self.message_history) - 1
+        max_removable = len(self._messages) - 1
         actual_remove_count = min(remove_count, max_removable)
         
         # Remove N messages after the 1st message (index 1 to 1+actual_remove_count)
         # Keep the first message and remaining messages
-        self.message_history = [self.message_history[0]] + self.message_history[1 + actual_remove_count:]
-        return self.message_history.copy()
+        self._messages = [self._messages[0]] + self._messages[1 + actual_remove_count:]
+        return self._messages.copy()
     
-    def get_message_count(self) -> int:
+    def get_count(self) -> int:
         """Get the total number of messages in history."""
-        return len(self.message_history)
+        return len(self._messages)
     
-    def get_messages(self, limit: Optional[int] = None) -> List[TResponseInputItem]:
+    def get(self, limit: Optional[int] = None) -> List[TResponseInputItem]:
         """
         Get messages from history.
         
@@ -70,20 +115,109 @@ class TaskMessageState:
             List of messages
         """
         if limit is None:
-            return self.message_history.copy()
+            return self._messages.copy()
         else:
-            return self.message_history[-limit:] if len(self.message_history) > limit else self.message_history.copy()
+            return self._messages[-limit:] if len(self._messages) > limit else self._messages.copy()
     
-    def clear_messages(self) -> None:
+    def clear(self) -> None:
         """Clear all messages from history."""
-        self.message_history.clear()
+        self._messages.clear()
     
-    def sync_from_openai_session(self, messages: List[TResponseInputItem]) -> None:
+    def copy(self) -> List[TResponseInputItem]:
+        """Get a copy of all messages."""
+        return self._messages.copy()
+
+
+@dataclass
+class TaskMessageState:
+    """
+    Task message state for managing conversation history.
+    
+    This state manages the message history instead of storing it directly in CodeAgentContext,
+    providing better separation of concerns and memory management.
+    """
+    task_id: str = ""
+    # Complete message history list encapsulated in MessageHistory object
+    _message_history: ApiMessageHistory = field(default_factory=ApiMessageHistory)
+
+    _real_messages: RealApiMessage = field(default_factory=RealApiMessage)
+
+
+    def add_message(self, message: TResponseInputItem) -> None:
+        """Add a single message to the history."""
+        self._message_history.append(message)
+
+    def add_messages(self, messages: List[TResponseInputItem]) -> None:
+        """Add multiple messages to the history."""
+        self._message_history.extend(messages)
+
+    def reset_message_history(self, message_history: List[TResponseInputItem]) -> None:
+        """Reset the entire message history."""
+        self._message_history.reset(message_history)
+
+    def remove_old_messages(self, remove_count: int) -> List[TResponseInputItem]:
         """
-        Sync messages from OpenAI session to this TaskMessageState.
+        Remove old messages, return remaining message list, always keep the first message.
         
         Args:
-            messages: List of messages to sync from the OpenAI session
+            remove_count: Number of messages to remove
+            
+        Returns:
+            Copy of the remaining message history
         """
-        # Reset the message history with the synced messages
-        self.reset_message_history(messages)
+        return self._message_history.remove_old(remove_count)
+
+    def get_message_count(self) -> int:
+        """Get the total number of messages in history."""
+        return self._message_history.get_count()
+
+    def get_messages(self, limit: Optional[int] = None) -> List[TResponseInputItem]:
+        """
+        Get messages from history.
+        
+        Args:
+            limit: Maximum number of messages to return. If None, returns all messages.
+                   When specified, returns the latest N messages.
+                   
+        Returns:
+            List of messages
+        """
+        return self._message_history.get(limit)
+
+    def clear_messages(self) -> None:
+        """Clear all messages from history."""
+        self._message_history.clear()
+
+
+    def get_real_messages(self, limit: Optional[int] = None) -> List[TResponseInputItem]:
+        """
+        Get real API messages from history.
+        
+        Args:
+            limit: Maximum number of messages to return. If None, returns all messages.
+                   When specified, returns the latest N messages.
+                   
+        Returns:
+            List of real API messages
+        """
+        return self._real_messages.get(limit)
+    
+    def get_real_message_last_index(self) -> int:
+        """Get the last index of real API messages."""
+        return self._real_messages.last_index
+    
+    def set_real_message_last_index(self, index: int) -> None:
+        """Set the last index of real API messages."""
+        self._real_messages.update_index(index)
+
+    def get_real_message_last_signature(self) -> str:
+        return self._real_messages.get_last_signature()
+    
+    def set_real_message_last_signature(self, signature: str):
+        self._real_messages.set_last_signature(signature)
+
+    def set_real_messages(self, real_messages: RealApiMessage):
+        self._real_messages = real_messages
+
+    def reset_real_messages(self):
+        self._real_messages = RealApiMessage()

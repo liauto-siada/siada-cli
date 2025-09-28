@@ -6,7 +6,6 @@ from pathlib import Path
 
 @dataclass
 class AgentConfig:
-    """单个Agent的配置"""
     class_path: str
     description: str
     enabled: bool
@@ -14,18 +13,19 @@ class AgentConfig:
 
 @dataclass 
 class AgentConfigCollection:
-    """所有Agent的配置集合"""
+    """Collection of all Agent configurations"""
     agents: Dict[str, AgentConfig]
     
     def get_agent_config(self, agent_name: str) -> Optional[AgentConfig]:
-        """获取指定agent的配置"""
+        """Get configuration for specified agent"""
         return self.agents.get(agent_name)
 
 def load_agent_config(config_path: Optional[Path] = None) -> AgentConfigCollection:
-    """加载agent配置"""
+    """Load agent configuration"""
     if config_path is None:
-        config_path = Path.cwd() / "agent_config.yaml"
-    
+        current_dir = Path(__file__).parent.parent.parent
+        config_path = current_dir / "agent_config.yaml"
+
     agents = {}
     
     if config_path.exists():

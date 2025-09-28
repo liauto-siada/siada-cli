@@ -102,6 +102,7 @@ class ModelWrapper(Model):
         tracing: ModelTracing,
         *,
         previous_response_id: str | None,
+        conversation_id: str | None,
         prompt: ResponsePromptParam | None,
     ) -> ModelResponse:
         """
@@ -123,6 +124,7 @@ class ModelWrapper(Model):
             handoffs=handoffs,
             tracing=tracing,
             previous_response_id=previous_response_id,
+            conversation_id=conversation_id,
             prompt=prompt,
         )
     
@@ -137,6 +139,7 @@ class ModelWrapper(Model):
         tracing: ModelTracing,
         *,
         previous_response_id: str | None,
+        conversation_id: str | None,
         prompt: ResponsePromptParam | None,
     ) -> AsyncIterator[TResponseStreamEvent]:
         """
@@ -158,6 +161,7 @@ class ModelWrapper(Model):
             handoffs=handoffs,
             tracing=tracing,
             previous_response_id=previous_response_id,
+            conversation_id=conversation_id,
             prompt=prompt,
         )
     

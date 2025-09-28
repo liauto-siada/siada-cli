@@ -160,13 +160,14 @@ class CheckPointTracker:
         arguments = ""
 
         # Validate message history exists and is not empty
-        if not task_message_state or not hasattr(task_message_state, 'message_history'):
-            logger.warning("Task message state or message history is invalid.")
+        if not task_message_state or not hasattr(task_message_state, 'get_messages'):
+            logger.warning("Task message state or get_messages method is invalid.")
             return function_tool_name, arguments
 
-        if len(task_message_state.message_history) >= 2:
+        messages = task_message_state.get_messages()
+        if len(messages) >= 2:
             try:
-                last_message = task_message_state.message_history[-2]
+                last_message = messages[-2]
                 # Check if the message is a function tool call by examining its structure
                 if isinstance(last_message, dict) and "name" in last_message and "arguments" in last_message:
                     # Validate types before assignment
@@ -249,7 +250,7 @@ class CheckPointTracker:
         checkpoint_data = CheckPointData(
             timestamp=timestamp,
             last_commit_hash=last_commit_hash,
-            history=task_message_state_copy.message_history,
+            history=task_message_state_copy.get_messages(),
             use_tool_name=function_tool_name,
             modified_file_names=modified_file_names,
         )

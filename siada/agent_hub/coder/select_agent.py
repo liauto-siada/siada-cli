@@ -88,7 +88,7 @@ class SelectAgent(CodeGenAgent):
                     application_success=success
                 )
             
-            return success
+            return success, selected_patch_index
                     
         except Exception as e:
             print(f"Error occurred during patch selection: {e}")
@@ -107,7 +107,7 @@ class SelectAgent(CodeGenAgent):
                     application_success=success
                 )
             
-            return success
+            return success, selected_patch_index
 
     def _build_patch_selection_prompt(self, user_input: str, patch_list: List[str]) -> str:
         """

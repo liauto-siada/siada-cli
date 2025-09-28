@@ -1,10 +1,8 @@
 import json
 import os
 import sys
-import threading
 import time
 import atexit
-import asyncio
 from dataclasses import fields
 import warnings
 from prompt_toolkit.completion import Completer
@@ -313,7 +311,29 @@ def show_banner(io):
         sys.exit(1)
 
 
-def get_enable_checkpointing(args, conf: Config = None, interactive_mode: bool = True):
+def is_home_directory(workspace: str = None) -> bool:
+    """
+    Check if the workspace is the user's home directory
+
+    Args:
+        workspace: Workspace path to check
+
+    Returns:
+        bool: True if workspace is home directory, False otherwise
+    """
+    from pathlib import Path
+
+    home_dir = Path.home()
+    workspace_path = Path(workspace).resolve() if workspace else Path.cwd().resolve()
+
+    return workspace_path == home_dir
+
+
+def get_enable_checkpointing(
+    args,
+    conf: Config = None,
+    interactive_mode: bool = True
+) -> bool:
     """
     Get enable_checkpointing setting with priority: args > config file > default
 
@@ -325,6 +345,7 @@ def get_enable_checkpointing(args, conf: Config = None, interactive_mode: bool =
     Returns:
         bool: Final enable_checkpointing value
     """
+
     # Non-interactive mode always disables checkpointing
     if not interactive_mode:
         return False
@@ -462,6 +483,9 @@ def main():
 
     if model is None:
         return 0
+    if not args.prompt:
+        if args.check_update:
+            version_checker.check_version(io, verbose=args.verbose)
 
     if args.just_check_update:
         update_available = version_checker.check_version(io, just_check=True, verbose=args.verbose)
@@ -471,8 +495,7 @@ def main():
         success = version_checker.install_upgrade(io)
         return 0 if success else 1
 
-    if args.check_update:
-        version_checker.check_version(io, verbose=args.verbose)
+
 
     commands = SlashCommands(
         io=io,
@@ -492,8 +515,16 @@ def main():
     # get the enable_checkpointing flag with priority: args > config file > default
     enable_checkpointing = get_enable_checkpointing(args, conf, interactive_mode)
 
+    # if the workspace is home directory disable the enable_checkpointing
+    if is_home_directory(workspace) and enable_checkpointing:
+        io.print_warning(
+            "Warning: workspace is home directory, disabling checkpointing for safety."
+        )
+        enable_checkpointing = False
+
     # Load user memory from siada.md file
     user_memory = load_siada_memory(workspace)
+
 
     running_config = RunningConfig(
         llm_config=model,
@@ -507,6 +538,7 @@ def main():
         user_memory=user_memory,
         mcp_config=conf.mcp_config,
         enable_checkpointing=enable_checkpointing,
+        auto_compact=args.auto_compact,
     )
 
     # create session

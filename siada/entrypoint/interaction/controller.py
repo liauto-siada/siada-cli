@@ -5,6 +5,7 @@ Manages the AI coding interaction lifecycle and controls the main interaction fl
 Separates core interaction logic from main entry point for better code organization.
 """
 
+import time
 from siada.session.session_models import RunningSession
 from siada import __version__
 from siada.entrypoint.interaction.running_config import RunningConfig
@@ -30,6 +31,7 @@ class Controller:
         self.shell_mode = shell_mode
         self.last_keyboard_interrupt = None
         self.session = session
+        self.last_keyboard_interrupt = None
 
     def run(self) -> int:
         session = self.session
@@ -90,7 +92,6 @@ class Controller:
                     self.show_announcements()
             except KeyboardInterrupt as e:
                 self.keyboard_interrupt()
-                break
             except Exception as e:
                 self.config.io.print_error(e)
                 break
@@ -127,5 +128,12 @@ class Controller:
         # Ensure cursor is visible on exit
         Console().show_cursor(True)
 
-        self.config.io.print_warning("\n\n^C KeyboardInterrupt")
-        sys.exit()
+        now = time.time()
+        if self.last_keyboard_interrupt and (
+            now - self.last_keyboard_interrupt < 2
+        ):
+            self.config.io.print_warning("\n\n^C KeyboardInterrupt")
+            sys.exit(1)
+
+        self.config.io.print_warning("\n\n^C again to exit")
+        self.last_keyboard_interrupt = now
