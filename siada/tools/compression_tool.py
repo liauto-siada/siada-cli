@@ -3,7 +3,6 @@ Context Compression Tool - Intelligently compresses conversation history using a
 """
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from agents import RunContextWrapper, function_tool
@@ -158,7 +157,7 @@ async def _compress_context_tool(
     if not context.context:
         return _create_failure_response(start_index, end_index, "Error: Unable to get context information")
 
-    conversation_history = context.context.message_history
+    conversation_history = context.context.get_messages()
     total_messages = len(conversation_history)
     
     original_start_index = start_index

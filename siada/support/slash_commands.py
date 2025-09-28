@@ -4,6 +4,7 @@ import os
 
 import concurrent
 import siada
+import siada.tools.read_many_files_tool
 import sys
 import json
 
@@ -837,10 +838,18 @@ Write the complete content to the `siada.md` file. The output must be well-forma
         """
         import asyncio
 
-        # Clear the openai session and save backup
-        old_items = asyncio.run(session.state.openai_session.get_items())
-        # Reset the openai session with the restore history
-        asyncio.run(session.state.openai_session.reset_items(restore_history))
+        async def async_operations():
+            # Clear the openai session and save backup
+            old_real_items = session.task_message_state.get_real_messages()
+            session.task_message_state.reset_real_messages()
+            old_items = await session.state.openai_session.get_items()
+            # Reset the openai session with the restore history
+            await session.state.openai_session.reset_items(restore_history)
+            # Reset the real messages
+            return old_items, old_real_items
+
+        # Run all async operations in one event loop
+        old_items, old_real_items = asyncio.run(async_operations())
 
         try:
             # Restore the project state
@@ -851,7 +860,12 @@ Write the complete content to the `siada.md` file. The output must be well-forma
         except BaseException as e:
             # When restoring project state fails, rollback the OpenAI session
             self.io.print_error(f"Failed to restore project state: {str(e)}")
-            asyncio.run(session.state.openai_session.reset_items(old_items))
+            
+            async def rollback_operations():
+                await session.state.openai_session.reset_items(old_items)
+                session.task_message_state.set_real_messages(old_real_items)
+            
+            asyncio.run(rollback_operations())
             return False
 
     def cmd_undo(self, session, args: str):

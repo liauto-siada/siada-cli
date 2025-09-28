@@ -188,6 +188,13 @@ def get_parser(default_config_files, git_root):
     group = parser.add_argument_group("Other settings")
 
     group.add_argument(
+        "--auto-compact",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable automatic context compression (default: True)",
+    )
+
+    group.add_argument(
         "--vim",
         action="store_true",
         help="Use VI editing mode in the terminal (default: False)",

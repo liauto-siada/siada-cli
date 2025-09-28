@@ -9,6 +9,8 @@ from typing import Dict, Any, Union, Optional, TYPE_CHECKING
 
 from openai.types.chat import ChatCompletionMessageParam
 
+from siada.foundation.tools.json_util import get_json_content
+
 if TYPE_CHECKING:
     from siada.agent_hub.coder.tracing.bug_fix_trace_collector import BugFixTraceCollector
 
@@ -172,7 +174,7 @@ You must return your analysis in the following JSON format：
 {{
   "analysis": "The analysis results of each step",
   "result": {{
-    "is_fixed": True,
+    "is_fixed": true,
     "check_summary": "Summary of each step of the analysis"
   }}
 }}
@@ -189,26 +191,8 @@ You must return your analysis in the following JSON format：
     
     def _parse_analysis_result(self, analysis_result: str) -> Dict[str, Any]:
         try:
-            json_content = analysis_result.strip()
-            
-            if json_content.startswith('```json') or json_content.startswith('```'):
-                lines = json_content.split('\n')
-                json_lines = []
-                in_json_block = False
-                for line in lines:
-                    line_stripped = line.strip()
-                    if line_stripped in ['```json', '```']:
-                        if not in_json_block:
-                            in_json_block = True
-                        else:
-                            break
-                        continue
-                    elif in_json_block:
-                        json_lines.append(line)
-                json_content = '\n'.join(json_lines)
-            
-            parsed_json = json.loads(json_content)
-            
+            parsed_json = get_json_content(analysis_result)
+
             if not isinstance(parsed_json, dict):
                 raise ValueError("the result is not a valid JSON object")
             
@@ -228,7 +212,7 @@ You must return your analysis in the following JSON format：
             
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             return self._fallback_text_parsing(analysis_result, str(e))
-    
+
     def _build_analysis_text(self, analysis: Dict[str, Any]) -> str:
 
         if isinstance(analysis, str):

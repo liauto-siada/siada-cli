@@ -4,9 +4,12 @@ Enhanced Fix Result Checker with Execution Trace Analysis
 from __future__ import annotations
 
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from openai.types.chat import ChatCompletionMessageParam
+
+if TYPE_CHECKING:
+    from siada.agent_hub.coder.tracing.bug_fix_trace_collector import BugFixTraceCollector
 
 from siada.provider.client_factory import get_client_with_kwargs
 from siada.foundation.setting import settings
@@ -22,14 +25,17 @@ class EnhancedFixResultChecker:
         issue_desc: str, 
         fix_code: str,
         context: Any,
-        execution_trace: Optional[ExecutionTrace] = None
+        execution_trace: Optional[ExecutionTrace] = None,
+        trace_collector: Optional["BugFixTraceCollector"] = None
     ) -> Dict[str, Any]:
         """check the fix result with enhanced analysis
         
         Args:
-            issue_desc
-            fix_code
-            execution_trace
+            issue_desc: Issue description
+            fix_code: Fix code
+            context: Context with provider and other necessary information
+            execution_trace: Optional execution trace for enhanced analysis
+            trace_collector: Optional trace collector for recording check process
             
         Returns:
             Dict[str, Any]:
@@ -78,9 +84,13 @@ class EnhancedFixResultChecker:
             analysis_result = await self._call_model_for_enhanced_analysis(
                 issue_desc, fix_code, context, execution_trace
             )
-            return self._parse_enhanced_analysis_result(analysis_result)
+            check_result = self._parse_enhanced_analysis_result(analysis_result)
+            
+            self._record_checker_trace(trace_collector, issue_desc, fix_code, check_result, execution_trace=execution_trace)
+            
+            return check_result
         except Exception as e:
-            return {
+            error_result = {
                 "is_fixed": False,
                 "check_summary": f"Error: {str(e)}",
                 "fix_analysis": f"Error details: {str(e)}",
@@ -89,6 +99,10 @@ class EnhancedFixResultChecker:
                 "strategy_suggestions": [],
                 "overall_score": 0.0
             }
+            
+            self._record_checker_trace(trace_collector, issue_desc, fix_code, error_result, error=str(e), execution_trace=execution_trace)
+            
+            return error_result
     
     async def _call_model_for_enhanced_analysis(
         self, 
@@ -100,9 +114,10 @@ class EnhancedFixResultChecker:
         """call the model for enhanced analysis
         
         Args:
-            issue_desc
-            fix_code
-            execution_trace
+            issue_desc: Issue description
+            fix_code: Fix code  
+            context: Context with provider and other necessary information
+            execution_trace: Optional execution trace for enhanced analysis
             
         Returns:
             str: the analysis result in JSON format
@@ -140,7 +155,17 @@ class EnhancedFixResultChecker:
         fix_code: str, 
         execution_trace: Optional[ExecutionTrace]
     ) -> str:
+        """
+        Build enhanced prompt for analysis
         
+        Args:
+            issue_desc: Issue description
+            fix_code: Fix code
+            execution_trace: Optional execution trace for enhanced analysis
+            
+        Returns:
+            str: The complete prompt for enhanced analysis
+        """
         expert_prompt = f"""
 # 🎯 **SIADA PROJECT EXPERT & PR ANALYSIS SPECIALIST**
 
@@ -457,11 +482,13 @@ Conduct a **forensic-level analysis** as a senior architect would during a criti
     
     def _parse_enhanced_analysis_result(self, analysis_result: str) -> Dict[str, Any]:
         """
+        Parse enhanced analysis result from model response
+        
         Args:
-            analysis_result
+            analysis_result: The analysis result string from model response
             
         Returns:
-            Dict[str, Any]
+            Dict[str, Any]: Parsed enhanced check result with all assessment details
         """
         try:
             if not analysis_result or not analysis_result.strip():
@@ -490,7 +517,7 @@ Conduct a **forensic-level analysis** as a senior architect would during a criti
             
             result = {
                 "is_fixed": expert_assessment.get("is_fixed", False),
-                "check_summary": expert_assessment.get("check_summary", "未提供专家分析摘要"),
+                "check_summary": expert_assessment.get("check_summary", "no check summary"),
                 "fix_analysis": expert_assessment.get("technical_depth_analysis", {}).get("architecture_impact", "未提供详细分析"),
                 "trace_analysis": execution_intelligence.get("strategy_effectiveness", {}).get("overall_approach", "未提供轨迹分析"),
                 "efficiency_suggestions": professional_recommendations.get("immediate_actions", []),
@@ -544,3 +571,70 @@ Conduct a **forensic-level analysis** as a senior architect would during a criti
                 f"Failed to parse enhanced analysis result: {str(e)}. "
                 "Please ensure the model output is in the correct JSON format."
             )
+    
+    def _record_checker_trace(
+        self, 
+        trace_collector: Optional["BugFixTraceCollector"], 
+        issue_desc: str, 
+        fix_code: str, 
+        check_result: Dict[str, Any], 
+        error: Optional[str] = None,
+        execution_trace: Optional[ExecutionTrace] = None
+    ) -> None:
+        """
+        Record enhanced checker trace information
+        
+        Args:
+            trace_collector: Optional trace collector
+            issue_desc: Issue description
+            fix_code: Fix code
+            check_result: Enhanced check result
+            error: Optional error message for error cases
+            execution_trace: Optional execution trace
+        """
+        if not trace_collector:
+            return
+            
+        checker_prompt = self._build_enhanced_prompt(issue_desc, fix_code, execution_trace)
+        
+        if error:
+            # Error case
+            feedback_message = {
+                "role": "user",
+                "content": f"Enhanced check process failed: {error}"
+            }
+            should_break = False
+            check_summary = check_result.get("check_summary", f"Error: {error}")
+        else:
+            # Normal case - extract from enhanced result structure
+            is_fixed = check_result.get("is_fixed", False)
+            
+            # Get enhanced summary with more details
+            expert_assessment = check_result.get("expert_assessment", {})
+            executive_summary = check_result.get("executive_summary", {})
+            
+            # Combine key information for the feedback message
+            check_summary_content = check_result.get("check_summary", "No enhanced summary available")
+            verdict = executive_summary.get("verdict", "")
+            key_concerns = executive_summary.get("key_concerns", "")
+            
+            feedback_content = check_summary_content
+            if verdict:
+                feedback_content += f"\n\n{verdict}"
+            if key_concerns:
+                feedback_content += f"\n\nKey Concerns: {key_concerns}"
+            
+            feedback_message = {
+                "role": "assistant" if is_fixed else "user",
+                "content": feedback_content
+            }
+            should_break = is_fixed
+            check_summary = check_summary_content
+        
+        trace_collector.record_enhance_checker_trace(
+            prompt=checker_prompt,
+            user_input=issue_desc,
+            check_summary=check_summary,
+            feedback_message=feedback_message,
+            should_break=should_break
+        )

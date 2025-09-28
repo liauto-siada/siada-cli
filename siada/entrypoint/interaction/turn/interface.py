@@ -7,6 +7,8 @@ Contains abstract base classes and interfaces for interaction turns.
 from typing import Optional, Any
 from abc import ABC, abstractmethod
 
+from agents import AgentsException
+
 
 # Import existing config and models
 from ..running_config import RunningConfig
@@ -87,7 +89,7 @@ class RunTurn(ABC):
         """
         return bool(turn_input.use_input and turn_input.use_input.strip())
 
-    def handle_error(self, error: Exception) -> TurnOutput:
+    def handle_error(self, error: BaseException) -> TurnOutput:
         """Handle execution error
 
         Args:
@@ -101,7 +103,10 @@ class RunTurn(ABC):
         # Print full error traceback for debugging
         import traceback
         full_traceback = traceback.format_exc()
-        self.config.io.print_error(f"Error occurred: {str(error)}\n\nFull traceback:\n{full_traceback}")
+        if isinstance(error, AgentsException):
+            self.config.io.print_error(f"Agent error occurred: {str(error)}")
+        else:
+            self.config.io.print_error(f"Error occurred: {str(error)}\n\nFull traceback:\n{full_traceback}")
         return TurnOutput(
             output=f"Error: {str(error)}",
             metadata={"error_type": type(error).__name__},

@@ -11,7 +11,7 @@ from siada.foundation.tools.get_git_diff import GitDiffUtil
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
-from siada.tools.coder.issue_review_completion import issue_review_completion
+from siada.tools.coder.patch_selection_completion import patch_selection_completion
 from siada.tools.coder.run_cmd import run_cmd
 
 class IssueReviewAgent(CodeGenAgent):
@@ -22,9 +22,9 @@ class IssueReviewAgent(CodeGenAgent):
     def __init__(self, *args, **kwargs):
         super().__init__(
             name="IssueReviewAgent",
-            tools=[edit, regex_search_files, run_cmd, list_code_definition_names, issue_review_completion],
+            tools=[edit, regex_search_files, run_cmd, list_code_definition_names, patch_selection_completion],
             tool_use_behavior={
-                "stop_at_tool_names": ["issue_review_completion"],
+                "stop_at_tool_names": ["patch_selection_completion"],
             },
             *args,
             **kwargs

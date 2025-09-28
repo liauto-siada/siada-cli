@@ -4,9 +4,9 @@ import yaml
 import os
 
 from agents import Agent, RunConfig, RunHooks, RunResult, RunResultStreaming, Runner, TContext, TResponseInputItem, set_trace_processors
-from siada.agent_hub.hooks.context_capture_filter import context_capture_filter
+from siada.agent_hub.context_filter.context_capture_filter import context_capture_filter
 from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
-from siada.models.converter import ModelSettingsConverter
+from siada.models.model_setting_converter import ModelSettingsConverter
 from siada.services.input_processor import process_input
 from siada.services.model_wrapper import ModelProviderWrapper
 from siada.session import RunningSessionManager
@@ -209,7 +209,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             hooks=hooks,
             run_config=run_config,
             previous_response_id=previous_response_id,
-            session=None,
+            session=session,
         )
 
     async def run_streamed_impl(
@@ -237,5 +237,5 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             hooks=hooks,
             run_config=run_config,
             previous_response_id=previous_response_id,
-            session=None,
+            session=session,
         )
