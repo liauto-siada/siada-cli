@@ -1,58 +1,55 @@
-*(This technical report is applicable to Siada-CLI v1.2.0)*
-
 ## 1. Introduction
 
-**Siada CLI** is an open-source command-line AI workflow tool that provides professional intelligent agents for code development, debugging, and automation tasks. Among these, the **Code Generation Agent** serves as the starting point for all agents within Siada CLI. We believe that code generation based on large language models has the potential to empower every stage of the software engineering lifecycle. Based on this belief, we have conducted internal practice at **Li Auto** and open-sourced some of the capabilities within Siada CLI.
+**Siada CLI** is an open-source command-line AI workflow tool that provides professional intelligent agents for code development, debugging, and automation tasks. Among them, the **code generation agent** serves as the starting point for all agents within Siada CLI. We believe that code generation based on large language models has the potential to empower every stage of the software engineering lifecycle. Based on this belief, we conducted internal practices at **Li Auto** and open-sourced some capabilities in Siada CLI.
 
-This report demonstrates how we applied Siada CLI to automatically resolve issues in the **SWE-bench-Lite benchmark**. Unlike many existing approaches that indiscriminately attempt to solve an issue multiple times, Siada CLI adopts a **"three-stage" process**—**issue description optimization, bug fixing (including issue reproduction, resolution, and related testing), and patch checking**—to complete issue resolution with minimal model calls and cost.
-On the SWE-bench-Lite benchmark, Siada CLI achieved a **57.67% issue resolution rate (173/300)**, **ranking third among all models**. The following sections will introduce the system design and experimental results of the bug fix agent in Siada CLI.
-![Siada CLI Leaderboard](leadboard.png)
+This report demonstrates how we applied Siada CLI to automatically solve problems in the **SWE-bench-Lite benchmark**. Unlike many existing methods that indiscriminately attempt to solve problems multiple times, we designed an adaptive code fixing method based on issue description responses, implementing intelligent workflow orchestration through issue description optimizers and classifiers for bug fix agents, checkers, and selectors. This method adaptively selects three repair modes (Easy, Middle, Hard) based on problem complexity, using fast generalization for simple problems and inference-time scaling techniques for complex problems.
+
+In the SWE-bench-Lite benchmark, Siada CLI achieved a **60.67% problem resolution rate (182/300), ranking first among all currently listed methods**. The following sections will introduce the system design of the error fixing agent in Siada CLI. Our paper will be coming soon, and the following content is the technical documentation of the system design.
 
 ## 2. System Overview
-### 2.1 **Bug Fix of Siada CLI: A Three-Stage, Single-Agent System Design**
 
-In the initial phase, we designed a **multi-agent architecture** based on human engineering bug fixing processes and **TDD (Test-Driven Development)** principles. This included an **issue reproduction agent**, **bug fix agent**, **test case agent**, and others, organized into a specific issue resolution workflow. Although we continuously attempted to optimize these agents, the multi-agent combination approach did not achieve ideal results in the bug fixing domain. We believe the main reasons are:
+### 2.1 Bug Fixing in Siada CLI
 
-- **Model capability is sufficiently strong**: Current large language models can directly execute the closed-loop tasks of reproduction, localization, fixing, and testing within a single session. Additional issue reproduction agents and test agents do not provide more incremental content to the bug fix agent.
-- **Models still have significant deficiencies in agent switching**: After trying fixed workflows (reproduction → fixing → testing), we attempted to let models autonomously switch agents and decide when to use specific agents. However, the actual effect showed that models currently struggle to perfectly implement such capabilities. Although frameworks like **openai-agent-sdk** and **adk** provide agent switching capabilities, we still believe current model capabilities cannot perfectly handle multi-agent tasks.
-- **Single agent is more efficient**: Multi-agent approaches did not improve effectiveness but significantly reduced efficiency and increased costs.
-- **Single agent provides flexible adaptive testing**: During the fixing process, new test cases can be dynamically generated and executed more strategically.
+Initially, we designed a **multi-agent architecture** based on human engineer bug fixing processes and **TDD (Test-Driven Development)** principles. This included **issue reproduction agents**, **bug fix agents**, **test case agents**, etc., organized into specific problem-solving workflows. Despite continuous attempts to optimize these agents, the multi-agent combination approach did not achieve ideal results in the bug fixing domain. We believe the main reasons are:
 
-However, the single-agent mode alone was insufficient to achieve outstanding results. Therefore, we designed an alternative approach by adding **issue description optimization** and **patch checking** stages before and after the bug fix agent. The inspiration for these two stages comes from:
+- **Model capabilities are sufficiently powerful**: Current large language models can directly execute closed-loop tasks of reproduction, localization, fixing, and testing in a single session. Additional issue reproduction agents and test agents do not provide more incremental content for the bug fix agent.
 
-1. **Regarding issue description optimization**: As widely known, challengers more easily achieve high scores on the **swe-bench-verified** leaderboard. An important reason for this phenomenon is that the issue descriptions in verified cases are manually annotated. Therefore, we wondered whether we could have models automatically "annotate" issue descriptions.
+- **Models still have significant shortcomings in agent switching**: After trying fixed workflows (reproduction→fixing→testing), we attempted to let models autonomously switch agents and decide when to use specific agents. However, actual results show that models currently struggle to perfectly implement such capabilities. Although frameworks like **openai-agent-sdk** and **adk** provide agent switching capabilities, we still believe current model capabilities cannot perfectly handle multi-agent tasks.
 
-2. **Regarding patch checking**: Based on previous multi-agent experiments, we found that if subsequent agents continue the work of preceding agents, they must trust the preceding agents' work to some extent, which creates "inertial thinking." If the preceding agent has problems, all subsequent work becomes meaningless (this is also one of the reasons why fixed-workflow multi-agent approaches perform poorly). Therefore, we believe there needs to be someone standing in opposition to the bug fix agent, forgetting the bug fix agent's work process, and then reviewing its fix results. Hence, we added the patch checking stage.
+- **Single agents are more efficient**: Multi-agent approaches failed to improve accuracy for different types of bugs such as simple problem fixes and complex functional requirements during bug fixing, but significantly reduced efficiency and increased costs.
 
-Therefore, the complete three stages are: **Issue Description Optimization → Bug Fixing → Patch Checking**.
+- **Single agents provide flexible adaptive testing**: During the fixing process, new test cases can be dynamically generated and executed more strategically.
 
-The design of these three stages will be introduced in sections 2.2, 2.3, and 2.4 respectively.
+However, single-agent mode alone is insufficient to achieve excellent results. Therefore, we designed an adaptive code fixing method based on issue description responses, implementing intelligent workflow orchestration through issue description optimizers and classifiers for bug fix agents, checkers, and selectors. This method adaptively selects three repair modes (Easy, Middle, Hard) based on problem complexity, using fast generalization for simple problems and inference-time scaling techniques for complex problems. The inspiration for this method comes from:
 
-## 2.2 Issue Description Optimization Stage
+1. **Regarding issue description optimization and classification**: Issue description optimization and classification includes two steps: issue description optimization and issue description classification. For issue description optimization, it is well known that challengers can more easily achieve high scores on the **swe-bench-verified** leaderboard. An important reason for this phenomenon is that the issue descriptions in verification cases are manually annotated. Therefore, we wondered if we could have models automatically "annotate" issue descriptions.
+For description classification, during software development and maintenance processes, development teams receive a large number of issue tickets through defect tracking systems (such as Jira, Bugzilla). These tickets contain various real bugs, feature improvement requirements, code refactoring suggestions, performance optimizations, and other issues. Researchers have proposed automatic classification through issue descriptions (issue tickets) to achieve automated task allocation and development cycle planning, which is crucial for efficient bug handling. Inspired by this, we propose a bug issue description classifier, which is a RandomForestClassifier responsible for evaluating problem complexity. At the same time, we analyzed over 500,000 calls to Li Auto's internal code generation tool from April to September 2025, classifying issue descriptions into Easy, Middle, and Hard levels. Classification decisions are based on multi-dimensional feature analysis: **Semantic complexity analysis**: Analyzing semantic features such as concept complexity and logical relationship complexity involved in issue descriptions. **Technical difficulty assessment**: Evaluating the depth of technical knowledge required for fixing, including the number of APIs involved, framework complexity, algorithm difficulty, etc. **Code impact scope**: Estimating the code scope that fixing might affect, including the number of files, functions, inter-module dependencies, etc. **Historical fixing data**: Using patterns in historical fixing data to assist classification decisions, as well as emotional tone words related to issue difficulty.
 
-To reduce the negative impact of ambiguous task descriptions, we propose an **issue description optimizer**. It directly receives the original issue description and generates more complete and precise structured bug reports based on preset prompt templates.
+2. **Regarding patch checking**: Based on previous multi-agent experiments, we found that if subsequent agents continue the work of previous agents, they must trust the work of previous agents to some extent, which creates "inertial thinking." If previous agents have problems, all subsequent work becomes meaningless (this is also one of the reasons why fixed workflow multi-agent methods perform poorly). Therefore, we believe someone needs to stand on the opposite side of the bug fix agent, forget the bug fix agent's work process, and then review its fixing results. Therefore, we added a patch checking stage.
 
-### (1) Specific Optimization Content
+3. **Regarding three repair modes**: Through analysis of real-world code generation requirements and descriptions, we believe that among the problems related to issue descriptions, some simple problems can be solved through relatively concise workflows, corresponding to our easy mode. Therefore, when problems are classified as simple problems, we use a workflow of issue description optimization→error fixing to solve them. Another part of problems, we believe the model may miss important boundary conditions during fixing, so corresponding to middle mode, we use a workflow of issue description optimization→error fixing→patch checking to solve them. Finally, some problems with relatively vague descriptions or inherently difficult problems correspond to hard mode. After issue description optimization, we use multiple error fixes to obtain multiple results and use a selector to choose a more appropriate result through testing and comparison.
 
-The optimizer performs multi-dimensional enhancement of the original description:
+Therefore, we designed an adaptive code fixing method based on issue description responses, implementing intelligent workflow orchestration through issue description optimizers and classifiers for bug fix agents, checkers, and selectors. This method adaptively selects three repair modes (Easy, Middle, Hard) based on problem complexity. The design of issue description optimizers and classifiers for bug fix agents, checkers, and selectors will be introduced in sections 2.2, 2.3, 2.4, and 2.5 respectively.
 
+### 2.2 Issue Description Optimization and Classification Stage
+
+### 2.2.1 Issue Description Optimization Steps
+To reduce the negative impact of ambiguous task descriptions, we propose an **issue description optimizer**. It directly receives the original issue description and, based on preset prompt templates, uses LLM to generate more complete and precise structured error reports.
+
+#### (1) Specific Optimization Content
+The optimizer performs multi-dimensional enhancement of the original description as follows:
 - **Potential Issue Identification**: Not only focuses on explicit errors, but also infers potential root causes and analyzes technical details in error messages.
+
 - **Test Scenario Clarification**: Lists various input forms and boundary conditions to ensure comprehensive test coverage.
+
 - **Expected Behavior Definition**: Clearly defines how the system should correctly handle different inputs, rather than merely preventing errors.
+
 - **Complete Reproduction Steps**: Provides directly executable code examples covering multiple data formats.
+
 - **Acceptance Criteria Formulation**: Quantifies conditions for successful fixes, such as all related tests passing, maintaining backward compatibility, and meeting mathematical/business specifications.
 
-### (2) Guidance Role for Models
-
-- **Eliminating Ambiguity**: Transforms vague descriptions into clear "reproduce → fix → verify" closed-loop plans, reducing exploratory model calls.
-- **Reducing Inference Bias**: Structured information helps models focus on actual root causes rather than surface phenomena.
-- **Improving Fix Completeness**: Unified acceptance criteria promote generated solutions that cover all boundary conditions, avoiding incomplete fixes.
-- **Enhancing Generalization**: The standardized analysis framework facilitates transfer fixing for similar issues.
-
-### (3) Case Analysis
-
- **Original Issue Description:**
-
+#### (2) Case Analysis
+**Original Issue Description:**
 
 ```python
 I think this is a bug.
@@ -87,7 +84,6 @@ print(Sum(Sum(e[i, j], (i, 0, n-1)), (j, 0, n-1)).doit())
 ```
 
 **Optimized Issue Description:**
-
 
 ```markdown
 # Bug Report: Incorrect Sum Calculation for Identity Matrix Elements
@@ -196,8 +192,6 @@ For an n×n identity matrix:
 All reproduction scenarios above should pass, with total sums correctly evaluating to the matrix dimension rather than 0.
 ```
 
-
-
 **Without Optimizer – Over-modified Changes (Wrong Fix Example):**
 
 Problems:
@@ -245,7 +239,41 @@ diff --git a/sympy/matrices/expressions/matexpr.py b/sympy/matrices/expressions/
 
 We believe that: **Bug description optimization provides significant guidance in problem root cause analysis, reproduction steps, edge case coverage, and regression testing.**
 
-## 2.3 Bug Fixing Stage
+### 2.2.2 Issue Description Classification Steps
+
+The classifier uses a machine learning model (RandomForestClassifier) based on text analysis, combined with a rule engine to achieve accurate complexity assessment. The classification results directly determine the subsequent repair strategy:
+- **Easy mode**: Suitable for simple logical errors, API usage errors, etc., using fast generalization strategies.
+- **Middle mode**: Suitable for medium complexity problems, using iterative optimization strategies.
+- **Hard mode**: Suitable for complex systemic problems, using multi-candidate generation and selection strategies. In actual implementation, we use anomaly detection as the classifier implementation, where the is_easy field in logs represents the classification result: 0 for easy, 1 for middle, and 2 for hard.
+
+The training data for this classifier is extracted from our internal code generation requirement data, which is similar to the problem descriptions in the lite dataset. The extracted relevant features are shown in the following table, and we have open-sourced this model weights in Siada CLI.
+
+#### Detailed Feature Table
+
+| No. | Feature Name | Calculation Method | Feature Type | Data Type | Example Value | Description |
+|-----|--------------|-------------------|--------------|-----------|---------------|-------------|
+| 0 | `char_count` | `len(problem_content)` | Basic Statistics | int | 1250 | Total character count |
+| 1 | `word_count` | `len(words)` | Basic Statistics | int | 180 | Total word count |
+| 2 | `line_count` | `len(problem_content.split('\n'))` | Basic Statistics | int | 15 | Total line count |
+| 3 | `sentence_count` | Split by `.!?` and count sentences | Basic Statistics | int | 8 | Total sentence count |
+| 4 | `avg_word_length` | `np.mean([len(word) for word in words])` | Language Complexity | float | 5.2 | Average word length |
+| 5 | `unique_word_ratio` | `len(set(words)) / len(words)` | Language Complexity | float | 0.75 | Unique word ratio |
+| 6 | `project_mentions` | Project keyword count | Project Specific | int | 3 | Project-related keyword occurrences |
+| 7 | `error_mentions` | Error keyword count | Problem Analysis | int | 2 | Error-related keyword occurrences |
+| 8 | `tech_mentions` | Technical term count | Technical Content | int | 5 | Technical term occurrences |
+| 9 | `code_blocks` | `len(re.findall(r'```|`[^`]+`', text))` | Code Content | int | 2 | Number of code blocks |
+| 10 | `code_pattern_count` | Code pattern count | Code Content | int | 4 | Code pattern occurrences |
+| 11 | `urls` | `len(re.findall(r'http[s]?://|www\.', text))` | External References | int | 1 | Number of URL links |
+| 12 | `version_mentions` | `len(re.findall(r'\d+\.\d+\.?\d*', text))` | Version Information | int | 2 | Version number occurrences |
+| 13 | `number_count` | `len(re.findall(r'\b\d+\b', text))` | Numeric Content | int | 8 | Independent number occurrences |
+| 14 | `sentiment_score` | Positive words - Negative words | Sentiment Analysis | int | -1 | Sentiment tendency score |
+| 15 | `question_count` | Question word count | Problem Analysis | int | 3 | Question word occurrences |
+| 16 | `uppercase_ratio` | Uppercase letters / Total characters | Text Style | float | 0.05 | Uppercase letter ratio |
+| 17 | `punctuation_ratio` | Punctuation marks / Total characters | Text Style | float | 0.08 | Punctuation mark ratio |
+| 18 | `chars_per_word` | `char_count / max(word_count, 1)` | Derived Metrics | float | 6.9 | Average characters per word |
+| 19 | `sentences_per_line` | `sentence_count / max(line_count, 1)` | Derived Metrics | float | 0.53 | Average sentences per line |
+
+### 2.3 Bug Fix Agent
 
 This stage designs a **single-agent bug fix agent** with tool invocation capabilities and multi-turn interaction abilities with models, capable of completing issue reproduction, problem resolution, and related testing processes. Its prompt template is as follows:
 
@@ -304,19 +332,19 @@ Your goal is to fix the given issue, and the fix is considered successful when t
 3. Remember, you have extensive capabilities with access to a wide range of tools that can be used in powerful and clever ways as necessary to accomplish each goal. Before calling a tool, do some analysis within <thinking></thinking> tags. First, analyze the file structure provided in environment_details to gain context and insights for proceeding effectively. Then, think about which of the provided tools is the most relevant tool to accomplish the user's task. Next, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value.
 ```
 
+The **Bug Fix Agent** leverages a comprehensive set of **five core tools** to systematically identify, analyze, and resolve software issues. The table is as follows:
 
-The **Bug Fix Agent** leverages a comprehensive set of **five core tools** to systematically identify, analyze, and resolve software issues. The tbale is as follows：
 | Tool | Purpose | Key Features |
 |------|---------|--------------|
 | **edit** | **File Content Modification** | • **Multi-format support**: Text, images, PDFs, videos with base64 encoding<br>• **Multiple edit operations**: view, create, str_replace, insert<br>• **Error handling**: UTF-8 validation, permission checks, binary file detection<br>• **Context-aware editing**: Line-based operations with range support<br>• **Real-time diff generation**: Tracks changes between old and new content |
-| **regex_search_files** <br>*(Self-developed)* | **High-Performance Code Search** | • **Ripgrep integration**: Leverages Rust-based ripgrep for ultra-fast searching<br>• **Cross-platform binary management**: Automatic platform detection and binary selection<br>• **Advanced regex support**: Full Rust regex syntax with Unicode and lookahead/lookbehind<br>• **Context-aware results**: Provides before/after context lines for better understanding<br>• **Smart file filtering**: Glob pattern support for targeted searches (*.py, *.js, etc.)<br>• **Performance optimization**: Results limiting (300 max) and output truncation<br>• **JSON parsing**: Structured output processing with error recovery<br>• **Relative path calculation**: Clean, readable file paths in results |
+| **regex_search_files**  | **High-Performance Code Search** | • **Ripgrep integration**: Leverages Rust-based ripgrep for ultra-fast searching<br>• **Cross-platform binary management**: Automatic platform detection and binary selection<br>• **Advanced regex support**: Full Rust regex syntax with Unicode and lookahead/lookbehind<br>• **Context-aware results**: Provides before/after context lines for better understanding<br>• **Smart file filtering**: Glob pattern support for targeted searches (*.py, *.js, etc.)<br>• **Performance optimization**: Results limiting (300 max) and output truncation<br>• **JSON parsing**: Structured output processing with error recovery<br>• **Relative path calculation**: Clean, readable file paths in results |
 | **run_cmd** | **System Command Execution** | • **Environment adaptation**: Auto-selects between pexpect (Unix) and subprocess (Windows)<br>• **Real-time output streaming**: Live command output with proper error handling<br>• **Working directory management**: Context-aware execution in project root<br>• **Exit code tracking**: Detailed success/failure reporting<br>• **Interactive command support**: Handles both interactive and batch commands |
 | **fix_attempt_completion** | **Task Completion Validation** | • **Mandatory completion**: Enforces proper task termination<br>• **Detailed reporting**: Comprehensive fix summary with change documentation<br>• **Status tracking**: Clear completion status indicators<br>• **Workflow validation**: Ensures all bugs are addressed before completion |
-| **list_code_definition_names** <br>*(Self-developed)* | **Advanced AST Code Analysis** | • **Tree-sitter integration**: Language-agnostic parsing with 40+ language support<br>• **Dual extraction modes**: Definitions (functions, classes, methods) and references<br>• **Smart query system**: Language-specific .scm query files for precise extraction<br>• **Pygments fallback**: Reference extraction when tree-sitter queries are incomplete<br>• **Contextual tree generation**: Hierarchical code structure with line numbers<br>• **Multi-language support**: Python, JavaScript, TypeScript, C++, Java, Go, and more<br>• **Performance optimization**: Efficient parsing with memory management<br>• **Error resilience**: Graceful handling of encoding issues and parse failures<br>• **Code organization insight**: Reveals project structure and architectural patterns |
+| **list_code_definition_names**  | **Advanced AST Code Analysis** | • **Tree-sitter integration**: Language-agnostic parsing with 40+ language support<br>• **Dual extraction modes**: Definitions (functions, classes, methods) and references<br>• **Smart query system**: Language-specific .scm query files for precise extraction<br>• **Pygments fallback**: Reference extraction when tree-sitter queries are incomplete<br>• **Contextual tree generation**: Hierarchical code structure with line numbers<br>• **Multi-language support**: Python, JavaScript, TypeScript, C++, Java, Go, and more<br>• **Performance optimization**: Efficient parsing with memory management<br>• **Error resilience**: Graceful handling of encoding issues and parse failures<br>• **Code organization insight**: Reveals project structure and architectural patterns |
 
 Each tool serves a specific purpose in the bug fixing workflow, with **search and AST analysis tools particularly noteworthy**. The details are as follows:
 
-### (1) regex_search_files Tool
+- (1) regex_search_files Tool
 
 This **search tool** represents a significant advancement over traditional grep-based solutions. Built around the high-performance **Ripgrep engine**, it provides:
 
@@ -336,7 +364,7 @@ This **search tool** represents a significant advancement over traditional grep-
 - **Cross-Platform Compatibility**: Seamless operation across Windows, macOS, and Linux environments
 - **Binary Management**: Automatic executable permission handling and fallback mechanisms
 
-### (2) list_code_definition_names Tool
+- (2) list_code_definition_names Tool
 
 Our **AST tool** leverages parsing technology to provide deep, semantic code understanding across multiple programming languages:
 
@@ -353,8 +381,7 @@ Our **AST tool** leverages parsing technology to provide deep, semantic code und
 
 **These two tools help models reduce work iterations.** These tools collectively form a powerful, integrated ecosystem that enables the **Bug Fix Agent** to perform sophisticated code analysis, precise modifications, and comprehensive testing within a unified, efficient workflow.
 
-
-## 2.4 Patch Checking Stage
+### 2.4 Patch Checker
 
 We verify whether the patch fix aligns with the issue description to determine if bug fixing needs to be re-executed—this avoids unnecessary repeated model calls and saves computational resources. The checking process is divided into two phases:
 
@@ -363,9 +390,53 @@ We verify whether the patch fix aligns with the issue description to determine i
 
 In fact, the reason for adding this checking stage is that the model's original workflow lacks independent self-verification capabilities. It often ends directly after completing one fix output, lacking comprehensive comparison between fix results and requirement descriptions, easily missing details or introducing regression errors. Additional checking can independently verify parts not sufficiently covered by the bugfix stage's reasoning path, avoiding complete dependence on the previous round's fix trajectory that could create path dependency, thereby improving detection rates for missed issues and fix quality. While the current checking strategy is already effective, there is still room for optimization with higher strictness levels in the future, such as introducing more fine-grained semantic consistency analysis, running full regression testing, or combining coverage metrics to quantify patch completeness, ensuring patches not only solve explicit problems but also stably meet all expected scenarios.
 
-## 2.5 Future TODO
+### 2.5 Selector
 
-We believe we have not fully maximized the potential of the "Bug Description Optimization" and "Patch Checking" stages. Their ceiling is far beyond this, and we will continue to optimize these two stages using more methods in the future, such as adjusting the strictness level of patch checking. Please stay tuned.
+In hard mode, we designed a patch selection agent that tests and compares multiple patch diff results from the bug fix agent to select the optimal result.
 
----
+#### System Prompt:
 
+```
+You are Siada, a specialized patch selection agent with extensive knowledge in code analysis, software engineering best practices, and bug fix evaluation.
+
+Your core mission is to analyze multiple patch candidates generated by bug fix agents and select the optimal solution that best addresses the original issue while maintaining code quality and minimizing risks.
+
+OBJECTIVE
+
+You are responsible for selecting the best patch from multiple candidate patches in hard mode bug fixing scenarios. Your selection process should be methodical and comprehensive:
+
+1. **Patch Analysis**: Thoroughly analyze each provided patch candidate, understanding the changes made, how each patch addresses the original issue, the scope and impact of modifications, and code quality aspects.
+
+2. **Comparative Evaluation**: Compare patches against multiple criteria:
+   - **Relevance**: How directly does the patch address the root cause?
+   - **Completeness**: Does the patch provide a comprehensive solution?
+   - **Safety**: Does the patch avoid introducing new bugs or breaking existing functionality?
+   - **Code Quality**: Is the code well-structured, readable, and maintainable?
+   - **Minimal Impact**: Does the patch make the smallest necessary changes?
+   - **Best Practices**: Does the patch follow established coding conventions and patterns?
+
+3. **Risk Assessment**: Evaluate potential risks and side effects including compatibility with existing codebase, performance implications, security considerations, and maintainability concerns.
+
+4. **Selection Decision**: Make an informed decision based on comprehensive analysis and provide detailed reasoning for your choice.
+
+## Selection Criteria Priority
+
+1. **Correctness**: The patch must correctly fix the reported issue
+2. **Safety**: Minimal risk of introducing new problems
+3. **Code Quality**: Clean, maintainable, and well-structured code
+4. **Scope**: Prefer patches with minimal but sufficient changes
+5. **Compatibility**: Maintains compatibility with existing systems
+
+## Output Requirements
+
+You must use the `patch_selection_completion` tool to finalize your selection, providing:
+- The selected patch index (0-based)
+- Comprehensive reasoning explaining your decision
+- Comparative analysis of why other patches were not selected
+
+Remember: Your goal is to select the patch that provides the most robust, safe, and effective solution to the original issue.
+```
+
+#### Termination Tool:
+
+The selector agent uses the `patch_selection_completion` tool as its termination tool, which is responsible for completing the patch selection process and applying the selected patch. This termination tool is similar to the bug fix agent's termination tool, but is specifically designed for completing patch selection and application functionality, ensuring the integrity and traceability of the selection process.
