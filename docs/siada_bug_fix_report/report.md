@@ -1,3 +1,15 @@
+#### Reproduction Step
+
+1.  Install `siada-cli` by following the [user guide](https://github.com/liauto-siada/siada-cli/tree/main).
+2.  Execute the bug-fixing command:
+    ```bash
+    echo "execute no tty" | siada-cli --bugfix --prompt <issue_description>
+    ```
+    * Here, `<issue_description>` is the "problem statement" from swe-bench.
+3.  Use `git diff` to obtain the fix patch. Apply this patch to the original repository containing the issue and run the test cases.
+
+This submission is made with Siada CLI latest of the branch main using `anthropic/claude-sonnet-4-20250514`.
+
 ## 1. Introduction
 
 **Siada CLI** is an open-source command-line AI workflow tool that provides professional intelligent agents for code development, debugging, and automation tasks. Among them, the **code generation agent** serves as the starting point for all agents within Siada CLI. We believe that code generation based on large language models has the potential to empower every stage of the software engineering lifecycle. Based on this belief, we conducted internal practices at **Li Auto** and open-sourced some capabilities in Siada CLI.
