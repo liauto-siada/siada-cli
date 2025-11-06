@@ -45,7 +45,10 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         root_dir = run_context.context.root_dir        
         # Get user memory from context
         user_memory = run_context.context.user_memory
-        system_prompt = code_gen_prompt.get_system_prompt(root_dir, run_context.context.interactive_mode, user_memory)
+        # Get preferred language and agent name from session config
+        preferred_language = run_context.context.session.siada_config.preferred_language
+        agent_name = run_context.context.session.siada_config.agent_name
+        system_prompt = code_gen_prompt.get_system_prompt(root_dir, run_context.context.interactive_mode, user_memory, preferred_language, agent_name)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
@@ -58,7 +61,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         )
         return context
 
-    async def process_at_commands(self, user_input: str, context: CodeAgentContext) -> str:
+    async def process_at_commands(self, user_input: str| List[TResponseInputItem], context: CodeAgentContext) -> str:
         """
         Process @ commands in user input and return processed input
         
@@ -116,7 +119,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             logging.warning(f"Failed to process @ commands: {e}")
             return user_input
 
-    async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
+    async def run(self, user_input: str| List[TResponseInputItem], context: CodeAgentContext) -> RunResult:
         """
         Execute code generation task.
 
@@ -141,7 +144,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         return result
 
     async def run_streamed(
-        self, user_input: str, context: CodeAgentContext
+        self, user_input: str| List[TResponseInputItem], context: CodeAgentContext
     ) -> RunResultStreaming:
         """
         Execute code generation task with streaming output.

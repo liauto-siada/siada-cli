@@ -50,6 +50,7 @@ jobs:
         with:
           packages-dir: dist/
           repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
 
       - name: Publish release distributions to PyPI
         if: ${{ github.event.inputs.test != 'true' }}

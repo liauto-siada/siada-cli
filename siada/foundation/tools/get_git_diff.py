@@ -6,18 +6,18 @@ import os
 import pandas as pd
 
 class GitDiffUtil:
-    """工具类，用于获取 Git 仓库的 diff 信息，排除测试文件。"""
+    """Utility class for getting Git repository diff information, excluding test files."""
 
     @staticmethod
     def get_git_diff(repo_path: str = ".") -> str:
         """
-        获取当前 Git 仓库的完整 diff。
+        Get the complete diff of the current Git repository.
 
         Args:
-            repo_path: Git 仓库的路径，默认为当前目录。
+            repo_path: Path to the Git repository, defaults to current directory.
 
         Returns:
-            str: 返回完整的 diff 信息。
+            str: Returns the complete diff information.
         """
         if repo_path == ".":
             repo_path = Path.cwd()
@@ -43,13 +43,13 @@ class GitDiffUtil:
     @staticmethod
     def get_git_diff_exclude_test_files(repo_path: str = ".") -> str:
         """
-        获取当前 Git 仓库的完整 diff，排除测试文件。
+        Get the complete diff of the current Git repository, excluding test files.
 
         Args:
-            repo_path: Git 仓库的路径，默认为当前目录。
+            repo_path: Path to the Git repository, defaults to current directory.
 
         Returns:
-            str: 返回排除测试文件后的 diff 信息。
+            str: Returns the diff information excluding test files.
         """
         if repo_path == ".":
             repo_path = Path.cwd()
@@ -90,11 +90,13 @@ class GitDiffUtil:
     @staticmethod
     def _find_git_root(path: Path) -> Optional[Path]:
         """
-        向上查找 Git 仓库根目录
+        Search upward for Git repository root directory
+        
         Args:
-            path: 起始查找路径
+            path: Starting search path
+            
         Returns:
-            Git 仓库根目录路径，如果未找到则返回 None
+            Git repository root directory path, or None if not found
         """
         current = path.resolve()
         
@@ -109,13 +111,13 @@ class GitDiffUtil:
     @staticmethod
     def get_git_diff_analysis(repo_path: str = ".") -> dict:
         """
-        获取 Git diff 分析结果，包括添加、删除、总行数和净变化行数。
+        Get Git diff analysis results, including added, deleted, total lines and net changes.
 
         Args:
-            repo_path: Git 仓库的路径，默认为当前目录。
+            repo_path: Path to the Git repository, defaults to current directory.
 
         Returns:
-            dict: 包含添加、删除、总行数和净变化行数的字典。
+            dict: Dictionary containing added, deleted, total lines and net changes.
         """
         diff_text = GitDiffUtil.get_git_diff_exclude_test_files(repo_path)
         
@@ -127,7 +129,7 @@ class GitDiffUtil:
 
     def parse_diff_lines(diff_text: str) -> dict:
         """
-        analyze git diff to count added, deleted, and total changed lines.
+        Analyze git diff to count added, deleted, and total changed lines.
         
         Args:
             diff_text (str): git diff text
@@ -197,7 +199,7 @@ class GitDiffUtil:
 # Example usage
 if __name__ == "__main__":
     # from siada.foundation.tools.get_git_diff import GitDiffUtil
-    # 示例用法
+    # Example usage
     try:
         diff = GitDiffUtil.get_git_diff_exclude_test_files(repo_path="/Users/caoxin/Projects/AgentHub/siada-agenthub")
         print("Git diff (excluding test files):")

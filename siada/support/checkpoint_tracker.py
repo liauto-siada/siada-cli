@@ -1,7 +1,6 @@
 import asyncio
 import copy
 import dataclasses
-import hashlib
 import json
 import re
 import time
@@ -14,8 +13,13 @@ from siada.services.git_service import GitService
 from siada.session.task_message_state import TaskMessageState
 from siada.foundation.logging import logger
 from siada.utils import DirectoryUtils
+from siada.support.usage_utils import serialize_usage
 
 SUPPORT_CHECKPOINTS_TOOLS = ["edit_file", "run_cmd"]
+
+# Checkpoint cleanup constants
+CLEANUP_THRESHOLD_BUFFER = 5  # Trigger cleanup when files exceed max + this value
+CLEANUP_BATCH_SIZE = 5  # Number of oldest files to delete in each cleanup
 
 @dataclasses.dataclass
 class CheckPointData:
@@ -24,11 +28,13 @@ class CheckPointData:
     history: List[TResponseInputItem]
     use_tool_name: str
     modified_file_names: List[str]
+    real_api_message: Optional[dict] = None
+    usage: Optional[dict] = None
     data: Optional[dict] = None
     
     def to_dict(self) -> dict:
         """Convert checkpoint data to dictionary for JSON serialization"""
-        return {
+        result = {
             'timestamp': self.timestamp.isoformat(),
             'last_commit_hash': self.last_commit_hash,
             'history': self.history,  # TResponseInputItem inherits from TypedDict, already dict-like
@@ -36,6 +42,11 @@ class CheckPointData:
             'modified_file_names': self.modified_file_names,
             'data': self.data
         }
+        if self.real_api_message is not None:
+            result['real_api_message'] = self.real_api_message
+        if self.usage is not None:
+            result['usage'] = self.usage
+        return result
     
     @classmethod
     def from_dict(cls, data: dict) -> 'CheckPointData':
@@ -46,15 +57,27 @@ class CheckPointData:
             history=data['history'],
             use_tool_name=data['use_tool_name'],
             modified_file_names=data['modified_file_names'],
+            real_api_message=data.get('real_api_message'),
+            usage=data.get('usage'),
             data=data.get('data')
         )
 
 
 class CheckPointTracker:
 
-    def __init__(self, cwd: str, session_id):
+    def __init__(self, cwd: str, session_id, max_checkpoint_files: int = 50):
+        """
+        Initialize CheckPointTracker.
+        
+        Args:
+            cwd: Current working directory
+            session_id: Session identifier
+            max_checkpoint_files: Maximum number of checkpoint files to retain (default: 50)
+        """
         self.cwd = cwd
         self.session_id = session_id
+        self.max_checkpoint_files = max_checkpoint_files
+        self._is_initialized = False  # Track whether start() has been called
 
         project_temp_dir = Path(DirectoryUtils.get_project_temp_dir(self.cwd))
         self.shadow_repo_dir = str(project_temp_dir / "shadow_repo")
@@ -125,8 +148,26 @@ class CheckPointTracker:
         return True
 
     def start(self):
+        """Initialize checkpoint snapshot. This should only be called once per tracker instance."""
+        if self._is_initialized:
+            logger.debug(f"Checkpoint tracker already initialized for session {self.session_id}")
+            return
+        
         message = f"start or continue checkpointing for session_id {self.session_id}"
         self.git_service.create_snapshot(message=message)
+        self._is_initialized = True
+
+    def create_snapshot(self, message: str) -> str:
+        """
+        Create a git snapshot with the given message.
+        
+        Args:
+            message: Commit message for the snapshot
+            
+        Returns:
+            Commit hash of the created snapshot
+        """
+        return self.git_service.create_snapshot(message)
 
     def get_checkpoint_data_by_file_name(self, file_name: str) -> Optional[CheckPointData]:
         """
@@ -182,10 +223,13 @@ class CheckPointTracker:
 
         return function_tool_name, arguments
 
-    async def _write_checkpoint_file_async(self, checkpoint_file: Path, checkpoint_data: CheckPointData):
-        """Asynchronously write checkpoint data to file."""
+    async def _write_checkpoint_and_cleanup_async(self, checkpoint_file: Path, checkpoint_data: CheckPointData):
+        """
+        Asynchronously write checkpoint data to file and then cleanup old checkpoints.
+        This ensures the two operations happen in sequence.
+        """
         try:
-            # Run the file writing operation in an executor to avoid blocking
+            # Step 1: Write checkpoint file
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
                 None,
@@ -195,13 +239,101 @@ class CheckPointTracker:
                 )
             )
             logger.info(f"Successfully saved checkpoint to {checkpoint_file.name}")
+            
+            # Step 2: Cleanup old checkpoints after successful write
+            await self._cleanup_old_checkpoints_async()
+            
         except (OSError, IOError, PermissionError) as e:
             logger.error(f"Failed to write checkpoint file: {e}")
         except Exception as e:
             logger.error(f"Unexpected error while saving checkpoint: {e}")
 
-    def save_checkpoints(self, session_id: str, task_message_state: TaskMessageState):
-        """Save checkpoint with comprehensive error handling"""
+    def _cleanup_old_checkpoints_sync(self):
+        """
+        Synchronously clean up old checkpoint files when count exceeds limit.
+        Delete oldest 5 files when total exceeds max_checkpoint_files + 5.
+        Uses filename timestamp for sorting to ensure cross-platform consistency.
+        """
+        try:
+            # Skip cleanup if max_checkpoint_files is disabled (<=0)
+            if self.max_checkpoint_files <= 0:
+                return
+                
+            checkpoint_dir_path = Path(self.checkpoint_dir)
+            if not checkpoint_dir_path.exists():
+                return
+            
+            # Get all checkpoint files sorted by filename (timestamp is in filename)
+            # Filename format: YYYY_MM_DD_HHMMSS__{tool}__{files}.json
+            checkpoint_files = sorted(
+                checkpoint_dir_path.glob("*.json"),
+                key=lambda p: p.name  # Sort by filename, timestamp is lexicographically sortable
+            )
+            
+            total_files = len(checkpoint_files)
+            
+            # Only cleanup when exceeding threshold (max + CLEANUP_THRESHOLD_BUFFER)
+            if total_files > self.max_checkpoint_files + CLEANUP_THRESHOLD_BUFFER:
+                files_to_delete = checkpoint_files[:CLEANUP_BATCH_SIZE]  # Delete oldest files in batch
+                
+                for file_path in files_to_delete:
+                    try:
+                        file_path.unlink()
+                        logger.info(f"Deleted old checkpoint: {file_path.name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete checkpoint {file_path.name}: {e}")
+                        
+        except Exception as e:
+            logger.error(f"Error during checkpoint cleanup: {e}")
+
+    async def _cleanup_old_checkpoints_async(self):
+        """
+        Asynchronously clean up old checkpoint files when count exceeds limit.
+        Delete oldest 5 files when total exceeds max_checkpoint_files + 5.
+        Uses filename timestamp for sorting to ensure cross-platform consistency.
+        """
+        try:
+            # Skip cleanup if max_checkpoint_files is disabled (<=0)
+            if self.max_checkpoint_files <= 0:
+                return
+                
+            checkpoint_dir_path = Path(self.checkpoint_dir)
+            if not checkpoint_dir_path.exists():
+                return
+            
+            # Get all checkpoint files sorted by filename (timestamp is in filename)
+            # Filename format: YYYY_MM_DD_HHMMSS__{tool}__{files}.json
+            checkpoint_files = sorted(
+                checkpoint_dir_path.glob("*.json"),
+                key=lambda p: p.name  # Sort by filename, timestamp is lexicographically sortable
+            )
+            
+            total_files = len(checkpoint_files)
+            
+            # Only cleanup when exceeding threshold (max + CLEANUP_THRESHOLD_BUFFER)
+            if total_files > self.max_checkpoint_files + CLEANUP_THRESHOLD_BUFFER:
+                files_to_delete = checkpoint_files[:CLEANUP_BATCH_SIZE]  # Delete oldest files in batch
+                
+                loop = asyncio.get_event_loop()
+                for file_path in files_to_delete:
+                    try:
+                        await loop.run_in_executor(None, file_path.unlink)
+                        logger.info(f"Deleted old checkpoint: {file_path.name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete checkpoint {file_path.name}: {e}")
+                        
+        except Exception as e:
+            logger.error(f"Error during checkpoint cleanup: {e}")
+
+    def save_checkpoints(self, session_id: str, task_message_state: TaskMessageState, usage=None):
+        """
+        Save checkpoint with comprehensive error handling
+        
+        Args:
+            session_id: Session identifier
+            task_message_state: Task message state containing conversation history
+            usage: Optional Usage object to save with checkpoint
+        """
 
         # Create a copy of task_message_state to avoid modifying the original
         task_message_state_copy = copy.deepcopy(task_message_state)
@@ -246,6 +378,13 @@ class CheckPointTracker:
             logger.error(f"Failed to create git snapshot: {e}")
             return
 
+        # Get RealApiMessage object and serialize it
+        real_api_msg = task_message_state_copy._real_messages
+        real_api_msg_dict = real_api_msg.to_dict() if real_api_msg else None
+        
+        # Serialize usage if provided using utility function
+        usage_dict = serialize_usage(usage)
+
         # Use the copied message history instead of the original
         checkpoint_data = CheckPointData(
             timestamp=timestamp,
@@ -253,6 +392,8 @@ class CheckPointTracker:
             history=task_message_state_copy.get_messages(),
             use_tool_name=function_tool_name,
             modified_file_names=modified_file_names,
+            real_api_message=real_api_msg_dict,
+            usage=usage_dict,
         )
 
         # Sanitize and limit file names for the filename
@@ -269,20 +410,25 @@ class CheckPointTracker:
 
         checkpoint_file = checkpoint_dir_path / checkpoint_file_name
 
-        # Write checkpoint data to file asynchronously
-        # Create and run the async task without blocking
+        # Schedule write and cleanup task asynchronously (in sequence, non-blocking)
         try:
-            # Check if there's already an event loop running
+            asyncio.get_running_loop()
+            asyncio.create_task(self._write_checkpoint_and_cleanup_async(checkpoint_file, checkpoint_data))
+        except RuntimeError:
+            # No running loop, fall back to synchronous write and cleanup
             try:
-                asyncio.get_running_loop()
-                # Schedule the async write operation as a task
-                asyncio.create_task(self._write_checkpoint_file_async(checkpoint_file, checkpoint_data))
-            except RuntimeError:
-                # No event loop is running, create a new one
-                asyncio.run(self._write_checkpoint_file_async(checkpoint_file, checkpoint_data))
-        except Exception as e:
-            logger.error(f"Failed to initiate async checkpoint write: {e}")
-            return
+                checkpoint_file.write_text(
+                    json.dumps(checkpoint_data.to_dict(), ensure_ascii=False, indent=2),
+                    encoding='utf-8'
+                )
+                logger.info(f"Successfully saved checkpoint to {checkpoint_file.name}")
+                
+                # Execute cleanup synchronously after successful write
+                self._cleanup_old_checkpoints_sync()
+            except (OSError, IOError, PermissionError) as e:
+                logger.error(f"Failed to write checkpoint file: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error while saving checkpoint: {e}")
 
     def _clean_commit_hash(self, hash_str: str) -> str:
         """
@@ -340,9 +486,20 @@ class CheckPointTracker:
             raise RuntimeError(f"Failed to get diff set hunks: {e}")
 
 
-def create_checkpoint_tracker(cwd: str, session_id: str) -> CheckPointTracker:
+def create_checkpoint_tracker(cwd: str, session_id: str, max_checkpoint_files: int = 50) -> CheckPointTracker:
+    """
+    Create a CheckPointTracker instance.
+    
+    Args:
+        cwd: Current working directory
+        session_id: Session identifier
+        max_checkpoint_files: Maximum number of checkpoint files to retain (default: 50)
+        
+    Returns:
+        CheckPointTracker instance or None if creation fails
+    """
     try:
-        return CheckPointTracker(cwd, session_id)
+        return CheckPointTracker(cwd, session_id, max_checkpoint_files)
     except Exception as e:
         logger.error(f"Failed to create checkpoint tracker: {e}")
         return None

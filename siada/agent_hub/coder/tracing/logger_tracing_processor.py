@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -194,7 +195,7 @@ class LoggerTracingProcessor(TracingProcessor):
             else:
                 content_str = self._truncate_content(str(content))
             
-            self._print(f"  [{role}]: {content_str}")
+            self._print(f"  [{role}]: {re.sub(r'(data:image/jpeg;base64,)[^"]*', r'\1...', content_str)}")
         
         # Update the count of printed messages
         state.message_count = len(messages)
@@ -375,7 +376,7 @@ class LoggerTracingProcessor(TracingProcessor):
         call_num = state.tool_call_count if state else "?"
         self._print(f"\n{self.colors['tool']}{self.colors['bold']}🔧 === TOOL CALL {call_num} ==={self.colors['reset']}")
         self._print(f"{self.colors['tool']}{self._format_timestamp()}Function: {data.name}{self.colors['reset']}")
-        
+
         # 打印输入
         if data.input:
             formatted_input = self._format_json(data.input)
@@ -386,7 +387,7 @@ class LoggerTracingProcessor(TracingProcessor):
         if data.output is not None:
             formatted_output = self._format_json(data.output)
             truncated_output = self._truncate_content(str(formatted_output))
-            self._print(f"{self.colors['output']}📤 Output: {truncated_output}{self.colors['reset']}")
+            self._print(f"{self.colors['output']}📤 Output: {re.sub(r'(data:image/jpeg;base64,)[^"]*', r'\1...', truncated_output)}{self.colors['reset']}")
         
         # 打印 MCP 数据（如果有）
         if data.mcp_data:

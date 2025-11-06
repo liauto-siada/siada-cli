@@ -8,10 +8,12 @@ import warnings
 from prompt_toolkit.completion import Completer
 
 from siada.config.config_loader import Config, load_conf
+from siada.config.language_config import get_agent_default_language
 from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.entrypoint.interaction.controller import Controller
 from siada.entrypoint.interaction.nointeractive_controller import NoInteractiveController
-from siada.foundation.logging import redirect_agents_logger, toggle_console_output, logger
+from siada.foundation.logging import redirect_agents_logger, redirect_aiohttp_asyncio_logger, toggle_console_output, logger
+from siada.foundation.siadaignore_controller import SiadaIgnoreController
 from siada.io.color_settings import RunningConfigColorSettings
 from siada.models.model_run_config import ModelRunConfig
 from siada.session.session_manager import RunningSessionManager
@@ -105,6 +107,7 @@ def _validate_mcp_config(config):
 
 def _suppress_third_party_warnings():
     """Suppress harmless warnings from third-party libraries"""
+    
     # Suppress pydub ffmpeg/avconv warning - not relevant for Siada as we don't use audio features
     warnings.filterwarnings(
         "ignore", 
@@ -118,6 +121,9 @@ def _suppress_third_party_warnings():
         message="invalid escape sequence.*", 
         category=SyntaxWarning
     )
+    
+    # Redirect aiohttp and asyncio logs to file to prevent console warnings
+    redirect_aiohttp_asyncio_logger()
     
     redirect_agents_logger()
 
@@ -329,35 +335,49 @@ def is_home_directory(workspace: str = None) -> bool:
     return workspace_path == home_dir
 
 
-def get_enable_checkpointing(
+def get_checkpointing_config(
     args,
     conf: Config = None,
     interactive_mode: bool = True
-) -> bool:
+):
     """
-    Get enable_checkpointing setting with priority: args > config file > default
-
+    Get complete checkpointing configuration with priority: args > config file > default
+    
     Args:
         args: Parsed command line arguments
         conf: Loaded configuration from config file
         interactive_mode: Whether running in interactive mode
-
+        
     Returns:
-        bool: Final enable_checkpointing value
+        CheckpointConfig: Complete checkpointing configuration
     """
-
+    from siada.config.config_loader import CheckpointConfig
+    
     # Non-interactive mode always disables checkpointing
     if not interactive_mode:
-        return False
-
-    # Priority: args > config file > default (False)
-    if args.checkpointing is not None:
-        return args.checkpointing
-
-    if conf and conf.checkpoint_config and conf.checkpoint_config.enable is not None:
-        return conf.checkpoint_config.enable
-
-    return False
+        return CheckpointConfig(enable=False, max_checkpoint_files=50)
+    
+    # Get enable flag - Priority: args > config file > default (True)
+    enable = None
+    if hasattr(args, 'checkpointing') and args.checkpointing is not None:
+        enable = args.checkpointing
+    elif conf and conf.checkpoint_config and conf.checkpoint_config.enable is not None:
+        enable = conf.checkpoint_config.enable
+    else:
+        # Default to True in interactive mode
+        enable = True
+    
+    # Get max_checkpoint_files - Priority: args > config file > default (50)
+    max_files = None
+    if hasattr(args, 'max_checkpoint_files') and args.max_checkpoint_files is not None:
+        max_files = args.max_checkpoint_files
+    elif conf and conf.checkpoint_config and conf.checkpoint_config.max_checkpoint_files is not None:
+        max_files = conf.checkpoint_config.max_checkpoint_files
+    else:
+        # Default to 50
+        max_files = 50
+    
+    return CheckpointConfig(enable=enable, max_checkpoint_files=max_files)
 
 
 def get_config(args, io, conf: Config = None):
@@ -378,6 +398,32 @@ def get_config(args, io, conf: Config = None):
     final_model = args.model or (conf.llm_config.model if conf and conf.llm_config else None)
     final_provider = args.provider or (conf.llm_config.provider if conf and conf.llm_config else None)
     
+    # If provider is 'default', load user-defined model configurations
+    if final_provider == "default" and conf and conf.model_config:
+        from siada.models.model_base_config import set_user_model_settings, ModelBaseConfig
+        
+        # Convert user model configs to ModelBaseConfig list
+        user_models = []
+        for user_model in conf.model_config.models:
+            model_config = ModelBaseConfig(
+                model_name=user_model.model_name,
+                context_window=user_model.context_window,
+                max_tokens=user_model.max_tokens,
+                supports_images=user_model.supports_images,
+                supports_prompt_cache=user_model.supports_prompt_cache,
+                supports_extra_params=user_model.supports_extra_params
+            )
+            user_models.append(model_config)
+        
+        # Set user-defined models
+        set_user_model_settings(user_models)
+        
+        # If no model specified and default_model is set in config, use it
+        if final_model is None and conf.model_config.default_model:
+            final_model = conf.model_config.default_model
+            if args.verbose:
+                io.print_info(f"Using default model from user configuration: {final_model}")
+    
     # Apply final configuration
     if final_model is not None:
         config.model_name = final_model
@@ -395,6 +441,14 @@ def get_config(args, io, conf: Config = None):
         ## check the openrouter api key is set
         if os.getenv("OPENROUTER_API_KEY") is None:
             io.print_error("OPENROUTER_API_KEY is not set for openrouter provider")
+            sys.exit(1)
+
+    if config.provider == "default":
+        if os.getenv("BASE_URL") is None:
+            io.print_error("BASE_URL is not set for default provider")
+            sys.exit(1)
+        if os.getenv("API_KEY") is None:
+            io.print_error("API_KEY is not set for default provider")
             sys.exit(1)
 
     # Set reasoning effort and thinking tokens if specified
@@ -512,19 +566,30 @@ def main():
         session_id=session_id
     )
 
-    # get the enable_checkpointing flag with priority: args > config file > default
-    enable_checkpointing = get_enable_checkpointing(args, conf, interactive_mode)
-
-    # if the workspace is home directory disable the enable_checkpointing
-    if is_home_directory(workspace) and enable_checkpointing:
-        io.print_warning(
-            "Warning: workspace is home directory, disabling checkpointing for safety."
-        )
-        enable_checkpointing = False
+    # Get checkpointing configuration with priority: args > config file > default
+    checkpointing_config = get_checkpointing_config(args, conf, interactive_mode)
+    
+    # If workspace is home directory, disable checkpointing for safety
+    if checkpointing_config and checkpointing_config.enable is not None:
+        if is_home_directory(workspace) and checkpointing_config.enable:
+            io.print_warning(
+                "Warning: workspace is home directory, disabling checkpointing for safety."
+            )
+            from siada.config.config_loader import CheckpointConfig
+            checkpointing_config = CheckpointConfig(
+                enable=False,
+                max_checkpoint_files=checkpointing_config.max_checkpoint_files
+            )
 
     # Load user memory from siada.md file
     user_memory = load_siada_memory(workspace)
 
+    # Initialize SiadaIgnore controller for file access control
+    siadaignore_controller = SiadaIgnoreController(workspace)
+    siadaignore_controller.initialize()
+    
+    # Get default language for the agent
+    default_language = get_agent_default_language(args.agent)
 
     running_config = RunningConfig(
         llm_config=model,
@@ -537,8 +602,10 @@ def main():
         interactive=interactive_mode,
         user_memory=user_memory,
         mcp_config=conf.mcp_config,
-        enable_checkpointing=enable_checkpointing,
+        checkpointing_config=checkpointing_config,
         auto_compact=args.auto_compact,
+        siadaignore_controller=siadaignore_controller,
+        preferred_language=default_language,
     )
 
     # create session

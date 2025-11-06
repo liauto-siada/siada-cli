@@ -17,8 +17,10 @@ from siada.support.editor import pipe_editor
 from siada.support.spinner import WaitingSpinner
 from siada.tools.coder.cmd_runner import run_cmd_impl as run_cmd
 from siada.support.checkpoint_tracker import CheckPointData
+from siada.support.usage_utils import deserialize_usage
 from siada.support.message_classifier import get_role_and_type_from_item
 from siada.utils import DirectoryUtils
+from siada.config.language_config import normalize_language, get_language_display_name, SUPPORTED_LANGUAGES
 
 
 class SwitchEvent:
@@ -825,13 +827,15 @@ Write the complete content to the `siada.md` file. The output must be well-forma
 
         return restored_history
 
-    def _manage_session_and_restore(self, session, target_commit_hash, restore_history):
+    def _manage_session_and_restore(self, session, target_commit_hash, restore_history, checkpoint_data):
         """
         Manage OpenAI session clearing and project state restoration with rollback.
 
         Args:
             session: The current session
             target_commit_hash: The commit hash to restore to
+            restore_history: The history to restore
+            checkpoint_data: The checkpoint data containing real_api_message and usage
 
         Returns:
             True if successful, False otherwise
@@ -839,17 +843,31 @@ Write the complete content to the `siada.md` file. The output must be well-forma
         import asyncio
 
         async def async_operations():
-            # Clear the openai session and save backup
-            old_real_items = session.task_message_state.get_real_messages()
-            session.task_message_state.reset_real_messages()
+            # Save old messages and usage for rollback
+            old_real_items = session.task_message_state._real_messages
             old_items = await session.state.openai_session.get_items()
+            old_usage = session.state.usage
+            
             # Reset the openai session with the restore history
             await session.state.openai_session.reset_items(restore_history)
-            # Reset the real messages
-            return old_items, old_real_items
+            
+            # Restore RealApiMessage object (if checkpoint has it saved)
+            if checkpoint_data.real_api_message is not None:
+                from siada.session.task_message_state import RealApiMessage
+                real_api_message = RealApiMessage.from_dict(checkpoint_data.real_api_message)
+                session.task_message_state.set_real_messages(real_api_message)
+            else:
+                # Old checkpoint without real_api_message, reset it
+                session.task_message_state.reset_real_messages()
+            
+            # Restore Usage object using utility function
+            restored_usage = deserialize_usage(checkpoint_data.usage)
+            session.state.usage = restored_usage
+            
+            return old_items, old_real_items, old_usage
 
         # Run all async operations in one event loop
-        old_items, old_real_items = asyncio.run(async_operations())
+        old_items, old_real_items, old_usage = asyncio.run(async_operations())
 
         try:
             # Restore the project state
@@ -864,6 +882,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
             async def rollback_operations():
                 await session.state.openai_session.reset_items(old_items)
                 session.task_message_state.set_real_messages(old_real_items)
+                session.state.usage = old_usage
             
             asyncio.run(rollback_operations())
             return False
@@ -898,7 +917,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 return
 
             # Manage session and restore project state
-            if not self._manage_session_and_restore(session, previous_commit_hash, restored_history):
+            if not self._manage_session_and_restore(session, previous_commit_hash, restored_history, checkpoint_data):
                 return
 
             self.io.print_info(f"Successfully undone checkpoint '{checkpoint_filename}'")
@@ -934,7 +953,7 @@ Write the complete content to the `siada.md` file. The output must be well-forma
                 return
 
             # Manage session and restore project state
-            if not self._manage_session_and_restore(session, checkpoint_data.last_commit_hash, restored_history):
+            if not self._manage_session_and_restore(session, checkpoint_data.last_commit_hash, restored_history, checkpoint_data):
                 return
 
             self.io.print_info(f"Successfully restored from checkpoint '{checkpoint_filename}'")
@@ -946,6 +965,56 @@ Write the complete content to the `siada.md` file. The output must be well-forma
             if self.verbose:
                 import traceback
                 self.io.print_error(traceback.format_exc())
+
+    def cmd_clear(self, session, args: str):
+        "Start a new task session without previous conversation history"
+        
+        try:
+            # Return a SwitchEvent to signal the controller to create a new session
+            return SwitchEvent(clear=True)
+            
+        except Exception as e:
+            self.io.print_error(f"Failed to start new task: {str(e)}")
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
+
+    def cmd_lang(self, session, args):
+        """Switch language preference between English and Chinese (en/zh-CN)"""
+        
+        lang = args.strip().lower()
+        
+        # Display current language setting
+        if not lang:
+            current = session.siada_config.preferred_language
+            current_display = get_language_display_name(current)
+            self.io.print_info(f"Current language: {current_display}")
+            self.io.print_info(f"Available languages: {', '.join(SUPPORTED_LANGUAGES)}")
+            self.io.print_info("Usage: /lang <language>")
+            return
+        
+        # Normalize and validate language input
+        normalized_lang = normalize_language(lang)
+        
+        if not normalized_lang:
+            self.io.print_error(f"Invalid language: {lang}")
+            self.io.print_info(f"Supported languages: {', '.join(SUPPORTED_LANGUAGES)}")
+            return
+        
+        # Update session language setting
+        old_lang = session.siada_config.preferred_language
+        
+        if old_lang == normalized_lang:
+            display_name = get_language_display_name(normalized_lang)
+            self.io.print_info(f"Language is already set to {display_name}")
+            return
+        
+        session.siada_config.preferred_language = normalized_lang
+        
+        # Display success message
+        display_name = get_language_display_name(normalized_lang)
+        self.io.print_info(f"✓ Language switched to {display_name}")
+        self.io.print_info("Note: This change applies to the current session only")
 
 
 def main():

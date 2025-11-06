@@ -42,12 +42,12 @@ class ChromiumAutoInstaller:
         Raises:
             RuntimeError: If Chromium cannot be found or installed
         """
-        self.logger.info("Checking for Chromium availability...")
+        # self.logger.info("Checking for Chromium availability...")
         
         # 1. Try to find existing Chromium installations
         existing_path = self._find_existing_chromium()
         if existing_path:
-            self.logger.info(f"Found existing Chromium: {existing_path}")
+            # self.logger.info(f"Found existing Chromium: {existing_path}")
             return existing_path
         
         # 2. If not found, attempt automatic installation
@@ -82,20 +82,20 @@ class ChromiumAutoInstaller:
         # 1. Check environment variable first
         env_path = os.environ.get('CHROMIUM_BINARY_PATH')
         if env_path and self._is_valid_browser(env_path):
-            self.logger.info(f"Using Chromium from environment variable: {env_path}")
+            # self.logger.info(f"Using Chromium from environment variable: {env_path}")
             return env_path
 
         # 2. Check Playwright installation
         playwright_path = self._find_playwright_chromium()
         if playwright_path:
-            self.logger.info(f"Found Playwright Chromium: {playwright_path}")
+            # self.logger.info(f"Found Playwright Chromium: {playwright_path}")
             return playwright_path
 
-        # 3. Check system installations
-        system_path = self._find_system_chromium()
-        if system_path:
-            self.logger.info(f"Found system Chromium: {system_path}")
-            return system_path
+        # # 3. Check system installations
+        # system_path = self._find_system_chromium()
+        # if system_path:
+        #     self.logger.info(f"Found system Chromium: {system_path}")
+        #     return system_path
 
         return None
 

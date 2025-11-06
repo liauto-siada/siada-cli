@@ -6,6 +6,7 @@ from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
 from siada.support.checkpoint_tracker import create_checkpoint_tracker
+from siada.support.spinner import WaitingSpinner
 
 from .session_models import RunningSession
 
@@ -52,9 +53,13 @@ class RunningSessionManager:
         )
         session.state.openai_session = file_session
 
-        if siada_config.enable_checkpointing:
+        if siada_config.checkpointing_config and siada_config.checkpointing_config.enable:
+            # Get max_checkpoint_files from config, default to 50 if not set
+            max_files = siada_config.checkpointing_config.max_checkpoint_files or 50
             session.checkpoint_tracker = create_checkpoint_tracker(
-                cwd=siada_config.workspace, session_id=session_id
+                cwd=siada_config.workspace, 
+                session_id=session_id,
+                max_checkpoint_files=max_files
             )
         return session
 

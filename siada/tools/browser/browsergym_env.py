@@ -132,12 +132,18 @@ class BrowserGymWorkerThread:
             )
             
             # Create the environment using patched Chat class
-            self.env = BrowserEnv(
-                task_entrypoint=OpenEndedTask,
-                task_kwargs={"start_url": start_url},
-                headless=headless,
-                wait_for_user_message=False
-            )
+            # Set larger viewport only if start_url contains /card suffix
+            env_kwargs = {
+                "task_entrypoint": OpenEndedTask,
+                "task_kwargs": {"start_url": start_url},
+                "headless": headless,
+                "wait_for_user_message": False
+            }
+            
+            if "card=true" in start_url:
+                env_kwargs["viewport"] = {"width": 1080, "height": 1440}  # 设置更大的视口以显示完整卡片
+            
+            self.env = BrowserEnv(**env_kwargs)
             
             # Reset the environment to initial state
             obs, info = self.env.reset()
@@ -268,6 +274,29 @@ class BrowserGymWorkerThread:
         """Close environment in worker thread."""
         try:
             if self.env is not None:
+                # 先获取页面引用，用于清理
+                page = self._get_browser_page()
+                
+                # 清理页面上的自定义元素和事件监听器
+                if page:
+                    try:
+                        cleanup_js = """
+                        (function() {
+                            // 移除所有 Siada 相关元素
+                            const elements = document.querySelectorAll('.siada-cursor, .siada-cursor-trail, .siada-click-indicator');
+                            elements.forEach(el => el.remove());
+                            
+                            // 清理全局变量
+                            delete window.siadaCursor;
+                            delete window.moveSiadaCursor;
+                            delete window.showSiadaClick;
+                        })();
+                        """
+                        page.evaluate(cleanup_js)
+                    except Exception:
+                        pass  # 忽略清理错误
+                
+                # 关闭环境
                 self.env.close()
             
             self.env = None
@@ -295,7 +324,7 @@ class BrowserGymWorkerThread:
                 continue
         
         raise TimeoutError(f"Command timed out after {timeout} seconds")
-    
+
     def _inject_cursor_functionality(self):
         """Inject cursor functionality into the browser page."""
         try:

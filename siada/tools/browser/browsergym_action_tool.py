@@ -8,13 +8,16 @@ instead of coordinate-based clicking.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-from typing import Optional, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
+from typing import Optional, Dict, Any, Coroutine, TypeVar
 from dataclasses import asdict
 
 from agents import function_tool, RunContextWrapper
 
+from .chromium_installer import ChromiumAutoInstaller
 from .browsergym_env import BrowserGymEnv
 from .browsergym_utils import (
     format_action_command,
@@ -25,6 +28,8 @@ from .browsergym_utils import (
 )
 from .models import ImageResult
 from ...foundation.code_agent_context import CodeAgentContext
+from ..coder.observation.observation import FunctionCallResult
+T = TypeVar('T')
 
 # Documentation for the browser operate tool
 BROWSERGYM_OPERATE_DOC = """
@@ -181,6 +186,57 @@ Returns:
              - success: Boolean indicating if action was successful
              - error: Error message if action failed (null if successful)
 """
+
+
+class BrowserGymActionResult(FunctionCallResult):
+    """BrowserGym 操作结果类，用于格式化显示输出。
+    
+    由于 BrowserGym 的结果通常包含大量的截图和可访问性树数据，
+    此类提供简化的显示格式，只显示关键信息。
+    """
+    
+    def __init__(self, action: str, success: bool, error: Optional[str] = None, 
+                 page_info: Optional[Dict[str, Any]] = None, available_bids_count: int = 0,
+                 full_content: str = ""):
+        """初始化 BrowserGym 操作结果。
+        
+        Args:
+            action: 执行的操作类型
+            success: 操作是否成功
+            error: 错误信息（如果有）
+            page_info: 页面信息
+            available_bids_count: 可用元素ID数量
+            full_content: 完整的原始内容
+        """
+        self.action = action
+        self.success = success
+        self.error = error
+        self.page_info = page_info or {}
+        self.available_bids_count = available_bids_count
+        super().__init__(content=full_content)
+    
+    def format_for_display(self) -> str:
+        """格式化显示 BrowserGym 操作结果。
+        
+        只显示关键信息，避免输出过长的截图和可访问性树数据。
+        
+        Returns:
+            str: 格式化的显示字符串
+        """
+        if not self.success:
+            return f"BrowserGym 操作 '{self.action}' 失败: {self.error or '未知错误'}"
+        
+        if self.action == "launch":
+            url = self.page_info.get("url", "未知URL")
+            title = self.page_info.get("title", "")
+            title_info = f" - {title}" if title else ""
+            return f"BrowserGym 浏览器已启动并导航到: {url}{title_info}"
+        
+        elif self.action == "close":
+            return "BrowserGym 浏览器已关闭"
+        
+        else:
+            return f"BrowserGym 操作 '{self.action}' 执行成功"
 
 
 class BrowserGymActionTool:
@@ -393,9 +449,17 @@ def browser_operate_by_gym(
     key: Optional[str] = None,
     button: str = "left",
     modifiers: Optional[list] = None
-) -> str:
+) -> FunctionCallResult:
     import weakref
 
+    def run_async_from_sync(coro: Coroutine[Any, Any, T]) -> T:
+        """在已有事件循环的同步函数中运行异步函数"""
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+
+    installer = ChromiumAutoInstaller()
+    run_async_from_sync(installer.ensure_chromium_available())
     # Get or create browser tool instance from context
     if not hasattr(context.context, '_browsergym_tool'):
         context.context._browsergym_tool = BrowserGymActionTool()
@@ -438,7 +502,7 @@ def browser_operate_by_gym(
             if hasattr(context.context, '_browsergym_tool'):
                 delattr(context.context, '_browsergym_tool')
         
-        # Convert result to ImageResult format for consistency with other browser tools
+        # Create full content for the result (original JSON format for compatibility)
         if result.get("screenshot") and result.get("success", False):
             # Extract base64 data
             screenshot_data = result["screenshot"].split(",")[-1] if "," in result["screenshot"] else result["screenshot"]
@@ -469,16 +533,27 @@ def browser_operate_by_gym(
                 )
             )
             
-            return json.dumps(asdict(image_result))
+            full_content = json.dumps(asdict(image_result))
+            
+            # Return BrowserGymActionResult with formatted display
+            return BrowserGymActionResult(
+                action=action,
+                success=result.get("success", False),
+                error=result.get("error"),
+                page_info=result.get("page_info", {}),
+                available_bids_count=len(available_bids),
+                full_content=full_content
+            )
         else:
             # Handle cases where screenshot is None or operation failed
             # Still try to get accessibility tree information even without screenshot
             obs = getattr(tool.env_manager, '_last_obs', None) if hasattr(tool.env_manager, '_last_obs') else None
             formatted_axtree = format_accessibility_tree(obs) if obs else ""
+            available_bids = result.get("available_bids", [])
             
             axtree_info = {
                 "axtree": formatted_axtree,
-                "available_bids": result.get("available_bids", []),
+                "available_bids": available_bids,
                 "page_info": result.get("page_info", {}),
                 "success": result.get("success", False),
                 "error": result.get("error")
@@ -493,14 +568,24 @@ def browser_operate_by_gym(
                 )
             )
             
-            return json.dumps(asdict(image_result))
+            full_content = json.dumps(asdict(image_result))
+            
+            # Return BrowserGymActionResult with formatted display
+            return BrowserGymActionResult(
+                action=action,
+                success=result.get("success", False),
+                error=result.get("error"),
+                page_info=result.get("page_info", {}),
+                available_bids_count=len(available_bids),
+                full_content=full_content
+            )
             
     except Exception as e:
         # If browser operation fails, remove the tool instance
         if hasattr(context.context, '_browsergym_tool'):
             delattr(context.context, '_browsergym_tool')
         
-        # Return error result
+        # Return error result as BrowserGymActionResult
         image_result = ImageResult.from_base64("", "jpeg")
         response_data = {
             **asdict(image_result),
@@ -512,4 +597,13 @@ def browser_operate_by_gym(
                 "available_bids": []
             }
         }
-        return json.dumps(response_data)
+        full_content = json.dumps(response_data)
+        
+        return BrowserGymActionResult(
+            action=action,
+            success=False,
+            error=str(e),
+            page_info={},
+            available_bids_count=0,
+            full_content=full_content
+        )

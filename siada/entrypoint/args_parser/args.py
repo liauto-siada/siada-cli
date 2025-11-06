@@ -2,13 +2,35 @@
 
 import argparse
 import os
+from pathlib import Path
+from typing import Dict
 
 import configargparse
 import shtab
+import yaml
 
 from siada import __version__
-from siada.services.siada_runner import SiadaRunner
 
+
+
+def _load_agent_config() -> Dict[str, Dict]:
+    """
+    Load Agent configuration from configuration file
+
+    Returns:
+        Dict[str, Dict]: Agent configuration dictionary
+    """
+    # Get the configuration file path in the project root directory
+    current_dir = Path(__file__).parent.parent.parent.parent  # Go back to project root directory
+    config_path = current_dir / "agent_config.yaml"
+
+    if not config_path.exists():
+        raise FileNotFoundError(f"Agent configuration file not found: {config_path}")
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+
+    return config.get('agents', {})
 
 def default_env_file(git_root):
     return os.path.join(git_root, ".env") if git_root else ".env"
@@ -25,7 +47,7 @@ def get_parser(default_config_files, git_root):
 
     # Load agent configurations from config file
     try:
-        agent_configs = SiadaRunner._load_agent_config()
+        agent_configs = _load_agent_config()
         # Get enabled agent types for choices
         agent_choices = [name for name, config in agent_configs.items() 
                         if config.get('enabled', False) and config.get('class')]
@@ -119,7 +141,7 @@ def get_parser(default_config_files, git_root):
 
     group.add_argument(
         "--provider",
-        choices=["openrouter", "li"],
+        choices=["openrouter", "li", "default"],
         default=None,
         help="Specify the provider to use for the main chat (choices: openrouter, li, default: li)",
         metavar="PROVIDER",
@@ -180,7 +202,15 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--checkpointing",
         action=argparse.BooleanOptionalAction,
-        help="Enable checkpointing (default: False)",
+        help="Enable checkpointing (default: True in interactive mode, not supported in non-interactive mode)",
+        default=None
+    )
+    
+    group.add_argument(
+        "--max-checkpoint-files",
+        type=int,
+        metavar="MAX_FILES",
+        help="Maximum number of checkpoint files to retain (default: 50)",
         default=None
     )
 

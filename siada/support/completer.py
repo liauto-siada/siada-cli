@@ -34,7 +34,7 @@ class AutoCompleter(Completer):
         config = CompletionConfig(
             max_results=20,
             enable_recursive_search=True,
-            max_search_depth=5,
+            max_search_depth=10,
             respect_git_ignore=True
         )
         self.file_recommendation_engine = FileRecommendationEngine(

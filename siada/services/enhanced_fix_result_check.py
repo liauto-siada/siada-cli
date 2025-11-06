@@ -518,8 +518,8 @@ Conduct a **forensic-level analysis** as a senior architect would during a criti
             result = {
                 "is_fixed": expert_assessment.get("is_fixed", False),
                 "check_summary": expert_assessment.get("check_summary", "no check summary"),
-                "fix_analysis": expert_assessment.get("technical_depth_analysis", {}).get("architecture_impact", "未提供详细分析"),
-                "trace_analysis": execution_intelligence.get("strategy_effectiveness", {}).get("overall_approach", "未提供轨迹分析"),
+                "fix_analysis": expert_assessment.get("technical_depth_analysis", {}).get("architecture_impact", "No detailed analysis provided"),
+                "trace_analysis": execution_intelligence.get("strategy_effectiveness", {}).get("overall_approach", "No trace analysis provided"),
                 "efficiency_suggestions": professional_recommendations.get("immediate_actions", []),
                 "strategy_suggestions": professional_recommendations.get("strategic_improvements", []),
                 "overall_score": quality_metrics.get("overall_score", 0.0),
@@ -544,24 +544,24 @@ Conduct a **forensic-level analysis** as a senior architect would during a criti
                 
                 "risk_assessment": {
                     "production_risks": risk_assessment.get("production_risks", []),
-                    "technical_debt_impact": risk_assessment.get("technical_debt_impact", "未评估"),
-                    "regression_potential": risk_assessment.get("regression_potential", "未评估")
+                    "technical_debt_impact": risk_assessment.get("technical_debt_impact", "Not assessed"),
+                    "regression_potential": risk_assessment.get("regression_potential", "Not assessed")
                 },
                 
                 "quality_metrics": {
                     "detailed_scores": quality_metrics.get("detailed_scores", {}),
-                    "score_justification": quality_metrics.get("score_justification", "未提供评分说明")
+                    "score_justification": quality_metrics.get("score_justification", "No score justification provided")
                 },
                 
                 "executive_summary": {
-                    "verdict": executive_summary.get("verdict", "未提供专业判断"),
-                    "key_concerns": executive_summary.get("key_concerns", "未识别关键问题"),
-                    "success_criteria": executive_summary.get("success_criteria", "未定义成功标准"),
-                    "next_steps": executive_summary.get("next_steps", "未提供后续步骤")
+                    "verdict": executive_summary.get("verdict", "No professional verdict provided"),
+                    "key_concerns": executive_summary.get("key_concerns", "No key concerns identified"),
+                    "success_criteria": executive_summary.get("success_criteria", "No success criteria defined"),
+                    "next_steps": executive_summary.get("next_steps", "No next steps provided")
                 },
                 
                 "score_breakdown": quality_metrics.get("detailed_scores", {}),
-                "overall_summary": executive_summary.get("verdict", "未提供综合评估")
+                "overall_summary": executive_summary.get("verdict", "No overall assessment provided")
             }
             
             return result

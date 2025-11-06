@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+import re
 from typing import List, TYPE_CHECKING, Any
 
 from siada.agent_hub.coder.prompt.compact_prompt import (
@@ -120,12 +121,23 @@ class ApiMessageTransferFilter:
                 # find the first function response, stop here
                 break
 
+        # Handle boundary cases to ensure context integrity:
+        # - If last message is a user message: keep it
+        # - If last message is a tool call result: keep the complete sequence
+        #   (including all preceding assistant messages: reasoning, response, and function call)
+        # When compression index reaches the end, adjust it backwards to preserve these sequences
+        compress_before_index = self._adjust_compression_index_for_boundary_cases(
+            real_api_messages, compress_before_index
+        )
+        # if compress_before_index is 0 or 1, no need to compress
+        if compress_before_index <= 1:
+            return real_api_messages
+
         history_to_compress = real_api_messages[0:compress_before_index]
         history_to_keep = real_api_messages[compress_before_index:]
 
-        if compress_before_index == 1:
-            # only the first message, no need to compress
-            return real_api_messages
+        if not history_to_keep:
+            raise ValueError("No messages to keep after compression")
 
         summary = await self._call_llm_to_compact(
             context=context, history_to_compact=history_to_compress
@@ -209,21 +221,17 @@ class ApiMessageTransferFilter:
             ],
         }
 
-        continue_message = {
-            "role": "user",
-            "content": "please continue",
-        }
-
         # Build common messages that always appear
         result = header_message + [summary_response_message]
 
         # Add acknowledgment and history if we have messages to keep
         if history_to_keep:
+            if self._is_user_message(history_to_keep[0]):
+                # If the first message to keep is a user message, add acknowledgment
+                result.append(summary_acknowledgment_message)
+            # If the first message to keep is an assistant message,
+            # summary itself is the user message, so no need to add acknowledgment to keep the sequence correct
             result.extend(history_to_keep)
-        else:
-            # If no messages to keep, ask the llm to continue
-            result += [summary_acknowledgment_message, continue_message]
-            result.append(continue_message)
 
         return result
 
@@ -517,6 +525,77 @@ class ApiMessageTransferFilter:
             return match.group(0)
         return content
 
+    def _adjust_compression_index_for_boundary_cases(
+        self, messages: List, compress_before_index: int
+    ) -> int:
+        """
+        Adjust compression index to handle boundary cases where the index is at or near the end.
+        
+        This ensures we keep either:
+        1. The last user message, or
+        2. The complete tool-call-result pair (including the assistant message before the tool-call)
+        
+        Args:
+            messages: List of all messages
+            compress_before_index: Current compression index
+            
+        Returns:
+            Adjusted compression index
+        """
+        if compress_before_index >= len(messages):
+            compress_before_index = len(messages)
+
+        # If we're at the very end or close to it, we need to move back
+        # to ensure we keep a meaningful sequence
+        if compress_before_index >= len(messages) - 1:
+            # Start from the end and scan backwards
+            idx = len(messages) - 1
+
+            # Case 1: Last message is a user message - keep it
+            if idx >= 0 and self._is_user_message(messages[idx]):
+                return idx
+
+            # Case 2: Last message is a function response - need to keep the complete sequence
+            # Pattern: [user_message] -> [reasoning (optional)] -> [response] -> [function_call] -> [function_response]
+            if idx >= 0 and self._is_function_response(messages[idx]):
+                # Find the start of this tool call sequence
+                # We need to include: function_response, function_call (assistant), and all assistant messages before
+                function_response_idx = idx
+
+                # Look for the function call (assistant message with tool call)
+                if idx >= 1 and self._is_assistant_message(messages[idx - 1]):
+                    function_call_idx = idx - 1
+
+                    # Continue looking backwards for all consecutive assistant messages (reasoning, response, etc.)
+                    # until we hit a non-assistant message (usually a user message)
+                    start_idx = function_call_idx
+                    while start_idx > 0 and self._is_assistant_message(messages[start_idx - 1]):
+                        start_idx -= 1
+
+                    # Return the index of the first assistant message in the sequence
+                    return start_idx
+
+                # If we can't find a proper function call, at least keep the function response
+                return function_response_idx
+
+        # If we're not at the boundary, return the original index
+        return compress_before_index
+
+    def _is_user_message(self, message) -> bool:
+        """
+        Check if a message is from user.
+
+        Args:
+            message: The message to check
+        Returns:
+            True if the message is from user
+        """
+        if Converter.maybe_easy_input_message(message):
+            return True
+        if Converter.maybe_input_message(message):
+            return True
+        return False
+
     def _is_assistant_message(self, message) -> bool:
         """
         Check if a message is from assistant.
@@ -569,8 +648,8 @@ class ApiMessageTransferFilter:
             session_dir = Path(DirectoryUtils.get_global_sessions_dir(context.root_dir))
             api_messages_path = session_dir / context.session_id / "api_messages.json"
 
-            # Ensure the parent directory exists
-            session_dir.mkdir(parents=True, exist_ok=True)
+            # Ensure the parent directory exists (including session_id subdirectory)
+            api_messages_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Write the messages to file
             with open(str(api_messages_path), "w", encoding="utf-8") as f:

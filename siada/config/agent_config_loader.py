@@ -6,6 +6,7 @@ from pathlib import Path
 
 @dataclass
 class AgentConfig:
+    """Configuration for a single Agent"""
     class_path: str
     description: str
     enabled: bool

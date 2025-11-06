@@ -16,35 +16,28 @@
 
 ## 安装/更新
 
-1. 系统要求
-- MAC、 Linux
-- GCC 11+
+### 安装
 
-2. 安装命令
+1. 安装 uv
    ```bash
-   curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+2. 安装 siada-cli
+   ```bash
+   uv tool install --force --python python3.12 --with pip siada-cli@latest
+   ```
+   如果 siada-cli 目录不在 PATH 中，运行以下命令更新 shell
+   ```bash
+   uv tool update-shell
    ```
 
-   输出下面信息表示安装成功
-   ![siada-cli installed successfully](../assets/siada-cli-installed-successfully.png)
-
-   安装完成后需根据提示将 ~/.local/bin 添加到PATH 中(已添加可忽略)，以确保可在shell中使用 siada-cli
+### 更新
    ```bash
-   # Bash
-   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-   source ~/.bashrc
-
-   # Zsh 
-   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-   source ~/.zshrc
+   uv tool upgrade siada-cli
    ```
-
-   验证是否安装成功
+### 卸载
    ```bash
-   siada-cli --version
-
-   # 成功输出版本号表示安装成功
-   siada-cli 0.0.1
+   uv tool uninstall siada-cli
    ```
    
 

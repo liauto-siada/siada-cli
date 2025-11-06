@@ -1,18 +1,14 @@
 import ast
 from datetime import datetime
-from math import comb
 import os
-import re
 import subprocess
 
 from agents import RunContextWrapper, RunResult, RunResultStreaming, Runner
-from numpy import fix
 
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.select_agent import SelectAgent
 from siada.agent_hub.coder.prompt.bug_prompt import bug_fix_prompt
 from siada.agent_hub.coder.tracing.bug_fix_trace_collector import BugFixTraceCollector,create_custom_bug_fix_trace_collector
-from siada.foundation import code_agent_context
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.setting import settings
 from siada.foundation.tools.get_git_diff import GitDiffUtil
@@ -29,7 +25,6 @@ from siada.tools.coder.fix_attempt_completion import fix_attempt_completion
 from siada.services.enhanced_fix_result_check import EnhancedFixResultChecker
 from typing import Optional, List, Dict, Any
 from openai.types.responses import ResponseFunctionToolCall, ResponseOutputMessage
-import json
 from agents import add_trace_processor
 from siada.services.anomaly_detection.anomaly_detector_text_only import AnomalyDetectorTextOnly
 
@@ -262,25 +257,6 @@ class BugFixAgent(CodeGenAgent):
         print(f"Fix process completed in {fix_turn} rounds.")
         return result
     
-    def build_compare_result(self, task_message: dict, reason: str) -> list:
-        feedback_message = {
-            "content": f"The previous fix attempt did not fully address the issue. Reason: {reason}.\n"
-                       f"**Please continue fixing.**",
-            "role": "user"
-        }
-        input_list = [task_message, feedback_message]
-        return input_list
-
-    async def run_compare(self, context, user_input, trace_collector: Optional["BugFixTraceCollector"] = None):
-        diff_patch = GitDiffUtil.get_git_diff_exclude_test_files(context.root_dir)
-        compare_result = await PsFrComparator.compare(user_input, diff_patch, context, trace_collector=trace_collector)
-        return compare_result
-
-    def test_best_patch_selection(self, context: CodeAgentContext) -> bool:
-        self.trace_collector.load_from_json(f"/siada-agenthub/trace_test.json")
-        patch_list=self.trace_collector.trace_session.patch_selection.input_patches
-        self.select_agent._apply_selected_patch(patch_list[1], context)
-
     def struct_user_input(self, user_input: str) -> str:
         task = f"""
                 **Issue Description:**
@@ -290,13 +266,6 @@ class BugFixAgent(CodeGenAgent):
                 """
 
         return task
-
-    async def run_checker_by_agent(self, user_input: str, context: CodeAgentContext):
-
-        result = await self.issue_review_agent.run(user_input, context)
-
-        output = ast.literal_eval(result.final_output)
-        return output
 
     async def run_checker(self, user_input: str, context: CodeAgentContext, trace_collector: Optional[BugFixTraceCollector] = None) -> dict:
 

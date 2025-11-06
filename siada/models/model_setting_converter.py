@@ -25,7 +25,10 @@ class ModelSettingsConverter:
 
         # for the litellm model, we set the reasoning effort to "medium" if not specified to save the thinking blocks
         reasoning_item: Reasoning = None
-        if is_claude_model(model_running_config.model_name):
+        if (
+            model_running_config.get_raw_thinking_tokens() is not None
+            and is_claude_model(model_running_config.model_name)
+        ):
             reasoning_item = Reasoning(effort="medium")
         model_settings = ModelSettings(
             max_tokens=model_running_config.max_tokens,

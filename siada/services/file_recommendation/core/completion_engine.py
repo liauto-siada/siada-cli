@@ -10,6 +10,7 @@ from .config import CompletionConfig
 from .file_discovery import FileDiscoveryService
 from .suggestion import Suggestion, sort_suggestions, limit_suggestions
 from ..utils.text_utils import parse_at_command_path, extract_at_path_from_text
+from siada.foundation.logging import logger as logging
 
 
 class CompletionEngine:
@@ -69,14 +70,14 @@ class CompletionEngine:
             
         except Exception as e:
             # Return empty list on error, with optional logging
-            print(f"Error in completion engine: {e}")
+            logging.error(f"Error in completion engine: {e}")
             return []
         
         finally:
             # Optional: track performance
             elapsed_time = time.time() - start_time
             if elapsed_time > self.config.search_timeout_ms / 1000:
-                print(f"Warning: Search took {elapsed_time:.2f}s, exceeding timeout")
+                logging.warning("Search took {elapsed_time:.2f}s, exceeding timeout")
     
     async def _get_directory_listing(self) -> List[Suggestion]:
         """
@@ -172,7 +173,7 @@ class CompletionEngine:
                     
         except asyncio.TimeoutError:
             # Handle timeout - return partial results
-            print(f"Search timeout after {self.config.search_timeout_ms}ms")
+            # print(f"Search timeout after {self.config.search_timeout_ms}ms")
             
             # Cancel remaining tasks
             for task in search_tasks:

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from uuid import uuid4
 
 from siada.services.file_session import FileSession
@@ -8,6 +8,9 @@ from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.session.task_message_state import TaskMessageState
 from siada.support.checkpoint_tracker import CheckPointTracker
 from agents.usage import Usage
+
+if TYPE_CHECKING:
+    from siada.support.spinner import WaitingSpinner
 
 
 @dataclass
@@ -34,7 +37,11 @@ class SessionState:
     task_message_state: TaskMessageState = field(default_factory=TaskMessageState)
     """Task message state for managing conversation history"""
 
-    usage: Optional[Usage] = None  
+    usage: Optional[Usage] = None
+    
+    # UI components (injected dependencies)  
+    spinner: Any = None
+    """Waiting spinner for showing progress during agent execution"""
 
 
 
@@ -61,3 +68,8 @@ class RunningSession:
     @property
     def openai_session(self) -> Optional[FileSession]:
         return self.state.openai_session
+    
+    @property
+    def spinner(self) -> Any:
+        """Get the spinner from session state"""
+        return self.state.spinner

@@ -16,6 +16,8 @@ class FileFilter:
     def __init__(self, target_dir: str):
         self.target_dir = Path(target_dir).resolve()
         self._gitignore_cache: Dict[str, List[str]] = {}
+        # Find all .gitignore files in the directory tree
+        self.gitignore_files = self._find_gitignore_files()
     
     def should_exclude_file(self, file_path: str, workspace_dir: str, 
                            exclusion_patterns: List[str]) -> bool:
@@ -131,7 +133,7 @@ class FileFilter:
             List of filtered relative paths
         """
         # Find all .gitignore files in the directory tree
-        gitignore_files = self._find_gitignore_files()
+        gitignore_files = self.gitignore_files
         
         if not gitignore_files:
             return relative_paths

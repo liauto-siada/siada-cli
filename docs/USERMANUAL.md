@@ -16,7 +16,7 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
 
 **Method 1: Default Configuration**
    - The system reads default configuration from `agent_config.yaml` file
-   - Current defaults: model `claude-sonnet-4`, provider `openrouter`
+   - Current defaults: model `claude-sonnet-4.5`, provider `openrouter`
 
    **Method 2: Customize via Configuration File**
    - Regular Users
@@ -29,7 +29,7 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
 
          # 2. Configuration file content example
          llm_config:
-            model: "claude-sonnet-4"          # Change to your desired model
+            model: "claude-sonnet-4.5"          # Change to your desired model
             provider: "openrouter"
          ```
    - Developer Mode
@@ -37,13 +37,13 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
          ```yaml
          llm_config:
             provider: "openrouter"
-            model_name: "claude-sonnet-4"     # Change to your desired model
+            model_name: "claude-sonnet-4.5"     # Change to your desired model
          ```
 
    **Method 3: Via Environment Variables**
    ```bash
    # Set model
-   export SIADA_MODEL="claude-sonnet-4"
+   export SIADA_MODEL="claude-sonnet-4.5"
    
    # Set provider
    export SIADA_PROVIDER="openrouter"
@@ -68,6 +68,14 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
    > - **Complete Priority**: `Command line parameters` > `Environment variables (SIADA_ prefix)` > `Configuration file (agent_config.yaml)`
    > - **Provider Requirements**: When using `openrouter`, must set `OPENROUTER_API_KEY` environment variable
 
+### External Model Configuration
+
+If you need to configure custom external models (such as privately deployed model services), please refer to the [External Model Configuration Guide](./external_model_configuration.md). This document provides detailed information on how to configure and use external models, including:
+- Model naming conventions
+- API connection configuration
+- Protocol mapping explanation
+- Configuration examples
+
 ### Agent Configuration (Developer Mode)
 
 Edit `agent_config.yaml` to customize agent behavior:
@@ -81,7 +89,7 @@ agents:
 
 llm_config:
   provider: "openrouter"
-  model_name: "claude-sonnet-4"
+  model_name: "claude-sonnet-4.5"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
   repo_verbose: true
@@ -94,7 +102,7 @@ Set environment variables to configure behavior:
 ```bash
 # Siada-specific settings (use SIADA_ prefix)
 export SIADA_AGENT="bugfix"
-export SIADA_MODEL="claude-sonnet-4"
+export SIADA_MODEL="claude-sonnet-4.5"
 export SIADA_THEME="dark"
 
 # Required when using OpenRouter provider
@@ -110,8 +118,9 @@ Siada CLI provides checkpoint tracking functionality to automatically save sessi
 
 **What are Checkpoints?**
 - Automatic snapshots of your session state after significant tool operations
-- Includes conversation history, modified files, and git state
+- Includes conversation history, modified files, git state, API messages, and usage statistics
 - Enables rollback to previous states and comparison between different points in time
+- Automatic cleanup: keeps most recent checkpoints when limit is exceeded
 
 **Enable Checkpoint Tracking:**
 
@@ -141,9 +150,20 @@ Siada CLI provides checkpoint tracking functionality to automatically save sessi
 - Use `/restore <checkpoint_file>` to restore to a previous state
 - Use `/undo <checkpoint_file>` to undo changes made by a checkpoint, restoring to the state before the checkpoint was created
 - Use `/compare <checkpoint_file>` to see differences between current state and a checkpoint
-
+  
 **Storage Location:**
-- location: `~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id/`
+- Location: `~/.siada-cli/data/tmp/{project_hash}/checkpoints/{session_id}/`
+
+**Maximum Checkpoint Files:**
+- Default: 50 checkpoint files per session
+- This limit ensures efficient disk space usage while maintaining sufficient history
+- **Disable cleanup**: Set to 0 or negative value to disable automatic cleanup (keeps all checkpoints)
+
+**Automatic Cleanup:**
+- When checkpoint count exceeds max limit + 5, the system automatically deletes the 5 oldest checkpoints
+- Example: With default limit of 50, cleanup triggers at 55 files and removes the oldest 5
+- **Note**: Automatic cleanup is disabled when max_checkpoint_files is set to 0 or negative values
+- This ensures disk space is managed efficiently while preserving recent work
 
 ### MCP Configuration
 
@@ -175,6 +195,51 @@ Siada CLI integrates MCP (Model Context Protocol) service to provide extended to
    - `/mcp-server`: List all MCP servers
    - `/mcp-list`: List all MCP servers and their available tools
 
+### .siadaignore Configuration
+
+.siadaignore is a project-level configuration file used to inform Siada which files and directories should be ignored when analyzing the codebase. Similar to .gitignore, it uses pattern matching rules to specify files that should be excluded from Siada's context and operations.
+
+**Note: This file needs to be created manually**
+
+.siadaignore structure example
+   ```bash
+   # Dependencies
+   node_modules/
+   **/node_modules/
+   .pnp
+   .pnp.js
+
+   # Build outputs
+   /build/
+   /dist/
+   /.next/
+   /out/
+
+   # Testing
+   /coverage/
+
+   # Environment variables
+   .env
+   .env.local
+   .env.development.local
+   .env.test.local
+   .env.production.local
+
+   # Large data files
+   *.csv
+   *.xlsx
+   ```
+
+.siadaignore directory structure
+   ```bash
+   # .siadaignore file must be in the project root directory
+   your-project/
+   ├── .siadaignore
+   ├── src/
+   ├── docs/
+   └── ...
+   ```
+
 ## Usage Modes
 
 Siada CLI supports two usage modes to meet different usage scenarios:
@@ -192,7 +257,7 @@ Siada CLI supports two usage modes to meet different usage scenarios:
 siada-cli --agent bugfix --prompt "Fix login errors in auth.py"
 
 # Combine with other parameters
-siada-cli --agent coder --model claude-sonnet-4 --prompt "Create a REST API endpoint"
+siada-cli --agent coder --model claude-sonnet-4.5 --prompt "Create a REST API endpoint"
 ```
 
 ### Interactive Mode
@@ -233,7 +298,7 @@ siada-cli --prompt "Fix authentication errors in login.py"
 siada-cli -p "Fix authentication errors in login.py"
 
 # Use a different model
-siada-cli --model claude-sonnet-4
+siada-cli --model claude-sonnet-4.5
 
 # Use OpenRouter provider (requires API key setup)
 siada-cli --provider openrouter
@@ -276,6 +341,9 @@ In the CLI, you can use slash commands for additional functionality:
 - `/memory-refresh` - Refresh user memory content from siada.md file
 - `/memory-status` - Display current user memory status (file info, size, loaded status)
 - `/status` - Display current session status (model, agent, session ID, and workspace)
+- `/lang` - View current language configuration
+  - `/lang zh` - Switch to Chinese
+  - `/lang en` - Switch to English
 - `/exit` or `/quit` - Exit the application
 
 ### Shell Mode Usage Guide
@@ -308,6 +376,23 @@ Execute single system commands directly in interactive mode without switching mo
 Differences between the two methods:
 - **`/shell`**: Suitable for scenarios requiring continuous execution of multiple system commands, switch once and use persistently
 - **`!<command>`**: Suitable for occasionally executing single system commands, returns to AI conversation mode immediately after execution
+
+### Language Configuration
+
+**coder agent** supports language switching in **interactive mode** using slash commands
+
+```bash
+# Default language is English
+# Display current language
+/lang
+
+# Switch current session language to Chinese
+/lang zh
+/lang zh-CN
+
+# Switch current session language to English
+/lang en
+```
 
 ## Agent Types
 

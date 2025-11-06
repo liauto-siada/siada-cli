@@ -16,37 +16,33 @@ With Siada CLI you can:
 
 ## Installation/Update
 
-1. System Requirements
+### System Requirements
 - MAC, Linux
 - GCC 11+
+- uv
 
-2. Installation Command
+### Installation
+
+1. Install uv
    ```bash
-   curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-
-   The following output indicates successful installation
-   ![siada-cli installed successfully](./docs/assets/siada-cli-installed-successfully.png)
-
-   After installation, you need to add ~/.local/bin to PATH according to the prompt (skip if already added) to ensure siada-cli can be used in shell
+2. Install siada-cli
    ```bash
-   # Bash
-   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-   source ~/.bashrc
-
-   # Zsh 
-   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-   source ~/.zshrc
+   uv tool install --force --python python3.12 --with pip siada-cli@latest
    ```
-
-   Verify successful installation
+   If the siada-cli directory is not present on the PATH, run the follow command to update the shell
    ```bash
-   siada-cli --version
-
-   # Successfully outputting version number indicates successful installation
-   siada-cli 0.0.1
+   uv tool update-shell
    ```
-   
+### Update
+   ```bash
+   uv tool upgrade siada-cli
+   ```
+### Uninstall
+   ```bash
+   uv tool uninstall siada-cli
+   ```
 
 ## Installation (Developer Mode)
 

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional, List
 
+_user_model_settings: Optional[List['ModelBaseConfig']] = None
+
 @dataclass
 class ModelBaseConfig:
     """
@@ -63,6 +65,15 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_images=True,
         supports_extra_params=[],
     ),
+
+    ModelBaseConfig(
+        model_name="claude-sonnet-4.5",
+        max_tokens=8192*4,
+        context_window=200_000,
+        supports_images=True,
+        supports_extra_params=[],
+    ),
+
     ModelBaseConfig(
         model_name="claude-3.7-sonnet",
         max_tokens=8192,
@@ -100,6 +111,30 @@ def is_claude_model(model_name: str) -> bool:
 def is_gemini_model(model_name: str) -> bool:
     return model_name.startswith("gemini-")
 
+def set_user_model_settings(user_models: List[ModelBaseConfig]) -> None:
+    """
+    Set user-defined model settings. This will be used when provider is 'default'.
+    
+    Args:
+        user_models: List of user-defined model configurations
+    """
+    global _user_model_settings
+    _user_model_settings = user_models
+
+
+def get_model_settings() -> List[ModelBaseConfig]:
+    """
+    Get the current model settings list.
+    Returns user-defined settings if available, otherwise returns default settings.
+    
+    Returns:
+        List of ModelBaseConfig
+    """
+    if _user_model_settings is not None:
+        return _user_model_settings
+    return MODEL_SETTING
+
+
 def get_model_config(model_name: str) -> Optional[ModelBaseConfig]:
     """
     Retrieves the configuration for a given model name.
@@ -113,9 +148,12 @@ def get_model_config(model_name: str) -> Optional[ModelBaseConfig]:
     # Check if model_name is None or empty
     if not model_name:
         raise ValueError("Model name cannot be None or empty")
-        
+    
+    # Get the appropriate model settings list
+    model_settings = get_model_settings()
+    
     # Only exact match
-    for model_config in MODEL_SETTING:
+    for model_config in model_settings:
         if model_config.model_name == model_name:
             return model_config
             

@@ -1,5 +1,6 @@
 import os
 import platform
+import re
 import subprocess
 import sys
 import threading
@@ -16,17 +17,26 @@ MAX_OUTPUT_LENGTH = 20000
 
 
 def run_cmd_impl(command, verbose=False, cwd=None, error_print=None):
+    # import time
+    # start_time = time.time()
+    
     try:
         if sys.stdin.isatty() and hasattr(pexpect, "spawn") and platform.system() != "Windows":
-            return run_cmd_pexpect(command, verbose, cwd)
-
-        return run_cmd_subprocess(command, verbose, cwd)
+            result = run_cmd_pexpect(command, verbose, cwd)
+        else:
+            result = run_cmd_subprocess(command, verbose, cwd)
+        
+        # elapsed_time = time.time() - start_time
+        # print(f"\n[time: {elapsed_time:.2f}s]")
+        return result
     except OSError as e:
+        # elapsed_time = time.time() - start_time
         error_message = f"Error occurred while running command '{command}': {str(e)}"
         if error_print is None:
             print(error_message)
         else:
             error_print(error_message)
+        # print(f"\n[time: {elapsed_time:.2f}s]")
         return 1, error_message
 
 
@@ -137,6 +147,7 @@ def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.enc
                         output_truncated, should_add = _check_and_truncate_output(output, remaining, output_truncated)
                         if should_add:
                             output.append(remaining)
+                        # print(remaining, end="", flush=True) # for real-time printing, disable to avoid duplicate prints
                     break
                 
                 # Try to read one character with a short timeout
@@ -146,14 +157,13 @@ def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.enc
                         output_truncated, should_add = _check_and_truncate_output(output, chunk, output_truncated)
                         if should_add:
                             output.append(chunk)
-                        # print(chunk, end="", flush=True)  # Print the chunk in real-time
+                        # print(chunk, end="", flush=True)  # for real-time printing , disable to avoid duplicate prints
                     else:
                         # No data available, sleep briefly to avoid busy waiting
                         time.sleep(0.01)
                 except Exception:
                     # Handle any read errors
                     time.sleep(0.01)
-
             return process.returncode, "".join(output)
         finally:
             # Ensure the process and its streams are properly closed
@@ -228,16 +238,41 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
         if verbose:
             print("With shell:", shell)
 
+        # Determine if command needs interactive shell environment
+        # Extract first word of command
+        first_word = command.strip().split()[0] if command.strip() else ""
+        
+        # Standard commands that DON'T need -i (interactive mode)
+        standard_commands = {
+            'ls', 'cd', 'pwd', 'mkdir', 'rm', 'cp', 'mv', 'touch', 'cat', 'grep',
+            'find', 'sed', 'awk', 'echo', 'git', 'docker', 'make', 'curl', 'wget',
+              'vim', 'nano', 'tar', 'zip', 'unzip'
+        }
+        
+        needs_interactive = False
+        
+        # Check for version manager keywords
+        if re.search(r'\b(nvm|pyenv|rvm|rbenv|conda)\b', command):
+            needs_interactive = True
+        elif first_word and first_word not in standard_commands:
+            needs_interactive = True
         if os.path.exists(shell):
             # Use the shell from SHELL environment variable
-            if verbose:
-                print("Running pexpect.spawn with shell:", shell)
-            child = pexpect.spawn(shell, args=["-i", "-c", command], encoding="utf-8", cwd=cwd)
+            if needs_interactive:
+                # Use -i for aliases, functions, and version managers (slower but necessary)
+                if verbose:
+                    print("Running pexpect.spawn with interactive shell (-i):", shell)
+                child = pexpect.spawn(shell, args=["-i", "-c", command], encoding="utf-8", cwd=cwd)
+            else:
+                if verbose:
+                    print("Running pexpect.spawn with non-interactive shell (-c):", shell)
+                child = pexpect.spawn(shell, args=["-c", command], encoding="utf-8", cwd=cwd)
         else:
             # Fall back to spawning the command directly
             if verbose:
                 print("Running pexpect.spawn without shell.")
             child = pexpect.spawn(command, encoding="utf-8", cwd=cwd)
+        child.delaybeforesend = None
 
         # Transfer control to the user, capturing output
         child.interact(output_filter=output_callback)

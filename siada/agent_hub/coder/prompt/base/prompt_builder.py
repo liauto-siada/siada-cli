@@ -1,4 +1,4 @@
-def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str, objective: str, user_memory: str = None) -> str:
+def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str, objective: str, user_memory: str = None, preferred_language: str = "en", agent_name: str = None) -> str:
     """
     Common function for building system prompts
     
@@ -9,10 +9,16 @@ def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str
         rules: Rules section
         objective: Objective section
         user_memory: User memory content from siada.md file
+        preferred_language: Preferred communication language ("en" or "zh-CN")
+        agent_name: Agent name to determine default language (optional)
         
     Returns:
         str: Complete system prompt
     """
+    # Build language instruction section
+    language_instruction = _get_language_instruction(preferred_language, agent_name)
+    
+    # Assemble complete prompt
     base_prompt = f"""{intro}
 
 {tool_use}
@@ -21,7 +27,9 @@ def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str
 
 {rules}
 
-{objective}"""
+{objective}
+
+{language_instruction}"""
     
     # Add user memory content if available
     if user_memory and user_memory.strip():
@@ -29,3 +37,34 @@ def build_system_prompt(intro: str, tool_use: str, capabilities: str, rules: str
         return f"{base_prompt}{memory_suffix}"
     
     return base_prompt
+
+
+def _get_language_instruction(preferred_language: str, agent_name: str = None) -> str:
+    """
+    Get language preference instruction based on user's choice.
+    Only returns instruction if the preferred language differs from the agent's default language.
+    
+    Args:
+        preferred_language: "en" or "zh-CN"
+        agent_name: Agent name to determine default language (optional)
+        
+    Returns:
+        str: Language instruction section, or empty string if using default language
+    """
+    from siada.config.language_config import get_agent_default_language
+    
+    # Get the default language for this agent
+    default_language = get_agent_default_language(agent_name) if agent_name else "en"
+    
+    # Only return instruction if preferred language differs from default
+    if preferred_language != default_language:
+        return f"""====
+
+PREFERRED LANGUAGE
+
+Speak in {preferred_language}.
+
+
+"""
+    
+    return ""

@@ -1,16 +1,31 @@
-import os
 import subprocess
-import json
-import sys
-import time
-import socket
-import signal
-import threading
-import http.server
-import socketserver
-import urllib.request
 from pathlib import Path
-from typing import Optional
+
+from agents import function_tool, RunContextWrapper
+
+from siada.foundation.code_agent_context import CodeAgentContext
+from siada.tools.coder.observation.observation import FunctionCallResult
+
+COMIPLE_CARD_DOCS = """Compile Card Tool
+
+Given a absolute path, this tool can execute the compilation of a card, which is a web application.
+
+Args:
+    path: (required) The path of the card.
+"""
+
+@function_tool(
+    name_override="compile_card", description_override="Compile the card from its path"
+)
+async def compile_card(
+    context: RunContextWrapper[CodeAgentContext],
+    path: str,
+) -> FunctionCallResult:
+    print("compile card: " + path)
+    card_compiler = CardCompiler()
+    result = card_compiler.compile_card(path)
+    return FunctionCallResult(result)
+
 
 
 class CardCompiler:
@@ -40,11 +55,10 @@ class CardCompiler:
             # 4. 执行构建
             self._build_card()
 
-            print(f"🎉 编译完成！")
+            return f"✅ 编译成功"
 
         except Exception as e:
-            print(f"❌ 编译失败: {str(e)}")
-            raise
+            return f"❌ 编译失败，报错情况: {str(e)}"
 
     def _initialize(self, file_path: str) -> None:
         """初始化编译环境"""
@@ -68,7 +82,7 @@ class CardCompiler:
             # 向上查找
             while True:
                 # 检查当前目录名是否为'mindui'
-                if current_path.name == 'mindui':
+                if current_path.name == 'mindui-components':
                     return current_path
 
                 # 如果已经到达根目录，停止查找
@@ -173,7 +187,7 @@ class CardCompiler:
 
 
 if __name__ == "__main__":
-    file_path = "/Users/youzijun/siada/siada-agenthub/tests/tools/cca/resource/ccatest/mindui/src/cards/GreetingCard.tsx"
+    file_path = "/Users/youzijun/siada/siada-agenthub/.cca/mindui/src/cards/HoroscopeCard.tsx"
     compiler = CardCompiler()
     compiler.compile_card(file_path)
 

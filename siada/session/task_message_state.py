@@ -51,7 +51,23 @@ class RealApiMessage:
 
     def get_last_signature(self):
         return self.last_signature
-
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'real_api_history': self.real_api_history,
+            'last_index': self.last_index,
+            'last_signature': self.last_signature
+        }
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> 'RealApiMessage':
+        """Create RealApiMessage from dictionary."""
+        return cls(
+            real_api_history=data.get('real_api_history', []),
+            last_index=data.get('last_index', -1),
+            last_signature=data.get('last_signature', '')
+        )
 
     
 @dataclass

@@ -6,6 +6,8 @@ from logging.handlers import TimedRotatingFileHandler
 from typing import Literal, Mapping, Optional
 from termcolor import colored
 
+from siada.foundation.log_category import LogCategory
+
 
 def get_log_directory():
     """
@@ -108,7 +110,7 @@ def _ensure_log_dir(log_dir: Path) -> bool:
 
 # Get log directory and file path
 log_dir = get_log_directory()
-log_file = os.path.join(log_dir, 'siada_api.log')
+log_file = os.path.join(log_dir, 'siada_cli.log')
 
 
 DEBUG = os.getenv('DEBUG', 'False').lower() in ['true', '1', 'yes']
@@ -239,6 +241,74 @@ def get_console_handler(log_level=logging.INFO, extra_info: Optional[str] = None
     return console_handler
 
 
+def get_model_error_handler():
+    """
+    Create and configure a file handler specifically for model errors.
+    
+    Returns:
+        TimedRotatingFileHandler: Handler configured to write model error logs
+    """
+    error_log_file = os.path.join(log_dir, 'errors.log')
+    error_file_handler = TimedRotatingFileHandler(
+        error_log_file,
+        when='midnight',
+        interval=1,
+        backupCount=30,
+        encoding='utf-8'
+    )
+    error_file_handler.setLevel(logging.ERROR)
+    error_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s:%(levelname)s\n%(message)s\n' + '='*80 + '\n',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    error_file_handler.setFormatter(error_formatter)
+    return error_file_handler
+
+
+class CategoryFilter(logging.Filter):
+    """
+    Filter logs based on log category.
+    
+    Supports two modes:
+    - Include mode: only allow specified categories to pass
+    - Exclude mode: exclude specified categories
+    """
+    
+    def __init__(
+        self,
+        include_categories: list[LogCategory] | None = None,
+        exclude_categories: list[LogCategory] | None = None
+    ):
+        super().__init__()
+        self.include_categories = include_categories
+        self.exclude_categories = exclude_categories
+        
+        if include_categories and exclude_categories:
+            raise ValueError("Cannot specify both include and exclude categories")
+    
+    def filter(self, record):
+        """Filter log records based on their log_category attribute."""
+        category = getattr(record, 'log_category', LogCategory.GENERAL)
+        
+        if self.include_categories:
+            return category in self.include_categories
+        
+        if self.exclude_categories:
+            return category not in self.exclude_categories
+        
+        return True
+    
+    @classmethod
+    def for_general_logs(cls):
+        """Create a filter for general logs (excludes model errors)."""
+        return cls(exclude_categories=[LogCategory.MODEL_ERROR])
+    
+    @classmethod
+    def for_model_errors(cls):
+        """Create a filter for model error logs only."""
+        return cls(include_categories=[LogCategory.MODEL_ERROR])
+
+
 def configure_third_party_loggers():
     """
     Configure third-party library log levels to reduce verbose log output
@@ -253,7 +323,11 @@ def configure_third_party_loggers():
 
 def setup_logger():
     """
-    Setup and return siada.api logger
+    Setup and return siada.api logger with category-based filtering.
+    
+    This logger uses filters to route different log categories to different handlers:
+    - General logs go to console and siada_cli.log
+    - Model error logs go to model_errors.log
     """
     # Create logger
     setup_logger = logging.getLogger('siada.api')
@@ -263,14 +337,22 @@ def setup_logger():
     if setup_logger.handlers:
         return setup_logger
 
-    # Create console handler
+    # 1. Console handler - only general logs
     console_handler = get_console_handler()
-    # Create file handler - rotate daily, keep 30 days of logs
+    console_handler.addFilter(CategoryFilter.for_general_logs())
+    
+    # 2. Main file handler - only general logs
     file_handler = get_file_handler()
+    file_handler.addFilter(CategoryFilter.for_general_logs())
+    
+    # 3. Model error file handler - only model error logs
+    error_file_handler = get_model_error_handler()
+    error_file_handler.addFilter(CategoryFilter.for_model_errors())
 
     # Add handlers to logger
     setup_logger.addHandler(console_handler)
     setup_logger.addHandler(file_handler)
+    setup_logger.addHandler(error_file_handler)
     setup_logger.propagate = False
 
     # Configure third-party library log levels
@@ -355,6 +437,63 @@ def redirect_agents_logger():
     # Add handlers to logger
     # agents_logger.addHandler(console_handler)
     agents_logger.addHandler(file_handler)
+
+def redirect_aiohttp_asyncio_logger():
+    """
+    Redirect aiohttp and asyncio loggers to file to suppress console warnings.
+    This prevents unclosed resource warnings from cluttering the console output.
+    """
+    # Process aiohttp logger
+    aiohttp_logger = logging.getLogger('aiohttp')
+    aiohttp_logger.propagate = False
+    
+    if not aiohttp_logger.handlers:
+        file_handler = get_file_handler()
+        aiohttp_logger.addHandler(file_handler)
+    
+    # Process asyncio logger
+    asyncio_logger = logging.getLogger('asyncio')
+    asyncio_logger.propagate = False
+    
+    if not asyncio_logger.handlers:
+        file_handler = get_file_handler()
+        asyncio_logger.addHandler(file_handler)
+
+def log_model_error(
+    error_type: str,
+    error_message: str,
+    llm_request_body: Optional[dict] = None
+) -> None:
+    """
+    Log detailed model error information
+    
+    Args:
+        error_type: Type of error (e.g., 'API_ERROR', 'TIMEOUT', 'VALIDATION_ERROR')
+        error_message: Main error message
+        llm_request_body: Complete LLM request body (already includes UUID and all request parameters)
+    """
+    import json
+    from datetime import datetime
+    
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    
+    # Build comprehensive error log
+    log_parts = [
+        f"[MODEL ERROR DETECTED]",
+        f"Timestamp: {timestamp}",
+        f"Error Type: {error_type}",
+        f"Error Message: {error_message}",
+    ]
+    
+    # Add complete LLM request body
+    if llm_request_body:
+        log_parts.append("\n--- Complete LLM Request Body ---")
+        log_parts.append(json.dumps(llm_request_body, ensure_ascii=False, indent=2))
+    
+    # Join all parts and log with MODEL_ERROR category
+    full_log = '\n'.join(log_parts)
+    logger.error(full_log, extra={'log_category': LogCategory.MODEL_ERROR})
+
 
 # Global accessible logger instance
 logger = setup_logger()

@@ -107,37 +107,30 @@ class ReadManyFilesTool:
             
             exclusion_patterns = self.file_filter.build_exclusion_patterns(params)
             
-            # 4. Execute file search
-            all_files = await self.file_processor.search_files_with_glob(
-                search_patterns, exclusion_patterns, signal
+            
+            validated_files, filter_counts, tree_structure = await self.file_processor.search_files_with_walk(
+                search_patterns, exclusion_patterns, self.file_filter, file_filtering_options, signal
             )
-            
-            if not all_files:
-                return ToolResult(**self.formatter.create_info_result(
-                    "No files found matching the specified patterns"
-                ))
-            
-            # 5. Apply ignore filters
-            filtered_files, filter_counts = self.file_filter.apply_gitignore_filters(
-                all_files, file_filtering_options
-            )
-            
-            # 6. Security validation
-            validated_files = self.file_filter.validate_workspace_security(filtered_files)
-            
-            if not validated_files:
-                return ToolResult(**self.formatter.create_info_result(
-                    "No files remain after filtering and security validation"
-                ))
+            # if not validated_files:
+            #     return ToolResult(**self.formatter.create_info_result( 
+            #         "No files remain after filtering and security validation"
+            #     ))
             
             # 7. Read file contents
-            content_parts, processed_files, skipped_files = await self.file_processor.process_files(
-                validated_files, params.paths
+            content_parts, processed_files, skipped_files = await self.file_processor.process_files_without_read_content(
+                list(validated_files), params.paths
             )
             
             # 8. Add filter statistics to skipped files
-            filter_skip_info = self.formatter.build_filter_skip_info(filter_counts)
+            filter_counts_dict = {'git_ignored': filter_counts}
+            filter_skip_info = self.formatter.build_filter_skip_info(filter_counts_dict)
             skipped_files.extend(filter_skip_info)
+            
+            # 9. Add tree structure to content if files were found
+            if tree_structure and content_parts != None:
+                # Prepend tree structure to the content
+                tree_content = f"=== File Structure ===\n{tree_structure}\n\n=== File Contents ===\n"
+                content_parts.insert(0, tree_content)
             
             # 9. Update processing time
             end_time = time.time()
@@ -147,7 +140,7 @@ class ReadManyFilesTool:
             result_dict = self.formatter.build_result(
                 content_parts, processed_files, skipped_files, self.file_processor.stats
             )
-            
+            # print(f"{result_dict['llmContent'][0]}")
             return ToolResult(**result_dict)
             
         except Exception as error:

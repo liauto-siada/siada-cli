@@ -6,7 +6,6 @@ from agents import RunContextWrapper, function_tool
 from openhands_aci.editor import OHEditor, ToolResult, ToolError
 from openhands_aci.utils.diff import get_diff
 
-import re
 from siada.foundation.logging import logger
 
 from binaryornot.check import is_binary
@@ -22,7 +21,7 @@ from siada.foundation.code_agent_context import CodeAgentContext
 
 
 @function_tool(
-    name_override="read_file", description_override="Read the file."
+    name_override="read", description_override="Read the file."
 )
 async def read(
     context: RunContextWrapper[CodeAgentContext],
@@ -170,6 +169,23 @@ def _edit_file(
     insert_line: int | None = None,
     view_range: list[int] | None = None
 ) -> FunctionCallResult:
+    # Validate file access with SiadaIgnore controller
+    siadaignore_controller = getattr(context.context, 'siadaignore_controller', None)
+    if siadaignore_controller and not siadaignore_controller.validate_access(path):
+        return FileEditObservation(
+            error=True,
+            content=(
+                f'ERROR: Access to "{path}" is denied by .siadaignore. '
+                f'This file is protected from modification.'
+            ),
+            path=path,
+            old_content=None,
+            new_content=None,
+            impl_source=FileEditSource.OH_ACI,
+            diff='',
+            command=command,
+        )
+    
     file_editor = OHEditor(workspace_root=context.context.root_dir)
     result_str, (old_content, new_content) = _execute_file_editor(
         file_editor,
@@ -181,6 +197,7 @@ def _edit_file(
         insert_line=insert_line,
         view_range=view_range,
         enable_linting=False,
+        siadaignore_controller=siadaignore_controller,
     )
 
 
@@ -210,6 +227,7 @@ def _execute_file_editor(
     new_str: str | None = None,
     insert_line: int | str | None = None,
     enable_linting: bool = False,
+    siadaignore_controller = None,
 ) -> tuple[str, tuple[str | None, str | None]]:
     """Execute file editor command and handle exceptions.
 
@@ -223,11 +241,15 @@ def _execute_file_editor(
         new_str: Optional replacement string
         insert_line: Optional line number for insertion (can be int or str)
         enable_linting: Whether to enable linting
+        siadaignore_controller: Optional SiadaIgnoreController instance for filtering view results
 
     Returns:
         tuple: A tuple containing the output string and a tuple of old and new file content
     """
     result: ToolResult | None = None
+
+    if file_text is None:
+        file_text = ''
 
     # Convert insert_line from string to int if needed
     if insert_line is not None and isinstance(insert_line, str):
@@ -263,7 +285,12 @@ def _execute_file_editor(
         logger.warning(f'No output from file_editor for {path}')
         return '', (None, None)
 
-    return result.output, (result.old_content, result.new_content)
+    # Filter view command results with siadaignore if controller is available
+    output = result.output
+    if command == 'view' and siadaignore_controller is not None:
+        output = siadaignore_controller.filter_view_output(output)
+
+    return output, (result.old_content, result.new_content)
 
 def _resolve_path(path: str, working_dir: str) -> str:
     """

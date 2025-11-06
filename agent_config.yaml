@@ -41,10 +41,17 @@ agents:
     enabled: false
     supported_modes: "non_interactive"
 
+  card:
+    class: "siada.agent_hub.coder.card_agent.CardAgent"
+    description: "Card Generation agent"
+    enabled: true
+    supported_modes: "all"
+
+
 # LLM Configuration
 llm_config:
-  provider: "li"                    # Optional： ”li“ ， “openrouter”
-  model_name: "claude-sonnet-4"
+  provider: "li"                    # Optional： "li" ， "openrouter", "default"
+  model_name: "claude-sonnet-4.5"
   repo_map_tokens: 8192                     # repo map max token
   repo_map_mul_no_files: 16                 # Multiple without chat files
   repo_verbose: true                        # Enable detailed output or not

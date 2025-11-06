@@ -230,8 +230,9 @@ class MCPService:
                         "url": http_url,
                         "headers": server_config.headers or {},
                         "timeout": server_config.timeout / 1000.0,
-                        "terminate_on_close": True
+                        "terminate_on_close": True,
                     },
+                    client_session_timeout_seconds= 300,
                     cache_tools_list=True
                 )
                 

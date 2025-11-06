@@ -8,6 +8,7 @@ from concurrent.futures._base import CancelledError as FutureCancelledError
 from siada.foundation.logging import logger
 import re
 import threading
+import time
 import siada.io.components.mdstream
 from typing import List, Optional, Dict, Any, Tuple
 
@@ -147,6 +148,9 @@ class ConversationTurn(RunTurn):
     def _ensure_dedicated_loop(cls):
         """Ensure dedicated event loop is started"""
         if cls._dedicated_loop is None or cls._dedicated_loop.is_closed():
+            start_time = time.time()
+            logger.info("[ConversationTurn] Starting dedicated event loop initialization")
+            
             import threading
             import asyncio
 
@@ -188,6 +192,9 @@ class ConversationTurn(RunTurn):
 
             # Wait for event loop to be ready
             cls._loop_ready.wait()
+            
+            elapsed_time = time.time() - start_time
+            logger.info(f"[ConversationTurn] Dedicated event loop initialized (took {elapsed_time:.2f}s)")
 
     @classmethod
     def _cleanup_dedicated_loop(cls):
@@ -448,7 +455,10 @@ class ConversationTurn(RunTurn):
                                         self.config.io.print_tool_call(content)
 
                     elif isinstance(stream_data, ResponseCompletedEvent):
-                        pass
+                        # Print context usage after each model response
+                        # Get usage from the event if available
+                        usage = stream_data.response.usage if hasattr(stream_data, 'response') and stream_data.response else None
+                        self._print_context_usage(usage=usage)
 
                 elif isinstance(event, RunItemStreamEvent):
                     stream_data = event.item
@@ -522,11 +532,14 @@ class ConversationTurn(RunTurn):
         """
         self.input_data = turn_input
         self.start_time = self._get_timestamp()
-        self.spinner = None
+        
+        # Initialize spinner and inject into session for external access
         if self.config.io.pretty:
-            self.spinner = WaitingSpinner(
+            spinner = WaitingSpinner(
                 f"Waiting for Agent {self.config.agent_name}..."
             )
+            # Inject spinner into session state for external access (e.g., stop from outside)
+            self.session.state.spinner = spinner
 
         # Reset event flags at the beginning of each execution
         self._cleanup_done.clear()
@@ -582,9 +595,6 @@ class ConversationTurn(RunTurn):
                 _mcp_initialize(), self._dedicated_loop
             ).result()
 
-            # start spinner
-            self.spinner.start()
-
             try:
                 # Execute async task in dedicated loop
                 future = asyncio.run_coroutine_threadsafe(
@@ -614,7 +624,6 @@ class ConversationTurn(RunTurn):
                 raise
 
             self.end_time = self._get_timestamp()
-            self._print_context_usage()
 
             output = TurnOutput(
                 output=result.final_output,
@@ -659,22 +668,36 @@ class ConversationTurn(RunTurn):
 
     def _stop_waiting_spinner(self):
         """Stop and clear the waiting spinner if it is running."""
-        spinner = getattr(self, "spinner", None)
-        if spinner:
+        if self.session.spinner:
             try:
-                spinner.stop()
+                self.session.spinner.stop()
             finally:
-                self.spinner = None
+                self.session.state.spinner = None
 
-    def _print_context_usage(self):
-        """Print context usage information with percentage and remaining tokens."""
-        context_size = self.session.state.usage.total_tokens if self.session.state.usage and self.session.state.usage.total_tokens else 0
+    def _print_context_usage(self, usage=None):
+        """
+        Print context usage information.
+        
+        Args:
+            usage: Optional usage object from the response. If not provided, will use session state.
+        """
+        # Try to get usage from parameter first, then fall back to session state
+        if usage and hasattr(usage, 'total_tokens'):
+            context_size = usage.total_tokens if usage.total_tokens else 0
+        else:
+            context_size = self.session.state.usage.total_tokens if self.session.state.usage and self.session.state.usage.total_tokens else 0
+        
         context_max = self.config.llm_config.context_window
-        context_percentage = (context_size / context_max * 100) if context_max > 0 else 0
+        message = f"{context_size:,} / {context_max:,} tokens"
+        # Use console to print with right alignment
+        from rich.align import Align
+        from rich.text import Text
 
-        self.config.io.print_info(
-            f"Context: {context_size:,} / {context_max:,} tokens ({context_percentage:.1f}% used, {context_max - context_size:,} tokens left) - Model max window: {context_max:,} tokens"
-        )
+        # Create styled text with a dim style for subtle display
+        text = Text(message, style="dim cyan")
+        aligned_text = Align.right(text)
+
+        self.config.io.console.print(aligned_text)
 
     async def handle_interrupt(self):
         """Handle user interruption by adding appropriate interrupt marker to session."""

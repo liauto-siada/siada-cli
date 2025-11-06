@@ -15,7 +15,7 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
 
 **方法1：默认配置**
    - 系统从 `agent_config.yaml` 文件读取默认配置
-   - 当前默认：模型 `claude-sonnet-4`，供应商 `openrouter`
+   - 当前默认：模型 `claude-sonnet-4.5`，供应商 `openrouter`
 
    **方法2：通过配置文件自定义**
    - 普通用户
@@ -28,7 +28,7 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
 
          # 2. 配置文件内容示例
          llm_config:
-         model: "claude-sonnet-4"          # 更改为您想要的模型
+         model: "claude-sonnet-4.5"          # 更改为您想要的模型
          provider: "openrouter"
          ```
    - 开发者模式
@@ -36,13 +36,13 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
          ```yaml
          llm_config:
          provider: "openrouter"
-         model_name: "claude-sonnet-4"     # 更改为您想要的模型
+         model_name: "claude-sonnet-4.5"     # 更改为您想要的模型
          ```
 
    **方法3：通过环境变量**
    ```bash
    # 设置模型
-   export SIADA_MODEL="claude-sonnet-4"
+   export SIADA_MODEL="claude-sonnet-4.5"
    
    # 设置供应商
    export SIADA_PROVIDER="openrouter"
@@ -54,7 +54,7 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
    **方法4：通过命令行参数（最高优先级）**
    ```bash
    # 仅更改模型（保持供应商不变）
-   siada-cli --model claude-sonnet-4
+   siada-cli --model claude-sonnet-4.5
    
    # 同时更改模型和供应商
    siada-cli --model gpt-4.1 --provider openrouter
@@ -66,6 +66,14 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
    > **重要提醒：**
    > - **完整优先级**：`命令行参数` > `环境变量(SIADA_前缀)` > `配置文件(agent_config.yaml)`
    > - **供应商要求**：使用 `openrouter` 时必须设置 `OPENROUTER_API_KEY` 环境变量
+
+### 外部模型配置
+
+如果需要配置自定义的外部模型（如私有部署的模型服务），请参阅 [外部模型配置指南](./external_model_configuration_zh.md)。该文档详细介绍了如何配置和使用外部模型，包括：
+- 模型命名规范
+- API 连接配置
+- 协议映射说明
+- 配置示例
 
 ### 代理配置(开发者模式)
 
@@ -80,7 +88,7 @@ agents:
 
 llm_config:
   provider: "openrouter"
-  model_name: "claude-sonnet-4"
+  model_name: "claude-sonnet-4.5"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
   repo_verbose: true
@@ -93,7 +101,7 @@ llm_config:
 ```bash
 # Siada 特定设置（使用 SIADA_ 前缀）
 export SIADA_AGENT="bugfix"
-export SIADA_MODEL="claude-sonnet-4"
+export SIADA_MODEL="claude-sonnet-4.5"
 export SIADA_THEME="dark"
 
 # 在使用 OpenRouter 提供商时需要
@@ -109,8 +117,9 @@ Siada CLI 提供检查点跟踪功能，可以自动保存会话状态，并支�
 
 **什么是检查点？**
 - 在重要工具操作后自动拍摄会话状态快照
-- 包括对话历史、修改的文件和git状态
+- 包括对话历史、修改的文件、git状态、API消息和使用统计
 - 支持回滚到先前状态以及比较不同时间点的差异
+- 自动清理：超过限制时保留最新的检查点
 
 **启用检查点跟踪：**
 
@@ -142,7 +151,63 @@ Siada CLI 提供检查点跟踪功能，可以自动保存会话状态，并支�
 - 使用 `/compare <checkpoint_file>` 查看当前状态与检查点的差异
 
 **存储位置：**
-- 文件地址：`~/.siada-cli/data/tmp/{project_hash}/checkpoints/session_id/`
+- 文件地址：`~/.siada-cli/data/tmp/{project_hash}/checkpoints/{session_id}/`
+
+**最大检查点文件数：**
+- 默认值：每个会话保留 50 个检查点文件
+- 此限制可确保有效利用磁盘空间，同时维持足够的历史记录
+- **禁用清理**：设置为 0 或负值可禁用自动清理（保留所有检查点）
+
+**自动清理：**
+- 当检查点数量超过最大限制 + 5 时，系统会自动删除最旧的 5 个检查点
+- 示例：默认限制为 50，当达到 55 个文件时触发清理，删除最旧的 5 个
+- **注意**：当 max_checkpoint_files 设置为 0 或负值时，自动清理功能将被禁用
+- 这样可以有效管理磁盘空间，同时保留最近的工作记录
+
+### .siadaignore 配置
+
+.siadaignore 是一个项目级配置文件，用于告知 Siada 在分析代码库时应忽略哪些文件和目录，其作用类似 .gitignore，通过模式匹配规则指定需要从Siada 的上下文和操作中排除的文件。
+
+**注意：该文件需要手动创建**
+
+.siadaignore 结构示例
+   ```bash
+   # Dependencies
+   node_modules/
+   **/node_modules/
+   .pnp
+   .pnp.js
+
+   # Build outputs
+   /build/
+   /dist/
+   /.next/
+   /out/
+
+   # Testing
+   /coverage/
+
+   # Environment variables
+   .env
+   .env.local
+   .env.development.local
+   .env.test.local
+   .env.production.local
+
+   # Large data files
+   *.csv
+   *.xlsx
+   ```
+
+.siadaignore 目录形式
+   ```bash
+   # .siadaignore文件必须在项目根目录下
+   your-project/
+   ├── .siadaignore
+   ├── src/
+   ├── docs/
+   └── ...
+   ```
 
 ### MCP 配置
 
@@ -191,7 +256,7 @@ Siada CLI 支持两种使用模式，满足不同的使用场景：
 siada-cli --agent bugfix --prompt "修复 auth.py 中的登录错误"
 
 # 组合其他参数
-siada-cli --agent coder --model claude-sonnet-4 --prompt "创建一个 REST API 端点"
+siada-cli --agent coder --model claude-sonnet-4.5 --prompt "创建一个 REST API 端点"
 ```
 
 ### 交互模式
@@ -275,6 +340,9 @@ siada-cli --check-update       # 启动时检查并提示更新（默认开启�
 - `/memory-refresh` - 从 siada.md 文件刷新用户内存内容
 - `/memory-status` - 显示当前用户内存状态（文件信息、大小、加载状态）
 - `/status` - 显示当前会话状态（模型、Agent、会话ID和工作空间）
+- `/lang` - 查看当前语言配置
+  - `/lang zh` - 切换中文
+  - `/lang en` - 切换英文
 - `/exit` 或 `/quit` - 退出应用程序
 
 ### Shell 模式使用说明
@@ -307,6 +375,23 @@ exit
 两种方式的区别：
 - **`/shell`**：适合需要连续执行多个系统命令的场景，一次切换持续使用
 - **`!<命令>`**：适合偶尔执行单个系统命令的场景，执行完立即返回 AI 对话模式
+
+### 语言配置
+
+**coder agent** 在**交互模式**下支持使用斜杠命令切换语言
+
+```bash
+# 默认语言为英文
+# 显示当前语言
+/lang
+
+# 切换当前会话语言为中文
+/lang zh
+/lang zh-CN
+
+# 切换当前会话语言为英文
+/lang en
+```
 
 ## 代理类型
 

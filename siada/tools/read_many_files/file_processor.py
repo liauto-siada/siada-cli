@@ -29,6 +29,7 @@ class FileProcessor:
     MAX_TEXT_LINES = 2000
     MAX_CONTENT_CHARS = 100000
     MAX_CONCURRENT_FILES = 10
+    MAX_FILES_TO_SEARCH = 500  # Maximum number of items (files + dirs) to traverse
     DEFAULT_OUTPUT_SEPARATOR_FORMAT = "--- {filePath} ---"
     
     def __init__(self, target_dir: str):
@@ -93,6 +94,350 @@ class FileProcessor:
         
         self.stats.total_files_found = len(all_entries)
         return all_entries
+    
+    def _parse_search_pattern(self, pattern: str, workspace_dir: str) -> Tuple[str, str]:
+        """
+        Parse search pattern into (start_dir, file_pattern)
+        
+        Examples:
+            'benchmark/**' -> ('benchmark', '*')
+            'src/**/*.py' -> ('src', '*.py')
+            '**/*.py' -> ('', '*.py')
+            '*.py' -> ('', '*.py')
+        """
+        normalized = pattern.replace('\\', '/')
+        
+        # Handle absolute paths
+        if os.path.isabs(normalized):
+            normalized = os.path.relpath(normalized, workspace_dir)
+        
+        # Extract directory and file pattern
+        if '**/' in normalized:
+            parts = normalized.split('**/')
+            start_dir = parts[0].rstrip('/')
+            file_pattern = parts[-1] if parts[-1] else '*'
+            return (start_dir, file_pattern)
+        elif '**' in normalized:
+            # Pattern like 'benchmark/**'
+            start_dir = normalized.replace('**', '').rstrip('/')
+            return (start_dir, '*')
+        elif '/' in normalized:
+            # Pattern like 'src/*.py'
+            parts = normalized.rsplit('/', 1)
+            return (parts[0], parts[1])
+        else:
+            # Pattern like '*.py'
+            return ('', normalized)
+    
+    def _initialize_walk_state(self, search_configs: List[Tuple[str, str]], 
+                               workspace_dir: str) -> Tuple[Set[str], List[str], Dict]:
+        """
+        Initialize the state for BFS walk traversal.
+        
+        Args:
+            search_configs: List of (start_dir, file_pattern) tuples
+            workspace_dir: Workspace directory path
+            
+        Returns:
+            Tuple of (initial_dirs, file_patterns, tree_structure):
+                - initial_dirs: Set of initial directories to start traversal
+                - file_patterns: List of file patterns to match
+                - tree_structure: Empty tree structure dict
+        """
+        # Build initial queue from search patterns
+        initial_dirs = set()
+        for start_dir, _ in search_configs:
+            if start_dir:
+                full_path = os.path.join(workspace_dir, start_dir)
+                if os.path.isdir(full_path):
+                    initial_dirs.add(full_path)
+            else:
+                # Empty start_dir means search from workspace root
+                initial_dirs.add(workspace_dir)
+        
+        # Extract file patterns for matching
+        file_patterns = [file_pattern for _, file_pattern in search_configs]
+        
+        # Initialize tree structure
+        # Structure: {rel_path: {'dirs': set(), 'files': set()}}
+        tree_structure = {}
+        
+        return initial_dirs, file_patterns, tree_structure
+    
+    async def search_files_with_walk(self, search_patterns: List[str],
+                                    exclusion_patterns: List[str],
+                                    file_filter: FileFilter,
+                                    file_filtering_options: Dict[str, bool],
+                                    signal=None) -> Tuple[Set[str], int, str]:
+        """
+        Search files using os.scandir with BFS traversal.
+        Applies filtering and security validation during traversal.
+        Limits results to MAX_FILES_TO_SEARCH.
+        
+        Args:
+            search_patterns: List of glob search patterns
+            exclusion_patterns: List of exclusion patterns
+            file_filter: FileFilter instance for filtering
+            file_filtering_options: Filtering options (respect_git_ignore, etc.)
+            signal: Cancellation signal (optional)
+            
+        Returns:
+            Tuple of (validated_files, filter_counts, tree_structure):
+                - validated_files: Set of absolute file paths (max MAX_FILES_TO_SEARCH files)
+                - filter_counts: Number of files filtered out by gitignore rules
+                - tree_structure: Formatted tree structure string
+        """
+        import fnmatch
+        from collections import deque
+        
+        validated_files = set()
+        workspace_dir = str(self.target_dir)
+        
+        # Parse all patterns
+        search_configs = [self._parse_search_pattern(p, workspace_dir) for p in search_patterns]
+        
+        # Execute walk in thread pool
+        loop = asyncio.get_event_loop()
+        
+        def walk_and_filter_sync():
+            """
+            Optimized synchronous BFS walk with inline filtering.
+            Limits total items (files + directories) traversed to MAX_FILES_TO_SEARCH
+            while maintaining breadth-first structure.
+            Builds tree structure during traversal to include all traversed directories.
+            """
+            matched_files = set()
+            filter_counts = 0
+            total_items_traversed = 0
+            
+            # Initialize traversal state
+            initial_dirs, file_patterns, tree_structure = self._initialize_walk_state(
+                search_configs, workspace_dir
+            )
+            queue = deque(initial_dirs)
+            visited = set()
+            
+            while queue and total_items_traversed < self.MAX_FILES_TO_SEARCH:
+                # Check cancellation
+                if signal and signal.is_cancelled():
+                    break
+                
+                current_dir = queue.popleft()
+                
+                # Avoid infinite loops (symlinks)
+                try:
+                    real_path = os.path.realpath(current_dir)
+                    if real_path in visited:
+                        continue
+                    visited.add(real_path)
+                except (OSError, ValueError):
+                    continue
+                
+                # Get relative path for tree structure
+                rel_dir = os.path.relpath(current_dir, workspace_dir)
+                if rel_dir == '.':
+                    rel_dir = ''
+                
+                # Initialize this directory in tree structure
+                if rel_dir not in tree_structure:
+                    tree_structure[rel_dir] = {'dirs': set(), 'files': set()}
+                
+                try:
+                    # Use scandir for better performance
+                    with os.scandir(current_dir) as entries:
+                        dirs_to_add = []
+                        files_to_check = []
+                        
+                        # First pass: separate dirs and files, count items
+                        for entry in entries:
+                            if total_items_traversed >= self.MAX_FILES_TO_SEARCH:
+                                break
+                            
+                            try:
+                                if file_filter.should_exclude_file(
+                                        entry.path, workspace_dir, exclusion_patterns
+                                    ):
+                                        continue
+                                
+                                # Count this item towards the limit
+                                total_items_traversed += 1
+                                
+                                if entry.is_dir(follow_symlinks=False):
+                                    dirs_to_add.append(entry.path)
+                                    # Add directory to tree structure
+                                    tree_structure[rel_dir]['dirs'].add(entry.name)
+                                elif entry.is_file(follow_symlinks=False):
+                                    # Quick pattern match
+                                    if any(fnmatch.fnmatch(entry.name, pattern) for pattern in file_patterns):
+                                        files_to_check.append(entry.path)
+                                        # Add file to tree structure (will be validated later)
+                                        tree_structure[rel_dir]['files'].add(entry.name)
+                                
+                            except (OSError, PermissionError):
+                                continue
+                        
+                        # Batch process files
+                        if files_to_check:
+                            files_after_exclusion = set(files_to_check)
+                            
+                            if files_after_exclusion:
+                                # Batch apply gitignore filters
+                                filtered_set = set(files_after_exclusion)
+                                filtered_result, filter_count = file_filter.apply_gitignore_filters(
+                                    filtered_set, file_filtering_options
+                                )
+                                filter_counts += filter_count.get('git_ignored', 0)
+                                
+                                if filtered_result:
+                                    # Batch security validation
+                                    validated_result = file_filter.validate_workspace_security(
+                                        filtered_result
+                                    )
+                                    
+                                    if validated_result:
+                                        # Add all validated files (no per-file limit)
+                                        matched_files.update(validated_result)
+                                else:
+                                    # Remove files that were filtered out from tree structure
+                                    for file_path in files_to_check:
+                                        if file_path not in filtered_result:
+                                            file_name = os.path.basename(file_path)
+                                            tree_structure[rel_dir]['files'].discard(file_name)
+                        
+                        # Add directories to queue for BFS (maintains structure)
+                        queue.extend(dirs_to_add)
+                
+                except (OSError, PermissionError):
+                    continue
+            
+            return matched_files, filter_counts, tree_structure
+        
+        # Execute in thread pool to avoid blocking
+        try:
+            validated_files, filter_counts, tree_dict = await loop.run_in_executor(None, walk_and_filter_sync)
+        except Exception as error:
+            print(f"Walk search failed: {error}")
+            validated_files = set()
+            filter_counts = 0
+            tree_dict = {}
+         
+        # Format tree structure from the dict built during traversal
+        tree_structure = self._format_tree_from_dict(tree_dict, workspace_dir)
+        
+        self.stats.total_files_found = len(validated_files)
+        return validated_files, filter_counts, tree_structure
+    
+    async def process_files_without_read_content(self, file_paths: List[str], 
+                                                input_patterns: List[str]) -> Tuple[List[Any], List[str], List[Dict]]:
+        """
+        Process multiple files without reading content (only validate and collect file paths)
+        
+        Args:
+            file_paths: List of absolute file paths to process
+            input_patterns: Original input patterns for explicit request checking
+            
+        Returns:
+            Tuple of (content_parts, processed_files, skipped_files)
+            - content_parts: Empty list (no content read)
+            - processed_files: List of relative file paths
+            - skipped_files: List of skipped files with reasons
+        """
+        content_parts = []  # Always empty
+        processed_files = []
+        skipped_files = []
+        
+        # Sort file paths for consistent output order
+        sorted_files = sorted(file_paths)
+        
+        # Process files concurrently with semaphore to control concurrency
+        semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_FILES)
+        
+        async def validate_single_file(file_path: str):
+            """Validate file without reading content"""
+            async with semaphore:
+                try:
+                    # Detect file type
+                    file_type = await self.detect_file_type(file_path)
+                    
+                    # Check if resource files are explicitly requested
+                    if file_type in ['image', 'pdf']:
+                        if not self.is_explicitly_requested(file_path, input_patterns):
+                            return FileProcessResult(
+                                success=False,
+                                path=file_path,
+                                reason=f'{file_type} file was not explicitly requested by name or extension',
+                                file_type=file_type
+                            )
+                    
+                    # Check file size
+                    file_size = os.path.getsize(file_path)
+                    if file_size > self.MAX_FILE_SIZE_BYTES:
+                        return FileProcessResult(
+                            success=False,
+                            path=file_path,
+                            reason=f'File too large ({file_size / 1024 / 1024:.1f}MB > {self.MAX_FILE_SIZE_BYTES / 1024 / 1024}MB)',
+                            file_type=file_type,
+                            size=file_size
+                        )
+                    
+                    # File is valid, return success without content
+                    return FileProcessResult(
+                        success=True,
+                        path=file_path,
+                        content=None,  # No content
+                        file_type=file_type,
+                        size=file_size
+                    )
+                    
+                except Exception as error:
+                    return FileProcessResult(
+                        success=False,
+                        path=file_path,
+                        reason=f'Unexpected error: {str(error)}'
+                    )
+        
+        # Create tasks for all files
+        tasks = [validate_single_file(fp) for fp in sorted_files]
+        
+        # Execute all tasks concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results
+        for i, result in enumerate(results):
+            file_path = sorted_files[i]
+            relative_path = os.path.relpath(file_path, self.target_dir).replace('\\', '/')
+            
+            if isinstance(result, Exception):
+                skipped_files.append({
+                    'path': relative_path,
+                    'reason': f'Processing error: {str(result)}'
+                })
+                self.stats.error_files += 1
+            elif result.success:
+                # No content to append
+                processed_files.append(relative_path)
+                self.stats.processed_files += 1
+                
+                # Update file type statistics
+                if result.file_type == 'text':
+                    self.stats.text_files += 1
+                elif result.file_type == 'image':
+                    self.stats.image_files += 1
+                elif result.file_type == 'pdf':
+                    self.stats.pdf_files += 1
+                else:
+                    self.stats.binary_files += 1
+                    
+                if result.size:
+                    self.stats.total_size += result.size
+            else:
+                skipped_files.append({
+                    'path': relative_path,
+                    'reason': result.reason
+                })
+                self.stats.skipped_files += 1
+        
+        return content_parts, processed_files, skipped_files
     
     async def process_files(self, file_paths: List[str], 
                           input_patterns: List[str]) -> Tuple[List[Any], List[str], List[Dict]]:
@@ -471,6 +816,100 @@ class FileProcessor:
         else:
             # Non-text file (image, PDF): return Part object directly
             return content
+    
+    def _format_tree_from_dict(self, tree_dict: Dict[str, Dict[str, Set[str]]], root_path: str, max_items: int = 2000) -> str:
+        """
+        Format tree structure from the dictionary built during traversal.
+        This includes all traversed directories, even if they don't contain matched files.
+        
+        Args:
+            tree_dict: Dictionary mapping relative paths to their contents
+                      Format: {rel_path: {'dirs': set(), 'files': set()}}
+            root_path: Root directory path
+            max_items: Maximum number of items to display
+            
+        Returns:
+            Formatted tree structure string
+        """
+        if not tree_dict:
+            return f"{os.path.basename(root_path)}/\n(No directories traversed)"
+        
+        # Build hierarchical structure from flat dict
+        # Convert tree_dict to nested structure for easier formatting
+        root_structure = {}
+        
+        for rel_path, contents in tree_dict.items():
+            if rel_path == '':
+                # Root directory
+                for dir_name in contents['dirs']:
+                    if dir_name not in root_structure:
+                        root_structure[dir_name] = {}
+                if contents['files']:
+                    if '__files__' not in root_structure:
+                        root_structure['__files__'] = []
+                    root_structure['__files__'].extend(sorted(contents['files']))
+            else:
+                # Nested directory - build path
+                parts = rel_path.split(os.sep)
+                current = root_structure
+                
+                # Navigate to the parent directory
+                for part in parts:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                
+                # Add subdirectories
+                for dir_name in contents['dirs']:
+                    if dir_name not in current:
+                        current[dir_name] = {}
+                
+                # Add files
+                if contents['files']:
+                    if '__files__' not in current:
+                        current['__files__'] = []
+                    current['__files__'].extend(sorted(contents['files']))
+        
+        # Generate tree output
+        lines = []
+        lines.append(f"{os.path.basename(root_path)}/")
+        
+        def format_tree(structure: Dict, prefix: str = "", count: List[int] = [0]) -> None:
+            """Recursively format the tree structure"""
+            if count[0] >= max_items:
+                return
+            
+            # Get directories and files
+            dirs = {k: v for k, v in structure.items() if k != '__files__'}
+            files = structure.get('__files__', [])
+            
+            # Sort directories and files
+            sorted_dirs = sorted(dirs.keys())
+            sorted_files = sorted(files)
+            
+            all_items = [(d, True) for d in sorted_dirs] + [(f, False) for f in sorted_files]
+            
+            for i, (name, is_dir) in enumerate(all_items):
+                if count[0] >= max_items:
+                    lines.append(f"{prefix}...")
+                    break
+                
+                is_last = (i == len(all_items) - 1)
+                connector = "└── " if is_last else "├── "
+                display_name = f"{name}/" if is_dir else name
+                
+                lines.append(f"{prefix}{connector}{display_name}")
+                count[0] += 1
+                
+                # Recursively process subdirectories
+                if is_dir and count[0] < max_items:
+                    extension = "    " if is_last else "│   "
+                    new_prefix = prefix + extension
+                    format_tree(dirs[name], new_prefix, count)
+        
+        format_tree(root_structure)
+        
+        return "\n".join(lines)
     
     def get_stats(self) -> ProcessingStats:
         """

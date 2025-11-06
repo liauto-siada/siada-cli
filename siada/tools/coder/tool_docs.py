@@ -29,6 +29,7 @@ CRITICAL REQUIREMENTS FOR USING THIS TOOL:
 3. REPLACEMENT: The `new_str` parameter should contain the edited lines that replace the `old_str`. Both strings must be different.
 
 Remember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each.
+Note: When a parameter value is not provided, use null (in JSON) instead of an empty string “”.
 
 Args:
     command: The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.

@@ -28,6 +28,9 @@ class CodeAgentContext(BaseModel):
     mcp_config: Optional[Any] = None
     mcp_enabled: bool = False
 
+    # SiadaIgnore controller for file access control
+    siadaignore_controller: Optional[Any] = None
+
     @property
     def task_message_state(self):
         return self.session.state.task_message_state
@@ -42,6 +45,7 @@ class CodeAgentContext(BaseModel):
                 self.checkpoint_tracker.save_checkpoints(
                     session_id=self.session.session_id,
                     task_message_state=self.session.state.task_message_state,
+                    usage=self.session.state.usage,
                 )
             except Exception as e:
                 logging.error(f"Error saving checkpoints: {e}")

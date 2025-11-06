@@ -44,7 +44,7 @@ def get_cca_resource():
     the cca_agent resources to the project's .cca directory.
     """
     # Configuration
-    repo_url = "https://gitlab.chehejia.com/ai-system/cockpit-create-agent.git"
+    repo_url = ""
     branch = "develop"
     project_root = _find_project_root()
     
@@ -58,7 +58,11 @@ def get_cca_resource():
         
         # Step 2: Copy CCA resources
         _copy_cca_resources(temp_path, project_root)
-        
+
+        # Step 3: Refresh the environment. Because while running agent sometimes CCA resources just downloaded cannot be found by agents. Reasons   still remain unknown.
+        os.sync()
+
+        return project_root
         print("CCA resource retrieval completed successfully")
         
     except Exception as e:
