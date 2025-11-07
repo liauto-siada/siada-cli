@@ -29,7 +29,7 @@ With Siada CLI you can:
    ```
 2. Install siada-cli
    ```bash
-   uv tool install --force --python python3.12 --with pip siada-cli@latest --no-build-package pyarrow
+   uv tool install --force --python python3.12 --with pip siada-cli@latest
    ```
    If the siada-cli directory is not present on the PATH, run the follow command to update the shell
    ```bash
