@@ -17,9 +17,7 @@ classifiers = [
 ]
 
 [tool.poetry.scripts]
-siada-cli = "siada.entrypoint.siadahub:main"
-siada = "siada.entrypoint.siadahub:main"  
-sc = "siada.entrypoint.siadahub:main"  
+siada-cli = "siada.entrypoint.siadahub:main"  
 [tool.poetry.dependencies]
 python = "^3.12"
 fastapi = ">=0.110.0,<1.0.0"
