@@ -39,11 +39,11 @@ REASONING_TAG = "thinking-content-" + "7bbeb8e1441453ad999a0bbba8a46d4b"
 SPLIT_TAG = "\n--------------\n"
 # Output formatting
 
-REASONING_START = "► **THINKING**"
+REASONING_START = "▶ **THINKING**" # ►
 
-REASONING_END = "► **ANSWER**"
+REASONING_END = "▶ **ANSWER**"
 
-TOOL_CALL_START = "► **TOOL USE**"
+TOOL_CALL_START = "▶ **TOOL USE**"
 
 
 class ConversationTurn(RunTurn):
@@ -267,7 +267,7 @@ class ConversationTurn(RunTurn):
                     ):
                         if not self.got_reasoning_part and stream_data.delta:
                             self.got_reasoning_part = True
-                            self.print_split_line()
+                            # self.print_split_line()
                             delta_text = f"\n{REASONING_START}\n\n{stream_data.delta}"
                             self.response_content += delta_text
                         else:
@@ -289,8 +289,8 @@ class ConversationTurn(RunTurn):
                     elif isinstance(stream_data, ResponseTextDeltaEvent):
                         if not self.got_content_part and stream_data.delta:
                             self.got_content_part = True
-                            if not self.got_reasoning_part:
-                                self.print_split_line()
+                            # if not self.got_reasoning_part:
+                            #     self.print_split_line()
                             delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}"
                             self.response_content += delta_text
                         else:
@@ -368,10 +368,19 @@ class ConversationTurn(RunTurn):
                                     ]
 
                             self.current_active_call_id = call_id
-                            self.print_split_line()
-                            self.config.io.print_tool_call(
-                                f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}\n"
+                            # self.print_split_line()
+                            
+                            # Stage 1: Print tool name (use append=False to avoid accumulating the header)
+                            self.config.io.print_tool_call_all_stages(
+                                f"Siada wants to use the tool: {tool_name}.\n",
+                                final=False,
+                                append=True
                             )
+                            
+                            # Original method (commented out for reference)
+                            # self.config.io.print_tool_call(
+                            #     f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}\n"
+                            # )
 
                     elif isinstance(
                         stream_data, ResponseFunctionCallArgumentsDeltaEvent
@@ -387,35 +396,35 @@ class ConversationTurn(RunTurn):
                         )
 
                         # if supports streaming, update the tool call mdstream
-                        if tool_call_formatter.supports_streaming():
-                            content, is_complete = tool_call_formatter.format_input(
-                                self.current_active_call_id,
-                                self.tool_calls[self.current_active_call_id]["name"],
-                                self.tool_calls[self.current_active_call_id][
-                                    "arguments"
-                                ],
-                            )
+                        # if tool_call_formatter.supports_streaming():
+                        #     content, is_complete = tool_call_formatter.format_input(
+                        #         self.current_active_call_id,
+                        #         self.tool_calls[self.current_active_call_id]["name"],
+                        #         self.tool_calls[self.current_active_call_id][
+                        #             "arguments"
+                        #         ],
+                        #     )
 
-                            # compute the content_delta
-                            arguments_delta = content[
-                                len(
-                                    self.tool_calls[self.current_active_call_id][
-                                        "arguments_render"
-                                    ]
-                                ) :
-                            ]
-                            self.tool_calls[self.current_active_call_id][
-                                "arguments_render"
-                            ] = content
+                        #     # compute the content_delta
+                        #     arguments_delta = content[
+                        #         len(
+                        #             self.tool_calls[self.current_active_call_id][
+                        #                 "arguments_render"
+                        #             ]
+                        #         ) :
+                        #     ]
+                        #     self.tool_calls[self.current_active_call_id][
+                        #         "arguments_render"
+                        #     ] = content
 
-                            if self.current_active_call_id in self.tool_call_mdstreams:
-                                self.tool_call_mdstreams[
-                                    self.current_active_call_id
-                                ].update(content, final=False)
-                            else:
-                                self.config.io.console.print(
-                                    arguments_delta, sep="", end=""
-                                )
+                        #     if self.current_active_call_id in self.tool_call_mdstreams:
+                        #         self.tool_call_mdstreams[
+                        #             self.current_active_call_id
+                        #         ].update(content, final=False)
+                        #     else:
+                        #         self.config.io.console.print(
+                        #             arguments_delta, sep="", end=""
+                        #         )
 
                     elif isinstance(stream_data, ResponseOutputItemDoneEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
@@ -431,33 +440,48 @@ class ConversationTurn(RunTurn):
                                     call_id, tool_name, full_arguments
                                 )
                                 style = tool_call_formatter.get_style()
+                                
+                                # Stage 2: Print tool description/parameters
+                                self.config.io.advance_tool_call_stage()
+                                self.config.io.print_tool_call_all_stages(
+                                    content,
+                                    final=True
+                                )
+                                
+                                # Original streaming/non-streaming handling (commented out)
                                 # if not streaming, only create the mdstream and update the final content
-                                if tool_call_formatter.supports_streaming():
-                                    # process the last tool call stream, stop the live
-                                    if call_id in self.tool_call_mdstreams:
-                                        self.tool_call_mdstreams[call_id].update(
-                                            content,
-                                            final=True,
-                                        )
-                                    if call_id in self.tool_call_mdstreams:
-                                        del self.tool_call_mdstreams[call_id]
-                                else:
-                                    if style == "markdown" and self.config.io.pretty:
-                                        self.tool_call_mdstreams[call_id] = (
-                                            self.get_response_mdstream()
-                                        )
-                                        self.tool_call_mdstreams[call_id].update(
-                                            content, final=True
-                                        )
-                                        if call_id in self.tool_call_mdstreams:
-                                            del self.tool_call_mdstreams[call_id]
-                                    else:
-                                        self.config.io.print_tool_call(content)
+                                # if tool_call_formatter.supports_streaming():
+                                #     # process the last tool call stream, stop the live
+                                #     if call_id in self.tool_call_mdstreams:
+                                #         self.tool_call_mdstreams[call_id].update(
+                                #             content,
+                                #             final=True,
+                                #         )
+                                #     if call_id in self.tool_call_mdstreams:
+                                #         del self.tool_call_mdstreams[call_id]
+                                # else:
+                                #     if style == "markdown" and self.config.io.pretty:
+                                #         self.tool_call_mdstreams[call_id] = (
+                                #             self.get_response_mdstream()
+                                #         )
+                                #         self.tool_call_mdstreams[call_id].update(
+                                #             content, final=True
+                                #         )
+                                #         if call_id in self.tool_call_mdstreams:
+                                #             del self.tool_call_mdstreams[call_id]
+                                #     else:
+                                #         self.config.io.print_tool_call(content)
 
                     elif isinstance(stream_data, ResponseCompletedEvent):
-                        # Print context usage after each model response
-                        # Get usage from the event if available
+                        # Stage 3: Close the Live+Panel display without adding token info
                         usage = stream_data.response.usage if hasattr(stream_data, 'response') and stream_data.response else None
+                        
+                        # Close the Live+Panel display (don't add token info to panel)
+                        if hasattr(self.config.io, '_tool_call_stages') and self.config.io._tool_call_stages:
+                            # Just close the panel without adding token info
+                            self.config.io.print_tool_call_all_stages("", final=True, append=False)
+                        
+                        # Print context usage using original method (outside the panel)
                         self._print_context_usage(usage=usage)
 
                 elif isinstance(event, RunItemStreamEvent):
@@ -467,7 +491,7 @@ class ConversationTurn(RunTurn):
                         if call_id:
                             if call_id in self.tool_calls:
                                 tool_name = self.tool_calls[call_id]["name"]
-                                self.print_split_line()
+                                # self.print_split_line()
                                 output = stream_data.output
                                 if isinstance(output, FunctionCallResult):
                                     self.config.io.print_tool_result(
@@ -510,9 +534,11 @@ class ConversationTurn(RunTurn):
             )
 
             if should_render or final:
-                self.mdstream.update(
-                    processed_content if processed_content else "", final
-                )
+                content_to_update = processed_content if processed_content else ""
+                # When final is True, ensure content ends with newline
+                if final and content_to_update and not content_to_update.endswith('\n'):
+                    content_to_update += '\n'
+                self.mdstream.update(content_to_update, final)
             # If should_render is False, pause mdstream.update temporarily
         else:
             if not self.config.io.pretty:
@@ -534,12 +560,12 @@ class ConversationTurn(RunTurn):
         self.start_time = self._get_timestamp()
         
         # Initialize spinner and inject into session for external access
-        if self.config.io.pretty:
-            spinner = WaitingSpinner(
-                f"Waiting for Agent {self.config.agent_name}..."
-            )
-            # Inject spinner into session state for external access (e.g., stop from outside)
-            self.session.state.spinner = spinner
+        # if self.config.io.pretty:
+        #     spinner = WaitingSpinner(
+        #         f"Waiting for Agent {self.config.agent_name}...", text_color="#79B8FF"
+        #     )
+        #     # Inject spinner into session state for external access (e.g., stop from outside)
+        #     self.session.state.spinner = spinner
 
         # Reset event flags at the beginning of each execution
         self._cleanup_done.clear()
@@ -659,7 +685,7 @@ class ConversationTurn(RunTurn):
 
     def get_response_mdstream(self):
         mdargs = dict(
-            style=self.config.running_color_settings.assistant_output_color,
+            style=self.config.running_color_settings.assistant_output_color, 
             code_theme=self.config.running_color_settings.code_theme,
             inline_code_lexer="text",
         )
@@ -694,7 +720,7 @@ class ConversationTurn(RunTurn):
         from rich.text import Text
 
         # Create styled text with a dim style for subtle display
-        text = Text(message, style="dim cyan")
+        text = Text(message, style="dim #5B9BD5") # rule
         aligned_text = Align.right(text)
 
         self.config.io.console.print(aligned_text)

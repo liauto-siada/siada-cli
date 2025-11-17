@@ -60,6 +60,11 @@ class KeyBindingsFactory:
         @kb.add("enter", eager=True, filter=~is_searching & ~has_completions)
         def _(event):
             "Handle Enter key press when no completions are shown"
+            buffer = event.current_buffer
+            
+            # Check if buffer has any non-whitespace content
+            has_content = buffer.text.strip()
+            
             if self.io.multiline_mode and not (
                 self.io.editingmode == EditingMode.VI
                 and event.app.vi_state.input_mode == InputMode.NAVIGATION
@@ -68,8 +73,10 @@ class KeyBindingsFactory:
                 # Enter adds a newline
                 event.current_buffer.insert_text("\n")
             else:
-                # In normal mode, Enter submits
-                event.current_buffer.validate_and_handle()
+                # In normal mode, Enter submits only if there's content
+                if has_content:
+                    event.current_buffer.validate_and_handle()
+                # If no content, do nothing (ignore the Enter key)
 
         @kb.add("enter", eager=True, filter=~is_searching & has_completions)
         def _(event):
@@ -94,6 +101,9 @@ class KeyBindingsFactory:
                     # For @ commands, only accept completion without submitting
                     # For other commands (like /), accept completion and submit
                     if not is_at_command:
+                        # Check if buffer has any non-whitespace content before submitting
+                        has_content = buffer.text.strip()
+                        
                         # For non-@ commands, also submit after accepting completion
                         if self.io.multiline_mode and not (
                             self.io.editingmode == EditingMode.VI
@@ -102,10 +112,14 @@ class KeyBindingsFactory:
                             # In multiline mode, Enter adds a newline after accepting completion
                             buffer.insert_text("\n")
                         else:
-                            # In normal mode, Enter submits after accepting completion
-                            buffer.validate_and_handle()
+                            # In normal mode, Enter submits after accepting completion only if there's content
+                            if has_content:
+                                buffer.validate_and_handle()
             else:
                 # No completions available, just handle enter normally
+                # Check if buffer has any non-whitespace content
+                has_content = buffer.text.strip()
+                
                 if self.io.multiline_mode and not (
                     self.io.editingmode == EditingMode.VI
                     and event.app.vi_state.input_mode == InputMode.NAVIGATION
@@ -113,10 +127,24 @@ class KeyBindingsFactory:
                     # In multiline mode, Enter adds a newline
                     buffer.insert_text("\n")
                 else:
-                    # In normal mode, Enter submits
-                    buffer.validate_and_handle()
+                    # In normal mode, Enter submits only if there's content
+                    if has_content:
+                        buffer.validate_and_handle()
+                    # If no content, do nothing (ignore the Enter key)
 
-        @kb.add("escape", "enter", eager=True, filter=~is_searching)  # This is Alt+Enter
+        @kb.add("escape", "enter", eager=True, filter=~is_searching)  # This is Alt+Enter (Option+Enter on Mac)
+        def _(event):
+            "Handle Alt+Enter (Option+Enter) key press - always inserts newline"
+            # Always insert newline regardless of mode
+            if self.io.multiline_mode:
+                # In multiline mode, Alt+Enter submits
+                event.current_buffer.validate_and_handle()
+            else:
+                # In normal mode, Alt+Enter adds a newline
+                event.current_buffer.insert_text("\n")
+
+
+        @kb.add("c-j", eager=True, filter=~is_searching)  # Ctrl+J
         def _(event):
             "Handle Alt+Enter key press"
             if self.io.multiline_mode:

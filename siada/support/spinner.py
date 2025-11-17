@@ -135,13 +135,17 @@ class Spinner:
         if color is not None:
             self.text_color = color
 
-    def step(self, text: str = None) -> None:
+    def step(self, text: str = None, io_instance=None) -> None:
         """Update the spinner animation and optionally change the text."""
         if text is not None:
             self.text = text
 
         if not self.is_tty:
             return
+
+        # Check if panel is active - if so, don't update spinner
+        # if io_instance and hasattr(io_instance, '_panel_is_active') and io_instance._panel_is_active:
+        #     return
 
         try:
             now = time.time()
@@ -211,10 +215,11 @@ class Spinner:
 class WaitingSpinner:
     """Background spinner that can be started/stopped safely and restarted."""
 
-    def __init__(self, text: str = "Waiting for LLM", delay: float = 0.15, text_color: str = "bright_cyan"):
+    def __init__(self, text: str = "Waiting for LLM", delay: float = 0.15, text_color: str = "bright_cyan", io_instance=None):
         self.text = text
         self.text_color = text_color
         self.delay = delay
+        self.io_instance = io_instance  # Store IO instance to check panel status
         self.spinner = None
         self._stop_event = None
         self._thread = None
@@ -224,7 +229,7 @@ class WaitingSpinner:
         if self.spinner is None:
             return
         while not self._stop_event.is_set():
-            self.spinner.step()
+            self.spinner.step(io_instance=self.io_instance)  # Pass io_instance to step
             time.sleep(self.delay)
         self.spinner.end()
 

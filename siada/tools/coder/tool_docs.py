@@ -17,6 +17,8 @@ When making edits:
    - Ensure the edit results in idiomatic, correct code
    - Do not leave the code in a broken state
    - Always use absolute file paths (starting with /)
+   - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+   - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 
 CRITICAL REQUIREMENTS FOR USING THIS TOOL:
 

@@ -2,6 +2,7 @@
 
 import io
 import time
+from weakref import ref
 
 from rich import box
 from rich.console import Console
@@ -10,7 +11,6 @@ from rich.markdown import CodeBlock, Heading, Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
-
 
 class NoInsetCodeBlock(CodeBlock):
     """A code block with syntax highlighting and no padding."""
@@ -63,7 +63,7 @@ class MarkdownRender:
     live = None  # Rich Live display instance
     when = 0  # Timestamp of last update
     min_delay = 1.0 / 20  # Minimum time between updates (20fps)
-    live_window = 6  # Number of lines to keep visible at bottom during streaming
+    live_window = 10  # Number of lines to keep visible at bottom during streaming
 
     def __init__(self, mdargs=None):
         """Initialize the markdown stream.
@@ -78,6 +78,7 @@ class MarkdownRender:
         else:
             self.mdargs = dict()
 
+        self.console = Console()
         # Defer Live creation until the first update.
         self.live = None
         self._live_started = False
@@ -95,7 +96,7 @@ class MarkdownRender:
         """
         # Use provided mdargs or fall back to instance mdargs
         final_mdargs = mdargs if mdargs is not None else {}
-        
+
         # Render the markdown to a string buffer
         string_io = io.StringIO()
         console = Console(file=string_io, force_terminal=True)

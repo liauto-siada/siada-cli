@@ -496,6 +496,13 @@ class ApiMessageTransferFilter:
             "model": model,
             "messages": _build_compact_messages(history_to_compact=history_to_compact),
         }
+        
+        # Only add empty tools list for Anthropic/Claude models with default provider to avoid litellm error
+        if provider == "default" and (
+            "anthropic" in model.lower() or "claude" in model.lower()
+        ):
+            complete_kwargs["tools"] = []
+        
         response = await llm_client.completion(**complete_kwargs)
 
         if response and response.choices and response.choices[0].message:

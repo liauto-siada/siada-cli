@@ -4,13 +4,13 @@ from typing import Dict, ClassVar
 
 @dataclass
 class ColorSettings:
-    user_input_color: str = "blue"
+    user_input_color: str = None  # 使用默认颜色（白色）
     tool_output_color: str = None
     tool_error_color: str = "red"
     tool_warning_color: str = "#FFA500"
     tool_result_color: str = "#00FF00"
     tool_call_color: str = "#FFD700"
-    assistant_output_color: str = "blue"
+    assistant_output_color: str = "#6BA5E7"
     completion_menu_color: str = None
     completion_menu_bg_color: str = None
     completion_menu_current_color: str = None
@@ -19,17 +19,20 @@ class ColorSettings:
     split_line_color: str = "#0000FF"
     shell_model_color: str = "#FF00FF"
     at_file_reference_color: str = "#FF6B6B"
+    frame_border_color: str = "white"
+    prompt_color: str = "00aaff" #"#00aaff bold"
+    placeholder_color: str = "#888888"
     
     # Predefined theme configurations
     THEMES: ClassVar[Dict[str, Dict[str, str]]] = {
         "default": {
-            "user_input_color": "blue",
+            "user_input_color": None,  # 使用默认颜色
             "tool_output_color": None,
             "tool_error_color": "red", 
             "tool_warning_color": "#FFA500",
             "tool_result_color": "#00FF00",
             "tool_call_color": "#FFD700",
-            "assistant_output_color": "blue",
+            "assistant_output_color": "#6BA5E7",
             "completion_menu_color": None,
             "completion_menu_bg_color": None,
             "completion_menu_current_color": None,
@@ -37,16 +40,19 @@ class ColorSettings:
             "code_theme": "default",
             "split_line_color": "#0000FF",
             "shell_model_color": "#FF00FF",
-            "at_file_reference_color": "#FF6B6B"
+            "at_file_reference_color": "#FF6B6B",
+            "frame_border_color": "white",
+            # "prompt_color": "#00aaff bold",
+            "placeholder_color": "#888888"
         },
         "dark": {
-            "user_input_color": "#32FF32",
+            "user_input_color": None,  # 使用默认白色
             "tool_output_color": None,
             "tool_error_color": "#FF3333",
             "tool_warning_color": "#FFFF00", 
-            "tool_result_color": "#00FF7F",
+            "tool_result_color": "#6BA5E7",
             "tool_call_color": "#FFA500",
-            "assistant_output_color": "#00FFFF",
+            "assistant_output_color": "#FFFFFF", #"#6BA5E7",
             "completion_menu_color": None,
             "completion_menu_bg_color": None,
             "completion_menu_current_color": None,
@@ -54,10 +60,13 @@ class ColorSettings:
             "code_theme": "monokai",
             "split_line_color": "#4169E1",
             "shell_model_color": "#DA70D6",
-            "at_file_reference_color": "#FF8A80"
+            "at_file_reference_color": "#FF8A80",
+            "frame_border_color": "white",
+            # "prompt_color": "#00aaff bold",
+            "placeholder_color": "#888888"
         },
         "light": {
-            "user_input_color": "green",
+            "user_input_color": None,  # 使用默认颜色
             "tool_output_color": None,
             "tool_error_color": "red",
             "tool_warning_color": "#FFA500",
@@ -71,7 +80,10 @@ class ColorSettings:
             "code_theme": "default",
             "split_line_color": "#1E90FF",
             "shell_model_color": "#9370DB",
-            "at_file_reference_color": "#E91E63"
+            "at_file_reference_color": "#E91E63",
+            "frame_border_color": "white",
+            # "prompt_color": "#00aaff bold",
+            "placeholder_color": "#888888"
         }
     }
     
@@ -106,6 +118,9 @@ class ColorSettings:
         args.split_line_color = self.split_line_color
         args.shell_model_color = self.shell_model_color
         args.at_file_reference_color = self.at_file_reference_color
+        args.frame_border_color = self.frame_border_color
+        args.prompt_color = self.prompt_color
+        args.placeholder_color = self.placeholder_color
 
 
 class RunningConfigColorSettings:
@@ -169,6 +184,15 @@ class RunningConfigColorSettings:
         self.at_file_reference_color = (
             ColorUtils.ensure_hash_prefix(self.color_settings.at_file_reference_color) if pretty else None
         )
+        self.frame_border_color = (
+            ColorUtils.ensure_hash_prefix(self.color_settings.frame_border_color) if pretty else None
+        )
+        self.prompt_color = (
+            ColorUtils.ensure_hash_prefix(self.color_settings.prompt_color) if pretty else None
+        )
+        self.placeholder_color = (
+            ColorUtils.ensure_hash_prefix(self.color_settings.placeholder_color) if pretty else None
+        )
         
         self.code_theme = self.color_settings.code_theme
         
@@ -193,6 +217,9 @@ class RunningConfigColorSettings:
             "split_line_color",
             "shell_model_color",
             "at_file_reference_color",
+            "frame_border_color",
+            "prompt_color",
+            "placeholder_color",
         ]
         
         for attr_name in color_attributes:

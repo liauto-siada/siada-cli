@@ -26,12 +26,6 @@ class DefaultProvider(ModelProvider):
         self.base_url = os.getenv("BASE_URL", None)
         self.api_key = os.getenv("API_KEY", None)
 
-        # Configure litellm with custom settings
-        if self.base_url:
-            litellm.api_base = self.base_url
-        if self.api_key:
-            litellm.api_key = self.api_key
-
     def get_model(self, model_name: str | None) -> Model:
         """Get a model by name.
 
@@ -43,9 +37,12 @@ class DefaultProvider(ModelProvider):
         """
         # Use provided model_name or fall back to configured model_name
         effective_model_name = covert_to_litellm_model_name(model_name)
-        if 'deepseek' in effective_model_name:
-            os.environ['DEEPSEEK_API_KEY'] = self.api_key
-        return LitellmModel(model=effective_model_name)
+        if "deepseek" in effective_model_name:
+            os.environ["DEEPSEEK_API_KEY"] = self.api_key
+
+        return LitellmModel(
+            model=effective_model_name, base_url=self.base_url, api_key=self.api_key
+        )
 
 
 class DefaultClient(LLMClient):
@@ -62,27 +59,21 @@ class DefaultClient(LLMClient):
         self.base_url = os.getenv("BASE_URL")
         self.api_key = os.getenv("API_KEY")
 
-        # Configure litellm with custom settings
-        if self.base_url:
-            litellm.api_base = self.base_url
-        if self.api_key:
-            litellm.api_key = self.api_key
-
-    def completion(self, **kwargs) -> LitellmModelResponse:
+    async def completion(self, **kwargs) -> LitellmModelResponse:
         """Call LLM API for completion.
         
         Args:
-            **kwargs: Arguments to pass to litellm.completion
+            **kwargs: Arguments to pass to litellm.acompletion
                      Can include 'model' to override the default model
             
         Returns:
             LitellmModelResponse: The completion response
         """
-
         # Set api_base and api_key if available
         if self.base_url:
             kwargs["api_base"] = self.base_url
         if self.api_key:
             kwargs["api_key"] = self.api_key
 
-        return litellm.completion(**kwargs)
+        # Use litellm's native async method for better performance
+        return await litellm.acompletion(**kwargs)

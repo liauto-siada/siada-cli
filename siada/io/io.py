@@ -11,7 +11,7 @@ from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.output.vt100 import is_dumb_terminal
-from prompt_toolkit.shortcuts import CompleteStyle, PromptSession
+from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.styles import Style
 from rich.color import ColorParseError
 from rich.console import Console
@@ -22,6 +22,7 @@ from rich.text import Text
 from siada.io.components.mdstream import MarkdownRender
 from siada.io.console_printer import ConsolePrinter
 from siada.io.notification_command import NotificationCommandUtil
+from siada.io.custom_prompt_session import CustomPromptSession
 from .color_settings import ColorSettings, RunningConfigColorSettings
 from .key_bindings import KeyBindingsFactory
 
@@ -173,17 +174,27 @@ class InputOutput:
             fancy_input = False
 
         if fancy_input:
-            # Initialize PromptSession only if we have a capable terminal
+            style = Style.from_dict({
+                'frame.border': '#6BA5E7',  # Blue
+                # 'prompt': '#00aaff bold',  # 蓝色提示符
+                'placeholder': '#888888',  # 灰色占位符
+            })
             session_kwargs = {
                 "input": self.input,
                 "output": self.output,
+                "message": "> ",
                 "lexer": None,
                 "editing_mode": self.editingmode,
+                "style": style,
+                "show_frame": True,  # 启用边框
+                "complete_while_typing": True,
+                "wrap_lines": True,  # 启用自动换行
+                "placeholder": [('class:placeholder', 'Type a message, /command, or @path/to/file ...')]
             }
             if self.editingmode == EditingMode.VI:
                 session_kwargs["cursor"] = ModalCursorShapeConfig()
             try:
-                self.prompt_session = PromptSession(**session_kwargs)
+                self.prompt_session = CustomPromptSession(**session_kwargs)
                 self.console = Console()  # pretty console
                 self._initialize_printer()
             except Exception as err:
@@ -211,6 +222,10 @@ class InputOutput:
         style_dict = {}
         if not self.pretty:
             return Style.from_dict(style_dict)
+
+        # Add frame border style
+        style_dict["frame.border"] = "#6BA5E7"  # Blue
+        style_dict["placeholder"] = "#888888"
 
         user_input_color = input_color or self.running_color_settings.user_input_color
         if user_input_color:
@@ -311,12 +326,18 @@ class InputOutput:
                     self.placeholder = None
 
                     self.interrupted = False
+                    message="  "
                     if not multiline_input:
+                        message="> "
                         if self.clipboard_watcher:
                             self.clipboard_watcher.start()
 
                     def get_continuation(width, line_number, is_soft_wrap):
-                        return self.prompt_prefix
+                        # Only show prompt prefix for hard line breaks (user pressed Enter)
+                        # For soft wraps (automatic line wrapping), return spaces to maintain alignment
+                        # if is_soft_wrap:
+                        return " " * len(self.prompt_prefix)
+                        # return self.prompt_prefix
 
                     # Build prompt parameters, explicitly set completer (including None case)
                     prompt_kwargs = {
@@ -587,6 +608,105 @@ class InputOutput:
 
     def print_tool_call(self, message="", strip=True):
         self.printer.call(message)
+    
+    def print_tool_call_all_stages(self, message="", final=False, append=True):
+        """
+        Print tool call with staged output using Rich Live + Panel (like demo_tool_use_panel.py)
+        Collects content in stages and displays dynamically in a bordered panel
+        
+        Args:
+            message: Content to add to current stage
+            final: Whether this is the final stage
+            append: Whether to append message to accumulated content (default True)
+                   Set to False to replace content instead of appending
+        """
+        # Initialize stage collector if not exists or if it was cleared
+        if not hasattr(self, '_tool_call_stages') or self._tool_call_stages is None:
+            self._tool_call_stages = {
+                'content': '',  # Accumulated content
+                'live': None,   # Live context
+            }
+        
+        stages = self._tool_call_stages
+        
+        # Calculate new content
+        if append:
+            new_content = stages['content'] + message
+        else:
+            new_content = message
+        
+        # Only update if content actually changed or if it's the final update
+        content_changed = new_content != stages['content']
+        
+        if content_changed or final:
+            stages['content'] = new_content
+            
+            # Display using Live + Panel if pretty mode
+            if self.pretty:
+                from rich.live import Live
+                from rich.panel import Panel
+                # from rich.markdown import Markdown
+                from rich.text import Text
+                from siada.io.components.mdstream import NoInsetMarkdown
+                
+                # Create Live context if not exists
+                if stages['live'] is None:
+                    stages['live'] = Live(
+                        console=self.console,
+                        refresh_per_second=4,  # Increased from 1 to 4 for smoother updates
+                        auto_refresh=False  # Disable auto-refresh to control updates manually
+                    )
+                    stages['live'].start()
+                    # Signal that panel is active - pause spinner if it exists
+                    self._panel_is_active = True
+                
+                # Create Markdown object for content to support URL highlighting, etc.
+                markdown_content = NoInsetMarkdown(
+                    stages['content'],
+                    code_theme=self.running_color_settings.code_theme,
+                    inline_code_lexer="text"
+                )
+                
+                # Create panel with Markdown content and fixed width to prevent resizing
+                panel = Panel(
+                    markdown_content,
+                    title="[bold #6BA5E7]► TOOL USE[/bold #6BA5E7]",
+                    title_align="left",
+                    subtitle="[dim]Waiting for model response...[/dim]",
+                    border_style="#6BA5E7",
+                    padding=(1, 2),
+                    expand=True  # Make panel expand to full width to prevent resizing
+                )
+                
+                stages['live'].update(panel, refresh=True)  # Explicitly refresh
+                
+                # Cleanup if final
+                if final:
+                    panel = Panel(
+                        markdown_content,
+                        title="[bold #6BA5E7]► TOOL USE[/bold #6BA5E7]",
+                        title_align="left",
+                        subtitle="[dim]✓ Completed[/dim]",
+                        border_style="#6BA5E7",
+                        padding=(1, 2),
+                        expand=True  # Make panel expand to full width to prevent resizing
+                    )
+                    stages['live'].update(panel, refresh=True)
+                    stages['live'].stop()
+                    self._tool_call_stages = None
+                    self._panel_is_active = False  # Panel is no longer active
+            else:
+                # Non-pretty mode: just print
+                self.console.print(message, sep="", end="")
+                
+                if final:
+                    self.console.print()  # Add newline at end
+                    self._tool_call_stages = None
+        
+    def advance_tool_call_stage(self):
+        """Advance to the next stage of tool call output (no-op for Live+Panel approach)"""
+        # With Live+Panel, we just accumulate content, no need to track stages
+        pass
 
     def print_info(self, *messages, bold=False):
         self.printer.output(*messages, bold=bold)

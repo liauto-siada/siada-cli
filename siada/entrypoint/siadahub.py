@@ -305,7 +305,8 @@ def show_banner(io):
     """
     # Show SIADA HUB banner with gradient effect
     from siada.io.banner import show_siada_banner
-
+    # Clear terminal using system clear command
+    os.system('clear' if os.name != 'nt' else 'cls')
     try:
         io.rule()
         show_siada_banner(pretty=io.pretty, console=io.console)
@@ -617,7 +618,7 @@ def main():
     # Validate agent compatibility with interactive mode
     validate_agent_compatibility(args.agent, interactive_mode, io, args.verbose)
 
-    show_banner(io)
+    # show_banner(io)
 
     # Initialize MCP service if configured
     _init_mcp_service(running_config)

@@ -7,5 +7,5 @@ from abc import ABC, abstractmethod
 class LLMClient(ABC):
 
     @abstractmethod
-    def completion(self, **kwargs) -> LitellmModelResponse:
+    async def completion(self, **kwargs) -> LitellmModelResponse:
         pass

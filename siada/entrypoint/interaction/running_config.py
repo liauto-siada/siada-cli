@@ -37,4 +37,5 @@ class RunningConfig:
     mcp_service = None  # MCP service instance (will be initialized later)
     auto_compact: bool = True  # Enable automatic context compression
     siadaignore_controller: Optional[SiadaIgnoreController] = None  # SiadaIgnore controller for file access control
-    preferred_language: str = "en"  # Preferred language for AI responses: "en" (English) or "zh-CN" (Chinese)
+    preferred_language: str = None  # Preferred language for AI responses: "en" (English) or "zh-CN" (Chinese)
+    startup_warning: Optional[str] = None  # Warning message to display at startup (for Textual mode)

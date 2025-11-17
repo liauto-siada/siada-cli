@@ -2,6 +2,7 @@ from typing import Optional, List, Any
 from agents import Agent, ModelResponse, AgentHooks, TContext, TResponseInputItem, RunContextWrapper, Tool
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.hooks.agent_processors.context_track_processor import ContextTrackProcessor
+from siada.agent_hub.hooks.processors.llm_spinner_processor import LLMSpinnerProcessor
 
 
 class SiadaAgentHooks(AgentHooks):
@@ -23,6 +24,7 @@ class SiadaAgentHooks(AgentHooks):
             # Default processors
             self.processors = [
                 ContextTrackProcessor(),
+                LLMSpinnerProcessor(),  # Add spinner for LLM calls
                 # Add more processors here as needed
             ]
         else:

@@ -6,7 +6,7 @@ from .base.rules import get_rules_section
 from .base.prompt_builder import build_system_prompt
 
 
-def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True, user_memory: str = None, preferred_language: str = "en", agent_name: str = None) -> str:
+def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True, user_memory: str = None, preferred_language: str = None, agent_name: str = None) -> str:
     """
     生成系统提示词
 

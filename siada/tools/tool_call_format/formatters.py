@@ -164,7 +164,7 @@ class CommandFormatter(ToolCallFormatter):
         try:
             args = json.loads(arguments)
             command = args.get("command", "")
-            return f"siada wants to run the following command: \n```bash \n{command}\n```", True
+            return f"Siada wants to run the following command: \n```bash \n{command}\n```", True
         except json.JSONDecodeError:
             return f"failed to parse arguments: {arguments}", False
 
@@ -249,7 +249,7 @@ class WebCrawlFormatter(ToolCallFormatter):
             args = json.loads(arguments)
             url = args.get("url", "")
             crawl_format = args.get("format", "text")
-            return f"siada wants to crawl the url: {url} with format {crawl_format}", True
+            return f"Siada wants to crawl the url: {url} with format {crawl_format}", True
         except json.JSONDecodeError:
             return f"failed to parse arguments: {arguments}", False
 
@@ -285,7 +285,7 @@ class ListCodeDefinitionNamesFormatter(ToolCallFormatter):
         try:
             args = json.loads(arguments)
             file_name = args.get("file_name", "Unknown file")
-            return f"siada wants to analyze definitions in `{file_name}`", True
+            return f"Siada wants to analyze definitions in `{file_name}`", True
         except json.JSONDecodeError:
             return "failed to parse arguments: {arguments}", False
 

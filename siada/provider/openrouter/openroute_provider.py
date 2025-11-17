@@ -30,7 +30,8 @@ class OpenRouterProvider(ModelProvider):
 
 class OpenRouterClient(LLMClient):
 
-    def completion(self, **kwargs) -> LitellmModelResponse:
+    async def completion(self, **kwargs) -> LitellmModelResponse:
         model = kwargs.get("model")
         kwargs["model"] = covert_to_openrouter_model_name(model)
-        return litellm.completion(**kwargs)
+        # Use litellm's native async method for better performance
+        return await litellm.acompletion(**kwargs)

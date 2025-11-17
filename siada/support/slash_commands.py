@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import os
-
+import re
 import concurrent
 import siada
 import siada.tools.read_many_files_tool
@@ -21,6 +21,7 @@ from siada.support.usage_utils import deserialize_usage
 from siada.support.message_classifier import get_role_and_type_from_item
 from siada.utils import DirectoryUtils
 from siada.config.language_config import normalize_language, get_language_display_name, SUPPORTED_LANGUAGES
+from siada.services.mcp_service import mcp_service
 
 
 class SwitchEvent:

@@ -68,8 +68,12 @@ def build_chat_complete_kwargs(context: Any, default_kwargs: Dict[str, Any]) -> 
     complete_kwargs = default_kwargs.copy()
     
     # Override with context parameters if available
-    if context and hasattr(context, 'model') and context.model:
-        complete_kwargs['model'] = context.model
+    # First get siada_config from session
+    if context and hasattr(context, 'session'):
+        session = context.session
+        if hasattr(session, 'siada_config') and hasattr(session.siada_config, 'llm_config'):
+            if hasattr(session.siada_config.llm_config, 'model_name') and session.siada_config.llm_config.model_name:
+                complete_kwargs['model'] = session.siada_config.llm_config.model_name
     
     if context and hasattr(context, 'temperature') and context.temperature is not None:
         complete_kwargs['temperature'] = context.temperature

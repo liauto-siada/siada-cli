@@ -8,6 +8,7 @@ Separates core interaction logic from main entry point for better code organizat
 import time
 import asyncio
 import threading
+from regex import T
 from siada.session.session_models import RunningSession
 from siada import __version__
 from siada.entrypoint.interaction.running_config import RunningConfig
@@ -44,6 +45,7 @@ class Controller:
         self._preload_success = False
         # Pre-load agent class asynchronously to optimize first-time execution
         self._start_preload_agent()
+        self.need_show_announcements_welcome_panel:bool = True 
     
     def _start_preload_agent(self):
         """
@@ -98,7 +100,7 @@ class Controller:
             if show_spinner and not self._preload_complete.is_set():
                 if self.config.io and self.config.io.pretty:
                     message = f"Loading {self.config.agent_name} agent..."
-                    spinner = WaitingSpinner(message, text_color="cyan")
+                    spinner = WaitingSpinner(message, text_color="#79B8FF")
                     spinner.start()
             
             if self._preload_complete.wait(timeout=timeout):
@@ -151,7 +153,7 @@ class Controller:
 
     def run(self) -> int:
         session = self.session
-        display_rule = True
+        display_rule = False
         pending_input = None  # Pending input to process in next iteration
 
         while True:
@@ -235,8 +237,14 @@ class Controller:
                 break
 
     def get_announcements(self):
+        import os
+        
         lines = []
-        lines.append(f"Siada CLI v{__version__} supported by Li Auto")
+        # lines.append(f"Siada CLI v{__version__} supported by Li Auto")
+        
+        # Add current working directory
+        current_dir = os.getcwd()
+        lines.append(f"Working Directory: {current_dir}")
 
         output = f"Agent: {self.config.agent_name}, Provider: {self.config.llm_config.provider}, Model: {self.config.llm_config.model_name}"
 
@@ -259,8 +267,23 @@ class Controller:
         return lines
 
     def show_announcements(self):
-        for line in self.get_announcements():
-            self.config.io.print_info(line)
+            # Clear terminal using system clear command
+        import os 
+        os.system('clear' if os.name != 'nt' else 'cls')
+        if self.need_show_announcements_welcome_panel:
+            # only once
+            self.need_show_announcements_welcome_panel = False
+            self.show_announcements_welcome_panel()  
+        else:
+            for line in self.get_announcements():
+                self.config.io.print_info(line)
+    
+    def show_announcements_welcome_panel(self, console: Console = None):
+        from siada.io.banner import BannerDisplay
+
+        announcements = self.get_announcements()
+        BannerDisplay.show_welcome_panel(announcements=announcements, console=console
+                                         , siada_version=f"Siada CLI v{__version__}")
 
     def keyboard_interrupt(self):
         # Ensure cursor is visible on exit
