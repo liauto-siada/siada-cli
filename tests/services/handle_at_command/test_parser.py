@@ -56,6 +56,63 @@ class TestAtCommandParser(unittest.TestCase):
         for i, part in enumerate(result):
             self.assertEqual(part.type, expected[i].type)
             self.assertEqual(part.content, expected[i].content)
+
+    def test_parse_all_at_commands_exclude_invalids_diff_hunk(self):
+        """@@ -45,13 +45,24 这种 diff hunk 不应该被识别为 atPath"""
+        text = "@@ -45,13 +45,24 some diff context"
+        result = self.parser.parse_all_at_commands_exclude_invalids(text)
+        # 整体应当视为普通文本
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].type, 'text')
+        self.assertEqual(result[0].content, text)
+
+    def test_parse_all_at_commands_exclude_invalids_hex_ids(self):
+        """日志里的十六进制 id / 指针，形如 @2f2e49 或 @0x3db83141，也应被视为普通文本"""
+        text = "S.SurfaceTexture@2f2e49 mNative0bject=-5476106802210068736)/@0x3db83141"
+        result = self.parser.parse_all_at_commands_exclude_invalids(text)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].type, 'text')
+        self.assertEqual(result[0].content, text)
+
+    def test_parse_all_at_commands_exclude_invalids_placeholder(self):
+        """@{其它描述} 这一类占位符式写法也不应被识别为路径"""
+        text = "请参考 @{其它描述} 这里的说明"
+        result = self.parser.parse_all_at_commands_exclude_invalids(text)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].type, 'text')
+        self.assertEqual(result[0].content, text)
+
+    def test_parse_all_at_commands_exclude_invalids_unix_socket(self):
+        """@/dev/socket/... 这类 Unix 域套接字路径也应当视为普通文本"""
+        text = "连接 @/dev/socket/car_property_service/cps_server 失败"
+        result = self.parser.parse_all_at_commands_exclude_invalids(text)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].type, 'text')
+        self.assertEqual(result[0].content, text)
+
+    def test_parse_all_at_commands_exclude_invalids_audio_bus(self):
+        """@:BUS00_MEDIA 这类音频总线标签也不应被识别为路径"""
+        text = "当前音频总线为 @:BUS00_MEDIA"
+        result = self.parser.parse_all_at_commands_exclude_invalids(text)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].type, 'text')
+        self.assertEqual(result[0].content, text)
+
+    def test_parse_all_at_commands_exclude_invalids_resolution_tag(self):
+        """@600w_800h_1c 这种分辨率标签也属于无效地址"""
+        text = "使用分辨率配置 @600w_800h_1c 进行渲染"
+        result = self.parser.parse_all_at_commands_exclude_invalids(text)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].type, 'text')
+        self.assertEqual(result[0].content, text)
+
+    def test_parse_all_at_commands_exclude_invalids_systemd_service(self):
+        """@configfs.service 这类 systemd service 也应被视为文本"""
+        text = "加载单元 @configfs.service 失败"
+        result = self.parser.parse_all_at_commands_exclude_invalids(text)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].type, 'text')
+        self.assertEqual(result[0].content, text)
     
     def test_parse_empty_query(self):
         """Test parsing empty query"""

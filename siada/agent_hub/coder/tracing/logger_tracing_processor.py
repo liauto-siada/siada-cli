@@ -216,7 +216,13 @@ class LoggerTracingProcessor(TracingProcessor):
                 
                 # Check if there's a type field
                 item_type = item.get('type')
-                if item_type == 'message':
+                if item_type == 'reasoning':
+                    # Reasoning / thinking output (e.g., Claude extended thinking)
+                    content = item.get('content', '')
+                    truncated_content = self._truncate_content(str(content))
+                    self._print(f"  💭 [reasoning]: {truncated_content}")
+
+                elif item_type == 'message':
                     # Message output
                     role = item.get('role', 'assistant')
                     content = item.get('content', '')
@@ -330,11 +336,11 @@ class LoggerTracingProcessor(TracingProcessor):
         span_type = span.span_data.type
         trace_id = span.trace_id
         
-        # 更新状态计数
+        # Update status count
         state = self.trace_states.get(trace_id)
         if state:
             if span_type == "generation":
-                # generation 的计数已在 on_span_start 中更新
+                # generation count has been updated in on_span_start
                 pass
             elif span_type == "function":
                 state.tool_call_count += 1
@@ -359,10 +365,10 @@ class LoggerTracingProcessor(TracingProcessor):
         # Print usage statistics
         if data.usage:
             usage = data.usage
-            input_tokens = usage.get('input_tokens', 0)
+            input_tokens = usage.get('total_input_tokens', 0)
             output_tokens = usage.get('output_tokens', 0)
             total_tokens = usage.get('total_tokens', 0)
-            self._print(f"{self.colors['model']}📊 Usage: Input={usage.get('input_tokens', 0)}, Output={usage.get('output_tokens', 0)}, Total={usage.get('total_tokens', 0)}{self.colors['reset']}")
+            self._print(f"{self.colors['model']}📊 Usage: Input={usage.get('total_input_tokens', 0)}, Output={usage.get('output_tokens', 0)}, Total={usage.get('total_tokens', 0)}{self.colors['reset']}")
             if state:
                 state.total_input_tokens += input_tokens
                 state.total_output_tokens += output_tokens
@@ -377,19 +383,19 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"\n{self.colors['tool']}{self.colors['bold']}🔧 === TOOL CALL {call_num} ==={self.colors['reset']}")
         self._print(f"{self.colors['tool']}{self._format_timestamp()}Function: {data.name}{self.colors['reset']}")
 
-        # 打印输入
+        # Print input
         if data.input:
             formatted_input = self._format_json(data.input)
             truncated_input = self._truncate_content(str(formatted_input))
             self._print(f"{self.colors['input']}📥 Input: {truncated_input}{self.colors['reset']}")
         
-        # 打印输出
+        # Print output
         if data.output is not None:
             formatted_output = self._format_json(data.output)
             truncated_output = self._truncate_content(str(formatted_output))
             self._print(f"{self.colors['output']}📤 Output: {re.sub(r'(data:image/jpeg;base64,)[^"]*', r'\1...', truncated_output)}{self.colors['reset']}")
         
-        # 打印 MCP 数据（如果有）
+        # Print MCP data (if any)
         if data.mcp_data:
             formatted_mcp = self._format_json(data.mcp_data)
             truncated_mcp = self._truncate_content(str(formatted_mcp))
@@ -444,7 +450,8 @@ def create_detailed_logger(output_file: Optional[str] = None, console_output: bo
         
         # Create log directory (unified across all platforms)
         from pathlib import Path
-        log_dir = Path.home() / ".siada-cli" / "logs"
+        from siada.foundation.constants import SIADA_HOME
+        log_dir = SIADA_HOME / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate log file name

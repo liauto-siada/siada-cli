@@ -5,6 +5,7 @@ from agents import RunContextWrapper, RunResult, RunResultStreaming, \
     TResponseInputItem
 
 from siada.agent_hub.coder.prompt.card_prompt.card_prompt import get_system_prompt
+from siada.agent_hub.coder.prompt.base.tool_use import should_enable_parallel_tool_calls_in_prompt
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.coder.prompt import card_prompt
@@ -35,9 +36,11 @@ class CardAgent(SiadaAgent[CodeAgentContext]):
 
     async def get_system_prompt(self, run_context: RunContextWrapper[CodeAgentContext]) -> str | None:
         # Get preferred language and agent name from session config
-        preferred_language = run_context.context.session.siada_config.preferred_language
+        preferred_language = run_context.context.preferred_language
         agent_name = run_context.context.session.siada_config.agent_name
-        system_prompt = get_system_prompt(self.root_path, preferred_language=preferred_language, agent_name=agent_name)
+        
+        enable_parallel = should_enable_parallel_tool_calls_in_prompt(run_context)
+        system_prompt = get_system_prompt(self.root_path, preferred_language=preferred_language, agent_name=agent_name, enable_parallel_tool_calls=enable_parallel)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
@@ -71,19 +74,33 @@ class CardAgent(SiadaAgent[CodeAgentContext]):
         task = f"<task>\n{user_input}\n</task>\n\n【Development Directory Path: {self.root_path}】"
         return task
 
-    async def run(self, user_input: str| List[TResponseInputItem], context: CodeAgentContext) -> RunResult:
+    async def run(self, user_input: str| List[TResponseInputItem], context: CodeAgentContext, run_config=None, openai_session=None) -> RunResult:
+        """
+        Execute card agent task.
+        
+        Args:
+            user_input: User input for card generation
+            context: Code agent context
+            run_config: Run configuration (provided by SiadaRunner)
+            openai_session: OpenAI session (provided by SiadaRunner)
+            
+        Returns:
+            RunResult: The result of execution
+        """
         input_with_env = self.assemble_user_input(user_input, context)
         result = await self.run_impl(
             starting_agent=self,
             input=input_with_env,
             max_turns=settings.MAX_TURNS,
             context=context,
+            run_config=run_config,
+            openai_session=openai_session,
         )
 
         return result
 
     async def run_streamed(
-            self, user_input: str| List[TResponseInputItem], context: CodeAgentContext
+            self, user_input: str| List[TResponseInputItem], context: CodeAgentContext, run_config=None, openai_session=None
     ) -> RunResultStreaming:
         """
         Execute code generation task with streaming output.
@@ -91,6 +108,8 @@ class CardAgent(SiadaAgent[CodeAgentContext]):
         Args:
             user_input: User's code generation request with requirements and specifications
             context: Context object providing project information
+            run_config: Run configuration (provided by SiadaRunner)
+            openai_session: OpenAI session (provided by SiadaRunner)
         Returns:
             A streaming result of the generation, containing final output and execution details.
         """
@@ -102,6 +121,8 @@ class CardAgent(SiadaAgent[CodeAgentContext]):
             input=input_with_env,
             context=context,
             max_turns=settings.MAX_TURNS,
+            run_config=run_config,
+            openai_session=openai_session,
         )
 
         return result

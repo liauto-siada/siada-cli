@@ -119,7 +119,7 @@ class CustomFloatContainer(FloatContainer):
         """
         from prompt_toolkit.application.current import get_app
         
-        # 获取光标位置
+        # Get cursor position
         cpos = screen.get_menu_position(
             fl.attach_to_window or get_app().layout.current_window
         )
@@ -134,7 +134,7 @@ class CustomFloatContainer(FloatContainer):
         xpos: int
         ypos: int
 
-        # ===== 计算水平位置（与原实现相同）=====
+        # ===== Calculate horizontal position (same as original implementation) =====
         if fl.left is not None and fl_width is not None:
             xpos = fl.left
             width = fl_width
@@ -169,7 +169,7 @@ class CustomFloatContainer(FloatContainer):
 
             width = min(width, write_position.width - xpos)
 
-        # ===== 计算垂直位置（添加最小高度逻辑）=====
+        # ===== Calculate vertical position (add minimum height logic) =====
         if fl.top is not None and fl_height is not None:
             ypos = fl.top
             height = fl_height
@@ -189,18 +189,18 @@ class CustomFloatContainer(FloatContainer):
             else:
                 height = fl_height
 
-            # ⭐ 关键修改：确保最小高度
+            # ⭐ Key change: ensure minimum height
             height = max(height, self.min_float_height)
 
-            # 智能调整位置：如果下方空间不足
+            # Smart position adjustment: if space below is insufficient
             if height > write_position.height - ypos:
                 if write_position.height - ypos + 1 >= ypos:
-                    # 下方空间更多：缩小高度适应下方（但不小于最小高度）
+                    # More space below: shrink height to fit below (but not less than minimum height)
                     height = max(write_position.height - ypos, self.min_float_height)
                 else:
-                    # 上方空间更多：显示在光标上方
+                    # More space above: display above cursor
                     height = min(height, cursor_position.y)
-                    # 如果上方空间也不足以显示最小高度，尽可能使用可用空间
+                    # If space above is also insufficient for minimum height, use as much available space as possible
                     if height < self.min_float_height:
                         height = min(self.min_float_height, cursor_position.y)
                     ypos = cursor_position.y - height
@@ -219,7 +219,7 @@ class CustomFloatContainer(FloatContainer):
 
             height = min(height, write_position.height - ypos)
 
-        # ===== 绘制浮动层 =====
+        # ===== Draw floating layer =====
         if height > 0 and width > 0:
             wp = WritePosition(
                 xpos=xpos + write_position.xpos,
@@ -251,17 +251,17 @@ class CustomCompletionsMenu(CompletionsMenu):
         """返回容器,并在首次调用时修改高度"""
         container = super().__pt_container__()
         
-        # 只修改一次
+        # Modify only once
         if not self._patched:
             self._patched = True
-            # CompletionsMenu 的 container 是一个 ConditionalContainer
-            # 其 content 是一个 Window
+            # CompletionsMenu container is a ConditionalContainer
+            # Its content is a Window
             if hasattr(container, 'content') and hasattr(container.content, 'height'):
-                # 保存原始高度函数
+                # Save original height function
                 original_height = container.content.height
                 min_h = self._min_height
                 
-                # 创建新的高度函数
+                # Create new height function
                 def new_height():
                     if callable(original_height):
                         h = original_height()
@@ -500,8 +500,8 @@ class CustomPromptSession(PromptSession):
             from prompt_toolkit.shortcuts.prompt import CompleteStyle
             return self.complete_style == CompleteStyle.MULTI_COLUMN
 
-        # ===== 关键修改：只在输入窗口周围添加圆角边框 =====
-        # 将 default_buffer_window 包装在圆角 Frame 中
+        # ===== Key change: add rounded border only around the input window =====
+        # Wrap default_buffer_window in a rounded Frame
         framed_input_window = ConditionalContainer(
             RoundedFrame(
                 ConditionalContainer(
@@ -514,7 +514,7 @@ class CustomPromptSession(PromptSession):
                 style=""
             ),
             filter=dyncond("show_frame") & ~ is_done,
-            # 当不显示边框时，显示原始的输入窗口
+            # When border is not displayed, show the original input window
             alternative_content=ConditionalContainer(
                 default_buffer_window,
                 Condition(
@@ -524,12 +524,12 @@ class CustomPromptSession(PromptSession):
             ),
         )
 
-        # 创建主输入容器（带浮动补全菜单）
-        # 使用自定义 FloatContainer 确保补全菜单最小高度为 4 行
+        # Create main input container (with floating completion menu)
+        # Use custom FloatContainer to ensure completion menu minimum height of 4 lines
         main_input_container = CustomFloatContainer(
             content=HSplit(
                 [
-                    # 多行提示符的前几行
+                    # First lines of multiline prompt
                     ConditionalContainer(
                         Window(
                             FormattedTextControl(get_prompt_text_1),
@@ -537,9 +537,9 @@ class CustomPromptSession(PromptSession):
                         ),
                         Condition(has_before_fragments),
                     ),
-                    # 带边框的输入窗口
+                    # Input window with border
                     framed_input_window,
-                    # 搜索缓冲区窗口
+                    # Search buffer window
                     ConditionalContainer(
                         Window(search_buffer_control),
                         Condition(
@@ -550,7 +550,7 @@ class CustomPromptSession(PromptSession):
                 ]
             ),
             floats=[
-                # 补全菜单（浮动层）- 最小高度4行
+                # Completion menu (floating layer) - minimum height 4 lines
                 Float(
                     xcursor=True,
                     ycursor=True,
@@ -573,7 +573,7 @@ class CustomPromptSession(PromptSession):
                         & multi_column_complete_style,
                     ),
                 ),
-                # 右侧提示符
+                # Right-side prompt
                 Float(
                     right=0,
                     top=0,
@@ -584,7 +584,7 @@ class CustomPromptSession(PromptSession):
             min_float_height=4,
         )
 
-        # 组装最终布局
+        # Assemble final layout
         layout = HSplit(
             [
                 main_input_container,
@@ -592,7 +592,7 @@ class CustomPromptSession(PromptSession):
                 ConditionalContainer(
                     system_toolbar, dyncond("enable_system_prompt") & ~is_done
                 ),
-                # 多行模式下的 arg 工具栏
+                # Arg toolbar in multiline mode
                 ConditionalContainer(
                     Window(FormattedTextControl(self._get_arg_text), height=1),
                     dyncond("multiline") & has_arg,
@@ -605,32 +605,32 @@ class CustomPromptSession(PromptSession):
         return Layout(layout, default_buffer_window)
 
 
-# 使用示例
+# Usage example
 if __name__ == "__main__":
     from prompt_toolkit.completion import WordCompleter
     from prompt_toolkit.styles import Style
     
-    # 创建自定义样式
+    # Create custom style
     style = Style.from_dict({
         'frame.border': 'cyan',  # 青色边框
-        # 'prompt': '#00aaff bold',   # 蓝色提示符
+        # 'prompt': '#00aaff bold',   # blue prompt
         'placeholder': '#888888',  # 灰色占位符
     })
     
-    # 创建补全器
+    # Create completer
     completer = WordCompleter(
         ['hello', 'world', 'help', 'exit', 'test', 'example'],
         ignore_case=True
     )
     
-    # 创建自定义会话
-    # placeholder 使用 FormattedText 格式指定样式
+    # Create custom session
+    # placeholder uses FormattedText format to specify style
     session = CustomPromptSession(
         placeholder=[('class:placeholder', 'Type a message, /command, or @path/to/file ...')],
         message='> ',
         completer=completer,
         style=style,
-        show_frame=True,  # 启用边框
+        show_frame=True,  # Enable border
         complete_while_typing=True,
         wrap_lines= True,
     )
@@ -646,7 +646,7 @@ if __name__ == "__main__":
                 break
             print(f'你输入了: {result}')
         except KeyboardInterrupt:
-            print('\n用户按了 Ctrl-C')
+            print('\n用户按了 Ctrl+C')
             break
         except EOFError:
             print('\n用户按了 Ctrl-D')

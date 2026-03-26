@@ -9,16 +9,15 @@ instead of coordinate-based clicking.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Dict, Any, Coroutine, TypeVar
-from dataclasses import asdict
+from typing import Optional, Dict, Any, Coroutine, TypeVar, List
 
-from agents import function_tool, RunContextWrapper
+from agents import function_tool, RunContextWrapper, ToolOutputImage, ToolOutputText
 
 from .chromium_installer import ChromiumAutoInstaller
-from .browsergym_env import BrowserGymEnv
+from .browsergym_env import BrowserGymEnvManager
 from .browsergym_utils import (
     format_action_command,
     validate_action_parameters,
@@ -26,10 +25,19 @@ from .browsergym_utils import (
     format_accessibility_tree,
     extract_bids_from_observation
 )
-from .models import ImageResult
+from .models import BrowserOperateResult
 from ...foundation.code_agent_context import CodeAgentContext
-from ..coder.observation.observation import FunctionCallResult
+from ...tools.coder.observation.error import ErrorObservation
+
+# Type alias for the tool return type
+ValidToolOutputPydanticModels = ToolOutputImage | ToolOutputText
 T = TypeVar('T')
+
+# Module-level logger
+logger = logging.getLogger(__name__)
+
+# Models that support browser operations (require image processing capability)
+SUPPORTED_BROWSER_MODELS = {"claude", "gemini"}
 
 # Documentation for the browser operate tool
 BROWSERGYM_OPERATE_DOC = """
@@ -42,15 +50,22 @@ Request to interact with a BrowserGym-controlled browser using element IDs (bids
 - **Advanced operations**: Support for drag-and-drop, file uploads, and complex interactions
 
 **Usage Flow:**
-1. **Must start with `launch`** to initialize the browser environment
+1. The sequence of actions **must always start with** `launch` to initialize the browser at a URL
 2. Use other actions to interact with page elements using their `bid` values
-3. **Must end with `close`** to clean up resources
+3. The sequence **must always end with** `close` to clean up resources. If you need to visit a new URL that is not possible to navigate to from the current webpage, you must first close the browser, then launch again at the new URL.
 
 **Important Notes:**
-- While the browser is active, only the `browsergym_operate` tool should be used
+- While the browser is active, only the `browser_operate` tool can be used. No other tools should be called during this time. You may proceed to use other tools only after closing the browser. For example if you run into an error and need to fix a file, you must close the browser, then use other tools to make the necessary changes, then re-launch the browser to verify the result.
 - Each action returns both a screenshot and accessibility tree information
 - Use the accessibility tree to find available element `bid` values for interaction
 - The browser automatically handles page loading and element detection
+- The accessibility tree filters out non-interactive nodes to reduce output size:
+  - Text rendering: InlineTextBox, StaticText, LineBreak
+  - Empty/ignored: none, ignored
+  - Generic containers: generic
+  - Text styling: strong, emphasis
+  - Structural containers: paragraph
+  - List containers: listitem
 
 **PARAMETER TYPES AND REQUIREMENTS:**
 
@@ -176,264 +191,212 @@ Request to interact with a BrowserGym-controlled browser using element IDs (bids
 
 Returns:
     str: JSON string containing:
-         - type: "image_url"
-         - image_url: Object with:
-           - url: Base64-encoded screenshot of current browser state
-           - axtree_info: Object containing:
-             - axtree: Formatted accessibility tree with element bids
-             - available_bids: List of all available element IDs
-             - page_info: Current page URL, title, and metadata
-             - success: Boolean indicating if action was successful
-             - error: Error message if action failed (null if successful)
+         - action: The browser action that was executed
+         - success: Boolean indicating if action was successful
+         - error: Error message if action failed (null if successful)
+         - page_info: Current page URL, title, and metadata
+         - available_bids_count: Number of available element IDs on the page
+         - axtree: Formatted accessibility tree with element bids (use this to find specific bid values)
+         - has_screenshot: Boolean indicating if a screenshot is available
+         
+    Note: The full list of available_bids is NOT included to save context space.
+    Use the accessibility tree (axtree) to find specific element bids for interaction.
 """
 
 
-class BrowserGymActionResult(FunctionCallResult):
-    """BrowserGym 操作结果类，用于格式化显示输出。
+def _get_env_manager() -> BrowserGymEnvManager:
+    """Get the current BrowserGymEnv singleton instance.
     
-    由于 BrowserGym 的结果通常包含大量的截图和可访问性树数据，
-    此类提供简化的显示格式，只显示关键信息。
+    Returns:
+        BrowserGymEnv: The singleton instance
     """
+    return BrowserGymEnvManager.get_instance()
+
+
+def _launch(url: str) -> Dict[str, Any]:
+    """Launch BrowserGym environment and navigate to URL.
     
-    def __init__(self, action: str, success: bool, error: Optional[str] = None, 
-                 page_info: Optional[Dict[str, Any]] = None, available_bids_count: int = 0,
-                 full_content: str = ""):
-        """初始化 BrowserGym 操作结果。
+    Args:
+        url: The URL to navigate to
         
-        Args:
-            action: 执行的操作类型
-            success: 操作是否成功
-            error: 错误信息（如果有）
-            page_info: 页面信息
-            available_bids_count: 可用元素ID数量
-            full_content: 完整的原始内容
-        """
-        self.action = action
-        self.success = success
-        self.error = error
-        self.page_info = page_info or {}
-        self.available_bids_count = available_bids_count
-        super().__init__(content=full_content)
+    Returns:
+        Dict[str, Any]: Result with initial page state
+    """
+    try:
+        env_manager = _get_env_manager()
+        # Initialize the environment
+        success = env_manager.initialize(start_url=url, headless=False)
+        if not success:
+            raise RuntimeError("Failed to initialize BrowserGym environment")
+        
+        # Wait for page to load, then get observation
+        time.sleep(2)
+        
+        # Get fresh observation by performing a no-op action
+        obs, _, _, _, _ = env_manager.step("scroll(0, 0)")
+        
+        return create_browsergym_result(obs, success=True, action="launch")
+        
+    except Exception as e:
+        logger.error(f"Failed to launch BrowserGym environment: {str(e)}")
+        return create_browsergym_result(
+            obs=None,
+            success=False,
+            error=f"Launch failed: {str(e)}"
+        )
+
+
+def _close() -> Dict[str, Any]:
+    """Close BrowserGym environment and cleanup resources.
     
-    def format_for_display(self) -> str:
-        """格式化显示 BrowserGym 操作结果。
+    Returns:
+        Dict[str, Any]: Result indicating cleanup status
+    """
+    try:
+        env_manager = _get_env_manager()
+        success = env_manager.close()
         
-        只显示关键信息，避免输出过长的截图和可访问性树数据。
-        
-        Returns:
-            str: 格式化的显示字符串
-        """
-        if not self.success:
-            return f"BrowserGym 操作 '{self.action}' 失败: {self.error or '未知错误'}"
-        
-        if self.action == "launch":
-            url = self.page_info.get("url", "未知URL")
-            title = self.page_info.get("title", "")
-            title_info = f" - {title}" if title else ""
-            return f"BrowserGym 浏览器已启动并导航到: {url}{title_info}"
-        
-        elif self.action == "close":
-            return "BrowserGym 浏览器已关闭"
-        
+        if success:
+            return {
+                "success": True,
+                "screenshot": "",
+                "axtree": "",
+                "page_info": {},
+                "available_bids": [],
+                "error": None
+            }
         else:
-            return f"BrowserGym 操作 '{self.action}' 执行成功"
+            raise RuntimeError("Failed to close BrowserGym environment")
+            
+    except Exception as e:
+        logger.error(f"Error closing BrowserGym environment: {str(e)}")
+        return create_browsergym_result(
+            obs=None,
+            success=False,
+            error=f"Close failed: {str(e)}"
+        )
 
 
-class BrowserGymActionTool:
-    """BrowserGym automation tool class.
+def _execute_browser_action(action: str, **kwargs) -> Dict[str, Any]:
+    """Execute a browser action in the BrowserGym environment.
     
-    Provides browser automation capabilities using BrowserGym, including:
-    - Element-based interactions using browser IDs (bids)
-    - Accessibility tree information
-    - Advanced browser operations (drag-and-drop, file upload, etc.)
-    - Automatic element detection and interaction
+    Args:
+        action: The action type
+        **kwargs: Action parameters
+        
+    Returns:
+        Dict[str, Any]: Result with updated page state
     """
-
-    def __init__(self):
-        """Initialize the BrowserGym action tool."""
-        self.env_manager = BrowserGymEnv.get_instance()
-        self.logger = logging.getLogger(__name__)
-
-    def execute_action(
-        self,
-        action: str,
-        url: Optional[str] = None,
-        bid: Optional[str] = None,
-        value: Optional[str] = None,
-        target_bid: Optional[str] = None,
-        file_path: Optional[str] = None,
-        delta_x: float = 0,
-        delta_y: float = 0,
-        key: Optional[str] = None,
-        button: str = "left",
-        modifiers: Optional[list] = None
-    ) -> Dict[str, Any]:
-        """Execute a browser action using BrowserGym.
+    try:
+        env_manager = _get_env_manager()
+        # Format the action command
+        command = format_action_command(action, **kwargs)
         
-        Args:
-            action: The action type to execute
-            url: Target URL (for launch action)
-            bid: Browser element ID
-            value: Text value (for fill/select actions)
-            target_bid: Target element ID (for drag_and_drop)
-            file_path: File path (for upload_file)
-            delta_x: Horizontal scroll distance
-            delta_y: Vertical scroll distance
-            key: Key name (for press action)
-            button: Mouse button for click actions
-            modifiers: Keyboard modifiers for click actions
-            
-        Returns:
-            Dict[str, Any]: Result dictionary with screenshot, axtree, and metadata
-        """
-        try:
-            if action == "launch":
-                return self._launch(url or "https://www.google.com")
-            elif action == "close":
-                return self._close()
-            else:
-                # Validate that environment is initialized
-                if not self.env_manager.is_initialized():
-                    raise RuntimeError("BrowserGym environment not initialized. Use 'launch' action first.")
-                
-                # Prepare action parameters
-                action_params = {
-                    "bid": bid,
-                    "value": value,
-                    "target_bid": target_bid,
-                    "file_path": file_path,
-                    "delta_x": delta_x,
-                    "delta_y": delta_y,
-                    "key": key,
-                    "button": button,
-                    "modifiers": modifiers or []
-                }
-                
-                # Validate parameters
-                is_valid, error_msg = validate_action_parameters(action, **action_params)
-                if not is_valid:
-                    raise ValueError(error_msg)
-                
-                # Execute the action
-                return self._execute_browser_action(action, **action_params)
-                
-        except Exception as e:
-            self.logger.error(f"BrowserGym action failed: {str(e)}")
-            return create_browsergym_result(
-                obs=None,
-                success=False,
-                error=str(e)
-            )
-
-    def _launch(self, url: str) -> Dict[str, Any]:
-        """Launch BrowserGym environment and navigate to URL.
+        # Execute the action
+        obs, reward, terminated, truncated, info = env_manager.step(command)
         
-        Args:
-            url: The URL to navigate to
-            
-        Returns:
-            Dict[str, Any]: Result with initial page state
-        """
-        try:
-            # Initialize the environment
-            success = self.env_manager.initialize(start_url=url, headless=False)
-            if not success:
-                raise RuntimeError("Failed to initialize BrowserGym environment")
-            
-            # Wait for page to load, then get observation
-            import time
-            time.sleep(2)
-            
-            # Get fresh observation by performing a no-op action
-            obs, _, _, _, _ = self.env_manager.step("scroll(0, 0)")
-            
-            return create_browsergym_result(obs, success=True, action="launch")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to launch BrowserGym environment: {str(e)}")
-            return create_browsergym_result(
-                obs=None,
-                success=False,
-                error=f"Launch failed: {str(e)}"
-            )
-
-    def _close(self) -> Dict[str, Any]:
-        """Close BrowserGym environment and cleanup resources.
+        # For actions that might cause page changes, wait and get fresh observation
+        if action in ["click", "fill", "press"] and not (terminated or truncated):
+            time.sleep(1)
+            try:
+                fresh_obs, _, _, _, _ = env_manager.step("scroll(0, 0)")
+                if fresh_obs:
+                    obs = fresh_obs
+            except Exception:
+                pass  # Use original observation if refresh fails
         
-        Returns:
-            Dict[str, Any]: Result indicating cleanup status
-        """
-        try:
-            success = self.env_manager.close()
-            
-            if success:
-                return {
-                    "success": True,
-                    "screenshot": "",
-                    "axtree": "",
-                    "page_info": {},
-                    "available_bids": [],
-                    "error": None
-                }
-            else:
-                raise RuntimeError("Failed to close BrowserGym environment")
-                
-        except Exception as e:
-            self.logger.error(f"Error closing BrowserGym environment: {str(e)}")
-            return create_browsergym_result(
-                obs=None,
-                success=False,
-                error=f"Close failed: {str(e)}"
-            )
-
-    def _execute_browser_action(self, action: str, **kwargs) -> Dict[str, Any]:
-        """Execute a browser action in the BrowserGym environment.
+        # Check if action was successful
+        success = not (terminated or truncated)
+        error_msg = None
         
-        Args:
-            action: The action type
-            **kwargs: Action parameters
+        if terminated or truncated:
+            error_msg = f"Action terminated unexpectedly. Info: {info}"
+        
+        return create_browsergym_result(obs, success=success, error=error_msg, action=action)
+        
+    except Exception as e:
+        logger.error(f"Failed to execute action '{action}': {str(e)}")
+        return create_browsergym_result(
+            obs=None,
+            success=False,
+            error=f"Action execution failed: {str(e)}"
+        )
+
+
+def execute_action(
+    action: str,
+    url: Optional[str] = None,
+    bid: Optional[str] = None,
+    value: Optional[str] = None,
+    target_bid: Optional[str] = None,
+    file_path: Optional[str] = None,
+    delta_x: float = 0,
+    delta_y: float = 0,
+    key: Optional[str] = None,
+    button: str = "left",
+    modifiers: Optional[list] = None
+) -> Dict[str, Any]:
+    """Execute a browser action using BrowserGym.
+    
+    Args:
+        action: The action type to execute
+        url: Target URL (for launch action)
+        bid: Browser element ID
+        value: Text value (for fill/select actions)
+        target_bid: Target element ID (for drag_and_drop)
+        file_path: File path (for upload_file)
+        delta_x: Horizontal scroll distance
+        delta_y: Vertical scroll distance
+        key: Key name (for press action)
+        button: Mouse button for click actions
+        modifiers: Keyboard modifiers for click actions
+        
+    Returns:
+        Dict[str, Any]: Result dictionary with screenshot, axtree, and metadata
+    """
+    try:
+        if action == "launch":
+            return _launch(url or "https://www.google.com")
+        elif action == "close":
+            return _close()
+        else:
+            env_manager = _get_env_manager()
+            # Validate that environment is initialized
+            if not env_manager.is_initialized():
+                raise RuntimeError("BrowserGym environment not initialized. Use 'launch' action first.")
             
-        Returns:
-            Dict[str, Any]: Result with updated page state
-        """
-        try:
-            # Format the action command
-            command = format_action_command(action, **kwargs)
+            # Prepare action parameters
+            action_params = {
+                "bid": bid,
+                "value": value,
+                "target_bid": target_bid,
+                "file_path": file_path,
+                "delta_x": delta_x,
+                "delta_y": delta_y,
+                "key": key,
+                "button": button,
+                "modifiers": modifiers or []
+            }
+            
+            # Validate parameters
+            is_valid, error_msg = validate_action_parameters(action, **action_params)
+            if not is_valid:
+                raise ValueError(error_msg)
             
             # Execute the action
-            obs, reward, terminated, truncated, info = self.env_manager.step(command)
+            return _execute_browser_action(action, **action_params)
             
-            # For actions that might cause page changes, wait and get fresh observation
-            if action in ["click", "fill", "press"] and not (terminated or truncated):
-                import time
-                time.sleep(1)
-                try:
-                    fresh_obs, _, _, _, _ = self.env_manager.step("scroll(0, 0)")
-                    if fresh_obs:
-                        obs = fresh_obs
-                except Exception:
-                    pass  # Use original observation if refresh fails
-            
-            # Check if action was successful
-            success = not (terminated or truncated)
-            error_msg = None
-            
-            if terminated or truncated:
-                error_msg = f"Action terminated unexpectedly. Info: {info}"
-            
-            return create_browsergym_result(obs, success=success, error=error_msg, action=action)
-            
-        except Exception as e:
-            self.logger.error(f"Failed to execute action '{action}': {str(e)}")
-            return create_browsergym_result(
-                obs=None,
-                success=False,
-                error=f"Action execution failed: {str(e)}"
-            )
+    except Exception as e:
+        logger.error(f"BrowserGym action failed: {str(e)}")
+        return create_browsergym_result(
+            obs=None,
+            success=False,
+            error=str(e)
+        )
 
 
 @function_tool(
-    name_override="browser_operate_by_gym",
+    name_override="browser_operate",
     description_override=BROWSERGYM_OPERATE_DOC
 )
 def browser_operate_by_gym(
@@ -449,41 +412,44 @@ def browser_operate_by_gym(
     key: Optional[str] = None,
     button: str = "left",
     modifiers: Optional[list] = None
-) -> FunctionCallResult:
-    import weakref
+) -> List[ValidToolOutputPydanticModels]:
+
+    # Check if current model supports browser operations
+    model_name = context.context.model_run_config.model_name.lower()
+    if not any(m in model_name for m in SUPPORTED_BROWSER_MODELS):
+        return ErrorObservation(
+            content=f"Current model '{model_name}' does not support browser operations. "
+            f"Browser operations require image processing capability. "
+            f"Stop the Task Immediately. Always Only Tell user to 'Sorry. I can't do that operation' ",
+            display_content="Current model does not support browser operations. Select claude or gemini model to enable this feature.\n",
+        )
 
     def run_async_from_sync(coro: Coroutine[Any, Any, T]) -> T:
-        """在已有事件循环的同步函数中运行异步函数"""
+        """Run async function from sync context"""
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(asyncio.run, coro)
             return future.result()
 
-    installer = ChromiumAutoInstaller()
-    run_async_from_sync(installer.ensure_chromium_available())
-    # Get or create browser tool instance from context
-    if not hasattr(context.context, '_browsergym_tool'):
-        context.context._browsergym_tool = BrowserGymActionTool()
-        
-        # Register cleanup function
-        def cleanup_browsergym():
-            if hasattr(context.context, '_browsergym_tool') and context.context._browsergym_tool:
-                try:
-                    context.context._browsergym_tool._close()
-                except Exception:
-                    pass  # Ignore cleanup errors
-        
-        # Use weakref to register cleanup callback
-        weakref.finalize(context.context, cleanup_browsergym)
-
-    tool = context.context._browsergym_tool
+    # Get io from context if available
+    io = None
+    if hasattr(context.context, 'session') and context.context.session:
+        if hasattr(context.context.session, 'siada_config') and context.context.session.siada_config:
+            io = getattr(context.context.session.siada_config, 'io', None)
+    
+    # Ensure Chromium is available and set environment variable
+    import os
+    installer = ChromiumAutoInstaller(io=io)
+    chromium_path = run_async_from_sync(installer.ensure_chromium_available())
+    os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] = chromium_path
 
     try:
         # Handle parameter type conversion for common mistakes
-        if isinstance(modifiers, str):
-            modifiers = [] if modifiers == "" else None
+        actual_modifiers = modifiers
+        if isinstance(actual_modifiers, str):
+            actual_modifiers = [] if actual_modifiers == "" else None
         
-        # Execute the action
-        result = tool.execute_action(
+        # Execute the action using module-level function
+        result = execute_action(
             action=action,
             url=url,
             bid=bid,
@@ -494,116 +460,39 @@ def browser_operate_by_gym(
             delta_y=delta_y,
             key=key,
             button=button,
-            modifiers=modifiers
+            modifiers=actual_modifiers
         )
         
-        # If close action is successful, remove the tool instance
-        if action == "close" and result.get("success", False):
-            if hasattr(context.context, '_browsergym_tool'):
-                delattr(context.context, '_browsergym_tool')
+        # Get observation for accessibility tree
+        obs = result.get("_obs") if result else None
+        env_manager = _get_env_manager()
+        if obs is None and hasattr(env_manager, '_last_obs'):
+            obs = getattr(env_manager, '_last_obs', None)
         
-        # Create full content for the result (original JSON format for compatibility)
-        if result.get("screenshot") and result.get("success", False):
-            # Extract base64 data
-            screenshot_data = result["screenshot"].split(",")[-1] if "," in result["screenshot"] else result["screenshot"]
-            
-            # Get the observation from the result to format accessibility tree
-            obs = result.get("_obs") if result else None
-            
-            # Extract data from the same observation for consistency
-            formatted_axtree = format_accessibility_tree(obs) if obs else ""
-            available_bids = extract_bids_from_observation(obs) if obs else []
-            
-            # Create axtree_info with consistent data
-            axtree_info = {
-                "axtree": formatted_axtree,
-                "available_bids": available_bids,
-                "page_info": result.get("page_info", {}),
-                "success": result.get("success", False),
-                "error": result.get("error")
-            }
-            
-            # Create ImageResult with axtree_info in ImageUrl
-            from .models import ImageUrl
-            image_result = ImageResult(
-                type="image_url",
-                image_url=ImageUrl(
-                    url=f"data:image/jpeg;base64,{screenshot_data}",
-                    axtree_info=axtree_info
-                )
-            )
-            
-            full_content = json.dumps(asdict(image_result))
-            
-            # Return BrowserGymActionResult with formatted display
-            return BrowserGymActionResult(
-                action=action,
-                success=result.get("success", False),
-                error=result.get("error"),
-                page_info=result.get("page_info", {}),
-                available_bids_count=len(available_bids),
-                full_content=full_content
-            )
+        # Extract accessibility tree data
+        formatted_axtree = format_accessibility_tree(obs) if obs else ""
+        available_bids = extract_bids_from_observation(obs) if obs else result.get("available_bids", [])
+        
+        # Create BrowserOperateResult using factory method
+        browser_result = BrowserOperateResult.create(
+            action=action,
+            success=result.get("success", False),
+            error=result.get("error"),
+            page_info=result.get("page_info", {}),
+            available_bids=available_bids,
+            axtree=formatted_axtree,
+            screenshot=result.get("screenshot")
+        )
+        
+        # Store the result in context for potential UI display
+        if hasattr(context.context, '_last_browser_result'):
+            context.context._last_browser_result = browser_result
         else:
-            # Handle cases where screenshot is None or operation failed
-            # Still try to get accessibility tree information even without screenshot
-            obs = getattr(tool.env_manager, '_last_obs', None) if hasattr(tool.env_manager, '_last_obs') else None
-            formatted_axtree = format_accessibility_tree(obs) if obs else ""
-            available_bids = result.get("available_bids", [])
-            
-            axtree_info = {
-                "axtree": formatted_axtree,
-                "available_bids": available_bids,
-                "page_info": result.get("page_info", {}),
-                "success": result.get("success", False),
-                "error": result.get("error")
-            }
-            
-            from .models import ImageUrl
-            image_result = ImageResult(
-                type="image_url",
-                image_url=ImageUrl(
-                    url="data:image/jpeg;base64,",
-                    axtree_info=axtree_info
-                )
-            )
-            
-            full_content = json.dumps(asdict(image_result))
-            
-            # Return BrowserGymActionResult with formatted display
-            return BrowserGymActionResult(
-                action=action,
-                success=result.get("success", False),
-                error=result.get("error"),
-                page_info=result.get("page_info", {}),
-                available_bids_count=len(available_bids),
-                full_content=full_content
-            )
+            context.context._last_browser_result = browser_result
+        
+        return browser_result.get_api_output_items()
             
     except Exception as e:
-        # If browser operation fails, remove the tool instance
-        if hasattr(context.context, '_browsergym_tool'):
-            delattr(context.context, '_browsergym_tool')
-        
-        # Return error result as BrowserGymActionResult
-        image_result = ImageResult.from_base64("", "jpeg")
-        response_data = {
-            **asdict(image_result),
-            "browsergym_info": {
-                "success": False,
-                "error": str(e),
-                "axtree": "",
-                "page_info": {},
-                "available_bids": []
-            }
-        }
-        full_content = json.dumps(response_data)
-        
-        return BrowserGymActionResult(
-            action=action,
-            success=False,
-            error=str(e),
-            page_info={},
-            available_bids_count=0,
-            full_content=full_content
-        )
+        # Return error as ToolOutputText
+        error_message = f"BrowserGym action '{action}' failed with error: {str(e)}"
+        return [ToolOutputText(text=error_message)]

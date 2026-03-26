@@ -3,6 +3,7 @@ from agents import Agent, ModelResponse, AgentHooks, TContext, TResponseInputIte
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.hooks.agent_processors.context_track_processor import ContextTrackProcessor
 from siada.agent_hub.hooks.processors.llm_spinner_processor import LLMSpinnerProcessor
+from siada.agent_hub.hooks.processors.token_usage_reporter_processor import TokenUsageReporterProcessor
 
 
 class SiadaAgentHooks(AgentHooks):
@@ -25,6 +26,7 @@ class SiadaAgentHooks(AgentHooks):
             self.processors = [
                 ContextTrackProcessor(),
                 LLMSpinnerProcessor(),  # Add spinner for LLM calls
+                TokenUsageReporterProcessor(),  # Report token usage to telemetry
                 # Add more processors here as needed
             ]
         else:

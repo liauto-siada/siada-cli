@@ -14,102 +14,144 @@ class ModelBaseConfig:
     supports_images: bool = False
     supports_prompt_cache: bool = False
 
+    parallel_tool_calls: Optional[bool] = None
+
     supports_extra_params: Optional[List[str]] = None
+
+    # Default thinking token budget for models that support thinking.
+    # When set, thinking is enabled by default without needing --thinking-tokens flag.
+    # Use -1 for adaptive thinking mode (e.g., Claude 4.6+), positive int for budget mode.
+    default_thinking_tokens: Optional[int] = None
+
+    # Default reasoning effort level for models that support reasoning_effort.
+    # Valid values: "low", "medium", "high". When set, reasoning is enabled by default.
+    default_reasoning_effort: Optional[str] = None
 
 # Simple list of all model configurations
 MODEL_SETTING: List[ModelBaseConfig] = [
-    # ModelBaseConfig(
-    #     model_name="o3-pro",
-    #     max_tokens=8192,
-    #     context_window=200_000,
-    #     supports_images=True,
-    #     supports_extra_params=["reasoning_effort"],
-    # ),
     ModelBaseConfig(
-        model_name="claude-opus-4.1",
-        max_tokens=8192,
-        context_window=200_000,
-        supports_extra_params=[],
-    ),
-    ModelBaseConfig(
-        model_name="gpt-5",
-        max_tokens=8192,
-        context_window=400_000,
-        supports_images=True,
-        supports_extra_params=["reasoning_effort"],
-    ),
-    ModelBaseConfig(
-        model_name="gpt-5-mini",
-        max_tokens=8192,
-        context_window=400_000,
-        supports_images=True,
-        supports_extra_params=["reasoning_effort"],
-    ),
-    ModelBaseConfig(
-        model_name="gpt-4.1",
-        max_tokens=8192,
-        context_window=1_047_576,
-        supports_images=True,
-    ),
-    ModelBaseConfig(
-        model_name="claude-opus-4",
-        max_tokens=8192,
+        model_name="claude-sonnet-4.6",
+        max_tokens=8192 * 4,
         context_window=200_000,
         supports_images=True,
-        supports_extra_params=[],
+        parallel_tool_calls=True,
+        supports_extra_params=["thinking_tokens"],
+        default_thinking_tokens=-1,  # -1 means adaptive thinking mode
     ),
-    ModelBaseConfig(
-        model_name="claude-sonnet-4",
-        max_tokens=8192,
-        context_window=200_000,
-        supports_images=True,
-        supports_extra_params=[],
-    ),
-
     ModelBaseConfig(
         model_name="claude-sonnet-4.5",
-        max_tokens=8192*4,
+        max_tokens=8192 * 4,
         context_window=200_000,
         supports_images=True,
-        supports_extra_params=[],
-    ),
-
-    ModelBaseConfig(
-        model_name="claude-3.7-sonnet",
-        max_tokens=8192,
-        context_window=200_000,
-        supports_images=True,
-        supports_extra_params=[],
-    ),
-    ModelBaseConfig(
-        model_name="gemini-2.5-pro",
-        max_tokens=8192,
-        context_window=1_048_576,
+        parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens"],
+        default_thinking_tokens=1024,
     ),
     ModelBaseConfig(
-        model_name="deepseek-v3-0324",
+        model_name="gpt-5.4",
         max_tokens=8192,
-        context_window=128_000,
+        context_window=272_000,
+        supports_images=True,
+        parallel_tool_calls=True,
+        supports_extra_params=["reasoning_effort"],
     ),
     ModelBaseConfig(
-        model_name="deepseek-v3.1",
+        model_name="gpt-5.2",
         max_tokens=8192,
-        context_window=163_840,
-        supports_extra_params=[],
+        context_window=272_000,
+        supports_images=True,
+        parallel_tool_calls=True,
+        supports_extra_params=["reasoning_effort"],
     ),
     ModelBaseConfig(
-        model_name="kimi-k2",
+        model_name="gpt-5.1",
         max_tokens=8192,
-        context_window=131_072,
+        context_window=272_000,
+        supports_images=True,
+        parallel_tool_calls=True,
+        supports_extra_params=["reasoning_effort"],
     ),
+    ModelBaseConfig(
+        model_name="gemini-3.1-pro-preview",
+        max_tokens=8192,
+        context_window=200_000,
+        parallel_tool_calls=True,
+        supports_extra_params=["reasoning_effort"],
+        default_reasoning_effort="low",
+    ),
+    ModelBaseConfig(
+        model_name="deepseek-v3.2",
+        max_tokens=8192,
+        context_window=96_000,
+        parallel_tool_calls=False,
+        supports_extra_params=["thinking_tokens"],
+        default_thinking_tokens=1024,
+    ),
+    ModelBaseConfig(
+        model_name="minimax-m2.5",
+        max_tokens=8192,
+        context_window=200_000,
+        parallel_tool_calls=False,
+        supports_extra_params=["thinking_tokens"],
+        default_thinking_tokens=1024,
+    ),
+    ModelBaseConfig(
+        model_name="kimi-k2.5",
+        max_tokens=8192,
+        context_window=229_376,
+        parallel_tool_calls=False,
+        supports_extra_params=["thinking_tokens"],
+        default_thinking_tokens=1024,
+    ),
+    ModelBaseConfig(
+        model_name="glm-5",
+        max_tokens=8192,
+        context_window=169_984,
+        parallel_tool_calls=False,
+        supports_extra_params=["thinking_tokens"],
+        default_thinking_tokens=1024,
+    )
+    # ModelBaseConfig(
+    #     model_name="gpt-5-codex",
+    #     max_tokens=32_768,
+    #     context_window=200_000,
+    #     supports_images=True,
+    #     parallel_tool_calls=True,
+    # ),
+    # ModelBaseConfig(
+    #     model_name="gpt-5.1-codex",
+    #     max_tokens=32_768,
+    #     context_window=200_000,
+    #     supports_images=True,
+    #     parallel_tool_calls=True,
+    # ),
+    # ModelBaseConfig(
+    #     model_name="gpt-5.2-codex",
+    #     max_tokens=32_768,
+    #     context_window=200_000,
+    #     supports_images=True,
+    #     parallel_tool_calls=True,
+    # ),
+    # ModelBaseConfig(
+    #     model_name="gpt-5.3-codex",
+    #     max_tokens=32_768,
+    #     context_window=400_000,
+    #     supports_images=True,
+    #     parallel_tool_calls=True,
+    # ),
+    # ModelBaseConfig(
+    #     model_name="codex-mini-latest",
+    #     max_tokens=32_768,
+    #     context_window=200_000,
+    #     parallel_tool_calls=True,
+    # ),
 ]
 
 def is_claude_model(model_name: str) -> bool:
-    return model_name.startswith("claude")
+    return "claude" in model_name.lower()
 
 def is_gemini_model(model_name: str) -> bool:
-    return model_name.startswith("gemini-")
+    return "gemini" in model_name.lower()
 
 def set_user_model_settings(user_models: List[ModelBaseConfig]) -> None:
     """

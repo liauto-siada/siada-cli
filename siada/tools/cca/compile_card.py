@@ -43,16 +43,16 @@ class CardCompiler:
             file_path: 卡片文件路径
         """
         try:
-            # 1. 初始化编译环境
+            # 1. Initialize compilation environment
             self._initialize(file_path)
 
-            # 2. 检查并安装 Node.js 和 npm
+            # 2. Check and install Node.js and npm
             self._check_and_install_node_npm()
 
-            # 3. 安装依赖
+            # 3. Install dependencies
             self._install_dependencies()
 
-            # 4. 执行构建
+            # 4. Execute build
             self._build_card()
 
             return f"✅ 编译成功"
@@ -62,7 +62,7 @@ class CardCompiler:
 
     def _initialize(self, file_path: str) -> None:
         """初始化编译环境"""
-        # 获取卡片名称
+        # Get card name
         self.card_name = Path(file_path).stem
         print(f"🎯 开始编译卡片: {self.card_name}")
 
@@ -73,23 +73,23 @@ class CardCompiler:
             :param start_path: 起始路径(可以是文件或目录路径)
             :return: 找到的mindui目录Path对象，如果没找到则返回None
             """
-            current_path = Path(start_path).resolve()  # 转换为绝对路径
+            current_path = Path(start_path).resolve()  # Convert to absolute path
 
-            # 如果是文件路径，从父目录开始查找
+            # If it is a file path, start searching from the parent directory
             if current_path.is_file():
                 current_path = current_path.parent
 
-            # 向上查找
+            # Search upward
             while True:
-                # 检查当前目录名是否为'mindui'
+                # Check if current directory name is 'mindui'
                 if current_path.name == 'mindui-components':
                     return current_path
 
-                # 如果已经到达根目录，停止查找
+                # Stop searching if we have reached the root directory
                 if current_path.parent == current_path:
                     return None
 
-                # 向上移动一级目录
+                # Move up one directory level
                 current_path = current_path.parent
 
         self.mindui_path = find_mindui_dir(file_path)
@@ -102,10 +102,10 @@ class CardCompiler:
         """检查并安装 Node.js 和 npm"""
         print("🔍 检查 Node.js 和 npm 版本...")
 
-        # 检查 Node.js 版本
+        # Check Node.js version
         self._check_node_version()
 
-        # 检查 npm 版本
+        # Check npm version
         self._check_npm_version()
 
     def _check_node_version(self) -> None:
@@ -115,7 +115,7 @@ class CardCompiler:
             node_version = result.stdout.strip()
             print(f"✅ Node.js 版本: {node_version}")
 
-            # 检查版本是否满足要求（需要 16+）
+            # Check if version meets requirements (requires 16+)
             major_version = int(node_version[1:].split('.')[0])
             if major_version < 16:
                 raise Exception(f"❌ Node.js 版本过低，需要 16+，当前版本: {node_version}")
@@ -138,7 +138,7 @@ class CardCompiler:
         """安装项目依赖"""
         print("📦 安装项目依赖...")
 
-        # 检查 node_modules 是否存在
+        # Check if node_modules exists
         node_modules_path = self.mindui_path / "node_modules"
         package_lock_path = self.mindui_path / "package-lock.json"
 
@@ -147,7 +147,7 @@ class CardCompiler:
             return
 
         try:
-            # 切换到 mindui 目录并安装依赖
+            # Switch to mindui directory and install dependencies
             result = subprocess.run(
                 ['npm', 'install'],
                 cwd=self.mindui_path,
@@ -165,7 +165,7 @@ class CardCompiler:
         print(f"🔨 构建卡片: {self.card_name}")
 
         try:
-            # 执行构建命令
+            # Execute build command
             result = subprocess.run(
                 ['node', 'scripts/build.js', self.card_name],
                 cwd=self.mindui_path,
@@ -175,7 +175,7 @@ class CardCompiler:
             )
             print("✅ 卡片构建完成")
 
-            # 检查构建结果
+            # Check build result
             dist_path = self.mindui_path / "dist" / self.card_name / "index.html"
             if not dist_path.exists():
                 raise Exception(f"❌ 构建产物不存在: {dist_path}")

@@ -1,6 +1,6 @@
 import asyncio
 from siada.entrypoint.interaction.running_config import RunningConfig
-from siada.services import mcp_service
+from siada.foundation.telemetry import telemetry
 from siada.session.session_models import RunningSession
 
 
@@ -15,21 +15,14 @@ class NoInteractiveController:
         from siada.services.siada_runner import SiadaRunner
         
         async def run_async():
-            # Initialize MCP service
-            await mcp_service.initialize()
-            
-            try:
-                # Run the agent
-                result = await SiadaRunner.run_agent(
-                    agent_name=self.config.agent_name,
-                    user_input=user_input,
-                    workspace=self.config.workspace,
-                    session=self.session,
-                )
-                return result
-            finally:
-                # Shutdown MCP service
-                await mcp_service.shutdown()
+            # Run the agent
+            result = await SiadaRunner.run_agent(
+                agent_name=self.config.agent_name,
+                user_input=user_input,
+                workspace=self.config.workspace,
+                session=self.session,
+            )
+            return result
         
         try:
             result = asyncio.run(run_async())

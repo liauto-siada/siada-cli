@@ -24,7 +24,8 @@ The configuration file uses JSON format and contains the following fields:
       "max_tokens": max_output_tokens (optional),
       "supports_images": whether_supports_images (optional, default false),
       "supports_prompt_cache": whether_supports_prompt_cache (optional, default false),
-      "supports_extra_params": ["extra_params_list"] (optional)
+      "supports_extra_params": ["extra_params_list"] (optional),
+      "parallel_tool_calls": whether_supports_parallel_tool_calls (optional, default null)
     }
   ]
 }
@@ -42,7 +43,8 @@ The configuration file uses JSON format and contains the following fields:
       "max_tokens": 4096,
       "supports_images": true,
       "supports_prompt_cache": false,
-      "supports_extra_params": []
+      "supports_extra_params": [],
+      "parallel_tool_calls": true
     },
     {
       "model_name": "openai/gpt-3.5-turbo",
@@ -50,7 +52,8 @@ The configuration file uses JSON format and contains the following fields:
       "max_tokens": 4096,
       "supports_images": false,
       "supports_prompt_cache": false,
-      "supports_extra_params": []
+      "supports_extra_params": [],
+      "parallel_tool_calls": true
     },
     {
       "model_name": "anthropic/claude-3-opus",
@@ -58,7 +61,8 @@ The configuration file uses JSON format and contains the following fields:
       "max_tokens": 4096,
       "supports_images": true,
       "supports_prompt_cache": true,
-      "supports_extra_params": []
+      "supports_extra_params": [],
+      "parallel_tool_calls": true
     },
     {
       "model_name": "deepseek/deepseek-chat",
@@ -66,7 +70,8 @@ The configuration file uses JSON format and contains the following fields:
       "max_tokens": 8192,
       "supports_images": false,
       "supports_prompt_cache": false,
-      "supports_extra_params": []
+      "supports_extra_params": [],
+      "parallel_tool_calls": false
     }
   ]
 }
@@ -112,12 +117,39 @@ An array of model configurations, each model contains the following fields:
 - **Default**: `false`
 - **Example**: `true`, `false`
 
+#### parallel_tool_calls (Optional)
+- **Type**: Boolean
+- **Description**: Whether the model supports parallel tool calls. When enabled, the model can invoke multiple independent tools simultaneously in a single response, improving execution efficiency. For Claude models, this parameter controls parallel behavior via prompt-level instructions; for OpenAI/Gemini models, this parameter is passed directly to the API
+- **Default**: `null` (parameter not passed)
+- **Recommended Values**:
+  - Claude, GPT, Gemini series: `true`
+  - DeepSeek, Kimi, GLM, MiniMax series: `false`
+- **Example**: `true`, `false`
+
 #### supports_extra_params (Optional)
 - **Type**: String Array
 - **Description**: List of extra parameters supported by the model
 - **Default**: `null`
 - **Possible Values**: `["reasoning_effort"]`, `["thinking_tokens"]`
 - **Example**: `["reasoning_effort"]`
+
+#### default_thinking_tokens (Optional)
+- **Type**: Integer
+- **Description**: Default thinking token budget for the model. When set, the model will automatically enable thinking/reasoning mode on startup without requiring command-line arguments
+- **Default**: `null` (thinking not enabled)
+- **Special Values**:
+  - `-1`: Adaptive thinking mode, suitable for Claude 4.6+ and other models supporting adaptive reasoning
+  - Positive integer (e.g., `1024`): Budget thinking mode, suitable for Claude 4.5 and similar models
+- **Prerequisite**: `supports_extra_params` must include `"thinking_tokens"`
+- **Example**: `-1` (adaptive mode), `1024` (budget mode)
+
+#### default_reasoning_effort (Optional)
+- **Type**: String
+- **Description**: Default reasoning effort level for the model. When set, the model will automatically use the specified reasoning effort level on startup
+- **Default**: `null` (reasoning effort level not set)
+- **Possible Values**: `"low"`, `"medium"`, `"high"`
+- **Prerequisite**: `supports_extra_params` must include `"reasoning_effort"`
+- **Example**: `"low"`
 
 ## Model Naming Convention
 

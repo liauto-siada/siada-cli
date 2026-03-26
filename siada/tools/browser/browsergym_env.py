@@ -6,7 +6,7 @@ the lifecycle of browser environments using the Gymnasium interface.
 The chat functionality is disabled to prevent UI assistant chat windows.
 """
 
-import logging
+import atexit
 import threading
 import queue
 import time
@@ -15,6 +15,7 @@ import gymnasium as gym
 from browsergym.core.action.highlevel import HighLevelActionSet
 from browsergym.core.env import BrowserEnv
 from browsergym.core.task import OpenEndedTask
+from siada.foundation.logging import logger 
 
 
 class NoUIChatPatch:
@@ -58,12 +59,12 @@ class BrowserGymWorkerThread:
     def __init__(self):
         self.env: Optional[gym.Env] = None
         self.action_set: Optional[HighLevelActionSet] = None
-        self.logger = logging.getLogger(__name__)
         self._initialized = False
         self._stop_event = threading.Event()
         self._command_queue = queue.Queue()
         self._result_queue = queue.Queue()
         self._thread = None
+        self._browser_pids: set = set()  # Track browser process PIDs spawned by this environment
         
     def start(self):
         """Start the worker thread."""
@@ -80,23 +81,33 @@ class BrowserGymWorkerThread:
     
     def _worker_loop(self):
         """Main worker thread loop."""
-        while not self._stop_event.is_set():
-            try:
+        # Create and set an event loop for this thread
+        # This is required by Playwright/BrowserGym which uses asyncio internally
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            while not self._stop_event.is_set():
                 try:
-                    command = self._command_queue.get(timeout=1.0)
-                except queue.Empty:
-                    continue
-                
-                try:
-                    result = self._process_command(command)
-                    self._result_queue.put(('success', result))
-                except Exception as e:
-                    self._result_queue.put(('error', str(e)))
-                finally:
-                    self._command_queue.task_done()
+                    try:
+                        command = self._command_queue.get(timeout=1.0)
+                    except queue.Empty:
+                        continue
                     
-            except Exception:
-                pass  # Silently continue on worker thread errors
+                    try:
+                        result = self._process_command(command)
+                        self._result_queue.put(('success', result))
+                    except Exception as e:
+                        self._result_queue.put(('error', str(e)))
+                    finally:
+                        self._command_queue.task_done()
+                        
+                except Exception:
+                    pass  # Silently continue on worker thread errors
+        finally:
+            # Clean up the event loop when the worker thread exits
+            loop.close()
     
     def _process_command(self, command: Dict[str, Any]) -> Any:
         """Process a command in the worker thread."""
@@ -124,6 +135,12 @@ class BrowserGymWorkerThread:
             # Apply chat patch to disable UI
             _apply_chat_patch()
             
+            # Chromium path should already be set by browser_operate_by_gym
+            # If not set, the environment variable will be checked
+            import os
+            if 'PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH' in os.environ:
+                logger.debug(f"Using Chromium at: {os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']}")
+            
             # Initialize action set
             self.action_set = HighLevelActionSet(
                 subsets=["bid"],
@@ -141,12 +158,19 @@ class BrowserGymWorkerThread:
             }
             
             if "card=true" in start_url:
-                env_kwargs["viewport"] = {"width": 1080, "height": 1440}  # 设置更大的视口以显示完整卡片
+                env_kwargs["viewport"] = {"width": 1080, "height": 1440}
             
             self.env = BrowserEnv(**env_kwargs)
             
             # Reset the environment to initial state
             obs, info = self.env.reset()
+            
+            # Capture browser PIDs spawned by this Python process
+            # Since _get_chromium_pids only finds child processes of current Python process,
+            # no need to calculate difference - all found PIDs belong to our browser
+            time.sleep(0.5)  # Brief wait for browser processes to fully start
+            self._browser_pids = self._get_chromium_pids()
+            logger.info(f"Captured browser PIDs: {self._browser_pids}")
             
             # Inject cursor functionality
             self._inject_cursor_functionality()
@@ -274,19 +298,19 @@ class BrowserGymWorkerThread:
         """Close environment in worker thread."""
         try:
             if self.env is not None:
-                # 先获取页面引用，用于清理
+                # Get page reference for cleanup
                 page = self._get_browser_page()
                 
-                # 清理页面上的自定义元素和事件监听器
+                # Clean up custom elements and event listeners on the page
                 if page:
                     try:
                         cleanup_js = """
                         (function() {
-                            // 移除所有 Siada 相关元素
+                            // Remove all Siada related elements
                             const elements = document.querySelectorAll('.siada-cursor, .siada-cursor-trail, .siada-click-indicator');
                             elements.forEach(el => el.remove());
                             
-                            // 清理全局变量
+                            // Clean up global variables
                             delete window.siadaCursor;
                             delete window.moveSiadaCursor;
                             delete window.showSiadaClick;
@@ -294,10 +318,18 @@ class BrowserGymWorkerThread:
                         """
                         page.evaluate(cleanup_js)
                     except Exception:
-                        pass  # 忽略清理错误
+                        pass  # Ignore cleanup errors
                 
-                # 关闭环境
-                self.env.close()
+                # Close the environment
+                try:
+                    self.env.close()
+                except Exception:
+                    # If normal close fails, try to force kill the browser process
+                    try:
+                        if hasattr(self.env, 'browser') and self.env.browser:
+                            self.env.browser.close()
+                    except Exception:
+                        pass
             
             self.env = None
             self.action_set = None
@@ -305,6 +337,10 @@ class BrowserGymWorkerThread:
             return True
             
         except Exception:
+            # Even on exception, mark as uninitialized
+            self.env = None
+            self.action_set = None
+            self._initialized = False
             return False
     
     def execute_command(self, command: Dict[str, Any], timeout: float = 30.0) -> Any:
@@ -324,6 +360,64 @@ class BrowserGymWorkerThread:
                 continue
         
         raise TimeoutError(f"Command timed out after {timeout} seconds")
+
+    def _get_chromium_pids(self) -> set:
+        """Get all chromium/chrome process PIDs spawned by current Python process.
+        
+        Uses psutil to traverse the process tree starting from current Python process,
+        finding all child processes that are browser-related (chrome, chromium, msedge).
+        This approach is more reliable than depending on Playwright's internal API.
+        
+        Returns:
+            A set of PIDs for browser processes spawned by this Python process
+        """
+        import psutil
+        import os
+        
+        pids = set()
+        try:
+            current_pid = os.getpid()
+            parent = psutil.Process(current_pid)
+            
+            # Recursively find all child processes
+            for child in parent.children(recursive=True):
+                try:
+                    name = child.name().lower()
+                    # Match common browser process names
+                    if any(browser in name for browser in ['chrome', 'chromium', 'msedge', 'headless']):
+                        pids.add(child.pid)
+                        logger.debug(f"Found browser child process: PID={child.pid}, name={child.name()}")
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    # Process may have terminated or we don't have permission
+                    continue
+        except Exception as e:
+            logger.debug(f"Error getting chromium PIDs via psutil: {e}")
+        
+        return pids
+    
+    def _capture_browser_pid(self) -> Optional[int]:
+        """Capture the main browser process PID from child processes.
+        
+        This method uses psutil to find browser processes spawned by the current
+        Python process. It returns the first (usually main) browser process PID found.
+        
+        Returns:
+            The browser process PID if found, None otherwise
+        """
+        try:
+            browser_pids = self._get_chromium_pids()
+            if browser_pids:
+                # Return the first (main) browser PID
+                main_pid = min(browser_pids)  # Usually the main process has the smallest PID
+                logger.debug(f"Captured browser PID via psutil: {main_pid}")
+                return main_pid
+            
+            logger.debug("Could not capture browser PID via psutil - no browser child processes found")
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Error capturing browser PID: {e}")
+            return None
 
     def _inject_cursor_functionality(self):
         """Inject cursor functionality into the browser page."""
@@ -462,7 +556,7 @@ class BrowserGymWorkerThread:
             pass  # Non-critical cursor injection
 
 
-class BrowserGymEnv:
+class BrowserGymEnvManager:
     """Singleton BrowserGym environment manager.
     
     This class manages a single BrowserGym environment instance that can be
@@ -470,16 +564,18 @@ class BrowserGymEnv:
     The chat functionality is automatically disabled to prevent UI windows.
     """
     
-    _instance: Optional['BrowserGymEnv'] = None
+    _instance: Optional['BrowserGymEnvManager'] = None
     _lock = threading.Lock()
     
     def __init__(self):
         """Initialize the BrowserGym environment manager."""
-        self.logger = logging.getLogger(__name__)
         self._worker = BrowserGymWorkerThread()
         
+        # Register cleanup hook to kill browser processes on program exit
+        atexit.register(self._kill_chromium_processes)
+        
     @classmethod
-    def get_instance(cls) -> 'BrowserGymEnv':
+    def get_instance(cls) -> 'BrowserGymEnvManager':
         """Get the singleton instance of BrowserGymEnv.
         
         Returns:
@@ -509,7 +605,7 @@ class BrowserGymEnv:
             }
             return self._worker.execute_command(command)
         except Exception as e:
-            self.logger.error(f"Failed to initialize BrowserGym environment: {str(e)}")
+            logger.error(f"Failed to initialize BrowserGym environment: {str(e)}")
             return False
     
     def step(self, action: str) -> tuple[Dict[str, Any], float, bool, bool, Dict[str, Any]]:
@@ -531,7 +627,7 @@ class BrowserGymEnv:
             }
             return self._worker.execute_command(command)
         except Exception as e:
-            self.logger.error(f"Failed to execute action '{action}': {str(e)}")
+            logger.error(f"Failed to execute action '{action}': {str(e)}")
             raise
     
     def get_current_observation(self) -> Optional[Dict[str, Any]]:
@@ -544,23 +640,89 @@ class BrowserGymEnv:
             command = {'type': 'get_observation'}
             return self._worker.execute_command(command)
         except Exception as e:
-            self.logger.error(f"Failed to get current observation: {str(e)}")
+            logger.error(f"Failed to get current observation: {str(e)}")
             return None
     
-    def close(self) -> bool:
+    def close(self, timeout: float = 30.0) -> bool:
         """Close the BrowserGym environment and clean up resources.
+        
+        Note: We intentionally do NOT stop the worker thread or reset the singleton
+        instance here. This is because Playwright maintains global state (Selectors)
+        that is bound to the event loop created in the worker thread. If we stop
+        the worker thread, the event loop is destroyed but Playwright's global state
+        still references it, causing "no running event loop" errors on browser reopen.
+        
+        Instead, we only close the BrowserEnv but keep the worker thread running.
+        The worker thread is a daemon thread and will be automatically terminated
+        when the main process exits.
+        
+        Args:
+            timeout: Maximum time to wait for close operation (default 30s)
         
         Returns:
             bool: True if cleanup was successful, False otherwise
         """
         try:
             command = {'type': 'close'}
-            result = self._worker.execute_command(command)
-            self._worker.stop()
+            result = self._worker.execute_command(command, timeout=timeout)
+            # NOTE: Do NOT call self._worker.stop() here!
+            # This keeps the event loop alive for Playwright's global Selectors object
             return result
         except Exception as e:
-            self.logger.error(f"Error closing BrowserGym environment: {str(e)}")
+            logger.error(f"Error closing BrowserGym environment: {str(e)}")
             return False
+    
+    def _kill_chromium_processes(self):
+        """Forcefully kill browser processes spawned by this environment.
+        
+        This is a last resort when normal close fails and we need to exit immediately.
+        Uses the captured _browser_pids set which already contains all browser processes
+        (main process + renderer/GPU/utility processes) discovered via psutil.
+        This approach avoids collateral damage to other browser instances.
+        """
+        import os
+        import signal
+        
+        try:
+            browser_pids = set()
+            
+            # Get the browser PIDs we captured during initialization
+            if self._worker and self._worker._browser_pids:
+                browser_pids = self._worker._browser_pids.copy()
+            
+            if browser_pids:
+                logger.info(f"Killing {len(browser_pids)} browser processes: {browser_pids}")
+                
+                # Kill all captured browser processes
+                # Sort in reverse order to kill child processes before parent processes
+                for pid in sorted(browser_pids, reverse=True):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                        logger.debug(f"Killed browser process: {pid}")
+                    except ProcessLookupError:
+                        pass  # Process already terminated
+                    except PermissionError:
+                        logger.warning(f"No permission to kill process {pid}")
+                    except Exception as e:
+                        logger.debug(f"Error killing process {pid}: {e}")
+                    
+            else:
+                # Fallback: No PIDs captured, log a warning but don't use pkill
+                # to avoid killing unrelated browser processes
+                logger.warning(
+                    "No browser PIDs captured - cannot perform precise cleanup. "
+                    "The browser process may need to be closed manually."
+                )
+            
+            # Mark worker as uninitialized and clear the PIDs
+            if self._worker:
+                self._worker._initialized = False
+                self._worker.env = None
+                self._worker.action_set = None
+                self._worker._browser_pids = set()
+                
+        except Exception as e:
+            logger.error(f"Error killing browser processes: {e}")
     
     def is_initialized(self) -> bool:
         """Check if the environment is initialized.
@@ -572,7 +734,7 @@ class BrowserGymEnv:
             command = {'type': 'is_initialized'}
             return self._worker.execute_command(command)
         except Exception as e:
-            self.logger.error(f"Failed to check initialization status: {str(e)}")
+            logger.error(f"Failed to check initialization status: {str(e)}")
             return False
     
     def get_action_description(self) -> str:
@@ -589,7 +751,7 @@ class BrowserGymEnv:
             )
             return action_set.describe(with_long_description=True, with_examples=True)
         except Exception as e:
-            self.logger.error(f"Failed to get action description: {str(e)}")
+            logger.error(f"Failed to get action description: {str(e)}")
             return "Failed to get action description"
     
     @classmethod

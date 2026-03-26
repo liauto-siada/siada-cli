@@ -17,6 +17,8 @@ from agents.items import TResponseStreamEvent
 from openai.types.responses.response_prompt_param import ResponsePromptParam
 
 from siada.models.agent import Tool
+from siada.models.model_base_config import is_claude_model
+from siada.foundation.logging import logger
 
 
 class ModelWrapper(Model):
@@ -59,6 +61,32 @@ class ModelWrapper(Model):
         self._wrapped_model_type = type(wrapped_model).__name__
         self._wrapped_model_str = str(wrapped_model)
     
+    @staticmethod
+    def _filter_malformed_reasoning_items(
+        items: list[TResponseInputItem],
+    ) -> list[TResponseInputItem]:
+        """
+        Filter out malformed reasoning items that are missing the `encrypted_content` field.
+        
+        Some models (e.g. Claude) may return reasoning items without the required
+        `encrypted_content` field, which will cause errors when sent back to the API.
+        This method removes such malformed items to prevent downstream failures.
+        
+        Args:
+            items: The list of input items to filter
+            
+        Returns:
+            Filtered list with malformed reasoning items removed
+        """
+        filtered: list[TResponseInputItem] = []
+        for item in items:
+            if isinstance(item, dict) and item.get("type") == "reasoning":
+                if "encrypted_content" not in item or not item["encrypted_content"]:
+                    # Skip reasoning items missing encrypted_content
+                    continue
+            filtered.append(item)
+        return filtered
+
     def _process_input(
         self, 
         input: str | list[TResponseInputItem]
@@ -66,30 +94,40 @@ class ModelWrapper(Model):
         """
         Process the input using the configured input_processor.
         
+        This method first sanitizes the input by filtering out malformed items
+        (e.g. reasoning items without encrypted_content), then applies the
+        configured input_processor if present.
+        
         Args:
             input: The original input (string or list of items)
             
         Returns:
             Processed input (same type as input)
         """
-        # If no processor is configured, pass through unchanged
-        if self.input_processor is None:
+        # Only process list inputs, pass string inputs through unchanged
+        if not isinstance(input, list):
             return input
         
-        # Only process list inputs, pass string inputs through unchanged
-        if isinstance(input, list):
-            try:
-                processed = self.input_processor(input)
-                # Ensure the processor returns a list
-                if not isinstance(processed, list):
-                    raise ValueError(f"Input processor must return a list, got {type(processed)}")
-                return processed
-            except Exception as e:
-                # Log the error but don't break the flow - fall back to original input
-                print(f"Warning: Input processor failed with error: {e}. Using original input.")
-                return input
+        # Filter out malformed reasoning items for Claude models only
+        sanitized = input
+        model_name = getattr(self.wrapped_model, "model", None)
+        if model_name and is_claude_model(model_name):
+            sanitized = self._filter_malformed_reasoning_items(input)
         
-        return input
+        # If no processor is configured, return sanitized input
+        if self.input_processor is None:
+            return sanitized
+        
+        try:
+            processed = self.input_processor(sanitized)
+            # Ensure the processor returns a list
+            if not isinstance(processed, list):
+                raise ValueError(f"Input processor must return a list, got {type(processed)}")
+            return processed
+        except Exception as e:
+            # Log the error but don't break the flow - fall back to sanitized input
+            logger.warning(f"Input processor failed with error: {e}. Falling back to sanitized input.")
+            return sanitized
     
     async def get_response(
         self,

@@ -122,7 +122,7 @@ class BugFixTraceSession:
         data = asdict(self)
         
         if exclude_none:
-            # 递归过滤None值
+            # Recursively filter None values
             return self._filter_none_values(data)
         
         return data
@@ -182,7 +182,7 @@ class OutputData:
                 "environment": self.environment
             }
             
-            # 递归过滤None值
+            # Recursively filter None values
             return self._filter_none_values(data)
         else:
             return asdict(self)
@@ -563,7 +563,7 @@ class BugFixTraceCollector(TracingProcessor):
         
         filepath = self.output_dir / filename
         
-        # 使用BugFixTraceSession的to_dict方法来控制是否排除None字段
+        # Use BugFixTraceSession.to_dict() to control whether to exclude None fields
         trajectory_data = self.trace_session.to_dict(exclude_none=exclude_none)
         
         export_data = {
@@ -1060,7 +1060,8 @@ def create_bug_fix_trace_collector(
         
         # Create trace directory (unified across all platforms)  
         from pathlib import Path
-        trace_dir = Path.home() / ".siada-cli" / "traces" / "bug_fix"
+        from siada.foundation.constants import SIADA_HOME
+        trace_dir = SIADA_HOME / "traces" / "bug_fix"
         trace_dir.mkdir(parents=True, exist_ok=True)
         
         output_dir = str(trace_dir)
@@ -1076,7 +1077,7 @@ def create_bug_fix_trace_collector(
         show_system_messages=False,
         use_colors=True,
         console_output=console_output,
-        output_file=None,  # BugFixTraceCollector使用JSON文件而不是log文件
+        output_file=None,  # BugFixTraceCollector uses JSON file instead of log file
         indent_level=0
     )
 
@@ -1110,7 +1111,8 @@ def create_custom_bug_fix_trace_collector(
     """Create a customized BugFix trace collector"""
     if output_dir is None:
         from pathlib import Path
-        trace_dir = Path.home() / ".siada-cli" / "traces" / "bug_fix"
+        from siada.foundation.constants import SIADA_HOME
+        trace_dir = SIADA_HOME / "traces" / "bug_fix"
         trace_dir.mkdir(parents=True, exist_ok=True)
         output_dir = str(trace_dir)
     

@@ -5,9 +5,11 @@ from siada.agent_hub.coder.prompt.base.capabilities import get_capabilities_sect
 from siada.agent_hub.coder.prompt.base.prompt_builder import build_system_prompt
 from siada.agent_hub.coder.prompt.base.tool_use import get_tool_use_section
 from siada.agent_hub.coder.prompt.card_prompt.rules import get_rules_section
+from siada.services.skills import get_skills_section
 
 
-def get_system_prompt(cwd: str = None, preferred_language: str = "zh-CN", agent_name: str = None) -> str:
+def get_system_prompt(cwd: str = None, preferred_language: str = "zh-CN", agent_name: str = None,
+                      enable_parallel_tool_calls: bool = False) -> str:
     """
     生成卡片开发 Agent 的系统提示词
 
@@ -19,10 +21,10 @@ def get_system_prompt(cwd: str = None, preferred_language: str = "zh-CN", agent_
     Returns:
         格式化后的系统提示词
     """
-    # 获取系统信息
+    # Get system info
     os_name = platform.system()
 
-    # 卡片开发Agent的特定介绍
+    # Card development agent specific introduction
     intro = """你是一个 Web 前端研发工程师，你需要根据用户需求，生成前端代码，开发一张运行在车机上的网页卡片。
 
 # 技术背景
@@ -201,7 +203,7 @@ createRoot(document.getElementById('root')!).render(
 )
 ```"""
 
-    # 卡片开发Agent的特定目标
+    # Card development agent specific goals
     objective = """OBJECTIVE
 
 你需要完成一个给定的任务，将其分解为清晰的步骤并有条不紊地完成。
@@ -215,13 +217,14 @@ createRoot(document.getElementById('root')!).render(
 
     return build_system_prompt(
         intro=intro,
-        tool_use=get_tool_use_section(),
+        tool_use=get_tool_use_section(enable_parallel_tool_calls),
         capabilities=get_capabilities_section(cwd),
         rules=get_rules_section(cwd, os_name),
         objective=objective,
         user_memory=None,
         preferred_language=preferred_language,
-        agent_name=agent_name
+        agent_name=agent_name,
+        skills_section=get_skills_section(cwd)
     )
 
 

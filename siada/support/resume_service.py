@@ -1,0 +1,188 @@
+"""Session resume service."""
+
+from typing import Optional, Tuple
+from siada.services.session_management import SessionManager, SessionData
+from siada.session.task_message_state import RealApiMessage
+from siada.agent_hub.context_filter.utils import compute_message_signature
+from siada.foundation.logging import logger
+
+
+class ResumeService:
+    """Handles session lookup, loading, and restoration."""
+
+    def __init__(self, project_root: str):
+        self.session_manager = SessionManager(project_root)
+
+    def list_sessions(self, scope: str = 'current') -> str:
+        """Return a formatted string listing available sessions.
+
+        scope: 'current' lists sessions for the current project only,
+               'all' lists sessions across all projects.
+        """
+        sessions = self.session_manager.list_sessions(scope=scope)
+
+        if not sessions:
+            return "No saved sessions found."
+
+        if scope == 'all':
+            lines = ["Available sessions (All Projects):"]
+        else:
+            lines = [f"Available sessions (Current Project: {self.session_manager.project_name}):"]
+
+        for session in sessions:
+            from datetime import datetime
+            try:
+                last_updated = datetime.fromisoformat(session.last_updated)
+                time_str = last_updated.strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                time_str = session.last_updated
+
+            if scope == 'all':
+                lines.append(
+                    f"  [{session.index}] [{session.project_name}] {session.first_user_message[:50]} "
+                    f"({session.message_count} messages, {time_str})"
+                )
+            else:
+                lines.append(
+                    f"  [{session.index}] {session.first_user_message[:50]} "
+                    f"({session.message_count} messages, {time_str})"
+                )
+
+        if scope == 'all':
+            lines.append("\nUsage: /resume <latest|index|session_id>")
+            lines.append("       /resume  (show current project only)")
+        else:
+            lines.append("\nUsage: /resume <latest|index|session_id>")
+            lines.append("       /resume --all  (show all projects)")
+
+        return "\n".join(lines)
+
+    def get_session_info(self, identifier: str):
+        """Return SessionInfo (metadata only, no full data load) for the given identifier.
+
+        Returns SessionInfo on success, or None if not found.
+        """
+        try:
+            return self.session_manager.find_session(identifier, scope='all')
+        except Exception as e:
+            logger.error(f"Failed to find session info: {e}")
+            return None
+
+    def execute(self, identifier: str = 'latest') -> Optional[Tuple[SessionData, str]]:
+        """Load a session by identifier ('latest', numeric index, or session_id).
+
+        Returns (SessionData, message) on success, or (None, error_message) on failure.
+        """
+        try:
+            session_info = self.session_manager.find_session(identifier, scope='all')
+
+            if not session_info:
+                return None, f"Session not found: {identifier}"
+
+            # session_path allows loading sessions from other projects
+            session_data = self.session_manager.load_session(
+                session_info.session_id,
+                session_path=session_info.session_path
+            )
+            session_data.project_root = session_info.project_root
+
+            message = (
+                f"Loaded session [{session_info.index}]: {session_info.first_user_message}\n"
+                f"Project: {session_info.project_name}\n"
+                f"Messages: {session_data.metadata.get('message_count', 0)}\n"
+                f"Last updated: {session_info.last_updated}"
+            )
+
+            return session_data, message
+
+        except Exception as e:
+            logger.error(f"Failed to resume session: {e}")
+            return None, f"Error: {str(e)}"
+
+    def restore_to_running_session(self, session_data: SessionData, running_session) -> None:
+        """Restore session_data into a live session, reusing the original session_id and storage path."""
+        try:
+            # Step 1: adopt the restored session's ID
+            running_session.session_id = session_data.session_id
+
+            # Step 2: redirect FileSession to the original session directory
+            if session_data.session_path and running_session.state.openai_session:
+                from siada.services.file_session import FileSession
+                old_session = running_session.state.openai_session
+                new_file_session = FileSession(
+                    session_id=session_data.session_id,
+                    sessions_dir=session_data.session_path.parent,
+                    on_items_added=old_session.on_items_added,
+                    project_root=str(session_data.session_path.parent.parent),
+                )
+                running_session.state.openai_session = new_file_session
+
+            # Step 3: restore message history, dropping any function_call items with
+            # invalid arguments JSON (and all items that follow them)
+            import json as _json
+
+            filtered_items = []
+            for item in session_data.items:
+                if (
+                    isinstance(item, dict)
+                    and item.get("type") == "function_call"
+                    and isinstance(item.get("arguments"), str)
+                ):
+                    try:
+                        _json.loads(item["arguments"])
+                    except (_json.JSONDecodeError, ValueError):
+                        logger.warning(
+                            f"Dropping function_call item and all subsequent items due to invalid arguments JSON, "
+                            f"call_id={item.get('call_id')}, name={item.get('name')}"
+                        )
+                        break
+                filtered_items.append(item)
+            running_session.state.task_message_state.reset_message_history(
+                message_history=filtered_items
+            )
+
+            # Step 4: restore RealApiMessage from api_messages.json.
+            # Filtered-out items are never compacted, so they appear verbatim at the
+            # tail of api_messages. Strip them from the tail before restoring.
+            if session_data.api_messages and filtered_items:
+                api_messages_to_use = list(session_data.api_messages)
+                filtered_out_items = session_data.items[len(filtered_items):]
+                for item in reversed(filtered_out_items):
+                    if api_messages_to_use and str(api_messages_to_use[-1]) == str(item):
+                        api_messages_to_use.pop()
+                    else:
+                        break
+                # Always compute last_index/last_signature from filtered_items,
+                # then update the persisted session data
+                last_item = filtered_items[-1]
+                persisted_last_index = len(filtered_items) - 1
+                persisted_last_signature = compute_message_signature(last_item)
+                # Persist computed values back to api_messages.json
+                if session_data.session_path:
+                    SessionManager.update_api_messages_tracking(
+                        session_data.session_path, persisted_last_index, persisted_last_signature
+                    )
+                running_session.state.task_message_state.set_real_messages(
+                    RealApiMessage(
+                        real_api_history=api_messages_to_use,
+                        last_index=persisted_last_index,
+                        last_signature=persisted_last_signature,
+                    )
+                )
+                # Restore the saved token count so _try_incremental_update only
+                # accounts for the delta on the next turn.
+                if session_data.api_messages_tokens:
+                    from agents.usage import Usage
+                    running_session.state.usage = Usage(
+                        input_tokens=session_data.api_messages_tokens,
+                        output_tokens=0,
+                        total_tokens=session_data.api_messages_tokens,
+                    )
+            else:
+                running_session.state.task_message_state.reset_real_messages()
+
+            logger.info(f"Session restored (reusing session_id): {session_data.session_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to restore session: {e}")
+            raise

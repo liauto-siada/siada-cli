@@ -3,6 +3,7 @@ from typing import Dict, Optional
 import yaml
 import os
 from pathlib import Path
+from siada.io.io import InputOutput
 
 @dataclass
 class AgentConfig:
@@ -44,5 +45,12 @@ def load_agent_config(config_path: Optional[Path] = None) -> AgentConfigCollecti
                     )
         except Exception as e:
             print(f"Warning: Failed to load agent config: {e}")
+            # Add IO to print errors for sending ACP messages
+            try:
+                io = InputOutput.get_instance()
+                if io:
+                    io.print_error(f"Warning: Failed to load agent config: {e}")
+            except:
+                pass
     
     return AgentConfigCollection(agents=agents)

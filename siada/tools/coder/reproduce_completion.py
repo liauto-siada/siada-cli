@@ -26,7 +26,7 @@ class ReproduceCompletionResult(FunctionCallResult):
     name_override="reproduce_completion", description_override=REPRODUCE_COMPLETION_DOCS, failure_error_function=None
 )
 async def reproduce_completion(context: RunContextWrapper[CodeAgentContext], test_case: str, bug_analysis: str) -> ReproduceCompletionResult:
-    # 获取 session_id
+    # Get session_id
     content = (f"====\n"
             f"This issue can be reproduced using test case : {test_case}.\n Analysis of the issue: {bug_analysis} \n"
             f"When you start fixing the issue, you must thoroughly refer to this information."

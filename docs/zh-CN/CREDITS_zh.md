@@ -16,6 +16,10 @@ Siada CLI 包含并改编了以下开源项目。我们对它们对开源社区�
 - **开源协议**: MIT
 - **贡献&修改内容**: 引用了其文件编辑工具的代码，并修改其参数以便适配openai-agent-sdk
 
+### [Codex](https://github.com/openai/codex)
+- **开源协议**: Apache 2.0
+- **贡献&修改内容**: 参考了其 skills 模块的实现，并将其适配到我们自己的 skills 系统中。
+
 
 ## 开源许可证
 

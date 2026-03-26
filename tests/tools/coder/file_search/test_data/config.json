@@ -1,0 +1,14 @@
+{
+  "name": "test-project",
+  "version": "1.0.0",
+  "description": "A test configuration file",
+  "settings": {
+    "debug": true,
+    "timeout": 5000,
+    "maxRetries": 3
+  },
+  "features": {
+    "experimental": false,
+    "analytics": true
+  }
+}

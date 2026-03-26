@@ -15,7 +15,7 @@ Args:
     name_override="test_completion", description_override=TEST_COMPLETION_DOCS, failure_error_function=None
 )
 async def test_completion(context: RunContextWrapper[CodeAgentContext], is_passed: int, test_detail: str) -> str:
-    # 获取 session_id
+    # Get session_id
     test_result = "Tests passed" if is_passed == 1 else "Tests failed"
 
     return {

@@ -21,6 +21,7 @@ from .exceptions import AtCommandError
 # Import ReadManyFiles tool
 from siada.tools.read_many_files_tool import ReadManyFilesTool
 from siada.tools.read_many_files.models import ReadManyFilesParams
+from siada.support.spinner import WaitingSpinner
 
 
 class AtCommandProcessor:
@@ -46,10 +47,12 @@ class AtCommandProcessor:
             HandleAtCommandResult with processed query and status
         """
         start_time = time.time()
+        spinner = None
         
         try:
             # 1. Parse user input
-            command_parts = self.parser.parse_all_at_commands(params.query)
+            # Use the variant that excludes invalid @ segments (diff hunks, hex ids, etc.)
+            command_parts = self.parser.parse_all_at_commands_exclude_invalids(params.query)
             at_path_parts = [part for part in command_parts if part.type == 'atPath']
             
             self.stats.total_at_commands = len(at_path_parts)
@@ -60,6 +63,11 @@ class AtCommandProcessor:
                 return HandleAtCommandResult([{'text': params.query}], True)
             
             params.add_item({'type': 'user', 'text': params.query}, params.message_id)
+            
+            # Start spinner only in interactive mode to give visual feedback while resolving/reading files
+            spinner = self._create_waiting_spinner(params.config)
+            if spinner:
+                spinner.start()
             
             # 3. Initialize resolver context
             resolver_context = self._create_resolver_context(params.config)
@@ -136,6 +144,13 @@ class AtCommandProcessor:
                 params.message_id
             )
             return HandleAtCommandResult(None, False)
+        finally:
+            # Ensure spinner is stopped in all cases
+            if spinner is not None:
+                try:
+                    spinner.stop()
+                except Exception:
+                    pass
     
     def _create_resolver_context(self, config) -> ResolverContext:
         """
@@ -160,6 +175,25 @@ class AtCommandProcessor:
                 'respect_git_ignore': True
             }
         )
+
+    def _create_waiting_spinner(self, config) -> "WaitingSpinner | None":
+        """Create a WaitingSpinner instance when in interactive mode.
+
+        Spinner is only enabled when the config has ``interactive=True`` to avoid
+        noisy output in non-interactive runs (e.g. scripts, tests).
+        """
+        try:
+            interactive = bool(getattr(config, "interactive", False))
+        except Exception:
+            interactive = False
+
+        if not interactive:
+            return None
+
+        # Pass IO instance if available so spinner can respect rich panel state
+        io_instance = getattr(config, "io", None) if hasattr(config, "io") else None
+        # More specific message for @ command processing
+        return WaitingSpinner("Reading @ files...", text_color="#79B8FF", io_instance=io_instance)
     
     async def _read_files(self, paths: List[str], target_dir: str, 
                          filtering_options: Dict[str, bool], signal=None) -> List[Any]:

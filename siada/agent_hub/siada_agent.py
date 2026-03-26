@@ -4,12 +4,7 @@ import yaml
 import os
 
 from agents import Agent, RunConfig, RunHooks, RunResult, RunResultStreaming, Runner, TContext, TResponseInputItem, set_trace_processors
-from siada.agent_hub.context_filter.context_capture_filter import context_capture_filter
 from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
-from siada.models.model_setting_converter import ModelSettingsConverter
-from siada.services.input_processor import process_input
-from siada.services.model_wrapper import ModelProviderWrapper
-from siada.session import RunningSessionManager
 from siada.tools.coder.repo_map.repo_map import RepoMap
 from siada.tools.coder.repo_map.token_counter import TokenCounterModel
 from siada.tools.coder.repo_map.io import SilentIO
@@ -20,6 +15,8 @@ from siada.agent_hub.hooks.siada_agent_hooks import SiadaAgentHooks
 class SiadaAgent(Agent[Generic[TContext]], ABC):
 
     def __init__(self, *args, **kwargs):
+        # Remove im_mode if not consumed by subclass, to avoid passing unknown kwarg to Agent
+        kwargs.pop('im_mode', None)
 
         if 'hooks' not in kwargs:
             kwargs['hooks'] = SiadaAgentHooks()
@@ -40,13 +37,15 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         pass
 
     @abstractmethod
-    async def run(self, user_input: str, context: TContext) -> RunResult:
+    async def run(self, user_input: str, context: TContext, run_config: RunConfig = None, openai_session = None) -> RunResult:
         """
         Execute the agent with the given user input and context.
         
         Args:
             user_input (str): The input provided by the user.
             context (TContext): The context object containing relevant information for execution.
+            run_config (RunConfig): Optional run configuration. If not provided, will be built from context.
+            openai_session: Optional OpenAI session. If not provided, will be built from context.
             
         Returns:
             RunResult: The result of the agent's execution.
@@ -54,13 +53,15 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         pass
 
     @abstractmethod
-    async def run_streamed(self, user_input: str, context: TContext) -> RunResultStreaming:
+    async def run_streamed(self, user_input: str, context: TContext, run_config: RunConfig = None, openai_session = None) -> RunResultStreaming:
         """
         Execute Streamed the agent with the given user input and context
                 
         Args:
             user_input (str): The input provided by the user.
             context (TContext): The context object containing relevant information for execution.
+            run_config (RunConfig): Optional run configuration. If not provided, will be built from context.
+            openai_session: Optional OpenAI session. If not provided, will be built from context.
             
         Returns:
             RunResultStreaming: The stream result of the agent's execution.
@@ -145,46 +146,6 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             # If creation fails, return None
             return None
 
-    async def prepare_run_config_and_session(
-        self,
-        context: TContext | None = None,
-    ):
-        from siada.provider.provider_factory import get_provider
-
-        running_session = context.session
-        if running_session is None:
-            running_session = RunningSessionManager.get_default_session()
-            context.session = running_session
-
-        llm_config = running_session.siada_config.llm_config
-        model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
-        model_provider_name = llm_config.provider
-        model_provider = get_provider(model_provider_name)
-
-        provider_wrapper = ModelProviderWrapper(
-            base_provider=model_provider,
-            input_processor=process_input
-        )
-        
-        # Store provider name (string) in context for client factory
-        context.provider = model_provider_name
-
-        # if running_session.running_config.interactive:
-        #     ## in the interactive mode, we need to add the ask_followup_question tool
-        #     if ask_followup_question not in self.tools:
-        #         self.tools.append(ask_followup_question)
-
-        run_config = RunConfig(
-            tracing_disabled=running_session.siada_config.tracing_disabled,
-            model=llm_config.model_name,
-            model_provider=provider_wrapper,
-            model_settings=model_settings,
-            call_model_input_filter=context_capture_filter
-        )
-
-        session = running_session.state.openai_session
-        return run_config, session
-
     async def run_impl(
         self,
         starting_agent: Agent[TContext],
@@ -192,11 +153,26 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         context: TContext | None = None,
         max_turns: int = 10,
         hooks: RunHooks[TContext] | None = None,
+        run_config: RunConfig | None = None,
+        openai_session = None,
         previous_response_id: str | None = None,
     ) -> RunResult:
-
-        run_config, session = await self.prepare_run_config_and_session(context)
+        """
+        Internal implementation for running the agent.
         
+        Args:
+            starting_agent: The agent to start with
+            input: User input
+            context: Execution context
+            max_turns: Maximum number of turns
+            hooks: Run hooks for callbacks
+            run_config: Run configuration (should be provided by SiadaRunner)
+            openai_session: OpenAI session (should be provided by SiadaRunner)
+            previous_response_id: Previous response ID for continuation
+            
+        Returns:
+            RunResult: The result of execution
+        """
         # Use SiadaAgentHooks with default processors if no hooks provided
         if hooks is None:
             hooks = SiadaRunHooks()
@@ -209,7 +185,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             hooks=hooks,
             run_config=run_config,
             previous_response_id=previous_response_id,
-            session=session,
+            session=openai_session,
         )
 
     async def run_streamed_impl(
@@ -220,11 +196,25 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         max_turns: int = 10,
         hooks: RunHooks[TContext] | None = None,
         run_config: RunConfig | None = None,
+        openai_session = None,
         previous_response_id: str | None = None,
     ) -> RunResultStreaming:
-
-        run_config, session = await self.prepare_run_config_and_session(context)
+        """
+        Internal implementation for running the agent in streaming mode.
         
+        Args:
+            starting_agent: The agent to start with
+            input: User input
+            context: Execution context
+            max_turns: Maximum number of turns
+            hooks: Run hooks for callbacks
+            run_config: Run configuration (should be provided by SiadaRunner)
+            openai_session: OpenAI session (should be provided by SiadaRunner)
+            previous_response_id: Previous response ID for continuation
+            
+        Returns:
+            RunResultStreaming: The streaming result of execution
+        """
         # Use SiadaAgentHooks with default processors if no hooks provided
         if hooks is None:
             hooks = SiadaRunHooks()
@@ -237,5 +227,5 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             hooks=hooks,
             run_config=run_config,
             previous_response_id=previous_response_id,
-            session=session,
+            session=openai_session,
         )

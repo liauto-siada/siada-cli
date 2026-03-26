@@ -10,6 +10,11 @@ from typing import Any, Dict, Optional
 # Create context variable dictionary
 context_dict_var = contextvars.ContextVar('context_dict', default={})
 
+MODEL_PROVIDER_NAME = 'MODEL_PROVIDER_NAME'
+LLM_CONFIG = 'LLM_CONFIG'
+SESSION_ID = 'session_id'
+AGENT_NAME = 'agent_name'
+
 def set_context_var(key: str, value: Any) -> None:
     """
     Set context variable

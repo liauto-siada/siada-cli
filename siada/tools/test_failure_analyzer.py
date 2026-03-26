@@ -58,7 +58,7 @@ class TestFailureAnalyzer:
             with open(report_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # 获取项目数据 (report.json 中通常只有一个项目)
+            # Get project data (report.json usually contains only one project)
             project_data = list(data.values())[0]
             
             if 'tests_status' in project_data:
@@ -83,16 +83,16 @@ class TestFailureAnalyzer:
             with open(patch_file, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            # 提取测试函数名的正则表达式
-            # 匹配 def test_function_name( 或 +def test_function_name(
+            # Regular expression for extracting test function names
+            # Match def test_function_name( or +def test_function_name(
             test_function_pattern = r'[+\-]?\s*def\s+(test_\w+)\s*\('
             matches = re.findall(test_function_pattern, content)
             
             for match in matches:
                 modified_tests.add(match)
                 
-            # 也要匹配可能的测试类方法
-            # 匹配 class TestClass 下的方法
+            # Also match possible test class methods
+            # Match methods under class TestClass
             class_method_pattern = r'[+\-]?\s*def\s+(test_\w+)\s*\(self'
             class_matches = re.findall(class_method_pattern, content)
             
@@ -106,15 +106,15 @@ class TestFailureAnalyzer:
     
     def extract_test_name(self, full_test_name: str) -> str:
         """从完整的测试名称中提取函数名"""
-        # 处理类似 "test_file.py::TestClass::test_method" 的格式
+        # Handle format like "test_file.py::TestClass::test_method"
         if '::' in full_test_name:
             return full_test_name.split('::')[-1]
         
-        # 处理类似 "test_method" 的格式
+        # Handle format like "test_method"
         if full_test_name.startswith('test_'):
             return full_test_name
             
-        # 处理其他格式，尝试提取 test_ 开头的部分
+        # Handle other formats, try to extract parts starting with test_
         test_match = re.search(r'(test_\w+)', full_test_name)
         if test_match:
             return test_match.group(1)
@@ -125,13 +125,13 @@ class TestFailureAnalyzer:
         """分析单个项目"""
         project_path = self.gold_path / project_name
         
-        # 获取失败和成功的测试用例
+        # Get failed and successful test cases
         failed_tests, success_tests = self.parse_report_json(project_path)
         
-        # 获取补丁修改的测试
+        # Get tests modified by the patch
         patch_modified_tests = self.parse_test_patch(project_path)
         
-        # 分析哪些失败测试被补丁影响
+        # Analyze which failed tests were affected by the patch
         patch_affected_failures = []
         patch_unaffected_failures = []
         
@@ -142,7 +142,7 @@ class TestFailureAnalyzer:
             else:
                 patch_unaffected_failures.append(failed_test)
         
-        # 分析哪些成功测试被补丁影响
+        # Analyze which successful tests were affected by the patch
         patch_affected_successes = []
         patch_unaffected_successes = []
         
@@ -175,7 +175,7 @@ class TestFailureAnalyzer:
             print("未找到任何项目文件夹")
             return
         
-        # 分析每个项目
+        # Analyze each project
         total_failed_tests = 0
         total_success_tests = 0
         projects_with_failures = 0
@@ -189,7 +189,7 @@ class TestFailureAnalyzer:
             result = self.analyze_project(project_name)
             self.results.append(result)
             
-            # 计算有测试的项目数
+            # Calculate number of projects with tests
             if result.failed_tests or result.success_tests:
                 projects_with_tests += 1
             
@@ -203,14 +203,14 @@ class TestFailureAnalyzer:
             total_patch_affected_successes += len(result.patch_affected_successes)
             total_patch_unaffected_successes += len(result.patch_unaffected_successes)
             
-            # 显示处理进度（每50个项目显示一次）
+            # Show processing progress (every 50 projects)
             if i % 50 == 0:
                 print(f"已处理 {i}/{len(projects)} 个项目...")
         
         print(f"处理完成，实际有测试数据的项目: {projects_with_tests}")
         print(f"累计测试总数: 失败 {total_failed_tests} + 成功 {total_success_tests} = {total_failed_tests + total_success_tests}")
         
-        # 生成报告
+        # Generate report
         self.generate_report(projects, total_failed_tests, total_success_tests, projects_with_failures, 
                            total_patch_affected_failures, total_patch_unaffected_failures,
                            total_patch_affected_successes, total_patch_unaffected_successes, projects_with_tests)
@@ -222,7 +222,7 @@ class TestFailureAnalyzer:
         """生成分析报告"""
         print("\n=== PASS_TO_PASS 测试用例分析报告 ===\n")
         
-        # 总体统计
+        # Overall statistics
         print("📊 总体统计：")
         print(f"   扫描项目总数: {len(projects)}")
         print(f"   有失败测试的项目数: {projects_with_failures}")
@@ -247,7 +247,7 @@ class TestFailureAnalyzer:
         
         print("\n" + "=" * 60)
         
-        # 详细分析 - 失败测试
+        # Detailed analysis - failed tests
         print("\n❌ 失败测试详细分析：")
         
         failure_results = [r for r in self.results if r.failed_tests]
@@ -276,7 +276,7 @@ class TestFailureAnalyzer:
         
         print("\n" + "=" * 60)
         
-        # 详细分析 - 成功测试中被补丁修改的部分
+        # Detailed analysis - successful tests modified by patch
         print("\n✅ 成功测试中被补丁修改的分析：")
         
         success_patch_results = [r for r in self.results if r.patch_affected_successes]
@@ -291,7 +291,7 @@ class TestFailureAnalyzer:
                 
                 if result.patch_affected_successes:
                     print("   ├── 被补丁修改的成功测试用例:")
-                    for test in result.patch_affected_successes[:10]:  # 限制显示前10个
+                    for test in result.patch_affected_successes[:10]:  # Limit display to first 10
                         print(f"   │   • {test}")
                     if len(result.patch_affected_successes) > 10:
                         print(f"   │   ... 还有 {len(result.patch_affected_successes) - 10} 个")
@@ -322,7 +322,7 @@ class TestFailureAnalyzer:
 
 def main():
     """主函数"""
-    # 目标路径
+    # Target path
     gold_path = "/Users/caoxin/Projects/latest_agent/logs/checker_link/gold"
     
     analyzer = TestFailureAnalyzer(gold_path)

@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 from siada.config.mcp_config import MCPConfig, MCPServerConfig, MCPTransportType
+from siada.foundation.constants import SIADA_HOME
 from siada.foundation.logging import logger
 
 
@@ -21,31 +22,144 @@ class MCPConfigLoader:
     def load_config(cls, config_path: Optional[str] = None) -> MCPConfig:
         """
         Load MCP configuration from JSON file
+        
+        Loading strategy:
+        1. If explicit config_path is provided, use that file only
+        2. If both project and home configs exist, merge them (project config has priority)
+        3. If only one config exists (project or home), use that one
+        4. If no config exists, return default disabled configuration
+        
+        Merge strategy (when both exist):
+        - mcpServers: merge server definitions, project servers override home servers with same name
+        - Other settings: project config overrides home config
         """
         try:
-            # Determine configuration file path
+            # Determine configuration file path(s)
             if config_path:
                 config_file = Path(config_path).expanduser()
+                if not config_file.exists():
+                    logger.warning(f"Specified MCP config file not found: {config_file}")
+                    return MCPConfig(enabled=False)
+                
+                logger.info(f"Loading MCP config from: {config_file}")
+                
+                # Read and parse JSON configuration
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    raw_config = json.load(f)
+                
+                # Environment variable substitution
+                resolved_config = cls._resolve_env_variables(raw_config)
+                
+                # Convert to configuration object
+                return cls._convert_to_mcp_config(resolved_config)
             else:
-                config_file = Path("~/.siada-cli/mcp_config.json").expanduser()
-            
-            if not config_file.exists():
-                logger.debug("MCP config file not found, using default configuration")
-                return MCPConfig(enabled=False)
-            
-            # Read and parse JSON configuration
-            with open(config_file, 'r', encoding='utf-8') as f:
-                raw_config = json.load(f)
-            
-            # Environment variable substitution
-            resolved_config = cls._resolve_env_variables(raw_config)
-            
-            # Convert to configuration object
-            return cls._convert_to_mcp_config(resolved_config)
+                # Search for config files and merge if both exist
+                config_files = cls._find_config_files()
+                if not config_files:
+                    logger.debug("MCP config file not found in any location, using default configuration")
+                    return MCPConfig(enabled=False)
+                
+                # Load and merge configurations
+                merged_config = cls._load_and_merge_configs(config_files)
+                
+                # Environment variable substitution
+                resolved_config = cls._resolve_env_variables(merged_config)
+                
+                # Convert to configuration object
+                return cls._convert_to_mcp_config(resolved_config)
             
         except Exception as e:
             logger.error(f"Failed to load MCP config: {e}")
             return MCPConfig()  # Return default configuration
+    
+    @classmethod
+    def _find_config_files(cls) -> list[Path]:
+        """
+        Find MCP configuration files in multiple locations
+        
+        Search locations:
+        1. Project root directory (siada_mcp_config.json)
+        2. User home directory (~/.siada-cli/mcp_config.json)
+        
+        Returns:
+            List of found config file paths (may contain 0, 1, or 2 paths)
+        """
+        config_files = []
+        
+        # 1. Check project root directory
+        project_config = Path.cwd() / "siada_mcp_config.json"
+        if project_config.exists():
+            logger.debug(f"Found MCP config in project root: {project_config}")
+            config_files.append(project_config)
+        
+        # 2. Check user home directory
+        home_config = SIADA_HOME / "mcp_config.json"
+        if home_config.exists():
+            logger.debug(f"Found MCP config in user home: {home_config}")
+            config_files.append(home_config)
+        
+        return config_files
+    
+    @classmethod
+    def _load_and_merge_configs(cls, config_files: list[Path]) -> Dict[str, Any]:
+        """
+        Load and merge multiple configuration files
+        
+        Merge strategy:
+        - Project config has higher priority than home config
+        - For mcpServers: merge server definitions (project servers override home servers with same name)
+        - For other settings: project config overrides home config
+        
+        Args:
+            config_files: List of config file paths to load and merge
+            
+        Returns:
+            Merged configuration dictionary
+        """
+        if not config_files:
+            return {}
+        
+        if len(config_files) == 1:
+            # Only one config file, load it directly
+            logger.info(f"Loading MCP config from: {config_files[0]}")
+            with open(config_files[0], 'r', encoding='utf-8') as f:
+                return json.load(f)
+        
+        # Multiple config files - merge them
+        # Load home config first (lower priority)
+        home_config = {}
+        project_config = {}
+        
+        for config_file in config_files:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                
+                if config_file.name == "siada_mcp_config.json" and config_file.parent == Path.cwd():
+                    # Project config
+                    project_config = config
+                    logger.info(f"Loading project MCP config from: {config_file}")
+                else:
+                    # Home config
+                    home_config = config
+                    logger.info(f"Loading home MCP config from: {config_file}")
+        
+        # Merge configurations
+        merged = home_config.copy()
+        
+        # Merge mcpServers
+        if "mcpServers" in home_config or "mcpServers" in project_config:
+            merged_servers = home_config.get("mcpServers", {}).copy()
+            merged_servers.update(project_config.get("mcpServers", {}))
+            merged["mcpServers"] = merged_servers
+        
+        # Override other settings with project config
+        for key, value in project_config.items():
+            if key != "mcpServers":
+                merged[key] = value
+        
+        logger.info(f"Merged MCP configs: {len(merged.get('mcpServers', {}))} total servers")
+        
+        return merged
     
     @classmethod
     def _resolve_env_variables(cls, obj: Any) -> Any:
@@ -122,5 +236,6 @@ class MCPConfigLoader:
             headers=config.get("headers"),
             enabled=config.get("enabled", True),  # Default enabled for individual servers
             timeout=config.get("timeout", 30000),
-            auto_reconnect=config.get("auto_reconnect", True)
+            auto_reconnect=config.get("auto_reconnect", True),
+            oauth=config.get("oauth")  # OAuth configuration for lark-mcp
         )

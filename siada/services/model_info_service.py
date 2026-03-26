@@ -8,7 +8,7 @@ This service acts as a centralized interface for model-related operations.
 from typing import List, Optional, Dict, Any
 from dataclasses import asdict
 
-from siada.models.model_base_config import ModelBaseConfig, MODEL_SETTING, get_model_config
+from siada.models.model_base_config import ModelBaseConfig, MODEL_SETTING, get_model_config, get_model_settings
 from siada.models.model_run_config import ModelRunConfig
 
 
@@ -41,7 +41,7 @@ class ModelInfoService:
         Returns:
             List[str]: List of model names
         """
-        return [model.model_name for model in MODEL_SETTING]
+        return [model.model_name for model in get_model_settings()]
 
     @staticmethod
     def get_model_info(model_name: str) -> Optional[ModelBaseConfig]:

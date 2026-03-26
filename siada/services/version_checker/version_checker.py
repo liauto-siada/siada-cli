@@ -1,101 +1,74 @@
 """
-Version checker interface for external access
+VersionChecker class.
+Delegates to siada.internal.services.version_checker.version_checker when available.
 """
-import os
-import time
-from pathlib import Path
-import packaging.version
-import siada
+try:
+    from siada.internal.services.version_checker.version_checker import (
+        VersionChecker,
+        VERSION_CHECK_FNAME,
+    )
+except ImportError:
+    # Internal module not available — define a minimal local implementation.
+    import os
+    import time
+    import packaging.version
+    import siada
+    from siada.foundation.constants import SIADA_HOME
 
-VERSION_CHECK_FNAME = Path.home() / ".siada-cli" / "caches" / "versioncheck"
+    VERSION_CHECK_FNAME = SIADA_HOME / "caches" / "versioncheck"  # type: ignore[assignment]
 
+    class VersionChecker:  # type: ignore[no-redef]
+        def __init__(self, handler):
+            self.handler = handler
 
-class VersionChecker:
-    """
-    Interface class for version checking operations
-    This is the main entry point for external code
-    """
-    
-    def __init__(self, handler):
-        self.handler = handler
-    
-    def get_latest_version(self):
-        """Get latest version using the handler"""
-        if self.handler:
+        def get_latest_version(self):
+            if self.handler:
+                try:
+                    version, status = self.handler.get_version()
+                    return (version, "available") if version else (None, status)
+                except Exception as e:
+                    return None, f"handler_error: {e}"
+            return None, "no_handler_available"
+
+        def install_upgrade(self, io, latest_version=None, version_source=None):
+            if self.handler:
+                if latest_version is None:
+                    latest_version, _ = self.get_latest_version()
+                return self.handler.install(io, latest_version)
+            return False
+
+        def check_version(self, io, just_check=False, verbose=False):
+            if not just_check and VERSION_CHECK_FNAME.exists():
+                day = 60 * 60 * 24
+                since = time.time() - os.path.getmtime(VERSION_CHECK_FNAME)
+                if 0 < since < day:
+                    if verbose:
+                        io.print_info(f"Too soon to check version: {since / 3600:.1f} hours")
+                    return
+            current_version = siada.__version__
+            latest_version, version_source = self.get_latest_version()
             try:
-                version, status = self.handler.get_version()
-                if version:
-                    return version, "available"
-                else:
-                    return None, status
-            except Exception as e:
-                return None, f"handler_error: {e}"
-        return None, "no_handler_available"
-    
-    def install_upgrade(self, io, latest_version=None, version_source=None):
-        """Install upgrade using the handler"""
-        if self.handler:
-            if latest_version is None:
-                latest_version, _ = self.get_latest_version()
-            return self.handler.install(io, latest_version)
-        return False
-    
-    def check_version(self, io, just_check=False, verbose=False):
-        """
-        Unified version check function supporting three modes with unified cache file
-        """
-        
-        # Check cache only for non-forced checks (when just_check=False)
-        if not just_check and VERSION_CHECK_FNAME.exists():
-            day = 60 * 60 * 24
-            since = time.time() - os.path.getmtime(VERSION_CHECK_FNAME)
-            if 0 < since < day:
-                if verbose:
-                    hours = since / 60 / 60
-                    io.print_info(f"Too soon to check version: {hours:.1f} hours")
-                return
-
-        current_version = siada.__version__
-        # Get version information (with network requests)
-        latest_version, version_source = self.get_latest_version()
-
-        try:
-            # Handle failed version retrieval
-            if not latest_version:
-                io.print_error(f"Failed to get version information: {version_source}")
+                if not latest_version:
+                    io.print_error(f"Failed to get version information: {version_source}")
+                    return False
+                is_update_available = packaging.version.parse(latest_version) > packaging.version.parse(current_version)
+            except Exception as err:
+                io.print_error(f"Error checking version: {err}")
                 return False
-
-            # Display version information
+            finally:
+                VERSION_CHECK_FNAME.parent.mkdir(parents=True, exist_ok=True)
+                VERSION_CHECK_FNAME.touch()
             if just_check or verbose:
-                io.print_info(f"Current version: {current_version}")
-                io.print_info(f"Latest version: {latest_version}")
+                if is_update_available:
+                    io.print_info(
+                        f"Latest version {latest_version} available:\n"
+                        "curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh"
+                    )
+            if just_check:
+                return is_update_available
+            if not is_update_available:
+                return False
+            self.install_upgrade(io, latest_version, version_source)
+            return True
 
-            # Version comparison
-            is_update_available = packaging.version.parse(latest_version) > packaging.version.parse(current_version)
-            
-        except Exception as err:
-            io.print_error(f"Error checking version: {err}")
-            return False
-        finally:
-            # Update unified cache file
-            VERSION_CHECK_FNAME.parent.mkdir(parents=True, exist_ok=True)
-            VERSION_CHECK_FNAME.touch()
-
-        # Handle results based on command type
-        if just_check or verbose:
-            if is_update_available:
-                io.print_info("Update available")
-            else:
-                io.print_info("No update available")
-
-        # Just check mode, return result without executing update
-        if just_check:
-            return is_update_available
-
-        # No update available
-        if not is_update_available:
-            return False
-
-        # Update available, prompt update based on version source
-        self.install_upgrade(io, latest_version, version_source)
-        return True
+__all__ = ["VersionChecker", "VERSION_CHECK_FNAME"]

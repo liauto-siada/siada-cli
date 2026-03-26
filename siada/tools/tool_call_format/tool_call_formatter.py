@@ -52,3 +52,19 @@ class ToolCallFormatter(ABC):
             The style
         """
         return "text"
+
+    def format_input_im(self, call_id: str, function_name: str, arguments: str,
+                        default_workspace: str = "") -> Tuple[str, bool]:
+        """Format for IM (Lark/messaging) mode with compact, size-safe output.
+
+        Default implementation delegates to format_input().
+        Subclasses can override to provide IM-specific formatting
+        (e.g. truncated code blocks to fit Lark card limits).
+
+        Args:
+            default_workspace: The default workspace path for making paths relative.
+
+        Returns:
+            A tuple containing content and completeness flag (content, is_complete)
+        """
+        return self.format_input(call_id, function_name, arguments)

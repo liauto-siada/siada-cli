@@ -19,9 +19,12 @@ from .formatters import (
     ReproduceCompletionFormatter,
     FileEditFormatter,
     AskFollowupQuestionFormatter,
+    BrowserOperateFormatter,
+    RunSubtaskFormatter,
+    SmartSearchMemoryFormatter,
 )
 
-# 自动注册所有formatter
+# Auto-register all formatters
 def _register_all_formatters():
     """自动注册所有可用的formatter"""
     formatters = [
@@ -33,15 +36,18 @@ def _register_all_formatters():
         FileEditFormatter,
         AskFollowupQuestionFormatter,
         ListCodeDefinitionNamesFormatter,
+        BrowserOperateFormatter,
+        RunSubtaskFormatter,
+        SmartSearchMemoryFormatter,
     ]
     
     for formatter_class in formatters:
         ToolCallFormatterFactory.register_formatter(formatter_class)
 
-# 在模块导入时自动注册
+# Auto-register at module import time
 _register_all_formatters()
 
-# 导出的公共接口
+# Public exported interface
 __all__ = [
     'ToolCallFormatter',
     'ToolCallFormatterFactory',

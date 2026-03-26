@@ -1,44 +1,7 @@
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
-from siada.tools.coder.observation.observation import FunctionCallResult, FileReadSource, ObservationType, FileEditSource
-
-
-@dataclass
-class FileReadObservation(FunctionCallResult):
-    """This data class represents the content of a file."""
-
-    path: str
-    observation: str = ObservationType.READ
-    impl_source: FileReadSource = FileReadSource.DEFAULT
-
-    @property
-    def message(self) -> str:
-        """Get a human-readable message describing the file read operation."""
-        return f'I read the file {self.path}.'
-
-    def __str__(self) -> str:
-        """Get a string representation of the file read observation."""
-        return f'[Read from {self.path} is successful.]\n{self.content}'
-
-@dataclass
-class FileWriteObservation(FunctionCallResult):
-    """This data class represents a file write operation."""
-
-    path: str
-    observation: str = ObservationType.WRITE
-
-    @property
-    def message(self) -> str:
-        """Get a human-readable message describing the file write operation."""
-        return f'I wrote to the file {self.path}.'
-    
-    def format_for_display(self) -> str:
-        return self.message
-
-    def __str__(self) -> str:
-        """Get a string representation of the file write observation."""
-        return f'[Write to {self.path} is successful.]\n{self.content}'
+from siada.tools.coder.observation.observation import FunctionCallResult, ObservationType, FileEditSource
 
 
 @dataclass
@@ -78,19 +41,19 @@ class FileEditObservation(FunctionCallResult):
             # if path is invalid, default to directory
             is_file = False
         if self.error:
-            return f"✗ Operation failed on {'file' if is_file else 'directory'} {self.path}"
+            return f"\n✗ Operation failed on {'file' if is_file else 'directory'} {self.path}\n\n"
         if self.command == "view":
-            return "✓ File content loaded" if is_file else "✓ Directory listing completed"
+            return "\n✓ File content loaded\n\n" if is_file else "\n✓ Directory listing completed\n\n"
         elif self.command == "create":
-            return "✓ File created successfully" if is_file else "✓ Directory created successfully"
+            return "\n✓ File created successfully\n\n" if is_file else "\n✓ Directory created successfully\n\n"
         elif self.command == "str_replace":
-            return "✓ Text replacement completed"
+            return "\n✓ Text replacement completed\n\n"
         elif self.command == "insert":
-            return "✓ Content insertion completed"
+            return "\n✓ Content insertion completed\n\n"
         elif self.command == "undo_edit":
-            return "✓ Edit operation reverted"
+            return "\n✓ Edit operation reverted\n\n"
         else:
-            return "✓ Operation completed successfully"
+            return "\n✓ Operation completed successfully\n\n"
 
     def format_for_display(self) -> str:
         return self.message

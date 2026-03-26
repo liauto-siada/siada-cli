@@ -119,7 +119,9 @@ class MCPService:
     
     def __init__(self):
         self.config: Optional[MCPConfig] = None
-        self.mcp_servers: List[Any] = []
+        self.mcp_servers: List[Any] = []  # Only successfully connected servers (used by Agent)
+        self._all_servers: List[Any] = []  # All servers including failed ones (for status display)
+        self._server_connection_status: Dict[str, str] = {}  # Track initial connection status
         self._initialized = False
         self.io = None  # IO object for output information
         self.tool_name_resolver = MCPToolNameResolver()  # Tool name conflict resolver
@@ -277,15 +279,34 @@ class MCPService:
         # Connect all servers concurrently
         results = await asyncio.gather(*connection_tasks, return_exceptions=True)
         
-        # Count connection results
-        connected_count = 0
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error(f"Failed to connect server {self.mcp_servers[i].name}: {result}")
-            else:
-                connected_count += 1
+        # Save all servers (including failed ones) for status display
+        self._all_servers = list(self.mcp_servers)
         
-        logger.info(f"Connected {connected_count}/{len(self.mcp_servers)} MCP servers")
+        # Filter out failed servers and keep only successfully connected ones
+        connected_servers = []
+        failed_servers = []
+        
+        for i, result in enumerate(results):
+            server = self.mcp_servers[i]
+            # Check if result is an exception (including CancelledError in Python 3.8+)
+            if isinstance(result, BaseException):
+                logger.error(f"Failed to connect server {server.name}: {result}")
+                failed_servers.append(server.name)
+                # Record initial connection status as failed
+                self._server_connection_status[server.name] = "failed"
+            else:
+                connected_servers.append(server)
+                # Record initial connection status as connected
+                self._server_connection_status[server.name] = "connected"
+        
+        # Update mcp_servers list to contain only successfully connected servers
+        self.mcp_servers = connected_servers
+        connected_count = len(connected_servers)
+        
+        if failed_servers:
+            logger.warning(f"Removed {len(failed_servers)} failed server(s): {', '.join(failed_servers)}")
+        
+        logger.info(f"Connected {connected_count}/{len(results)} MCP servers")
         
         # Resolve tool name conflicts after successful connections
         if connected_count > 0:
@@ -353,40 +374,54 @@ class MCPService:
         return self.mcp_servers
     
     async def get_real_server_status(self) -> Dict[str, str]:
-        """Get real-time server status"""
+        """Get real-time server status for all servers (including failed ones)"""
         if not self._initialized:
             return {}
             
         status_results = {}
-        for server in self.mcp_servers:
-            try:
-                # Test connection status through list_tools
-                await asyncio.wait_for(server.list_tools(None, None), timeout=5.0)
-                status_results[server.name] = "connected"
-            except asyncio.TimeoutError:
-                status_results[server.name] = "timeout"
-            except Exception as e:
-                logger.debug(f"Server {server.name} status check failed: {e}")
+        # Use _all_servers to include both connected and failed servers
+        for server in self._all_servers:
+            # For servers that failed during initial connection, return cached status
+            if server.name in self._server_connection_status and \
+               self._server_connection_status[server.name] == "failed":
                 status_results[server.name] = "failed"
+            else:
+                # For initially connected servers, check real-time status
+                try:
+                    # Test connection status through list_tools
+                    await asyncio.wait_for(server.list_tools(None, None), timeout=5.0)
+                    status_results[server.name] = "connected"
+                except asyncio.TimeoutError:
+                    status_results[server.name] = "timeout"
+                except Exception as e:
+                    logger.debug(f"Server {server.name} status check failed: {e}")
+                    status_results[server.name] = "failed"
                 
         return status_results
     
     async def list_tools_async(self) -> Dict[str, List[str]]:
-        """Asynchronously list tools from all servers"""
+        """Asynchronously list tools from all servers (including failed ones)"""
         if not self._initialized:
             return {}
             
         tools_by_server = {}
-        for server in self.mcp_servers:
-            try:
-                # Use SDK to get tool list
-                tools = await server.list_tools(None, None)
-                tool_names = [tool.name for tool in tools]
-                tools_by_server[server.name] = tool_names
-                logger.debug(f"Server {server.name} has {len(tool_names)} tools")
-            except Exception as e:
-                logger.error(f"Failed to list tools for server {server.name}: {e}")
+        # Use _all_servers to include both connected and failed servers
+        for server in self._all_servers:
+            # For servers that failed during initial connection, return empty tool list
+            if server.name in self._server_connection_status and \
+               self._server_connection_status[server.name] == "failed":
                 tools_by_server[server.name] = []
+            else:
+                # For initially connected servers, try to get tool list
+                try:
+                    # Use SDK to get tool list
+                    tools = await server.list_tools(None, None)
+                    tool_names = [tool.name for tool in tools]
+                    tools_by_server[server.name] = tool_names
+                    logger.debug(f"Server {server.name} has {len(tool_names)} tools")
+                except Exception as e:
+                    logger.error(f"Failed to list tools for server {server.name}: {e}")
+                    tools_by_server[server.name] = []
                 
         return tools_by_server
     
@@ -432,31 +467,71 @@ class MCPService:
     def _reset_state(self):
         """Reset service state"""
         self.mcp_servers = []
+        self._all_servers = []
+        self._server_connection_status.clear()
         self._initialized = False
     
-    def cleanup_sync(self):
-        """Synchronous cleanup method - force cleanup to avoid async conflicts"""
+    # async def cleanup_sync(self):
+    #     """Async cleanup method - properly awaits shutdown"""
+    #     await self.shutdown()
+
+    def cleanup_force(self):
+        """
+        Synchronous cleanup method with timeout protection.
+        Uses subprocess to ensure cleanup can be forcefully terminated if it hangs.
+        """
         if not self.is_initialized:
             return
-            
-        def run_cleanup():
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(
-                        asyncio.wait_for(self.shutdown(), timeout=2.0)
-                    )
-                finally:
-                    loop.close()
-            except Exception:
-                logger.error("Error during MCP synchronous cleanup")
-                # If async cleanup fails, try force cleanup
         
-        cleanup_thread = threading.Thread(target=run_cleanup, daemon=True)
-        cleanup_thread.start()
-        cleanup_thread.join(timeout=3.0)  # Give enough time to complete cleanup
+        import subprocess
+        import sys
+        
 
+        try:
+            # Create a cleanup script that runs in a subprocess
+            cleanup_code = """
+import asyncio
+import sys
+import logging
+
+# Suppress logging during cleanup
+logging.basicConfig(level=logging.CRITICAL)
+
+async def cleanup():
+    try:
+        from siada.services.mcp_service import mcp_service
+        await asyncio.wait_for(mcp_service.shutdown(), timeout=2.0)
+        sys.exit(0)
+    except Exception as e:
+        sys.exit(1)
+
+if __name__ == '__main__':
+    asyncio.run(cleanup())
+"""
+            
+            # Run cleanup in a subprocess with timeout
+            try:
+                result = subprocess.run(
+                    [sys.executable, '-c', cleanup_code],
+                    timeout=3.0,
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0:
+                    logger.info("MCP cleanup completed successfully")
+                else:
+                    logger.warning("MCP cleanup subprocess exited with non-zero code")
+            except subprocess.TimeoutExpired:
+                logger.warning("MCP cleanup timeout - forcing termination")
+            except Exception as e:
+                logger.error(f"Error during MCP cleanup subprocess: {e}")
+            
+            # Force reset state regardless of cleanup result
+            self._reset_state()
+            
+        finally:
+            pass
+    
 
 def get_global_tool_name_resolver() -> MCPToolNameResolver:
     """Get global tool name resolver instance"""

@@ -17,6 +17,9 @@ import shutil
 import os
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+TEST_DATA_DIR = PROJECT_ROOT / "tests" / "tools" / "test_data"
+
 from siada.tools.coder.file_operator import edit, _edit_file
 from siada.tools.coder.observation.file_observation import FileEditObservation
 from siada.tools.coder.observation.observation import FileEditSource
@@ -365,6 +368,29 @@ def function_two():
         self.assertEqual(result.path, test_file)
         
         print(f"✓ 查看命令执行成功")
+
+    async def test_edit_view_command_with_view_range(self):
+        """测试查看命令的 view_range 参数"""
+        print("\n=== 测试查看命令 view_range ===")
+
+        test_file = str(TEST_DATA_DIR / "view_range_sample.py")
+
+        result = _edit_file(
+            context=self.context,
+            command="view",
+            path=test_file,
+            view_range=[2, 4],
+        )
+
+        self.assertIsInstance(result, FileEditObservation)
+        self.assertEqual(result.path, test_file)
+        self.assertIn("2\tbeta = 2", result.content)
+        self.assertIn("3\tgamma = 3", result.content)
+        self.assertIn("4\tdelta = 4", result.content)
+        self.assertNotIn("1\talpha = 1", result.content)
+        self.assertNotIn("5\tepsilon = 5", result.content)
+
+        print("✓ 查看命令 view_range 测试通过")
 
     async def test_edit_empty_file(self):
         """测试编辑空文件"""

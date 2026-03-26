@@ -91,7 +91,14 @@ class FileProcessor:
             except Exception as error:
                 # Log error but continue processing other patterns
                 print(f"Glob pattern '{pattern}' failed: {error}")
-        
+                # Add IO to print errors for sending ACP messages
+                try:
+                    from siada.io.io import InputOutput
+                    io = InputOutput.get_instance()
+                    if io:
+                        io.print_error(f"Glob pattern '{pattern}' failed: {error}")
+                except:
+                    pass
         self.stats.total_files_found = len(all_entries)
         return all_entries
     
@@ -317,6 +324,14 @@ class FileProcessor:
             validated_files, filter_counts, tree_dict = await loop.run_in_executor(None, walk_and_filter_sync)
         except Exception as error:
             print(f"Walk search failed: {error}")
+            # Add IO to print errors for sending ACP messages
+            try:
+                from siada.io.io import InputOutput
+                io = InputOutput.get_instance()
+                if io:
+                    io.print_error(f"Walk search failed: {error}")
+            except:
+                pass
             validated_files = set()
             filter_counts = 0
             tree_dict = {}

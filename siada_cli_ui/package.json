@@ -1,0 +1,81 @@
+{
+  "name": "siada-cli-ui",
+  "version": "0.1.0",
+  "description": "Terminal UI for siada-cli with ACP support",
+  "type": "module",
+  "bin": {
+    "siada-ui": "./dist/cli.js"
+  },
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "build": "tsc",
+    "bundle": "node esbuild.config.js",
+    "build:all": "npm run build && npm run bundle",
+    "dev": "tsx watch src/cli.ts",
+    "test": "vitest",
+    "test:wrap": "tsx test-input-wrap.tsx",
+    "test:delete": "tsx test-delete-key.tsx",
+    "test:unicode": "tsx test-unicode-edit.tsx",
+    "test:highlight": "tsx examples/test-syntax-highlighting.tsx",
+    "test:highlight-simple": "tsx examples/test-highlight-simple.tsx",
+    "showcase:languages": "tsx examples/showcase-languages.tsx",
+    "showcase:specific": "tsx examples/showcase-specific-languages.tsx",
+    "showcase:38": "tsx examples/test-38-languages.tsx",
+    "lint": "eslint src --ext .ts,.tsx",
+    "example:simple": "tsx examples/simple-static-banner.tsx",
+    "example:gradient": "tsx examples/gradient-static-banner.tsx",
+    "example:demo": "tsx examples/static-banner-demo.tsx",
+    "example:layout": "tsx examples/test-layout.tsx",
+    "demo:split": "tsx examples/demo-markdown-split.tsx",
+    "demo:split-simple": "tsx examples/demo-markdown-split-simple.tsx",
+    "demo:split-interactive": "tsx examples/demo-markdown-split-interactive.tsx",
+    "demo:split-full": "tsx examples/demo-markdown-split.tsx",
+    "demo:editor": "npm run build && node demo-inputbox-editor.mjs",
+    "demo:editor-tsx": "tsx demo-inputbox-editor.tsx",
+    "demo:editor-simple": "npm run build && node demo-editor-simple.mjs",
+    "test:editor": "npm run build && node test-editor-basic.mjs",
+    "test:editor-quick": "node test-editor-basic.mjs",
+    "check:editor": "cat CHECK_EDITOR.md"
+  },
+  "keywords": [
+    "siada",
+    "cli",
+    "ui",
+    "acp",
+    "agent",
+    "terminal"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^0.12.0",
+    "@jrichman/ink": "^6.4.6",
+    "chalk": "^5.3.0",
+    "chalk-template": "^1.1.2",
+    "commander": "^12.0.0",
+    "fzf": "^0.5.2",
+    "ink-markdown": "^1.0.4",
+    "ink-select-input": "^6.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "lowlight": "^3.3.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "string-width": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/hast": "^3.0.4",
+    "@types/node": "^20.19.30",
+    "@types/react": "^19.2.7",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "esbuild": "^0.24.2",
+    "eslint": "^8.57.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

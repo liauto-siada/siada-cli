@@ -52,3 +52,17 @@ class CommandTurn(RunTurn):
         except Exception as e:
             self.end_time = self._get_timestamp()
             return self.handle_error(e)
+        finally:
+            # Stop animation in ACP mode
+            if self.config.acp_mode:
+                from siada.io.acp.message_builder import ACPMessageBuilder
+                builder = ACPMessageBuilder()
+                stop_animation_msg = builder.build_session_update(
+                    reason="input_ready",
+                    content="",
+                    metadata={"animation_control": "stop"}
+                )
+                # Use _send_if_acp_robust instead of _send_if_acp
+                # Reason: when finally block executes, the original event loop may be closed
+                # _send_if_acp_robust uses an independent loop to ensure message delivery
+                self.config.io.acp_adapter._send_if_acp_robust(lambda: stop_animation_msg)

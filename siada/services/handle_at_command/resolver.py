@@ -179,7 +179,17 @@ class PathResolver:
     async def _try_glob_search(self, path_name: str, workspace_path: Path, 
                              on_debug_message: callable) -> PathResolutionResult:
         """
-        Try glob search for fuzzy matching
+        Try glob search for fuzzy matching.
+
+        The search is done in progressive stages from most specific to less specific
+        to avoid false positives (e.g. ``@test`` matching ``.venv/.../SelfTest``):
+          1. Exact filename match: ``**/{path_name}``
+          2. Filename with any extension: ``**/{path_name}.*``
+          3. Prefix match: ``**/{path_name}*`` (only when path_name looks like a
+             partial filename, i.e. contains ``/`` or ``.``)
+
+        All matches are filtered through ``should_ignore_file`` so that virtual-env
+        and other non-project paths are excluded.
         
         Args:
             path_name: Path name to search for
@@ -190,37 +200,57 @@ class PathResolver:
             PathResolutionResult
         """
         on_debug_message(f'Path {path_name} not found directly, attempting glob search')
-        
-        try:
-            # Create glob pattern for fuzzy search
-            glob_pattern = f"**/*{path_name}*"
-            search_path = workspace_path / glob_pattern
-            
-            # Use glob to find matching files
-            matches = list(workspace_path.glob(glob_pattern))
-            
-            if matches:
-                # Take the first match
-                first_match = matches[0].resolve()
-                
-                # Security check
-                if not self._is_path_within_workspace(first_match, workspace_path):
-                    raise WorkspaceSecurityError(f"Glob match is outside workspace: {first_match}")
-                
-                relative_path = os.path.relpath(str(first_match), str(workspace_path))
-                on_debug_message(f'Glob search for {path_name} found {first_match}, using relative path: {relative_path}')
-                
-                return PathResolutionResult(
-                    resolved_path=relative_path,
-                    original_path=f"@{path_name}",
-                    resolution_type='glob',
-                    reason=f'Glob search found: {first_match} (first of {len(matches)} matches)'
-                )
-            else:
-                on_debug_message(f'Glob search for "**/*{path_name}*" found no files')
-                
-        except Exception as e:
-            on_debug_message(f'Error during glob search for {path_name}: {e}')
+
+        # Progressive glob patterns – from most to least specific.
+        # We intentionally do NOT use the overly-broad ``**/*{name}*`` pattern
+        # which matches any file whose name merely *contains* the search term
+        # (e.g. ``@test`` matching ``Crypto/SelfTest``).
+        glob_patterns = [
+            f"**/{path_name}",      # exact name match
+            f"**/{path_name}.*",    # name with any extension
+        ]
+
+        # Only add a prefix-match pattern when the input looks like an
+        # intentional partial path (contains path separator or file extension)
+        if '/' in path_name or '.' in path_name:
+            glob_patterns.append(f"**/{path_name}*")
+
+        for glob_pattern in glob_patterns:
+            try:
+                raw_matches = list(workspace_path.glob(glob_pattern))
+
+                # Filter out results in ignored directories (.venv, node_modules, etc.)
+                matches = []
+                for m in raw_matches:
+                    rel = os.path.relpath(str(m.resolve()), str(workspace_path))
+                    should_ignore, _reason = self.should_ignore_file(rel)
+                    if not should_ignore:
+                        matches.append(m)
+
+                if matches:
+                    first_match = matches[0].resolve()
+
+                    # Security check
+                    if not self._is_path_within_workspace(first_match, workspace_path):
+                        raise WorkspaceSecurityError(f"Glob match is outside workspace: {first_match}")
+
+                    relative_path = os.path.relpath(str(first_match), str(workspace_path))
+                    on_debug_message(
+                        f'Glob search ({glob_pattern}) for {path_name} found {first_match}, '
+                        f'using relative path: {relative_path}'
+                    )
+
+                    return PathResolutionResult(
+                        resolved_path=relative_path,
+                        original_path=f"@{path_name}",
+                        resolution_type='glob',
+                        reason=f'Glob search found: {first_match} (first of {len(matches)} matches)'
+                    )
+                else:
+                    on_debug_message(f'Glob search "{glob_pattern}" found no files (after filtering)')
+                    
+            except Exception as e:
+                on_debug_message(f'Error during glob search ({glob_pattern}) for {path_name}: {e}')
         
         return PathResolutionResult(
             resolved_path=None,
@@ -304,11 +334,18 @@ class PathResolver:
         
         ignore_patterns = [
             '__pycache__',
-            '.git',
+            '.git/',
             '.vscode',
             '.idea',
             'node_modules',
-            '.env'
+            '.venv',
+            'venv/',
+            '.env/',
+            'env/',
+            '.tox',
+            'dist/',
+            'build/',
+            '.eggs',
         ]
         
         for pattern in ignore_patterns:

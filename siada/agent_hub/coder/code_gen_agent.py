@@ -15,9 +15,12 @@ from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.foundation.setting import settings
 from siada.agent_hub.coder.prompt import code_gen_prompt
+from siada.agent_hub.coder.prompt.base.tool_use import should_enable_parallel_tool_calls_in_prompt
 from siada.services.handle_at_command import handle_at_command
 import logging
-
+from siada.tools.memory import smart_search_memory
+from siada.tools.web import web_search, web_fetch
+from siada.tools.agent.run_subtask import run_subtask
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -26,6 +29,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
     Code Generation Agent
     
     Specialized Agent implementation for code generation tasks.
+    Includes memory search capability for recalling past conversations and decisions.
     """
 
     def __init__(self, *args, **kwargs):
@@ -34,7 +38,15 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             kwargs['name'] = "CodeGenAgent"
 
         if 'tools' not in kwargs:
-            kwargs['tools'] = [edit, regex_search_files, run_cmd, list_code_definition_names]
+            base_tools = [edit, regex_search_files, run_cmd, list_code_definition_names, smart_search_memory, run_subtask]
+
+            # Append web tools if available (may be None when internal package is absent)
+            if web_search is not None:
+                base_tools.append(web_search)
+            if web_fetch is not None:
+                base_tools.append(web_fetch)
+
+            kwargs['tools'] = base_tools
 
         super().__init__(
             *args,
@@ -43,12 +55,24 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
     async def get_system_prompt(self, run_context: RunContextWrapper[CodeAgentContext]) -> str | None:
         root_dir = run_context.context.root_dir        
-        # Get user memory from context
-        user_memory = run_context.context.user_memory
+
+        # Get combined memory from context (prepared by SiadaRunner)
+        combined_memory = run_context.context.combined_memory
+
         # Get preferred language and agent name from session config
-        preferred_language = run_context.context.session.siada_config.preferred_language
+        preferred_language = run_context.context.preferred_language
         agent_name = run_context.context.session.siada_config.agent_name
-        system_prompt = code_gen_prompt.get_system_prompt(root_dir, run_context.context.interactive_mode, user_memory, preferred_language, agent_name)
+        # Get pre_plan setting from context
+        pre_plan = run_context.context.pre_plan
+        
+        enable_parallel = should_enable_parallel_tool_calls_in_prompt(run_context)
+
+        system_prompt = code_gen_prompt.get_system_prompt(
+            root_dir, run_context.context.interactive_mode,
+            combined_memory, preferred_language, agent_name,
+            pre_plan,
+            enable_parallel_tool_calls=enable_parallel,
+        )
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
@@ -79,10 +103,21 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
             # Create configuration object for at command processing
             class AtCommandConfig:
-                def __init__(self, root_dir: str):
+                def __init__(self, root_dir: str, interactive: bool = False, io=None):
+                    # Root directory used for resolving @ paths
                     self.root_dir = root_dir
+                    # Whether we are in interactive mode (controls spinner behavior)
+                    self.interactive = interactive
+                    # Optional IO instance, if available (for rich panel-aware spinner)
+                    self.io = io
 
-            config = AtCommandConfig(context.root_dir)
+            # Determine interactive flag and IO from context if available
+            interactive = getattr(context, "interactive_mode", False)
+            io_instance = None
+            if getattr(context, "session", None) and getattr(context.session, "siada_config", None):
+                io_instance = context.session.siada_config.io
+
+            config = AtCommandConfig(context.root_dir, interactive=interactive, io=io_instance)
 
             # Create callback functions
             def add_item(item, message_id):
@@ -119,13 +154,15 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             logging.warning(f"Failed to process @ commands: {e}")
             return user_input
 
-    async def run(self, user_input: str| List[TResponseInputItem], context: CodeAgentContext) -> RunResult:
+    async def run(self, user_input: str| List[TResponseInputItem], context: CodeAgentContext, run_config=None, openai_session=None) -> RunResult:
         """
         Execute code generation task.
 
         Args:
             user_input: User's code generation request with requirements and specifications
             context: Context object providing project information
+            run_config: Run configuration (provided by SiadaRunner)
+            openai_session: OpenAI session (provided by SiadaRunner)
         Returns:
             Generation result containing final output and execution details
         """
@@ -139,12 +176,14 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             input=input_with_env,
             max_turns=settings.MAX_TURNS,
             context=context,
+            run_config=run_config,
+            openai_session=openai_session,
         )
 
         return result
 
     async def run_streamed(
-        self, user_input: str| List[TResponseInputItem], context: CodeAgentContext
+        self, user_input: str| List[TResponseInputItem], context: CodeAgentContext, run_config=None, openai_session=None
     ) -> RunResultStreaming:
         """
         Execute code generation task with streaming output.
@@ -152,6 +191,8 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         Args:
             user_input: User's code generation request with requirements and specifications
             context: Context object providing project information
+            run_config: Run configuration (provided by SiadaRunner)
+            openai_session: OpenAI session (provided by SiadaRunner)
         Returns:
             A streaming result of the generation, containing final output and execution details.
         """
@@ -165,6 +206,8 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             input=input_with_env,
             context=context,
             max_turns=settings.MAX_TURNS,
+            run_config=run_config,
+            openai_session=openai_session,
         )
 
         return result

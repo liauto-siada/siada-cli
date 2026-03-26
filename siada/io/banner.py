@@ -49,7 +49,7 @@ class BannerDisplay:
     def _draw_circle(canvas, cx, cy, radius, fill=False):
         """绘制圆形"""
         if fill:
-            # 填充圆形
+            # Fill circle
             for r in range(int(radius)):
                 circumference = int(2 * math.pi * r)
                 for i in range(circumference):
@@ -58,7 +58,7 @@ class BannerDisplay:
                     y = int(cy + r * math.sin(angle))
                     canvas.set(x, y)
         else:
-            # 只画轮廓
+            # Draw outline only
             for angle in range(360):
                 rad = math.radians(angle)
                 x = int(cx + radius * math.cos(rad))
@@ -69,8 +69,8 @@ class BannerDisplay:
     def _draw_filled_ellipse(canvas, cx, cy, rx, ry):
         """绘制填充椭圆"""
         for y in range(-int(ry), int(ry) + 1):
-            # 椭圆方程: x²/a² + y²/b² = 1
-            # 解出 x = a * sqrt(1 - y²/b²)
+            # Ellipse equation: x²/a² + y²/b² = 1
+            # Solve x = a * sqrt(1 - y²/b²)
             if ry > 0:
                 x_max = int(rx * math.sqrt(max(0, 1 - (y * y) / (ry * ry))))
                 for x in range(-x_max, x_max + 1):
@@ -90,16 +90,16 @@ class BannerDisplay:
         
         c = Canvas()
         
-        # 中心和缩放
+        # Center and scale
         center_x, center_y = 35, 18
         scale = 0.5
         
-        # 绘制外圆（多层以增加粗细）
+        # Draw outer circle (multiple layers to increase thickness)
         outer_radius = 33 * scale
         for offset in range(-1, 2):
             BannerDisplay._draw_circle(c, center_x, center_y, outer_radius + offset, fill=False)
         
-        # 绘制左眼
+        # Draw left eye
         left_eye_x = center_x - 13 * scale
         left_eye_y = center_y - 5 * scale
         eye_width = 4.5 * scale
@@ -107,7 +107,7 @@ class BannerDisplay:
         
         BannerDisplay._draw_filled_ellipse(c, int(left_eye_x), int(left_eye_y), eye_width, eye_height)
         
-        # 绘制右眼
+        # Draw right eye
         right_eye_x = center_x + 13 * scale
         right_eye_y = center_y - 5 * scale
         
@@ -173,16 +173,16 @@ class BannerDisplay:
             # Call the drawille method directly without class reference
             c = Canvas()
             
-            # 中心和缩放
+            # Center and scale
             center_x, center_y = 35, 18
             scale = 0.5
             
-            # 绘制外圆（多层以增加粗细）
+            # Draw outer circle (multiple layers to increase thickness)
             outer_radius = 33 * scale
             for offset in range(-1, 2):
                 BannerDisplay._draw_circle(c, center_x, center_y, outer_radius + offset, fill=False)
             
-            # 绘制左眼
+            # Draw left eye
             left_eye_x = center_x - 13 * scale
             left_eye_y = center_y - 5 * scale
             eye_width = 4.5 * scale
@@ -190,7 +190,7 @@ class BannerDisplay:
             
             BannerDisplay._draw_filled_ellipse(c, int(left_eye_x), int(left_eye_y), eye_width, eye_height)
             
-            # 绘制右眼
+            # Draw right eye
             right_eye_x = center_x + 13 * scale
             right_eye_y = center_y - 5 * scale
             

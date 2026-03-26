@@ -34,6 +34,17 @@ class ModelRunConfig(ModelBaseConfig):
         model_config = get_model_config(model)
         if model_config:
             self._copy_fields(model_config)
+            # Reset thinking_tokens and reasoning_effort to avoid stale values
+            self.thinking_tokens = None
+            self.reasoning_effort = None
+            self.temperature = None
+            # Apply default thinking tokens if the new model has them configured
+            if model_config.default_thinking_tokens:
+                self.thinking_tokens = model_config.default_thinking_tokens
+                self.temperature = None  # thinking mode requires temperature=None
+            # Apply default reasoning effort if the new model has it configured
+            if model_config.default_reasoning_effort:
+                self.reasoning_effort = model_config.default_reasoning_effort
         else:
             raise ValueError(f"Model {model} not found in model settings")
         
@@ -49,6 +60,11 @@ class ModelRunConfig(ModelBaseConfig):
     def get_thinking_tokens(self):
         budget = self.get_raw_thinking_tokens()
 
+        # For models that only support adaptive thinking, always show "adaptive"
+        if budget is not None and self.default_thinking_tokens == -1:
+            return "adaptive"
+        if budget == -1:
+            return "adaptive"
         if budget is not None:
             # Format as xx.yK for thousands, xx.yM for millions
             if budget >= 1024 * 1024:

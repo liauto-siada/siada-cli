@@ -16,6 +16,10 @@ Siada CLI incorporates and adapts from the following open source projects. We ar
 - **License**: MIT
 - **Contribution & Modifications**: Quoted the code from its file editing tool and modified its parameters to adapt to the openai-agent-sdk.
 
+### [Codex](https://github.com/openai/codex)
+- **License**: Apache 2.0
+- **Contribution & Modifications**: Referenced its skills module implementation and adapted it to our own skills system.
+
 
 ## Open Source licenses
 

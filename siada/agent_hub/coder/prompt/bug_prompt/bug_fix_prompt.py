@@ -4,8 +4,10 @@ from ..base.tool_use import get_tool_use_section
 from ..base.capabilities import get_capabilities_section
 from ..base.prompt_builder import build_system_prompt
 from .rules import get_rules_section
+from siada.services.skills import get_skills_section
 
-def get_system_prompt_web(cwd: str = "/default/path", is_minimal: bool=False, new_rule:str="", user_memory: str = None) -> str:
+def get_system_prompt_web(cwd: str = "/default/path", is_minimal: bool=False, new_rule:str="", user_memory: str = None,
+                          enable_parallel_tool_calls: bool = False) -> str:
     # system information
     os_name = platform.system()
     home_dir = os.path.expanduser("~")
@@ -50,9 +52,10 @@ Your current objective is to provide a thorough, implementable fix that complete
 
     return build_system_prompt(
         intro=intro,
-        tool_use=get_tool_use_section(),
+        tool_use=get_tool_use_section(enable_parallel_tool_calls),
         capabilities=get_capabilities_section(cwd),
         rules=get_rules_section(cwd, os_name, home_dir, is_minimal=is_minimal, new_rule=new_rule),
         objective=objective,
-        user_memory=user_memory
+        user_memory=user_memory,
+        skills_section=get_skills_section(cwd)
     )

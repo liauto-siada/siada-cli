@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     O1_MINI: str = "o1-mini"
     MAX_TURNS: int = 200
     DEFAULT_MODEL: str = Claude_4_0_SONNET
+    
+    # Memory search configuration
+    ENABLE_MEMORY_SEARCH: bool = True
 
 
     # Set RunConfig as ClassVar so it won't be included in model validation
@@ -48,6 +51,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # 忽略未知的环境变量，避免升级后旧配置导致启动失败
 
     class Constants:
         # Agent name

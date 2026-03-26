@@ -8,7 +8,7 @@ Separates core interaction logic from main entry point for better code organizat
 import time
 import asyncio
 import threading
-from regex import T
+import signal
 from siada.session.session_models import RunningSession
 from siada import __version__
 from siada.entrypoint.interaction.running_config import RunningConfig
@@ -45,7 +45,12 @@ class Controller:
         self._preload_success = False
         # Pre-load agent class asynchronously to optimize first-time execution
         self._start_preload_agent()
-        self.need_show_announcements_welcome_panel:bool = True 
+        self.need_show_announcements_welcome_panel:bool = True
+        self._exiting = False  # Flag to track if we're in exit phase
+
+        # Register atexit handler to release CLI ownership on process exit
+        import atexit
+        atexit.register(self._release_cli_ownership)
     
     def _start_preload_agent(self):
         """
@@ -162,7 +167,21 @@ class Controller:
                     user_input = pending_input
                     pending_input = None
                 else:
+                    # Send ACP message to stop all animations before waiting for user input
+                    # NOTE: This code has been moved to conversation_turn.py after handle_interrupt()
+                    # to ensure animations stop after interrupt handling is complete
+                    # if self.config.acp_mode:
+                    #     from siada.io.acp.message_builder import ACPMessageBuilder
+                    #     builder = ACPMessageBuilder()
+                    #     stop_animation_msg = builder.build_session_update(
+                    #         reason="input_ready",
+                    #         content="",
+                    #         metadata={"animation_control": "stop"}
+                    #     )
+                    #     self.config.io.acp_adapter._send_if_acp(lambda: stop_animation_msg)
+                    
                     # Get user input normally
+                    _input_start = time.perf_counter()
                     user_input = self.config.io.get_input(
                         completer=(
                             self.config.completer if not self.shell_mode else None
@@ -174,6 +193,30 @@ class Controller:
                             else self.config.running_color_settings.shell_model_color
                         ),
                     )
+                    _input_elapsed = (time.perf_counter() - _input_start) * 1000
+                    logging.debug(f"[PERF][controller] get_input returned | waited {_input_elapsed:.0f}ms")
+                    
+                    # 🔍 Log input received for analysis
+                    logging.warning(f"[Controller] [GET_INPUT] Message received from stdin", extra={
+                        "component": "Controller",
+                        "operation": "get_input",
+                        "message_length": len(user_input) if isinstance(user_input, str) else 0,
+                        "message_preview": user_input[:200] if isinstance(user_input, str) else str(user_input)[:200],
+                        "message_hash": hash(user_input) if isinstance(user_input, str) else hash(str(user_input)),
+                        "line_count": user_input.count('\n') + 1 if isinstance(user_input, str) else 1,
+                        "timestamp": time.time(),
+                    })
+                    
+                    # Send ACP message to start animations after user submits input
+                    if self.config.acp_mode:
+                        from siada.io.acp.message_builder import ACPMessageBuilder
+                        builder = ACPMessageBuilder()
+                        start_animation_msg = builder.build_session_update(
+                            reason="processing_started",
+                            content="",
+                            metadata={"animation_control": "start"}
+                        )
+                        self.config.io.acp_adapter._send_if_acp(lambda: start_animation_msg)
                 self.wait_for_preload(timeout=20, show_spinner=True) 
                 if isinstance(user_input, str):
                     display_rule = True
@@ -194,11 +237,40 @@ class Controller:
                 turn = TurnFactory.create_turn(
                     self.config, session, self.slash_commands, user_input
                 )
-                turn_output = turn.execute(TurnInput(use_input=user_input))
+                
+                # 🔍 Log before turn execution
+                logging.warning(f"[Controller] [TURN_START] About to execute turn", extra={
+                    "component": "Controller",
+                    "operation": "turn_execute",
+                    "input_hash": hash(user_input) if isinstance(user_input, str) else hash(str(user_input)),
+                    "timestamp": time.time(),
+                })
+                
+                turn_output = self._execute_turn_with_ownership(turn, user_input, session)
+                
+                # 🔍 Log after turn execution
+                logging.warning(f"[Controller] [TURN_COMPLETE] Turn execution finished", extra={
+                    "component": "Controller",
+                    "operation": "turn_execute",
+                    "input_hash": hash(user_input) if isinstance(user_input, str) else hash(str(user_input)),
+                    "timestamp": time.time(),
+                })
+
+                if turn_output is None:
+                    continue
 
                 if isinstance(turn_output.output, SwitchEvent):
                     if turn_output.output.kwargs.get("model"):
-                        self.config.model = turn_output.output.kwargs.get("model")
+                        model_name = turn_output.output.kwargs.get("model")
+                        self.config.model = model_name
+                        # Update llm_config so show_announcements() reads the new model name
+                        try:
+                            from siada.models.model_run_config import ModelRunConfig
+                            new_llm_config = ModelRunConfig(model_name)
+                            new_llm_config.provider = self.config.llm_config.provider
+                            self.config.llm_config = new_llm_config
+                        except Exception as _e:
+                            logging.warning(f"[Controller] Failed to update llm_config for model switch: {_e}")
 
                     elif turn_output.output.kwargs.get("ai_analysis_prompt"):
                         # Set pending input for next iteration - reuse existing flow
@@ -208,7 +280,6 @@ class Controller:
                     elif turn_output.output.kwargs.get("clear"):
                         # Create a new session without previous history
                         from siada.session.session_manager import RunningSessionManager
-                        import time
                                                 
                         # Create new session with same config but new ID
                         session = RunningSessionManager.create_session(
@@ -231,10 +302,82 @@ class Controller:
                         self.shell_mode = True
                     self.show_announcements()
             except KeyboardInterrupt as e:
+                logging.info("[Controller.run] ✅ KeyboardInterrupt CAUGHT in main run loop! Calling keyboard_interrupt()")
+                # Call keyboard_interrupt to handle the interrupt
+                # It will either show warning (first Ctrl+C) or exit (second Ctrl+C)
                 self.keyboard_interrupt()
+                # After first Ctrl+C, continue the loop to allow user input again
+                # Only exit on second Ctrl+C (handled in keyboard_interrupt method)
+                logging.info("[Controller.run] Continuing main loop after first Ctrl+C")
+                continue
             except Exception as e:
                 self.config.io.print_error(e)
                 break
+
+    def _release_cli_ownership(self):
+        """Release CLI ownership for the current session on process exit.
+
+        Called via atexit to ensure no stale CLI locks remain after
+        the TUI/CLI process is killed or exits unexpectedly.
+        Only applies to IM (Lark) sessions; regular CLI sessions have no ownership.
+        """
+        try:
+            from siada.session.ownership import SessionOwnershipManager, SessionOwner
+            session = self.session
+            if session is None:
+                logging.info("[Controller] No session found, skipping ownership release")
+                return
+            session_dir = self._get_session_dir(session)
+            if session_dir is None:
+                logging.info("[Controller] No session directory found, skipping ownership release")
+                return
+            if not SessionOwnershipManager.is_im_session(session_dir):
+                logging.info(f"[Controller] Not an IM session, skipping ownership release: {session_dir}")
+                return
+            SessionOwnershipManager.release_ownership(session_dir, SessionOwner.CLI)
+            logging.info(f"[Controller] CLI ownership released on exit for session: {session_dir}")
+        except Exception as e:
+            logging.info(f"[Controller] Failed to release CLI ownership on exit: {e}")
+
+    def _get_session_dir(self, session: RunningSession):
+        """Get session directory if available, otherwise None."""
+        try:
+            fs = session.state.openai_session
+            if fs and hasattr(fs, 'session_folder') and fs.session_folder.exists():
+                return fs.session_folder
+        except Exception:
+            pass
+        return None
+
+    def _execute_turn_with_ownership(self, turn, user_input, session):
+        """Execute a turn with ownership guard for IM sessions.
+
+        For sessions created by Lark, acquires CLI ownership before execution
+        and releases it after, preventing concurrent access from the Lark side.
+        For regular CLI sessions this is a no-op passthrough.
+        """
+        from siada.session.ownership import SessionOwnershipManager, SessionOwner, OwnershipError
+
+        session_dir = self._get_session_dir(session)
+        try:
+            with SessionOwnershipManager.owned_turn(session_dir, SessionOwner.CLI):
+                return turn.execute(TurnInput(use_input=user_input))
+        except OwnershipError:
+            self.config.io.print_warning(
+                "⚠️ This session is being used by Lark bot. "
+                "Please wait for it to finish"
+            )
+            # Send stop animation signal so frontend spinner stops
+            if self.config.acp_mode:
+                from siada.io.acp.message_builder import ACPMessageBuilder
+                builder = ACPMessageBuilder()
+                stop_msg = builder.build_session_update(
+                    reason="input_ready",
+                    content="",
+                    metadata={"animation_control": "stop"}
+                )
+                self.config.io.acp_adapter._send_if_acp(lambda: stop_msg)
+            return None
 
     def get_announcements(self):
         import os
@@ -251,25 +394,131 @@ class Controller:
         # Check for thinking token budget
         thinking_tokens = self.config.llm_config.get_thinking_tokens()
         if thinking_tokens:
-            output += f", {thinking_tokens} think tokens"
+            if thinking_tokens == "adaptive":
+                output += f", adaptive thinking"
+            else:
+                output += f", {thinking_tokens} think tokens"
 
         # Check for reasoning effort
         reasoning_effort = self.config.llm_config.get_reasoning_effort()
         if reasoning_effort:
             output += f", reasoning {reasoning_effort}"
 
-        if self.shell_mode:
-            output += ", shell mode"
-        else:
-            output += ", agent mode"
-
+        # if self.shell_mode:
+        #     output += ", shell mode"
+        # else:
+        #     output += ", agent mode"
+        
         lines.append(output)
         return lines
 
     def show_announcements(self):
-            # Clear terminal using system clear command
         import os 
+        
+        logging.info(f"[Controller] show_announcements called, acp_mode={self.config.acp_mode}")
+        
+        # ACP mode: send structured banner info FIRST (before clear)
+        if self.config.acp_mode:
+            import json
+            from siada.io.acp.message_builder import ACPMessageBuilder
+            
+            # Get available slash commands
+            slash_commands = []
+            if hasattr(self, 'slash_commands') and self.slash_commands:
+                try:
+                    # Get commands with session context to include custom commands
+                    session = getattr(self, 'session', None)
+                    commands = self.slash_commands.get_commands(session)
+                    
+                    # Build command list with descriptions
+                    for cmd in commands:
+                        cmd_name = cmd[1:]  # Remove leading /
+                        cmd_method_name = f"cmd_{cmd_name}".replace("-", "_")
+                        cmd_method = getattr(self.slash_commands, cmd_method_name, None)
+                        
+                        description = ""
+                        if cmd_method and cmd_method.__doc__:
+                            description = cmd_method.__doc__.strip()
+                        
+                        slash_commands.append({
+                            "name": cmd_name,
+                            "description": description
+                        })
+                except Exception as e:
+                    logging.warning(f"[Controller] Failed to get slash commands: {e}")
+            
+            # Get checkpoint files list
+            checkpoints = []
+            try:
+                session = getattr(self, 'session', None)
+                if session and hasattr(session, 'checkpoint_service') and session.checkpoint_service:
+                    checkpoint_files = session.checkpoint_service.list_checkpoint_files(session.session_id)
+                    # Limit to 50 most recent checkpoints
+                    for cp_file in checkpoint_files[:50]:
+                        checkpoints.append({
+                            "file_name": cp_file.file_name,
+                            "timestamp": cp_file.timestamp_str,
+                            "tool": cp_file.tool_placeholder,
+                            "modified_files": cp_file.modified_files_placeholder
+                        })
+                    logging.info(f"[Controller] Found {len(checkpoints)} checkpoint files")
+            except Exception as e:
+                logging.warning(f"[Controller] Failed to get checkpoint files: {e}")
+            
+            # Get session ID and project hash
+            session_id = None
+            project_hash = None
+            session = getattr(self, 'session', None)
+            if session:
+                session_id = getattr(session, 'session_id', None)
+                workspace = getattr(self.config, 'workspace', None)
+                if workspace:
+                    from siada.utils import DirectoryUtils
+                    project_hash = DirectoryUtils.get_file_path_hash(workspace)
+            
+            banner_info = {
+                "version": __version__,
+                "working_dir": os.getcwd(),
+                "agent": self.config.agent_name,
+                "provider": self.config.llm_config.provider,
+                "model": self.config.llm_config.model_name,
+                "thinking_tokens": self.config.llm_config.get_thinking_tokens(),
+                "reasoning_effort": self.config.llm_config.get_reasoning_effort(),
+                "parallel_tool_calls": self.config.llm_config.parallel_tool_calls,
+                "slash_commands": slash_commands,  # Add slash commands list
+                "checkpoints": checkpoints,  # Add checkpoint files list
+                "session_id": session_id,  # Add session ID
+                "project_hash": project_hash,  # Add project hash
+            }
+            
+            logging.info(f"[Controller] Sending banner_info in ACP mode with {len(slash_commands)} commands")
+            
+            try:
+                builder = ACPMessageBuilder()
+                
+                # Use _send_if_acp helper method
+                result = self.config.io.acp_adapter._send_if_acp(
+                    lambda: builder.build_session_update(
+                        reason="banner_info",
+                        content=json.dumps(banner_info),
+                        metadata={"type": "banner"}
+                    )
+                )
+                
+                logging.info(f"[Controller] Banner info sent via _send_if_acp, result={result}")
+            except Exception as e:
+                logging.error(f"[Controller] Failed to send banner_info: {e}", exc_info=True)
+            
+            # In ACP mode, don't clear terminal or show traditional banner
+            return
+        
+        # Traditional mode: clear terminal
         os.system('clear' if os.name != 'nt' else 'cls')
+        
+        # Check if banner is enabled in config
+        if not self.config.banner:
+            # Banner is disabled, skip showing it
+            return
         if self.need_show_announcements_welcome_panel:
             # only once
             self.need_show_announcements_welcome_panel = False
@@ -293,8 +542,58 @@ class Controller:
         if self.last_keyboard_interrupt and (
             now - self.last_keyboard_interrupt < 2
         ):
-            self.config.io.print_warning("\n\n^C KeyboardInterrupt")
+            # Check if running in ACP mode
+            if self.config.acp_mode:
+                # In ACP mode, send JSON message for interrupt
+                import json
+                from siada.io.acp.message_builder import ACPMessageBuilder
+                
+                builder = ACPMessageBuilder()
+                interrupt_msg = builder.build_cancelled("Execution interrupted by user (Ctrl+C)")
+                
+                # Print JSON message to stdout for siada-cli-ui to capture
+                print(interrupt_msg.to_json(), flush=True)
+                
+            else:
+                # Non-ACP mode: print normal warning
+                self.config.io.print_warning("\n\n^C KeyboardInterrupt")
+            
+            # Set exiting flag and ignore further SIGINT signals
+            # This ensures the third Ctrl+C won't interrupt cleanup
+            self._exiting = True
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            try:
+                from siada.services.mcp.manager_service import _mcp_manager_service as mcp_service
+                if mcp_service.is_initialized:
+                    asyncio.run(mcp_service.shutdown())
+            except Exception as e:
+                logging.error(f"Error during MCP cleanup: {e}")
+
+            try:
+                sid = self.session.session_id
+                print(f"\nTo continue this session, run: siada-cli --resume {sid}")
+            except Exception:
+                pass
+
             sys.exit(1)
 
-        self.config.io.print_warning("\n\n^C again to exit")
+        # First Ctrl+C: send interrupt notification in ACP mode
+        if self.config.acp_mode:
+            # Commented out backend interrupt message sending, keeping only frontend messages
+            # import json
+            # from siada.io.acp.message_builder import ACPMessageBuilder
+            
+            # builder = ACPMessageBuilder()
+            # interrupt_msg = builder.build_session_update(
+            #     reason="cancelled",
+            #     content="Execution interrupted (Ctrl+C). Press Ctrl+C again to exit."
+            # )
+            
+            # # Print JSON message to stdout for siada-cli-ui to capture
+            # print(interrupt_msg.to_json(), flush=True)
+            
+            pass
+        else:
+            self.config.io.print_warning("\n\n^C again to exit")
+        
         self.last_keyboard_interrupt = now

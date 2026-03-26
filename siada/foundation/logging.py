@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import tempfile
 from pathlib import Path
@@ -6,25 +7,19 @@ from logging.handlers import TimedRotatingFileHandler
 from typing import Literal, Mapping, Optional
 from termcolor import colored
 
+from siada.foundation.constants import SIADA_HOME
 from siada.foundation.log_category import LogCategory
 
 
 def get_log_directory():
     """
     Get log directory with the following priority:
-    - Development mode: Project root ./logs (detected by pyproject.toml)
     - 1. Environment variable SIADA_CLI_LOG_DIR
     - 2. User home directory ~/.siada-cli/logs
     - 3. XDG cache directory ~/.cache/siada-cli/logs  
     - 4. System temp directory /tmp/siada-cli/logs
     - 5. Current working directory ./logs (fallback)
     """
-    # Check if in development mode first
-    if _is_development_mode():
-        dev_log_dir = _get_development_log_dir()
-        if dev_log_dir and _ensure_log_dir(Path(dev_log_dir)):
-            return dev_log_dir
-    
     # 1. Check environment variable
     if env_log_dir := os.getenv('SIADA_CLI_LOG_DIR'):
         log_dir = Path(env_log_dir)
@@ -32,7 +27,7 @@ def get_log_directory():
             return str(log_dir)
     
     # 2. User home directory ~/.siada-cli/logs
-    home_log_dir = Path.home() / '.siada-cli' / 'logs'
+    home_log_dir = SIADA_HOME / 'logs'
     if _ensure_log_dir(home_log_dir):
         return str(home_log_dir)
     
@@ -51,48 +46,6 @@ def get_log_directory():
     fallback_log_dir = Path('./logs')
     _ensure_log_dir(fallback_log_dir)
     return str(fallback_log_dir)
-
-
-def _is_development_mode():
-    """
-    Detect if running in development mode by checking environment variables:
-    - SIADA_CLI_ENV=development
-    - SIADA_ENV=dev/development
-    - DEVELOPMENT=true/1/yes
-    """
-    # Check specific environment variables
-    env_vars = [
-        ('SIADA_CLI_ENV', ['development', 'dev']),
-        ('SIADA_ENV', ['development', 'dev']),
-        ('DEVELOPMENT', ['true', '1', 'yes']),
-    ]
-    
-    for env_var, valid_values in env_vars:
-        env_value = os.getenv(env_var, '').lower()
-        if env_value in valid_values:
-            return True
-    
-    return False
-
-
-def _get_development_log_dir():
-    """Get development mode log directory - try current working directory first"""
-    try:
-        # Try current working directory first (for project root)
-        current_dir = Path.cwd()
-        if (current_dir / 'pyproject.toml').exists():
-            return str(current_dir / 'logs')
-        
-        # Fallback: use module location to find project root
-        module_file = Path(__file__).resolve()
-        project_root = module_file.parent.parent.parent
-        if (project_root / 'pyproject.toml').exists():
-            return str(project_root / 'logs')
-            
-    except Exception:
-        pass
-    
-    return None
 
 
 def _ensure_log_dir(log_dir: Path) -> bool:
@@ -216,18 +169,148 @@ file_formatter = logging.Formatter(
 llm_formatter = logging.Formatter('%(message)s')
 
 
-def get_file_handler():
-    file_handler = TimedRotatingFileHandler(
+class SafeTimedRotatingFileHandler(TimedRotatingFileHandler):
+    """
+    Windows-compatible TimedRotatingFileHandler that gracefully handles rotation errors.
+    
+    On Windows, when multiple processes have the same log file open, rotation can fail
+    with PermissionError because Windows doesn't allow renaming files that are open
+    by other processes. This handler catches such errors and continues logging to the
+    current file instead of crashing.
+    
+    This is a common scenario when multiple siada-cli instances are running simultaneously.
+    """
+    
+    def doRollover(self):
+        """
+        Override doRollover to handle Windows-specific file locking issues.
+        
+        When rotation fails due to PermissionError (file locked by another process),
+        we silently continue using the current log file. For other errors, we log
+        a warning but don't crash the application.
+        """
+        try:
+            super().doRollover()
+        except PermissionError:
+            # File is locked by another process (common on Windows with multiple instances)
+            # Continue using the current log file - rotation will be attempted again later
+            print("Warning: siada-log locked by another process. Permission error.")
+            pass
+        except Exception as e:
+            # Log other rotation errors to stderr but don't crash
+            import sys
+            print(f"Warning: Log rotation failed: {e}. Continuing with current log file.", 
+                  file=sys.stderr)
+
+
+def _create_concurrent_file_handler():
+    """
+    Create a ConcurrentRotatingFileHandler for Windows platform.
+    
+    This handler uses file locking mechanisms that work properly on Windows,
+    avoiding the file rename issues that occur with standard rotating handlers
+    when multiple processes access the same log file.
+    
+    Returns:
+        ConcurrentRotatingFileHandler: Configured handler for Windows
+        
+    Raises:
+        ImportError: If concurrent-log-handler package is not installed
+    """
+    from concurrent_log_handler import ConcurrentRotatingFileHandler
+    
+    file_handler = ConcurrentRotatingFileHandler(
         log_file,
-        when='midnight',
-        interval=1,
+        maxBytes=10 * 1024 * 1024,  # 10MB per file
         backupCount=30,
-        encoding='utf-8'
+        encoding='utf-8',
+        use_gzip=False  # Don't compress old logs
     )
     file_handler.setLevel(logging.INFO)
     formatter_str = '%(asctime)s - %(name)s:%(levelname)s: %(filename)s:%(lineno)s - %(message)s'
     file_handler.setFormatter(FileFormatter(formatter_str, datefmt='%H:%M:%S'))
     return file_handler
+
+
+def _create_safe_timed_rotating_handler():
+    """
+    Create a SafeTimedRotatingFileHandler for non-Windows platforms or as fallback.
+    
+    This handler rotates logs based on time (daily at midnight) and gracefully
+    handles rotation errors that may occur on Windows.
+    
+    Returns:
+        SafeTimedRotatingFileHandler: Configured handler for time-based rotation
+    """
+    file_handler = SafeTimedRotatingFileHandler(
+        log_file,
+        when='midnight',
+        interval=1,
+        backupCount=30,
+        encoding='utf-8',
+        delay=True  # Delay file opening until first log message
+    )
+    file_handler.setLevel(logging.INFO)
+    formatter_str = '%(asctime)s - %(name)s:%(levelname)s: %(filename)s:%(lineno)s - %(message)s'
+    file_handler.setFormatter(FileFormatter(formatter_str, datefmt='%H:%M:%S'))
+    return file_handler
+
+
+def get_named_file_handler(file_name: str, log_level: int = logging.INFO):
+    """
+    Create a rotating file handler for a specific file under the Siada log directory.
+
+    Args:
+        file_name: Target log file name, e.g. ``openai.log``.
+        log_level: Logging level for the handler.
+
+    Returns:
+        logging.Handler: Configured file handler for the target file.
+    """
+    target_log_file = os.path.join(log_dir, file_name)
+    file_handler = SafeTimedRotatingFileHandler(
+        target_log_file,
+        when='midnight',
+        interval=1,
+        backupCount=30,
+        encoding='utf-8',
+        delay=True,
+    )
+    file_handler.setLevel(log_level)
+    formatter_str = '%(asctime)s - %(name)s:%(levelname)s: %(filename)s:%(lineno)s - %(message)s'
+    file_handler.setFormatter(FileFormatter(formatter_str, datefmt='%H:%M:%S'))
+    return file_handler
+
+
+def get_file_handler():
+    """
+    Create a file handler with platform-specific rotation handling.
+    
+    On Windows: Uses ConcurrentLogHandler to avoid file locking issues during rotation.
+    On other platforms: Uses SafeTimedRotatingFileHandler for time-based rotation.
+    
+    Returns:
+        logging.Handler: Configured file handler for logging
+    """
+    # Check if running on Windows
+    is_windows = sys.platform.startswith('win')
+    
+    if is_windows:
+        try:
+            # Try to create ConcurrentRotatingFileHandler for Windows
+            return _create_concurrent_file_handler()
+            
+        except ImportError:
+            # Fallback to SafeTimedRotatingFileHandler if ConcurrentLogHandler is not installed
+            import warnings
+            warnings.warn(
+                "ConcurrentLogHandler not found. Install it with: pip install concurrent-log-handler\n"
+                "Falling back to SafeTimedRotatingFileHandler which may have file locking issues on Windows.",
+                RuntimeWarning
+            )
+    
+    # Use SafeTimedRotatingFileHandler for non-Windows or as fallback
+    return _create_safe_timed_rotating_handler()
 
 
 def get_console_handler(log_level=logging.INFO, extra_info: Optional[str] = None):
@@ -313,29 +396,34 @@ def configure_third_party_loggers():
     """
     Configure third-party library log levels to reduce verbose log output
     """
-    # Set httpx log level to ERROR to avoid excessive network request logs
+    # Set httpx/httpcore log level to ERROR to avoid excessive network request logs
     logging.getLogger('httpx').setLevel(logging.ERROR)
-    
-    # Add other third-party library log configurations as needed
-    # logging.getLogger('urllib3').setLevel(logging.WARNING)
-    # logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger('httpcore').setLevel(logging.ERROR)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
+    logging.getLogger('LiteLLM').setLevel(logging.ERROR)
+    # Suppress htmldate/trafilatura verbose debug logs (e.g. "minimum date setting: ...")
+    logging.getLogger('htmldate').setLevel(logging.WARNING)
+    logging.getLogger('trafilatura').setLevel(logging.WARNING)
 
 
 def setup_logger():
     """
     Setup and return siada.api logger with category-based filtering.
     
+    Also configures siada namespace logger to catch all siada.* submodules.
+    
     This logger uses filters to route different log categories to different handlers:
     - General logs go to console and siada_cli.log
     - Model error logs go to model_errors.log
     """
     # Create logger
-    setup_logger = logging.getLogger('siada.api')
-    setup_logger.setLevel(logging.INFO)
+    logger_instance = logging.getLogger('siada.api')
+    logger_instance.setLevel(logging.INFO)
 
     # If logger already has handlers, don't add duplicates
-    if setup_logger.handlers:
-        return setup_logger
+    if logger_instance.handlers:
+        return logger_instance
 
     # 1. Console handler - only general logs
     console_handler = get_console_handler()
@@ -345,20 +433,32 @@ def setup_logger():
     file_handler = get_file_handler()
     file_handler.addFilter(CategoryFilter.for_general_logs())
     
-    # 3. Model error file handler - only model error logs
+    # 3. Error file handler - all error level logs
     error_file_handler = get_model_error_handler()
-    error_file_handler.addFilter(CategoryFilter.for_model_errors())
 
-    # Add handlers to logger
-    setup_logger.addHandler(console_handler)
-    setup_logger.addHandler(file_handler)
-    setup_logger.addHandler(error_file_handler)
-    setup_logger.propagate = False
+    # Add handlers to siada.api logger
+    logger_instance.addHandler(console_handler)
+    logger_instance.addHandler(file_handler)
+    logger_instance.addHandler(error_file_handler)
+    logger_instance.propagate = False
+
+    # Setup siada namespace logger - catches all siada.* submodules
+    # This ensures modules like memory_agent can output to log files
+    siada_logger = logging.getLogger("siada")
+    siada_logger.setLevel(logging.INFO)
+    if not siada_logger.handlers:
+        # Create separate file handlers for siada namespace (without category filter)
+        siada_file_handler = get_file_handler()
+        siada_error_handler = get_model_error_handler()
+        siada_logger.addHandler(siada_file_handler)
+        siada_logger.addHandler(siada_error_handler)
+        # Note: No console handler to avoid duplicate console output
+    # propagate=True (default) is fine; root logger has no handlers
 
     # Configure third-party library log levels
     configure_third_party_loggers()
 
-    return setup_logger
+    return logger_instance
 
 
 
@@ -422,21 +522,26 @@ def redirect_agents_logger():
     """
     Process the agents logger to set appropriate log levels and handlers.
     """
-    agents_logger = logging.getLogger('openai.agents')
-    agents_logger.propagate = False
+    logger_names = ['openai.agents', 'openai.agents.tracing']
+    target_level = logging.DEBUG
+    file_handler = get_named_file_handler('openai.log', log_level=target_level)
 
-    # If logger already has handlers, don't add duplicates
-    if agents_logger.handlers:
-        return
+    for logger_name in logger_names:
+        target_logger = logging.getLogger(logger_name)
+        target_logger.setLevel(target_level)
+        target_logger.propagate = False
 
-    # Create console handler
-    # console_handler = get_console_handler()
-    # Create file handler - rotate daily, keep 30 days of logs
-    file_handler = get_file_handler()
+        has_openai_log_handler = any(
+            getattr(handler, 'baseFilename', None) == getattr(file_handler, 'baseFilename', None)
+            for handler in target_logger.handlers
+        )
+        if not has_openai_log_handler:
+            target_logger.addHandler(file_handler)
 
-    # Add handlers to logger
-    # agents_logger.addHandler(console_handler)
-    agents_logger.addHandler(file_handler)
+    logging.getLogger('openai.agents').info(
+        'OpenAI Agents logging redirected to %s',
+        getattr(file_handler, 'baseFilename', 'openai.log'),
+    )
 
 def redirect_aiohttp_asyncio_logger():
     """
@@ -495,5 +600,157 @@ def log_model_error(
     logger.error(full_log, extra={'log_category': LogCategory.MODEL_ERROR})
 
 
+def cleanup_old_logs(log_pattern: str, keep_days: int = 30, log_directory: str = None) -> int:
+    """
+    清理超过指定天数的日志文件
+    
+    Args:
+        log_pattern: 日志文件名模式，支持通配符，如 'a2a_log_*.log' 或 'a2a_server_*.log'
+        keep_days: 保留的天数，默认 30 天
+        log_directory: 日志目录路径，默认使用 get_log_directory()
+        
+    Returns:
+        int: 删除的文件数量
+        
+    Example:
+        # 清理 30 天前的 a2a_log 文件
+        cleanup_old_logs('a2a_log_*.log', keep_days=30)
+        
+        # 清理 7 天前的 a2a_server 文件
+        cleanup_old_logs('a2a_server_*.log', keep_days=7)
+    """
+    from datetime import datetime, timedelta
+    
+    if log_directory is None:
+        log_directory = get_log_directory()
+    
+    log_dir = Path(log_directory)
+    if not log_dir.exists():
+        return 0
+    
+    # Calculate cutoff time
+    cutoff_time = datetime.now() - timedelta(days=keep_days)
+    cutoff_timestamp = cutoff_time.timestamp()
+    
+    deleted_count = 0
+    
+    try:
+        # Find matching log files
+        for log_file in log_dir.glob(log_pattern):
+            if not log_file.is_file():
+                continue
+            
+            try:
+                # Get file modification time
+                file_mtime = log_file.stat().st_mtime
+                
+                # If the file is older than the cutoff time, delete it
+                if file_mtime < cutoff_timestamp:
+                    log_file.unlink()
+                    deleted_count += 1
+                    logger.debug(f"Deleted old log file: {log_file.name}")
+                    
+            except (OSError, PermissionError) as e:
+                # Silently handle single file deletion failure
+                logger.debug(f"Failed to delete {log_file.name}: {e}")
+                continue
+                
+    except Exception as e:
+        # Silently handle overall cleanup failure
+        logger.debug(f"Log cleanup failed for pattern '{log_pattern}': {e}")
+    
+    return deleted_count
+
+
+class TimingLogger:
+    """Logger wrapper that adds phase timing capability.
+
+    Usage::
+
+        logger.start_timing("main")
+        # ... do work ...
+        logger.log_timing("parse_args")   # logs phase time + total time
+        # ... do more work ...
+        logger.log_timing("init_io")
+    """
+
+    def __init__(self, base_logger: logging.Logger) -> None:
+        self._logger = base_logger
+        self._t_start: float | None = None
+        self._t: float | None = None
+
+    def start_timing(self, label: str = '') -> None:
+        """Start a new timing session without emitting timing logs."""
+        import time
+        self._t_start = time.time()
+        self._t = self._t_start
+
+    def log_timing(self, phase: str) -> None:
+        """Advance the phase timer without emitting timing logs."""
+        import time
+        if self._t_start is None or self._t is None:
+            return
+        self._t = time.time()
+
+    def __getattr__(self, name: str):
+        return getattr(self._logger, name)
+
+
+def _get_im_file_handler():
+    """
+    Create a file handler for IM-related logs writing to im.log.
+
+    Returns:
+        SafeTimedRotatingFileHandler: Configured handler for IM logs
+    """
+    im_log_file = os.path.join(log_dir, 'im.log')
+    im_file_handler = SafeTimedRotatingFileHandler(
+        im_log_file,
+        when='midnight',
+        interval=1,
+        backupCount=30,
+        encoding='utf-8',
+        delay=True,
+    )
+    im_file_handler.setLevel(logging.DEBUG)
+    formatter_str = '%(asctime)s - %(name)s:%(levelname)s: %(filename)s:%(lineno)s - %(message)s'
+    im_file_handler.setFormatter(FileFormatter(formatter_str, datefmt='%H:%M:%S'))
+    return im_file_handler
+
+
+def setup_im_logger():
+    """
+    Setup IM-related loggers to write to im.log file.
+
+    Redirects all siada.im.* loggers (via parent siada.im),
+    and siada.io.lark to im.log.
+
+    Also configures these loggers with error handler for errors.log.
+    """
+    # Logger names that should write to im.log
+    logger_names = [
+        'siada.im',               # parent for all siada.im.* loggers (including siada.im.lark.*)
+        'siada.io.lark',
+    ]
+
+    for name in logger_names:
+        lg = logging.getLogger(name)
+        lg.setLevel(logging.DEBUG)
+
+        # If logger already has handlers, don't add duplicates
+        if lg.handlers:
+            continue
+
+        # 1. IM file handler - writes to im.log
+        im_file_handler = _get_im_file_handler()
+
+        # 2. Error file handler - writes to errors.log
+        error_file_handler = get_model_error_handler()
+
+        lg.addHandler(im_file_handler)
+        lg.addHandler(error_file_handler)
+        lg.propagate = False
+
+
 # Global accessible logger instance
-logger = setup_logger()
+logger = TimingLogger(setup_logger())

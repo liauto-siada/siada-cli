@@ -3,7 +3,6 @@ from pydantic import BaseModel, ConfigDict
 
 from siada.session.session_models import RunningSession
 
-from siada.support.checkpoint_tracker import CheckPointTracker
 from siada.foundation.logging import logger as logging
 
 class CodeAgentContext(BaseModel):
@@ -19,17 +18,20 @@ class CodeAgentContext(BaseModel):
     # Interactive mode flag, True for interactive mode, False for non-interactive mode
     interactive_mode: bool = True
 
-    user_memory: Optional[str] = None
+    # Combined memory from all sources (rule_memory + user_memory + structured_memory)
+    combined_memory: Optional[str] = None
+    preferred_language: Optional[str] = None  # Preferred language for AI responses
 
-    checkpoint_tracker: Optional[CheckPointTracker] = None
-
-    # MCP相关扩展
+    # MCP-related extensions
     mcp_service: Optional[Any] = None
     mcp_config: Optional[Any] = None
     mcp_enabled: bool = False
 
     # SiadaIgnore controller for file access control
     siadaignore_controller: Optional[Any] = None
+
+    # Whether to enable human agreement mechanism for plan execution
+    pre_plan: bool = False
 
     @property
     def task_message_state(self):
@@ -40,9 +42,9 @@ class CodeAgentContext(BaseModel):
         return self.session.siada_config.llm_config
 
     def save_checkpoints(self):
-        if self.checkpoint_tracker and self.session:
+        if self.session and self.session.checkpoint_tracker:
             try:
-                self.checkpoint_tracker.save_checkpoints(
+                self.session.checkpoint_tracker.save_checkpoints(
                     session_id=self.session.session_id,
                     task_message_state=self.session.state.task_message_state,
                     usage=self.session.state.usage,
@@ -60,4 +62,23 @@ class CodeAgentContext(BaseModel):
     def auto_compact(self):
         if self.session:
             return self.session.siada_config.auto_compact
+        return True
+
+    @property
+    def compaction_strategy_name(self):
+        """User-configured compaction strategy override, or None for auto-detection."""
+        if self.session:
+            return self.session.siada_config.compaction_strategy
+        return None
+
+    @property
+    def im_mode(self):
+        """Whether running in IM (Lark) mode with chat-style compression.
+
+        Uses SessionOwnershipManager.is_im_session() as the single source of truth,
+        reading session_source from metadata.json on disk.
+        """
+        if self.session:
+            from siada.session.ownership import SessionOwnershipManager
+            return SessionOwnershipManager.is_im_session(self.session)
         return False

@@ -42,7 +42,7 @@ class IO:
         self.output_stream = output_stream or sys.stdout
         self.error_stream = error_stream or sys.stderr
         
-        # 统计信息
+        # Statistics
         self.outputs = []
         self.warnings = []
         self.errors = []
@@ -89,10 +89,10 @@ class IO:
             str: 文件内容，如果读取失败则返回空字符串
         """
         try:
-            # 确保路径是绝对路径或相对于当前工作目录的路径
+            # Ensure the path is absolute or relative to the current working directory
             path = Path(filepath)
             
-            # 尝试不同的编码方式
+            # Try different encodings
             encodings = ['utf-8', 'utf-8-sig', 'gbk', 'gb2312', 'latin1']
             
             for encoding in encodings:
@@ -103,7 +103,7 @@ class IO:
                 except UnicodeDecodeError:
                     continue
             
-            # 如果所有编码都失败，尝试二进制模式读取并忽略错误
+            # If all encodings fail, try reading in binary mode and ignore errors
             with open(path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
@@ -202,10 +202,10 @@ class FileIO(IO):
         self.log_file = Path(log_file)
         self.append = append
         
-        # 确保日志目录存在
+        # Ensure log directory exists
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # 打开日志文件
+        # Open log file
         mode = 'a' if append else 'w'
         self.log_stream = open(self.log_file, mode, encoding='utf-8')
         

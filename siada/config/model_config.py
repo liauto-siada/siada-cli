@@ -4,6 +4,9 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 import json
 
+from siada.foundation.constants import SIADA_HOME
+from siada.io.io import InputOutput
+
 
 @dataclass
 class UserModelConfig:
@@ -14,6 +17,13 @@ class UserModelConfig:
     supports_images: bool = False
     supports_prompt_cache: bool = False
     supports_extra_params: Optional[List[str]] = None
+    parallel_tool_calls: Optional[bool] = None
+    # Default thinking token budget for models that support thinking.
+    # Use -1 for adaptive thinking mode (e.g., Claude 4.6+), positive int for budget mode.
+    default_thinking_tokens: Optional[int] = None
+    # Default reasoning effort level for models that support reasoning_effort.
+    # Valid values: "low", "medium", "high".
+    default_reasoning_effort: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UserModelConfig':
@@ -24,12 +34,15 @@ class UserModelConfig:
             max_tokens=data.get('max_tokens'),
             supports_images=data.get('supports_images', False),
             supports_prompt_cache=data.get('supports_prompt_cache', False),
-            supports_extra_params=data.get('supports_extra_params')
+            supports_extra_params=data.get('supports_extra_params'),
+            parallel_tool_calls=data.get('parallel_tool_calls'),
+            default_thinking_tokens=data.get('default_thinking_tokens'),
+            default_reasoning_effort=data.get('default_reasoning_effort')
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
-        return {
+        result = {
             'model_name': self.model_name,
             'context_window': self.context_window,
             'max_tokens': self.max_tokens,
@@ -37,6 +50,11 @@ class UserModelConfig:
             'supports_prompt_cache': self.supports_prompt_cache,
             'supports_extra_params': self.supports_extra_params
         }
+        if self.parallel_tool_calls is not None:
+            result['parallel_tool_calls'] = self.parallel_tool_calls
+        if self.default_thinking_tokens is not None:
+            result['default_thinking_tokens'] = self.default_thinking_tokens
+        return result
 
 
 @dataclass
@@ -68,8 +86,7 @@ class ModelCollectionConfig:
 
 def _get_default_model_config_path() -> Path:
     """Get default model configuration file path"""
-    home_dir = Path.home()
-    return home_dir / '.siada-cli' / 'models.json'
+    return SIADA_HOME / 'models.json'
 
 
 def load_user_model_config(config_path: Optional[Path] = None) -> Optional[ModelCollectionConfig]:
@@ -91,8 +108,22 @@ def load_user_model_config(config_path: Optional[Path] = None) -> Optional[Model
                 return ModelCollectionConfig.from_dict(data)
     except json.JSONDecodeError as e:
         print(f"Warning: Model configuration file format error: {e}")
+        # Add IO to print errors for sending ACP messages
+        try:
+            io = InputOutput.get_instance()
+            if io:
+                io.print_error(f"Warning: Model configuration file format error: {e}")
+        except:
+            pass
     except Exception as e:
         print(f"Warning: Failed to load model configuration file: {e}")
+        # Add IO to print errors for sending ACP messages
+        try:
+            io = InputOutput.get_instance()
+            if io:
+                io.print_error(f"Warning: Failed to load model configuration file: {e}")
+        except:
+            pass
     
     return None
 

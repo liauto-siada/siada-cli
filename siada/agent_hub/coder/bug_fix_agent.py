@@ -1,5 +1,6 @@
 import ast
 from datetime import datetime
+from math import comb
 import os
 import subprocess
 
@@ -8,6 +9,7 @@ from agents import RunContextWrapper, RunResult, RunResultStreaming, Runner
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.select_agent import SelectAgent
 from siada.agent_hub.coder.prompt.bug_prompt import bug_fix_prompt
+from siada.agent_hub.coder.prompt.base.tool_use import should_enable_parallel_tool_calls_in_prompt
 from siada.agent_hub.coder.tracing.bug_fix_trace_collector import BugFixTraceCollector,create_custom_bug_fix_trace_collector
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.setting import settings
@@ -64,9 +66,12 @@ class BugFixAgent(CodeGenAgent):
         self, run_context: RunContextWrapper[CodeAgentContext]
     ) -> str | None:
         root_dir = run_context.context.root_dir
-        # Get user memory from context
-        user_memory = run_context.context.user_memory
-        system_prompt = bug_fix_prompt.get_system_prompt_web(root_dir, is_minimal=self.is_minimal, new_rule=self.guidance, user_memory=user_memory)
+        
+        # Get combined memory from context (prepared by SiadaRunner)
+        combined_memory = run_context.context.combined_memory
+        
+        enable_parallel = should_enable_parallel_tool_calls_in_prompt(run_context)
+        system_prompt = bug_fix_prompt.get_system_prompt_web(root_dir, is_minimal=self.is_minimal, new_rule=self.guidance, user_memory=combined_memory, enable_parallel_tool_calls=enable_parallel)
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
@@ -78,7 +83,7 @@ class BugFixAgent(CodeGenAgent):
 
         return context
 
-    async def run(self, user_input: str, context: CodeAgentContext) -> RunResult:
+    async def run(self, user_input: str, context: CodeAgentContext, run_config=None, openai_session=None) -> RunResult:
         """
         Execute bug fixing task.
         Use reproduce_agent to reproduce the issue, then use current Agent to fix it.
@@ -86,11 +91,12 @@ class BugFixAgent(CodeGenAgent):
         Args:
             user_input: User-described bug problem, including error messages, related file paths, etc.
             context: Context object for providing contextual information
+            run_config: Run configuration (provided by SiadaRunner)
+            openai_session: OpenAI session (provided by SiadaRunner)
         Returns:
             Fix result, including final output, execution rounds, and other information
         """
 
-        run_config, _ = await self.prepare_run_config_and_session(context)
         add_trace_processor(self.trace_collector)
 
         hard_level = 0
@@ -323,7 +329,7 @@ class BugFixAgent(CodeGenAgent):
         return enhanced_result
 
     def run_streamed(
-        self, user_input: str, context: CodeAgentContext
+        self, user_input: str, context: CodeAgentContext, run_config=None, openai_session=None
     ) -> RunResultStreaming:
         """
         Execute bug fixing task in streaming mode

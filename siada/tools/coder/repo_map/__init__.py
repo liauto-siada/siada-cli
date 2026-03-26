@@ -23,33 +23,33 @@ from .special import filter_important_files, is_important
 from .waiting import Spinner, WaitingSpinner
 
 __all__ = [
-    # 核心类
+    # Core classes
     'RepoMap',
     'Tag',
     
-    # IO类
+    # IO classes
     'IO',
     'SilentIO', 
     'FileIO',
     
-    # Token计算类
+    # Token counter classes
     'TokenCounterModel',
     'OptimizedTokenCounterModel',
     
-    # 工具函数
+    # Utility functions
     'dump',
     'filter_important_files',
     'is_important',
     
-    # 等待/进度指示器
+    # Wait/progress indicators
     'Spinner',
     'WaitingSpinner',
 ]
 
-# 版本信息
+# Version info
 __version__ = '1.0.0'
 
-# 模块级别的便捷函数
+# Module-level convenience functions
 def create_repo_map(
     root_path: str,
     model_name: str = "claude-3-5-sonnet-20241022",

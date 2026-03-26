@@ -55,6 +55,9 @@ class AutoCompleter(Completer):
             cwd=self.root
         )
 
+    def append_custom_command(self, session:"RunningSession"=None) -> None:
+        self.command_names = self.commands.get_commands(session)
+
     def _get_checkpoint_service(self):
         return self._checkpoint_service
 

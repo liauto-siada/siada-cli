@@ -13,9 +13,10 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-import logging
+if TYPE_CHECKING:
+    from siada.io.io import InputOutput
 
 
 class ChromiumAutoInstaller:
@@ -26,11 +27,26 @@ class ChromiumAutoInstaller:
     and automatic installation via Playwright when needed.
     """
 
-    def __init__(self):
+    def __init__(self, io: "InputOutput" = None):
         """Initialize the installer with platform detection."""
         self.system = platform.system().lower()
         self.machine = platform.machine().lower()
-        self.logger = logging.getLogger(__name__)
+        self.io = io
+
+    def _print_info(self, message: str):
+        """Print info message using io if available."""
+        if self.io:
+            self.io.print_info(message)
+
+    def _print_warning(self, message: str):
+        """Print warning message using io if available."""
+        if self.io:
+            self.io.print_warning(message)
+
+    def _print_error(self, message: str):
+        """Print error message using io if available."""
+        if self.io:
+            self.io.print_error(message)
 
     async def ensure_chromium_available(self) -> str:
         """
@@ -47,18 +63,18 @@ class ChromiumAutoInstaller:
         # 1. Try to find existing Chromium installations
         existing_path = self._find_existing_chromium()
         if existing_path:
-            # self.logger.info(f"Found existing Chromium: {existing_path}")
+            # self._print_info(f"Found existing Chromium: {existing_path}")
             return existing_path
         
         # 2. If not found, attempt automatic installation
-        self.logger.info("Chromium not found, attempting automatic installation...")
+        self._print_info("Chromium not found, attempting automatic installation...")
         success = await self._auto_install_chromium()
         
         if success:
             # 3. Search again after installation
             installed_path = self._find_playwright_chromium()
             if installed_path:
-                self.logger.info(f"Chromium installed successfully: {installed_path}")
+                self._print_info(f"Chromium installed successfully: {installed_path}")
                 return installed_path
         
         # 4. Final fallback - provide helpful error message
@@ -108,13 +124,28 @@ class ChromiumAutoInstaller:
         """
         if self.system == "windows":
             base_path = Path.home() / "AppData/Local/ms-playwright"
-            executable_path = "chrome-win/chrome.exe"
+            # For Windows, try multiple possible paths
+            executable_patterns = [
+                "chrome-win/chrome.exe",
+            ]
         elif self.system == "darwin":  # macOS
             base_path = Path.home() / "Library/Caches/ms-playwright"
-            executable_path = "chrome-mac/Chromium.app/Contents/MacOS/Chromium"
+            # For macOS, support multiple possible paths (different architectures and versions)
+            executable_patterns = [
+                # New Playwright format with Chrome for Testing (arm64)
+                "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+                # New Playwright format with Chrome for Testing (x64)
+                "chrome-mac/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+                # Old Playwright format (arm64)
+                "chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium",
+                # Old Playwright format (x64)
+                "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+            ]
         else:  # Linux
             base_path = Path.home() / ".cache/ms-playwright"
-            executable_path = "chrome-linux/chrome"
+            executable_patterns = [
+                "chrome-linux/chrome",
+            ]
 
         if not base_path.exists():
             return None
@@ -126,10 +157,12 @@ class ChromiumAutoInstaller:
 
         # Sort by version and get the latest
         latest_dir = max(chromium_dirs, key=lambda x: x.name)
-        chrome_path = latest_dir / executable_path
-
-        if chrome_path.exists() and self._is_valid_browser(str(chrome_path)):
-            return str(chrome_path)
+        
+        # Try each possible executable path pattern
+        for executable_path in executable_patterns:
+            chrome_path = latest_dir / executable_path
+            if chrome_path.exists() and self._is_valid_browser(str(chrome_path)):
+                return str(chrome_path)
 
         return None
 
@@ -206,11 +239,11 @@ class ChromiumAutoInstaller:
         
         for attempt in range(max_retries):
             try:
-                self.logger.info(f"Installing Chromium (attempt {attempt + 1}/{max_retries})...")
+                self._print_info(f"Installing Chromium (attempt {attempt + 1}/{max_retries})...")
                 
                 # Check if playwright command is available
                 if not self._is_playwright_available():
-                    self.logger.error("Playwright command not found. Please install: pip install playwright")
+                    self._print_error("Playwright command not found. Please install: pip install playwright")
                     return False
 
                 # Run playwright install chromium
@@ -223,27 +256,27 @@ class ChromiumAutoInstaller:
                 stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
 
                 if process.returncode == 0:
-                    self.logger.info("Chromium installation completed successfully")
+                    self._print_info("Chromium installation completed successfully")
                     return True
                 else:
                     error_msg = stderr.decode() if stderr else "Unknown error"
-                    self.logger.warning(f"Installation attempt {attempt + 1} failed: {error_msg}")
+                    self._print_warning(f"Installation attempt {attempt + 1} failed: {error_msg}")
                     
                     if attempt < max_retries - 1:
-                        self.logger.info("Retrying installation...")
+                        self._print_info("Retrying installation...")
                         await asyncio.sleep(5)  # Wait before retry
                     
             except asyncio.TimeoutError:
-                self.logger.warning(f"Installation attempt {attempt + 1} timed out")
+                self._print_warning(f"Installation attempt {attempt + 1} timed out")
                 if attempt < max_retries - 1:
                     await asyncio.sleep(5)
                     
             except Exception as e:
-                self.logger.warning(f"Installation attempt {attempt + 1} failed: {str(e)}")
+                self._print_warning(f"Installation attempt {attempt + 1} failed: {str(e)}")
                 if attempt < max_retries - 1:
                     await asyncio.sleep(5)
 
-        self.logger.error("All installation attempts failed")
+        self._print_error("All installation attempts failed")
         return False
 
     def _is_playwright_available(self) -> bool:

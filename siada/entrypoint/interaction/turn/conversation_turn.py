@@ -4,7 +4,6 @@ Conversation Turn Module
 Handles AI conversation turns including streaming responses and tool calls.
 """
 
-from concurrent.futures._base import CancelledError as FutureCancelledError
 from siada.foundation.logging import logger
 import re
 import threading
@@ -17,13 +16,13 @@ from agents import (
     RunItemStreamEvent,
     RunResultStreaming,
     ToolCallOutputItem,
+    ToolOutputImage,
+    ToolOutputText
 )
 
-from siada.foundation.telemetry import telemetry
-from siada.services import mcp_service
-from siada.support.spinner import WaitingSpinner
-from siada.tools.coder.observation.observation import FunctionCallResult
+from siada.io.stream_utils import render_tool_call_output
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
+from siada.tools.browser.models import BrowserOperateResult
 
 # Import existing InteractionConfig
 from ..running_config import RunningConfig
@@ -39,11 +38,17 @@ REASONING_TAG = "thinking-content-" + "7bbeb8e1441453ad999a0bbba8a46d4b"
 SPLIT_TAG = "\n--------------\n"
 # Output formatting
 
-REASONING_START = "▶ **THINKING**" # ►
+REASONING_START = "THINKING" # ► ▶ **THINKING**
 
 REASONING_END = "▶ **ANSWER**"
 
 TOOL_CALL_START = "▶ **TOOL USE**"
+
+# Structured message markers for siada-cli-ui integration
+# Format: __SIADA_MSG_START__:type:id
+# Format: __SIADA_MSG_END__:type:id
+MESSAGE_START_MARKER = "__SIADA_MSG_START__"
+MESSAGE_END_MARKER = "__SIADA_MSG_END__"
 
 
 class ConversationTurn(RunTurn):
@@ -130,6 +135,7 @@ class ConversationTurn(RunTurn):
     _dedicated_loop = None
     _dedicated_thread = None
     _loop_ready = None
+    _pending_memory_task: "asyncio.Task | None" = None  # Background memory save from previous turn
 
     def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):
         super().__init__(config, session, slash_commands)
@@ -143,13 +149,76 @@ class ConversationTurn(RunTurn):
         # Thread synchronization events for proper cleanup handling
         self._cleanup_done = threading.Event()
         self._result_ready = threading.Event()
+        # Message tracking
+        self._message_counter = 0
+        self._current_message_id = None
+        self._stream_start_id = None  # Track the start ID of current stream
+    
+    def _generate_message_id(self) -> str:
+        """Generate unique message ID"""
+        self._message_counter += 1
+        return f"msg_{self._message_counter}_{int(time.time() * 1000)}"
+    
+    def _emit_message_start(self, msg_type: str):
+        """Emit message start marker
+        
+        Args:
+            msg_type: Type of message (thinking, answer, tool_call, tool_result)
+        """
+        # Generate message ID
+        self._current_message_id = self._generate_message_id()
+        
+        # Set stream start ID (first message in the stream)
+        if self._stream_start_id is None:
+            self._stream_start_id = self._current_message_id
+        
+        if not self.config.io.acp_enabled:
+            # Non-ACP mode: print text marker
+            marker = f"{MESSAGE_START_MARKER}:{msg_type}:{self._current_message_id}"
+            # self.config.io.console.print(marker)
+            logger.debug(f"Emitted message start: {marker}")
+        else:
+            # ACP mode: send lifecycle event
+            self._send_lifecycle_event({
+                "type": "message_start",
+                "message_type": msg_type,
+                "message_id": self._current_message_id,
+                "timestamp": time.time()
+            })
+            logger.debug(f"Sent lifecycle message_start event: {msg_type}")
+    
+    def _emit_message_end(self, msg_type: str):
+        """Emit message end marker
+        
+        Args:
+            msg_type: Type of message (thinking, answer, tool_call, tool_result)
+        """
+        if not self._current_message_id:
+            return
+        
+        if not self.config.io.acp_enabled:
+            # Non-ACP mode: print text marker
+            marker = f"{MESSAGE_END_MARKER}:{msg_type}:{self._current_message_id}"
+            # self.config.io.console.print(marker)
+            logger.debug(f"Emitted message end: {marker}")
+        else:
+            # ACP mode: send lifecycle event
+            self._send_lifecycle_event({
+                "type": "message_end",
+                "message_type": msg_type,
+                "message_id": self._current_message_id,
+                "timestamp": time.time()
+            })
+            logger.debug(f"Sent lifecycle message_end event: {msg_type}")
+        
+        self._current_message_id = None
 
     @classmethod
     def _ensure_dedicated_loop(cls):
         """Ensure dedicated event loop is started"""
         if cls._dedicated_loop is None or cls._dedicated_loop.is_closed():
             start_time = time.time()
-            logger.info("[ConversationTurn] Starting dedicated event loop initialization")
+            logger.debug("[ConversationTurn] Starting dedicated event loop initialization")
             
             import threading
             import asyncio
@@ -157,9 +226,9 @@ class ConversationTurn(RunTurn):
             # Detect if main thread has a running event loop (prompt_toolkit might be using it)
             try:
                 main_loop = asyncio.get_running_loop()
-                logger.info(f"📋 Detected main thread event loop: {id(main_loop)}")
+                logger.debug(f"Detected main thread event loop: {id(main_loop)}")
             except RuntimeError:
-                logger.info("📋 No event loop in main thread")  # Normal case
+                pass  # Normal case - no event loop in main thread
 
             # Create event for synchronization
             cls._loop_ready = threading.Event()
@@ -194,7 +263,7 @@ class ConversationTurn(RunTurn):
             cls._loop_ready.wait()
             
             elapsed_time = time.time() - start_time
-            logger.info(f"[ConversationTurn] Dedicated event loop initialized (took {elapsed_time:.2f}s)")
+            logger.debug(f"[ConversationTurn] Dedicated event loop initialized (took {elapsed_time:.2f}s)")
 
     @classmethod
     def _cleanup_dedicated_loop(cls):
@@ -204,6 +273,41 @@ class ConversationTurn(RunTurn):
             if cls._dedicated_thread and cls._dedicated_thread.is_alive():
                 cls._dedicated_thread.join(timeout=5.0)
 
+    @classmethod
+    def _force_abandon_dedicated_loop(cls):
+        """Force abandon the current dedicated event loop and thread.
+        
+        Called when Ctrl+C cleanup times out, indicating the event loop thread
+        is blocked by a synchronous operation (e.g., run_cmd executing a shell
+        command via subprocess.read(1) which blocks indefinitely).
+        
+        We set class variables to None so _ensure_dedicated_loop() will create
+        a fresh loop+thread on the next turn. The old thread is a daemon thread
+        and will eventually terminate when the blocking operation completes or
+        when the main process exits.
+        """
+        old_loop = cls._dedicated_loop
+        old_thread = cls._dedicated_thread
+        
+        # Abandon references - next _ensure_dedicated_loop() will create new ones
+        cls._dedicated_loop = None
+        cls._dedicated_thread = None
+        cls._loop_ready = None
+        
+        logger.warning(
+            f"[ConversationTurn] Force abandoned dedicated loop "
+            f"(loop={id(old_loop) if old_loop else None}, "
+            f"thread={old_thread.name if old_thread else None}). "
+            f"A new loop will be created for the next turn."
+        )
+        
+        # Best-effort: try to stop the old loop (may not work if thread is blocked)
+        if old_loop and not old_loop.is_closed():
+            try:
+                old_loop.call_soon_threadsafe(old_loop.stop)
+            except RuntimeError:
+                pass  # Loop might already be closed or thread dead
+
     def get_turn_type(self) -> TurnType:
         return TurnType.CONVERSATION
 
@@ -212,6 +316,65 @@ class ConversationTurn(RunTurn):
         if isinstance(user_input, list):
             return True
         return not self.slash_commands.is_command(user_input)
+
+    # ============================================================================
+    # Lifecycle Event Methods (Agent Lifecycle Integration)
+    # ============================================================================
+    
+    def _send_lifecycle_event(self, event_data: dict):
+        """
+        Send lifecycle event to ACP
+        
+        Args:
+            event_data: Event data dictionary
+        """
+        # Only send in ACP mode
+        if not self.config.io.acp_enabled:
+            logger.debug(f"🔍 [DEBUG] Skipping lifecycle event - ACP not enabled")
+            return
+        
+        if not hasattr(self.config.io, 'acp_adapter') or not self.config.io.acp_adapter:
+            logger.warn(f"⚠️ [DEBUG] Skipping lifecycle event - no acp_adapter")
+            return
+        
+        try:
+            # 🔍 Debug: Log before building message
+            # logger.info(f"🔍 [DEBUG] Building lifecycle event message", extra={
+            #     "event_type": event_data.get("type"),
+            #     "event_data": event_data,
+            # })
+            
+            # Use acp_adapter's builder to create custom message
+            message = self.config.io.acp_adapter.builder.build_session_update(
+                reason="lifecycle_event",
+                metadata=event_data
+            )
+            
+            # logger.info(f"🔍 [DEBUG] Lifecycle message built", extra={
+            #     "message_id": message.id if hasattr(message, 'id') else 'unknown',
+            #     "message_method": message.method if hasattr(message, 'method') else 'unknown',
+            # })
+            
+            # Send message
+            adapter = self.config.io.acp_adapter
+            if adapter.transport and adapter.transport.is_connected:
+                # Use send_sync() directly, no event loop needed
+                # transport.send() internally calls send_sync(), no need to wrap in async
+                adapter.transport.send_sync(message)
+                # logger.info(f"✅ [DEBUG] Lifecycle message sent successfully")
+            else:
+                logger.warn(f"[DEBUG] Transport not available or not connected", extra={
+                    "has_transport": bool(adapter.transport),
+                    "is_connected": adapter.transport.is_connected if adapter.transport else False,
+                })
+                
+        except Exception as e:
+            # Silent failure, don't break conversation flow
+            logger.error(f" [DEBUG] Failed to send lifecycle event: {e}", exc_info=True)
+    
+    # ============================================================================
+    # End of Lifecycle Event Methods
+    # ============================================================================
 
     async def output_stream_content(self, result: RunResultStreaming) -> None:
         """Process stream events and handle real-time output"""
@@ -267,8 +430,10 @@ class ConversationTurn(RunTurn):
                     ):
                         if not self.got_reasoning_part and stream_data.delta:
                             self.got_reasoning_part = True
+                            # Emit message start marker for thinking
+                            self._emit_message_start("thinking")
                             # self.print_split_line()
-                            delta_text = f"\n{REASONING_START}\n\n{stream_data.delta}"
+                            delta_text = f"\n{REASONING_START}: {stream_data.delta}"
                             self.response_content += delta_text
                         else:
                             delta_text = stream_data.delta
@@ -289,6 +454,11 @@ class ConversationTurn(RunTurn):
                     elif isinstance(stream_data, ResponseTextDeltaEvent):
                         if not self.got_content_part and stream_data.delta:
                             self.got_content_part = True
+                            # End thinking message if it was started
+                            if self.got_reasoning_part:
+                                self._emit_message_end("thinking")
+                            # Start answer message
+                            self._emit_message_start("answer")
                             # if not self.got_reasoning_part:
                             #     self.print_split_line()
                             delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}"
@@ -303,10 +473,16 @@ class ConversationTurn(RunTurn):
                     elif isinstance(stream_data, ResponseContentPartDoneEvent):
                         if not self.got_function_call_part:
                             # if not got function call part, flush the response content
+                            # Mark stream_end=True to indicate this is the last chunk of the answer stream
                             self._live_incremental_response(
-                                "\n", self.response_content, final=True
+                                "\n", self.response_content, final=True, stream_end=True
                             )
                             self.mdstream = None
+                            # End answer message
+                            if self.got_content_part:
+                                self._emit_message_end("answer")
+                            # Reset stream_start_id after stream ends
+                            self._stream_start_id = None
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
@@ -318,6 +494,9 @@ class ConversationTurn(RunTurn):
                                     "\n", self.response_content, final=True
                                 )
                                 self.mdstream = None
+                                # End answer message if it was started
+                                if self.got_content_part:
+                                    self._emit_message_end("answer")
 
                             call_id = stream_data.item.call_id
                             tool_name = stream_data.item.name
@@ -370,12 +549,15 @@ class ConversationTurn(RunTurn):
                             self.current_active_call_id = call_id
                             # self.print_split_line()
                             
+                            # Start tool_call message
+                            self._emit_message_start("tool_call")
+                            
                             # Stage 1: Print tool name (use append=False to avoid accumulating the header)
-                            self.config.io.print_tool_call_all_stages(
-                                f"Siada wants to use the tool: {tool_name}.\n",
-                                final=False,
-                                append=True
-                            )
+                            # self.config.io.print_tool_call_all_stages(
+                            #     f"Siada wants to use the tool: {tool_name}.\n",
+                            #     final=False,
+                            #     append=True
+                            # )
                             
                             # Original method (commented out for reference)
                             # self.config.io.print_tool_call(
@@ -448,6 +630,9 @@ class ConversationTurn(RunTurn):
                                     final=True
                                 )
                                 
+                                # End tool_call message
+                                self._emit_message_end("tool_call")
+                                
                                 # Original streaming/non-streaming handling (commented out)
                                 # if not streaming, only create the mdstream and update the final content
                                 # if tool_call_formatter.supports_streaming():
@@ -477,9 +662,9 @@ class ConversationTurn(RunTurn):
                         usage = stream_data.response.usage if hasattr(stream_data, 'response') and stream_data.response else None
                         
                         # Close the Live+Panel display (don't add token info to panel)
-                        if hasattr(self.config.io, '_tool_call_stages') and self.config.io._tool_call_stages:
-                            # Just close the panel without adding token info
-                            self.config.io.print_tool_call_all_stages("", final=True, append=False)
+                        # if hasattr(self.config.io, '_tool_call_stages') and self.config.io._tool_call_stages:
+                        #     # Just close the panel without adding token info
+                        #     self.config.io.print_tool_call_all_stages("", final=True, append=False)
                         
                         # Print context usage using original method (outside the panel)
                         self._print_context_usage(usage=usage)
@@ -492,13 +677,17 @@ class ConversationTurn(RunTurn):
                             if call_id in self.tool_calls:
                                 tool_name = self.tool_calls[call_id]["name"]
                                 # self.print_split_line()
+                                
+                                # Start tool_result message
+                                self._emit_message_start("tool_result")
+                                
                                 output = stream_data.output
-                                if isinstance(output, FunctionCallResult):
-                                    self.config.io.print_tool_result(
-                                        output.format_for_display()
-                                    )
+                                if isinstance(output, list) and tool_name == "browser_operate":
+                                    # Special handling for browser_operate to show concise UI display
+                                    self._display_browser_operate_result(output)
                                 else:
-                                    self.config.io.print_tool_result(str(output))
+                                    render_tool_call_output(self.config.io, output, tool_name)
+                                self._emit_message_end("tool_result")
         finally:
             # Clean up MarkdownStream if it exists on stream error
             if hasattr(self, "mdstream") and self.mdstream is not None:
@@ -526,7 +715,45 @@ class ConversationTurn(RunTurn):
         delta_text: str,
         response_content: str,
         final: bool = False,
+        stream_end: bool = False,
     ):
+        # ACP mode: send complete response when final + lifecycle events
+        if self.config.io.acp_enabled and self.config.io.acp_adapter:
+            # Send lifecycle content_delta event for incremental updates
+            if delta_text:
+                # 🔍 Debug: Log lifecycle event sending
+                # logger.info(f"🔍 [DEBUG] Sending content_delta lifecycle event", extra={
+                #     "delta_length": len(delta_text),
+                #     "delta_preview": delta_text[:100],
+                #     "is_final": final,
+                #     "stream_end": stream_end,
+                #     "stream_start_id": self._stream_start_id or "",
+                #     "current_message_id": self._current_message_id,
+                # })
+                
+                self._send_lifecycle_event({
+                    "type": "content_delta",
+                    "delta": delta_text,
+                    "is_final": final,
+                    "stream_end": stream_end,
+                    "stream_start_id": self._stream_start_id or "", 
+                    "timestamp": time.time()
+                })
+                
+                # logger.info(f"✅ [DEBUG] content_delta lifecycle event sent successfully")
+            
+            if final:
+                # Send complete response via ACP with stream_end flag
+                processed_content, _ = self._process_thinking_tags(response_content)
+                self.config.io.assistant_output(
+                    processed_content or response_content,
+                    stream_end=stream_end,
+                    stream_start_id=self._stream_start_id
+                )
+            # For non-final chunks, do nothing more (accumulate in response_content)
+            return
+        
+        # Text mode: streaming output
         if self.mdstream:
             # Process thinking tags
             processed_content, should_render = self._process_thinking_tags(
@@ -556,6 +783,8 @@ class ConversationTurn(RunTurn):
         Returns:
             TurnOutput: AI response
         """
+        _exec_start = time.perf_counter()
+        logger.debug(f"[PERF][turn] execute() start")
         self.input_data = turn_input
         self.start_time = self._get_timestamp()
         
@@ -576,22 +805,24 @@ class ConversationTurn(RunTurn):
             from siada.services.siada_runner import SiadaRunner
             import asyncio
 
-            async def _mcp_initialize():
-                if (
-                    mcp_service
-                    and not mcp_service.is_initialized
-                    and mcp_service.has_config()
-                ):
-                    self.config.io.print_info("Initializing MCP service...")
-                    await mcp_service.initialize()
-
             # Define async execution logic
             async def _async_execute():
-                telemetry.captureAgentUsage(agent_name=self.config.agent_name)
                 try:
+                    # Await any pending memory save from the previous turn to ensure
+                    # data consistency before starting a new turn.
+                    if ConversationTurn._pending_memory_task is not None:
+                        try:
+                            await ConversationTurn._pending_memory_task
+                        except Exception as e:
+                            logger.info(f"[ConversationTurn] Previous memory task failed (ignored): {e}")
+                        finally:
+                            ConversationTurn._pending_memory_task = None
+
                     user_input = turn_input.use_input
 
                     # Run agent for conversation
+                    _run_start = time.perf_counter()
+                    logger.debug(f"[PERF][turn] SiadaRunner.run_agent start")
                     result: RunResultStreaming = await SiadaRunner.run_agent(
                         agent_name=self.config.agent_name,
                         user_input=user_input,
@@ -599,13 +830,31 @@ class ConversationTurn(RunTurn):
                         session=self.session,
                         stream=True,
                     )
+                    logger.debug(f"[PERF][turn] SiadaRunner.run_agent returned | +{(time.perf_counter()-_run_start)*1000:.0f}ms")
 
                     # Store result immediately for potential cancellation
                     self.current_result = result
                     # Set result ready flag to ensure memory visibility
                     self._result_ready.set()
 
+                    _stream_start = time.perf_counter()
+                    logger.debug(f"[PERF][turn] output_stream_content start")
                     await self.output_stream_content(result)
+                    logger.debug(f"[PERF][turn] output_stream_content done | +{(time.perf_counter()-_stream_start)*1000:.0f}ms")
+                    
+                    # Fire memory save as a background task (non-blocking).
+                    # This allows _async_execute to return immediately so the
+                    # finally block can send stop:animation without waiting for
+                    # memory save (which can take ~2s on first save due to slug LLM call).
+                    # The task will be awaited at the start of the next turn.
+                    async def _background_memory_save():
+                        _mem_start = time.perf_counter()
+                        await self._save_session_memory_if_needed()
+                        logger.debug(f"[PERF][turn] save_session_memory done (background) | +{(time.perf_counter()-_mem_start)*1000:.0f}ms")
+                    
+                    ConversationTurn._pending_memory_task = asyncio.create_task(_background_memory_save())
+                    
+                    logger.debug(f"[PERF][turn] _async_execute total | +{(time.perf_counter()-_exec_start)*1000:.0f}ms")
                     return result
                 finally:
                     self._stop_waiting_spinner()
@@ -617,23 +866,40 @@ class ConversationTurn(RunTurn):
             # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
             self._ensure_dedicated_loop()
 
-            asyncio.run_coroutine_threadsafe(
-                _mcp_initialize(), self._dedicated_loop
-            ).result()
-
             try:
                 # Execute async task in dedicated loop
                 future = asyncio.run_coroutine_threadsafe(
                     _async_execute(), self._dedicated_loop
                 )
-                result = future.result()
+                # IMPORTANT: Use polling loop with timeout instead of blocking
+                # future.result(). Without timeout, future.result() blocks at
+                # C level (Condition.wait → Lock.acquire) which cannot be
+                # interrupted by _thread.interrupt_main() or SIGINT on some
+                # platforms (especially Windows). Polling every 0.5s ensures
+                # Python bytecode runs between iterations, giving the signal
+                # handler a chance to fire and raise KeyboardInterrupt.
+                import concurrent.futures
+                while True:
+                    try:
+                        result = future.result(timeout=0.5)
+                        break
+                    except concurrent.futures.TimeoutError:
+                        continue
             except KeyboardInterrupt:
+                # CRITICAL: Signal the dedicated loop thread to stop any blocking
+                # operations (e.g., _poll_stdin_with_timeout_check waiting for
+                # interactive input like sudo password). This sets the global
+                # _cancel_event and kills the child process from the main thread.
+                try:
+                    from siada.tools.coder.cmd_runner import cancel_current_command
+                    cancel_current_command()
+                except Exception as e:
+                    logger.error(f"[ConversationTurn] Error calling cancel_current_command: {e}")
+                
                 # Use thread-safe event mechanism to check and cancel result
                 if self._result_ready.wait(timeout=0.1):  # Non-blocking check with 100ms timeout
                     if self.current_result and not self.current_result.is_complete:
-                        logger.info("Cancelling streaming result due to KeyboardInterrupt")
                         self.current_result.cancel()
-
                 # Cancel the future and wait for actual cleanup completion
                 if not future.done():
                     future.cancel()
@@ -642,9 +908,15 @@ class ConversationTurn(RunTurn):
                     cleanup_completed = self._cleanup_done.wait(timeout=2.0)
 
                     if cleanup_completed:
-                        logger.info("Async task cleanup completed successfully")
+                        pass
                     else:
-                        logger.warning("Cleanup did not complete within 2 seconds timeout, proceeding anyway")
+                        logger.warning("[ConversationTurn] Cleanup did not complete within 2 seconds timeout, proceeding anyway")
+                        # The dedicated loop thread is likely blocked by a synchronous
+                        # operation (e.g., run_cmd). Abandon it so the next turn gets
+                        # a fresh event loop instead of hanging on the blocked one.
+                        self._force_abandon_dedicated_loop()
+                else:
+                    pass
 
                 asyncio.run(self.handle_interrupt())
                 raise
@@ -667,13 +939,40 @@ class ConversationTurn(RunTurn):
             from rich.console import Console
 
             Console().show_cursor(True)
-            self.config.io.print_warning("Conversation interrupted by user.")
+            
+            # Send ACP message to stop all animations after interrupt
+            # if self.config.acp_mode:
+            #     from siada.io.acp.message_builder import ACPMessageBuilder
+            #     builder = ACPMessageBuilder()
+            #     stop_animation_msg = builder.build_session_update(
+            #         reason="input_ready",
+            #         content="",
+            #         metadata={"animation_control": "stop"}
+            #     )
+            #     self.config.io.acp_adapter._send_if_acp(lambda: stop_animation_msg)
+            # else:
+            # self.config.io.print_warning("Conversation interrupted by user.")
+            
             self.end_time = self._get_timestamp()
             raise e
-
         except BaseException as e:
             self.end_time = self._get_timestamp()
             return self.handle_error(e)
+        finally:
+            if self.config.acp_mode:
+                from siada.io.acp.message_builder import ACPMessageBuilder
+                builder = ACPMessageBuilder()
+                stop_animation_msg = builder.build_session_update(
+                    reason="input_ready",
+                    content="",
+                    metadata={"animation_control": "stop"}
+                )
+                # Use _send_if_acp_robust instead of _send_if_acp
+                # Reason: when finally block executes, the original event loop may be closed
+                # _send_if_acp_robust uses an independent loop to ensure message delivery
+                self.config.io.acp_adapter._send_if_acp_robust(lambda: stop_animation_msg)
+            # else:
+            #     self.config.io.print_warning("Conversation interrupted by user.")
 
     def print_split_line(self):
         if self.config.io.pretty:
@@ -700,6 +999,60 @@ class ConversationTurn(RunTurn):
             finally:
                 self.session.state.spinner = None
 
+    async def _save_session_memory_if_needed(self):
+        """Save session memory to file after conversation turn completes.
+        
+        This method is called after all streaming and session updates are complete,
+        ensuring that the final assistant message has been persisted to the session
+        before we save the memory to file.
+        """
+        try:
+            if (self.session and 
+                hasattr(self.session, 'openai_session') and 
+                self.session.openai_session):
+                
+                from siada.services.memory import MemoryService
+                memory_service = MemoryService()
+                await memory_service.save_session_memory(
+                    self.session.openai_session,
+                )
+                logger.debug("[ConversationTurn] Session memory saved successfully")
+        except Exception as e:
+            logger.debug(f"[ConversationTurn] Failed to save session memory: {e}")
+
+    def _display_browser_operate_result(self, output: List[Any]):
+        """Display browser_operate tool result in a UI-friendly format.
+        
+        Deserializes the JSON content from browser_operate tool using 
+        BrowserOperateResult.from_json() and calls format_for_display() for UI output.
+        
+        Args:
+            output: List of ToolOutputText and ToolOutputImage items from browser_operate tool
+        """
+        # Extract text content and screenshot from output
+        text_content = ""
+        screenshot = None
+        
+        for item in output:
+            if isinstance(item, ToolOutputText):
+                text_content = item.text
+            elif isinstance(item, ToolOutputImage):
+                screenshot = item.image_url
+        
+        if not text_content:
+            self.config.io.print_tool_result("✓ Browser operation completed")
+            return
+        
+        try:
+            # Deserialize JSON content and use format_for_display() for UI output
+            browser_result = BrowserOperateResult.from_json(text_content, screenshot)
+            self.config.io.print_tool_result(browser_result.format_for_display())
+        except Exception as e:
+            # Fallback: if JSON parsing fails, show original text (truncated)
+            logger.warning(f"Failed to parse browser result as JSON: {e}")
+            display_text = text_content if len(text_content) <= 200 else text_content[:197] + "..."
+            self.config.io.print_tool_result(f"✓ Browser operation completed\n{display_text}")
+
     def _print_context_usage(self, usage=None):
         """
         Print context usage information.
@@ -715,15 +1068,26 @@ class ConversationTurn(RunTurn):
         
         context_max = self.config.llm_config.context_window
         message = f"{context_size:,} / {context_max:,} tokens"
-        # Use console to print with right alignment
-        from rich.align import Align
-        from rich.text import Text
+        
+        # Send token usage event in ACP mode
+        if self.config.io.acp_enabled:
+            self._send_lifecycle_event({
+                "type": "token_usage",
+                "context_size": context_size,
+                "context_max": context_max,
+                "message": message,
+                "timestamp": time.time()
+            })
+        else:
+            # Use console to print with right alignment in non-ACP mode
+            from rich.align import Align
+            from rich.text import Text
 
-        # Create styled text with a dim style for subtle display
-        text = Text(message, style="dim #5B9BD5") # rule
-        aligned_text = Align.right(text)
+            # Create styled text with a dim style for subtle display
+            text = Text(message, style="dim #5B9BD5") # rule
+            aligned_text = Align.right(text)
 
-        self.config.io.console.print(aligned_text)
+            self.config.io.console.print(aligned_text)
 
     async def handle_interrupt(self):
         """Handle user interruption by adding appropriate interrupt marker to session."""

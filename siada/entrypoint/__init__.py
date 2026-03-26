@@ -14,6 +14,7 @@ def _configure_litellm_logging():
         litellm.turn_off_message_logging = True
         litellm.suppress_debug_info = True
         litellm.drop_params = True
+        litellm.num_retries = 3
 
         # Try to disable internal debug logging
         try:
@@ -26,11 +27,9 @@ def _configure_litellm_logging():
         litellm.success_callback = []
         litellm.failure_callback = []
 
-        logger.debug("LiteLLM logging configuration completed")
+        logger.debug(" logging configuration completed")
 
     except ImportError:
-        logger.debug("LiteLLM not installed, skipping logging configuration")
+        logger.debug(" not installed, skipping logging configuration")
     except Exception as e:
-        logger.debug(f"Error configuring LiteLLM logging: {e}")
-
-
+        logger.debug(f"Error configuring  logging: {e}")

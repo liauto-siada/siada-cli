@@ -284,6 +284,33 @@ siada-cli --agent coder
 [AI response...]
 ```
 
+## Daemon and Scheduled Tasks
+
+### Daemon Process
+
+Siada CLI automatically starts a background daemon process when launched. The daemon handles proactive tasks such as code analysis and scheduled job execution.
+
+**Stop and check daemon status in non-interactive mode:**
+```bash
+# Stop the daemon
+siada-cli --stop-daemon
+
+# Check daemon status
+siada-cli --daemon-status
+```
+
+### Scheduled Tasks (Cron Jobs)
+
+You can set up scheduled tasks by simply telling Siada in natural language. The daemon will automatically manage execution.
+
+**Examples:**
+```
+> Every day at 9:30 AM, compile the code according to the xxx document
+> Run the test suite every day at 2:00 AM
+```
+
+Siada will configure the appropriate cron job and confirm the schedule with you.
+
 ## Command Line Options
 
 ```bash
@@ -316,6 +343,10 @@ siada-cli --models
 # Enable checkpoint tracking (for session recovery)
 siada-cli --checkpointing
 
+# Daemon management (non-interactive)
+siada-cli --stop-daemon     # Stop the background daemon
+siada-cli --daemon-status   # Show daemon status
+
 ## Version Check and Update
 siada-cli --just-check-update  # Check version only, without executing update
 siada-cli --upgrade            # Upgrade to the latest version immediately
@@ -328,12 +359,9 @@ siada-cli --check-update       # Check and prompt for updates on startup (enable
 In the CLI, you can use slash commands for additional functionality:
 
 - `/shell` - Switch to shell mode to execute system commands (type `exit` or `quit` to exit shell mode)
-- `/models` - List available AI models
-- `/run <command>` or `!<command>` - Execute shell commands
+- `!<command>` - Execute a single shell command without switching modes
+- `/model` - Show model selector or switch model (`/model <model_name>`)
 - `/editor` or `/edit` - Open editor for multiline input
-- `/multiline-mode` - Toggle multiline mode (changes behavior of Enter and Meta+Enter keys)
-  - Enter key for line break
-  - Meta+Enter key to end multiline mode and send content to the model
 - `/init [--force]` - Analyze the project and create a tailored siada.md file
 - `/restore <checkpoint_file>` - Restore session state from a checkpoint file (requires checkpoint tracking enabled)
 - `/undo <checkpoint_file>` - Undo changes made by a checkpoint, restoring to the state before the checkpoint was created (requires checkpoint tracking enabled)
@@ -344,7 +372,7 @@ In the CLI, you can use slash commands for additional functionality:
 - `/lang` - View current language configuration
   - `/lang zh` - Switch to Chinese
   - `/lang en` - Switch to English
-- `/exit` or `/quit` - Exit the application
+- `/exit` - Exit the application
 
 ### Shell Mode Usage Guide
 

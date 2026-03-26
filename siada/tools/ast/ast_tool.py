@@ -22,22 +22,8 @@ from .models import Tag
 warnings.simplefilter("ignore", category=FutureWarning)
 from grep_ast.tsl import USING_TSL_PACK, get_language, get_parser  # noqa: E402
 
-class ListCodeDefinitionNamesResult(FunctionCallResult):
-    """This data class represents the output of a list code definition names operation."""
 
-    def __init__(self, content: str):
-        self.content = content
-
-    def format_for_display(self):
-        return str(self)
-
-    def __str__(self):
-        return self.content
-    
-
-@function_tool(name_override="list_code_definition_names")
-def list_code_definition_names(file_name: str, rel_file_name: Optional[str] = None) -> str:
-    """
+AST_DOC = """
     Analyze a source code file and extract its structural definitions.
 
     This function performs static code analysis to identify and extract code definitions
@@ -60,6 +46,54 @@ def list_code_definition_names(file_name: str, rel_file_name: Optional[str] = No
         - File summary with definition and reference counts
         - Hierarchical tree view of code definitions with context
     """
+
+
+class ListCodeDefinitionNamesResult(FunctionCallResult):
+    """This data class represents the output of a list code definition names operation."""
+
+    def __init__(self, content: str):
+        self.content = content
+
+    def format_for_display(self):
+        return str(self)
+
+    def __str__(self):
+        return self.content
+    
+
+def _list_code_definitions_impl(context: dict, path: str) -> FunctionCallResult:
+    """Internal implementation for listing code definitions.
+    
+    Args:
+        context: Dictionary containing:
+            - root_dir: str - The root directory of the workspace
+        path: File path to analyze (relative to root_dir or absolute)
+        
+    Returns:
+        FunctionCallResult: The result containing code definitions
+    """
+    import os
+    root_dir = context['root_dir']
+    
+    # Resolve path relative to root_dir if it's not absolute
+    if not os.path.isabs(path):
+        file_path = os.path.join(root_dir, path)
+    else:
+        file_path = path
+    
+    # Get relative path for display
+    try:
+        rel_path = os.path.relpath(file_path, root_dir)
+    except ValueError:
+        # On Windows, if paths are on different drives
+        rel_path = os.path.basename(file_path)
+    
+    content = _list_code_definition_names(file_path, rel_path)
+    return ListCodeDefinitionNamesResult(content)
+
+
+@function_tool(name_override="list_code_definition_names", description_override=AST_DOC)
+def list_code_definition_names(file_name: str, rel_file_name: Optional[str] = None) -> str:
     content = _list_code_definition_names(file_name, rel_file_name)
     return ListCodeDefinitionNamesResult(content)
 
@@ -123,6 +157,14 @@ def get_tags_raw(fname: str, rel_fname: str) -> Generator[Tag, None, None]:
         parser = get_parser(lang)
     except Exception as err:
         print(f"Skipping file {fname}: {err}")
+        # Add IO to print errors for sending ACP messages
+        try:
+            from siada.io.io import InputOutput
+            io = InputOutput.get_instance()
+            if io:
+                io.print_error(f"Skipping file {fname}: {err}")
+        except:
+            pass
         return
 
     query_scm = get_scm_fname(lang)
@@ -135,6 +177,14 @@ def get_tags_raw(fname: str, rel_fname: str) -> Generator[Tag, None, None]:
             code = f.read()
     except (OSError, UnicodeDecodeError) as e:
         print(f"Error reading file {fname}: {e}")
+        # Add IO to print errors for sending ACP messages
+        try:
+            from siada.io.io import InputOutput
+            io = InputOutput.get_instance()
+            if io:
+                io.print_error(f"Error reading file {fname}: {e}")
+        except:
+            pass
         return
         
     if not code:

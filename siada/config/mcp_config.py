@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from enum import Enum
 
 
@@ -10,7 +10,7 @@ class MCPTransportType(Enum):
     HTTP = "http"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)  # Changed to mutable to support oauth field updates
 class MCPServerConfig:
     """
     MCP server configuration - transport type specified by type field or auto-detected from config
@@ -35,6 +35,9 @@ class MCPServerConfig:
     timeout: int = 10000
     trust: bool = False
     auto_reconnect: bool = True
+    
+    # OAuth configuration (for servers like lark-mcp)
+    oauth: Optional[Dict[str, Any]] = None
     
     def get_transport_type(self) -> MCPTransportType:
         """

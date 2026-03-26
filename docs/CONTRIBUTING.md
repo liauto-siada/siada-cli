@@ -114,6 +114,31 @@ All test functions within test files must start with `test_` to be recognized by
 - Each test file should focus on testing a specific module or functionality
 - Use descriptive test names that clearly indicate what is being tested
 
+#### Running Integration Tests
+Some tests call real LLM models and are marked with `@pytest.mark.integration`. These tests are slower and may incur API costs.
+
+```bash
+# Run only fast unit tests (exclude integration tests)
+pytest tests/ -m "not integration"
+
+# Run only integration tests
+pytest tests/ -m integration
+
+# Run all tests including integration tests
+pytest tests/
+```
+
+**Why separate integration tests?**
+- Integration tests that call real models are slow (minutes vs seconds)
+- They may fail due to network issues or rate limits
+- They incur API costs
+- Separating them keeps the default test suite fast for local development
+
+**When to use integration markers:**
+- Tests that call real LLM model endpoints without mocking
+- Tests that require external API access (not just file I/O)
+- Tests with timeouts > 60 seconds
+
 ### 5. Update Documentation
 If your PR introduces user-facing changes (e.g., new commands, modified parameters, or behavior changes), you must also update the relevant documentation in the `/docs` directory.
 

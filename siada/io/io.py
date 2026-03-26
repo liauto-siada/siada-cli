@@ -2,9 +2,13 @@ import functools
 import os
 import re
 import subprocess
+import sys
+import time
 import webbrowser
 from dataclasses import dataclass
 from typing import Optional
+
+from siada.foundation.logging import logger
 
 from prompt_toolkit.completion import Completer, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
@@ -89,6 +93,16 @@ class InputOutput:
     clipboard_watcher = None
     bell_on_next_input = False
     notifications_command = None
+    _instance = None  # Singleton instance for get_instance()
+
+    @classmethod
+    def get_instance(cls) -> "InputOutput | None":
+        """Get the current InputOutput singleton instance.
+        
+        Returns the most recently created InputOutput instance,
+        or None if no instance has been created yet.
+        """
+        return cls._instance
 
     @staticmethod
     def _restore_multiline(func):
@@ -121,7 +135,13 @@ class InputOutput:
         multiline_mode=False,
         notifications=False,
         notifications_command=None,
+        acp_enabled=False,
+        acp_transport=None,
+        acp_fallback=True,
     ):
+        # Register as singleton instance
+        InputOutput._instance = self
+        
         self.placeholder = None
         self.interrupted = False
         self.never_prompts = set()
@@ -176,7 +196,7 @@ class InputOutput:
         if fancy_input:
             style = Style.from_dict({
                 'frame.border': '#6BA5E7',  # Blue
-                # 'prompt': '#00aaff bold',  # 蓝色提示符
+                # 'prompt': '#00aaff bold',  # blue prompt
                 'placeholder': '#888888',  # 灰色占位符
             })
             session_kwargs = {
@@ -206,6 +226,34 @@ class InputOutput:
             self._initialize_printer()
             if self.is_dumb_terminal:
                 self.print_info("Detected dumb terminal, disabling fancy input and pretty output.")
+        
+        # Initialize ACP components
+        self.acp_enabled = acp_enabled
+        self.acp_adapter = None
+        
+        # Initialize ACP if enabled
+        if self.acp_enabled:
+            self._initialize_acp(acp_transport, acp_fallback)
+
+    def _initialize_acp(self, transport=None, fallback=True):
+        """Initialize ACP adapter for structured communication"""
+        try:
+            from siada.io.acp.legacy_adapter import create_io_adapter
+            from siada.foundation.logging import logger
+            
+            self.acp_adapter = create_io_adapter(
+                acp_enabled=True,
+                transport=transport,
+                fallback_to_console=fallback
+            )
+            
+            logger.info("ACP mode enabled")
+        except Exception as e:
+            from siada.foundation.logging import logger
+            logger.warning(f"Failed to initialize ACP: {e}")
+            if not fallback:
+                raise
+            self.acp_enabled = False
 
     def _initialize_printer(self):
         """Initialize the console printer."""
@@ -359,13 +407,105 @@ class InputOutput:
 
                     line = self.prompt_session.prompt(show, **prompt_kwargs)
                 else:
-                    line = input(show)
+                    # In non-fancy mode (ACP/programmatic input), use sys.stdin directly
+                    # This allows us to handle EOF gracefully
+                    import sys
+                    # Only print prompt on first attempt (not on retries after EOF)
+                    if not hasattr(self, '_waiting_for_input') or not self._waiting_for_input:
+                        print(show, end='', flush=True)
+                        self._waiting_for_input = True
+                    
+                    # Choose stdin reader: use StdinInterruptMonitor when active
+                    # (Windows ACP mode), otherwise read directly from sys.stdin.
+                    from siada.io.stdin_interrupt_monitor import is_monitor_active, get_stdin_monitor
+                    _use_monitor = is_monitor_active()
+                    def _read_line():
+                        if _use_monitor:
+                            ln = get_stdin_monitor().readline(timeout=0.1)
+                            if ln == "":
+                                return ""  # timeout, caller retries
+                            return ln
+                        return sys.stdin.readline()
+
+                    # Read multiline message with boundary markers
+                    line = _read_line()
+                    logger.debug(f"[IO.get_input] First line read from stdin: {repr(line[:200] if len(line) > 200 else line)}, length={len(line)}")
+                    if not line:  # EOF or empty
+                        raise EOFError("EOF when reading a line")
+                    
+                    # Check for message start marker
+                    if line.strip() == '<<<SIADA_MSG_START>>>':
+                        logger.info("[IO.get_input] Detected SIADA_MSG_START marker, reading multiline message...")
+                        # Read complete message until end marker
+                        # Use retry mechanism to handle incomplete data due to backpressure
+                        message_lines = []
+                        total_bytes = 0
+                        line_count = 0
+                        eof_retry_count = 0
+                        max_eof_retries = 50  # Max retries when encountering EOF (5 seconds total)
+                        
+                        while True:
+                            content_line = _read_line()
+                            if not content_line:  # EOF - data may not have arrived yet
+                                eof_retry_count += 1
+                                if eof_retry_count <= max_eof_retries:
+                                    logger.warning(f"[IO.get_input] EOF while reading multiline message (retry {eof_retry_count}/{max_eof_retries}). "
+                                                   f"Read {line_count} lines, {total_bytes} bytes so far. Waiting for more data...")
+                                    import time
+                                    time.sleep(0.1)  # Wait 100ms for more data to arrive
+                                    continue  # Retry reading
+                                else:
+                                    # Exceeded max retries, message is truly incomplete
+                                    logger.error(f"[IO.get_input] EOF after {max_eof_retries} retries! Message incomplete. "
+                                                 f"Read {line_count} lines, {total_bytes} bytes. Missing END marker.")
+                                    raise EOFError(f"EOF while reading multiline message after {max_eof_retries} retries")
+                            
+                            # Successfully read a line, reset EOF retry counter
+                            eof_retry_count = 0
+                            
+                            if content_line.strip() == '<<<SIADA_MSG_END>>>':
+                                logger.info(f"[IO.get_input] Detected SIADA_MSG_END marker. Total lines={line_count}, total_bytes={total_bytes}")
+                                break
+                            message_lines.append(content_line.rstrip('\n'))
+                            total_bytes += len(content_line)
+                            line_count += 1
+                            # Log progress for large messages
+                            if line_count % 1000 == 0:
+                                logger.debug(f"[IO.get_input] Reading progress: {line_count} lines, {total_bytes} bytes")
+                        line = '\n'.join(message_lines)
+                        logger.info(f"[IO.get_input] Multiline message assembled: total_length={len(line)}, first_100_chars={repr(line[:100])}, last_100_chars={repr(line[-100:] if len(line) > 100 else line)}")
+                    else:
+                        # No marker - in ACP mode, discard incomplete/malformed messages
+                        # and continue waiting for a properly formatted message
+                        if self.acp_enabled:
+                            logger.warning(f"[IO.get_input] Message without SIADA_MSG_START marker received, discarding: {repr(line[:100] if len(line) > 100 else line)}")
+                            # Don't reset _waiting_for_input, continue waiting for valid message
+                            continue
+                        else:
+                            # Non-ACP mode: treat as single line (backward compatibility)
+                            line = line.rstrip('\n')
+                            logger.debug(f"[IO.get_input] Single line input (no marker): length={len(line)}")
+                    
+                    # Successfully read input, reset flag
+                    self._waiting_for_input = False
 
                 # Check if we were interrupted by a file change
                 if self.interrupted:
                     line = line or ""
 
             except EOFError:
+                # In ACP mode (programmatic input), EOF is expected when no data is available yet
+                # Wait a bit and continue the loop to retry
+                if self.acp_enabled or not self.fancy_input:
+                    import time
+                    time.sleep(0.1)  # Wait 100ms for stdin to have data
+                    continue  # Retry reading input
+                else:
+                    # In interactive mode with fancy input, EOF means user wants to exit
+                    raise
+            except KeyboardInterrupt:
+                # Re-raise KeyboardInterrupt to allow controller to handle it
+                # Don't catch it here, let it propagate up
                 raise
             except Exception as err:
                 import traceback
@@ -597,16 +737,86 @@ class InputOutput:
         return res
 
     def print_error(self, message="", strip=True):
+        # Convert exception objects to strings for ACP
+        if isinstance(message, Exception):
+            error_str = f"{type(message).__name__}: {str(message)}"
+        else:
+            error_str = str(message) if message else ""
+        
+        # Send lifecycle event
+        self._send_lifecycle_event({
+            "type": "error",
+            "content": error_str,
+            "timestamp": time.time()
+        })
+        
+        # ACP mode
+        if self.acp_enabled and self.acp_adapter:
+            self.acp_adapter.error(error_str)
+        
+        # Traditional mode
         self.num_error_outputs += 1
         self.printer.error(message)
 
     def print_warning(self, message="", strip=True):
+        # ACP mode: only send lifecycle event, no additional message_chunk
+        if self.acp_enabled and self.acp_adapter:
+            # Send lifecycle event only
+            self._send_lifecycle_event({
+                "type": "warning",
+                "content": message,
+                "timestamp": time.time()
+            })
+            return  # Don't send additional messages or print to console
+        
+        # Traditional mode: print to console
+        self.printer.warning(message)
+
+    def tool_output(self, message="", bold=False):
+        """Print tool output message.
+        
+        In ACP mode, sends via acp_adapter.tool_output().
+        In traditional mode, prints via console printer.
+        """
+        if self.acp_enabled and self.acp_adapter:
+            self.acp_adapter.tool_output(message)
+            return
+        self.printer.output(message, bold=bold)
+
+    def tool_warning(self, message=""):
+        """Print tool warning message."""
+        if self.acp_enabled and self.acp_adapter:
+            self.acp_adapter.tool_output(message)
+            return
         self.printer.warning(message)
 
     def print_tool_result(self, message="", strip=True):
+        # ACP mode: send lifecycle event + tool output
+        # if self.acp_enabled and self.acp_adapter:
+        #     # Send lifecycle event for tool_result
+        #     self._send_lifecycle_event({
+        #         "type": "tool_result",
+        #         "content": message,
+        #         "timestamp": time.time()
+        #     })
+        #     self.acp_adapter.tool_output(message)
+        
+        # Traditional mode
         self.printer.result(message)
 
     def print_tool_call(self, message="", strip=True):
+        # # Send lifecycle event
+        # self._send_lifecycle_event({
+        #     "type": "tool_call",
+        #     "content": message,
+        #     "timestamp": time.time()
+        # })
+        
+        # # ACP mode
+        # if self.acp_enabled and self.acp_adapter:
+        #     self.acp_adapter.tool_output(message)
+        
+        # Traditional mode
         self.printer.call(message)
     
     def print_tool_call_all_stages(self, message="", final=False, append=True):
@@ -620,6 +830,42 @@ class InputOutput:
             append: Whether to append message to accumulated content (default True)
                    Set to False to replace content instead of appending
         """
+        # ACP mode: accumulate and send as streaming chunks + lifecycle events
+        if self.acp_enabled and self.acp_adapter:
+            # Initialize ACP tool call buffer and chunk counter if not exists
+            if not hasattr(self, '_acp_tool_buffer') or self._acp_tool_buffer is None:
+                self._acp_tool_buffer = ''
+                self._acp_tool_chunk_counter = 0
+            
+            # Accumulate content
+            if append:
+                self._acp_tool_buffer += message
+            else:
+                self._acp_tool_buffer = message
+            
+            # Send lifecycle event for tool_call_delta (incremental updates)
+            if message:
+                self._send_lifecycle_event({
+                    "type": "tool_use", 
+                    "delta": message,
+                    "chunk_index": self._acp_tool_chunk_counter,
+                    "is_final": final,
+                    "stream_end": final,
+                    "timestamp": time.time()
+                })
+                self._acp_tool_chunk_counter += 1
+            
+            # Send as tool_use chunk only if content changed or final
+            # if message or final:
+            #     self.acp_adapter.tool_output(message)
+            
+            # Clear buffer and counter on final
+            if final:
+                self._acp_tool_buffer = None
+                self._acp_tool_chunk_counter = 0
+            
+            return
+        
         # Initialize stage collector if not exists or if it was cleared
         if not hasattr(self, '_tool_call_stages') or self._tool_call_stages is None:
             self._tool_call_stages = {
@@ -641,8 +887,10 @@ class InputOutput:
         if content_changed or final:
             stages['content'] = new_content
             
-            # Display using Live + Panel if pretty mode
-            if self.pretty:
+            # Display using Live + Panel if pretty mode AND in a TTY terminal
+            # This prevents panel rendering in non-TTY environments (pipes, redirects, adapters)
+            # Use sys.stdout.isatty() for reliable TTY detection instead of console.is_terminal
+            if self.pretty and sys.stdout.isatty() and False:
                 from rich.live import Live
                 from rich.panel import Panel
                 # from rich.markdown import Markdown
@@ -696,7 +944,7 @@ class InputOutput:
                     self._tool_call_stages = None
                     self._panel_is_active = False  # Panel is no longer active
             else:
-                # Non-pretty mode: just print
+                # Non-TTY mode or non-pretty mode: just print plain text
                 self.console.print(message, sep="", end="")
                 
                 if final:
@@ -705,10 +953,45 @@ class InputOutput:
         
     def advance_tool_call_stage(self):
         """Advance to the next stage of tool call output (no-op for Live+Panel approach)"""
+        # ACP mode: send lifecycle event for stage advancement
+        if self.acp_enabled and self.acp_adapter:
+            self._send_lifecycle_event({
+                "type": "tool_call_stage_advance",
+                "timestamp": time.time()
+            })
+        
         # With Live+Panel, we just accumulate content, no need to track stages
         pass
 
     def print_info(self, *messages, bold=False):
+        # Send lifecycle event
+        message = " ".join(str(m) for m in messages)
+        # self._send_lifecycle_event({
+        #     "type": "info",
+        #     "content": message,
+        #     "bold": bold,
+        #     "timestamp": time.time()
+        # })
+        self._send_lifecycle_event({
+            "type": "tool_use", 
+            "delta": message,
+            "chunk_index": 0,
+            "is_final": True,
+            "stream_end": True,
+            "timestamp": time.time()
+        })
+        # self.acp_adapter.tool_output(message)
+        # # ACP mode
+        # if self.acp_enabled and self.acp_adapter:
+        #     from siada.io.acp.message_builder import SessionUpdateReason
+        #     msg = self.acp_adapter.builder.build_session_update(
+        #         reason=SessionUpdateReason.MESSAGE_CHUNK,
+        #         content=message,
+        #         metadata={"level": "info", "bold": bold}
+        #     )
+        #     self.acp_adapter._send_if_acp(lambda: msg)
+        
+        # Traditional mode
         self.printer.output(*messages, bold=bold)
 
     def get_assistant_mdstream(self):
@@ -720,9 +1003,14 @@ class InputOutput:
         mdStream = MarkdownRender(mdargs=mdargs)
         return mdStream
 
-    def assistant_output(self, message, pretty=None):
+    def assistant_output(self, message, pretty=None, stream_end=False, stream_start_id=None):
         if not message:
-            self.print_warning("Empty response received from LLM. Check your provider account?")
+            # self.print_warning("Empty response received from LLM. Check your provider account?")
+            return
+        
+        # ACP mode
+        if self.acp_enabled and self.acp_adapter:
+            self.acp_adapter.answer(message, stream_end=stream_end, stream_start_id=stream_start_id)
             return
 
         show_resp = message
@@ -744,8 +1032,8 @@ class InputOutput:
         """Set a one-time placeholder text for the next input prompt."""
         self.placeholder = placeholder
 
-    def print(self, message=""):
-        print(message)
+    def print(self, message="", file=None):
+        print(message, file=file)
 
     def llm_started(self):
         """Mark that the LLM has started processing, so we should ring the bell on next input"""
@@ -779,3 +1067,57 @@ class InputOutput:
             self.print_info(
                 "Multiline mode: Disabled. Alt-Enter inserts newline, Enter submits text"
             )
+    
+    # ========== ACP-specific methods ==========
+    
+    def start_acp_session(self):
+        """Start an ACP streaming session"""
+        if self.acp_enabled and self.acp_adapter:
+            self.acp_adapter.start_session()
+    
+    def end_acp_session(self, final_answer=None):
+        """End the ACP streaming session"""
+        if self.acp_enabled and self.acp_adapter:
+            self.acp_adapter.end_session(final_answer)
+    
+    def acp_thinking(self, message):
+        """Send ACP thinking message"""
+        if self.acp_enabled and self.acp_adapter:
+            self.acp_adapter.thinking(message)
+    
+    def acp_tool_call(self, tool_name, arguments, result=None):
+        """Send ACP tool call message"""
+        if self.acp_enabled and self.acp_adapter:
+            tool_call_id = f"call_{self.acp_adapter._tool_call_counter}"
+            self.acp_adapter.tool_call(tool_name, arguments, result, tool_call_id)
+    
+    def _send_lifecycle_event(self, event_data: dict):
+        """
+        Send lifecycle event to ACP
+        
+        Args:
+            event_data: Event data dictionary containing lifecycle information
+        """
+        # Only send in ACP mode
+        if not self.acp_enabled or not self.acp_adapter:
+            return
+        
+        try:
+            from siada.foundation.logging import logger
+            
+            # Use acp_adapter's builder to create custom message
+            message = self.acp_adapter.builder.build_session_update(
+                reason="lifecycle_event",
+                metadata=event_data
+            )
+            
+            # Send message
+            if self.acp_adapter.transport and self.acp_adapter.transport.is_connected:
+                # Use send_sync() directly, no event loop needed
+                self.acp_adapter.transport.send_sync(message)
+                logger.debug(f"Sent lifecycle event: {event_data.get('type', 'unknown')}")
+                
+        except Exception as e:
+            # Silent failure, don't break normal flow
+            from siada.foundation.logging import logger
+            logger.error(f"Failed to send lifecycle event: {e}")

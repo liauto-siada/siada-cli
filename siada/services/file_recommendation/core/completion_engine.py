@@ -170,7 +170,14 @@ class CompletionEngine:
                 elif isinstance(result, Exception):
                     # Log exception but continue
                     print(f"Search task failed: {result}")
-                    
+                    # Add IO to print errors for sending ACP messages
+                    try:
+                        from siada.io.io import InputOutput
+                        io = InputOutput.get_instance()
+                        if io:
+                            io.print_error(f"Search task failed: {result}")
+                    except:
+                        pass
         except asyncio.TimeoutError:
             # Handle timeout - return partial results
             # print(f"Search timeout after {self.config.search_timeout_ms}ms")

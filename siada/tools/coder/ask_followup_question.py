@@ -61,7 +61,7 @@ async def ask_followup_question(
 
     try:
         code_agent_context : CodeAgentContext = context.context
-        # 在线程中运行同步的prompt_ask以避免异步冲突
+        # Run synchronous prompt_ask in a thread to avoid async conflicts
         answer = await asyncio.to_thread(code_agent_context.session.get_input)
         
     except Exception as e:

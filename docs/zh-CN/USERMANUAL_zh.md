@@ -283,6 +283,33 @@ siada-cli --agent coder
 [AI 响应...]
 ```
 
+## 守护进程与定时任务
+
+### 守护进程
+
+启动 siada-cli 时会默认在后台开启守护进程，负责主动任务分析和定时任务的调度执行。
+
+**在非交互模式下停止和查看守护进程状态：**
+```bash
+# 停止守护进程
+siada-cli --stop-daemon
+
+# 查看守护进程状态
+siada-cli --daemon-status
+```
+
+### 定时任务
+
+直接用自然语言告诉 Siada 即可设置定时任务，守护进程会自动完成调度管理。
+
+**示例：**
+```
+> 每天早上九点半，执行按照 xxx 文档编译代码
+> 每天凌晨两点执行测试用例
+```
+
+Siada 会配置对应的定时任务并与你确认执行计划。
+
 ## 命令行选项
 
 ```bash
@@ -314,25 +341,27 @@ siada-cli --models
 
 # 启用检查点跟踪（用于会话恢复）
 siada-cli --checkpointing
+
+# 守护进程管理（非交互模式）
+siada-cli --stop-daemon     # 停止后台守护进程
+siada-cli --daemon-status   # 查看守护进程状态
 ```
 
 # 版本检查与更新
+```bash
 siada-cli --just-check-update  # 仅检查版本，不执行更新
 siada-cli --upgrade            # 立即升级到最新版本  
 siada-cli --check-update       # 启动时检查并提示更新（默认开启）
-、、、
+```
 
 ## 斜杠命令
 
 在 CLI 中，您可以使用斜杠命令来获得额外功能：
 
 - `/shell` - 切换到 shell 模式执行系统命令（输入 `exit` 或 `quit` 退出 shell 模式）
-- `/models` - 列出可用的 AI 模型
-- `/run <命令>` 或 `!<命令>` - 执行 shell 命令
+- `!<命令>` - 在不切换模式的情况下直接执行单条 shell 命令
+- `/model` - 显示模型选择器或切换模型（`/model <model_name>`）
 - `/editor` 或 `/edit` - 打开编辑器进行多行输入
-- `/multiline-mode` - 切换多行模式（改变 Enter 键和 Meta+Enter 键的行为）
-  - Enter 键换行
-  - Meta+Enter 键结束多行模式，将内容发送给模型
 - `/init [--force]` - 分析项目并创建定制的 siada.md 文件
 - `/restore <checkpoint_file>` - 从检查点文件恢复会话状态（需要启用检查点跟踪）
 - `/undo <checkpoint_file>` - 撤销检查点所做的更改，恢复到检查点创建之前的状态（需要启用检查点跟踪）
@@ -343,7 +372,7 @@ siada-cli --check-update       # 启动时检查并提示更新（默认开启�
 - `/lang` - 查看当前语言配置
   - `/lang zh` - 切换中文
   - `/lang en` - 切换英文
-- `/exit` 或 `/quit` - 退出应用程序
+- `/exit` - 退出应用程序
 
 ### Shell 模式使用说明
 

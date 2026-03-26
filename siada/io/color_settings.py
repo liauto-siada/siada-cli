@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from typing import Dict, ClassVar
+from typing import Dict, ClassVar, Optional
 
 
 @dataclass
 class ColorSettings:
-    user_input_color: str = None  # 使用默认颜色（白色）
+    user_input_color: str = None  # Use default color (white)
     tool_output_color: str = None
     tool_error_color: str = "red"
     tool_warning_color: str = "#FFA500"
@@ -52,7 +52,7 @@ class ColorSettings:
             "tool_warning_color": "#FFFF00", 
             "tool_result_color": "#6BA5E7",
             "tool_call_color": "#FFA500",
-            "assistant_output_color": "#FFFFFF", #"#6BA5E7",
+            "assistant_output_color": "#FFFFFF",
             "completion_menu_color": None,
             "completion_menu_bg_color": None,
             "completion_menu_current_color": None,
@@ -72,7 +72,7 @@ class ColorSettings:
             "tool_warning_color": "#FFA500",
             "tool_result_color": "#008000",
             "tool_call_color": "#FF8C00",
-            "assistant_output_color": "blue", 
+            "assistant_output_color": "black", 
             "completion_menu_color": None,
             "completion_menu_bg_color": None,
             "completion_menu_current_color": None,
@@ -88,8 +88,26 @@ class ColorSettings:
     }
     
     @classmethod
-    def from_theme(cls, theme_name: str) -> 'ColorSettings':
-        """Create ColorSettings instance from theme name"""
+    def from_theme(cls, theme_name: str, auto_detect: bool = False) -> 'ColorSettings':
+        """
+        Create ColorSettings instance from theme name.
+        
+        Args:
+            theme_name: Theme name ('auto', 'dark', 'light', 'default')
+            auto_detect: If True and theme_name is 'auto', detect system theme
+        
+        Returns:
+            ColorSettings instance
+        """
+        # Handle auto theme detection
+        if theme_name == 'auto' or auto_detect:
+            from siada.io.system_theme_detector import SystemThemeDetector
+            detected_theme = SystemThemeDetector.detect_theme()
+            if detected_theme in ('dark', 'light'):
+                theme_name = detected_theme
+            else:
+                theme_name = 'default'
+        
         if theme_name not in cls.THEMES:
             raise ValueError(f"Unknown theme: {theme_name}. Available themes: {list(cls.THEMES.keys())}")
         

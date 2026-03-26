@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "description": "Blacklist regex patterns for @-command paths that should be treated as plain text (derived from log @ symbol analysis). All regexes are applied to the path part after '@'. Each pattern includes a short description explaining typical examples and why it should NOT be resolved as a workspace file.",
+  "patterns": [
+    {
+      "name": "timestamp_file_or_id",
+      "regex": "^\\d{11,}(\\.txt(\\.gz)?)?$",
+      "description": "Android/Systemd-style timestamp IDs or timestamp-based log filenames such as 1765789849649, 1765789849649.txt or 1765789849649.txt.gz. These usually come from logs and are not repo file paths."
+    },
+    {
+      "name": "systemd_service_unit",
+      "regex": "^.+\\.service$",
+      "description": "Systemd service unit names like configfs.service or systemd-journald.service. These are unit identifiers, not files in the current project."
+    },
+    {
+      "name": "unix_domain_socket",
+      "regex": "^/dev/socket/.*$",
+      "description": "Unix domain socket paths under /dev/socket/ (for example /dev/socket/logdw). These refer to runtime sockets on the host system, not source files."
+    },
+    {
+      "name": "audio_bus_tag",
+      "regex": "^:BUS[0-9A-F]{2}_.+$",
+      "description": "Audio bus or media tags such as :BUS00_MEDIA or :BUS01_SPKR. These are logical bus identifiers, not file system paths."
+    },
+    {
+      "name": "resolution_tag",
+      "regex": "^\\d+w_\\d+h_\\dc$",
+      "description": "Resolution markers like 600w_800h_1c that encode width/height/channels (e.g. image or video formats). They are metadata strings, not filenames."
+    },
+    {
+      "name": "irq_or_controller_id",
+      "regex": "^[0-9a-fA-F]+-\\d+$",
+      "description": "IRQ/controller-style IDs such as b220000-9 or 1a2b-3, commonly seen in low-level logs. These represent hardware identifiers, not project file paths."
+    }
+  ]
+}

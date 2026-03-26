@@ -1,38 +1,79 @@
+# ── Virtual environments ──────────────────────────────────────────────────────
 /venv
-.idea
-__pycache__
-# logs/
-**/*.log
-*.pyc
-dist/
-*.tag.gz
-# Ignore test files
-test_get_git_diff.py
-# Ignore vscode configuration folder
-.vscode/*
-# Ignore runtime result logs
-output.jsonl
+.venv/
+uv.lock
 
-# Ignore all .siada directories and their contents
-**/.siada*
-.cca/
+# ── Python build & cache ──────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+dist/
+build/
+*.egg-info/
+*.tar.gz
+
+# ── Logs & runtime output ─────────────────────────────────────────────────────
+logs/
+**/*.log
+output.jsonl
+*.traj
+
+# ── IDE / editor ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
 .DS_Store
 
-# Ignore screenshots directory
-screenshots/
+# ── Environment variables ─────────────────────────────────────────────────────
+.env
 
-.vscode/*
-patch_diff_analysis.ipynb
-# *.csv
-patch_analysis_summary.txt
+# ── Runtime / session state ───────────────────────────────────────────────────
+**/.siada*/
+.cca/
+**/.adk/
+siada.md
+
+# ── Frontend build artefacts ─────────────────────────────────────────────────
+node_modules/
+bundle/*
+!siada_cli_ui/bundle/
+!siada_cli_ui/bundle/siada-ui.js
+
+# ── JSON build artefacts (with explicit overrides) ────────────────────────────
+benchmark/**/*.json
+test_checker/*.json
+siada/agent_hub/a2a/a2a_agents/*/agent.json
+!siada/agent_hub/a2a/a2a_agents/*/agent.json.template
+!siada/services/handle_at_command/at_command_invalid_patterns.json
+!siada_cli_ui/package.json
+
+# ── Benchmark / scratch ───────────────────────────────────────────────────────
+benchmark/logs
+benchmark_bp
+screenshots/
+*.ipynb
 *.txt
-*.json
+patch_analysis_summary.txt
+
+# ── Internal test scripts (not for open-source distribution) ─────────────────
 tests/services/test_behavior_fix_result_check.py
 tests/services/test_bug_fix_agent_top_k_rules.py
 tests/services/test_build_enhanced_feedback.py
 tests/services/demo_top_k_rules_guidance.py
 test_bug_fix_agent_mock.py
 test_bug_fix_agent.py
-benchmark/logs
-*.traj
-benchmark_bp
+test_get_git_diff.py
+test_checker/
+scripts/view_logs.sh
+
+# ── Internal example / doc files ─────────────────────────────────────────────
+examples/acp_demo.py
+examples/acp_io_demo.py
+examples/agent_lifecycle_example.py
+examples/draw_circle.py
+examples/integration_test.py
+examples/README.md
+examples/simple_acp_demo.py
+siada_cli_ui/examples/
+siada_cli_ui/tests/error-handling.test.ts
+siada_cli_ui/tests/README.md
+siada_internal/

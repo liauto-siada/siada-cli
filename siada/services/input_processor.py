@@ -86,7 +86,7 @@ def _process_image_result_filter(item: Dict[str, Any]) -> Dict[str, Any]:
 
 # List of all processing functions to be applied
 PROCESSING_FUNCTIONS: List[Callable[[Dict[str, Any]], Dict[str, Any]]] = [
-    _process_image_result_filter,
+    # _process_image_result_filter,
     # Future processing functions can be added here
 ]
 

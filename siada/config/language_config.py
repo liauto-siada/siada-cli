@@ -5,7 +5,7 @@ This module defines language mappings and default settings.
 """
 
 # Default language setting
-DEFAULT_LANGUAGE = "en"
+DEFAULT_LANGUAGE = None
 
 # Language mapping table
 # Maps user input to standardized language codes

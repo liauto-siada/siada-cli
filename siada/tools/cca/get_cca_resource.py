@@ -44,7 +44,7 @@ def get_cca_resource():
     the cca_agent resources to the project's .cca directory.
     """
     # Configuration
-    repo_url = ""
+    repo_url = "https://gitlab.chehejia.com/ai-system/cockpit-create-agent.git"
     branch = "develop"
     project_root = _find_project_root()
     

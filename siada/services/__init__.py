@@ -11,8 +11,6 @@ from .handle_at_command import (
     handle_at_command
 )
 
-from .mcp_service import mcp_service
-
 from .file_recommendation import (
     FileRecommendationEngine,
     CompletionConfig,
@@ -38,7 +36,6 @@ __all__ = [
     'DEFAULT_COMPLETION_CONFIG',
     'GitService',
     'GitServiceError',
-    'FileSession'
+    'FileSession',
     'DEFAULT_COMPLETION_CONFIG',
-    'mcp_service'
 ]

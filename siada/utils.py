@@ -12,6 +12,7 @@ from pathlib import Path
 from textwrap import indent
 from typing import Any, Dict, Union, List
 
+from siada.foundation.constants import SIADA_HOME
 from siada.foundation.logging import logger
 
 
@@ -207,7 +208,7 @@ class DirectoryUtils:
         Returns:
             Path to the global temp directory
         """
-        siada_temp_dir = Path.home() / ".siada-cli" / "data" / "tmp"
+        siada_temp_dir = SIADA_HOME / "data" / "tmp"
         # Ensure directory exists
         siada_temp_dir.mkdir(parents=True, exist_ok=True)
         return str(siada_temp_dir)
@@ -271,7 +272,7 @@ class DirectoryUtils:
         Returns:
             Path to the siada configuration directory
         """
-        config_dir = Path.home() / ".siada-cli"
+        config_dir = SIADA_HOME
         # Ensure directory exists
         config_dir.mkdir(parents=True, exist_ok=True)
         return str(config_dir)
@@ -283,7 +284,7 @@ class DirectoryUtils:
         Returns:
             Path to the siada data directory
         """
-        data_dir = Path.home() / ".siada-cli" / "data"
+        data_dir = SIADA_HOME / "data"
         # Ensure directory exists
         data_dir.mkdir(parents=True, exist_ok=True)
         return str(data_dir)

@@ -350,6 +350,35 @@ def format_accessibility_tree(obs: Dict[str, Any]) -> str:
         return ""
 
 
+def _find_node_by_bid(nodes: list, target_bid: str) -> Optional[Dict[str, Any]]:
+    """Find a node by its bid in the accessibility tree.
+    
+    Args:
+        nodes: List of accessibility tree nodes
+        target_bid: The bid to search for
+        
+    Returns:
+        The node with the matching bid, or None if not found
+    """
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        
+        # Check if this node has the target bid
+        node_bid = node.get('browsergym_id', '') or node.get('bid', '')
+        if str(node_bid) == str(target_bid):
+            return node
+        
+        # Recursively search children
+        children = node.get('children', [])
+        if children:
+            found = _find_node_by_bid(children, target_bid)
+            if found:
+                return found
+    
+    return None
+
+
 def _format_axtree_from_string(axtree_str: str) -> str:
     """Format accessibility tree from string representation.
     
@@ -396,6 +425,17 @@ def _format_nodes_recursive(nodes, formatted_lines, counter, depth, element_prop
         counter: Counter for node numbering (list with single element)
         depth: Current depth for indentation
         element_props: Dictionary of element properties for bid mapping
+    
+    Note:
+        The following node roles are filtered out to reduce tree size:
+        - Text rendering: InlineTextBox, StaticText, LineBreak
+        - Empty/ignored: none, ignored
+        - Generic containers: generic
+        - Text styling: strong, emphasis
+        - Structural containers: paragraph
+        - List containers: listitem
+        
+        Children of filtered nodes are still processed and may appear in the output.
     """
     try:
         indent = "  " * depth
@@ -409,24 +449,24 @@ def _format_nodes_recursive(nodes, formatted_lines, counter, depth, element_prop
             name = node.get('name', '')
             tag = node.get('tag', '')
             
-            # 直接使用browsergym_id作为bid（修复核心问题）
+            # Use browsergym_id directly as bid (fix core issue)
             bid = node.get('browsergym_id', '')
             
-            # 如果没有browsergym_id，尝试其他方式（保持兼容性）
+            # If no browsergym_id, try other methods (maintain compatibility)
             if not bid:
-                # 尝试从旧的bid字段获取
+                # Try to get from the old bid field
                 bid = node.get('bid', '')
                 
-                # 如果还是没有，尝试从element_props中查找
+                # If still not found, try searching in element_props
                 if not bid and element_props:
                     node_id = node.get('nodeId') or node.get('backendNodeId')
                     if node_id and str(node_id) in element_props:
-                        # 检查element_props中是否有对应的browsergym_id
+                        # Check if element_props contains the corresponding browsergym_id
                         element_data = element_props.get(str(node_id), {})
                         if isinstance(element_data, dict) and 'browsergym_id' in element_data:
                             bid = str(element_data['browsergym_id'])
                         else:
-                            # 作为最后的备选方案使用nodeId
+                            # Use nodeId as the last fallback
                             bid = str(node_id)
             
             # Handle complex role structure
@@ -437,6 +477,30 @@ def _format_nodes_recursive(nodes, formatted_lines, counter, depth, element_prop
                     role = role.get('value', 'unknown')
                 else:
                     role = 'unknown'
+            
+            # Skip non-interactive nodes to reduce tree size
+            # BALANCED LIST: Skip nodes that don't provide actionable information
+            # while preserving their children for inspection
+            SKIP_ROLES = {
+                # Text rendering nodes (never interactive, text already visible in parent)
+                'InlineTextBox', 'StaticText', 'LineBreak',
+                # Empty/ignored nodes
+                'none', 'ignored',
+                # Generic container nodes (no semantic meaning, children are processed)
+                'generic',
+                # Text styling nodes (content is in child StaticText)
+                'strong', 'emphasis',
+                # Structural containers (no direct interaction, children have the real content)
+                'paragraph',
+                # List containers (no actionable info without content, children are processed)
+                'listitem',
+            }
+            role_str = str(role)
+            if role_str in SKIP_ROLES:
+                # Still process children but skip outputting this node
+                if 'children' in node and node['children']:
+                    _format_nodes_recursive(node['children'], formatted_lines, counter, depth, element_props)
+                continue
             
             # Handle complex name structure
             if isinstance(name, dict):
@@ -464,12 +528,14 @@ def _format_nodes_recursive(nodes, formatted_lines, counter, depth, element_prop
             if bid:
                 line_parts.append(f"{{bid: '{str(bid)}'}}")
             
+            has_children = 'children' in node and node['children']
+            
             formatted_line = indent + " ".join(line_parts)
             formatted_lines.append(formatted_line)
             counter[0] += 1
             
             # Process children if they exist
-            if 'children' in node and node['children']:
+            if has_children:
                 _format_nodes_recursive(node['children'], formatted_lines, counter, depth + 1, element_props)
                 
     except Exception as e:
@@ -490,7 +556,7 @@ def extract_bids_from_observation(obs: Dict[str, Any]) -> list[str]:
     try:
         bids = []
         
-        # 优先从accessibility tree object中提取browsergym_id
+        # Prefer extracting browsergym_id from accessibility tree object
         if 'axtree_object' in obs and obs['axtree_object']:
             axtree_obj = obs['axtree_object']
             if isinstance(axtree_obj, dict) and 'nodes' in axtree_obj:
@@ -499,21 +565,21 @@ def extract_bids_from_observation(obs: Dict[str, Any]) -> list[str]:
                     def extract_browsergym_ids(nodes_list):
                         for node in nodes_list:
                             if isinstance(node, dict):
-                                # 优先使用browsergym_id
+                                # Prefer using browsergym_id
                                 browsergym_id = node.get('browsergym_id')
                                 if browsergym_id:
                                     bids.append(str(browsergym_id))
                                 
-                                # 递归处理子节点
+                                # Recursively process child nodes
                                 children = node.get('childIds', [])
                                 if children:
-                                    # 在nodes中查找子节点
+                                    # Find child nodes in nodes
                                     child_nodes = [n for n in nodes_list if n.get('nodeId') in children]
                                     extract_browsergym_ids(child_nodes)
                     
                     extract_browsergym_ids(nodes)
         
-        # 备选方案：从extra_element_properties提取
+        # Fallback: extract from extra_element_properties
         if not bids and 'extra_element_properties' in obs and obs['extra_element_properties']:
             element_props = obs['extra_element_properties']
             if isinstance(element_props, dict):
@@ -521,26 +587,26 @@ def extract_bids_from_observation(obs: Dict[str, Any]) -> list[str]:
                     if isinstance(prop_data, dict) and 'browsergym_id' in prop_data:
                         bids.append(str(prop_data['browsergym_id']))
                 
-                # 如果没有browsergym_id，使用keys作为备选
+                # If no browsergym_id, use keys as fallback
                 if not bids:
                     bids.extend(element_props.keys())
         
-        # 最后的备选方案：从legacy axtree field提取
+        # Last fallback: extract from legacy axtree field
         if not bids and 'axtree' in obs and obs['axtree']:
             axtree_str = str(obs['axtree'])
             import re
-            # 优先查找browsergym_id
+            # Prefer finding browsergym_id
             browsergym_id_pattern = r'browsergym_id["\']:\s*["\']([^"\']+)["\']'
             matches = re.findall(browsergym_id_pattern, axtree_str)
             if matches:
                 bids.extend(matches)
             else:
-                # 备选：查找bid属性
+                # Fallback: find bid attribute
                 bid_pattern = r'bid="([^"]+)"'
                 matches = re.findall(bid_pattern, axtree_str)
                 bids.extend(matches)
         
-        # 去重并返回
+        # Deduplicate and return
         return list(set(bids))
         
     except Exception as e:
@@ -616,12 +682,6 @@ def create_browsergym_result(obs: Dict[str, Any], success: bool = True, error: O
             # Convert screenshot to base64 if available
             if 'screenshot' in obs and obs['screenshot'] is not None:
                 result["screenshot"] = image_to_base64_url(obs['screenshot'])
-                
-                # Save screenshot to file if conversion was successful
-                if result["screenshot"] and success:
-                    # Extract base64 data (remove data URL prefix if present)
-                    screenshot_data = result["screenshot"].split(",")[-1] if "," in result["screenshot"] else result["screenshot"]
-                    save_screenshot_to_file(screenshot_data, action)
             
             # Extract accessibility tree (try both old and new formats)
             if 'axtree' in obs:
@@ -676,17 +736,17 @@ def save_screenshot_to_file(base64_data: str, action: str = "screenshot") -> Opt
         保存的文件路径，如果保存失败则返回None
     """
     try:
-        # 创建screenshots目录
+        # Create screenshots directory
         screenshots_dir = "screenshots"
         if not os.path.exists(screenshots_dir):
             os.makedirs(screenshots_dir)
         
-        # 生成文件名：时间戳_操作类型.png
+        # Generate filename: timestamp_action_type.png
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}_{action}.png"
         filepath = os.path.join(screenshots_dir, filename)
         
-        # 解码base64数据并保存
+        # Decode base64 data and save
         image_data = base64.b64decode(base64_data)
         with open(filepath, 'wb') as f:
             f.write(image_data)

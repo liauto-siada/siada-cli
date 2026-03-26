@@ -5,16 +5,79 @@ Core search functionality using ripgrep binary.
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import stat
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-from agents import function_tool
+from agents import function_tool, RunContextWrapper
 
+from siada.foundation.code_agent_context import CodeAgentContext
 from siada.tools.coder.observation.observation import FunctionCallResult
+from siada.tools.resolve_cwd import resolve_cwd
+from siada.utils import DirectoryUtils
+from siada.foundation.context import get_context_var
+
+SEARCH_DOCS="""
+    Perform high-performance regex search across files using ripgrep.
+    
+    This function provides a convenient interface to search for patterns in files
+    within a specified directory. It uses ripgrep for fast searching and returns
+    formatted results with context lines for better readability.
+    
+    Args:
+        cwd (str): Current working directory used as the base for calculating
+                  relative file paths in the output. This helps make the results
+                  more readable by showing paths relative to the project root.
+        directory_path (str): The target directory to search in. Can be an absolute
+                             or relative path. All files matching the file_pattern
+                             within this directory (and subdirectories) will be searched.
+        regex (str): Regular expression pattern to search for. Uses Rust regex syntax
+                    which is similar to PCRE. Supports advanced features like lookahead,
+                    lookbehind, and Unicode character classes.
+        file_pattern (str, optional): Glob pattern to filter which files to search.
+                                     Defaults to "*" (all files). Examples:
+                                     - "*.py" for Python files only
+                                     - "*.{js,ts}" for JavaScript and TypeScript files
+                                     - "test_*.py" for Python test files
+        
+    Returns:
+        str: Formatted search results containing:
+             - Summary line with total number of matches found
+             - For each file with matches:
+               - Relative file path
+               - Each match with surrounding context lines
+               - Line numbers and column positions
+             - Results are limited to MAX_RESULTS (300) for performance
+             - Returns "No results found" if no matches are discovered
+        
+    Raises:
+        RuntimeError: If the ripgrep binary cannot be found or executed.
+                     This can happen if ripgrep is not installed or the binary
+                     path is not properly configured.
+        
+    Example:
+        >>> results = regex_search_files(
+        ...     cwd="/project/root",
+        ...     directory_path="siada",
+        ...     regex=r"def\\s+(\\w+)",
+        ...     file_pattern="*.py"
+        ... )
+        >>> print(results)
+        Found 15 results.
+        
+        siada/main.py
+        │----
+        │class MyClass:
+        │    def my_function(self):
+        │        pass
+        │----
+    """
+
 
 # Try to import importlib.resources for packaged environments
 try:
@@ -45,16 +108,31 @@ class RipgrepSearchResult(FunctionCallResult):
     def __init__(self, search_results: List[SearchResult], cwd: str):
         self.search_results = search_results
         self.cwd = cwd
+        # Stable id for persistence across multiple .content property reads
+        self.call_id = str(uuid.uuid4())
+        self._content_cache: Optional[str] = None
         # super().__init__(content=content)
 
 
     @property
     def content(self) -> str:
         """Generate content dynamically from search results."""
-        if self.search_results:
-            return RipgrepSearcher.format_results(self.search_results, self.cwd)
-        else:
-            return "No results found"
+        if self._content_cache is not None:
+            return self._content_cache
+
+        if not self.search_results:
+            self._content_cache = "No results found"
+            return self._content_cache
+
+        raw_content = RipgrepSearcher.format_results(self.search_results, self.cwd)
+
+        # Apply tool output truncation strategy 
+        self._content_cache = _truncate_tool_output_if_needed(
+            content=raw_content,
+            call_id=self.call_id,
+            cwd=self.cwd,
+        )
+        return self._content_cache
 
     def format_for_display(self):
         if self.search_results:
@@ -369,69 +447,150 @@ class RipgrepSearcher:
         return '\n'.join(output_lines).rstrip()
 
 
+# ---- Tool output truncation --------------------------------
+
+# Default threshold: 200KB ( 4 chars~= 1 token in english)
+DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD = 200_000
+# Default lines to keep after truncation
+DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES = 1000
+# Force wrap width for ultra-long single line outputs
+WRAP_WIDTH = 120
+
+
+def _safe_output_file_name(call_id: str) -> str:
+    """Create a safe file name from call_id."""
+    base = os.path.basename(call_id)
+    base = re.sub(r"[^a-zA-Z0-9._-]+", "_", base)
+    if not base:
+        base = "tool_call"
+    return f"{base}.output"
+
+
+def _get_dynamic_truncation_threshold(static_threshold: int) -> int:
+    """Compute a dynamic threshold if context info is available.
+
+    Mirrors gemini-cli logic:
+      threshold = min(4 * (tokenLimit - usedTokens), staticThreshold)
+
+    Here we try to read from global contextvars set by the interaction loop.
+    """
+    try:
+        # set by conversation_turn._print_context_usage (best-effort)
+        used_tokens = int(get_context_var("last_prompt_token_count", 0) or 0)
+        token_limit = int(get_context_var("model_context_window", 0) or 0)
+    except Exception:
+        return static_threshold
+
+    if token_limit <= 0:
+        return static_threshold
+
+    remaining = max(0, token_limit - used_tokens)
+    dynamic = 4 * remaining
+    return min(dynamic, static_threshold)
+
+
+def _wrap_long_lines_if_needed(lines: List[str], truncate_lines: int) -> List[str]:
+    """If the output has too few lines to truncate by lines, force-wrap long lines."""
+    # if len(lines) > truncate_lines:
+    #     return lines
+    
+    has_long_line = any(len(line) > WRAP_WIDTH for line in lines)
+    if not has_long_line:
+        return lines
+    
+    wrapped: List[str] = []
+    for line in lines:
+        if len(line) > WRAP_WIDTH:
+            for i in range(0, len(line), WRAP_WIDTH):
+                wrapped.append(line[i : i + WRAP_WIDTH])
+        else:
+            wrapped.append(line)
+    return wrapped
+
+
+def _truncate_tool_output_if_needed(content: str, call_id: str, cwd: str) -> str:
+    """Truncate oversized tool output while preserving head+tail and persisting full output."""
+    # Allow env overrides for testing / tuning
+    static_threshold = int(
+        os.environ.get(
+            "SIADA_TRUNCATE_TOOL_OUTPUT_THRESHOLD",
+            DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD,
+        )
+    )
+    truncate_lines = int(
+        os.environ.get(
+            "SIADA_TRUNCATE_TOOL_OUTPUT_LINES",
+            DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES,
+        )
+    )
+
+    # layer 2 (dynamic threshold) - best effort
+    threshold = _get_dynamic_truncation_threshold(static_threshold)
+
+    if static_threshold <= 0 or truncate_lines <= 0:
+        return content
+
+    if len(content) <= threshold:
+        return content
+
+    # Step 2: split and optionally wrap long lines (when too few lines to truncate)
+    lines = content.splitlines()
+    lines = _wrap_long_lines_if_needed(lines, truncate_lines)
+
+    # Step 3: keep head 20% + tail 80%
+    head = max(1, truncate_lines // 5)  # 20%
+    beginning = lines[:head]
+    end = lines[-(truncate_lines - head) :] if len(lines) > head else []
+
+    truncated_content = (
+        "\n".join(beginning)
+        + "\n... [CONTENT TRUNCATED] ...\n"
+        + "\n".join(end)
+    ).rstrip()
+
+    # Step 4: persist full content
+    project_temp_dir = DirectoryUtils.get_project_temp_dir(cwd)
+    output_file = os.path.join(project_temp_dir, _safe_output_file_name(call_id))
+    try:
+        Path(project_temp_dir).mkdir(parents=True, exist_ok=True)
+        Path(output_file).write_text(content, encoding="utf-8", errors="replace")
+    except Exception:
+        # If persistence fails, still return truncated content
+        output_file = ""
+
+    # Step 5: build return message
+    file_hint = (
+        f"The full output has been saved to: {output_file}\n\n"
+        if output_file
+        else ""
+    )
+
+    return (
+        "Tool output was too large and has been truncated.\n"
+        + file_hint
+        + "To read the complete output, use the read_file tool with the absolute file path above.\n"
+        + "For large files, you can use the offset and limit parameters to read specific sections:\n"
+        + "- read_file tool with offset=0, limit=100 to see the first 100 lines\n"
+        + "- read_file tool with offset=N to skip N lines from the beginning\n"
+        + "- read_file tool with limit=M to read only M lines at a time\n\n"
+        + "The truncated output below shows the beginning and end of the content.\n"
+        + "The marker '... [CONTENT TRUNCATED] ...' indicates where content was removed.\n\n"
+        + "Truncated part of the output:\n"
+        + truncated_content
+    )
+
+
 @function_tool(
-    name_override="regex_search_files"
+    name_override="regex_search_files", description_override=SEARCH_DOCS
 )
 def regex_search_files(
+    context: RunContextWrapper[CodeAgentContext],
     cwd: str,
     directory_path: str,
     regex: str,
     file_pattern: str = "*"
 ) -> FunctionCallResult:
-    """
-    Perform high-performance regex search across files using ripgrep.
-    
-    This function provides a convenient interface to search for patterns in files
-    within a specified directory. It uses ripgrep for fast searching and returns
-    formatted results with context lines for better readability.
-    
-    Args:
-        cwd (str): Current working directory used as the base for calculating
-                  relative file paths in the output. This helps make the results
-                  more readable by showing paths relative to the project root.
-        directory_path (str): The target directory to search in. Can be an absolute
-                             or relative path. All files matching the file_pattern
-                             within this directory (and subdirectories) will be searched.
-        regex (str): Regular expression pattern to search for. Uses Rust regex syntax
-                    which is similar to PCRE. Supports advanced features like lookahead,
-                    lookbehind, and Unicode character classes.
-        file_pattern (str, optional): Glob pattern to filter which files to search.
-                                     Defaults to "*" (all files). Examples:
-                                     - "*.py" for Python files only
-                                     - "*.{js,ts}" for JavaScript and TypeScript files
-                                     - "test_*.py" for Python test files
-        
-    Returns:
-        str: Formatted search results containing:
-             - Summary line with total number of matches found
-             - For each file with matches:
-               - Relative file path
-               - Each match with surrounding context lines
-               - Line numbers and column positions
-             - Results are limited to MAX_RESULTS (300) for performance
-             - Returns "No results found" if no matches are discovered
-        
-    Raises:
-        RuntimeError: If the ripgrep binary cannot be found or executed.
-                     This can happen if ripgrep is not installed or the binary
-                     path is not properly configured.
-        
-    Example:
-        >>> results = regex_search_files(
-        ...     cwd="/project/root",
-        ...     directory_path="siada",
-        ...     regex=r"def\\s+(\\w+)",
-        ...     file_pattern="*.py"
-        ... )
-        >>> print(results)
-        Found 15 results.
-        
-        siada/main.py
-        │----
-        │class MyClass:
-        │    def my_function(self):
-        │        pass
-        │----
-    """
+
+    effective_cwd = resolve_cwd(context, cwd)
     searcher = RipgrepSearcher()
-    return searcher.search_in_files(directory_path, regex, file_pattern, cwd)
+    return searcher.search_in_files(directory_path, regex, file_pattern, effective_cwd)

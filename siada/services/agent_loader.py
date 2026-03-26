@@ -9,8 +9,7 @@ from typing import Dict, Type
 import yaml
 from agents import Agent
 
-from siada.foundation.logging import logger as logging
-
+from siada.foundation.logging import logger
 
 def load_agent_config() -> Dict[str, Dict]:
     """
@@ -56,7 +55,7 @@ def get_agent_class_path(agent_name: str) -> str:
     start_time = time.time()
     agent_configs = load_agent_config()
     elapsed = time.time() - start_time
-    logging.info(f"[agent_loader] Agent config loaded (took {elapsed:.3f}s)")
+    logger.info(f"[agent_loader] Agent config loaded (took {elapsed:.3f}s)")
 
     # Find the corresponding Agent configuration
     agent_config = agent_configs.get(normalized_name)
@@ -78,7 +77,7 @@ def get_agent_class_path(agent_name: str) -> str:
     if not class_path:
         raise ValueError(f"Agent '{agent_name}' is not implemented yet")
 
-    logging.info(f"[agent_loader] Agent class path: {class_path}")
+    logger.info(f"[agent_loader] Agent class path: {class_path}")
     return class_path
 
 

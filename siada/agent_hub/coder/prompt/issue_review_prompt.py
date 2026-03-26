@@ -7,7 +7,7 @@ from .base.capabilities import get_capabilities_section
 from .base.rules import get_rules_section
 
 
-def get_system_prompt(cwd: str = "/default/path", ) -> str:
+def get_system_prompt(cwd: str = "/default/path", enable_parallel_tool_calls: bool = False) -> str:
     """
     生成系统提示词
 
@@ -108,7 +108,7 @@ As a code reviewer, you are expected to enforce the highest standards with stric
 
     return f"""{intro}
 
-{get_tool_use_section()}
+{get_tool_use_section(enable_parallel_tool_calls)}
 
 {get_capabilities_section(cwd)}
 

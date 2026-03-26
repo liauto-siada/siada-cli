@@ -24,7 +24,8 @@
       "max_tokens": 最大输出token数（可选）,
       "supports_images": 是否支持图片（可选，默认false）,
       "supports_prompt_cache": 是否支持提示缓存（可选，默认false）,
-      "supports_extra_params": ["额外参数列表"]（可选）
+      "supports_extra_params": ["额外参数列表"]（可选）,
+      "parallel_tool_calls": 是否支持并行工具调用（可选，默认null）
     }
   ]
 }
@@ -42,7 +43,8 @@
       "max_tokens": 4096,
       "supports_images": true,
       "supports_prompt_cache": false,
-      "supports_extra_params": []
+      "supports_extra_params": [],
+      "parallel_tool_calls": true
     },
     {
       "model_name": "openai/gpt-3.5-turbo",
@@ -50,7 +52,8 @@
       "max_tokens": 4096,
       "supports_images": false,
       "supports_prompt_cache": false,
-      "supports_extra_params": []
+      "supports_extra_params": [],
+      "parallel_tool_calls": true
     },
     {
       "model_name": "anthropic/claude-3-opus",
@@ -58,7 +61,8 @@
       "max_tokens": 4096,
       "supports_images": true,
       "supports_prompt_cache": true,
-      "supports_extra_params": []
+      "supports_extra_params": [],
+      "parallel_tool_calls": true
     },
     {
       "model_name": "deepseek/deepseek-chat",
@@ -66,7 +70,8 @@
       "max_tokens": 8192,
       "supports_images": false,
       "supports_prompt_cache": false,
-      "supports_extra_params": []
+      "supports_extra_params": [],
+      "parallel_tool_calls": false
     }
   ]
 }
@@ -112,12 +117,39 @@
 - **默认值**：`false`
 - **示例**：`true`, `false`
 
+#### parallel_tool_calls（可选）
+- **类型**：布尔值
+- **说明**：模型是否支持并行工具调用。启用后，模型可以在单次响应中同时调用多个独立的工具，提升执行效率。对于 Claude 模型，该参数会通过 prompt 级别控制并行行为；对于 OpenAI/Gemini 等模型，该参数会直接传递给 API
+- **默认值**：`null`（不传递该参数）
+- **推荐值**：
+  - Claude、GPT、Gemini 系列：`true`
+  - DeepSeek、Kimi、GLM、MiniMax 系列：`false`
+- **示例**：`true`, `false`
+
 #### supports_extra_params（可选）
 - **类型**：字符串数组
 - **说明**：模型支持的额外参数列表
 - **默认值**：`null`
 - **可选值**：`["reasoning_effort"]`, `["thinking_tokens"]`
 - **示例**：`["reasoning_effort"]`
+
+#### default_thinking_tokens（可选）
+- **类型**：整数
+- **说明**：模型默认的推理 token 预算。设置后，模型启动时将自动开启推理/思考模式，无需通过命令行参数手动开启
+- **默认值**：`null`（不开启推理）
+- **特殊值**：
+  - `-1`：自适应推理模式（adaptive thinking），适用于 Claude 4.6+ 等支持自适应推理的模型
+  - 正整数（如 `1024`）：固定预算推理模式（budget thinking），适用于 Claude 4.5 等模型
+- **前置条件**：`supports_extra_params` 中需包含 `"thinking_tokens"`
+- **示例**：`-1`（自适应模式）, `1024`（固定预算模式）
+
+#### default_reasoning_effort（可选）
+- **类型**：字符串
+- **说明**：模型默认的推理努力级别。设置后，模型启动时将自动使用指定的推理努力等级
+- **默认值**：`null`（不设置推理努力级别）
+- **可选值**：`"low"`、`"medium"`、`"high"`
+- **前置条件**：`supports_extra_params` 中需包含 `"reasoning_effort"`
+- **示例**：`"low"`
 
 ## 模型命名规范
 

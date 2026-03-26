@@ -4,12 +4,12 @@ import argparse
 import os
 from pathlib import Path
 from typing import Dict
-
 import configargparse
 import shtab
 import yaml
-
+import siada
 from siada import __version__
+from siada.io.io import InputOutput
 
 
 
@@ -56,7 +56,13 @@ def get_parser(default_config_files, git_root):
         agent_configs = {}
         agent_choices = ['bugfix', 'coder', 'fegen', 'bugreproduce']
         print(f"Warning: Failed to load agent config, using defaults: {e}")
-
+        # Add IO to print errors for sending ACP messages
+        try:
+            io = InputOutput.get_instance()
+            if io:
+                io.print_error(f"Warning: Failed to load agent config, using defaults: {e}")
+        except:
+            pass
     ##########
     group = parser.add_argument_group("agent config")
 
@@ -90,6 +96,24 @@ def get_parser(default_config_files, git_root):
         metavar="PROMPT",
         default=None,
         help="Specify the prompt, if provided, it will be activated for the no interaction mode",
+    )
+
+    group.add_argument(
+        "--resume",
+        metavar="SESSION_ID",
+        nargs='?',
+        const='',
+        default=None,
+        help="Resume a previous session. Use --resume <session_id> to resume a specific session, "
+             "or --resume alone to show the session browser (interactive mode) or resume the latest "
+             "session (non-interactive mode).",
+    )
+
+    group.add_argument(
+        "--resume-list",
+        action="store_true",
+        default=False,
+        help="List all sessions for the current workspace and exit.",
     )
 
     ##########
@@ -131,12 +155,17 @@ def get_parser(default_config_files, git_root):
         help="Set the reasoning_effort API parameter (default: not set)",
     )
     group.add_argument(
-        "--thinking-tokens",
-        type=str,
-        help=(
-            "Set the thinking token budget for models that support it. Use 0 to disable. (default:"
-            " not set)"
-        ),
+        "--thinking",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable or disable thinking/reasoning for models that support it (default: enabled for models that support it)",
+    )
+    
+    group.add_argument(
+        "--parallel-tool-calls",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable or disable parallel tool calls for models that support it (default: enabled for models that support it)",
     )
 
     group.add_argument(
@@ -150,9 +179,9 @@ def get_parser(default_config_files, git_root):
     group = parser.add_argument_group("Output settings")
     group.add_argument(
         "--theme",
-        choices=["default", "dark", "light"],
-        default="dark",
-        help="Select color theme: default, dark, or light (default: None, auto-detect or use individual mode flags)",
+        choices=["auto", "dark", "light"],
+        default="auto",
+        help="Select color theme: auto (auto-detect system theme), dark, or light (default: auto)",
     )
 
     group.add_argument(
@@ -167,6 +196,47 @@ def get_parser(default_config_files, git_root):
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Enable/disable fancy input (default: True)",
+    )
+
+    group.add_argument(
+        "--banner",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable welcome banner display (default: True)",
+    )
+    
+    group.add_argument(
+        "--acp",
+        action="store_true",
+        default=False,
+        help="Enable ACP (Agent Client Protocol) mode for structured communication (default: False)",
+    )
+
+    group.add_argument(
+        "--ui",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Launch terminal UI (TUI) interface (default: True). Use --no-ui to use classic Python REPL mode",
+    )
+
+    group = parser.add_argument_group("Authentication")
+    group.add_argument(
+        "--logout",
+        action="store_true",
+        help="Sign out and clear stored credentials",
+        default=False,
+    )
+    group.add_argument(
+        "--user-id",
+        metavar="USER_ID",
+        help="Set the user ID (domain account) and save to conf.yaml",
+        default=None,
+    )
+    group.add_argument(
+        "--access-token",
+        metavar="ACCESS_TOKEN",
+        help="Set the access token (siada_api_key) and save to conf.yaml",
+        default=None,
     )
 
     group = parser.add_argument_group("Upgrading")
@@ -202,7 +272,7 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--checkpointing",
         action=argparse.BooleanOptionalAction,
-        help="Enable checkpointing (default: True in interactive mode, not supported in non-interactive mode)",
+        help="Enable checkpointing (default: False in interactive mode, not supported in non-interactive mode)",
         default=None
     )
     
@@ -216,13 +286,6 @@ def get_parser(default_config_files, git_root):
 
     ######
     group = parser.add_argument_group("Other settings")
-
-    group.add_argument(
-        "--auto-compact",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable automatic context compression (default: True)",
-    )
 
     group.add_argument(
         "--vim",
@@ -256,4 +319,263 @@ def get_parser(default_config_files, git_root):
         help="Disable console output for debugging (default: True)",
     )
 
+    ##########
+    group = parser.add_argument_group("A2A API Server mode")
+
+    group.add_argument(
+        "--api_server",
+        action="store_true",
+        help="Start A2A API server mode (alternative to interactive CLI)",
+        default=False,
+    )
+
+    group.add_argument(
+        "--a2a-port",
+        type=int,
+        metavar="PORT",
+        help="A2A API server port (default: 8001)",
+        default=8001,
+    )
+
+    group.add_argument(
+        "--a2a-host",
+        metavar="HOST",
+        help="A2A API server host to bind (default: 0.0.0.0 for external access, use 127.0.0.1 for local only)",
+        default="0.0.0.0",
+    )
+
+    group.add_argument(
+        "--a2a-agents-dir",
+        metavar="DIR",
+        help="A2A agents directory path (default: auto-detected from siada package installation)",
+        default=str(Path(siada.__file__).parent / "agent_hub" / "a2a" / "a2a_agents"),
+    )
+
+    group.add_argument(
+        "--stop_api_server",
+        action="store_true",
+        help="Stop the running A2A API server",
+        default=False,
+    )
+
+    ##########
+    group = parser.add_argument_group("Proactive Daemon Management")
+
+    group.add_argument(
+        "--stop-daemon",
+        action="store_true",
+        help="Stop the proactive daemon process",
+        default=False,
+    )
+
+    group.add_argument(
+        "--daemon-status",
+        action="store_true",
+        help="Show proactive daemon status",
+        default=False,
+    )
+
+    group.add_argument(
+        "--task-list",
+        action="store_true",
+        help="Show discovered pending tasks from proactive agent",
+        default=False,
+    )
+
     return parser
+
+
+class SiadaArgs:
+    """Typed, default-safe accessor for parsed CLI arguments.
+
+    Wraps the raw ``argparse.Namespace`` so that callers never need
+    ``hasattr(args, ...)`` or ``getattr(args, ..., default)`` guards.
+    Any attribute not explicitly declared here falls through to the
+    underlying namespace via ``__getattr__``.
+    """
+
+    def __init__(self, namespace) -> None:
+        # Store without triggering __setattr__ recursion
+        object.__setattr__(self, '_ns', namespace)
+
+    def _get(self, name: str, default=None):
+        return getattr(self._ns, name, default)
+
+    def __getattr__(self, name: str):
+        """Fall through to the namespace for any undeclared attribute."""
+        return getattr(self._ns, name)
+
+    def __setattr__(self, name: str, value) -> None:
+        if name == '_ns':
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._ns, name, value)
+
+    # Agent
+    @property
+    def agent(self) -> str:
+        return self._get('agent', 'coder')
+
+    # Prompt / session mode
+    @property
+    def prompt(self):
+        return self._get('prompt', None)
+
+    @property
+    def resume(self):
+        return self._get('resume', None)
+
+    @property
+    def resume_list(self) -> bool:
+        return self._get('resume_list', False)
+
+    # ACP
+    @property
+    def acp(self) -> bool:
+        return self._get('acp', False) or False
+
+    # UI
+    @property
+    def ui(self) -> bool:
+        return self._get('ui', True)
+
+    # Model / provider
+    @property
+    def model(self):
+        return self._get('model', None)
+
+    @property
+    def provider(self):
+        return self._get('provider', None)
+
+    @property
+    def reasoning_effort(self):
+        return self._get('reasoning_effort', None)
+
+    @property
+    def thinking(self):
+        return self._get('thinking', None)
+
+    @property
+    def thinking_tokens(self):
+        return self._get('thinking_tokens', None)
+
+    @property
+    def parallel_tool_calls(self):
+        return self._get('parallel_tool_calls', None)
+
+    # Output / display
+    @property
+    def pretty(self) -> bool:
+        return self._get('pretty', True)
+
+    @pretty.setter
+    def pretty(self, value: bool) -> None:
+        self._ns.pretty = value
+
+    @property
+    def theme(self) -> str:
+        return self._get('theme', 'auto')
+
+    @property
+    def fancy_input(self) -> bool:
+        return self._get('fancy_input', True)
+
+    @property
+    def banner(self) -> bool:
+        return self._get('banner', True)
+
+    @property
+    def line_endings(self) -> str:
+        return self._get('line_endings', 'platform')
+
+    @property
+    def verbose(self) -> bool:
+        return self._get('verbose', False)
+
+    @property
+    def encoding(self) -> str:
+        return self._get('encoding', 'utf-8')
+
+    @property
+    def editor(self):
+        return self._get('editor', None)
+
+    @property
+    def vim(self) -> bool:
+        return self._get('vim', False)
+
+    @property
+    def disable_console_output(self) -> bool:
+        return self._get('disable_console_output', True)
+
+    # Environment
+    @property
+    def env_file(self):
+        return self._get('env_file', None)
+
+    @property
+    def set_env(self) -> list:
+        return self._get('set_env', [])
+
+    # Updates
+    @property
+    def check_update(self) -> bool:
+        return self._get('check_update', True)
+
+    @property
+    def just_check_update(self) -> bool:
+        return self._get('just_check_update', False)
+
+    @property
+    def upgrade(self) -> bool:
+        return self._get('upgrade', False)
+
+    # Authentication
+    @property
+    def logout(self) -> bool:
+        return self._get('logout', False)
+
+    @property
+    def user_id(self):
+        return self._get('user_id', None)
+
+    @property
+    def access_token(self):
+        return self._get('access_token', None)
+
+    # Checkpointing
+    @property
+    def checkpointing(self):
+        return self._get('checkpointing', None)
+
+    @property
+    def max_checkpoint_files(self):
+        return self._get('max_checkpoint_files', None)
+
+
+    @property
+    def list_models(self) -> bool:
+        return self._get('list_models', False)
+
+    # A2A server
+    @property
+    def api_server(self) -> bool:
+        return self._get('api_server', False)
+
+    @property
+    def stop_api_server(self) -> bool:
+        return self._get('stop_api_server', False)
+
+    # Proactive daemon
+    @property
+    def stop_daemon(self) -> bool:
+        return self._get('stop_daemon', False)
+
+    @property
+    def daemon_status(self) -> bool:
+        return self._get('daemon_status', False)
+
+    @property
+    def task_list(self) -> bool:
+        return self._get('task_list', False)

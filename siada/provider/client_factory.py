@@ -1,7 +1,10 @@
 import os
 import importlib
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
+
+from siada.foundation.context import get_context_var, MODEL_PROVIDER_NAME, LLM_CONFIG
 from siada.provider.llm_client import LLMClient
+from litellm.types.utils import ModelResponse as LitellmModelResponse
 import inspect
 
 CLIENT_DIR = os.path.dirname(__file__)
@@ -53,12 +56,11 @@ def get_client(p_type: provider_type | None = None) -> LLMClient:
     raise ValueError("No LLM clients found or registered.")
 
 
-def build_chat_complete_kwargs(context: Any, default_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+def build_chat_complete_kwargs(default_kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
     Build chat completion kwargs by merging context parameters with defaults.
     
     Args:
-        context: Context object that may contain override parameters
         default_kwargs: Default parameters for chat completion
         
     Returns:
@@ -67,31 +69,14 @@ def build_chat_complete_kwargs(context: Any, default_kwargs: Dict[str, Any]) -> 
     # Start with default kwargs
     complete_kwargs = default_kwargs.copy()
     
-    # Override with context parameters if available
-    # First get siada_config from session
-    if context and hasattr(context, 'session'):
-        session = context.session
-        if hasattr(session, 'siada_config') and hasattr(session.siada_config, 'llm_config'):
-            if hasattr(session.siada_config.llm_config, 'model_name') and session.siada_config.llm_config.model_name:
-                complete_kwargs['model'] = session.siada_config.llm_config.model_name
-    
-    if context and hasattr(context, 'temperature') and context.temperature is not None:
-        complete_kwargs['temperature'] = context.temperature
-    
-    if context and hasattr(context, 'stream') and context.stream is not None:
-        complete_kwargs['stream'] = context.stream
-    
-    # Add any other context parameters that might be relevant
-    if context:
-        # Check for additional parameters that might be set on context
-        for param in ['max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty']:
-            if hasattr(context, param) and getattr(context, param) is not None:
-                complete_kwargs[param] = getattr(context, param)
-    
+    llm_config = get_context_var(LLM_CONFIG)
+    complete_kwargs['model'] = llm_config.model_name
+
+
     return complete_kwargs
 
 
-def get_client_with_kwargs(context: Any, default_kwargs: Dict[str, Any]) -> Tuple[LLMClient, Dict[str, Any]]:
+def get_client_with_kwargs(default_kwargs: Dict[str, Any]) -> Tuple[LLMClient, Dict[str, Any]]:
     """
     Get LLM client and build complete kwargs with context overrides.
     
@@ -103,14 +88,66 @@ def get_client_with_kwargs(context: Any, default_kwargs: Dict[str, Any]) -> Tupl
         Tuple[LLMClient, Dict[str, Any]]: Client instance and merged kwargs
     """
     # Get provider from context
-    provider = None
-    if context and hasattr(context, 'provider'):
-        provider = context.provider
+    llm_config = get_context_var(LLM_CONFIG)
+    provider = llm_config.provider
     
     # Get the client
     client = get_client(provider)
     
     # Build complete kwargs with context overrides
-    complete_kwargs = build_chat_complete_kwargs(context, default_kwargs)
+    complete_kwargs = build_chat_complete_kwargs(default_kwargs)
     
     return client, complete_kwargs
+
+
+async def simple_completion(
+    prompt: str,
+    **kwargs
+) -> Optional[LitellmModelResponse]:
+    """
+    Simplified LLM completion interface - just pass context and prompt.
+    
+    This is a convenience wrapper around get_client_with_kwargs that pre-configures
+    common parameters, making it easier to call LLM for simple tasks.
+    
+    Args:
+        prompt: The user prompt to send to the LLM
+        **kwargs: Optional parameters like temperature, max_tokens, stream, etc.
+                  Will override defaults if provided.
+        
+    Returns:
+        LitellmModelResponse: The LLM response, or None if failed
+        
+    Example:
+        # Basic usage
+        response = await simple_completion(context, "Generate a slug for: user discussion")
+        
+        # With custom parameters
+        response = await simple_completion(
+            context, 
+            "Analyze this code", 
+            temperature=0.5,
+            max_tokens=500
+        )
+    """
+    from siada.foundation.setting import settings
+    
+    # Prepare default kwargs with preset parameters
+    default_kwargs = {
+        'model': settings.DEFAULT_MODEL,
+        'messages': [
+            {'role': 'user', 'content': prompt}
+        ],
+        'stream': False
+    }
+    
+    # Merge with any additional kwargs provided
+    default_kwargs.update(kwargs)
+    
+    # Get client and complete kwargs from context
+    client, complete_kwargs = get_client_with_kwargs(default_kwargs)
+    
+    # Make the completion call
+    response = await client.completion(**complete_kwargs)
+    
+    return response

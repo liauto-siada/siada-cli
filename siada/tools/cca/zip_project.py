@@ -40,19 +40,19 @@ async def zip_project(
 
         zip_path = project_path / f"{card_name}.zip"
 
-        # 需要忽略的文件和目录
+        # Files and directories to ignore
         ignore_items = {'package-lock.json', 'dist', 'node_modules', 'packages', '.git', 'screenshot'}
 
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for root, dirs, files in os.walk(project_path):
                 rel_root = os.path.relpath(root, project_path)
 
-                # 在每个目录都检查是否需要过滤掉某些子目录
+                # Check in each directory whether to filter out certain subdirectories
                 dirs[:] = [d for d in dirs if d not in ignore_items]
 
-                # 添加文件到 ZIP
+                # Add files to ZIP
                 for file in files:
-                    # 检查是否需要忽略
+                    # Check if it needs to be ignored
                     if file in ignore_items or file.endswith('.zip'):
                         continue
 
