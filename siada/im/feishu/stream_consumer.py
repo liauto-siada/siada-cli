@@ -21,6 +21,8 @@ from agents import (
 )
 
 from siada.im.feishu.card_sender import LarkCardSender
+from siada.im.feishu.mention import build_mentioned_card_content
+from siada.im.models import MentionTarget
 
 logger = logging.getLogger("siada.im.lark.stream_consumer")
 
@@ -35,6 +37,8 @@ class LarkStreamConsumer:
     async def consume_stream(
         self, result: RunResultStreaming, request_id: str, chat_id: str,
         default_workspace: str = "",
+        mention_targets: list[MentionTarget] | None = None,
+        verbose: bool = True,
     ) -> None:
         """Consume RunResultStreaming events and send outputs to Lark.
 
@@ -197,12 +201,13 @@ class LarkStreamConsumer:
                         if data.delta:
                             # Close previous tool card group when reasoning appears
                             if not got_reasoning and batcher.has_pending:
-                                await _close_tool_card()
+                                if verbose:
+                                    await _close_tool_card()
                                 batcher = ToolCallBatcher(default_workspace=default_workspace)
                                 tool_card_msg_id = None
                             got_reasoning = True
                             reasoning_text += data.delta
-                            if thinking_card:
+                            if verbose and thinking_card:
                                 await _ensure_thinking_card_started()
                                 if thinking_card_started:
                                     await thinking_card.update(reasoning_text)
@@ -213,19 +218,21 @@ class LarkStreamConsumer:
                     elif isinstance(data, ResponseTextDeltaEvent):
                         if data.delta:
                             if not got_content and got_reasoning and reasoning_text:
-                                # Parallelize: close thinking card and start answer card concurrently.
-                                # They operate on independent card_ids so no shared state conflict.
-                                _parallel_tasks = [_close_thinking_card()]
-                                if answer_card and not answer_card_started and not answer_card_closed:
-                                    _parallel_tasks.append(_ensure_answer_card_started())
-                                await asyncio.gather(*_parallel_tasks, return_exceptions=True)
-                                if not thinking_card:
-                                    await cs.send_card_message(
-                                        chat_id, title="💭 Thinking",
-                                        content=reasoning_text, header_template="purple", icon="",
-                                    )
+                                if verbose:
+                                    # Parallelize: close thinking card and start answer card concurrently.
+                                    # They operate on independent card_ids so no shared state conflict.
+                                    _parallel_tasks = [_close_thinking_card()]
+                                    if answer_card and not answer_card_started and not answer_card_closed:
+                                        _parallel_tasks.append(_ensure_answer_card_started())
+                                    await asyncio.gather(*_parallel_tasks, return_exceptions=True)
+                                    if not thinking_card:
+                                        await cs.send_card_message(
+                                            chat_id, title="💭 Thinking",
+                                            content=reasoning_text, header_template="purple", icon="",
+                                        )
                             if not got_content and batcher.has_pending:
-                                await _close_tool_card()
+                                if verbose:
+                                    await _close_tool_card()
                                 batcher = ToolCallBatcher(default_workspace=default_workspace)
                                 tool_card_msg_id = None
                             got_content = True
@@ -241,16 +248,17 @@ class LarkStreamConsumer:
 
                     elif isinstance(data, ResponseOutputItemAddedEvent):
                         if isinstance(data.item, ResponseFunctionToolCall):
-                            await _close_thinking_card()
-                            if answer_card_started:
-                                await _close_answer_card()
-                                answer_text = ""
-                            elif answer_text:
-                                await cs.send_im(
-                                    request_id, chat_id, answer_text,
-                                    content_type="markdown", is_streaming=False,
-                                )
-                                answer_text = ""
+                            if verbose:
+                                await _close_thinking_card()
+                                if answer_card_started:
+                                    await _close_answer_card()
+                                    answer_text = ""
+                                elif answer_text:
+                                    await cs.send_im(
+                                        request_id, chat_id, answer_text,
+                                        content_type="markdown", is_streaming=False,
+                                    )
+                                    answer_text = ""
 
                             call_id = data.item.call_id
                             item_id = data.item.id
@@ -309,11 +317,12 @@ class LarkStreamConsumer:
                                 )
                                 batcher.add_call(entry)
 
-                                await _ensure_tool_card_started()
-                                await _update_tool_card()
+                                if verbose:
+                                    await _ensure_tool_card_started()
+                                    await _update_tool_card()
 
                     elif isinstance(data, ResponseCompletedEvent):
-                        if got_reasoning and reasoning_text and not got_content:
+                        if verbose and got_reasoning and reasoning_text and not got_content:
                             if not thinking_card_started:
                                 await cs.send_card_message(
                                     chat_id, title="💭 Thinking",
@@ -330,24 +339,39 @@ class LarkStreamConsumer:
                         result_text = format_tool_output(output, tool_name)
 
                         batcher.add_result(call_id, result_text or "")
-                        await _update_tool_card()
+                        if verbose:
+                            await _update_tool_card()
 
             # Final: close tool card if still open
-            await _close_tool_card()
-            await _close_thinking_card()
+            if verbose:
+                await _close_tool_card()
+                await _close_thinking_card()
 
-            # Send final answer text
+            # Send final answer text (inject @ mentions in the final output)
             if answer_text:
+                # Inject @mention tags for outbound reply (only in final card/text)
+                final_answer = answer_text
+                if mention_targets:
+                    final_answer = build_mentioned_card_content(mention_targets, answer_text)
+
                 if answer_card and not answer_card_started and not answer_card_closed:
                     await cs.send_card_message(
                         chat_id, title="💬 Answer",
-                        content=answer_text, header_template="green", icon="",
+                        content=final_answer, header_template="green", icon="",
                     )
                 elif answer_card_started:
-                    await _close_answer_card()
+                    # Close the streaming card with mention-injected content
+                    if mention_targets:
+                        answer_card_closed = True
+                        try:
+                            await answer_card.close(final_answer)
+                        except Exception as e:
+                            logger.warning(f"Failed to close answer card with mentions: {e}")
+                    else:
+                        await _close_answer_card()
                 else:
                     await cs.send_im(
-                        request_id, chat_id, answer_text,
+                        request_id, chat_id, final_answer,
                         content_type="markdown", is_streaming=False,
                     )
 

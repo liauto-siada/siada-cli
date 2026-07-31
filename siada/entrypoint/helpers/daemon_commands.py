@@ -10,8 +10,14 @@ from siada.foundation.logging import logger
 
 
 def ensure_daemon_running(conf, verbose: bool = False) -> None:
-    """Ensure proactive daemon is running in a background thread."""
+    """Ensure proactive daemon is running in a background thread.
+
+    Deferred by 3 s so the heavy psutil scan does not compete with the
+    litellm / agents import threads during the critical startup path.
+    """
     def _run():
+        import time
+        time.sleep(3)  # yield to litellm/agents warmup threads
         try:
             from siada.foundation.constants import SIADA_HOME
             from siada.agent_hub.proactive.daemon_manager import DaemonManager
@@ -54,6 +60,43 @@ def handle_stop_daemon() -> int:
         return 1
 
 
+def handle_restart_daemon() -> int:
+    """Restart proactive daemon (stop then start). Returns exit code."""
+    try:
+        from siada.foundation.constants import SIADA_HOME
+        from siada.agent_hub.proactive.daemon_manager import DaemonManager
+
+        pid_file = SIADA_HOME / "siada-daemon.pid"
+        daemon_script = Path(__file__).parent.parent.parent / "agent_hub/proactive/daemon.py"
+
+        manager = DaemonManager(pid_file, daemon_script)
+
+        # Stop existing daemon if running
+        if manager.is_running():
+            print("Stopping existing daemon...")
+            if not manager.stop_daemon():
+                print("✗ Failed to stop daemon", file=sys.stderr)
+                return 1
+            print("✓ Daemon stopped")
+
+        # Start a new daemon
+        print("Starting daemon...")
+        was_started, pid = manager.ensure_daemon()
+        if was_started and pid:
+            print(f"✓ Proactive daemon restarted (PID: {pid})")
+            return 0
+        elif was_started:
+            print("✓ Proactive daemon restarted (PID pending)")
+            return 0
+        else:
+            print("✗ Failed to start daemon", file=sys.stderr)
+            return 1
+    except Exception as e:
+        print(f"✗ Error restarting daemon: {e}", file=sys.stderr)
+        logger.error(f"Error restarting daemon: {e}", exc_info=True)
+        return 1
+
+
 def handle_daemon_status() -> int:
     """Show daemon status. Returns 0 if running, 1 if not."""
     try:
@@ -81,6 +124,14 @@ def handle_daemon_status() -> int:
             log_file = Path(get_log_directory()) / "siada_cli.log"
             if log_file.exists():
                 print(f"  Log: {log_file}")
+
+            try:
+                from siada.services.auto_update import format_status_lines
+                for line in format_status_lines():
+                    print(f"  {line}")
+            except Exception:
+                pass
+
             return 0
         else:
             print("✗ Proactive daemon is not running")

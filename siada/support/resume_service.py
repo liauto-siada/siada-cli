@@ -141,6 +141,48 @@ class ResumeService:
                 message_history=filtered_items
             )
 
+            # Recover todo list from the restored message history.
+            # Stored as pending_todos on session state; SiadaRunner will transfer it
+            # to context.todos once the context is available.
+            try:
+                from siada.tools.todo.recovery import extract_todos_from_messages
+                recovered = extract_todos_from_messages(filtered_items)
+                if recovered:
+                    running_session.state.pending_todos = recovered
+                    logger.debug(f"[todo] Staged {len(recovered)} recovered todos in pending_todos")
+            except Exception as e:
+                logger.debug(f"[todo] Failed to recover todos on resume: {e}")
+
+            # Recover goal state from goal.json, same stage-then-consume pattern
+            # as pending_todos above — SiadaRunner transfers it to context.goal
+            # once the context is available. cmd_resume also reads
+            # running_session.state.pending_goal right after this call
+            # returns to immediately push the recovered goal's state to the
+            # frontend (see SlashCommands.cmd_resume) — the GoalStatusBar
+            # would otherwise stay blank until the next conversation turn
+            # happens to run SiadaRunner._prepare_context_for_run's lazy
+            # pending_goal -> context.goal consumption.
+            #
+            # Explicitly reset to None first (rather than only overwriting
+            # on a hit) so a stale pending_goal from a PREVIOUS resume/goal
+            # activity on this same long-lived RunningSession object never
+            # leaks into a session that has no goal.json (e.g. the user ran
+            # ``/goal clear`` before disconnecting, or resumes a different,
+            # goal-less session next).
+            running_session.state.pending_goal = None
+            try:
+                if session_data.session_path:
+                    from siada.services.goal import goal_storage
+                    recovered_goal = goal_storage.load_goal(session_data.session_path)
+                    if recovered_goal is not None:
+                        running_session.state.pending_goal = recovered_goal
+                        logger.debug(
+                            f"[goal] Staged recovered goal ({recovered_goal.status}) in pending_goal"
+                        )
+            except Exception as e:
+                logger.debug(f"[goal] Failed to recover goal on resume: {e}")
+
+
             # Step 4: restore RealApiMessage from api_messages.json.
             # Filtered-out items are never compacted, so they appear verbatim at the
             # tail of api_messages. Strip them from the tail before restoring.

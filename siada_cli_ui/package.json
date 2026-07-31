@@ -50,9 +50,11 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.12.0",
     "@jrichman/ink": "^6.4.6",
+    "@types/diff": "^8.0.0",
     "chalk": "^5.3.0",
     "chalk-template": "^1.1.2",
     "commander": "^12.0.0",
+    "diff": "^9.0.0",
     "fzf": "^0.5.2",
     "ink-markdown": "^1.0.4",
     "ink-select-input": "^6.0.0",
@@ -61,7 +63,8 @@
     "lowlight": "^3.3.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "string-width": "^8.1.0"
+    "string-width": "^8.1.0",
+    "yoga-layout": "^3.2.1"
   },
   "devDependencies": {
     "@types/hast": "^3.0.4",
@@ -72,7 +75,7 @@
     "esbuild": "^0.24.2",
     "eslint": "^8.57.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.5.0",
+    "typescript": "^5.9.3",
     "vitest": "^2.0.0"
   },
   "engines": {

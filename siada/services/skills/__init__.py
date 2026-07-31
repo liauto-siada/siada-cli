@@ -18,8 +18,11 @@ from .config import (
     get_skill_roots,
     get_repo_skills_root,
     get_user_skills_root,
+    get_repo_agents_skills_root,
+    get_user_agents_skills_root,
     get_system_skills_root,
 )
+
 from .loader import (
     discover_skill_dirs,
     parse_skill_file,
@@ -64,7 +67,10 @@ __all__ = [
     "get_skill_roots",
     "get_repo_skills_root",
     "get_user_skills_root",
+    "get_repo_agents_skills_root",
+    "get_user_agents_skills_root",
     "get_system_skills_root",
+
     # Loader
     "discover_skill_dirs",
     "parse_skill_file",

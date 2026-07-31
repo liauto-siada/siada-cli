@@ -167,6 +167,10 @@ export class SiadaACPAdapter extends EventEmitter {
         cwd: config.workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
+        // On Windows, hide the console window that Node.js would otherwise
+        // create for the spawned Python subprocess. Without this flag a blank
+        // black cmd window pops up every time the backend process starts.
+        windowsHide: true,
       });
 
       logger.info(`[PERF][adapter] Python process spawned (pid=${this.process.pid}) | +${Date.now() - startTime}ms since adapter.start()`);
@@ -368,43 +372,7 @@ export class SiadaACPAdapter extends EventEmitter {
         this.messageBuffer = this.messageBuffer.substring(this.messageBuffer.length / 2);
       }
       
-      // Check for ready signals from siada-cli
-      // siada-cli is ready when it shows the prompt
-      if (!this.isReady) {
-        // Look for ready indicators based on actual siada-cli output patterns
-        const readyIndicators = [
-          '>',                   // Input prompt
-        ];
-        
-        const foundIndicator = readyIndicators.find(indicator => 
-          chunk.includes(indicator)
-        );
-        
-        if (foundIndicator) {
-          logger.info('✅ Detected siada-cli ready signal', {
-            component: 'Adapter',
-            operation: 'stdout',
-            indicator: foundIndicator,
-            preview: chunk.substring(0, 200),
-          });
-          
-          // Mark as ready
-          if (!this.isReady) {
-            this.isReady = true;
-            if (this.readyResolver) {
-              this.readyResolver();
-              this.readyResolver = null;
-            }
-          }
-        } else {
-          // Log what we're seeing to help debug
-          logger.debug('❌ No ready indicator found in output', {
-            component: 'Adapter',
-            operation: 'stdout',
-            preview: chunk.substring(0, 200),
-          });
-        }
-      }
+      // Ready detection is now handled by handleACPSessionUpdate (banner_info signal).
       
       logger.debug('Adding chunk to message buffer', {
         component: 'Adapter',
@@ -548,10 +516,29 @@ export class SiadaACPAdapter extends EventEmitter {
           const lastSubLineRaw = subLines[subLines.length - 1] ?? '';
           const lastSubLine = lastSubLineRaw.trim();
           if (lastSubLine) {
-            // If it looks like an incomplete JSON line, keep it in buffer.
-            // Otherwise, process it as a normal complete line.
-            if (lastSubLine.startsWith('{') && !lastSubLine.endsWith('}')) {
-              remainingBuffer = lastSubLine;
+            // Decide completeness by actually trying to parse the JSON,
+            // instead of a naive startsWith('{')/endsWith('}') heuristic.
+            // The naive check breaks when a large message (e.g. banner_info,
+            // which embeds long command descriptions) gets split by the OS
+            // pipe right after an inner, non-terminal '}' character - the
+            // heuristic would wrongly treat the truncated half as "complete",
+            // causing JSON.parse to throw and the whole message to be
+            // silently dropped instead of being buffered for the next chunk.
+            if (lastSubLine.startsWith('{')) {
+              try {
+                JSON.parse(lastSubLine);
+                // Parses cleanly as a whole JSON value -> genuinely complete.
+                linesToProcess.push(lastSubLine);
+              } catch (err) {
+                // Not valid JSON yet -> likely truncated, wait for more data.
+                logger.info('Incomplete JSON in last sub-line, buffering for next chunk', {
+                  length: lastSubLine.length,
+                  preview: lastSubLine.slice(0, 200),
+                  tail: lastSubLine.slice(-200),
+                  error: err instanceof Error ? err.message : String(err),
+                });
+                remainingBuffer = lastSubLine;
+              }
             } else {
               linesToProcess.push(lastSubLine);
             }
@@ -715,12 +702,35 @@ export class SiadaACPAdapter extends EventEmitter {
           return true;
         }
 
+        // Handle ui/showSideQuestion notifications
+        if (json.method === 'ui/showSideQuestion') {
+          logger.info('Received ui/showSideQuestion notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            questionLen: json.params?.question?.length ?? 0,
+            answerLen:   json.params?.answer?.length ?? 0,
+          });
+          this.emit('ui:showSideQuestion', json.params);
+          return true;
+        }
+
+        // Handle ui/memoryStatusChanged notifications
+        if (json.method === 'ui/memoryStatusChanged') {
+          logger.info('Received ui/memoryStatusChanged notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            enabled: json.params?.enabled,
+          });
+          this.emit('ui:memoryStatusChanged', json.params);
+          return true;
+        }
+
         if (json.method === 'ui/pluginInstallProgress') {
           this.emit('ui:pluginInstallProgress', json.params);
           return true;
         }
 
-        // Handle ui/loadHistory notifications (batch load)
+        // Handle ui/loadHistory notifications (batch load, clears existing)
         if (json.method === 'ui/loadHistory') {
           logger.info('Received ui/loadHistory notification', {
             component: 'Adapter',
@@ -729,6 +739,30 @@ export class SiadaACPAdapter extends EventEmitter {
           });
 
           this.emit('ui:loadHistory', json.params);
+          return true;
+        }
+
+        // Handle ui/appendHistory notifications (append-only, for deferred rendering)
+        if (json.method === 'ui/appendHistory') {
+          logger.info('Received ui/appendHistory notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            messageCount: json.params?.messages?.length || 0,
+          });
+
+          this.emit('ui:appendHistory', json.params);
+          return true;
+        }
+
+        // Handle session/pullHistoryDone notifications (deferred rendering completion signal)
+        if (json.method === 'session/pullHistoryDone') {
+          logger.info('Received session/pullHistoryDone notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            signature: json.params?.signature,
+          });
+
+          this.emit('session:pullHistoryDone', json.params);
           return true;
         }
 
@@ -768,6 +802,29 @@ export class SiadaACPAdapter extends EventEmitter {
             operation: 'tryParseACPJson',
           });
           this.emit('ui:loginDismiss', json.params);
+          return true;
+        }
+
+        // Handle context/todoState notifications (live todo state push from backend)
+        if (json.method === 'context/todoState') {
+          logger.info('Received context/todoState notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            todoCount: json.params?.todos?.length || 0,
+          });
+          this.emit('context:todoState', json.params);
+          return true;
+        }
+
+        // Handle context/goalState notifications (live /goal state push from backend)
+        if (json.method === 'context/goalState') {
+          logger.info('Received context/goalState notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            goalStatus: json.params?.goal?.status,
+            verifying: json.params?.verifying,
+          });
+          this.emit('context:goalState', json.params);
           return true;
         }
 
@@ -894,6 +951,25 @@ export class SiadaACPAdapter extends EventEmitter {
         this.handleLifecycleEvent(params);
         break;
       
+      case 'cache_status':
+        // Handle cache status update — emit as typed event for useACP
+        logger.info('📊 Cache status received', {
+          component: 'Adapter',
+          operation: 'handleACPSessionUpdate',
+          contentLength: content.length,
+        });
+
+        try {
+          const cacheData = JSON.parse(content);
+          this.emit('cacheStatus', cacheData);
+        } catch (e) {
+          logger.warn('Failed to parse cache_status content', {
+            component: 'Adapter',
+            error: e,
+          });
+        }
+        break;
+
       case 'banner_info':
         // Handle banner info - emit as message event for useACP to process
         logger.info('📋 Banner info received', {
@@ -968,8 +1044,44 @@ export class SiadaACPAdapter extends EventEmitter {
         };
         
         this.emit('message', bannerEvent);
+
+        // banner_info is the last thing Python sends before entering the input loop —
+        // treat it as the definitive "backend ready" signal.
+        if (!this.isReady && this.readyResolver) {
+          logger.info('[Adapter] [waitForReady] siada-cli ready signal received (banner_info)', {
+            component: 'Adapter',
+            operation: 'waitForReady',
+          });
+          this.isReady = true;
+          const resolver = this.readyResolver;
+          this.readyResolver = null;
+          resolver();
+        }
         break;
       
+      case 'session_title': {
+        // Backend generated a short session title via the fast LLM
+        // (see siada/services/session_title.py). Forward it so the
+        // frontend can set the terminal tab/window title.
+        this.emit('session:title', content);
+        break;
+      }
+
+      case 'quota_update': {
+        // Forward quota update as a message event for streaming layer to pick up
+        const quotaEvent: ACPEvent = {
+          type: 'message',
+          data: {
+            content,
+            blockType: 'system',
+            metadata: { reason: 'quota_update' },
+          },
+          timestamp: new Date().toISOString(),
+        };
+        this.emit('message', quotaEvent);
+        break;
+      }
+
       case 'input_ready':
         // Handle input_ready - stop all animations
         if (metadata.animation_control === 'stop') {
@@ -1030,6 +1142,19 @@ export class SiadaACPAdapter extends EventEmitter {
           this.emit('animation:start');
         }
         break;
+
+      case 'queue_item_consumed':
+        // A queued prompt was consumed by the backend — tell the frontend to remove it.
+        // The notification also carries the original prompt text (metadata.content)
+        // so the events layer can render the user bubble even if the local preview
+        // queue entry was already cleared, eliminating the turn-boundary race.
+        logger.info('🗑️ Queue item consumed', {
+          component: 'Adapter',
+          operation: 'handleACPSessionUpdate',
+          queueId: metadata.id,
+        });
+        this.emit('queue:itemConsumed', { id: metadata.id, content: metadata.content });
+        break;
         
       default:
         logger.warn('Unknown session update reason', {
@@ -1047,9 +1172,25 @@ export class SiadaACPAdapter extends EventEmitter {
     const startTime = Date.now();
     let input = '';
     switch (message.method) {
-      case 'agent/execute':
-        input = message.params.prompt;
+      case 'agent/execute': {
+        const { prompt, image_paths, queue_id } = message.params as {
+          prompt: string;
+          image_paths?: string[];
+          queue_id?: string;
+        };
+        // ALWAYS JSON-encode the payload. JSON.stringify escapes real newlines
+        // into the literal "\n" sequence, so the prompt body can never contain
+        // a standalone "<<<SIADA_MSG_END>>>" line that would prematurely close
+        // the stdin frame (frame-injection). The backend already parses both the
+        // JSON envelope and raw-text shapes, so this is fully backward compatible.
+        input = JSON.stringify({
+          prompt,
+          ...(image_paths && image_paths.length > 0 ? { image_paths } : {}),
+          ...(queue_id ? { queue_id } : {}),
+        });
         break;
+
+      }
       case 'agent/stop':
         input = '\x03'; // ETX (Ctrl+C equivalent)
         break;
@@ -1142,7 +1283,11 @@ export class SiadaACPAdapter extends EventEmitter {
   }
 
   async sendRawInput(input: string, meta?: { operation?: string; method?: string; messageId?: string }): Promise<void> {
-    if (!this.process || !this.isReady) {
+    // Allow sending as long as the process is running, even if isReady (waitForReady) has not
+    // resolved yet. This is required for the login-choice window: Python sends
+    // ui/showLoginSelector before banner_info, so isReady is still false when the
+    // user picks a login option.
+    if (!this.isProcessRunning()) {
       const error = new Error('Adapter not ready');
       logger.error('Cannot send raw input: adapter not ready', error, {
         component: 'Adapter',
@@ -1172,25 +1317,22 @@ export class SiadaACPAdapter extends EventEmitter {
         timeout,
       });
 
-      let hasOutput = false;
-      const checkInterval = 500; // Check every 500ms
-      const minWaitTime = 1500; // Reduced from 2000ms to 1500ms
       const startTime = Date.now();
 
-      // Set timeout
+      // Hard timeout: if banner_info never arrives (crash / unexpected output),
+      // proceed anyway so the UI doesn't hang forever.
       const timer = setTimeout(() => {
         logger.warn('Timeout waiting for siada-cli ready signal, proceeding anyway', {
           component: 'Adapter',
           operation: 'waitForReady',
           timeout,
-          hadOutput: hasOutput,
         });
         this.readyResolver = null;
-        // Don't reject, just resolve - agent might be ready but didn't output expected signal
         resolve();
       }, timeout);
 
-      // Set resolver for stdout handler to call
+      // Primary signal: readyResolver is called by handleACPSessionUpdate when
+      // banner_info arrives (the last thing Python sends before the input loop).
       this.readyResolver = () => {
         logger.info('siada-cli ready signal received', {
           component: 'Adapter',
@@ -1198,40 +1340,8 @@ export class SiadaACPAdapter extends EventEmitter {
           elapsedTime: Date.now() - startTime,
         });
         clearTimeout(timer);
-        if (intervalTimer) clearInterval(intervalTimer);
         resolve();
       };
-
-      // Periodically check if we should mark as ready
-      const intervalTimer = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        
-        // If we've received any stdout output, that's a good sign
-        if (this.messageBuffer.length > 0) {
-          hasOutput = true;
-        }
-
-        // After minimum wait time with output, or slightly longer without
-        if (!this.isReady && this.readyResolver) {
-          if ((hasOutput && elapsed >= minWaitTime) || elapsed >= minWaitTime * 2) {
-            logger.info('Minimum wait time elapsed, marking as ready', {
-              component: 'Adapter',
-              operation: 'waitForReady',
-              elapsedTime: elapsed,
-              hadOutput: hasOutput,
-              bufferSize: this.messageBuffer.length,
-            });
-            clearTimeout(timer);
-            clearInterval(intervalTimer);
-            this.isReady = true;
-            this.readyResolver();
-            this.readyResolver = null;
-          }
-        } else if (this.isReady) {
-          // Already ready, cleanup
-          clearInterval(intervalTimer);
-        }
-      }, checkInterval);
     });
   }
 
@@ -1411,10 +1521,50 @@ export class SiadaACPAdapter extends EventEmitter {
   }
 
   /**
-   * Check if adapter is ready
+   * Send a JSON-RPC notification to the backend (no id, no response expected).
+   * Used for lightweight frontend→backend signals like session/pullHistory.
+   */
+  sendNotification(method: string, params?: Record<string, unknown>): void {
+    if (!this.process || !this.process.stdin) {
+      logger.warn('Cannot send notification: process or stdin not available', {
+        component: 'Adapter',
+        operation: 'sendNotification',
+        method,
+      });
+      return;
+    }
+
+    const notification = JSON.stringify({
+      jsonrpc: '2.0',
+      method,
+      params: params || {},
+    });
+
+    const writeData = `<<<SIADA_MSG_START>>>\n${notification}\n<<<SIADA_MSG_END>>>\n`;
+
+    logger.info('Sending JSON-RPC notification to backend', {
+      component: 'Adapter',
+      operation: 'sendNotification',
+      method,
+      params,
+    });
+
+    this.process.stdin.write(writeData);
+  }
+
+  /**
+   * Check if connected
    */
   isAdapterReady(): boolean {
-    return this.isReady && this.process !== null;
+    return this.isReady && !!this.process && this.process.exitCode === null;
+  }
+
+  /**
+   * Check if the child process is running (even before it is fully "ready").
+   * Used by sendLoginChoice to allow sending during the startup login window.
+   */
+  isProcessRunning(): boolean {
+    return !!this.process && !this.process.killed && this.process.exitCode === null;
   }
 
   // ============================================================================

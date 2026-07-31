@@ -99,14 +99,9 @@ class ColorSettings:
         Returns:
             ColorSettings instance
         """
-        # Handle auto theme detection
+        # 'auto' resolves to 'dark' directly — theme detection removed for startup perf
         if theme_name == 'auto' or auto_detect:
-            from siada.io.system_theme_detector import SystemThemeDetector
-            detected_theme = SystemThemeDetector.detect_theme()
-            if detected_theme in ('dark', 'light'):
-                theme_name = detected_theme
-            else:
-                theme_name = 'default'
+            theme_name = 'dark'
         
         if theme_name not in cls.THEMES:
             raise ValueError(f"Unknown theme: {theme_name}. Available themes: {list(cls.THEMES.keys())}")

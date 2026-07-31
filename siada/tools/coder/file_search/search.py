@@ -301,53 +301,95 @@ class RipgrepSearcher:
         """
         Parse ripgrep JSON output into SearchResult objects.
         Handles both match and context lines.
+
+        Context attribution strategy
+        ----------------------------
+        ripgrep emits events in file order, so a context line that appears
+        *after* the previous match but *before* the next match is ambiguous
+        at the time it is read: we don't yet know whether a new match will
+        follow.  We therefore buffer all context lines in ``pending_context``
+        and resolve attribution lazily:
+
+        * When a **match** event arrives the entire pending buffer becomes
+          that match's ``before_context``, and the buffer is cleared.
+        * When the previous match is **finalised** (i.e. the next match or
+          end-of-stream is reached) any remaining pending lines are appended
+          to its ``after_context``.
+
+        This correctly handles three scenarios:
+          1. Leading context before the very first match (previously lost
+             because ``current_result`` was None).
+          2. Context between two distant matches (previously misattributed to
+             the previous match's ``after_context``).
+          3. Shared / adjacent context that sits between two close matches.
         """
         results = []
         current_result = None
-        
+        prev_match_line: int = 0
+        # Each entry is (line_number, text) so we can route lines to the
+        # correct match when a new match arrives.
+        pending_context: List[tuple] = []
+
         for line in output.split('\n'):
             if not line.strip():
                 continue
-                
+
             try:
                 parsed = json.loads(line)
-                
+
                 if parsed.get('type') == 'match':
-                    if current_result:
-                        results.append(current_result)
-                    
                     data = parsed.get('data', {})
+                    match_line: int = data.get('line_number', 0)
+
+                    if current_result is None:
+                        # First match ever: every buffered context line is
+                        # before-context (there is no previous match to
+                        # attribute them to).
+                        before_ctx = [txt for _, txt in pending_context]
+                    else:
+                        # Split buffered context between the two matches using
+                        # the midpoint of their line numbers.  Lines closer to
+                        # the previous match become its after_context; lines
+                        # closer to the new match become its before_context.
+                        midpoint = (prev_match_line + match_line) / 2
+                        before_ctx = [
+                            txt for ln, txt in pending_context if ln > midpoint
+                        ]
+                        current_result.after_context.extend(
+                            txt for ln, txt in pending_context if ln <= midpoint
+                        )
+                        results.append(current_result)
+
                     path_info = data.get('path', {})
                     submatches = data.get('submatches', [{}])
                     lines_info = data.get('lines', {})
-                    
+
                     current_result = SearchResult(
                         file_path=path_info.get('text', ''),
-                        line=data.get('line_number', 0),
+                        line=match_line,
                         column=submatches[0].get('start', 0) if submatches else 0,
                         match=lines_info.get('text', ''),
-                        before_context=[],
+                        before_context=before_ctx,
                         after_context=[]
                     )
-                
-                elif parsed.get('type') == 'context' and current_result:
+                    prev_match_line = match_line
+                    pending_context = []
+
+                elif parsed.get('type') == 'context':
                     data = parsed.get('data', {})
                     context_line_number = data.get('line_number', 0)
                     context_text = data.get('lines', {}).get('text', '')
-                    
-                    if context_line_number < current_result.line:
-                        current_result.before_context.append(context_text)
-                    else:
-                        current_result.after_context.append(context_text)
-                        
+                    pending_context.append((context_line_number, context_text))
+
             except json.JSONDecodeError:
                 continue
             except Exception:
                 continue
-        
+
         if current_result:
+            current_result.after_context.extend(txt for _, txt in pending_context)
             results.append(current_result)
-        
+
         return results
 
     def search_in_files(
@@ -568,11 +610,12 @@ def _truncate_tool_output_if_needed(content: str, call_id: str, cwd: str) -> str
     return (
         "Tool output was too large and has been truncated.\n"
         + file_hint
-        + "To read the complete output, use the read_file tool with the absolute file path above.\n"
-        + "For large files, you can use the offset and limit parameters to read specific sections:\n"
-        + "- read_file tool with offset=0, limit=100 to see the first 100 lines\n"
-        + "- read_file tool with offset=N to skip N lines from the beginning\n"
-        + "- read_file tool with limit=M to read only M lines at a time\n\n"
+        + "To read the complete output, use the edit_file tool with command=\"view\" and the absolute file path above.\n"
+        + "For large files, you can use the view_range parameter to read specific line ranges:\n"
+        + "- edit_file with command=\"view\", view_range=[1, 100] to see lines 1-100\n"
+        + "- edit_file with command=\"view\", view_range=[N, M] to read lines N through M\n"
+        + "- edit_file with command=\"view\", view_range=[N, -1] to read from line N to the end of the file\n"
+        + "You may also use regex_search_files or run_cmd (e.g. grep/head/tail) to locate specific content within the saved file.\n\n"
         + "The truncated output below shows the beginning and end of the content.\n"
         + "The marker '... [CONTENT TRUNCATED] ...' indicates where content was removed.\n\n"
         + "Truncated part of the output:\n"

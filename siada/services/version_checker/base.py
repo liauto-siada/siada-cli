@@ -27,6 +27,9 @@ except ImportError:
                 return f"Newer version v{latest_version} is available."
             return "New version available."
 
+        def get_manual_upgrade_hint(self) -> str:
+            return "siada-cli --upgrade"
+
         def run_command_with_spinner(self, cmd, description, shell=False):
             print()
             if shell:

@@ -23,6 +23,7 @@ from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
+from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
 from siada.tools.coder.fix_attempt_completion import fix_attempt_completion
 from siada.services.enhanced_fix_result_check import EnhancedFixResultChecker
 from typing import Optional, List, Dict, Any
@@ -52,9 +53,14 @@ class BugFixAgent(CodeGenAgent):
         self.anomaly_detector = AnomalyDetectorTextOnly()
         self.has_anomaly_detector = self.anomaly_detector.load_model()
         
+        _tools = [edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names]
+        _pwsh = get_run_powershell_tool_if_available()
+        if _pwsh is not None:
+            _tools.append(_pwsh)
+
         super().__init__(
             name="BugFixAgent",
-            tools=[edit, regex_search_files, run_cmd, fix_attempt_completion, list_code_definition_names],
+            tools=_tools,
             tool_use_behavior={
                 "stop_at_tool_names": ["fix_attempt_completion"],
             },

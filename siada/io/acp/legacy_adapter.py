@@ -101,7 +101,11 @@ class LegacyACPAdapter:
             
             # Create stream manager
             self.stream_manager = ACPStreamManager(self.transport, self.builder)
-            
+
+            # Register in global cache so tools can push custom ACP notifications
+            from siada.foundation.global_cache import set_global_cache, ACP_LEGACY_ADAPTER
+            set_global_cache(ACP_LEGACY_ADAPTER, self)
+
         except Exception as e:
             if self.fallback_to_console:
                 self.acp_enabled = False

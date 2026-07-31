@@ -71,7 +71,8 @@ features where possible.
 
 ## Repository Info
   - Repository name
-  - Working directory path
+  - Working directory path (use the absolute path from the session's **Workspace** metadata
+    field if available; otherwise infer from conversation context)
   - Key files changed
 
 ## Key Insights & Notes

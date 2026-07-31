@@ -5,8 +5,11 @@ This instruction is sent by the scheduler to ask ProactiveAgent
 to generate a summary of the most recent work day's activities.
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Optional
+
+from siada.foundation.constants import SIADA_HOME
 
 
 def _find_last_work_date(events_dir: Path, today: date) -> date:
@@ -29,128 +32,258 @@ def _find_last_work_date(events_dir: Path, today: date) -> date:
     return today - timedelta(days=1)
 
 
-def get_daily_summary_instruction() -> str:
-    today = datetime.now(timezone.utc).date()
-    home = Path.home()
-    events_dir = home / ".siada-cli" / "workspace" / "memory" / "events"
-    session_dir = home / ".siada-cli" / "workspace" / "memory" / "session"
+def _get_preferred_language() -> str:
+    """Read preferred_language from conf.yaml, default to 'en'."""
+    try:
+        from siada.config.config_loader import load_conf
+        conf = load_conf()
+        return conf.preferred_language or "en"
+    except Exception:
+        return "en"
 
-    work_date = _find_last_work_date(events_dir, today)
-    work_date_str = work_date.strftime("%Y-%m-%d")
-    summary_file = home / ".siada-cli" / "workspace" / "memory" / "summary" / f"{work_date_str}_summary.md"
+
+# Base directory for all memory-related files (events, sessions, summaries)
+_MEMORY_DIR = SIADA_HOME / "workspace" / "memory"
+
+
+def get_last_work_date_str() -> str:
+    """Return the last work date as a string (YYYY-MM-DD).
+
+    This is the single source of truth for determining which date the daily
+    summary should cover.  Uses local time so that the generation phase and
+    the IM-send phase always agree on the same date, even when they straddle
+    the UTC midnight boundary.
+    """
+    today = datetime.now().date()
+    work_date = _find_last_work_date(_MEMORY_DIR / "events", today)
+    return work_date.strftime("%Y-%m-%d")
+
+
+def get_daily_summary_file_path(work_date_str: Optional[str] = None) -> Path:
+    """Return the expected path of the daily summary file.
+
+    Args:
+        work_date_str: Date string in YYYY-MM-DD format.  When *None*,
+            :func:`get_last_work_date_str` is called to determine the date.
+    """
+    if work_date_str is None:
+        work_date_str = get_last_work_date_str()
+    return _MEMORY_DIR / "summary" / f"{work_date_str}_summary.md"
+
+
+def get_daily_summary_instruction(
+    preferred_language: Optional[str] = None,
+    work_date_str: Optional[str] = None,
+) -> str:
+    events_dir = _MEMORY_DIR / "events"
+    session_dir = _MEMORY_DIR / "session"
+
+    if work_date_str is None:
+        work_date_str = get_last_work_date_str()
+    summary_file = get_daily_summary_file_path(work_date_str)
+
+    lang = preferred_language or _get_preferred_language()
+    if lang.startswith("zh"):
+        return _instruction_zh(work_date_str, events_dir, session_dir, summary_file)
+    return _instruction_en(work_date_str, events_dir, session_dir, summary_file)
+
+
+# ---------------------------------------------------------------------------
+# English version
+# ---------------------------------------------------------------------------
+
+def _instruction_en(work_date_str: str, events_dir: Path, session_dir: Path, summary_file: Path) -> str:
     return f"""# Task: Generate Daily Work Summary
-
-Analyze the most recent work day's structured events and session history to create a comprehensive daily summary.
 
 Work date: {work_date_str}
 
 ## Data Sources
 
-1. **Structured Events** (primary): `{events_dir}` directory
-   - **Scope**: Event files for {work_date_str} only (filter by date prefix `{work_date_str}`)
-   - **Advantage**: Already distilled — contains background, implementation summary, deliverables, predicted next tasks, repository info, and key insights fields; much higher information density than raw sessions
-2. **Raw Sessions** (fallback): `{session_dir}` directory
-   - **Scope**: Session files for {work_date_str} that do NOT have a corresponding event file
-   - **Note**: Only read session files when no structured event exists for that session. There may be multiple session files. To avoid context overflow, read and summarize them one by one incrementally.
+1. **Events** (primary): `{events_dir}` — files prefixed `{work_date_str}`. Already distilled with structured fields.
+2. **Sessions** (fallback): `{session_dir}` — only for sessions WITHOUT a corresponding event. Process one by one.
 
-## Your Objectives
+## Steps
 
-1. **Identify Work Day Activities**
-   - What features were worked on
-   - What bugs were fixed
-   - What discussions took place
-   - What decisions were made
-   - What problems were encountered
-   - Which code repository do these tasks belong to, and what is the working directory.
-
-2. **Highlight Key Accomplishments**
-   - Completed features or tasks
-   - Resolved issues
-   - Important milestones reached
-   - User satisfaction (if explicitly mentioned or can be inferred from context)
-
-3. **Note Pending Items**
-   - Work started but not finished (use `predicted next tasks` field from events as the authoritative source)
-   - Issues discovered but not resolved
-   - Questions raised but not answered
-
-
-## Execution Steps
-
-1. List event files for {work_date_str} from `{events_dir}` directory (filenames starting with `{work_date_str}`)
-2. **Sort by time**: Sort event files by timestamp in chronological order (oldest first)
-3. **Read and summarize incrementally**: Process each event file one by one; extract all structured fields
-4. List session files for {work_date_str} from `{session_dir}`; skip any session that already has a corresponding event (matched by date-time prefix)
-5. For remaining sessions without events, read and extract key facts incrementally
-6. Aggregate all findings into final daily summary
-7. Save the summary to `{summary_file}`
+1. List & sort event files for `{work_date_str}` chronologically.
+2. Read each event incrementally. For each event, extract:
+   - `## Repository Info` → `Repository name` (the top-level grouping key)
+   - The event slug (from filename) → the topic name
+   - Key outcome, decisions, blockers, and predicted next tasks
+3. List session files for `{work_date_str}`; skip those with a matching event.
+4. Read remaining sessions incrementally; extract key facts and repo info.
+5. Group all entries by repository name, then write the summary and save to `{summary_file}`.
 
 ## Output Format
 
-Generate a markdown file with the following structure:
-
 ```markdown
-# Daily Work Summary - {work_date_str}
+# Daily Summary - {work_date_str}
 
-## Session Summaries
+## Overview
+[≤ 3 sentences: how many projects, how many items, the most important 1-3 things today]
 
-### Session: [session-filename-1]
-**Facts:**
-- [Key facts from this session]
+## [Repository A]  (N items)
 
-**Tasks:**
-- [Task name] - Status: [completed/in-progress/blocked] - User Satisfaction: [satisfied/neutral/unsatisfied/unknown]
+### Progress
+- **[topic from slug]**: [≤ 1 sentence outcome]. [optional status note].
+- **[topic from slug]**: ...
 
-**Notes:**
-- [Other relevant observations]
+### Decisions
+- [key technical decision made today]
 
----
-
-### Session: [session-filename-2]
-**Facts:**
-- [Key facts from this session]
-
-**Tasks:**
-- [Task name] - Status: [completed/in-progress/blocked] - User Satisfaction: [satisfied/neutral/unsatisfied/unknown]
-
-**Notes:**
-- [Other relevant observations]
-
----
-
-## Overall Summary
-
-### Accomplishments
-- [Aggregated completed work items with session sources]
-
-### In Progress
-- [Aggregated ongoing work items with session sources]
-
-### Discussions & Decisions
-- [Key discussions and decisions with session sources]
-
-### Challenges & Blockers
-- [Issues or blockers encountered with session sources]
+### Blockers / Risks
+- [blockers or risks observed]
 
 ### Next Steps
-- [Planned follow-up actions]
+- P0: [highest priority follow-up]
+- P1: [medium priority]
+- P2: [lower priority]
+
+### Sources
+- HH-MM-slug
+- HH-MM-slug
+
+## [Repository B]  (M items)
+...
+
+## Tools / Environment (optional — only for entries without a real repo)
+- [lightweight entry, e.g., installed a CLI tool]
 
 ## Statistics
-- Total sessions: [N]
-- Completed tasks: [N]
-- In-progress tasks: [N]
-- Blocked tasks: [N]
+N projects · M sessions · K items
 ```
 
-## Important Notes
+## Rules
 
-- **Each summary item must cite its source** (event or session filename)
-- **Prefer events over sessions**: Structured events are already distilled — always use them as the primary source; fall back to raw sessions only when no event exists
-- **For task-related content**: Always include completion status; use `predicted next tasks` from events as the authoritative next-step source
-- **User satisfaction**: Include if explicitly mentioned or can be reasonably inferred from user feedback in the session
-- **Time-ordered processing**: Always process files in chronological order (oldest first) based on filename timestamp
-- **Incremental processing**: Don't load all files at once - process them sequentially to manage context length
-- **Save location**: `{summary_file}`
+### Grouping
+- Top-level grouping = `Repository name` from each event's `## Repository Info` section.
+- Each repository becomes one H2 section: `## [repo name]  (N items)`.
+- If a repo name is missing or unclear, group as "Uncategorized".
+- Trivial entries without a real repository (e.g., installing a tool) go into "## Tools / Environment".
 
-After generating the summary, save it to the specified location and inform the user.
+### Per-Repository Structure
+- Within each repository H2, use up to 5 H3 sub-sections in this order:
+  `### Progress` / `### Decisions` / `### Blockers / Risks` / `### Next Steps` / `### Sources`
+- Omit any sub-section that has no content (except Progress and Sources which must always exist).
+- NEVER create cross-project sections like "Cross-Project Decisions". Decisions/blockers belong
+  to the project that drove them.
+
+### One Event = One Bullet
+- Each event file = exactly ONE bullet under its repo's `### Progress`. Format:
+  `- **<topic from slug>**: <≤ 1 sentence outcome>. <optional status note>.`
+- Within the same repo, merge 2+ events sharing an obvious topic into ONE bullet.
+- NEVER enumerate file paths, function names, or symbol names that already live inside event files.
+  The summary is a reading guide, not a changelog.
+
+### Sources Section
+- DO NOT put source citations after each bullet in Progress/Decisions/Blockers.
+- All sources for a repo are aggregated in that repo's `### Sources` sub-section, listed as:
+  `- HH-MM-<slug>` (one per line, time-ascending, strip the `YYYY-MM-DD-` prefix).
+
+### Length Budget
+- Total ≤ 600 words. Per repo ≤ 5 Progress bullets (merge if more).
+
+### Other
+- Prefer events over sessions; use `predicted next tasks` as authoritative next-step source.
+- Process files sequentially (oldest first).
+- Save to: `{summary_file}`
+"""
+
+
+# ---------------------------------------------------------------------------
+# Chinese version
+# ---------------------------------------------------------------------------
+
+def _instruction_zh(work_date_str: str, events_dir: Path, session_dir: Path, summary_file: Path) -> str:
+    return f"""# 任务：生成每日工作总结
+
+工作日期：{work_date_str}
+
+## 数据来源
+
+1. **事件**（主要）：`{events_dir}` — 以 `{work_date_str}` 为前缀的文件，已包含结构化字段。
+2. **会话**（备选）：`{session_dir}` — 仅处理没有对应事件的会话，逐个读取。
+
+## 执行步骤
+
+1. 按时间顺序列出 `{work_date_str}` 的事件文件。
+2. 逐个读取事件，提取以下信息：
+   - `## Repository Info` → `Repository name`（顶层分组依据）
+   - 文件名中的 slug → 该事件的主题名
+   - 关键产出、决策、阻塞、预测的后续任务
+3. 列出 `{work_date_str}` 的会话文件；跳过已有对应事件的。
+4. 逐个读取剩余会话，提取关键事实和所属项目信息。
+5. 按项目（Repository name）分组汇总，写入摘要并保存到 `{summary_file}`。
+
+## 输出格式
+
+```markdown
+# 每日总结 - {work_date_str}
+
+## 概览
+[≤ 3 句话：今天涉及多少个项目、多少个事项、最重要的 1-3 件事]
+
+## [项目 A]  (N 事项)
+
+### 进展
+- **[来自 slug 的主题]**：[≤ 1 句话结果]。[可选状态说明]。
+- **[来自 slug 的主题]**：...
+
+### 决策
+- [今天做出的关键技术决策]
+
+### 阻塞 / 风险
+- [遇到的阻塞或风险]
+
+### 后续优先级
+- P0: [最高优先级的后续行动]
+- P1: [中等优先级]
+- P2: [较低优先级]
+
+### 来源
+- HH-MM-slug
+- HH-MM-slug
+
+## [项目 B]  (M 事项)
+...
+
+## 工具/环境（可选 — 仅放无所属项目的轻量条目）
+- [轻量条目，例如安装了某个 CLI 工具]
+
+## 数据
+N 个项目 · M 个会话 · K 个事项
+```
+
+## 规则
+
+### 分组
+- 顶层分组依据 = 每个事件中 `## Repository Info` 段的 `Repository name`。
+- 每个项目占一个 H2 章节：`## [项目名]  (N 事项)`。
+- 如果项目名缺失或不清楚，归入"未分类"。
+- 与代码项目无关的轻量条目（例如安装某个工具）归入底部 `## 工具/环境`。
+
+### 每个项目的内部结构
+- 每个项目 H2 下，最多使用 5 个 H3 子段，按此顺序：
+  `### 进展` / `### 决策` / `### 阻塞 / 风险` / `### 后续优先级` / `### 来源`
+- 无内容的子段直接省略（但"进展"和"来源"必须始终存在）。
+- **禁止**创建"跨项目决策""跨项目阻塞"等跨项目章节。决策/阻塞归属于驱动它的项目。
+
+### 一个事件 = 一条要点
+- 每个事件文件 = 所属项目 `### 进展` 下的一条 bullet。格式：
+  `- **<来自 slug 的主题>**：<≤ 1 句话结果>。<可选状态说明>。`
+- 同项目内，2 个以上共享同一明显主题的事件合并为一条。
+- **禁止**罗列文件路径、函数名、符号名等已在事件文件中存在的细节。
+  日报是阅读指南，不是 changelog。
+
+### 来源章节
+- **禁止**在"进展 / 决策 / 阻塞"的每条 bullet 后附加来源标注。
+- 每个项目的所有来源集中在该项目的 `### 来源` 子段中，格式为：
+  `- HH-MM-<slug>`（每行一条，按时间升序，去掉 `YYYY-MM-DD-` 前缀）。
+
+### 篇幅预算
+- 总长 ≤ 600 字。每个项目 ≤ 5 条"进展"bullet（超过则合并）。
+
+### 其他
+- 优先使用事件；以事件中的 `predicted next tasks` 作为后续任务权威来源。
+- 按时间顺序逐个处理文件。
+- 保存位置：`{summary_file}`
 """

@@ -23,7 +23,9 @@ from .git_service import (
     GitServiceError
 )
 
-from .file_session import FileSession
+# FileSession intentionally NOT imported here: file_session.py pulls in
+# agents.memory.session (557ms agents SDK) which must not load at startup.
+# Import it directly: from siada.services.file_session import FileSession
 
 __all__ = [
     'AtCommandProcessor',
@@ -36,6 +38,4 @@ __all__ = [
     'DEFAULT_COMPLETION_CONFIG',
     'GitService',
     'GitServiceError',
-    'FileSession',
-    'DEFAULT_COMPLETION_CONFIG',
 ]

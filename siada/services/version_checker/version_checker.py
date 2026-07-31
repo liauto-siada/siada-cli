@@ -14,6 +14,11 @@ except ImportError:
     import packaging.version
     import siada
     from siada.foundation.constants import SIADA_HOME
+    from siada.services.auto_update import (
+        get_latest_release_info,
+        get_runtime_auto_update_config,
+        install_latest_update,
+    )
 
     VERSION_CHECK_FNAME = SIADA_HOME / "caches" / "versioncheck"  # type: ignore[assignment]
 
@@ -22,19 +27,36 @@ except ImportError:
             self.handler = handler
 
         def get_latest_version(self):
-            if self.handler:
-                try:
-                    version, status = self.handler.get_version()
-                    return (version, "available") if version else (None, status)
-                except Exception as e:
-                    return None, f"handler_error: {e}"
-            return None, "no_handler_available"
+            try:
+                release = get_latest_release_info(get_runtime_auto_update_config())
+                return release.version, release.version_source
+            except Exception:
+                if self.handler:
+                    try:
+                        version, status = self.handler.get_version()
+                        return (version, "available") if version else (None, status)
+                    except Exception as e:
+                        return None, f"handler_error: {e}"
+                return None, "no_handler_available"
 
         def install_upgrade(self, io, latest_version=None, version_source=None):
-            if self.handler:
-                if latest_version is None:
-                    latest_version, _ = self.get_latest_version()
-                return self.handler.install(io, latest_version)
+            success, release, message = install_latest_update(
+                config=get_runtime_auto_update_config(),
+                force=latest_version is not None,
+            )
+            if success:
+                if release and release.version != siada.__version__:
+                    io.print_info(
+                        f"Installed version {release.version}. Re-run siada-cli to use the new version."
+                    )
+                else:
+                    io.print_info(message)
+                return True
+
+            if release is not None and self.handler:
+                return self.handler.install(io, release.version)
+
+            io.print_error(message)
             return False
 
         def check_version(self, io, just_check=False, verbose=False):
@@ -60,9 +82,16 @@ except ImportError:
                 VERSION_CHECK_FNAME.touch()
             if just_check or verbose:
                 if is_update_available:
+                    install_hint = None
+                    if self.handler:
+                        try:
+                            install_hint = self.handler.get_manual_upgrade_hint()
+                        except Exception:
+                            install_hint = None
+                    if install_hint is None:
+                        install_hint = "siada-cli --upgrade"
                     io.print_info(
-                        f"Latest version {latest_version} available:\n"
-                        "curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh"
+                        f"Latest version {latest_version} available:\n{install_hint}"
                     )
             if just_check:
                 return is_update_available

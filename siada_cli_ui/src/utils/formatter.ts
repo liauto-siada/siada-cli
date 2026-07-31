@@ -30,9 +30,35 @@ export function formatDuration(ms: number): string {
 }
 
 /**
+ * Format a duration given in whole seconds as a single short unit
+ * ("2h", "5m", "30s") — used by the collapsible "Goal achieved (2h · 1 turn
+ * · 134.1k tokens)" summary line. Unlike formatDuration (which composes
+ * hours+minutes, seconds+ms, etc.), this deliberately picks just ONE unit
+ * to match that compact style.
+ */
+export function formatElapsedShort(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  return `${Math.round(seconds / 3600)}h`;
+}
+
+/**
+ * Format a raw token count as a short human-readable string ("134.1k",
+ * "2.3M", "842") — used alongside formatElapsedShort in the same summary line.
+ */
+export function formatTokensShort(count: number): string {
+  const n = Math.max(0, count);
+  if (n < 1000) return `${n}`;
+  if (n < 1000000) return `${(n / 1000).toFixed(1)}k`;
+  return `${(n / 1000000).toFixed(1)}M`;
+}
+
+/**
  * Format timestamp in relative time (e.g., "2 minutes ago")
  */
 export function formatRelativeTime(timestamp: string | Date): string {
+
   const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
   const now = new Date();
   const diff = now.getTime() - date.getTime();

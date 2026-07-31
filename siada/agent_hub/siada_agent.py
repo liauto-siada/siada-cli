@@ -1,10 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Generic
+import copy
+import dataclasses
 import yaml
 import os
 
 from agents import Agent, RunConfig, RunHooks, RunResult, RunResultStreaming, Runner, TContext, TResponseInputItem, set_trace_processors
+from agents.tool import FunctionTool
+from siada.agent_hub.hooks.guardrails import PLUGIN_HOOK_INPUT_GUARDRAIL, PLUGIN_HOOK_OUTPUT_GUARDRAIL
 from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
+from siada.services.plugins.hook_runner import get_active
 from siada.tools.coder.repo_map.repo_map import RepoMap
 from siada.tools.coder.repo_map.token_counter import TokenCounterModel
 from siada.tools.coder.repo_map.io import SilentIO
@@ -15,9 +20,6 @@ from siada.agent_hub.hooks.siada_agent_hooks import SiadaAgentHooks
 class SiadaAgent(Agent[Generic[TContext]], ABC):
 
     def __init__(self, *args, **kwargs):
-        # Remove im_mode if not consumed by subclass, to avoid passing unknown kwarg to Agent
-        kwargs.pop('im_mode', None)
-
         if 'hooks' not in kwargs:
             kwargs['hooks'] = SiadaAgentHooks()
 
@@ -146,6 +148,56 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             # If creation fails, return None
             return None
 
+    def _attach_plugin_guardrails(self, agent: Agent) -> Agent:
+        """Return a copy of agent whose FunctionTools have plugin hook guardrails attached.
+
+        Also wraps each tool's on_invoke_tool to apply updatedInput overrides stored
+        in CodeAgentContext.hook_pending_input_updates by the input guardrail.
+        Non-FunctionTool tools (e.g. MCP tools) are left unchanged.
+        Only applied when an active HookRunner exists for this turn.
+        """
+        if get_active() is None:
+            return agent
+
+        patched_tools = []
+        for tool in agent.tools:
+            if not isinstance(tool, FunctionTool):
+                patched_tools.append(tool)
+                continue
+
+            t = copy.copy(tool)
+            t.tool_input_guardrails = [PLUGIN_HOOK_INPUT_GUARDRAIL] + (
+                list(t.tool_input_guardrails) if t.tool_input_guardrails else []
+            )
+            t.tool_output_guardrails = [PLUGIN_HOOK_OUTPUT_GUARDRAIL] + (
+                list(t.tool_output_guardrails) if t.tool_output_guardrails else []
+            )
+            # Wrap on_invoke_tool to apply updatedInput from PreToolUse hook
+            original_invoke = t.on_invoke_tool
+
+            async def _patched_invoke(tool_context, arguments, _orig=original_invoke):
+                updated = tool_context.context.hook_pending_input_updates.pop(
+                    tool_context.tool_call_id, None
+                )
+                return await _orig(tool_context, updated if updated is not None else arguments)
+
+            t.on_invoke_tool = _patched_invoke
+            patched_tools.append(t)
+
+        # NOTE: Do NOT use ``dataclasses.replace`` here.
+        # ``dataclasses.replace`` reconstructs the object via ``obj.__class__(**changes)``.
+        # Several CodeGenAgent subclasses (e.g. GerritIssueFixAgent, BugFixAgent,
+        # FeGenAgent, ...) hardcode ``name=...`` and ``tools=[...]`` in their
+        # ``super().__init__(...)`` call, which would then collide with the
+        # ``tools`` (and ``name``) keys already present in ``changes``, raising
+        # ``TypeError: __init__() got multiple values for keyword argument 'tools'``.
+        # A shallow copy + direct attribute assignment avoids the constructor
+        # entirely while preserving the original semantics (Agent is a mutable
+        # dataclass, so ``tools`` can be re-assigned in place on the copy).
+        patched_agent = copy.copy(agent)
+        patched_agent.tools = patched_tools
+        return patched_agent
+
     async def run_impl(
         self,
         starting_agent: Agent[TContext],
@@ -176,6 +228,8 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         # Use SiadaAgentHooks with default processors if no hooks provided
         if hooks is None:
             hooks = SiadaRunHooks()
+
+        starting_agent = self._attach_plugin_guardrails(starting_agent)
 
         return await Runner.run(
             starting_agent=starting_agent,
@@ -218,6 +272,8 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         # Use SiadaAgentHooks with default processors if no hooks provided
         if hooks is None:
             hooks = SiadaRunHooks()
+
+        starting_agent = self._attach_plugin_guardrails(starting_agent)
 
         return Runner.run_streamed(
             starting_agent=starting_agent,

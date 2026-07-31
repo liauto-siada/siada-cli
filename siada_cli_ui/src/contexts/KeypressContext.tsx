@@ -58,11 +58,13 @@ export interface Key {
 export type KeypressHandler = (key: Key) => void;
 
 /**
- * ANSI escape sequence to key info mapping
+ * ANSI escape sequence to key info mapping.
+ * `char` overrides `sequence` for insertable keys whose raw sequence is an
+ * escape sequence rather than the printable character (e.g. numpad keys).
  */
 const KEY_INFO_MAP: Record<
   string,
-  { name: string; shift?: boolean; ctrl?: boolean; alt?: boolean }
+  { name: string; shift?: boolean; ctrl?: boolean; alt?: boolean; insertable?: boolean; char?: string }
 > = {
   '[200~': { name: 'paste-start' },
   '[201~': { name: 'paste-end' },
@@ -109,6 +111,24 @@ const KEY_INFO_MAP: Record<
   'OQ': { name: 'f2' },
   'OR': { name: 'f3' },
   'OS': { name: 'f4' },
+  // Numeric keypad (application keypad mode, ESC O prefix)
+  'OM': { name: 'return' },                               // Numpad Enter
+  'Oj': { name: '*', insertable: true, char: '*' },       // Numpad *
+  'Ok': { name: '+', insertable: true, char: '+' },       // Numpad +
+  'Ol': { name: ',', insertable: true, char: ',' },       // Numpad ,
+  'Om': { name: '-', insertable: true, char: '-' },       // Numpad -
+  'On': { name: '.', insertable: true, char: '.' },       // Numpad .
+  'Oo': { name: '/', insertable: true, char: '/' },       // Numpad /
+  'Op': { name: '0', insertable: true, char: '0' },       // Numpad 0
+  'Oq': { name: '1', insertable: true, char: '1' },       // Numpad 1
+  'Or': { name: '2', insertable: true, char: '2' },       // Numpad 2
+  'Os': { name: '3', insertable: true, char: '3' },       // Numpad 3
+  'Ot': { name: '4', insertable: true, char: '4' },       // Numpad 4
+  'Ou': { name: '5', insertable: true, char: '5' },       // Numpad 5
+  'Ov': { name: '6', insertable: true, char: '6' },       // Numpad 6
+  'Ow': { name: '7', insertable: true, char: '7' },       // Numpad 7
+  'Ox': { name: '8', insertable: true, char: '8' },       // Numpad 8
+  'Oy': { name: '9', insertable: true, char: '9' },       // Numpad 9
   '[9u': { name: 'tab' },
   '[13u': { name: 'return' },
   '[27u': { name: 'escape' },
@@ -159,27 +179,44 @@ function charLengthAt(str: string, i: number): number {
   return code !== undefined && code >= kUTF16SurrogateThreshold ? 2 : 1;
 }
 
+// Terminals that natively support Kitty keyboard protocol (CSI >1u).
+// Activating it makes Shift+Enter send ESC[13;2u instead of bare CR.
+const KITTY_PROTOCOL_TERMINALS = new Set([
+  'iTerm.app',
+  'WezTerm',
+  'ghostty',
+  'WarpTerminal',
+]);
+
 /**
- * Check if Kitty keyboard protocol is enabled
- * Kitty protocol provides enhanced keyboard handling in modern terminals
+ * Check if the current terminal natively supports (and benefits from) the
+ * Kitty keyboard protocol. Returns true for Kitty itself and other modern
+ * terminals on the allowlist.
  */
 function isKittyProtocolEnabled(): boolean {
-  // Check if running in Kitty terminal
   const term = process.env.TERM;
   const termProgram = process.env.TERM_PROGRAM;
-  
-  // Kitty terminal sets TERM to xterm-kitty
-  if (term && term.includes('kitty')) {
+
+  // Kitty terminal sets TERM to xterm-kitty or KITTY_WINDOW_ID
+  if ((term && term.includes('kitty')) || process.env.KITTY_WINDOW_ID) {
     return true;
   }
-  
-  // Some terminals may set TERM_PROGRAM
-  if (termProgram && termProgram.toLowerCase().includes('kitty')) {
+
+  if (termProgram && KITTY_PROTOCOL_TERMINALS.has(termProgram)) {
     return true;
   }
-  
-  // Default to false for safety (enable bufferFastReturn for most terminals)
+
   return false;
+}
+
+/**
+ * Whether we should actively push the Kitty keyboard protocol stack entry
+ * (CSI >1u) so the terminal sends extended modifier sequences.
+ * Only for terminals that properly handle the push/pop stack — same list as
+ * KITTY_PROTOCOL_TERMINALS plus Kitty itself.
+ */
+function shouldEnableKittyKeyboard(): boolean {
+  return isKittyProtocolEnabled();
 }
 
 /**
@@ -408,6 +445,10 @@ function* emitKeys(
         if (keyInfo.shift) shift = true;
         if (keyInfo.ctrl) ctrl = true;
         if (keyInfo.alt) alt = true;
+        if (keyInfo.insertable) insertable = true;
+        // For keys whose raw ESC sequence is not the printable char (e.g. numpad),
+        // override sequence so that buffer.insert() receives the correct character.
+        if (keyInfo.char) sequence = keyInfo.char;
       } else {
         name = 'undefined';
         if ((ctrl || alt) && (code.endsWith('u') || code.endsWith('~'))) {
@@ -568,22 +609,27 @@ function bufferPaste(keypressHandler: KeypressHandler): KeypressHandler {
         buffer += key.sequence;
       }
 
-      if (buffer.length > 0) {
-        // Remove trailing newlines to prevent accidental submission
-        const cleanedBuffer = buffer.replace(/[\r\n]+$/, '');
-        
-        if (cleanedBuffer.length > 0) {
-          keypressHandler({
-            name: 'paste',
-            shift: false,
-            alt: false,
-            ctrl: false,
-            cmd: false,
-            insertable: true,
-            sequence: cleanedBuffer,
-          });
-        }
-      }
+      // Remove trailing newlines to prevent accidental submission
+      const cleanedBuffer = buffer.replace(/[\r\n]+$/, '');
+
+      logger.info('[KeypressContext] bufferPaste done', {
+        rawBufferLength: buffer.length,
+        cleanedBufferLength: cleanedBuffer.length,
+        cleanedPreview: cleanedBuffer.slice(0, 80),
+        isEmpty: cleanedBuffer.length === 0,
+      });
+
+      // Emit the paste event even when empty so the input component can
+      // check the OS clipboard for an image (macOS Cmd+V with image data).
+      keypressHandler({
+        name: 'paste',
+        shift: false,
+        alt: false,
+        ctrl: false,
+        cmd: false,
+        insertable: cleanedBuffer.length > 0,
+        sequence: cleanedBuffer,
+      });
     }
   })();
   bufferer.next(); // prime the generator so it starts listening.
@@ -830,6 +876,20 @@ export function KeypressProvider({
         operation: 'enable_bracketed_paste',
       });
     }
+
+    // Enable Kitty keyboard protocol on supported terminals (iTerm2, WezTerm,
+    // Ghostty, Warp, Kitty). This pushes a mode stack entry (CSI >1u) that
+    // makes the terminal send ESC[13;2u for Shift+Enter (instead of bare CR),
+    // enabling reliable newline-vs-submit disambiguation.
+    const kittyEnabled = shouldEnableKittyKeyboard() && process.stdout.isTTY;
+    if (kittyEnabled) {
+      process.stdout.write('\x1b[>1u'); // Push Kitty keyboard protocol (flags=1)
+      logger.info('Kitty keyboard protocol enabled', {
+        component: 'KeypressContext',
+        operation: 'enable_kitty_keyboard',
+        termProgram: process.env.TERM_PROGRAM,
+      });
+    }
     
     logger.info('🔥 Process.stdin configured', {
       component: 'KeypressContext',
@@ -866,6 +926,10 @@ export function KeypressProvider({
       // Disable Bracketed Paste Mode on cleanup
       if (process.stdout.isTTY) {
         process.stdout.write('\x1b[?2004l'); // Disable bracketed paste mode
+      }
+      // Pop Kitty keyboard protocol stack entry if we pushed one
+      if (kittyEnabled) {
+        process.stdout.write('\x1b[<u'); // Pop Kitty keyboard protocol
       }
       process.stdin.removeListener('data', dataListener);
       if (wasRaw === false) {

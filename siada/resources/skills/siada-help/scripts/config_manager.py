@@ -33,11 +33,37 @@ VALID_KEYS = {
     "proactive.work_hours": str,
     "proactive.trigger_interval": int,
     "proactive.daily_task_execution_time": str,
+    "proactive.daily_im_send_time": str,
     "proactive.auto_execute_enabled": bool,
+    "proactive.send_daily_summary_to_im": bool,
+    "auto_update.enabled": bool,
+    "auto_update.check_interval_minutes": int,
+    "auto_update.channel": str,
+    "code_agent.max_turns": int,
+    "memory.enabled": bool,
+    "memory.user_profile_enabled": bool,
+    "memory.memory_facts_enabled": bool,
+    "memory.memory_char_limit": int,
+    "memory.user_char_limit": int,
+    "memory.holographic.enabled": bool,
+    "memory.holographic.hrr_enabled": bool,
+    "memory.holographic.hrr_dim": int,
+    "memory.holographic.prefetch_limit": int,
+    "memory.holographic.temporal_decay_half_life": int,
+    "web.enabled": bool,
+    "compaction_strategy": str,
     "command_timeout": int,
     "pre_plan": bool,
     "preferred_language": str,
+    "enable_notification": bool,
 }
+
+# Top-level keys that are known-but-not-in-VALID_KEYS because their value is
+# an object/list rather than a simple scalar (so `set` can't target them
+# directly, but they're still legitimate sections in conf.yaml and shouldn't
+# be flagged as unknown by `validate`).
+KNOWN_OBJECT_TOP_KEYS = {"lark", "sub_agent"}
+
 
 
 def _load():
@@ -144,8 +170,14 @@ def cmd_validate(_args) -> None:
     issues = []
 
     # Check for unknown top-level keys
-    known_top = {"llm_config", "checkpoint_config", "proactive", "command_timeout", "user_id", "pre_plan", "preferred_language"}
+    known_top = {
+        "llm_config", "checkpoint_config", "proactive", "auto_update",
+        "code_agent", "sub_agent", "memory", "web", "lark",
+        "compaction_strategy", "command_timeout", "user_id", "pre_plan",
+        "preferred_language",
+    }
     unknown_top = set(data.keys()) - known_top
+
     for key in sorted(unknown_top):
         issues.append(f"[WARN]  Unknown top-level key: {key!r}")
 

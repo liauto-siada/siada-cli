@@ -1,3 +1,5 @@
+from typing import Any
+
 from agents import Agent, ModelResponse, AgentHooks, TContext, RunContextWrapper
 from siada.foundation.code_agent_context import CodeAgentContext
 
@@ -10,6 +12,25 @@ class ContextTrackProcessor(AgentHooks):
     resetting it before LLM calls and adding new messages after responses.
     """
 
+    async def on_agent_start(
+        self,
+        context: RunContextWrapper[CodeAgentContext],
+        agent: Agent[TContext],
+    ) -> None:
+        """No-op — defined so `SiadaAgentHooks`'s composite delegation
+        (which calls `processor.on_agent_start(...)` on every processor)
+        doesn't raise AttributeError."""
+        pass
+
+    async def on_agent_end(
+        self,
+        context: RunContextWrapper[CodeAgentContext],
+        agent: Agent[TContext],
+        output: Any,
+    ) -> None:
+        """No-op — see `on_agent_start`."""
+        pass
+
     async def on_llm_end(
         self,
         context: RunContextWrapper[CodeAgentContext],
@@ -21,6 +42,8 @@ class ContextTrackProcessor(AgentHooks):
         # Add response messages to the message history
         input_items = response.to_input_items()
         siada_context = context.context
+        if siada_context.session is None:
+            return
         siada_context.session.state.task_message_state.add_messages(
            messages=input_items
        )

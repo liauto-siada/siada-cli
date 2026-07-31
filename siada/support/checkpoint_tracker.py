@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import copy
 import dataclasses
@@ -6,9 +8,10 @@ import re
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
-from agents import TResponseInputItem
+if TYPE_CHECKING:
+    from agents import TResponseInputItem  # heavy: triggers agents SDK import
 from siada.services.git_service import GitService
 from siada.session.task_message_state import TaskMessageState
 from siada.foundation.logging import logger
@@ -477,7 +480,7 @@ class CheckPointTracker:
                 diff_output = self.git_service.get_snapshot_diff(clean_lhs, None)
 
             duration_ms = round((time.time() - start_time) * 1000)
-            logger.info(f"Diff generation completed in {duration_ms}ms")
+            logger.debug(f"Diff generation completed in {duration_ms}ms")
 
             return diff_output
 

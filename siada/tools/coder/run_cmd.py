@@ -14,7 +14,10 @@ from siada.foundation.context import get_context_var
 from siada.tools.resolve_cwd import resolve_cwd
 
 
-RUN_CMD_DOCS = """Execute a shell command using the most appropriate method for the current environment.
+DEFAULT_TIMEOUT_S = 60   # 1 minute
+MAX_TIMEOUT_S = 600      # 10 minutes
+
+RUN_CMD_DOCS = f"""Execute a shell command using the most appropriate method for the current environment.
 
     This function automatically selects between pexpect (for interactive terminals on Unix-like
     systems) and subprocess (for Windows or non-interactive environments) to execute shell
@@ -24,6 +27,8 @@ RUN_CMD_DOCS = """Execute a shell command using the most appropriate method for 
         command (str): The shell command to execute as a string.
         cwd (str, optional): Working directory for command execution.
             If not provided, defaults to the current workspace directory.
+        timeout (int, optional): Timeout in seconds (max {MAX_TIMEOUT_S}s / {MAX_TIMEOUT_S // 60} minutes).
+            If not specified, commands will timeout after {DEFAULT_TIMEOUT_S}s ({DEFAULT_TIMEOUT_S // 60} minute).
 """
 
 
@@ -208,15 +213,16 @@ def _truncate_tool_output_if_needed(content: str, call_id: str, cwd: str) -> str
     return truncated_content
 
 
-def _run_cmd_impl_tool(context: RunContextWrapper[CodeAgentContext], command: str, cwd: str | None = None) -> FunctionCallResult:
+def _run_cmd_impl_tool(context: RunContextWrapper[CodeAgentContext], command: str, cwd: str | None = None, timeout: int | None = None) -> FunctionCallResult:
     """Shared implementation for both TUI and IM run_cmd variants."""
     effective_cwd = resolve_cwd(context, cwd)
-    code, output = run_cmd_impl(command=command, verbose=True, cwd=effective_cwd)
+    effective_timeout = min(int(timeout), MAX_TIMEOUT_S) if timeout and timeout > 0 else DEFAULT_TIMEOUT_S
+    code, output = run_cmd_impl(command=command, verbose=True, cwd=effective_cwd, timeout=effective_timeout)
     return RunCmdResult(command=command, output=output, code=code, cwd=effective_cwd)
 
 
 @function_tool(
     name_override="run_cmd", description_override=RUN_CMD_DOCS
 )
-def run_cmd(context: RunContextWrapper[CodeAgentContext], command: str, cwd: str | None = None) -> FunctionCallResult:
-    return _run_cmd_impl_tool(context, command, cwd)
+def run_cmd(context: RunContextWrapper[CodeAgentContext], command: str, cwd: str | None = None, timeout: int | None = None) -> FunctionCallResult:
+    return _run_cmd_impl_tool(context, command, cwd, timeout)

@@ -1,8 +1,11 @@
 from dataclasses import dataclass, field
 import re
-from typing import List, Optional
+from typing import List, Optional, Any, TYPE_CHECKING
 
-from agents import TResponseInputItem
+if TYPE_CHECKING:
+    from agents import TResponseInputItem  # real type for static analysis
+else:
+    TResponseInputItem = Any  # runtime fallback — avoids importing agents SDK (~557ms) at module level
 
 @dataclass
 class RealApiMessage:

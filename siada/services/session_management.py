@@ -109,7 +109,7 @@ class SessionManager:
                     created_at=metadata.get('created_at', ''),
                     last_updated=metadata.get('last_updated', ''),
                     message_count=metadata.get('message_count', 0),
-                    first_user_message=self._strip_task_tags(metadata.get('first_user_message', 'Untitled Session')),
+                    first_user_message=self._strip_task_tags(metadata.get('first_user_message') or 'Untitled Session'),
                     project_root=self.project_root,
                     project_name=self.project_name,
                     model_name=metadata.get('model_name')
@@ -180,7 +180,7 @@ class SessionManager:
                         created_at=metadata.get('created_at', ''),
                         last_updated=metadata.get('last_updated', ''),
                         message_count=metadata.get('message_count', 0),
-                        first_user_message=self._strip_task_tags(metadata.get('first_user_message', 'Untitled Session')),
+                        first_user_message=self._strip_task_tags(metadata.get('first_user_message') or 'Untitled Session'),
                         project_root=project_root,
                         project_name=project_name,
                         model_name=metadata.get('model_name')
@@ -319,6 +319,64 @@ class SessionManager:
             logger.error(f"Failed to load session {session_id}: {e}")
             raise
     
+    @staticmethod
+    def resolve_session_path(workspace: str, session_id: str) -> Path:
+        """
+        Resolve the on-disk session directory path for a given workspace + session id.
+
+        Centralizes the "<global sessions dir>/<session_id>" convention so callers
+        don't have to repeat the path assembly and Path import.
+        """
+        return Path(DirectoryUtils.get_global_sessions_dir(workspace)) / session_id
+
+    @staticmethod
+    def resolve_api_messages_file(workspace: str, session_id: str) -> Path:
+        """Resolve the api_messages.json path for a given workspace + session id."""
+        return SessionManager.resolve_session_path(workspace, session_id) / "api_messages.json"
+
+    @staticmethod
+    def sync_api_messages(
+        session_path: Path,
+        session_id: str,
+        api_messages: List[dict],
+        tokens_count: int = 0,
+        last_index: int = -1,
+        last_signature: str = "",
+    ) -> None:
+        """
+        Write (overwrite) api_messages.json with the provided real API messages and tracking info.
+
+        Used after checkpoint undo/restore to persist the restored in-memory state to disk.
+
+        Args:
+            session_path: Path to the session directory
+            session_id: Session ID (written into the JSON payload)
+            api_messages: List of real API message dicts to persist
+            tokens_count: Token count at the time of this save
+            last_index: Last processed message index for incremental tracking
+            last_signature: Last processed message signature for incremental tracking
+        """
+        api_messages_file = session_path / "api_messages.json"
+        api_messages_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(api_messages_file, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "session_id": session_id,
+                        "tokens_count": tokens_count,
+                        "last_index": last_index,
+                        "last_signature": last_signature,
+                        "api_messages": api_messages,
+                    },
+                    f,
+                    ensure_ascii=False,
+                    indent=4,
+                )
+            logger.info(f"Synced api_messages.json for session {session_id}")
+        except OSError as e:
+            logger.error(f"Failed to sync api_messages.json for session {session_id}: {e}")
+            raise
+
     @staticmethod
     def update_api_messages_tracking(session_path: Path, last_index: int, last_signature: str) -> None:
         """Update last_index and last_signature in api_messages.json"""

@@ -15,6 +15,7 @@ from .formatters import (
     ListCodeDefinitionNamesFormatter,
     SearchFormatter,
     CommandFormatter,
+    PowerShellCommandFormatter,
     FixAttemptCompletionFormatter,
     ReproduceCompletionFormatter,
     FileEditFormatter,
@@ -22,7 +23,17 @@ from .formatters import (
     BrowserOperateFormatter,
     RunSubtaskFormatter,
     SmartSearchMemoryFormatter,
+    SearchMemoryFormatter,
+    MemoryWriteFormatter,
+    FactStoreFormatter,
+    FactFeedbackFormatter,
+    WebSearchFormatter,
+    WebFetchFormatter,
+    LarkNotificationFormatter,
+    LarkDailySummaryFormatter,
+    TodoWriteFormatter,
 )
+
 
 # Auto-register all formatters
 def _register_all_formatters():
@@ -31,6 +42,7 @@ def _register_all_formatters():
         DefaultFormatter,
         SearchFormatter,
         CommandFormatter,
+        PowerShellCommandFormatter,
         FixAttemptCompletionFormatter,
         ReproduceCompletionFormatter,
         FileEditFormatter,
@@ -39,7 +51,17 @@ def _register_all_formatters():
         BrowserOperateFormatter,
         RunSubtaskFormatter,
         SmartSearchMemoryFormatter,
+        SearchMemoryFormatter,
+        MemoryWriteFormatter,
+        FactStoreFormatter,
+        FactFeedbackFormatter,
+        WebSearchFormatter,
+        WebFetchFormatter,
+        LarkNotificationFormatter,
+        LarkDailySummaryFormatter,
+        TodoWriteFormatter,
     ]
+
     
     for formatter_class in formatters:
         ToolCallFormatterFactory.register_formatter(formatter_class)
@@ -55,6 +77,7 @@ __all__ = [
     'FileReadFormatter',
     'SearchFormatter',
     'CommandFormatter',
+    'PowerShellCommandFormatter',
     'ParameterInterceptor',
     'parameter_interceptor',
     'simple_interceptor',

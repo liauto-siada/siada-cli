@@ -19,17 +19,58 @@ from agents import (
     ToolOutputImage,
     ToolOutputText
 )
+from agents.exceptions import (
+    ToolInputGuardrailTripwireTriggered,
+    ToolOutputGuardrailTripwireTriggered,
+)
 
 from siada.io.stream_utils import render_tool_call_output
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
-from siada.tools.browser.models import BrowserOperateResult
+# BrowserOperateResult is lazy-imported inside _display_browser_operate_result()
+# to avoid pulling in gymnasium/numpy at module load time (very slow on Windows).
+
+
+def _build_multimodal_input(text: str, image_paths: list) -> list:
+    """Build a multimodal TResponseInputItem list from text + image file paths.
+
+
+    Returns a list with a single user message containing text and image content
+    in the format expected by the OpenAI Agents SDK.
+    """
+    import base64
+    import mimetypes
+    import os
+
+    content = []
+    if text:
+        content.append({"type": "input_text", "text": text})
+
+    for path in image_paths:
+        try:
+            if not os.path.exists(path):
+                logger.warning(f"[multimodal] Image path not found, skipping: {path}")
+                continue
+            mime_type, _ = mimetypes.guess_type(path)
+            if not mime_type:
+                mime_type = "image/png"
+            with open(path, "rb") as f:
+                data = base64.b64encode(f.read()).decode("utf-8")
+            content.append({
+                "type": "input_image",
+                "image_url": f"data:{mime_type};base64,{data}",
+            })
+            logger.info(f"[multimodal] Attached image: {path} ({mime_type})")
+        except Exception as exc:
+            logger.warning(f"[multimodal] Failed to read image {path}: {exc}")
+
+    return [{"role": "user", "content": content}]
 
 # Import existing InteractionConfig
 from ..running_config import RunningConfig
 
 # Import models and interface from the same directory
 from .models import TurnType, TurnInput, TurnOutput
-from .interface import RunTurn
+from .interface import RunTurn, ImageNotSupportedError
 
 
 # Standard tag identifier
@@ -486,17 +527,20 @@ class ConversationTurn(RunTurn):
 
                     elif isinstance(stream_data, ResponseOutputItemAddedEvent):
                         if isinstance(stream_data.item, ResponseFunctionToolCall):
-                            # if have got the function call part, must flush the response before the tool call
+                            # Flush answer content before tool call only if not already flushed.
+                            # ResponseContentPartDoneEvent fires before this event and sets
+                            # mdstream=None; if it already flushed, skip to avoid double output.
                             if not self.got_function_call_part:
                                 self.got_function_call_part = True
-                                # flush the response content
-                                self._live_incremental_response(
-                                    "\n", self.response_content, final=True
-                                )
-                                self.mdstream = None
-                                # End answer message if it was started
-                                if self.got_content_part:
-                                    self._emit_message_end("answer")
+                                if self.mdstream is not None:
+                                    # flush the response content
+                                    self._live_incremental_response(
+                                        "\n", self.response_content, final=True
+                                    )
+                                    self.mdstream = None
+                                    # End answer message if it was started
+                                    if self.got_content_part:
+                                        self._emit_message_end("answer")
 
                             call_id = stream_data.item.call_id
                             tool_name = stream_data.item.name
@@ -717,20 +761,8 @@ class ConversationTurn(RunTurn):
         final: bool = False,
         stream_end: bool = False,
     ):
-        # ACP mode: send complete response when final + lifecycle events
         if self.config.io.acp_enabled and self.config.io.acp_adapter:
-            # Send lifecycle content_delta event for incremental updates
             if delta_text:
-                # 🔍 Debug: Log lifecycle event sending
-                # logger.info(f"🔍 [DEBUG] Sending content_delta lifecycle event", extra={
-                #     "delta_length": len(delta_text),
-                #     "delta_preview": delta_text[:100],
-                #     "is_final": final,
-                #     "stream_end": stream_end,
-                #     "stream_start_id": self._stream_start_id or "",
-                #     "current_message_id": self._current_message_id,
-                # })
-                
                 self._send_lifecycle_event({
                     "type": "content_delta",
                     "delta": delta_text,
@@ -739,14 +771,17 @@ class ConversationTurn(RunTurn):
                     "stream_start_id": self._stream_start_id or "", 
                     "timestamp": time.time()
                 })
-                
-                # logger.info(f"✅ [DEBUG] content_delta lifecycle event sent successfully")
-            
+                            
             if final:
-                # Send complete response via ACP with stream_end flag
+                # Send complete response via ACP with stream_end flag.
+                # Thinking content was already streamed via content_delta lifecycle events;
+                # only send the answer portion to avoid rendering it twice.
                 processed_content, _ = self._process_thinking_tags(response_content)
+                answer_content = processed_content or response_content
+                if REASONING_END in answer_content:
+                    answer_content = answer_content.split(REASONING_END, 1)[1].lstrip()
                 self.config.io.assistant_output(
-                    processed_content or response_content,
+                    answer_content,
                     stream_end=stream_end,
                     stream_start_id=self._stream_start_id
                 )
@@ -773,6 +808,64 @@ class ConversationTurn(RunTurn):
                 processed_delta, should_render = self._process_thinking_tags(delta_text)
                 if should_render or final:
                     self.config.io.console.print(processed_delta, sep="", end="")
+
+    # ── Image-support guard ───────────────────────────────────────────
+
+    def _resolve_image_input(
+        self, user_input: str, pending_images: list
+    ) -> "str | list":
+        """Resolve user input with pending image paths, applying image-support guard.
+
+        When the bound model cannot process images:
+        - Image-only messages (no text) raise ImageNotSupportedError after
+          printing an error to the frontend.
+        - Text+image messages have their images stripped; returns the text only.
+
+        When the model supports images, builds a multimodal input list.
+
+        Args:
+            user_input: The raw text input from the user.
+            pending_images: List of image file paths from the IO layer.
+
+        Returns:
+            - The original user_input (str) if images were stripped.
+            - A multimodal input list if images were attached.
+
+        Raises:
+            ImageNotSupportedError: if the model cannot process images and
+                the message has no meaningful text.
+        """
+        io = getattr(self.config, "io", None)
+        io._pending_image_paths = None  # always clear the pending slot
+
+        supports_images = getattr(self.config.llm_config, "supports_images", True)
+        if not supports_images:
+            # The frontend sends placeholder text like "[Image #1]" when
+            # the user pastes only images. Strip these placeholders and
+            # check if any real text remains.
+            import re
+            stripped = re.sub(
+                r"\[Image\s*#\d+\]", "", user_input
+            ).strip()
+            if not stripped:
+                logger.info(
+                    "[ConversationTurn] model does not support images and "
+                    "message has no text content; rejecting image-only input"
+                )
+                raise ImageNotSupportedError(
+                    "model does not support images and message has no text"
+                )
+            # Has text — strip images, keep text only
+            logger.info(
+                "[ConversationTurn] model does not support images; "
+                "stripped %d image(s), proceeding with text only",
+                len(pending_images),
+            )
+            return user_input
+
+        return _build_multimodal_input(user_input, pending_images)
+
+    # ── Turn execution ────────────────────────────────────────────────
 
     def execute(self, turn_input: TurnInput) -> TurnOutput:
         """Execute AI conversation turn
@@ -810,15 +903,97 @@ class ConversationTurn(RunTurn):
                 try:
                     # Await any pending memory save from the previous turn to ensure
                     # data consistency before starting a new turn.
-                    if ConversationTurn._pending_memory_task is not None:
+                    # Drain previous turn's best-effort memory save task. Key design
+                    # points (each learned the hard way):
+                    #
+                    # 1) NEVER `await` a task that may be bound to a different event
+                    #    loop. If the dedicated loop was abandoned/recreated between
+                    #    turns (see _force_abandon_dedicated_loop), the old task is
+                    #    still attached to the dead loop; awaiting it from the new
+                    #    loop raises RuntimeError/CancelledError that propagates all
+                    #    the way up to the user's error box.
+                    # 2) The memory save is best-effort; the new turn should never
+                    #    block on it. If it's not done yet, just detach and move on.
+                    # 3) CancelledError inherits from BaseException (Py3.8+), so
+                    #    `except Exception` cannot catch it — we explicitly handle it.
+                    pending = ConversationTurn._pending_memory_task
+                    if pending is not None:
+                        ConversationTurn._pending_memory_task = None
                         try:
-                            await ConversationTurn._pending_memory_task
-                        except Exception as e:
-                            logger.info(f"[ConversationTurn] Previous memory task failed (ignored): {e}")
-                        finally:
-                            ConversationTurn._pending_memory_task = None
+                            current_loop = asyncio.get_running_loop()
+                            task_loop = getattr(pending, "_loop", None)
+                            same_loop = (task_loop is None) or (task_loop is current_loop)
+                            logger.info(
+                                "[ConversationTurn] pending_memory_task: done=%s cancelled=%s same_loop=%s",
+                                pending.done(), pending.cancelled(), same_loop,
+                            )
+
+                            if not same_loop:
+                                # Cross-loop: never await. Just inspect completion state.
+                                if pending.done():
+                                    exc = pending.exception() if not pending.cancelled() else None
+                                    if exc is not None:
+                                        logger.info(
+                                            f"[ConversationTurn] Previous memory task (cross-loop) failed: "
+                                            f"{type(exc).__name__}: {exc}"
+                                        )
+                                else:
+                                    logger.info(
+                                        "[ConversationTurn] Previous memory task (cross-loop) still pending — detaching"
+                                    )
+                            elif pending.done():
+                                if not pending.cancelled():
+                                    exc = pending.exception()
+                                    if exc is not None:
+                                        logger.info(
+                                            f"[ConversationTurn] Previous memory task failed: "
+                                            f"{type(exc).__name__}: {exc}"
+                                        )
+                            else:
+                                # Same loop + still pending → safe to await briefly.
+                                #
+                                # Timeout sizing: the first-ever memory save calls the
+                                # slug-generation LLM which usually takes 3–8s, while
+                                # subsequent saves are pure IO (<0.5s). 15s comfortably
+                                # covers the slow first turn without ever blocking normal
+                                # turns, and asyncio.shield() ensures the task itself is
+                                # NOT cancelled when we time out — it keeps running in
+                                # the background so memory stays consistent.
+                                try:
+                                    await asyncio.wait_for(
+                                        asyncio.shield(pending), timeout=15.0
+                                    )
+                                except asyncio.TimeoutError:
+                                    logger.info(
+                                        "[ConversationTurn] Previous memory task did not finish in 15s — "
+                                        "leaving it running in the background and proceeding"
+                                    )
+                                except asyncio.CancelledError as e:
+                                    logger.info(
+                                        f"[ConversationTurn] Previous memory task was cancelled (ignored): {e}"
+                                    )
+                                except Exception as e:
+                                    logger.info(
+                                        f"[ConversationTurn] Previous memory task failed (ignored): {e}"
+                                    )
+                        except BaseException as e:
+                            # Guard against anything unexpected (e.g. no running loop).
+                            # Must NOT let this drain block the new turn.
+                            logger.warning(
+                                f"[ConversationTurn] Error while draining previous memory task "
+                                f"(ignored): {type(e).__name__}: {e}"
+                            )
 
                     user_input = turn_input.use_input
+
+                    # If there are pending image paths from the IO layer, build
+                    # a multimodal input (with image-support guard).
+                    io = getattr(self.config, "io", None)
+                    pending_images = getattr(io, "_pending_image_paths", None)
+                    if pending_images and isinstance(user_input, str):
+                        user_input = self._resolve_image_input(
+                            user_input, pending_images
+                        )
 
                     # Run agent for conversation
                     _run_start = time.perf_counter()
@@ -839,9 +1014,49 @@ class ConversationTurn(RunTurn):
 
                     _stream_start = time.perf_counter()
                     logger.debug(f"[PERF][turn] output_stream_content start")
-                    await self.output_stream_content(result)
+                    try:
+                        await self.output_stream_content(result)
+                    except (
+                        ToolInputGuardrailTripwireTriggered,
+                        ToolOutputGuardrailTripwireTriggered,
+                    ) as hook_exc:
+                        stop_reason = (
+                            (hook_exc.output.output_info or "")
+                            if hook_exc.output.output_info
+                            else "Hook stopped this turn."
+                        )
+                        logger.info(f"[ConversationTurn] Hook tripwire triggered: {stop_reason}")
+                        self.config.io.print_warning(f"[Hook] {stop_reason}")
+                        return None
                     logger.debug(f"[PERF][turn] output_stream_content done | +{(time.perf_counter()-_stream_start)*1000:.0f}ms")
-                    
+
+                    # Show system notification on task completion (non-blocking)
+                    # Only notify if enabled and the agent ran for a while.
+                    #
+                    # While a /goal task is still active, this per-turn round is
+                    # just one intermediate step in the verifier's retry loop
+                    # (see siada.services.goal.turn_hooks.maybe_run_goal_verifier)
+                    # -- not the real end of the task. So this generic "waiting
+                    # for input" notification must be suppressed here; the goal
+                    # verifier fires its own completion notification only once
+                    # the goal is actually achieved (or blocked).
+                    try:
+                        if getattr(self.config, 'enable_notification', True):
+                            elapsed = time.perf_counter() - _exec_start
+                            if elapsed > 60 and not self._has_active_goal():
+                                from siada.notifications import show_completion_notification
+                                # Reuse the same title shown in the terminal tab (see
+                                # Controller._send_session_title_async) as the notification
+                                # title so the user can tell which window just finished.
+                                session_title = self.session.state.session_title
+                                show_completion_notification(
+                                    title="Siada 已完成任务",
+                                    message=session_title or "Siada"
+                                )
+                    except Exception:
+                        pass
+
+
                     # Fire memory save as a background task (non-blocking).
                     # This allows _async_execute to return immediately so the
                     # finally block can send stop:animation without waiting for
@@ -856,6 +1071,26 @@ class ConversationTurn(RunTurn):
                     
                     logger.debug(f"[PERF][turn] _async_execute total | +{(time.perf_counter()-_exec_start)*1000:.0f}ms")
                     return result
+                except Exception:
+                    # Error path: the completion notification above only fires on
+                    # success. Mirror it here so a long-running turn that crashes
+                    # still produces an OS-level signal identifying which window
+                    # died. Same gating as the completion path (enable flag,
+                    # elapsed > 60s, no active goal). Re-raise afterwards so the
+                    # existing error-display flow is unchanged.
+                    try:
+                        if getattr(self.config, 'enable_notification', True):
+                            elapsed = time.perf_counter() - _exec_start
+                            if elapsed > 60 and not self._has_active_goal():
+                                from siada.notifications import show_completion_notification
+                                session_title = self.session.state.session_title
+                                show_completion_notification(
+                                    title="Siada 任务异常中止",
+                                    message=session_title or "Siada",
+                                )
+                    except Exception:
+                        pass
+                    raise
                 finally:
                     self._stop_waiting_spinner()
                     # Clear current_result after execution completes
@@ -999,6 +1234,48 @@ class ConversationTurn(RunTurn):
             finally:
                 self.session.state.spinner = None
 
+    def _is_memory_enabled(self) -> bool:
+        """Resolve the live memory master-switch state.
+
+        The ``/memory`` slash command toggles the live CodeAgentContext's
+        ``memory_tools_enabled`` flag (and persists to conf.yaml) but does NOT
+        update ``RunningConfig.memory_enabled`` (which is only a startup mirror).
+        So we prefer the live context value when available, mirroring the
+        status-resolution logic in ``slash_commands`` and the memory-update
+        scheduler, and fall back to the startup mirror otherwise.
+        """
+        try:
+            from siada.services.siada_runner import SiadaRunner
+            workspace = self.config.workspace
+            for (_, ws), ctx in SiadaRunner._context_cache.items():
+                if ws == workspace:
+                    return bool(getattr(ctx, "memory_tools_enabled", True))
+        except Exception as e:
+            logger.debug(f"[ConversationTurn] Failed to resolve live memory switch: {e}")
+        # Fall back to the startup mirror on RunningConfig.
+        return bool(getattr(self.config, "memory_enabled", True))
+
+    def _has_active_goal(self) -> bool:
+        """Check whether this workspace currently has an active ``/goal``.
+
+        Used to suppress the generic per-turn "waiting for input" completion
+        notification while a goal is being auto-retried: each round here is
+        just an intermediate step of the verifier loop (see
+        ``siada.services.goal.turn_hooks.maybe_run_goal_verifier``), not the
+        real end of the task. The goal verifier fires its own notification
+        once the goal is actually achieved (or gives up as "blocked").
+        """
+        try:
+            from siada.services.siada_runner import SiadaRunner
+            workspace = self.config.workspace
+            for (_, ws), ctx in SiadaRunner._context_cache.items():
+                if ws == workspace:
+                    goal = getattr(ctx, "goal", None)
+                    return goal is not None and getattr(goal, "status", None) == "active"
+        except Exception as e:
+            logger.debug(f"[ConversationTurn] Failed to resolve active goal state: {e}")
+        return False
+
     async def _save_session_memory_if_needed(self):
         """Save session memory to file after conversation turn completes.
         
@@ -1007,6 +1284,13 @@ class ConversationTurn(RunTurn):
         before we save the memory to file.
         """
         try:
+            # Respect the memory master switch: when memory is disabled, skip
+            # the raw session archival entirely so no conversation markdown is
+            # written to disk or indexed into SQLite.
+            if not self._is_memory_enabled():
+                logger.debug("[ConversationTurn] Memory disabled — skipping session memory save")
+                return
+
             if (self.session and 
                 hasattr(self.session, 'openai_session') and 
                 self.session.openai_session):
@@ -1015,6 +1299,7 @@ class ConversationTurn(RunTurn):
                 memory_service = MemoryService()
                 await memory_service.save_session_memory(
                     self.session.openai_session,
+                    workspace=self.config.workspace,
                 )
                 logger.debug("[ConversationTurn] Session memory saved successfully")
         except Exception as e:
@@ -1045,6 +1330,7 @@ class ConversationTurn(RunTurn):
         
         try:
             # Deserialize JSON content and use format_for_display() for UI output
+            from siada.tools.browser.models import BrowserOperateResult
             browser_result = BrowserOperateResult.from_json(text_content, screenshot)
             self.config.io.print_tool_result(browser_result.format_for_display())
         except Exception as e:

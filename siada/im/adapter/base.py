@@ -19,8 +19,11 @@ class IMAdapter(ABC):
         ...
 
     @abstractmethod
-    async def send_message(self, chat_id: str, msg: IMResponse) -> None:
-        """Send a message to the specified chat."""
+    async def send_message(self, chat_id: str, msg: IMResponse) -> Optional[str]:
+        """Send a message to the specified chat.
+
+        Returns the platform message_id on success, None on failure.
+        """
         ...
 
     @property
@@ -29,11 +32,3 @@ class IMAdapter(ABC):
         """Return platform identifier string (e.g. 'lark')."""
         ...
 
-    @property
-    @abstractmethod
-    def capabilities(self) -> set[str]:
-        """Return supported message capabilities.
-
-        e.g. {'text', 'markdown', 'interactive_card', 'file', 'image'}
-        """
-        ...

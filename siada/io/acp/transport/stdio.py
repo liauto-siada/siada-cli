@@ -98,7 +98,7 @@ class StdioTransport(ACPTransport):
             raise ConnectionError("Already connected")
         
         self.is_connected = True
-        logger.info("[StdioTransport] Connected in sync-only mode (async pipe registration skipped)")
+        logger.debug("[StdioTransport] Connected in sync-only mode (async pipe registration skipped)")
     
     async def disconnect(self) -> None:
         """
@@ -151,7 +151,7 @@ class StdioTransport(ACPTransport):
                 self._stdout.buffer.write(data)
                 self._stdout.buffer.flush()
 
-            logger.info(f"[STDIO SEND SYNC] Message {data} sent successfully")
+            logger.debug(f"[STDIO SEND SYNC] Message {data} sent successfully")
 
         except Exception as e:
             raise SendError(f"Failed to send message: {e}") from e
@@ -259,7 +259,7 @@ class StdioTransportSync:
         """Send message synchronously"""
         # 🔍 Add log tracing for synchronous send
         msg_id = message.id if hasattr(message, 'id') else 'unknown'
-        logger.info(f"🔍 [STDIO SYNC SEND] Sending message {msg_id} via sync wrapper")
+        logger.debug(f"🔍 [STDIO SYNC SEND] Sending message {msg_id} via sync wrapper")
         asyncio.run(self._transport.send(message))
     
     def receive(self) -> Optional[ACPMessage]:
@@ -282,7 +282,7 @@ async def send_message_stdio(message: ACPMessage) -> None:
     """
     # 🔍 Add log tracing for tool function send
     msg_id = message.id if hasattr(message, 'id') else 'unknown'
-    logger.info(f"🔍 [STDIO UTIL SEND] Sending message {msg_id} via utility function")
+    logger.debug(f"🔍 [STDIO UTIL SEND] Sending message {msg_id} via utility function")
     
     transport = StdioTransport()
     await transport.connect()

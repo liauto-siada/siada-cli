@@ -38,3 +38,5 @@ class RunningConfig:
     startup_warning: Optional[str] = None  # Warning message to display at startup (for Textual mode)
     banner: bool = True  # Enable/disable welcome banner display
     acp_mode: bool = False  # Enable/disable ACP mode for structured communication
+    memory_enabled: bool = True  # Memory subsystem master switch (mirror of conf.memory_config.enabled)
+    enable_notification: bool = True  # Task completion notification switch (mirror of conf.enable_notification)

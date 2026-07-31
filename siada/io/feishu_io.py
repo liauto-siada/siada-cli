@@ -5,8 +5,10 @@ WebSocket relay transport instead of printing to the terminal.
 """
 
 import asyncio
+import contextvars
 import logging
 import time
+from dataclasses import dataclass, field
 from typing import Optional
 
 from siada.im.models import IMResponse
@@ -15,6 +17,27 @@ from siada.io.io import InputOutput
 
 logger = logging.getLogger("siada.io.lark")
 logger.setLevel(logging.DEBUG)
+
+
+@dataclass
+class _IOContext:
+    """Per-asyncio-context IO routing state for LarkIO.
+
+    Holds the request_id / chat_id that outbound responses are routed to, plus
+    the output buffer. Kept in a ContextVar (not instance fields) so concurrent
+    agent tasks — e.g. multiple group chats served by the same LarkIO singleton
+    — each get an isolated copy and never clobber one another's routing/buffer.
+    """
+
+    request_id: str = ""
+    chat_id: str = ""
+    buffer: list[str] = field(default_factory=list)
+
+
+# ContextVar is copied at asyncio.create_task() time, so each dispatched agent
+# task inherits its own isolated _IOContext once set_context() runs inside it.
+_io_ctx: contextvars.ContextVar[_IOContext] = contextvars.ContextVar("lark_io_ctx")
+
 
 
 class LarkIO(InputOutput):
@@ -45,18 +68,35 @@ class LarkIO(InputOutput):
             **kwargs,
         )
         self._transport = transport
-        self._request_id = request_id
-        self._chat_id = chat_id
-        self._buffer: list[str] = []
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        # Per-task IO routing state (request_id / chat_id / buffer) lives in a
+        # ContextVar instead of instance fields, so concurrent agent tasks never
+        # overwrite each other on this shared singleton. Seed an initial context
+        # when ids are supplied at construction time.
+        if request_id or chat_id:
+            _io_ctx.set(_IOContext(request_id=request_id, chat_id=chat_id))
         logger.debug(f"LarkIO initialized with request_id={request_id}, chat_id={chat_id}")
 
     def set_context(self, request_id: str, chat_id: str) -> None:
-        """Set the current message context for routing responses."""
+        """Set the current message context for routing responses.
+
+        Stores a *fresh* ``_IOContext`` (with its own buffer) into the
+        ContextVar for the current asyncio context. Because
+        ``asyncio.create_task()`` copies the context at creation time, each
+        dispatched agent task gets an isolated copy and cannot clobber another
+        task's routing state or buffer.
+        """
         logger.debug(f"set_context called: request_id={request_id}, chat_id={chat_id}")
-        self._request_id = request_id
-        self._chat_id = chat_id
-        self._buffer.clear()
+        _io_ctx.set(_IOContext(request_id=request_id, chat_id=chat_id))
+
+    def _ctx(self) -> _IOContext:
+        """Return the current per-context IO state, creating an empty one if unset."""
+        ctx = _io_ctx.get(None)
+        if ctx is None:
+            ctx = _IOContext()
+            _io_ctx.set(ctx)
+        return ctx
+
 
     def _get_loop(self) -> asyncio.AbstractEventLoop:
         """Get or cache the running event loop."""
@@ -70,14 +110,15 @@ class LarkIO(InputOutput):
     def _send_response(self, content: str, content_type: str = "text", is_streaming: bool = False) -> None:
         """Send a response through the relay transport (fire-and-forget)."""
         logger.debug(f"_send_response called: content_type={content_type}, is_streaming={is_streaming}, content={content[:200] if content else ''}")
-        if not content or not self._request_id:
-            logger.debug(f"_send_response skipped: content={'empty' if not content else 'present'}, request_id={self._request_id}")
+        ctx = self._ctx()
+        if not content or not ctx.request_id:
+            logger.debug(f"_send_response skipped: content={'empty' if not content else 'present'}, request_id={ctx.request_id}")
             return
         response = IMResponse(
-            request_id=self._request_id,
+            request_id=ctx.request_id,
             content_type=content_type,
             content=content,
-            chat_id=self._chat_id,
+            chat_id=ctx.chat_id,
             is_streaming=is_streaming,
         )
         try:
@@ -101,7 +142,7 @@ class LarkIO(InputOutput):
     def tool_output(self, message="", bold=False):
         """Buffer tool output; will be flushed with assistant response."""
         if message:
-            self._buffer.append(str(message))
+            self._ctx().buffer.append(str(message))
             logger.debug(f"Tool output buffered: {str(message)[:100]}")
 
     def print_info(self, *messages, bold=False):
@@ -124,7 +165,7 @@ class LarkIO(InputOutput):
         """Buffer tool results."""
         logger.debug(f"print_tool_result: {str(message)[:100]}")
         if message:
-            self._buffer.append(str(message))
+            self._ctx().buffer.append(str(message))
 
     def print_tool_call(self, message="", strip=True):
         """Log tool calls locally."""
@@ -134,7 +175,7 @@ class LarkIO(InputOutput):
         """Buffer tool call stage output."""
         logger.debug(f"print_tool_call_all_stages: final={final}, append={append}, message={str(message)[:100]}")
         if message:
-            self._buffer.append(str(message))
+            self._ctx().buffer.append(str(message))
 
     def get_input(self, completer=None, display_rule=False, color=None):
         """LarkIO does not support interactive input.
@@ -159,10 +200,11 @@ class LarkIO(InputOutput):
 
     def flush_buffer(self) -> str:
         """Flush buffered output and return as single string."""
-        logger.debug(f"flush_buffer called: buffer_size={len(self._buffer)}")
-        if not self._buffer:
+        buffer = self._ctx().buffer
+        logger.debug(f"flush_buffer called: buffer_size={len(buffer)}")
+        if not buffer:
             return ""
-        content = "\n".join(self._buffer)
-        self._buffer.clear()
+        content = "\n".join(buffer)
+        buffer.clear()
         logger.debug(f"flush_buffer returning: {content[:200]}")
         return content

@@ -15,6 +15,17 @@ from ..running_config import RunningConfig
 from .models import TurnType, TurnInput, TurnOutput
 
 
+class ImageNotSupportedError(Exception):
+    """Raised when the bound model cannot process images and the user
+    message has no meaningful text content.
+
+    The error message is already printed to the frontend by the raiser,
+    so handle_error() should return None silently instead of printing
+    a generic "An Error Occurred" box.
+    """
+    pass
+
+
 class RunTurn(ABC):
     """Abstract base class for interaction turns"""
 
@@ -89,21 +100,41 @@ class RunTurn(ABC):
         """
         return bool(turn_input.use_input and turn_input.use_input.strip())
 
-    def handle_error(self, error: Exception) -> TurnOutput:
+    def handle_error(self, error: Exception) -> Optional[TurnOutput]:
         self.error = error
-        
+
         import traceback
         from siada.foundation.logging import logger
-        
+
         full_traceback = traceback.format_exc()
         error_str = str(error)
         error_type = type(error).__name__
-        
+
+        # ImageNotSupportedError: print the user-facing error message
+        # (not a generic "An Error Occurred" box) and return TurnOutput.
+        if isinstance(error, ImageNotSupportedError):
+            logger.info(f"Image not supported: {error_str}")
+            self.config.io.print_error(
+                "⚠️ The current model does not support image input. "
+                "Please provide a text message or switch to a model "
+                "that supports image understanding."
+            )
+            return TurnOutput(
+                output=f"Error: {error_str}",
+                metadata={"error_type": error_type},
+                next_action=None,
+            )
+
         # Log full error information to log file
         logger.error(f"Turn execution error: {error_type}: {error_str}\n{full_traceback}")
-        
+
+        # Extract li-mate server message from API error body (HTTP 403/429)
+        # li-mate returns: {"error": ..., "code": <status>, "message": "<full message>"}
+        li_mate_message = _extract_li_mate_message(error)
+        if li_mate_message:
+            self.config.io.print_error(f"{li_mate_message}\n")
         # Identify BadGatewayError (litellm)
-        if "BadGatewayError" in error_type or "BadGatewayError" in error_str:
+        elif "BadGatewayError" in error_type or "BadGatewayError" in error_str:
             self.config.io.print_error(
                 "Network Connection Error\n\n"
                 "Unable to connect to AI model service. This is usually a temporary network issue.\n\n"
@@ -126,6 +157,16 @@ class RunTurn(ABC):
                 "  4. Verify server address is configured correctly\n\n"
                 f"Error Details: {error_str}\n"
             )
+        # Handle transient upstream model errors (litellm mid-stream fallback /
+        # provider InternalServerError, e.g. Vertex AI Gemini connection drop)
+        elif "MidStreamFallbackError" in error_type or "InternalServerError" in error_type:
+            structured_message = _extract_structured_message(error_str)
+            self.config.io.print_error(
+                "Model Service Temporary Error\n\n"
+                "This is usually transient — please retry your request.\n\n"
+                + (f"{structured_message}\n\n" if structured_message else "")
+                + f"Error Type: {error_type}\n"
+            )
         # Handle timeout errors
         elif "timeout" in error_str.lower() or "TimeoutError" in error_type:
             self.config.io.print_error(
@@ -134,18 +175,7 @@ class RunTurn(ABC):
                 "Suggested Actions:\n"
                 "  1. Check your network connection speed\n"
                 "  2. Retry your request later\n"
-                "  3. If the problem persists, contact your administrator\n\n"
-                f"Error Type: {error_type}\n"
-            )
-        # Handle API rate limit errors
-        elif "rate limit" in error_str.lower() or "429" in error_str:
-            self.config.io.print_error(
-                "API Rate Limit Exceeded\n\n"
-                "Too many requests. Rate limit has been reached.\n\n"
-                "Suggested Actions:\n"
-                "  1. Wait a moment before retrying\n"
-                "  2. Reduce request frequency\n"
-                "  3. Contact your administrator to increase quota if needed\n\n"
+                "  3. If the problem persists, contact  administrator\n\n"
                 f"Error Type: {error_type}\n"
             )
         # Handle prompt too long errors
@@ -153,11 +183,15 @@ class RunTurn(ABC):
             self.config.io.print_error(
                 "Input Too Long\n\n"
                 "Your input or context exceeds the model's processing limit.\n\n"
-                # "Suggested Actions:\n"
-                # "  1. Reduce the length of your input text\n"
-                # # "  2. Use /clear command to clear conversation history\n"
-                # "  2. Process large tasks in batches\n"
-                # "  4. Remove unnecessary context files\n\n"
+                f"Error Type: {error_type}\n"
+            )
+        # Handle BadRequestError (e.g. li-mate/Anthropic model not connected)
+        elif "BadRequestError" in error_type:
+            structured_message = _extract_structured_message(error_str)
+            self.config.io.print_error(
+                "Request Parameter Error\n\n"
+                + (structured_message or error_str)
+                + "\n\n"
                 f"Error Type: {error_type}\n"
             )
         # Handle Agent-related errors
@@ -199,27 +233,107 @@ class RunTurn(ABC):
             if upgrade_cmd:
                 lines.append(f"  {upgrade_cmd}\n")
             else:
+                from siada.services.auto_update import get_curl_install_flags
+
                 lines.append(
-                    "  curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh\n"
+                    f"  curl {get_curl_install_flags()} https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh\n"
                 )
+
             self.config.io.print_error("".join(lines))
         # Handle other uncategorized errors
         else:
+            structured_message = _extract_structured_message(error_str)
             self.config.io.print_error(
                 f"An Error Occurred\n\n"
                 f"Error Type: {error_type}\n"
-                f"Error Message: {error_str}\n\n"
+                f"Error Message: {structured_message or error_str}\n\n"
             )
-        
+
         return TurnOutput(
             output=f"Error: {error_str}",
             metadata={"error_type": error_type},
             next_action=None,
         )
 
-
     def _get_timestamp(self) -> float:
         """Get current timestamp"""
         import time
 
         return time.time()
+
+
+def _extract_structured_message(error_str: str) -> str | None:
+    """Extract a human-readable message from an error string containing a
+    raw bytes-literal JSON body, e.g.:
+
+        b'{"code":4000004,"message":"\\xe6\\xa8\\xa1...","data":"..."}'
+
+    litellm/anthropic sometimes embeds the raw HTTP response body (as a
+    Python bytes repr) inside the exception message. Non-ASCII text (e.g.
+    Chinese) then shows up as escaped byte sequences instead of readable
+    characters. This decodes the bytes literal as UTF-8 and extracts the
+    "message"/"data" fields into a readable string.
+    """
+    import ast
+    import json
+    import re
+
+    match = re.search(r"b'(\{.*\})'", error_str, re.DOTALL)
+    if not match:
+        return None
+
+    try:
+        raw_bytes = ast.literal_eval(match.group(0))
+        decoded = raw_bytes.decode("utf-8") if isinstance(raw_bytes, bytes) else str(raw_bytes)
+        payload = json.loads(decoded)
+    except (ValueError, SyntaxError):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    parts = []
+    code = payload.get("code")
+    message = payload.get("message")
+    data = payload.get("data")
+    if code is not None:
+        parts.append(f"Code: {code}")
+    if isinstance(message, str) and message.strip():
+        parts.append(f"Info: {message.strip()}")
+    if isinstance(data, str) and data.strip() and data.strip() != message:
+        parts.append(f"Detailed: {data.strip()}")
+
+    return "\n".join(parts) if parts else None
+
+
+def _extract_li_mate_message(error: Exception) -> str | None:
+    """Extract the user-facing message from a li-mate API error (HTTP 403/429).
+
+    li-mate returns JSON bodies like:
+      {"error": <str|obj>, "code": <status>, "message": "<full message>"}
+
+    The openai/litellm SDK wraps this in APIStatusError subclasses
+    (PermissionDeniedError for 403, RateLimitError for 429), where:
+      - str(error) = error.message (may be truncated, not the full message)
+      - error.body = the parsed JSON body (contains the full message)
+
+    This function extracts the full message from error.body["message"]
+    (or error.body["error"]["message"] as fallback).
+    """
+    body = getattr(error, 'body', None)
+    if not isinstance(body, dict):
+        return None
+
+    # Primary: top-level "message" field
+    message = body.get('message')
+    if isinstance(message, str) and message.strip():
+        return message.strip()
+
+    # Fallback: nested error.message (li-mate quota format)
+    error_field = body.get('error')
+    if isinstance(error_field, dict):
+        message = error_field.get('message')
+        if isinstance(message, str) and message.strip():
+            return message.strip()
+
+    return None

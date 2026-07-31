@@ -217,7 +217,19 @@ class PathResolver:
 
         for glob_pattern in glob_patterns:
             try:
-                raw_matches = list(workspace_path.glob(glob_pattern))
+                # Use asyncio with a timeout to prevent blocking the event loop
+                # on large directories (e.g. when workspace is the home directory)
+                import asyncio
+                try:
+                    raw_matches = await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(
+                            None, lambda: list(workspace_path.glob(glob_pattern))
+                        ),
+                        timeout=5.0  # 5 second timeout per glob pattern
+                    )
+                except asyncio.TimeoutError:
+                    on_debug_message(f'Glob search "{glob_pattern}" timed out (5s limit)')
+                    continue
 
                 # Filter out results in ignored directories (.venv, node_modules, etc.)
                 matches = []

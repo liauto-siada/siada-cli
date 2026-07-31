@@ -85,6 +85,7 @@ export class SlashCommandService {
       // { name: 'multiline-mode', description: 'Toggle multiline mode', requiresSession: false },
       { name: 'editor', description: 'Open an editor to write a prompt', requiresSession: false },
       { name: 'edit', description: 'Alias for /editor', requiresSession: false },
+      { name: 'statusbar', description: 'Toggle status bar items visibility', requiresSession: false },
       { name: 'init', description: 'Analyze the project and create a tailored SIADA.md file', requiresSession: true },
       { name: 'context-file-refresh', description: 'Refresh SIADA.md and AGENTS.md context files and show content overview', requiresSession: true },
       { name: 'rule-init', description: 'Create an empty siada_rule.md file', requiresSession: true },
@@ -110,6 +111,7 @@ export class SlashCommandService {
       { name: 'lark-auth', description: 'Authenticate with Lark MCP server using OAuth 2.0', requiresSession: true },
       { name: 'lark-status', description: 'Show Lark OAuth authentication status', requiresSession: true },
       { name: 'lark-refresh', description: 'Refresh Lark OAuth token', requiresSession: true },
+      { name: 'memory', description: 'Enable or disable the memory subsystem (usage: /memory [enable|disable])', requiresSession: true },
     ];
 
     builtinCommands.forEach(cmd => {

@@ -16,7 +16,13 @@ from dataclasses import dataclass
 from siada.foundation.logging import logger
 
 # Import jieba for Chinese word segmentation (required dependency)
-import jieba
+# Suppress the pkg_resources deprecation warning emitted by jieba._compat on import;
+# this is a jieba internal issue and not actionable from our side.
+import warnings
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
+    warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
+    import jieba
 
 # Global constant for chunk size and snippet truncation
 DEFAULT_CHUNK_SIZE = 2048

@@ -1,8 +1,8 @@
-"""Session ownership management for CLI/Lark mutual exclusion.
+"""Session ownership management for concurrent access control.
 
 Ensures that a session can only be actively used by one channel at a time:
-- If Lark is running a task, CLI cannot resume the session
-- If CLI has resumed the session, Lark cannot accept new messages for it
+- If one channel is running a task, another channel cannot access the session
+- E.g. CLI vs Lark, CLI vs another CLI instance, Lark vs CLI
 
 Ownership is tracked via `active_owner` field in session metadata.json:
 - "lark": Lark agent task is in progress
@@ -11,15 +11,14 @@ Ownership is tracked via `active_owner` field in session metadata.json:
 """
 
 import json
-import logging
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
 from typing import Optional
 
 from filelock import FileLock
+from siada.foundation.logging import logger
 
-logger = logging.getLogger(__name__)
 
 
 class SessionOwner(str, Enum):
@@ -110,7 +109,14 @@ class SessionOwnershipManager:
         
         Rules:
         - If no active_owner or same owner: grant
-        - If different owner: reject with OwnershipError
+        - If different owner and requester is NOT lark (i.e. agenthub/CLI):
+          perform secondary verification via daemon IPC to detect stale locks
+        - If different owner and requester IS lark: reject immediately
+        
+        Secondary verification (agenthub only):
+        1. If daemon IPC is unreachable → daemon is dead → stale lock → force acquire
+        2. If daemon alive but session NOT in _active_sessions → stale → force acquire
+        3. If daemon alive AND session IS active → genuine conflict → raise OwnershipError
         
         Uses file lock to prevent TOCTOU race between CLI and Lark.
         """
@@ -118,12 +124,85 @@ class SessionOwnershipManager:
         with lock:
             current = cls.get_active_owner(session_dir)
             if current is not None and current != requester.value:
-                raise OwnershipError(
-                    f"Session is currently owned by '{current}', "
-                    f"cannot be claimed by '{requester.value}'",
-                    current_owner=current,
-                )
+                # Only agenthub (non-lark) requesters get stale ownership recovery
+                if requester != SessionOwner.LARK and cls._is_ownership_stale(
+                    session_dir, current
+                ):
+                    logger.info(
+                        "Stale ownership detected: '%s' owns session %s but is no "
+                        "longer active. Force-acquiring for '%s'.",
+                        current, session_dir.name, requester.value,
+                    )
+                else:
+                    raise OwnershipError(
+                        f"Session is currently owned by '{current}', "
+                        f"cannot be claimed by '{requester.value}'",
+                        current_owner=current,
+                    )
             cls.set_active_owner(session_dir, requester)
+
+    @classmethod
+    def _is_ownership_stale(cls, session_dir: Path, current_owner: str) -> bool:
+        """Check whether the current ownership is stale via daemon IPC.
+
+        Verification logic:
+        - Connect to daemon IPC and ask if the session is actively controlled
+        - If IPC is unreachable: daemon is dead → ownership is stale
+        - If daemon responds but session is not in _active_sessions → stale
+        - If daemon responds and session IS active → not stale
+
+        Returns:
+            True if ownership is stale and can be safely overridden.
+        """
+        session_id = session_dir.name
+        try:
+            from siada.foundation.ipc_client import DaemonIPCClient
+
+            with DaemonIPCClient(timeout=2.0) as client:
+                if not client.is_connected:
+                    # Daemon IPC unreachable → daemon is dead → stale
+                    logger.info(
+                        "Daemon IPC unreachable, ownership by '%s' is stale "
+                        "for session %s",
+                        current_owner, session_id,
+                    )
+                    return True
+
+                result = client.is_session_active(session_id)
+                if result is None:
+                    # IPC call failed → treat as stale to be safe
+                    logger.info(
+                        "IPC is_session_active returned None for session %s, "
+                        "treating ownership by '%s' as stale",
+                        session_id, current_owner,
+                    )
+                    return True
+
+                session_active = result.get("session_active", False)
+                if not session_active:
+                    # Daemon alive but NOT actively controlling this session → stale
+                    logger.info(
+                        "Daemon alive but session %s not in active_entries, "
+                        "ownership by '%s' is stale",
+                        session_id, current_owner,
+                    )
+                    return True
+
+                # Daemon alive AND actively controlling this session → genuine
+                logger.info(
+                    "Session %s is actively controlled by '%s' (confirmed via IPC)",
+                    session_id, current_owner,
+                )
+                return False
+
+        except Exception as e:
+            # Any unexpected error → treat as stale to prevent lock-out
+            logger.warning(
+                "Error verifying ownership for session %s: %s. "
+                "Treating as stale to prevent lock-out.",
+                session_id, e,
+            )
+            return True
 
     @classmethod
     def release_ownership(cls, session_dir: Path, owner: SessionOwner) -> None:
@@ -170,12 +249,12 @@ class SessionOwnershipManager:
     def owned_turn(cls, session_dir: Optional[Path], owner: SessionOwner):
         """Context manager that holds ownership for the duration of a turn.
 
-        Only applies to IM sessions. For non-IM sessions or None session_dir,
-        this is a no-op passthrough.
+        Applies to all sessions to prevent concurrent access from different
+        channels. If session_dir is None, this is a no-op passthrough.
 
         Raises OwnershipError if the session is owned by another channel.
         """
-        if session_dir is None or not cls.is_im_session(session_dir):
+        if session_dir is None:
             yield
             return
         cls.acquire_ownership(session_dir, owner)

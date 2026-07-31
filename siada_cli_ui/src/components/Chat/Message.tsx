@@ -12,6 +12,11 @@ import { truncateByLines, truncateByJSONLines } from '../../utils/contentTruncat
 import { MarkdownText } from '../common/MarkdownText.js';
 import { ShellOutput } from '../Shell/ShellOutput.js';
 import { parseToolCall } from '../../utils/toolCallParser.js';
+import { DiffView } from '../diff/DiffView.js';
+import { parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
+import { formatElapsedShort } from '../../utils/formatter.js';
+
+
 
 export interface MessageProps {
   message: MessageType;
@@ -78,6 +83,8 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   const isAnswer = subtype === 'answer';
   const isErrorBox = subtype === 'error_box';  // 🔴 New error box subtype
   const isShell = subtype === 'shell';         // 🔵 Shell execution subtype
+  const isGoalResult = subtype === 'goal_result'; // 🎯 /goal verifier pass/fail summary
+
 
   // Truncate content if too long
   // Use line-based truncation FIRST (more effective for Terminal.app)
@@ -144,16 +151,21 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
   // For thinking messages, render in a box matching tool_use style
   if (isThinking) {
-    const cleanContent = safeContent.replace(/[▶►]\s*\*{0,2}THINKING\*{0,2}\s*/i, '').trim();
+    // Strip markers and leading whitespace (some models like GLM send "\n" as reasoning content,
+    // and the backend prepends "\nTHINKING: \n" to the first delta)
+    const cleanContent = safeContent
+      .replace(/^[\s▶►]*\*{0,2}THINKING\*{0,2}:\s*/i, '')
+      .replace(/^[\s▶►]*\*{0,2}THINKING\*{0,2}\s*/i, '')
+      .replace(/^\s+/, '')
+      .trim();
+
+    if (cleanContent.length === 0) return null;
 
     // 🔥 Compact mode: show only first line summary
     if (isCollapsed) {
-      // Extract first line
+      // Extract first non-empty line
       const lines = cleanContent.split('\n');
-      let firstLine = lines[0] || cleanContent;
-      
-      // 🔥 Clean THINKING: prefix from first line only
-      firstLine = firstLine.replace(/^THINKING:\s*/i, '').trim();
+      const firstLine = lines.find(l => l.trim().length > 0) || cleanContent;
       
       // Limit length to avoid overflow
       const summary = firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
@@ -240,14 +252,21 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
           case 'analyze':
             compactDisplay = `Analyze(${parsed.path})`;
             break;
-          case 'crawl':
-            compactDisplay = `Crawl(${parsed.details})`;
+          case 'web':
+            compactDisplay = `Web(${parsed.details})`;
             break;
           case 'browser':
             compactDisplay = `Browser(${parsed.details})`;
             break;
+          case 'fact_store':
+            compactDisplay = parsed.details ? `Fact(${parsed.details})` : 'Fact memory';
+            break;
+          case 'fact_feedback':
+            compactDisplay = parsed.details ? `FactFeedback(${parsed.details})` : 'Fact feedback';
+            break;
           default:
             compactDisplay = parsed.summary;
+
         }
 
         return (
@@ -260,7 +279,23 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
       }
     }
 
-    // 🔥 Expanded mode: show full content (original behavior)
+    // 🔥 Expanded mode: show diff view for file edits, otherwise show full content
+    const editInfo = parseFileEditContent(cleanContent);
+    if (editInfo?.isComplete) {
+      const hunks = getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString);
+      if (hunks.length > 0) {
+        return (
+          <Box flexDirection="column" marginBottom={1} marginLeft={2} marginRight={2}>
+            <DiffView
+              filePath={editInfo.filePath}
+              hunks={hunks}
+              width={Math.max(terminalWidth - 6, 40)}
+            />
+          </Box>
+        );
+      }
+    }
+
     return (
       <Box
         flexDirection="column"
@@ -320,6 +355,72 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     return (
       <Box flexDirection="column" marginBottom={0} paddingLeft={2}>
         <Text dimColor>{safeContent}</Text>
+      </Box>
+    );
+  }
+
+  // 🎯 For /goal verifier pass/fail summaries, render as a single collapsed
+  // line ("✓ Goal achieved (2h · 1 turn · 134.1k tokens) (ctrl+o to expand)"),
+  // expanding to the full objective/reason/nextAction under global Ctrl+O
+  // (isCollapsed), same convention as the thinking/tool_use summaries above.
+  if (isGoalResult) {
+    const goalResult = message.metadata?.goalResult as
+      | {
+          achieved: boolean;
+          elapsedSeconds: number;
+          turns: number;
+          tokensUsed: number;
+          objective: string;
+          reason: string;
+          nextAction?: string;
+        }
+      | undefined;
+
+    if (!goalResult) return null;
+
+    const achieved = goalResult.achieved;
+    const icon = achieved ? '✓' : '○';
+    const iconColor = achieved ? 'green' : 'yellow';
+    const label = achieved ? 'achieved' : 'not yet achieved';
+    const elapsedStr = formatElapsedShort(goalResult.elapsedSeconds);
+    const turnsStr = `${goalResult.turns} turn${goalResult.turns === 1 ? '' : 's'}`;
+    // NOTE: tokensUsed is intentionally not displayed here — the current
+    // backend calculation is not accurate yet, so we omit it from the
+    // summary line for now rather than show a misleading number.
+
+    const summaryLine = (
+      <Text>
+        <Text color={iconColor} bold>{icon}</Text>
+        <Text> </Text>
+        <Text color="cyan" bold> Goal </Text>
+        <Text> {label} ({elapsedStr} · {turnsStr})</Text>
+      </Text>
+    );
+
+
+
+    if (isCollapsed) {
+      return (
+        <Box marginTop={1} marginBottom={1}>
+          <Text>
+            {summaryLine}
+            <Text color="gray"> (ctrl+o to expand)</Text>
+          </Text>
+        </Box>
+      );
+    }
+
+    return (
+      <Box flexDirection="column" marginTop={1} marginBottom={1}>
+        {summaryLine}
+
+        <Box flexDirection="column" paddingLeft={2}>
+          <Text dimColor>Objective: {goalResult.objective}</Text>
+          <Text dimColor>Reason: {goalResult.reason}</Text>
+          {goalResult.nextAction && (
+            <Text dimColor>Next action: {goalResult.nextAction}</Text>
+          )}
+        </Box>
       </Box>
     );
   }

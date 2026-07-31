@@ -13,6 +13,7 @@ from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
+from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
 from siada.tools.coder.test_completion import test_completion
 from siada.agent_hub.coder.prompt import test_prompt
 from siada.agent_hub.coder.prompt.base.tool_use import should_enable_parallel_tool_calls_in_prompt
@@ -29,9 +30,13 @@ class TestAgent(SiadaAgent[CodeAgentContext]):
     """
 
     def __init__(self, *args, **kwargs):
+        _tools = [edit, regex_search_files, run_cmd, test_completion]
+        _pwsh = get_run_powershell_tool_if_available()
+        if _pwsh is not None:
+            _tools.append(_pwsh)
         super().__init__(
             name="TestAgent",
-            tools=[edit, regex_search_files, run_cmd, test_completion],
+            tools=_tools,
             tool_use_behavior=StopAtTools(stop_at_tool_names=['test_completion']),
             *args,
             **kwargs

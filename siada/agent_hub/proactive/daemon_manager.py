@@ -87,12 +87,35 @@ class DaemonManager:
             # Uses __main__.py in the proactive package
             # - stdout/stderr redirected to avoid blocking
             # - detached from parent process
+            _popen_kwargs: dict = {
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "stdin": subprocess.DEVNULL,
+            }
+            if sys.platform == "win32":
+                # start_new_session is a POSIX-only flag and is silently ignored on
+                # Windows. Use creation flags instead to suppress the console
+                # window that would otherwise pop up.
+                #
+                # NOTE: do NOT add DETACHED_PROCESS here. Per Microsoft's
+                # CreateProcess docs, CREATE_NO_WINDOW is ignored when combined
+                # with DETACHED_PROCESS, and when the parent has no console
+                # (e.g. launched from an Electron/GUI host) DETACHED_PROCESS
+                # actually causes Windows to allocate a fresh conhost window
+                # for the child python.exe — exactly the empty black popup we
+                # want to avoid. CREATE_NO_WINDOW + CREATE_NEW_PROCESS_GROUP +
+                # DEVNULL stdio + close_fds is sufficient for the daemon to
+                # outlive the parent and stay headless.
+                _popen_kwargs["creationflags"] = (
+                    subprocess.CREATE_NO_WINDOW
+                    | subprocess.CREATE_NEW_PROCESS_GROUP
+                )
+                _popen_kwargs["close_fds"] = True
+            else:
+                _popen_kwargs["start_new_session"] = True
             process = subprocess.Popen(
                 [sys.executable, "-m", "siada.agent_hub.proactive"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,  # Detach from parent
+                **_popen_kwargs,
             )
 
             # Wait a bit to ensure process starts
@@ -171,7 +194,6 @@ class DaemonManager:
         for _ in range(50):  # Wait up to 5 seconds
             pid = self.get_pid()
             if pid is not None:
-                logger.info(f"✓ Proactive daemon started (PID: {pid})")
                 return True, pid
             time.sleep(0.1)
 

@@ -7,13 +7,19 @@ from typing import Optional
 
 from agents import RunContextWrapper, Runner, RunConfig, function_tool, RunItemStreamEvent, RawResponsesStreamEvent
 from agents.items import ToolCallItem, ToolCallOutputItem, MessageOutputItem
+from agents.tracing import trace as agent_trace
 
-from siada.agent_hub.coder.sub_task_agent import SubTaskAgent, SubTaskResult  # noqa: F401
+from siada.agent_hub.coder.sub_task_agent import SubTaskAgent
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.logging import logger as logging
 from siada.foundation.setting import settings
 from siada.io.stream_utils import render_tool_call_output
 from siada.services.sub_agent_run_config import build_sub_agent_run_config
+from siada.tools.agent.sub_agent_compaction_filter import (
+    InMemorySession,
+    make_sub_agent_compaction_filter,
+    make_sub_agent_session_input_callback,
+)
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 
 
@@ -29,11 +35,7 @@ Args:
         step result, task directive) into this single string.
 
 Returns:
-    SubTaskResult with fields:
-        status: "completed" | "failed" | "blocked"
-        summary: What was done, which files were modified, and key decisions made.
-        blockers: (only when status == "blocked") Description of the blocker and
-            suggested resolution.
+    A plain-text summary of what was done, which files were modified, and key decisions made.
 """
 
 
@@ -68,62 +70,115 @@ async def run_subtask_impl(
             config (requires an active agent session).
 
     Returns:
-        SubTaskResult produced by the SubTaskAgent.
+        Plain-text summary produced by the SubTaskAgent.
     """
     if run_config is None:
         run_config = build_sub_agent_run_config(agent_context)
 
+    # Create an in-memory session for this sub-agent run. It accumulates history
+    # across turns (replacing the default no-session / RunState-only path) and
+    # serves as the write-back target for the compaction callback below.
+    in_memory_session = InMemorySession()
+
+    # Attach the two cooperating compaction hooks whenever the parent context
+    # has a live session (i.e. model_run_config is accessible). In tests that
+    # supply run_config directly without a session, both hooks are skipped.
+    #   - session_input_callback: seeds this run's new input into the session so
+    #     the filter's session.get_items() does not lose it.
+    #   - call_model_input_filter: performs the actual per-model-call compaction,
+    #     reading from (and writing back to) the session.
+    if agent_context and agent_context.session:
+        run_config.session_input_callback = make_sub_agent_session_input_callback(
+            in_memory_session
+        )
+        run_config.call_model_input_filter = make_sub_agent_compaction_filter(
+            agent_context.model_run_config, in_memory_session
+        )
+
     io = _get_io(agent_context)
     logging.info(f"[run_subtask] Launching sub-agent: {instruction[:80]}...")
 
-    result = Runner.run_streamed(
-        starting_agent=SubTaskAgent(),
-        input=instruction,
-        context=CodeAgentContext(root_dir=agent_context.root_dir),
-        run_config=run_config,
-        max_turns=settings.MAX_TURNS,
+    # Inherit the parent agent's resolved web-tools switch so the sub-agent
+    # respects the same provider-based default / manual toggle as the parent.
+    # Prefer the resolved provider name written per-run by _build_run_config
+    # (agent_context.provider) — the actual provider used for model calls — and
+    # fall back to the raw llm_config value with model-based routing applied.
+    from siada.tools.web import resolve_web_tools_enabled, resolve_provider_from_context
+    sub_web_enabled = resolve_web_tools_enabled(
+        resolve_provider_from_context(agent_context),
+        getattr(agent_context, "web_tools_enabled", None),
     )
 
-    async for event in result.stream_events():
-        if not isinstance(event, RunItemStreamEvent):
-            continue
 
-        item = event.item
 
-        if isinstance(item, ToolCallItem):
-            raw = item.raw_item
-            tool_name = getattr(raw, "name", str(raw))
-            call_id = getattr(raw, "call_id", "")
-            arguments = getattr(raw, "arguments", "") or ""
-            if io:
-                formatter = ToolCallFormatterFactory.get_formatter(tool_name)
-                content, _ = formatter.format_input(call_id, tool_name, arguments)
-                io.advance_tool_call_stage()
-                io.print_tool_call_all_stages(content, final=True)
+    # Wrap execution in a dedicated trace so sub-agent spans are recorded under
+    # a "SubTaskAgent" trace (distinct from the parent agent's "Agent workflow"
+    # trace). Without this, Runner.run_streamed detects get_current_trace() is
+    # already set and reuses the parent trace — making log routing impossible.
+    with agent_trace(
+        workflow_name="SubTaskAgent",
+        disabled=run_config.tracing_disabled,
+    ):
+        result = Runner.run_streamed(
+            starting_agent=SubTaskAgent(web_tools_enabled=sub_web_enabled),
+            input=instruction,
+            context=CodeAgentContext(
+                root_dir=agent_context.root_dir,
+            ),
+            run_config=run_config,
+            max_turns=settings.MAX_TURNS,
+            session=in_memory_session,
+        )
 
-        elif isinstance(item, ToolCallOutputItem):
-            if io:
-                render_tool_call_output(io, item.output)
+        async for event in result.stream_events():
+            if not isinstance(event, RunItemStreamEvent):
+                continue
 
-        elif isinstance(item, MessageOutputItem):
-            text_parts = [
-                part.text
-                for part in getattr(item.raw_item, "content", [])
-                if getattr(part, "type", None) == "output_text" and hasattr(part, "text")
-            ]
-            if text_parts and io:
-                text = "".join(text_parts)
-                # Show sub-agent planning text as thinking-style (dim on terminal, thinking block on ACP)
-                io.acp_thinking(text)
-                if not io.acp_enabled:
-                    io.console.print(text, style="dim")
+            item = event.item
 
-    subtask_result: SubTaskResult = result.final_output
+            if isinstance(item, ToolCallItem):
+                raw = item.raw_item
+                tool_name = getattr(raw, "name", str(raw))
+                call_id = getattr(raw, "call_id", "")
+                arguments = getattr(raw, "arguments", "") or ""
+                if io:
+                    formatter = ToolCallFormatterFactory.get_formatter(tool_name)
+                    content, _ = formatter.format_input(call_id, tool_name, arguments)
+                    io.advance_tool_call_stage()
+                    io.print_tool_call_all_stages(content, final=True)
+
+            elif isinstance(item, ToolCallOutputItem):
+                if io:
+                    render_tool_call_output(io, item.output)
+
+            elif isinstance(item, MessageOutputItem):
+                text_parts = [
+                    part.text
+                    for part in getattr(item.raw_item, "content", [])
+                    if getattr(part, "type", None) == "output_text" and hasattr(part, "text")
+                ]
+                if text_parts and io:
+                    text = "".join(text_parts)
+                    # Show sub-agent planning text as thinking-style (dim on terminal, thinking block on ACP)
+                    io.acp_thinking(text)
+                    if not io.acp_enabled:
+                        io.console.print(text, style="dim")
+
+    # Final end-of-run snapshot: capture the full session context after the
+    # sub-agent has finished streaming (i.e. after the last turn and any last
+    # compaction have been written back to the session). This complements the
+    # per-turn dump points (session-input-callback / filter-entry /
+    # before-compaction / after-compaction) with a single authoritative
+    # end-state. Like every dump point it is a no-op unless dump mode is enabled
+    # and never raises into the caller.
+    await in_memory_session.dump_items("subtask-finished")
+
+    summary: str = result.final_output
     logging.info(
-        f"[run_subtask] Sub-agent finished — status: {subtask_result.status} | "
-        f"summary: {subtask_result.summary[:120]}"
+        f"[run_subtask] Sub-agent finished — summary: {summary[:120]}"
     )
-    return subtask_result
+    return summary
+
 
 
 # ---- Public tool function --------------------------------

@@ -28,6 +28,9 @@ import { createWorkingStdio } from './utils/stdio.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// T0: module load complete (imports done, ready to run)
+const _T0 = Date.now();
+
 function readVersion(): string {
   try {
     const content = readFileSync(join(__dirname, '../../pyproject.toml'), 'utf-8');
@@ -40,7 +43,8 @@ function readVersion(): string {
 }
 
 function configureLogger(options: any): void {
-  if (options.debug) {
+  if (options.debug || process.env.SIADA_DEBUG) {
+    process.env.SIADA_DEBUG = '1';
     logger.setLevel(LogLevel.DEBUG);
     return;
   }
@@ -114,6 +118,7 @@ function renderApp(config: any, options: any): void {
   // causes frequent eraseLines and is unsafe.
   const useAlternateBuffer = options.alternateBuffer === true;
 
+  logger.info(`[ui-timing] phase=render_called        elapsed_ms=${Date.now() - _T0}`);
   const { waitUntilExit } = render(AppWithProvider, {
     stdout: inkStdout,
     stderr: inkStderr,
@@ -133,10 +138,14 @@ function renderApp(config: any, options: any): void {
     if (sessionIdOnExit) {
       process.stdout.write(`\nTo continue this session, run: siada-cli --resume ${sessionIdOnExit}\n`);
     }
-    process.exit(0);
+    // Use setImmediate to give React one event-loop tick to flush any pending
+    // state updates (e.g. setPluginManagerData(null)) before process.exit.
+    // Without this, yoga WASM crashes during Ink's final render because the
+    // PluginManager is still in the component tree when process.exit fires.
+    setImmediate(() => process.exit(0));
   }).catch((error) => {
     logger.error('Application exited with error', error);
-    process.exit(1);
+    setImmediate(() => process.exit(1));
   });
 }
 
@@ -181,10 +190,12 @@ function main(): void {
   createProgram()
     .action((workingDir: string, options: any) => {
       configureLogger(options);
+      logger.info(`[ui-timing] phase=logger_configured  elapsed_ms=${Date.now() - _T0}`);
 
       logger.info('Starting siada-cli-ui', { workingDir, options });
 
       const config = buildConfig(workingDir, options);
+      logger.info(`[ui-timing] phase=config_built        elapsed_ms=${Date.now() - _T0}`);
       logger.info(getTerminalInfoString());
 
       try {

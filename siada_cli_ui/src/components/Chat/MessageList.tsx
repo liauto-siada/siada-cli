@@ -29,6 +29,7 @@ import {
 } from '../../constants/limits.js';
 import { Banner } from '../Banner/Banner.js';
 import { parseToolCall, type ParsedToolCall } from '../../utils/toolCallParser.js';
+import { recordFlicker } from '../../utils/flickerMonitor.js';
 
 // Virtual Scrolling: Only render recent messages to prevent Terminal.app crashes
 // Terminal.app's NSMutableAttributedString has severe memory corruption issues
@@ -47,6 +48,10 @@ export interface MessageListProps {
   terminalWidth?: number;  // For triggering remount on resize
   maxHeight?: number;      // Maximum height in rows for the message list
   isCollapsed?: boolean;   // Collapse mode - hide tool use messages
+  noStatic?: boolean;      // When true, render all messages as regular flex children
+                           // (skip Ink <Static>). Required by alt-screen views like
+                           // TodoDetailView where Static items would scroll past the
+                           // alt buffer top, leaving most messages invisible.
 }
 
 interface MessageGroup {
@@ -116,7 +121,7 @@ function extractCleanContent(content: string): string {
 }
 
   // 🔥 Use React.memo to prevent unnecessary re-renders when messages haven't changed
-export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, headerProps, terminalWidth, isCollapsed = false }) => {
+export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, headerProps, terminalWidth, isCollapsed = false, noStatic = false }) => {
   const scrollRef = useRef<any>(null);
   const icons = getIcons();
   const [historyRemountKey, setHistoryRemountKey] = useState(0);
@@ -152,6 +157,10 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
         operation: 'clear_terminal',
         reason: 'terminal_resize',
       });
+      recordFlicker('refreshStatic', 'clearTerminal + Static remount', {
+        messageCount: staticMessages.length,
+        remountKey: historyRemountKey,
+      });
       stdout.write(ansiEscapes.clearTerminal);
     }
     
@@ -165,15 +174,21 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       });
       return prev + 1;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stdout]);
 
   // When model changes in headerProps, remount Static to update the banner
   useEffect(() => {
     const currentModel = headerProps?.model;
     if (prevModelRef.current !== undefined && prevModelRef.current !== currentModel) {
+      recordFlicker('model_change', `Model changed: ${prevModelRef.current} → ${currentModel}`, {
+        messageCount: staticMessages.length,
+        remountKey: historyRemountKey,
+      });
       refreshStatic();
     }
     prevModelRef.current = currentModel;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerProps?.model, refreshStatic]);
 
   // When terminal width or isCollapsed changes, clear screen and remount Static component
@@ -204,6 +219,11 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
         historyRemountKey,
       });
       
+      recordFlicker('resize_debounced', `Terminal resize or collapse toggle (width=${terminalWidth}, collapsed=${isCollapsed})`, {
+        messageCount: staticMessages.length,
+        remountKey: historyRemountKey,
+      });
+      
       // Execute clear screen and remount strategy
       refreshStatic();
     }, 300);
@@ -221,8 +241,38 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
     }
   }, [messages]);
 
+  const keepThinkingIdsRef = useRef<Set<string> | null>(null);
+  const lastCollapsedForThinkingRef = useRef<boolean | null>(null);
+
   const groupMessages = useCallback((messages: MessageType[], collapsed: boolean): MessageGroup[] => {
     const groups: MessageGroup[] = [];
+
+    // Only render the latest few thinking messages, in both compact and expanded
+    // mode. The set of "kept" ids is frozen in a ref and only recomputed when
+    // `collapsed` actually flips (i.e. when the user presses ctrl+o) — that action
+    // already forces a re-render/remount, so it's the right (and only) moment to
+    // recompute. Recomputing on every message update instead would keep flipping
+    // older thinking groups in/out of the render set as new ones stream in,
+    // shifting group indices and constantly triggering signature-mismatch remounts.
+    //
+    // Before the first ctrl+o press, there's no toggle to piggyback the
+    // recompute on, so no limit is applied yet (render all thinking messages).
+    const MAX_THINKING_MESSAGES = 2;
+    if (lastCollapsedForThinkingRef.current === null) {
+      // First call ever: just record the baseline, don't filter yet.
+      lastCollapsedForThinkingRef.current = collapsed;
+    } else if (lastCollapsedForThinkingRef.current !== collapsed) {
+      // `collapsed` flipped, i.e. ctrl+o was pressed: recompute the limit.
+      const thinkingIds: string[] = [];
+      for (const msg of messages) {
+        if (msg.metadata?.subtype === 'thinking') {
+          thinkingIds.push(msg.id);
+        }
+      }
+      keepThinkingIdsRef.current = new Set(thinkingIds.slice(-MAX_THINKING_MESSAGES));
+      lastCollapsedForThinkingRef.current = collapsed;
+    }
+    const keepThinkingIds = keepThinkingIdsRef.current;
 
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
@@ -232,6 +282,11 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       const isEmpty = !msg.content || msg.content.trim() === '';
       
       if (isStreamEnd && isEmpty) {
+        continue;
+      }
+
+      // Only render the latest MAX_THINKING_MESSAGES thinking messages (collapsed mode only)
+      if (keepThinkingIds && msg.metadata?.subtype === 'thinking' && !keepThinkingIds.has(msg.id)) {
         continue;
       }
 
@@ -251,7 +306,7 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
             (sum, t) => sum + ((t.path || t.details || t.summary).split('\n').length),
             0
           );
-          const maxGroupLines = Math.max((process.stdout.rows || 24) - 11, 1);
+          const maxGroupLines = Math.max((process.stdout.rows || 13) - 12, 1);
 
           if (lastGroup && lastGroup.isAggregated && lastGroup.aggregatedTools &&
               groupLines < maxGroupLines) {
@@ -290,9 +345,17 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       return { staticGroups: [], pendingGroups: [] };
     }
 
-    // Calculate signatures for all groups
+    // Calculate signatures for all groups.
+    // IMPORTANT: signature uses `streamEnd` instead of `content.length`.
+    // Using content.length caused a flicker loop: during streaming, flushStreamingNow
+    // updates the answer message's content every 80ms, and if that message is in
+    // Static (not the last group), the len change triggers needsRemount → clear screen
+    // → useMemo re-run → next flush changes len again → infinite loop.
+    // With streamEnd, content changes are ignored; only stream completion (false→true)
+    // triggers one remount to show the final content.
     const currentSignatures = allGroups.map((group, idx) => {
-      return `type:${group.type}|id:${group.message.id}|len:${group.message.content?.length || 0}`;
+      const done = !!group.message?.metadata?.streamEnd;
+      return `type:${group.type}|id:${group.message?.id ?? `g${idx}`}|done:${done}`;
     });
 
     // Check if any existing group changed
@@ -360,13 +423,40 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
 
     // If existing group changed, trigger remount
     if (needsRemount) {
+      recordFlicker('group_signature_remount', 'Group signature changed — existing group content modified', {
+        messageCount: staticMessages.length,
+        metadata: {
+          changedGroupIndex: lastSignatures.findIndex((s, i) => i < currentSignatures.length && s !== currentSignatures[i]),
+        },
+      });
       setTimeout(() => refreshStatic(), 0);
+
+      // BUGFIX: an EARLIER group finishing (e.g. a "thinking" block reaching
+      // streamEnd right as the next "answer" block starts streaming) must not
+      // force the CURRENT last group into Static too. The last group may still
+      // be actively streaming — freezing it into Static here permanently pins
+      // it above any still-dynamic UI below (ThinkingIndicator, the /btw
+      // SideQuestionPanel, the input box), even though it hasn't finished and
+      // should keep rendering in the dynamic (pending) area until it is done.
+      // Only fold the last group into Static on this remount if it is itself
+      // already done, or too tall to stay pending — exactly the same rule
+      // used in the non-remount path below.
+      const lastGroupDone = !!lastGroup.message?.metadata?.streamEnd;
+      if (!lastGroupDone && estimatedLines <= halfHeight) {
+        lastStaticGroupSignaturesRef.current = currentSignatures.slice(0, -1);
+        return {
+          staticGroups: allGroups.slice(0, -1),
+          pendingGroups: [lastGroup],
+        };
+      }
+
       lastStaticGroupSignaturesRef.current = currentSignatures;
       return {
         staticGroups: allGroups,
         pendingGroups: [],
       };
     }
+
 
     // If last group is small enough, keep it as pending (dynamic render)
     if (estimatedLines <= halfHeight) {
@@ -388,6 +478,9 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
 
   const renderGroup = useCallback(
     (group: MessageGroup, idx: number, isStatic: boolean) => {
+      // Guard: skip groups with no message (should not happen, but be defensive)
+      if (!group.message) return null;
+
       // Aggregated tool call group: render as count summary
       if (group.isAggregated && group.aggregatedTools && group.aggregatedTools.length > 0) {
         const icons = getIcons();
@@ -422,17 +515,42 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
             case 'run_command':
               parts.push(count === 1 ? 'Run 1 command' : `Run ${count} commands`);
               break;
+            case 'run_powershell':
+              parts.push(count === 1 ? 'Run 1 PowerShell command' : `Run ${count} PowerShell commands`);
+              break;
             case 'search':
               parts.push(count === 1 ? '1 search' : `${count} searches`);
               break;
             case 'analyze':
               parts.push(count === 1 ? 'Analyze 1 file' : `Analyze ${count} files`);
               break;
-            case 'crawl':
-              parts.push(count === 1 ? 'Crawl 1 URL' : `Crawl ${count} URLs`);
+            case 'web':
+              parts.push(count === 1 ? '1 web request' : `${count} web requests`);
               break;
             case 'browser':
               parts.push(count === 1 ? '1 browser action' : `${count} browser actions`);
+              break;
+            case 'memory_search':
+              parts.push(count === 1 ? 'Search memory' : `${count} memory searches`);
+              break;
+            case 'memory_write':
+              parts.push(count === 1 ? 'Save to memory' : `${count} memory saves`);
+              break;
+            case 'fact_store':
+              parts.push(count === 1 ? 'Fact memory' : `${count} fact memory ops`);
+              break;
+            case 'fact_feedback':
+              parts.push(count === 1 ? 'Fact feedback' : `${count} fact feedbacks`);
+              break;
+            case 'sub_agent':
+
+              parts.push(count === 1 ? '1 sub-agent task' : `${count} sub-agent tasks`);
+              break;
+            case 'lark':
+              parts.push(count === 1 ? '1 Lark notification' : `${count} Lark notifications`);
+              break;
+            case 'todo_write':
+              parts.push('Todo List');
               break;
           }
         }
@@ -445,7 +563,33 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
         
         tools.forEach(tool => {
           let items = groupedByType.get(tool.type) || [];
-          
+
+          // Special case: todo_write - split into individual windowed lines
+          if (tool.type === 'todo_write' && tool.details) {
+            const allLines = tool.details.split('\n')
+              .map((l: string) => l.trimEnd())
+              .filter((l: string) => l.trim() && !l.match(/^\[\d+\/\d+ completed\]$/));
+
+            // Find center: last in_progress (◐), else first pending (○), else last item
+            let centerIdx = -1;
+            for (let i = allLines.length - 1; i >= 0; i--) {
+              if (allLines[i].startsWith('◐')) { centerIdx = i; break; }
+            }
+            if (centerIdx === -1) centerIdx = allLines.findIndex((l: string) => l.startsWith('○'));
+            if (centerIdx === -1) centerIdx = allLines.length - 1;
+
+            const start = Math.max(0, centerIdx - 2);
+            const end = Math.min(allLines.length - 1, centerIdx + 2);
+            const windowLines: string[] = [];
+            if (start > 0) windowLines.push('…');
+            for (let i = start; i <= end; i++) windowLines.push(allLines[i]);
+            if (end < allLines.length - 1) windowLines.push('…');
+
+            for (const line of windowLines) items.push(line);
+            groupedByType.set(tool.type, items);
+            return; // skip generic logic
+          }
+
           // Extract display text
           let displayItem = '';
           if (tool.path) {
@@ -459,7 +603,12 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
               displayItem = filename;
             }
           } else if (tool.details) {
-            displayItem = tool.details;
+            const detailLines = tool.details.split('\n');
+            if (detailLines.length > 5) {
+              displayItem = detailLines.slice(0, 5).join('\n') + '\n…';
+            } else {
+              displayItem = tool.details;
+            }
           }
           
           if (displayItem) {
@@ -473,7 +622,7 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
             <Text>
               <Text color="cyan">●</Text> <Text>{summary}</Text> <Text color="gray"> (ctrl+o to expand)</Text>
             </Text>
-            
+
             <Box flexDirection="column" paddingLeft={2}>
               {Array.from(groupedByType.entries()).map(([type, items], typeIndex) => {
                 const previewItems = items.slice(0, MAX_PREVIEW_PER_TYPE);
@@ -484,9 +633,16 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
                 return (
                   <Box key={type} flexDirection="column">
                     {previewItems.map((item, itemIndex) => {
+                      // todo_write: no tree prefix, just indent
+                      if (type === 'todo_write') {
+                        return (
+                          <Box key={itemIndex}>
+                            <Text color="gray">{item}</Text>
+                          </Box>
+                        );
+                      }
                       const isLastInGroup = itemIndex === previewItems.length - 1 && hiddenCount === 0;
-                      const prefix = isLastInGroup && isLastType ? '└─ ' : (isLastInGroup ? '└─ ' : '├─ ');
-                      
+                      const prefix = isLastInGroup && isLastType ? '└─ ' : '├─ ';
                       return (
                         <Box key={itemIndex}>
                           <Text color="gray">
@@ -495,8 +651,8 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
                         </Box>
                       );
                     })}
-                    
-                    {hiddenCount > 0 && (
+
+                    {hiddenCount > 0 && type !== 'todo_write' && (
                       <Box>
                         <Text color="gray">
                           {isLastType ? '└─ ' : '└─ '}… +{hiddenCount} more
@@ -511,13 +667,13 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
         );
       }
 
-      const key = group.message.id;
+      const key = group.message.id ?? `group-${idx}`
 
       // Detect group boundary
       let isNewGroup = true;
 
       // For split messages, check splitIndex
-      if (key.includes('_split_')) {
+      if (key?.includes('_split_')) {
         // Extract splitIndex from key: "msg-123_split_2" -> 2
         const match = key.match(/_split_(\d+)$/);
         if (match) {
@@ -543,6 +699,21 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
   );
 
 
+  // noStatic mode: render every group inline (no Ink <Static>) so messages
+  // participate in flex layout. Used by TodoDetailView (alt-screen) where Static
+  // items would scroll past the alt buffer top.
+  if (noStatic) {
+    return (
+      <Box ref={scrollRef} flexDirection="column" padding={0}>
+        {headerProps && <Banner {...headerProps} />}
+        {staticGroups.map((group, idx) => renderGroup(group, idx, false))}
+        {pendingGroups.map((group, idx) =>
+          renderGroup(group, staticGroups.length + idx, false)
+        )}
+      </Box>
+    );
+  }
+
   return (
     <Box ref={scrollRef} flexDirection="column" padding={0}>
 
@@ -555,9 +726,10 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       {/* OPTIMIZATION: Static component for header + completed messages - won't re-render */}
       <Static key={historyRemountKey} items={[{ type: 'header' as const }, ...staticGroups]}>
         {(item, index) => {
-          // First item is the header
-          if (index === 0 && 'type' in item && item.type === 'header' && headerProps) {
-            return <Banner key="header" {...headerProps} />;
+          // First item is always the header sentinel — render banner if headerProps present, else skip
+          if (index === 0 && 'type' in item && item.type === 'header') {
+            if (headerProps) return <Banner key="header" {...headerProps} />;
+            return <React.Fragment key="no-header" />;
           }
           // Other items are message groups
           return renderGroup(item as MessageGroup, index - 1, true);

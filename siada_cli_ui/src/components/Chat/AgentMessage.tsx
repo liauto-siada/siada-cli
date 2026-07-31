@@ -40,8 +40,8 @@ export const AgentMessage: React.FC<AgentMessageProps> = ({
         const elements: React.ReactNode[] = [];
         for (let i = 0; i < thinkingMessages.length; i++) {
           const msg = thinkingMessages[i];
-          const cleanContent = extractCleanContent(msg.content);
-          if (cleanContent.trim().length === 0) continue;
+          const cleanContent = extractCleanContent(msg.content).replace(/^\n+/, '').trim();
+          if (cleanContent.length === 0) continue;
           elements.push(
             <Box key={`thinking_${i}`} marginBottom={1}>
               <MarkdownDisplay 

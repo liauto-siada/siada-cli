@@ -59,6 +59,40 @@ def _pre_load_default_provider_models(conf: Optional[Config], model_name: str) -
         logger.debug(f"[model_setup] _pre_load_default_provider_models failed: {exc}")
 
 
+def apply_models_json_settings(conf: Optional[Config]) -> Optional[str]:
+    """Load user-defined models from models.json into the global model settings.
+
+    Shared by the CLI startup (get_config) and the ACP server, which builds
+    sessions directly without going through get_config(). Returns the
+    models.json ``default_model`` if set, else None.
+    """
+    if not (conf and conf.model_config):
+        return None
+    from siada.models.model_base_config import set_user_model_settings, ModelBaseConfig
+
+    user_models = []
+    for user_model in conf.model_config.models:
+        user_models.append(ModelBaseConfig(
+            model_name=user_model.model_name,
+            context_window=user_model.context_window,
+            max_tokens=user_model.max_tokens,
+            supports_images=user_model.supports_images,
+            supports_prompt_cache=user_model.supports_prompt_cache,
+            supports_extra_params=user_model.supports_extra_params,
+            parallel_tool_calls=user_model.parallel_tool_calls,
+            default_thinking_tokens=user_model.default_thinking_tokens,
+            default_reasoning_effort=user_model.default_reasoning_effort,
+            input_price=user_model.input_price,
+            output_price=user_model.output_price,
+            cache_write_price=user_model.cache_write_price,
+            cache_read_price=user_model.cache_read_price,
+        ))
+
+    logger.debug(f"Loaded {len(user_models)} user-defined models from models.json")
+    set_user_model_settings(user_models)
+    return conf.model_config.default_model
+
+
 def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
     """
     Configure and create model instance.
@@ -72,32 +106,35 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
 
     final_model = args.model or (conf.llm_config.model if conf and conf.llm_config else None)
     final_provider = args.provider or (conf.llm_config.provider if conf and conf.llm_config else None)
+    # Save the user's explicitly configured provider before any auto-routing.
+    # Used to re-resolve provider if the model falls back to a different model family.
+    user_preferred_provider = final_provider
+
+    # Resolve the provider for the model (handles legacy keys like
+    # "openai_agents" -> "li").
+    # This dilutes the user-facing "provider" concept: users only need to pick the model.
+    from siada.provider.provider_factory import resolve_provider_by_model
+    resolved_provider = resolve_provider_by_model(final_model, final_provider)
+    if resolved_provider != final_provider:
+        logger.info(
+            f"[model_setup] Auto-routing model {final_model!r} to provider "
+            f"{resolved_provider!r} (was {final_provider!r})"
+        )
+        final_provider = resolved_provider
+
     logger.debug(f"Final model: {final_model}, Final provider: {final_provider}")
 
-    # If provider is 'default', load user-defined model configurations
-    if final_provider == "default" and conf and conf.model_config:
-        logger.info("Loading user-defined model configurations for 'default' provider")
-        from siada.models.model_base_config import set_user_model_settings, ModelBaseConfig
-
-        user_models = []
-        for user_model in conf.model_config.models:
-            user_models.append(ModelBaseConfig(
-                model_name=user_model.model_name,
-                context_window=user_model.context_window,
-                max_tokens=user_model.max_tokens,
-                supports_images=user_model.supports_images,
-                supports_prompt_cache=user_model.supports_prompt_cache,
-                supports_extra_params=user_model.supports_extra_params,
-                parallel_tool_calls=user_model.parallel_tool_calls,
-                default_thinking_tokens=user_model.default_thinking_tokens,
-                default_reasoning_effort=user_model.default_reasoning_effort
-            ))
-
-        logger.debug(f"Loaded {len(user_models)} user-defined models")
-        set_user_model_settings(user_models)
-
-        if final_model is None and conf.model_config.default_model:
-            final_model = conf.model_config.default_model
+    # If the effective provider is 'default', load user-defined model
+    # configurations (models.json). ``final_provider`` only reflects
+    # args/conf.yaml, so fall back to the baseline ``config.provider``
+    # (from agent_config.yaml) when neither sets one explicitly.
+    effective_provider = final_provider or config.provider
+    if effective_provider == "default":
+        default_model = apply_models_json_settings(conf)
+        if default_model:
+            logger.info("Loaded user-defined model configurations for 'default' provider")
+        if final_model is None and default_model:
+            final_model = default_model
             logger.info(f"Using default model from user configuration: {final_model}")
             if args.verbose:
                 io.print_info(f"Using default model from user configuration: {final_model}")
@@ -125,9 +162,29 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
             else:
                 raise
 
+        # If the model was silently replaced by a fallback, re-resolve the provider
+        # using the user's original preferred provider so the fallback model gets
+        # a correct provider (e.g. unknown-gpt5-x falls back to claude-sonnet-4.6 → li).
+        if config.model_name != final_model:
+            re_resolved = resolve_provider_by_model(config.model_name, user_preferred_provider)
+            if re_resolved != final_provider:
+                logger.info(
+                    f"[model_setup] Re-routing fallback model {config.model_name!r} "
+                    f"to provider {re_resolved!r} (was {final_provider!r})"
+                )
+                final_provider = re_resolved
+
     if final_provider is not None:
         logger.info(f"Setting provider: {final_provider}")
         config.provider = final_provider
+
+    # Persist the resolved provider so the litellm token-refresh callback can
+    # determine whether IDaaS auth should be skipped (e.g. for 'default' provider).
+    try:
+        from siada.entrypoint import set_current_provider
+        set_current_provider(config.provider or "")
+    except Exception:
+        pass
 
     if config.provider is None:
         error_msg = "No provider specified. Please set provider in agent_config.yaml or use --provider option"
@@ -144,33 +201,28 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
         logger.info("OPENROUTER_API_KEY validated")
 
     if config.provider == "default":
+        # Pre-load credentials from conf.yaml into the environment (the login
+        # flow reads the same source later via _check_stored_api_key_config).
+        if conf and conf.llm_config:
+            cfg_base_url = getattr(conf.llm_config, 'base_url', None)
+            cfg_api_key = getattr(conf.llm_config, 'api_key', None)
+            if cfg_base_url and not os.getenv("BASE_URL"):
+                os.environ["BASE_URL"] = cfg_base_url
+            if cfg_api_key and not os.getenv("API_KEY"):
+                os.environ["API_KEY"] = cfg_api_key
+        # Do NOT hard-fail when credentials are missing: the login flow runs
+        # after get_config() and collects base_url/api_key interactively
+        # (or fails with a clear message in non-interactive mode).
         if os.getenv("BASE_URL") is None:
-            error_msg = (
-                "BASE_URL is not set for default provider. "
-                "Please set the BASE_URL environment variable, or configure 'base_url' "
-                "under 'llm_config' in conf.yaml. Example:\n"
-                "  llm_config:\n"
-                "    provider: default\n"
-                "    base_url: https://your-api-endpoint.com/v1\n"
-                "    api_key: your-api-key-here"
+            logger.info(
+                "BASE_URL is not set for default provider yet; "
+                "the login flow will collect it"
             )
-            logger.error(error_msg)
-            io.print_error(error_msg)
-            raise ValueError(error_msg)
         if os.getenv("API_KEY") is None:
-            error_msg = (
-                "API_KEY is not set for default provider. "
-                "Please set the API_KEY environment variable, or configure 'api_key' "
-                "under 'llm_config' in conf.yaml. Example:\n"
-                "  llm_config:\n"
-                "    provider: default\n"
-                "    base_url: https://your-api-endpoint.com/v1\n"
-                "    api_key: your-api-key-here"
+            logger.info(
+                "API_KEY is not set for default provider yet; "
+                "the login flow will collect it"
             )
-            logger.error(error_msg)
-            io.print_error(error_msg)
-            raise ValueError(error_msg)
-        logger.info("Default provider credentials validated")
 
     if args.reasoning_effort is not None:
         if (

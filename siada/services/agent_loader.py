@@ -1,15 +1,25 @@
 """
 Agent loading utilities for dynamically loading agent classes from configuration.
 """
+from __future__ import annotations
+
 import importlib
 import time
 from pathlib import Path
 from typing import Dict, Type
 
 import yaml
-from agents import Agent
+
+# To optimize startup performance, we dynamically import Agent only when needed.
+# Since _preload_c_extensions_on_main_thread() in siadahub.py pre-loads heavy
+# C extensions on the main thread, the multi-threading deadlock risk on Windows
+# has been eliminated.
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from agents import Agent
 
 from siada.foundation.logging import logger
+
 
 def load_agent_config() -> Dict[str, Dict]:
     """
@@ -55,7 +65,7 @@ def get_agent_class_path(agent_name: str) -> str:
     start_time = time.time()
     agent_configs = load_agent_config()
     elapsed = time.time() - start_time
-    logger.info(f"[agent_loader] Agent config loaded (took {elapsed:.3f}s)")
+    logger.debug(f"[agent_loader] Agent config loaded (took {elapsed:.3f}s)")
 
     # Find the corresponding Agent configuration
     agent_config = agent_configs.get(normalized_name)
@@ -95,6 +105,7 @@ def import_agent_class(class_path: str) -> Type[Agent]:
         ImportError: If unable to import agent class
         AttributeError: If class not found in module
     """
+    from agents import Agent
     module_path, class_name = class_path.rsplit('.', 1)
     module = importlib.import_module(module_path)
     return getattr(module, class_name)

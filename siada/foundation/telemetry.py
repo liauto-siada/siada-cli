@@ -24,4 +24,7 @@ except ImportError:
         def captureApiTokenUsage(self, **kwargs):
             pass
 
+        def captureToolEditFileUsage(self, **kwargs):
+            pass
+
     telemetry = Telemetry()

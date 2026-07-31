@@ -44,6 +44,7 @@ class SessionMetadata:
     date_str: str
     time_str: str
     datetime_str: str  # YYYY-MM-DD-HH-MM format for filename
+    workspace: Optional[str] = None  # Absolute path to the working directory
 
 
 class MemoryService:
@@ -54,10 +55,14 @@ class MemoryService:
     ~/.siada-cli/workspace/memory/ directory.
     """
     
+    # Approximate ratio for token-to-char conversion (4 chars ≈ 1 token)
+    _CHARS_PER_TOKEN: float = 4.0
+
     def __init__(
         self, 
         memory_dir: Optional[Path] = None, 
-        slug_message_limit: int = 4
+        slug_message_limit: int = 4,
+        max_session_tokens: Optional[int] = None,
     ):
         """
         Initialize the Memory Service.
@@ -65,6 +70,8 @@ class MemoryService:
         Args:
             memory_dir: Directory to store memory files. Defaults to ~/.siada-cli/workspace/memory/
             slug_message_limit: Number of recent messages to use for slug generation. Defaults to 4.
+            max_session_tokens: Max tokens for session content. Reads from model_base_config
+                (fast model's context_window) if None; defaults to 200_000 if not found.
         """
         if memory_dir is None:
             memory_dir = Path.home() / ".siada-cli" / "workspace" / "memory"
@@ -72,14 +79,44 @@ class MemoryService:
         self.memory_dir = Path(memory_dir)
         self.session_dir = self.memory_dir / "session"
         self.slug_message_limit = slug_message_limit
+
+        # Resolve max session char limit from config or default
+        if max_session_tokens is None:
+            max_session_tokens = self._resolve_max_session_tokens()
+        self.max_session_chars = int(max_session_tokens * self._CHARS_PER_TOKEN)
         
         # Ensure memory directory and session subdirectory exist
         self.memory_dir.mkdir(parents=True, exist_ok=True)
         self.session_dir.mkdir(parents=True, exist_ok=True)
+        
+    def _resolve_max_session_tokens(self) -> int:
+        """Resolve max session tokens from fast model's context_window in model_base_config.
+        
+        Falls back to 200_000 if the config lookup fails.
+        """
+        try:
+            from siada.models.model_base_config import get_model_config
+            from siada.provider.fast_llm import _resolve_fast_model_name
+            model_name = _resolve_fast_model_name()
+            cfg = get_model_config(model_name)
+            if cfg and cfg.context_window:
+                logger.info(
+                    f"[memory-service] max_session_tokens resolved from "
+                    f"{model_name}.context_window={cfg.context_window}"
+                )
+                return cfg.context_window
+        except Exception:
+            pass
+        default = 150_000
+        logger.info(
+            f"[memory-service] max_session_tokens fallback to default={default}"
+        )
+        return default
     
     async def save_session_memory(
         self, 
-        file_session: FileSession
+        file_session: FileSession,
+        workspace: Optional[str] = None,
     ) -> Optional[str]:
         """
         Save session conversation history to a Markdown memory file.
@@ -92,6 +129,7 @@ class MemoryService:
         
         Args:
             file_session: FileSession object containing conversation history
+            workspace: Absolute path to the working directory for this session
         Returns:
             Path to the created/updated memory file, or None if failed
         """
@@ -104,11 +142,21 @@ class MemoryService:
                 logger.info("[memory-service] No messages to save")
                 return None
             
+            # Step 1.a: Truncate to fit within LLM context window
+            all_messages, was_truncated = self._truncate_messages(all_messages)
+            if was_truncated:
+                logger.info(
+                    f"[memory-service] Messages truncated from original count "
+                    f"to {len(all_messages)} (max_session_chars={self.max_session_chars})"
+                )
+            
             # Step 2: Create session metadata
-            metadata = self._create_session_metadata(file_session)
+            metadata = self._create_session_metadata(file_session, workspace=workspace)
             
             # Step 3: Determine mode and save file
-            memory_file = await self._determine_and_save(all_messages, metadata)
+            memory_file = await self._determine_and_save(
+                all_messages, metadata, was_truncated=was_truncated
+            )
             if not memory_file:
                 return None
             
@@ -121,12 +169,17 @@ class MemoryService:
             logger.error(f"[memory-service] Failed to save session memory: {e}")
             return None
     
-    def _create_session_metadata(self, file_session: FileSession) -> SessionMetadata:
+    def _create_session_metadata(
+        self,
+        file_session: FileSession,
+        workspace: Optional[str] = None,
+    ) -> SessionMetadata:
         """
         Create session metadata for memory file.
         
         Args:
             file_session: FileSession object
+            workspace: Absolute path to the working directory
             
         Returns:
             SessionMetadata object with timestamp information
@@ -137,13 +190,16 @@ class MemoryService:
             timestamp=now,
             date_str=now.strftime("%Y-%m-%d"),
             time_str=now.strftime("%H:%M:%S"),
-            datetime_str=now.strftime("%Y-%m-%d-%H-%M")
+            datetime_str=now.strftime("%Y-%m-%d-%H-%M"),
+            workspace=workspace,
         )
     
     async def _determine_and_save(
         self,
         all_messages: List[Dict[str, str]],
-        metadata: SessionMetadata
+        metadata: SessionMetadata,
+        *,
+        was_truncated: bool = False,
     ) -> Optional[Path]:
         """
         Determine save mode (append or new) and save the memory file.
@@ -151,6 +207,7 @@ class MemoryService:
         Args:
             all_messages: All messages to save
             metadata: Session metadata
+            was_truncated: Whether the messages were truncated
             
         Returns:
             Path to the saved file, or None if failed
@@ -161,16 +218,21 @@ class MemoryService:
         
         if last_memory_file and Path(last_memory_file).exists():
             return await self._save_in_append_mode(
-                Path(last_memory_file), all_messages, metadata
+                Path(last_memory_file), all_messages, metadata,
+                was_truncated=was_truncated,
             )
         else:
-            return await self._save_in_new_mode(all_messages, metadata)
+            return await self._save_in_new_mode(
+                all_messages, metadata, was_truncated=was_truncated
+            )
     
     async def _save_in_append_mode(
         self,
         memory_file: Path,
         all_messages: List[Dict[str, str]],
-        metadata: SessionMetadata
+        metadata: SessionMetadata,
+        *,
+        was_truncated: bool = False,
     ) -> Optional[Path]:
         """
         Save in append mode: update existing file with all messages.
@@ -179,6 +241,7 @@ class MemoryService:
             memory_file: Existing memory file path
             all_messages: All messages to save
             metadata: Session metadata
+            was_truncated: Whether the messages were truncated
             
         Returns:
             Path to the updated file
@@ -190,7 +253,9 @@ class MemoryService:
             session_id=metadata.session_id,
             timestamp=metadata.timestamp,
             date_str=metadata.date_str,
-            time_str=metadata.time_str
+            time_str=metadata.time_str,
+            workspace=metadata.workspace,
+            was_truncated=was_truncated,
         )
         
         self._write_file_atomically(memory_file, markdown_content)
@@ -201,7 +266,9 @@ class MemoryService:
     async def _save_in_new_mode(
         self,
         all_messages: List[Dict[str, str]],
-        metadata: SessionMetadata
+        metadata: SessionMetadata,
+        *,
+        was_truncated: bool = False,
     ) -> Optional[Path]:
         """
         Save in new mode: create new file with generated slug.
@@ -209,6 +276,7 @@ class MemoryService:
         Args:
             all_messages: All messages to save
             metadata: Session metadata
+            was_truncated: Whether the messages were truncated
             
         Returns:
             Path to the created file
@@ -229,7 +297,9 @@ class MemoryService:
             session_id=metadata.session_id,
             timestamp=metadata.timestamp,
             date_str=metadata.date_str,
-            time_str=metadata.time_str
+            time_str=metadata.time_str,
+            workspace=metadata.workspace,
+            was_truncated=was_truncated,
         )
         
         self._write_file_atomically(memory_file, markdown_content)
@@ -339,37 +409,102 @@ class MemoryService:
         file_session: FileSession
     ) -> List[Dict[str, Any]]:
         """
-        Get ALL user/assistant messages from FileSession.
-        
+        Get ALL user/assistant messages for memory persistence.
+
+        Delegates the storage-layer policy (compressed snapshot + delta tail
+        vs. raw api_history fallback) to ``FileSession.get_effective_messages``.
+        This method is only responsible for filtering and shaping the final
+        ``user``/``assistant`` text view used by memory files.
+
+        For test mocks that don't implement ``get_effective_messages``, we
+        gracefully fall back to ``get_items()`` (legacy behavior).
+
         Args:
             file_session: FileSession object to read from
-            
+
         Returns:
             List of all message dictionaries with 'role' and 'content' keys
         """
         try:
-            # Get all items from session
-            items = await file_session.get_items()
-            
+            items = await self._fetch_effective_items(file_session)
             if not items:
                 return []
-            
-            # Extract and filter ALL user/assistant messages
+
             all_messages = []
             for item in items:
-                # Handle different item structures
                 # Items can be direct messages or wrapped in various formats
                 message = self._extract_message_from_item(item)
-                
                 if message:
                     all_messages.append(message)
-            
-            logger.info(f"[memory-service] Extracted {len(all_messages)} user/assistant messages")
+
+            logger.info(
+                f"[memory-service] Extracted {len(all_messages)} user/assistant "
+                f"messages (raw_items={len(items)})"
+            )
             return all_messages
-            
+
         except Exception as e:
             logger.error(f"[memory-service] Error reading messages: {e}")
             return []
+
+    async def _fetch_effective_items(
+        self, file_session: FileSession
+    ) -> List[Any]:
+        """Fetch the effective item list, with safe fallbacks for test mocks.
+
+        Resolution:
+          1. ``file_session.get_effective_messages()`` if available — this is
+             the canonical view (compressed snapshot + delta tail, with raw
+             history fallback baked in at the storage layer).
+          2. Otherwise ``file_session.get_items()`` — covers MockFileSession
+             objects in unit tests that only implement the bare ``get_items``
+             interface.
+        """
+        getter = getattr(file_session, "get_effective_messages", None)
+        if callable(getter):
+            try:
+                return list(await getter())
+            except Exception as e:
+                logger.warning(
+                    f"[memory-service] get_effective_messages failed, "
+                    f"falling back to api_history: {e}"
+                )
+        return list(await file_session.get_items() or [])
+    
+    def _truncate_messages(
+        self, messages: List[Dict[str, str]]
+    ) -> tuple[List[Dict[str, str]], bool]:
+        """Truncate messages to fit within ``max_session_chars``.
+        
+        With the upstream switch to compressed snapshots
+        (``FileSession.get_effective_messages``), the input is already
+        bounded by the LLM context window, so a per-user-turn cap is no
+        longer needed. We only enforce the character budget here as a
+        defensive guardrail.
+        
+        Strategy: keep the most recent messages, drop the oldest ones
+        whose inclusion would push total chars over the limit. At least
+        one message is always retained — even if it alone exceeds the
+        budget — so the resulting memory file is never empty.
+        
+        Returns:
+            (truncated_messages, was_truncated) tuple
+        """
+        if not messages:
+            return messages, False
+        
+        total = 0
+        keep = []
+        for msg in reversed(messages):
+            msg_len = len(msg.get("content", ""))
+            if total + msg_len > self.max_session_chars and keep:
+                break
+            total += msg_len
+            keep.append(msg)
+        keep.reverse()
+        
+        was_truncated = len(keep) < len(messages)
+        return keep, was_truncated
     
     def _extract_message_from_item(self, item: Any) -> Optional[Dict[str, str]]:
         """
@@ -442,13 +577,41 @@ class MemoryService:
         
         # Handle string content (user messages)
         if isinstance(content, str):
-            return content
-        
+            return self._strip_injection_blocks(content)
+
         # Handle list content (assistant messages with blocks)
         if isinstance(content, list):
-            return self._extract_text_from_blocks(content)
-        
+            return self._strip_injection_blocks(
+                self._extract_text_from_blocks(content)
+            )
+
         return ''
+
+    @staticmethod
+    def _strip_injection_blocks(text: str) -> str:
+        """Remove every known sentinel-wrapped injection block from ``text``.
+
+        Two injection families are stripped:
+
+        * Holographic-prefetch facts (``CodeGenAgent._inject_holographic_prefetch``).
+        * Feishu/Lark IM context blocks — quoted reply, conversation info,
+          mention hints (``LarkAgentExecutor._build_user_input``).
+
+        Both are content *we* wrote into the user message for LLM priming;
+        memory extraction must never treat them as user-authored, otherwise
+        the review agent learns "user preferences" from our own output.
+        """
+        if not text:
+            return text
+        # Lazy import keeps the holographic package out of the cold-start
+        # path of the broader memory service.
+        from siada.services.memory.holographic.marker import (
+            has_any_injection_block,
+            strip_all_injection_blocks,
+        )
+        if not has_any_injection_block(text):
+            return text
+        return strip_all_injection_blocks(text)
     
     def _get_content_from_item(self, item: Any) -> Any:
         """
@@ -563,15 +726,14 @@ Conversation summary:
 
 Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", "bug-fix", "code-review"."""
             
-            # Use the simplified completion interface
-            from siada.provider.client_factory import simple_completion
-            
-            logger.debug("[memory-service] Calling LLM to generate slug...")
-            
-            # Make the completion call with configured timeout
+            # Route slug generation through the fast model (DeepSeek via li)
+            from siada.provider.fast_llm import fast_completion
+
+            logger.debug("[memory-service] Calling fast LLM to generate slug...")
+
             response = await asyncio.wait_for(
-                simple_completion(prompt),
-                timeout=MemoryServiceConfig.SLUG_TIMEOUT
+                fast_completion(prompt, agent_name="memory_slug_generator"),
+                timeout=MemoryServiceConfig.SLUG_TIMEOUT,
             )
             
             # Extract and clean the slug
@@ -649,7 +811,9 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
         session_id: str,
         timestamp: datetime,
         date_str: str,
-        time_str: str
+        time_str: str,
+        workspace: Optional[str] = None,
+        was_truncated: bool = False,
     ) -> str:
         """
         Format conversation into Markdown content.
@@ -660,6 +824,8 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
             timestamp: Local timestamp
             date_str: Formatted date string (YYYY-MM-DD)
             time_str: Formatted time string (HH:MM:SS)
+            workspace: Absolute path to the working directory (optional)
+            was_truncated: Whether earlier messages were truncated
             
         Returns:
             Formatted Markdown string
@@ -669,10 +835,22 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
             "",
             f"- **Session ID**: {session_id}",
             f"- **Timestamp**: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
+        ]
+        if workspace:
+            parts.append(f"- **Workspace**: {workspace}")
+        parts += [
             "",
             "## Conversation Summary",
             ""
         ]
+
+        # Add truncation notice if earlier messages were dropped
+        if was_truncated:
+            parts.append(
+                "> ⚠️ **Note**: Earlier messages in this session were truncated "
+                "due to length limits. Only the most recent portion is shown below."
+            )
+            parts.append("")
         
         # Add each message
         for msg in messages:

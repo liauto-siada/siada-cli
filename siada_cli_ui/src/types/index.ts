@@ -7,7 +7,8 @@ export { ClientConfig } from './config';
 
 export type MessageType = 'user' | 'agent' | 'system' | 'error' | 'tool';
 
-export type AgentMessageSubtype = 'thinking' | 'tool_use' | 'answer' | 'process' | 'shell';
+export type AgentMessageSubtype = 'thinking' | 'tool_use' | 'answer' | 'process' | 'shell' | 'goal_result';
+
 
 export interface Message {
   id: string;
@@ -78,6 +79,13 @@ export interface ShellExecution {
   error?: string;
   duration?: number;
   isBinary?: boolean;
+}
+
+export interface PromptQueueItem {
+  id: string;
+  content: string;
+  imagePaths?: string[];
+  addedAt: string;
 }
 
 export interface AppState {

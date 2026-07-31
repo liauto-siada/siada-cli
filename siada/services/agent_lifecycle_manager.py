@@ -235,7 +235,7 @@ class AgentLifecycleManager:
         if run_id in self._active_runs:
             del self._active_runs[run_id]
 
-        logger.info(f"Completed run {run_id} (duration: {run.duration}s)")
+        logger.debug(f"Completed run {run_id} (duration: {run.duration}s)")
 
     def fail_run(self, run_id: str, error: AgentError) -> None:
         """Fail a run with an error"""

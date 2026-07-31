@@ -66,6 +66,10 @@ export class SiadaProcessManager extends EventEmitter {
         cwd: this.config.workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
+        // On Windows, hide the console window that Node.js would otherwise
+        // create for the spawned Python subprocess. Without this flag a blank
+        // black cmd window pops up every time the backend process starts.
+        windowsHide: true,
       });
 
       this.startTime = new Date();

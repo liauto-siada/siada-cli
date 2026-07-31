@@ -25,6 +25,14 @@ class UserModelConfig:
     # Valid values: "low", "medium", "high".
     default_reasoning_effort: Optional[str] = None
 
+    # Optional pricing overrides (CNY per million tokens). Lets users
+    # configure cost for self-hosted / custom models that aren't in the
+    # built-in pricing table (siada.models.model_pricing.MODEL_PRICING).
+    input_price: Optional[float] = None
+    output_price: Optional[float] = None
+    cache_write_price: Optional[float] = None
+    cache_read_price: Optional[float] = None
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UserModelConfig':
         """Create UserModelConfig instance from dictionary"""
@@ -37,7 +45,11 @@ class UserModelConfig:
             supports_extra_params=data.get('supports_extra_params'),
             parallel_tool_calls=data.get('parallel_tool_calls'),
             default_thinking_tokens=data.get('default_thinking_tokens'),
-            default_reasoning_effort=data.get('default_reasoning_effort')
+            default_reasoning_effort=data.get('default_reasoning_effort'),
+            input_price=data.get('input_price'),
+            output_price=data.get('output_price'),
+            cache_write_price=data.get('cache_write_price'),
+            cache_read_price=data.get('cache_read_price'),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -54,6 +66,14 @@ class UserModelConfig:
             result['parallel_tool_calls'] = self.parallel_tool_calls
         if self.default_thinking_tokens is not None:
             result['default_thinking_tokens'] = self.default_thinking_tokens
+        if self.input_price is not None:
+            result['input_price'] = self.input_price
+        if self.output_price is not None:
+            result['output_price'] = self.output_price
+        if self.cache_write_price is not None:
+            result['cache_write_price'] = self.cache_write_price
+        if self.cache_read_price is not None:
+            result['cache_read_price'] = self.cache_read_price
         return result
 
 

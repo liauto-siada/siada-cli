@@ -37,6 +37,9 @@ except ImportError:
             return [sys.executable, "-m", "pip", "install", "--upgrade",
                     "--upgrade-strategy", "only-if-needed"] + self.pip_args
 
+        def get_manual_upgrade_hint(self) -> str:
+            return shlex.join(self._get_pip_command())
+
         def install(self, io, latest_version: Optional[str] = None) -> bool:
             message = self.get_install_message(latest_version)
             docker_image = os.environ.get("SIADA_DOCKER_IMAGE")

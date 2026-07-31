@@ -290,9 +290,12 @@ class CommandFormatter(ToolCallFormatter):
             args = json.loads(arguments)
             command = args.get("command", "")
             cwd = args.get("cwd", None)
+            timeout = args.get("timeout", None)
             content = f"Run the following command: \n```bash \n{command}\n```"
-            if cwd:
-                content += f"\cwd: `{cwd}`"
+            # if cwd:
+            #     content += f"\ncwd: `{cwd}`"
+            if timeout:
+                content += f"\ntimeout: `{timeout}s`"
             return content, True
         except json.JSONDecodeError:
             return f"failed to parse arguments: {arguments}", False
@@ -316,6 +319,43 @@ class CommandFormatter(ToolCallFormatter):
     def supported_function(self) -> str:
         return "run_cmd"
     
+    def get_style(self) -> str:
+        return "markdown"
+
+
+class PowerShellCommandFormatter(ToolCallFormatter):
+    """PowerShell command formatter — mirrors CommandFormatter, with powershell code fence."""
+
+    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            command = args.get("command", "")
+            timeout = args.get("timeout", None)
+            content = f"Run the following PowerShell command: \n```powershell \n{command}\n```"
+            if timeout:
+                content += f"\ntimeout: `{timeout}s`"
+            return content, True
+        except json.JSONDecodeError:
+            return f"failed to parse arguments: {arguments}", False
+
+    def format_input_im(self, call_id: str, function_name: str, arguments: str,
+                        default_workspace: str = "") -> Tuple[str, bool]:
+        """IM-friendly format for Lark cards: inline code command for single line, powershell block for multi-line."""
+        try:
+            args = json.loads(arguments)
+            command = args.get("command", "")
+            if "\n" not in command.strip():
+                content = f"`{command}`"
+            else:
+                content = f"```powershell\n{command}\n```"
+            return content, True
+        except json.JSONDecodeError:
+            return f"failed to parse arguments: {arguments}", False
+
+    @property
+    def supported_function(self) -> str:
+        return "run_powershell"
+
     def get_style(self) -> str:
         return "markdown"
 
@@ -381,25 +421,6 @@ class ReproduceCompletionFormatter(ToolCallFormatter):
     @property
     def supported_function(self) -> str:
         return "reproduce_completion"
-
-
-class WebCrawlFormatter(ToolCallFormatter):
-    """
-    Formatter for the web_crawl function.
-    """
-
-    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, bool]:
-        try:
-            args = json.loads(arguments)
-            url = args.get("url", "")
-            crawl_format = args.get("format", "text")
-            return f"Crawl the url: {url} with format {crawl_format}", True
-        except json.JSONDecodeError:
-            return f"failed to parse arguments: {arguments}", False
-
-    @property
-    def supported_function(self) -> str:
-        return "web_crawl"
 
 
 class AskFollowupQuestionFormatter(ToolCallFormatter):
@@ -591,7 +612,13 @@ class SmartSearchMemoryFormatter(ToolCallFormatter):
     def format_input(
         self, call_id: str, function_name: str, arguments: str
     ) -> Tuple[str, bool]:
-        return arguments, True
+        try:
+            args = json.loads(arguments)
+            query = args.get("query", "")
+            display_query = query[:80] + "..." if len(query) > 80 else query
+            return f"Searching memory: {display_query}", True
+        except json.JSONDecodeError:
+            return "Searching memory", True
 
     def format_input_im(
         self,
@@ -604,7 +631,6 @@ class SmartSearchMemoryFormatter(ToolCallFormatter):
         try:
             args = json.loads(arguments)
             query = args.get("query", "")
-            # Truncate long queries for IM display
             display_query = query[:80] + "..." if len(query) > 80 else query
             content = f"Search memory: **{display_query}**"
             return content, True
@@ -614,3 +640,288 @@ class SmartSearchMemoryFormatter(ToolCallFormatter):
     @property
     def supported_function(self) -> str:
         return "smart_search_memory"
+
+
+class SearchMemoryFormatter(ToolCallFormatter):
+    """Formatter for the search_memory function."""
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            query = args.get("query", "")
+            display_query = query[:80] + "..." if len(query) > 80 else query
+            return f"Searching memory: {display_query}", True
+        except json.JSONDecodeError:
+            return "Searching memory", True
+
+    @property
+    def supported_function(self) -> str:
+        return "search_memory"
+
+
+class MemoryWriteFormatter(ToolCallFormatter):
+    """Formatter for the memory (write) function."""
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            action = args.get("action", "")
+            target = args.get("target", "")
+            content = args.get("content") or ""
+            preview = content[:60] + "..." if len(content) > 60 else content
+            return f"Save to memory [{action}/{target}]: {preview}", True
+        except json.JSONDecodeError:
+            return "Save to memory", True
+
+    @property
+    def supported_function(self) -> str:
+        return "memory"
+
+
+class FactStoreFormatter(ToolCallFormatter):
+    """Formatter for the fact_store function (holographic structured facts).
+
+    Renders the dispatched ``action`` together with the most relevant
+    argument (content / query / entity / fact_id) for both standard and
+    IM modes.
+    """
+
+    @staticmethod
+    def _preview(text: str, limit: int = 60) -> str:
+        text = (text or "").strip()
+        return text[:limit] + "..." if len(text) > limit else text
+
+    def _summarize(self, args: dict) -> str:
+        """Build the action-aware detail suffix, e.g. ``[add/project] ...``."""
+        action = (args.get("action") or "").strip()
+        content = args.get("content") or ""
+        query = args.get("query") or ""
+        entity = args.get("entity") or ""
+        entities = args.get("entities") or []
+        category = args.get("category") or ""
+        fact_id = args.get("fact_id")
+
+        if action == "add":
+            detail = self._preview(content)
+            tag = f"[add/{category}]" if category else "[add]"
+            return f"{tag} {detail}".rstrip()
+        if action == "search":
+            return f"[search] {self._preview(query, 80)}".rstrip()
+        if action == "probe":
+            return f"[probe] {entity}".rstrip()
+        if action == "related":
+            return f"[related] {entity}".rstrip()
+        if action == "reason":
+            joined = ", ".join(entities) if isinstance(entities, list) else str(entities)
+            return f"[reason] {joined}".rstrip()
+        if action == "contradict":
+            return "[contradict]"
+        if action == "update":
+            base = f"[update] #{fact_id}" if fact_id is not None else "[update]"
+            detail = self._preview(content)
+            return f"{base} {detail}".rstrip()
+        if action == "remove":
+            return f"[remove] #{fact_id}" if fact_id is not None else "[remove]"
+        if action == "list":
+            return f"[list] {category}".rstrip() if category else "[list]"
+        return f"[{action}]" if action else ""
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            return f"Fact memory {self._summarize(args)}".rstrip(), True
+        except json.JSONDecodeError:
+            return "Fact memory", True
+
+    def format_input_im(
+        self,
+        call_id: str,
+        function_name: str,
+        arguments: str,
+        default_workspace: str = "",
+    ) -> Tuple[str, bool]:
+        """IM-friendly format: compact fact memory display with bold action."""
+        try:
+            args = json.loads(arguments)
+            summary = self._summarize(args)
+            return f"Fact memory {summary}".rstrip(), True
+        except json.JSONDecodeError:
+            return "Fact memory", True
+
+    @property
+    def supported_function(self) -> str:
+        return "fact_store"
+
+
+class FactFeedbackFormatter(ToolCallFormatter):
+    """Formatter for the fact_feedback function (trust-score feedback)."""
+
+    def _summarize(self, args: dict) -> str:
+        fact_id = args.get("fact_id")
+        action = (args.get("action") or "").strip()
+        comment = args.get("comment") or ""
+        base = f"#{fact_id}" if fact_id is not None else ""
+        detail = f"{base} {action}".strip()
+        if comment:
+            preview = comment[:60] + "..." if len(comment) > 60 else comment
+            detail = f"{detail}: {preview}".strip(": ").strip()
+        return detail
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            return f"Fact feedback {self._summarize(args)}".rstrip(), True
+        except json.JSONDecodeError:
+            return "Fact feedback", True
+
+    def format_input_im(
+        self,
+        call_id: str,
+        function_name: str,
+        arguments: str,
+        default_workspace: str = "",
+    ) -> Tuple[str, bool]:
+        """IM-friendly format: compact fact feedback display."""
+        try:
+            args = json.loads(arguments)
+            return f"Fact feedback {self._summarize(args)}".rstrip(), True
+        except json.JSONDecodeError:
+            return "Fact feedback", True
+
+    @property
+    def supported_function(self) -> str:
+        return "fact_feedback"
+
+
+class WebSearchFormatter(ToolCallFormatter):
+
+    """Formatter for the web_search function.
+
+    web_search supports two modes:
+    - mode=search: has 'query' parameter
+    - mode=read:   has 'url' parameter (no query)
+    """
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            mode = args.get("mode", "search")
+            if mode == "read":
+                url = args.get("url", "")
+                return f"Fetch URL: {url}", True
+            else:
+                query = args.get("query", "")
+                display_query = query[:80] + "..." if len(query) > 80 else query
+                return f"Web search: search: {display_query}", True
+        except json.JSONDecodeError:
+            return "Web search", True
+
+    @property
+    def supported_function(self) -> str:
+        return "web_search"
+
+
+class WebFetchFormatter(ToolCallFormatter):
+    """Formatter for the web_fetch function."""
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            url = args.get("url", "")
+            return f"Fetch URL: {url}", True
+        except json.JSONDecodeError:
+            return "Fetch URL", True
+
+    @property
+    def supported_function(self) -> str:
+        return "web_fetch"
+
+
+class LarkNotificationFormatter(ToolCallFormatter):
+    """Formatter for the send_lark_notification function."""
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            message = args.get("message", "")
+            preview = message[:60] + "..." if len(message) > 60 else message
+            return f"Send Lark notification: {preview}", True
+        except json.JSONDecodeError:
+            return "Send Lark notification", True
+
+    @property
+    def supported_function(self) -> str:
+        return "send_lark_notification"
+
+
+class LarkDailySummaryFormatter(ToolCallFormatter):
+    """Formatter for the send_daily_summary_to_lark function."""
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        return "Send Lark daily summary", True
+
+    @property
+    def supported_function(self) -> str:
+        return "send_daily_summary_to_lark"
+
+
+_TODO_STATUS_ICONS = {
+    "pending": "○",
+    "in_progress": "◐",
+    "completed": "✓",
+}
+
+
+class TodoWriteFormatter(ToolCallFormatter):
+    """Formatter for the todo_write function.
+
+    Renders the raw JSON arguments as a human-readable todo list with
+    status icons and a completion progress indicator, e.g.::
+
+        ○  Fix authentication bug
+        ◐  Adding unit tests
+        ✓  Write documentation
+
+        [1/3 completed]
+    """
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = json.loads(arguments)
+            todos = args.get("todos", [])
+            if not todos:
+                return "Clearing todo list", True
+
+            total = len(todos)
+            done = sum(1 for t in todos if t.get("status") == "completed")
+            lines = []
+            for t in todos:
+                icon = _TODO_STATUS_ICONS.get(t.get("status", "pending"), "?")
+                lines.append(f"{icon}  {t.get('content', '')}")
+
+            lines.append(f"\n[{done}/{total} completed]")
+            return "\n".join(lines), True
+        except Exception:
+            return arguments, True
+
+    @property
+    def supported_function(self) -> str:
+        return "todo_write"

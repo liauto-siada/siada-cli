@@ -41,7 +41,7 @@ class MCPConfigLoader:
                     logger.warning(f"Specified MCP config file not found: {config_file}")
                     return MCPConfig(enabled=False)
                 
-                logger.info(f"Loading MCP config from: {config_file}")
+                logger.debug(f"Loading MCP config from: {config_file}")
                 
                 # Read and parse JSON configuration
                 with open(config_file, 'r', encoding='utf-8') as f:
@@ -49,7 +49,14 @@ class MCPConfigLoader:
                 
                 # Environment variable substitution
                 resolved_config = cls._resolve_env_variables(raw_config)
-                
+
+                # Inject MCP servers from enabled plugins (lowest priority)
+                try:
+                    from siada.services.plugins.mcp_integration import inject_plugin_mcp_servers
+                    resolved_config = inject_plugin_mcp_servers(resolved_config)
+                except Exception as _e:
+                    logger.warning(f"Failed to inject plugin MCP servers: {_e}")
+
                 # Convert to configuration object
                 return cls._convert_to_mcp_config(resolved_config)
             else:
@@ -64,7 +71,14 @@ class MCPConfigLoader:
                 
                 # Environment variable substitution
                 resolved_config = cls._resolve_env_variables(merged_config)
-                
+
+                # Inject MCP servers from enabled plugins (lowest priority)
+                try:
+                    from siada.services.plugins.mcp_integration import inject_plugin_mcp_servers
+                    resolved_config = inject_plugin_mcp_servers(resolved_config)
+                except Exception as _e:
+                    logger.warning(f"Failed to inject plugin MCP servers: {_e}")
+
                 # Convert to configuration object
                 return cls._convert_to_mcp_config(resolved_config)
             
@@ -121,7 +135,7 @@ class MCPConfigLoader:
         
         if len(config_files) == 1:
             # Only one config file, load it directly
-            logger.info(f"Loading MCP config from: {config_files[0]}")
+            logger.debug(f"Loading MCP config from: {config_files[0]}")
             with open(config_files[0], 'r', encoding='utf-8') as f:
                 return json.load(f)
         
@@ -137,11 +151,11 @@ class MCPConfigLoader:
                 if config_file.name == "siada_mcp_config.json" and config_file.parent == Path.cwd():
                     # Project config
                     project_config = config
-                    logger.info(f"Loading project MCP config from: {config_file}")
+                    logger.debug(f"Loading project MCP config from: {config_file}")
                 else:
                     # Home config
                     home_config = config
-                    logger.info(f"Loading home MCP config from: {config_file}")
+                    logger.debug(f"Loading home MCP config from: {config_file}")
         
         # Merge configurations
         merged = home_config.copy()
@@ -157,7 +171,7 @@ class MCPConfigLoader:
             if key != "mcpServers":
                 merged[key] = value
         
-        logger.info(f"Merged MCP configs: {len(merged.get('mcpServers', {}))} total servers")
+        logger.debug(f"Merged MCP configs: {len(merged.get('mcpServers', {}))} total servers")
         
         return merged
     

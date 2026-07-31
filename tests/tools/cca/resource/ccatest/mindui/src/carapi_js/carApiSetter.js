@@ -1,1 +1,0 @@
-const CarControlTpuPluginPath = "CarControlTpuPlugin/carControl/setValue"

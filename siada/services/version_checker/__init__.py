@@ -16,8 +16,27 @@ except ImportError:
     import importlib
     from pathlib import Path
     from .version_checker import VersionChecker  # type: ignore[no-redef]
+    from siada.services.auto_update import detect_install_mode
 
     def _load_handler():
+        if detect_install_mode() == "internal":
+            internal_handler_path = (
+                Path(__file__).parent.parent.parent
+                / "internal"
+                / "services"
+                / "version_checker"
+                / "handlers"
+                / "internal_handler.py"
+            )
+            if internal_handler_path.exists():
+                try:
+                    module = importlib.import_module(
+                        "siada.internal.services.version_checker.handlers.internal_handler"
+                    )
+                    return module.VersionHandler()
+                except Exception:
+                    pass
+
         handlers_dir = Path(__file__).parent / "handlers"
         if (handlers_dir / "external_handler.py").exists():
             try:

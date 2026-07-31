@@ -2,7 +2,7 @@ import os
 import platform
 
 
-from .base.tool_use import get_tool_use_section
+from .base.tool_use import get_tool_use_section, get_objective_step2
 from .base.capabilities import get_capabilities_section
 from .base.rules import get_rules_section
 
@@ -90,12 +90,14 @@ Based on the above analysis, provide clear conclusions:
 """
 
 
-    objective = """OBJECTIVE
+    # get_objective_step2(...) keeps step 2 in sync with the TOOL USE section
+    # across all model modes (GPT-5 / Claude+parallel / sequential).
+    objective = f"""OBJECTIVE
 
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
 
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order.
-2. Work through these goals sequentially, utilizing available tools one at a time as necessary. Each goal should correspond to a distinct step in your problem-solving process. 
+2. {get_objective_step2(enable_parallel_tool_calls)}
 3. Remember, you have extensive capabilities with access to a wide range of tools that can be used in powerful and clever ways as necessary to accomplish each goal. Before calling a tool, do some analysis within <thinking></thinking> tags. First, analyze the file structure provided in environment_details to gain context and insights for proceeding effectively. Then, think about which of the provided tools is the most relevant tool to accomplish the user's task. Next, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value. 
 
 As a code reviewer, you are expected to enforce the highest standards with strict rigor. During the review process, you must ensure that:

@@ -29,39 +29,9 @@ paraphrase, or omit them.
 """
 
 
-def get_im_compaction_user_prompt(
-    *,
-    previous_summary: str | None = None,
-    tool_failures: list[dict] | None = None,
-) -> str:
-    """Build the user prompt that instructs the LLM to generate the <context> block.
-
-    Args:
-        previous_summary: Optional previous compaction summary for cascading context.
-        tool_failures: Pre-extracted tool failure records to inject into the prompt.
-    """
-    parts: list[str] = []
-
-    if previous_summary:
-        parts.append(
-            "## Previous Summary (for cascading context)\n"
-            "The following is a summary from a prior compaction round. "
-            "Incorporate relevant information that is still valid.\n\n"
-            f"{previous_summary}\n\n---\n"
-        )
-
-    if tool_failures:
-        lines = ["## Pre-extracted Tool Failures"]
-        for f in tool_failures:
-            lines.append(
-                f"- tool={f.get('tool_name', '?')}, "
-                f"call_id={f.get('call_id', '?')}, "
-                f"error={f.get('summary', '?')}"
-            )
-        parts.append("\n".join(lines) + "\n\n---\n")
-
-    parts.append(_core_user_prompt())
-    return "\n".join(parts)
+def get_im_compaction_user_prompt() -> str:
+    """Build the user prompt that instructs the LLM to generate the <context> block."""
+    return _core_user_prompt()
 
 
 def _core_user_prompt() -> str:

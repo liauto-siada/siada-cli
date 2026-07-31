@@ -18,17 +18,19 @@ export interface BannerProps {
   prePlanMode?: boolean;
   isCollapsed?: boolean;
   showAgentInfo?: boolean;
+  quotaUsage?: string | null;
 }
 
 export const Banner: React.FC<BannerProps> = ({
   version,
   workingDir,
   agent = 'coder',
-  provider = 'li',
+  provider = 'default',
   model,
   prePlanMode = true,
   isCollapsed = false,
   showAgentInfo = true,
+  quotaUsage = null,
 }) => {
   // Use reactive terminal size hook for responsive banner
   const { columns } = useTerminalSize();
@@ -182,6 +184,11 @@ export const Banner: React.FC<BannerProps> = ({
           if (prePlanMode) {
             segments.push({ text: '; ' });
             segments.push({ text: 'pre-plan mode', color: 'green' });
+          }
+
+          if (quotaUsage !== null && quotaUsage !== undefined) {
+            segments.push({ text: '; Balance: ' });
+            segments.push({ text: quotaUsage, color: 'green' });
           }
 
           segments.push({ text: '; ' });

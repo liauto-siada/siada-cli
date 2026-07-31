@@ -452,6 +452,22 @@ export function textBufferReducer(
           cursorCol: 0,
           preferredCol: null,
         };
+      } else if (cursorRow > 0) {
+        // At col 0 with a previous line: delete the newline (merge with previous line)
+        const nextState = pushUndo(state);
+        const newLines = [...nextState.lines];
+        const prevLineContent = newLines[cursorRow - 1] || '';
+        const currentLineContent = newLines[cursorRow] || '';
+        const newCol = cpLen(prevLineContent);
+        newLines[cursorRow - 1] = prevLineContent + currentLineContent;
+        newLines.splice(cursorRow, 1);
+        return {
+          ...nextState,
+          lines: newLines,
+          cursorRow: cursorRow - 1,
+          cursorCol: newCol,
+          preferredCol: null,
+        };
       }
       return state;
     }
