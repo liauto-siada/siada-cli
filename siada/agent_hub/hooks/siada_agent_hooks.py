@@ -7,6 +7,8 @@ from siada.agent_hub.hooks.processors.llm_spinner_processor import LLMSpinnerPro
 from siada.agent_hub.hooks.processors.token_usage_reporter_processor import TokenUsageReporterProcessor
 from siada.agent_hub.hooks.processors.cache_status_processor import CacheStatusProcessor
 from siada.agent_hub.hooks.processors.todo_reminder_processor import TodoReminderProcessor
+from siada.agent_hub.hooks.processors.model_hallucination_suppression_processor import ModelHallucinationSuppressionProcessor
+
 
 
 
