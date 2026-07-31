@@ -1,5 +1,8 @@
 # 记忆存储系统设计文档
 
+> **状态**：已更新（2025年）。`personal_style.md` 和 `recent_task.md` 已废弃，
+> 职责由内联记忆（MEMORY.md / USER.md）替代，见第三节。
+
 ## 一、记忆分类
 
 记忆系统分为三个层次，形成"原始数据→衍生总结"的层级结构：
@@ -10,24 +13,31 @@
 - **存储形式**：按日期时间和主题命名的MD文件，如 `2024-01-15-14-30-实现记忆功能.md`
 - **数据库标识**：`source='session'`
 
-### 2. 个人风格记忆 (Personal Style Memory)
-- **用途**：总结用户的工作方式、职责、习惯等个人特征
+### 2. 结构化知识记忆 (Structured Knowledge Memory)
+- **用途**：MemoryAgent 从会话提炼的可复用工程知识
 - **提取内容**：
-  - 工作方式特点（偏好的工具、框架、代码风格）
-  - 工作职责（负责的项目、团队角色）
-  - 工作习惯（工作时间、沟通方式、问题解决思路）
-  - 技术偏好（技术栈、开发环境）
-- **存储形式**：单一文件 `personal_style.md`，持续更新
-- **数据库标识**：`source='personal_style'`
+  - structured_event：会话事件摘要（`events/` 目录）
+  - experience：可复用的架构规律、工程经验（`experience/` 目录）
+- **存储形式**：`~/.siada-cli/workspace/memory/events/*.md` 和 `experience/*.md`
+- **写入者**：`MemoryAgent`（30分钟会话静默触发）
 
-### 3. 最近工作任务记忆 (Recent Task Memory)
-- **用途**：追踪用户近期的主要工作任务和进展
+### 3. 内联记忆 (Inline Memory) — 新增
+- **用途**：直接注入 system prompt 的低延迟记忆块
 - **提取内容**：
-  - 进行中的任务（当前状态、技术方案）
-  - 已完成的任务（成果总结）
-  - 待处理的问题（问题描述、可能的解决方案）
-- **存储形式**：单一文件 `recent_task.md`，按时间倒序更新
-- **数据库标识**：`source='recent_task'`
+  - `MEMORY.md`：Agent 对环境、工具、项目约定的注记
+  - `USER.md`：用户画像（偏好、习惯、沟通模式）
+- **存储形式**：`§` 分隔的条目文件，字符上限分别为 2200 / 1375
+- **写入者**：
+  1. LLM 主动写入（`memory` tool，intra-session）
+  2. `MemoryReviewAgent`（30分钟会话静默触发，inter-session）
+  3. 每日 `update_personal_style` 任务（低频整合 USER.md）
+- **注意**：`personal_style.md` 已废弃，其职责由 `USER.md` 完全替代
+
+### ~~2（旧）. 个人风格记忆 (Personal Style Memory)~~ **已废弃**
+- 职责已迁移至 `USER.md`（内联记忆），不再维护 `personal_style.md`
+
+### ~~3（旧）. 最近工作任务记忆 (Recent Task Memory)~~ **从未实现**
+- 设计中止。`recent_task.md` 不存在，不应被实现。
 
 ---
 

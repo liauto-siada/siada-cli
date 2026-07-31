@@ -3,9 +3,9 @@ Utility functions for serializing and deserializing Usage objects.
 """
 from typing import Optional
 
-from agents.usage import Usage
-from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
 from siada.foundation.logging import logger
+# agents.usage and openai.types are lazy-imported inside functions to avoid
+# pulling in the heavy agents/openai SDK at module load time.
 
 
 def serialize_usage(usage) -> Optional[dict]:
@@ -40,7 +40,7 @@ def serialize_usage(usage) -> Optional[dict]:
         return None
 
 
-def deserialize_usage(usage_data: dict) -> Optional[Usage]:
+def deserialize_usage(usage_data: dict):
     """
     Deserialize dictionary to Usage object.
     
@@ -54,6 +54,8 @@ def deserialize_usage(usage_data: dict) -> Optional[Usage]:
         return None
         
     try:
+        from agents.usage import Usage
+        from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
         restored_usage = Usage(
             requests=usage_data.get('requests', 0),
             input_tokens=usage_data.get('input_tokens', 0),

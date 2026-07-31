@@ -1,7 +1,8 @@
 from dataclasses import dataclass, fields
 from typing import Optional
 
-from siada.models.model_base_config import ModelBaseConfig, get_model_config
+from siada.models.model_base_config import ModelBaseConfig, get_model_config, get_model_settings
+
 
 import os
 from pathlib import Path
@@ -32,6 +33,11 @@ class ModelRunConfig(ModelBaseConfig):
     def configure_model_settings(self, model):
         # Look for exact model match
         model_config = get_model_config(model)
+        if not model_config:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Model {model} not found in model settings, falling back to claude-sonnet-4.6")
+            model_config = get_model_config("claude-sonnet-4.6")
+
         if model_config:
             self._copy_fields(model_config)
             # Reset thinking_tokens and reasoning_effort to avoid stale values
@@ -149,7 +155,23 @@ class ModelRunConfig(ModelBaseConfig):
         model_name = llm_config.get('model_name')
         provider = llm_config.get('provider')
 
-        model_config = ModelRunConfig(model_name)
+        try:
+            model_config = ModelRunConfig(model_name)
+        except ValueError:
+            # agent_config.yaml holds a framework default model (e.g.
+            # claude-sonnet-4.6) that may not exist in the currently active model
+            # settings — this happens when a 'default' provider's model list has
+            # replaced the built-in MODEL_SETTING (e.g. on the feishu daemon's
+            # 2nd+ message). This baseline is only a seed: callers either override
+            # the model immediately (get_config) or only read `.provider`. Build a
+            # valid baseline from any available model so we don't crash, while
+            # keeping the configured model_name/provider.
+            settings = get_model_settings()
+            if settings:
+                model_config = ModelRunConfig(settings[0].model_name)
+                model_config.model_name = model_name
+            else:
+                raise
 
         model_config.provider = provider
         return model_config

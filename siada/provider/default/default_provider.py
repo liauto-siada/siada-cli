@@ -1,19 +1,22 @@
+from __future__ import annotations
 import os
-from agents import Model, ModelProvider
-from agents.extensions.models.litellm_model import LitellmModel
-import litellm
+from typing import TYPE_CHECKING
 
-from siada.entrypoint import _configure_litellm_logging
+from agents import Model, ModelProvider
 
 from siada.provider.default.coverter import covert_to_litellm_model_name
 from siada.provider.llm_client import LLMClient
-from litellm.types.utils import ModelResponse as LitellmModelResponse
+from siada.provider.reasoning_replay import should_replay_reasoning_content
+
+if TYPE_CHECKING:
+    from litellm.types.utils import ModelResponse as LitellmModelResponse
 
 
 def _register_custom_claude_model(model_name: str):
     """Register custom model names in litellm so supports_reasoning() returns True,
     allowing 'thinking' (Claude) and 'reasoning_effort' (Gemini) params to pass through.
     """
+    import litellm
     if model_name in litellm.model_cost:
         return
 
@@ -32,8 +35,6 @@ class DefaultProvider(ModelProvider):
     """
 
     def __init__(self):
-        _configure_litellm_logging()
-
         # NOTE:
         # Provider instances are created eagerly by provider_factory at import time.
         # API key login, however, may update BASE_URL/API_KEY later at runtime.
@@ -68,15 +69,30 @@ class DefaultProvider(ModelProvider):
         """
         self._refresh_credentials()
 
+        # Responses-API-only models (GPT-5.x family) go through the native
+        # Responses protocol layer instead of LiteLLM's responses bridge.
+        raw_model_name = model_name or os.getenv("MODEL_NAME")
+        from siada.provider.responses import ResponsesModel, is_responses_only_model
+        if is_responses_only_model(raw_model_name):
+            from siada.provider.default.responses_transport import DefaultResponsesTransport
+            return ResponsesModel(model=raw_model_name, transport=DefaultResponsesTransport())
+
         # Use provided model_name or fall back to configured model_name
         effective_model_name = covert_to_litellm_model_name(model_name)
         self._apply_provider_specific_env(effective_model_name)
 
+        from siada.entrypoint import _configure_litellm
+        _configure_litellm()
+
         # Register custom aws-claude-* models so litellm recognizes their capabilities
         _register_custom_claude_model(effective_model_name)
 
+        from agents.extensions.models.litellm_model import LitellmModel
         return LitellmModel(
-            model=effective_model_name, base_url=self.base_url, api_key=self.api_key
+            model=effective_model_name,
+            base_url=self.base_url,
+            api_key=self.api_key,
+            should_replay_reasoning_content=should_replay_reasoning_content,
         )
 
 
@@ -122,5 +138,6 @@ class DefaultClient(LLMClient):
             if "moonshot/" in model_name or model_name.startswith("kimi-"):
                 os.environ["MOONSHOT_API_KEY"] = self.api_key
 
+        import litellm
         # Use litellm's native async method for better performance
         return await litellm.acompletion(**kwargs)

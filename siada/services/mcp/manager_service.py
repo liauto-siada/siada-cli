@@ -1,18 +1,24 @@
+
 """
 MCP Service using MCPServerManager from agents framework
 Provides hot-reload capability and better server management
 """
+from __future__ import annotations
 
 import asyncio
 import atexit
 import hashlib
 import re
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from dataclasses import dataclass
 from pathlib import Path
 
-from agents.mcp import MCPServerManager, MCPServer
-from agents.mcp import MCPServerStdio, MCPServerStreamableHttp, MCPServerSse
+# agents.mcp types are lazy-imported inside the functions that use them
+# (MCPServerFactory.create_server and MCPManagerService.initialize) to avoid
+# pulling in the agents SDK (~500ms) at module load / startup time.
+if TYPE_CHECKING:
+    from agents.mcp import MCPServerManager, MCPServer
+    from agents.mcp import MCPServerStdio, MCPServerStreamableHttp, MCPServerSse
 
 from siada.config.mcp_config import MCPConfig, MCPServerConfig, MCPTransportType
 from siada.config.mcp_config_loader import MCPConfigLoader
@@ -108,6 +114,7 @@ class MCPServerFactory:
         transport_type = server_config.get_transport_type()
         
         try:
+            from agents.mcp import MCPServerStdio, MCPServerStreamableHttp, MCPServerSse  # lazy: agents SDK
             if transport_type == MCPTransportType.STDIO:
                 return MCPServerStdio(
                     params={
@@ -215,6 +222,7 @@ class MCPManagerService:
                 return []
             
             # Use MCPServerManager
+            from agents.mcp import MCPServerManager  # lazy: agents SDK
             self.manager = MCPServerManager(
                 servers=servers,
                 connect_timeout_seconds=10.0,
@@ -286,11 +294,18 @@ class MCPManagerService:
         logger.debug("Preloading MCP tool lists...")
         
         failed_servers: list[tuple[MCPServer, Exception]] = []
-        
+        _LIST_TOOLS_TIMEOUT = 20.0
+
         for server in list(self.manager.active_servers):
             try:
-                await server.list_tools(None, None)
+                await asyncio.wait_for(server.list_tools(None, None), timeout=_LIST_TOOLS_TIMEOUT)
                 logger.debug(f"Server {server.name} tool list loaded successfully")
+            except asyncio.TimeoutError as e:
+                logger.warning(
+                    f"MCP server '{server.name}' list_tools timed out after {_LIST_TOOLS_TIMEOUT}s, "
+                    f"removing from active servers"
+                )
+                failed_servers.append((server, e))
             except Exception as e:
                 logger.warning(
                     f"MCP server '{server.name}' list_tools failed, "

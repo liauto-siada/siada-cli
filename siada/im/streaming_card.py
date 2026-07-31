@@ -35,7 +35,7 @@ def _truncate_summary(text: str, max_len: int = 50) -> str:
 def _resolve_api_base(domain: str) -> str:
     if domain == "lark":
         return "https://open.larksuite.com"
-    elif domain == "lark_cn":
+    elif domain in ("feishu", "lark_cn"):
         return "https://open.feishu.cn"
     else:
         return domain.rstrip("/")

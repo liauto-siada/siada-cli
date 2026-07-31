@@ -2,8 +2,12 @@ from typing import Optional, List, Any
 from agents import Agent, ModelResponse, AgentHooks, TContext, TResponseInputItem, RunContextWrapper, Tool
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.hooks.agent_processors.context_track_processor import ContextTrackProcessor
+from siada.agent_hub.hooks.processors.agent_name_processor import AgentNameProcessor
 from siada.agent_hub.hooks.processors.llm_spinner_processor import LLMSpinnerProcessor
 from siada.agent_hub.hooks.processors.token_usage_reporter_processor import TokenUsageReporterProcessor
+from siada.agent_hub.hooks.processors.cache_status_processor import CacheStatusProcessor
+from siada.agent_hub.hooks.processors.todo_reminder_processor import TodoReminderProcessor
+
 
 
 class SiadaAgentHooks(AgentHooks):
@@ -27,8 +31,24 @@ class SiadaAgentHooks(AgentHooks):
                 ContextTrackProcessor(),
                 LLMSpinnerProcessor(),  # Add spinner for LLM calls
                 TokenUsageReporterProcessor(),  # Report token usage to telemetry
+                CacheStatusProcessor(),  # Send cache hit-rate + cost data to frontend
+                # Scope AGENT_NAME to each LLM call so server-side analytics
+                # always see the agent that actually issued the request, and
+                # the value never leaks to unrelated code running on the same
+                # asyncio task after the agent returns.
+                AgentNameProcessor(),
+                # Nudge models prone to looping on an unchanged tool call
+                # (currently only kivy-deepseek-v4-flash) to change course.
+                ModelHallucinationSuppressionProcessor(),
+                # Injects the hidden todo reminder into the real per-call
+                # input on_llm_start, then persists it into
+                # the real Session on_llm_end right after that call succeeds,
+                # so it's both part of the live call and survives in
+                # api_history.json for future turns / session resume.
+                TodoReminderProcessor(),
                 # Add more processors here as needed
             ]
+
         else:
             self.processors = processors
 
@@ -57,25 +77,34 @@ class SiadaAgentHooks(AgentHooks):
         for processor in self.processors:
             await processor.on_llm_end(context, agent, response)
 
-    async def on_agent_start(
+    async def on_start(
         self,
         context: RunContextWrapper[CodeAgentContext],
         agent: Agent[TContext],
     ) -> None:
-        """Called when an agent starts execution."""
-        
+        """Called when an agent starts execution.
+
+        Note: `AgentHooksBase` (the base class for `agent.hooks`) defines this
+        lifecycle method as `on_start`, not `on_agent_start` (the latter is the
+        `RunHooksBase` naming used for `Runner.run(hooks=...)`). Overriding the
+        wrong name means the SDK silently never calls it.
+        """
+
         # Delegate to all processors
         for processor in self.processors:
             await processor.on_agent_start(context, agent)
 
-    async def on_agent_end(
+    async def on_end(
         self,
         context: RunContextWrapper[CodeAgentContext],
         agent: Agent[TContext],
         output: Any,
     ) -> None:
-        """Called when an agent completes execution."""
-        
+        """Called when an agent completes execution.
+
+        See note on `on_start` regarding the `on_end` vs `on_agent_end` naming.
+        """
+
         # Delegate to all processors
         for processor in self.processors:
             await processor.on_agent_end(context, agent, output)

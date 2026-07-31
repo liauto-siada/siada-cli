@@ -9,6 +9,7 @@ import { LoginSelector, LoginWaiting } from './Login/index.js';
 import type { LoginChoice } from './Login/index.js';
 import { TaskSelector, TaskItem } from './TaskSelector/index.js';
 import { ModelSelector } from './ModelSelector/ModelSelector.js';
+import type { SideQuestionItem } from './SideQuestion/index.js';
 import { useACP } from '../hooks/useACP.js';
 import { ClientConfig, Message } from '../types/index.js';
 import { getIcons } from '../constants/icons.js';
@@ -19,6 +20,10 @@ import { useAdapterEvents } from '../hooks/useAdapterEvents.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { AppProvider } from '../store/context.js';
 import { Banner } from './Banner/Banner.js';
+import { promptQueueStore } from '../store/promptQueueStore.js';
+import { usePromptDrain } from '../hooks/usePromptDrain.js';
+import { usePromptQueueSnapshot } from '../hooks/usePromptQueueSnapshot.js';
+import { recordFlicker } from '../utils/flickerMonitor.js';
 
 const LoadingView: React.FC<{ message: string; footer?: string }> = ({ message, footer }) => (
   <Box flexDirection="column" padding={1}>
@@ -56,6 +61,77 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
   const [pluginManagerData, setPluginManagerData] = useState<PluginManagerData | null>(null); // Plugin manager state
   const [installProgress, setInstallProgress] = useState<{ skillName: string; phase: string; percent: number } | null>(null);
   const [taskSelectorTasks, setTaskSelectorTasks] = useState<TaskItem[] | null>(null); // Task selector state
+  const [sideQuestions, setSideQuestions] = useState<SideQuestionItem[]>([]); // /btw side-question list
+  // Whether the /btw side-question panel is currently rendered.
+  // - Auto set to true whenever a new /btw is appended → all preserved
+  //   history reappears together with the new question.
+  // - Esc inside the panel sets it to false: the panel hides and the input
+  //   box becomes typable again, but `sideQuestions` (history) is kept
+  //   intact in state, so the next /btw will redisplay everything.
+  const [sideQuestionPanelVisible, setSideQuestionPanelVisible] = useState(false);
+  // Transient one-line hint shown above the input box (e.g. for blank /btw).
+  // It is intentionally NOT part of `sideQuestions` history and auto-clears.
+  const [sideQuestionNotice, setSideQuestionNotice] = useState<string | null>(null);
+
+  // /btw: add a pending item immediately on submit (answer=null shows "Answering...")
+
+  const appendPendingSideQuestion = useCallback((question: string) => {
+    setSideQuestions(prev => [
+      ...prev,
+      { question, answer: null, id: `btw-${Date.now()}-${Math.random()}` },
+    ]);
+    // A new /btw always (re)opens the panel, even if it was hidden via Esc,
+    // so all preserved history is shown together with the new query.
+    setSideQuestionPanelVisible(true);
+  }, []);
+
+  // /btw with no question: show a transient usage hint above the input box.
+  // Intercepted entirely on the frontend so it never round-trips to the
+  // backend. The hint is deliberately NOT pushed into `sideQuestions`, so it
+  // never pollutes the side-question history list and never opens the panel.
+  const showSideQuestionUsage = useCallback(() => {
+    setSideQuestionNotice('Usage: /btw <your question>');
+  }, []);
+
+  // Auto-clear the transient /btw usage notice a few seconds after it shows.
+  useEffect(() => {
+    if (!sideQuestionNotice) return;
+    const timer = setTimeout(() => setSideQuestionNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [sideQuestionNotice]);
+
+  // Transient one-line flash for /goal set / verification pass-fail results.
+  // Same shape as sideQuestionNotice: not part of any persistent goal state,
+  // just a fire-and-auto-clear banner triggered by the backend's `notice`
+  // field on a context/goalState push. The effect that watches
+  // `goalState.notice` lives below, after `goalState` is destructured from
+  // useACP().
+  const [goalNotice, setGoalNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!goalNotice) return;
+    const timer = setTimeout(() => setGoalNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [goalNotice]);
+
+  // Esc inside the panel hides it without touching the history list.
+  // The next /btw will reopen the panel and reveal everything that was kept.
+  const hideSideQuestionPanel = useCallback(() => {
+    setSideQuestionPanelVisible(false);
+  }, []);
+
+
+
+  // When the list becomes empty (e.g. fork sends the question elsewhere),
+  // collapse the visibility flag so the input box is fully enabled.
+  useEffect(() => {
+    if (sideQuestions.length === 0 && sideQuestionPanelVisible) {
+      setSideQuestionPanelVisible(false);
+    }
+  }, [sideQuestions.length, sideQuestionPanelVisible]);
+
+
+
   const icons = getIcons();
   const {
     messages,
@@ -68,12 +144,92 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     sendMessage,
     sendInteractiveInput,
     stopExecution,
+    cancelPendingQueue,
     addMessage,
     updateMessage,
     clearMessages,
     client,
+    clientRef,
     sessionId,
+    todoItems,
+    todoMessageRanges,
+    cacheStatus,
+    goalState,
   } = useACP(config);
+
+  // Backend pushed a one-shot notice (goal set / verification pass-fail) on
+  // this context/goalState update — surface it as the transient flash.
+  useEffect(() => {
+    if (goalState?.notice) {
+      setGoalNotice(goalState.notice);
+    }
+  }, [goalState?.notice]);
+
+  // Backend pushed a structured achieved/not-yet-achieved result — turn this
+  // into a persistent collapsible chat message (frontend-only; NOT written
+  // to backend session history, so resumed sessions won't replay it — an
+  // accepted limitation per explicit product decision for this iteration).
+  useEffect(() => {
+    if (goalState?.result) {
+      const r = goalState.result;
+      addMessage({
+        id: `goal_result_${Date.now()}`,
+        type: 'system',
+        content: '',
+        timestamp: new Date().toISOString(),
+        author: 'System',
+        metadata: {
+          subtype: 'goal_result',
+          goalResult: r,
+        },
+      });
+    }
+  }, [goalState?.result]);
+
+  // /btw: called when backend sends ui/showSideQuestion — update matching pending item
+  const appendSideQuestion = useCallback(
+    (item: { question: string; answer: string }) => {
+      setSideQuestions(prev => {
+        // Find the last pending item with a matching question
+        let idx = -1;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].question === item.question && prev[i].answer === null) {
+            idx = i;
+            break;
+          }
+        }
+        if (idx !== -1) {
+          // Update the pending item in-place
+          return prev.map((q, i) => i === idx ? { ...q, answer: item.answer } : q);
+        }
+        // No pending match — append as a new item (fallback)
+        return [...prev, { ...item, id: `btw-${Date.now()}-${Math.random()}` }];
+      });
+    },
+    []
+  );
+
+  // /btw 侧边问答：删除单条
+  const removeSideQuestion = useCallback((id: string) => {
+    setSideQuestions(prev => prev.filter(q => q.id !== id));
+  }, []);
+
+  // /btw clear history: keep only the currently focused (newest) item and
+  // drop everything older. The panel itself stays visible — pressing 'x'
+  // is a "tidy up" action, not a close action.
+  const clearSideQuestionsHistory = useCallback(() => {
+    setSideQuestions(prev => (prev.length > 0 ? [prev[prev.length - 1]] : prev));
+  }, []);
+
+
+  // /btw fork: 关闭面板并把问题以普通消息送进主对话
+  const forkSideQuestion = useCallback((item: SideQuestionItem) => {
+    setSideQuestions([]);
+    if (item.question) {
+      // 用 setTimeout 让面板先卸载，避免输入框 focus 切换抖动
+      setTimeout(() => sendMessage(item.question), 0);
+    }
+  }, [sendMessage]);
 
   useBackendExit(client, exit);
 
@@ -85,15 +241,58 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     setTaskSelectorTasks,
     setInstallProgress,
     setPluginManagerData,
+    appendSideQuestion,
   });
 
-  const stableSendMessage = useCallback((message: string) => {
-    sendMessage(message);
-  }, [sendMessage]);
+  const stableSendMessage = useCallback((message: string, imagePaths?: string[]) => {
+    const trimmed = message.trim();
+    // /btw always bypasses the queue and runs concurrently
+    if (trimmed.startsWith('/btw ') || trimmed === '/btw') {
+      const question = trimmed.startsWith('/btw ') ? trimmed.slice(5).trim() : '';
+      if (!question) {
+        // Blank /btw — show the usage hint in the side panel right here and do
+        // NOT send anything to the backend. This avoids leaving a pending
+        // "Answering..." item that would never resolve.
+        showSideQuestionUsage();
+        return;
+      }
+      appendPendingSideQuestion(question);
+      setTimeout(() => sendMessage(message, imagePaths), 0);
+      return;
+    }
+
+    // When agent is busy: enqueue in UI store first (to get the id), then send
+    // to backend with the same queue_id so the backend can echo a consumed notification.
+    if (loading) {
+      const item = promptQueueStore.enqueue(message, imagePaths);
+      sendMessage(message, imagePaths, { queueId: item.id });
+      return;
+    }
+    sendMessage(message, imagePaths);
+  }, [sendMessage, appendPendingSideQuestion, showSideQuestionUsage, loading]);
+
+
+  usePromptDrain(loading);
+  const promptQueue = usePromptQueueSnapshot();
 
   const stableStopExecution = useCallback(() => {
+    cancelPendingQueue();      // tell backend to drop pending injections
+    promptQueueStore.clear();  // clear UI preview
     stopExecution();
+  }, [cancelPendingQueue, stopExecution]);
+
+  // Esc while busy: interrupt the current run but KEEP the queue. The backend
+  // ends the turn, flushes _pending_injections into a fresh turn and runs the
+  // queued prompts one-by-one; each emits queue_item_consumed so the frontend
+  // renders it into the conversation and drops it from the preview. (Ctrl+C, by
+  // contrast, calls stableStopExecution above and discards the queue.)
+  const stableFlushQueueAndRun = useCallback(() => {
+    // Suppress the "Execution interrupted" hint: the queued prompt will be
+    // rendered on screen and run as a fresh turn instead.
+    stopExecution(false);
   }, [stopExecution]);
+
+
 
   const stableAddMessage = useCallback((message: Message) => {
     addMessage(message);
@@ -145,6 +344,16 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     setPluginManagerData(null);
   }, []);
 
+  // Auto-close plugin manager when installation completes (percent === 100).
+  // Controlled here (not inside PluginManager) so setPluginManagerData is
+  // called by the owner, avoiding yoga WASM issues from self-unmounting.
+  useEffect(() => {
+    if (installProgress?.percent === 100 && pluginManagerData) {
+      const t = setTimeout(() => setPluginManagerData(null), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [installProgress?.percent, pluginManagerData]);
+
   useEffect(() => {
     if (loginState?.phase === 'waiting' && loginState.openBrowser && loginState.url) {
       import('child_process').then(({ exec }) => {
@@ -166,17 +375,26 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
   }, [loginState?.phase]);
 
   const handleLoginSelect = useCallback(async (choice: LoginChoice, apiKey?: string) => {
-    if (!client || isSubmittingLogin) {
+    // During the startup login window, connect() hasn't resolved yet so `client`
+    // state is still null.  Use clientRef.current as fallback — it is set
+    // immediately after SiadaACPClient is constructed, before waitForReady.
+    const activeClient = client ?? clientRef.current;
+    if (!activeClient || isSubmittingLogin) {
+      logger.warn('[handleLoginSelect] no active client yet, ignoring login choice', {
+        choice,
+        clientNull: !client,
+        clientRefNull: !clientRef.current,
+      });
       return;
     }
 
     setIsSubmittingLogin(true);
     try {
-      await client.sendLoginChoice(choice, choice === '3' ? apiKey : undefined);
+      await activeClient.sendLoginChoice(choice, choice === '3' ? apiKey : undefined);
     } catch {
       setIsSubmittingLogin(false);
     }
-  }, [client, isSubmittingLogin]);
+  }, [client, clientRef, isSubmittingLogin]);
 
   const handleResumeSession = useCallback(async (sessionId: string) => {
     try {
@@ -203,9 +421,22 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
       ctrlCCountRef.current += 1;
       if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current);
       if (ctrlCCountRef.current === 1) {
+        recordFlicker('ctrl_c_interrupt', 'Ctrl+C: stopExecution + system message + queue clear', {
+          messageCount: messages.length,
+        });
         stableStopExecution();
         ctrlCTimerRef.current = setTimeout(() => { ctrlCCountRef.current = 0; }, 2000);
       } else {
+        recordFlicker('ctrl_c_interrupt', 'Ctrl+C (double): exit app — clearing overlays before exit', {
+          messageCount: messages.length,
+        });
+        // Clear overlay views before exit so they are removed from the React
+        // tree before process.exit fires, preventing yoga WASM crashes during
+        // Ink's final render pass.
+        setPluginManagerData(null);
+        setModelSelectorData(null);
+        setTaskSelectorTasks(null);
+        setShowSessionBrowser(false);
         onExit?.(sessionId);
         exit();
       }
@@ -214,11 +445,16 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
 
     if (key.ctrl && key.name === 'o') {
       setIsCollapsed(prev => {
-        process.stdout?.write('\x1b[2J\x1b[H');
+        recordFlicker('ctrl_o_collapse', `Ctrl+O: toggle collapse mode ${prev} → ${!prev}`, {
+          messageCount: messages.length,
+        });
+        // NOTE: screen clearing is handled by MessageList's refreshStatic(),
+        // which reacts to the isCollapsed change via useEffect. Clearing here
+        // as well caused a double flicker.
         return !prev;
       });
     }
-  }, [stableStopExecution, onExit, sessionId, exit]);
+  }, [stableStopExecution, onExit, sessionId, exit, messages.length]);
 
   useKeypress(handleKeypress);
 
@@ -232,14 +468,15 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     | 'plugin_manager' | 'task_selector' | 'model_selector' | 'session_browser' | 'main';
 
   const viewState: ViewState = (() => {
+    // Login checks come first: the backend sends ui/showLoginSelector before
+    // the `ready` signal (and possibly before the connection handshake fully
+    // resolves), so loginState must take priority over any spinner state to
+    // avoid the login selector being hidden behind "Connecting to siada-cli...".
+    if (loginState?.phase === 'selecting')                    return 'login_selecting';
+    if (loginState?.phase === 'waiting')                      return 'login_waiting';
     if (connectionStatus.connecting)                          return 'connecting';
     if (connectionStatus.error && !connectionStatus.connected) return 'connection_error';
     if (startupError)                                         return 'startup_error';
-    // Login checks come before 'initializing': the backend now sends
-    // ui/showLoginSelector BEFORE sending the `ready` signal, so we must
-    // render the login view even while connectionStatus.ready is still false.
-    if (loginState?.phase === 'selecting')                    return 'login_selecting';
-    if (loginState?.phase === 'waiting')                      return 'login_waiting';
     if (connectionStatus.connected && !connectionStatus.ready) return 'initializing';
     if (connectionStatus.ready && !bannerInfo)                return 'loading_config';
     if (pluginManagerData)                                    return 'plugin_manager';
@@ -286,7 +523,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
             version={bannerInfo?.version}
             workingDir={bannerInfo?.workingDir || config.workingDir}
             agent={bannerInfo?.agent || 'coder'}
-            provider={bannerInfo?.provider || 'li'}
+            provider={bannerInfo?.provider || 'default'}
             model={bannerInfo?.model || config.model}
             prePlanMode={bannerInfo?.prePlanMode || false}
             isCollapsed={isCollapsed}
@@ -313,7 +550,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
             version={bannerInfo?.version}
             workingDir={bannerInfo?.workingDir || config.workingDir}
             agent={bannerInfo?.agent || 'coder'}
-            provider={bannerInfo?.provider || 'li'}
+            provider={bannerInfo?.provider || 'default'}
             model={bannerInfo?.model || config.model}
             prePlanMode={bannerInfo?.prePlanMode || false}
             isCollapsed={isCollapsed}
@@ -376,7 +613,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               version={bannerInfo?.version || "0.0.0"}
               workingDir={bannerInfo?.workingDir || config.workingDir}
               agent={bannerInfo?.agent || "coder"}
-              provider={bannerInfo?.provider || "li"}
+              provider={bannerInfo?.provider || "default"}
               model={bannerInfo?.model || config.model}
               prePlanMode={bannerInfo?.prePlanMode || false}
               messages={messages}
@@ -387,10 +624,30 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               onAddMessage={stableAddMessage}
               onUpdateMessage={stableUpdateMessage}
               onStopExecution={stableStopExecution}
+              onFlushQueueAndRun={stableFlushQueueAndRun}
+              onCancelPendingQueue={cancelPendingQueue}
               isCollapsed={isCollapsed}
+
               interactiveInput={interactiveInput}
               onSendInteractiveInput={sendInteractiveInput}
               sessionId={sessionId}
+              sideQuestions={sideQuestions}
+              sideQuestionNotice={sideQuestionNotice}
+              sideQuestionPanelVisible={sideQuestionPanelVisible}
+              onHideSideQuestionPanel={hideSideQuestionPanel}
+
+              goalState={goalState}
+              goalNotice={goalNotice}
+
+              onClearSideQuestionsHistory={clearSideQuestionsHistory}
+
+              onRemoveSideQuestion={removeSideQuestion}
+              onForkSideQuestion={forkSideQuestion}
+              quotaUsage={bannerInfo?.quotaUsage ?? null}
+              promptQueue={promptQueue}
+              todoItems={todoItems}
+              todoMessageRanges={todoMessageRanges}
+              cacheStatus={cacheStatus}
             />
           </Box>
         </AppProvider>

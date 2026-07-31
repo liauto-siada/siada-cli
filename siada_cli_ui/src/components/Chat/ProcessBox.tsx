@@ -13,6 +13,8 @@ import { getIcons } from '../../constants/icons.js';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { MarkdownDisplay } from '../markdown/MarkdownDisplay.js';
 import { ShellOutput } from '../Shell/ShellOutput.js';
+import { DiffView } from '../diff/DiffView.js';
+import { parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
 
 /**
  * Calculate total wrapped lines considering terminal width
@@ -247,7 +249,10 @@ export const ProcessBox: React.FC<ProcessBoxProps> = React.memo(({
 
   // Combine all messages into sections for display
   const sections = useMemo(() => {
-    const result: Array<{ type: 'answer' | 'process'; content: string }> = [];
+    const result: Array<
+      | { type: 'answer' | 'process'; content: string }
+      | { type: 'diff'; filePath: string; hunks: ReturnType<typeof getSimplePatch> }
+    > = [];
     
     otherMessages.forEach(msg => {
       const subtype = msg.metadata?.subtype;
@@ -255,6 +260,18 @@ export const ProcessBox: React.FC<ProcessBoxProps> = React.memo(({
       
       if (!cleaned) {
         return;
+      }
+
+      // Detect completed file-edit tool calls and render as diff
+      if (subtype === 'tool_use' || msg.metadata?.streamEnd === true) {
+        const editInfo = parseFileEditContent(cleaned);
+        if (editInfo?.isComplete) {
+          const hunks = getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString);
+          if (hunks.length > 0) {
+            result.push({ type: 'diff', filePath: editInfo.filePath, hunks });
+            return;
+          }
+        }
       }
       
       // Route by message type: answer vs process
@@ -313,11 +330,19 @@ export const ProcessBox: React.FC<ProcessBoxProps> = React.memo(({
       <Box flexDirection="column">
         {sections.map((section, idx) => (
           <Box key={idx} marginBottom={idx < sections.length - 1 ? 1 : 0}>
-            <MarkdownDisplay 
-              text={section.content} 
-              isPending={false} 
-              terminalWidth={Math.max(terminalWidth - 6, 40)}
-            />
+            {section.type === 'diff' ? (
+              <DiffView
+                filePath={section.filePath}
+                hunks={section.hunks}
+                width={Math.max(terminalWidth - 4, 40)}
+              />
+            ) : (
+              <MarkdownDisplay 
+                text={section.content} 
+                isPending={false} 
+                terminalWidth={Math.max(terminalWidth - 6, 40)}
+              />
+            )}
           </Box>
         ))}
       </Box>

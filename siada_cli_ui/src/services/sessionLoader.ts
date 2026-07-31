@@ -8,7 +8,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
 import { SessionInfo } from '../types/session.js';
-import { logger } from '../utils/logger.js';
+import { logger, LogLevel } from '../utils/logger.js';
 
 interface SessionMetadata {
   created_at: string;
@@ -87,6 +87,7 @@ function loadSessionMetadata(sessionDir: string, sessionId: string): SessionMeta
   const apiHistoryPath = join(sessionDir, 'api_history.json');
   
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
+  const _startTime = Date.now();
   
   // Try metadata.json first
   if (existsSync(metadataPath)) {
@@ -102,7 +103,14 @@ function loadSessionMetadata(sessionDir: string, sessionId: string): SessionMeta
       }
       
       const data = readFileSync(metadataPath, 'utf-8');
-      return JSON.parse(data);
+      const result = JSON.parse(data);
+      logger.logWithTiming(LogLevel.DEBUG, '[PERF] loadSessionMetadata via metadata.json', _startTime, {
+        component: 'sessionLoader',
+        operation: 'load_session_metadata',
+        sessionId,
+        fileSize: stats.size,
+      });
+      return result;
     } catch (error) {
       logger.warn('Failed to load metadata.json', { sessionId, error });
     }
@@ -143,6 +151,14 @@ function loadSessionMetadata(sessionDir: string, sessionId: string): SessionMeta
         }
       }
       
+      logger.logWithTiming(LogLevel.DEBUG, '[PERF] loadSessionMetadata via api_history.json (fallback, full read+parse)', _startTime, {
+        component: 'sessionLoader',
+        operation: 'load_session_metadata_fallback',
+        sessionId,
+        fileSize: stats.size,
+        itemCount: items.length,
+      });
+
       return {
         created_at: stats.birthtime.toISOString(),
         last_updated: stats.mtime.toISOString(),
@@ -164,6 +180,7 @@ export function loadCurrentProjectSessions(
   projectRoot: string,
   currentSessionId?: string
 ): SessionInfo[] {
+  const _startTime = Date.now();
   const sessions: SessionInfo[] = [];
   const sessionsDir = getProjectSessionsDir(projectRoot);
   
@@ -223,9 +240,12 @@ export function loadCurrentProjectSessions(
       session.index = idx + 1;
     });
     
-    logger.info('Loaded current project sessions', { 
-      projectRoot, 
-      count: sessions.length 
+    logger.logWithTiming(LogLevel.INFO, '[PERF] Loaded current project sessions', _startTime, {
+      component: 'sessionLoader',
+      operation: 'load_current_project_sessions',
+      projectRoot,
+      sessionDirCount: sessionDirs.length,
+      count: sessions.length,
     });
     
   } catch (error) {
@@ -239,6 +259,7 @@ export function loadCurrentProjectSessions(
  * Load sessions from all projects
  */
 export function loadAllProjectsSessions(currentSessionId?: string): SessionInfo[] {
+  const _startTime = Date.now();
   const allSessions: SessionInfo[] = [];
   const globalTempDir = getGlobalTempDir();
   
@@ -319,9 +340,11 @@ export function loadAllProjectsSessions(currentSessionId?: string): SessionInfo[
       session.index = idx + 1;
     });
     
-    logger.info('Loaded all projects sessions', { 
+    logger.logWithTiming(LogLevel.INFO, '[PERF] Loaded all projects sessions', _startTime, {
+      component: 'sessionLoader',
+      operation: 'load_all_projects_sessions',
       projectCount: projectDirs.length,
-      sessionCount: allSessions.length 
+      sessionCount: allSessions.length,
     });
     
   } catch (error) {

@@ -11,7 +11,12 @@ from typing import Optional
 from typing import List, Optional
 
 from siada.foundation.constants import SIADA_HOME
-from siada.foundation.logging import get_file_handler, get_model_error_handler
+from siada.foundation.logging import (
+    configure_third_party_loggers,
+    get_model_error_handler,
+    redirect_file_handler,
+    redirect_openhands_aci_logger,
+)
 
 # Registry of known IM controller classes.
 # Each entry is (module_path, class_name). The daemon attempts to load
@@ -19,7 +24,7 @@ from siada.foundation.logging import get_file_handler, get_model_error_handler
 # controller are started concurrently.
 # To add a new IM platform (e.g. WeCom, DingTalk), simply append an entry here.
 _IM_CONTROLLER_REGISTRY: List[tuple] = [
-    ("siada.entrypoint.interaction.feishu_controller", "LarkController"),
+    ("siada.entrypoint.interaction.lark_controller", "LarkController"),
     # ("siada.entrypoint.interaction.wecom_controller", "WeComController"),
     # ("siada.entrypoint.interaction.dingtalk_controller", "DingTalkController"),
 ]
@@ -43,9 +48,14 @@ class SiadaDaemon:
         self.logger: Optional[logging.Logger] = None
         self.running = False
         self.scheduler = None
+        self.auto_updater = None
         self.im_controllers: List = []  # List of active ImController instances
         self._im_loops: List = []  # Corresponding asyncio event loops
         self._im_threads: List[threading.Thread] = []  # Corresponding threads
+        self._ipc_server = None  # DaemonIPCServer instance
+        # In-memory headroom proxy status, queried by the CLI over IPC
+        # (headroom.status). Avoids any status file on disk.
+        self._headroom_status: dict = {"status": "unknown"}
         self._stop_event = threading.Event()
 
     def _find_existing_daemon(self) -> Optional[int]:
@@ -119,7 +129,11 @@ class SiadaDaemon:
             return None
 
     def setup_logging(self) -> None:
-        """Setup daemon logging - writes to shared siada_cli.log.
+        """Setup daemon logging - writes to siada_daemon.log.
+
+        Redirects the shared file handler singleton from siada_cli.log
+        to siada_daemon.log so the daemon process writes to its own log
+        file, avoiding cross-process rotation conflicts with TUI.
 
         Two-level setup:
         1. siada.daemon  – daemon's own logger, propagate=False (no double-write)
@@ -129,8 +143,38 @@ class SiadaDaemon:
                            siada.api / siada.daemon both have propagate=False so
                            they are NOT affected by this handler.
         """
-        # Shared file handler (siada_cli.log)
-        file_handler = get_file_handler()
+        # Suppress noisy third-party DEBUG logs (httpx/httpcore/LiteLLM/git/...)
+        # and LiteLLM's own verbose stream handler. The daemon is spawned via
+        # ``python -m siada.agent_hub.proactive`` which does NOT go through
+        # ``siadahub.py``'s ``_configure_litellm_logging`` path, so we must
+        # invoke these ourselves – otherwise e.g. ``LiteLLM:DEBUG ...`` and
+        # ``DEBUG:httpcore.connection:connect_tcp.started ...`` leak to stderr
+        # once any module (skill marketplace fetch, litellm import, GitPython)
+        # lands in the daemon process.
+        try:
+            configure_third_party_loggers()
+        except Exception:  # noqa: BLE001 – logging setup must never crash daemon
+            pass
+        try:
+            redirect_openhands_aci_logger()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from siada.entrypoint import _configure_litellm
+            _configure_litellm()
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Force root logger to INFO in the daemon so an inherited ``DEBUG=1``
+        # environment variable (read by ``siada.foundation.logging``) cannot
+        # cause the root ``lastResort`` handler to dump DEBUG records from
+        # third-party libraries to stderr.
+        logging.getLogger().setLevel(logging.INFO)
+
+        # Redirect the singleton file handler to daemon-specific log file.
+        # This replaces the handler in ALL loggers that already reference
+        # the old siada_cli.log handler (e.g. siada.api, siada namespace).
+        file_handler = redirect_file_handler('siada_daemon.log')
         error_file_handler = get_model_error_handler()
 
         # 1. Daemon-specific logger
@@ -190,18 +234,62 @@ class SiadaDaemon:
 
         from siada.config.config_loader import load_conf
         from siada.agent_hub.proactive.scheduler import ProactiveScheduler
+        from siada.services.auto_update import DaemonAutoUpdater
 
         config = load_conf()
         self.scheduler = ProactiveScheduler(
             config=config.proactive_config,
             workspace=self.workspace,
         )
+        self.auto_updater = DaemonAutoUpdater(
+            config=config.auto_update_config,
+            stop_event=self._stop_event,
+        )
 
         # Initialize all configured IM controllers (Lark, WeCom, DingTalk, etc.)
         self._initialize_im_controllers()
 
+        # Initialize IPC server for siadahub <-> daemon communication
+        self._initialize_ipc_server()
+
         if self.logger:
             self.logger.info("Components initialized")
+
+    def _check_venv_health(self) -> None:
+        """Warn loudly when the running venv path is unhealthy.
+
+        Specifically detects the broken-symlink case: ``sys.executable`` lives
+        under a path that walks through a symlink whose target no longer
+        exists.  This is non-fatal for already-loaded modules but guarantees
+        future failures (auto-update clone, lazy imports, subprocess spawning).
+        """
+        try:
+            exe_path = Path(sys.executable)
+            # `Path.resolve(strict=True)` raises if any component along the way
+            # cannot be resolved (incl. broken symlinks anywhere in the chain).
+            exe_path.resolve(strict=True)
+            # Also verify the venv root walks cleanly.
+            venv_root = exe_path.parent.parent
+            venv_root.resolve(strict=True)
+        except FileNotFoundError as exc:
+            msg = (
+                f"Daemon venv appears broken: {exc}. "
+                f"This usually means a symlink (e.g. siada_cli_venv_*) points "
+                f"to a versioned directory that no longer exists. "
+                f"Auto-update will be skipped and lazy imports will fail. "
+                f"Please re-run the install script to repair the venv:\n"
+                f"  curl -s https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh"
+            )
+            if self.logger:
+                self.logger.error(msg)
+            else:
+                print(msg, file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001 — health check must never abort startup
+            if self.logger:
+                self.logger.warning(
+                    "Daemon venv health check raised unexpectedly (non-fatal): %s",
+                    exc,
+                )
 
     def _initialize_im_controllers(self) -> None:
         """Try to initialize IM controllers from the registry.
@@ -236,6 +324,22 @@ class SiadaDaemon:
         if not self.im_controllers and self.logger:
             self.logger.debug("No IM controllers configured, skipping")
 
+    def _initialize_ipc_server(self) -> None:
+        """Initialize the IPC server for siadahub communication."""
+        if self._ipc_server is not None:
+            # Idempotent: may be brought up early (before _start_headroom) so
+            # the CLI can query authoritative headroom status without blocking.
+            return
+        try:
+            from siada.agent_hub.proactive.ipc_server import DaemonIPCServer
+
+            self._ipc_server = DaemonIPCServer(self)
+            if self.logger:
+                self.logger.info("IPC server initialized")
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"Failed to initialize IPC server: {e}")
+
     def start(self) -> bool:
         """
         Start daemon process.
@@ -250,6 +354,14 @@ class SiadaDaemon:
             if self.logger:
                 self.logger.info("Starting Siada daemon...")
 
+            # Defensive venv health check.  If the running venv is reachable
+            # only via a broken symlink (e.g. the underlying versioned dir was
+            # deleted), every later subprocess / lazy import will mysteriously
+            # fail with `cp: stat`, `uv: No virtual environment` or
+            # `ModuleNotFoundError`.  Detect it once at startup and emit a
+            # single actionable error instead of a death-by-a-thousand-cuts.
+            self._check_venv_health()
+
             # Check if already running by scanning process list
             existing_pid = self._find_existing_daemon()
             if existing_pid is not None:
@@ -260,6 +372,18 @@ class SiadaDaemon:
             # Setup signal handlers
             self.setup_signal_handlers()
 
+            # Bring the IPC server up EARLY (before the rest of init) so the CLI
+            # can query the authoritative headroom status as soon as the daemon
+            # process is alive, instead of blocking on a cold daemon boot.
+            self._set_headroom_status("starting")
+            self._initialize_ipc_server()
+            if self._ipc_server:
+                self._ipc_server.start()
+
+            # Start headroom proxy early (daemon owns its lifecycle) so the CLI's
+            # status query resolves quickly to running / unavailable.
+            self._start_headroom()
+
             # Initialize components
             self.initialize_components()
 
@@ -268,6 +392,17 @@ class SiadaDaemon:
                 self.scheduler.start()
                 if self.logger:
                     self.logger.info("Scheduler started")
+
+            if self.auto_updater:
+                self.auto_updater.start()
+                if self.logger:
+                    self.logger.info("Auto-updater started")
+
+            # Start IPC server for siadahub communication
+            if self._ipc_server:
+                self._ipc_server.start()
+                if self.logger:
+                    self.logger.info("IPC server started")
 
             # Start all IM controllers (each in its own async event loop thread)
             for controller in self.im_controllers:
@@ -297,6 +432,91 @@ class SiadaDaemon:
                 self.logger.error(f"Failed to start daemon: {e}", exc_info=True)
             self.cleanup()
             return False
+
+    def _start_headroom(self) -> None:
+        """Start the headroom proxy if enabled in conf.yaml.
+
+        The daemon is the SOLE owner of the proxy lifecycle: it spawns the
+        proxy here and terminates it in shutdown(). CLI processes only connect
+        to it (env injection) — they never spawn or kill it.
+
+        If host:port is already occupied, ``HeadroomProxyManager.start()``
+        itself decides whether to adopt it: it probes ``/health`` and compares
+        the occupant's upstream URLs (anthropic/openai/gemini) against our
+        hard-coded li-mate gateway config. A match (most commonly a proxy
+        siada itself started in a previous run, e.g. after a daemon crash that
+        skipped cleanup) is adopted without spawning or killing anything; a
+        mismatch is refused and reported as ``"port_conflict"``.
+        """
+        self._headroom_manager = None
+        try:
+            import os
+            import shutil
+            from siada.config.config_loader import load_conf
+            from siada.internal.services.headroom_proxy_manager import (
+                HeadroomProxyManager, HeadroomProxyConfig, LoggerIO,
+            )
+            hc = getattr(load_conf(), "headroom_config", None)
+            env_on = os.environ.get("SIADA_HEADROOM_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+            if hc is None or (not getattr(hc, "enabled", False) and not env_on):
+                # Headroom not desired.
+                self._set_headroom_status("disabled")
+                return
+            host = getattr(hc, "host", "127.0.0.1")
+            port = getattr(hc, "port", 8787)
+            if shutil.which("headroom") is None:
+                self._set_headroom_status("not_installed", host=host, port=port)
+                if self.logger:
+                    self.logger.warning("[headroom] `headroom` not found on PATH; skipping proxy startup")
+                return
+            cfg = HeadroomProxyConfig(
+                enabled=True, host=hc.host, port=hc.port, budget=hc.budget,
+                budget_period=hc.budget_period, telemetry=hc.telemetry,
+                startup_timeout=hc.startup_timeout,
+            )
+            mgr = HeadroomProxyManager(cfg)
+            # start() handles the "port already in use" case itself: it will
+            # adopt a pre-existing proxy whose /health upstream config matches
+            # ours (pid recorded as external_pid, never spawned/killed by us),
+            # or refuse and set last_failure_reason="port_conflict" otherwise.
+            if mgr.start(LoggerIO()):
+                self._headroom_manager = mgr
+                pid = mgr.owned_pid or mgr.external_pid
+                self._set_headroom_status("running", host=cfg.host, port=cfg.port, pid=pid)
+            else:
+                reason = mgr.last_failure_reason or "error"
+                self._set_headroom_status(reason, host=cfg.host, port=cfg.port)
+                if self.logger:
+                    self.logger.warning(
+                        f"[headroom] failed to start/adopt proxy at {cfg.host}:{cfg.port} "
+                        f"(reason={reason})"
+                    )
+        except Exception as e:
+            self._set_headroom_status("error")
+            if self.logger:
+                self.logger.error(f"[headroom] failed to start proxy: {e}", exc_info=True)
+
+
+    def _set_headroom_status(self, status, host=None, port=None, pid=None):
+        """Record the headroom proxy status in memory (queried over IPC).
+
+        status is one of: running | not_installed | port_conflict | error |
+        disabled | stopped | unknown. The CLI reads this via IPC
+        (headroom.status) so it can fast-fail on unavailable states instead of
+        blocking, and connect to the exact host/port the daemon chose.
+        """
+        import time
+        self._headroom_status = {
+            "status": status,
+            "host": host,
+            "port": port,
+            "pid": pid,
+            "updated_at": time.time(),
+        }
+
+    def get_headroom_status(self) -> dict:
+        """Return a copy of the current in-memory headroom status (for IPC)."""
+        return dict(getattr(self, "_headroom_status", None) or {"status": "unknown"})
 
     def _run_im_loop(self, loop, controller) -> None:
         """Run an IM controller's async event loop in a background thread.
@@ -358,6 +578,17 @@ class SiadaDaemon:
                         f"Error stopping IM controller {controller.__class__.__name__}: {e}"
                     )
 
+        # Stop IPC server
+        if self._ipc_server:
+            self._ipc_server.stop()
+            if self.logger:
+                self.logger.info("IPC server stopped")
+
+        if self.auto_updater:
+            self.auto_updater.stop()
+            if self.logger:
+                self.logger.info("Auto-updater stopped")
+
         # Stop scheduler
         if self.scheduler:
             self.scheduler.stop()
@@ -366,6 +597,25 @@ class SiadaDaemon:
 
         # Release all IM session ownership to prevent stale locks
         self._release_im_ownership()
+
+        # Stop headroom proxy (daemon owns its lifecycle)
+        _hm = getattr(self, "_headroom_manager", None)
+        if _hm is not None:
+            try:
+                _hm.stop()
+                if self.logger:
+                    self.logger.info("[headroom] proxy stopped successfully")
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(f"[headroom] error stopping proxy: {e}")
+
+        # Mark the proxy as stopped so a querying CLI does not try to connect
+        # to a proxy that is going away.
+        try:
+            self._set_headroom_status("stopped")
+        except Exception:
+            pass
+
         # Cleanup
         self.cleanup()
 

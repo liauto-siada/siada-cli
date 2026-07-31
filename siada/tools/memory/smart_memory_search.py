@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from typing import Literal, Optional
 from agents import Agent, Runner, RunContextWrapper, function_tool
+from siada.agent_hub.hooks.siada_basic_agent_hooks import SiadaBasicAgentHooks
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.services.memory import DEFAULT_CHUNK_SIZE
 from siada.tools.memory.memory_tool import search_memory_impl
@@ -37,9 +38,6 @@ All memory files live under `{_MEMORY_DIR}`:
 
 ```
 {_MEMORY_DIR}
-├── personal_style.md       # personal style, work habits, communication preferences
-├── experience/             # long-term engineering rules, design patterns, architecture facts
-│   └── <topic>.md
 ├── events/                 # structured summaries of recent work sessions (newest = most relevant)
 │   └── YYYY-MM-DD-HH-MM-<topic>.md
 └── session/                # raw session conversation history (indexed in FTS DB)
@@ -48,9 +46,8 @@ All memory files live under `{_MEMORY_DIR}`:
 
 ## Search Strategy (strict priority)
 
-**Step 1 — experience, events, personal_style (search first, always):**
-- Use `regex_search_files` to search query keywords across `{_MEMORY_DIR}/experience/` and `{_MEMORY_DIR}/events/` directories
-- Read `{_MEMORY_DIR}/personal_style.md` with `edit_file view`
+**Step 1 — events (search first, always):**
+- Use `regex_search_files` to search query keywords across `{_MEMORY_DIR}/events/`
 - Read relevant files found above with `edit_file view`
 
 **Step 2 — session (fallback only, if Step 1 yields nothing relevant):**
@@ -114,11 +111,16 @@ def get_memory_search_agent(context: CodeAgentContext) -> Agent:
     llm_config = context.session.siada_config.llm_config
     model = llm_config.model_name
 
-    # Create the agent (model will be set in RunConfig, not here)
+    # Create the agent (model will be set in RunConfig, not here).
+    # Attach the generic composite hook so AGENT_NAME is correctly scoped
+    # to each LLM call (tagged as "MemorySearchAgent") and automatically
+    # cleared on on_llm_end — prevents the tag from leaking into unrelated
+    # follow-up requests on the same asyncio task.
     _GLOBAL_MEMORY_SEARCH_AGENT = Agent(
         name="MemorySearchAgent",
         instructions=MEMORY_SEARCH_AGENT_PROMPT,
         tools=[search_memory, edit, regex_search_files],
+        hooks=SiadaBasicAgentHooks(),
     )
 
     logger.info(f"[MemorySearchAgent] Created with model from config: {model}")
@@ -130,9 +132,9 @@ def get_memory_search_agent(context: CodeAgentContext) -> Agent:
 
 SMART_SEARCH_MEMORY_DOCS = """Intelligently search and summarize information from memory files.
 
-This tool uses an AI agent to search through all memory types — personal style,
-long-term experience, structured session events (high priority), and raw session
-history (fallback) — then analyze and return a concise, relevant summary.
+This tool uses an AI agent to search through structured session events
+(high priority) and raw session history (fallback), then analyze and return
+a concise, relevant summary.
 
 Use this tool when you need to:
 - Find information from past conversations
@@ -201,9 +203,8 @@ async def _smart_search_memory_impl(
 {query}
 
 Remember to:
-- Search experience/ and events/ first (use regex_search_files with both Chinese and English keywords).
-- Always read personal_style.md.
-- Fall back to search_memory (session DB) only if the above yield nothing relevant.
+- Search events/ first (use regex_search_files with both Chinese and English keywords).
+- Fall back to search_memory (session DB) only if the above yields nothing relevant.
 - Cite your sources (file paths).
 - Keep the response under {max_tokens} tokens.
 
@@ -216,7 +217,8 @@ Current time :
         agent_context = CodeAgentContext(root_dir=str(memory_dir))
 
         # Run the agent with RunConfig (non-streaming)
-        logger.info(f"[SmartMemorySearch] Running memory search for query: {query[:100]}...")
+        logger.info(f"[SmartMemorySearch] START query={query[:80]!r} detail_level={detail_level}")
+        _t0 = __import__("time").perf_counter()
 
         result = await Runner.run(
             agent,
@@ -225,7 +227,14 @@ Current time :
             context=agent_context,
             max_turns=10,
         )
-        
+
+        _elapsed = __import__("time").perf_counter() - _t0
+        _turns = len(result.raw_responses) if hasattr(result, "raw_responses") else "?"
+        logger.info(
+            f"[SmartMemorySearch] DONE elapsed={_elapsed:.2f}s turns={_turns}"
+            f" output_len={len(result.final_output or '')}"
+        )
+
         # Extract the final output
         final_output = result.final_output
         

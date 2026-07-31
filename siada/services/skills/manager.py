@@ -13,6 +13,8 @@ from .models import SkillLoadOutcome, SkillMetadata
 from .loader import load_skills_from_roots
 from .config import get_skill_roots
 from .renderer import render_skills_section
+from .seeder import build_seed_aware_scope_resolver, seed_if_version_changed
+
 
 
 class SkillsManager:
@@ -53,7 +55,17 @@ class SkillsManager:
         self._siada_home: Path = siada_home or SIADA_HOME
         self._cache: dict[Path, SkillLoadOutcome] = {}
         self._cache_lock = threading.Lock()
-        
+
+        # Sync built-in (SYSTEM) skills into the user skills dir, but ONLY
+        # when the installed siada-cli version differs from the version
+        # recorded in the seed manifest. Steady-state startups skip this
+        # entirely, so neither prompt building nor skill execution ever
+        # touches siada/resources/skills/. See seeder.py for full details.
+        try:
+            seed_if_version_changed(self._siada_home)
+        except Exception as e:
+            logger.warning(f"Failed to sync built-in skills: {e}")
+
         logger.debug(f"SkillsManager initialized with siada_home: {self._siada_home}")
     
     @classmethod
@@ -94,11 +106,17 @@ class SkillsManager:
                     logger.debug(f"Cache hit for cwd: {cwd}")
                     return self._cache[cwd]
         
-        # Load skills
+        # Load skills. We skip the SYSTEM root here because built-in skills
+        # are seeded into the USER root on version bumps and will be picked
+        # up there, then re-tagged as SYSTEM by the seed-aware resolver
+        # whenever they remain bit-for-bit identical to what was seeded.
+        # Scanning resources/skills/ at runtime would only produce duplicates
+        # that get shadowed during dedup.
         logger.info(f"Loading skills for cwd: {cwd}")
-        roots = get_skill_roots(cwd, self._siada_home)
-        outcome = load_skills_from_roots(roots)
-        
+        roots = get_skill_roots(cwd, self._siada_home, include_system=False)
+        scope_resolver = build_seed_aware_scope_resolver(self._siada_home)
+        outcome = load_skills_from_roots(roots, scope_resolver=scope_resolver)
+
         # Update cache
         with self._cache_lock:
             self._cache[cwd] = outcome

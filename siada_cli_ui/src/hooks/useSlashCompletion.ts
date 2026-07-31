@@ -112,6 +112,19 @@ export function useSlashCompletion({
       return;
     }
 
+    // Character-set check: command name must only contain [a-zA-Z0-9:_-].
+    // If it contains ., /, spaces, etc., it's a file path — don't suggest commands.
+    const slashInput = firstLine.substring(1); // remove leading /
+    const commandName = slashInput.split(' ')[0];
+    if (!/^[a-zA-Z0-9:_-]*$/.test(commandName)) {
+      setState(prev => ({
+        ...prev,
+        showSuggestions: false,
+        mode: CompletionMode.IDLE
+      }));
+      return;
+    }
+
     // Check if cursor is on first line
     const cursorLine = inputText.substring(0, cursorPosition).split('\n').length - 1;
     if (cursorLine !== 0) {
@@ -203,20 +216,36 @@ export function useSlashCompletion({
       const results = fzfRef.current!.find(query);
       
       // Convert to suggestions
-      const suggestions: Suggestion[] = results.map(result => ({
-        label: result.item.name,
-        value: result.item.name,
-        description: result.item.description,
-        type: 'command' as const,
-        icon: '',
-        positions: Array.from(result.positions),
-        score: result.score,
-        commandKind: result.item.kind,
-      }));
+      const queryLower = query.toLowerCase();
+      const suggestions: Suggestion[] = results
+        .map(result => ({
+          label: result.item.name,
+          value: result.item.name,
+          description: result.item.description,
+          type: 'command' as const,
+          icon: '',
+          positions: Array.from(result.positions),
+          score: result.score,
+          commandKind: result.item.kind,
+        }))
+        .sort((a, b) => {
+          // Exact match always comes first.
+          const aExact = a.label.toLowerCase() === queryLower;
+          const bExact = b.label.toLowerCase() === queryLower;
+          if (aExact && !bExact) return -1;
+          if (bExact && !aExact) return 1;
+          // Prefix match beats suffix / partial match.
+          const aPrefix = a.label.toLowerCase().startsWith(queryLower);
+          const bPrefix = b.label.toLowerCase().startsWith(queryLower);
+          if (aPrefix && !bPrefix) return -1;
+          if (bPrefix && !aPrefix) return 1;
+          // Fall back to fzf score (higher is better).
+          return b.score - a.score;
+        });
 
       // Check for perfect match
-      const perfectMatch = suggestions.some(s => 
-        s.label.toLowerCase() === query.toLowerCase()
+      const perfectMatch = suggestions.some(s =>
+        s.label.toLowerCase() === queryLower
       );
 
       logger.debug('[SlashCompletion] Search completed', {
@@ -301,24 +330,104 @@ export function useSlashCompletion({
 
   // Accept suggestion
   const acceptSuggestion = useCallback(() => {
-    if (state.activeIndex < 0 || state.activeIndex >= state.suggestions.length) {
-      return null;
-    }
-
-    const suggestion = state.suggestions[state.activeIndex];
-    
-    // Get first line
+    // The suggestion list currently in `state` was computed (debounced) from
+    // whatever `inputText` looked like at that time. If the user kept typing
+    // after that and hasn't waited out the debounce window yet, `state` is
+    // stale relative to the *current* `inputText`/`cursorPosition` - e.g. the
+    // list still shows results for "/b" (with "/btw" ranked first) even
+    // though the user has already typed "/c". Accepting blindly in that case
+    // would complete to the wrong command. Recompute synchronously against
+    // the live input before trusting `state`.
     const firstLineEnd = inputText.indexOf('\n');
     const firstLine = firstLineEnd === -1 ? inputText : inputText.substring(0, firstLineEnd);
     const restOfText = firstLineEnd === -1 ? '' : inputText.substring(firstLineEnd);
-    
+    const livePattern = firstLine.substring(0, Math.min(cursorPosition, firstLine.length));
+
+    let activeState = state;
+    if (livePattern !== state.pattern && fzfRef.current) {
+      // Stale suggestions - recompute right now (bypassing the debounce)
+      // using the same logic as the debounced search, so we complete
+      // against what the user actually sees on screen.
+      const spaceIndex = livePattern.indexOf(' ');
+      if (spaceIndex > 0) {
+        const commandName = livePattern.substring(1, spaceIndex);
+        const checkpointCommands = ['compare', 'undo', 'restore'];
+        if (checkpointCommands.includes(commandName)) {
+          const argQuery = livePattern.substring(spaceIndex + 1);
+          const checkpoints = checkpointService.searchCheckpoints(argQuery);
+          const suggestions: Suggestion[] = checkpoints.map(cp => ({
+            label: cp.file_name,
+            value: cp.file_name,
+            description: `${cp.tool} - ${cp.timestamp}`,
+            type: 'file' as const,
+            icon: '📦',
+            positions: [],
+            score: 0,
+          }));
+          activeState = {
+            ...state,
+            suggestions,
+            activeIndex: suggestions.length > 0 ? 0 : -1,
+            pattern: livePattern,
+          };
+        }
+      } else {
+        const query = livePattern.substring(1);
+        const results = fzfRef.current.find(query);
+        const queryLower = query.toLowerCase();
+        const suggestions: Suggestion[] = results
+          .map(result => ({
+            label: result.item.name,
+            value: result.item.name,
+            description: result.item.description,
+            type: 'command' as const,
+            icon: '',
+            positions: Array.from(result.positions),
+            score: result.score,
+            commandKind: result.item.kind,
+          }))
+          .sort((a, b) => {
+            const aExact = a.label.toLowerCase() === queryLower;
+            const bExact = b.label.toLowerCase() === queryLower;
+            if (aExact && !bExact) return -1;
+            if (bExact && !aExact) return 1;
+            const aPrefix = a.label.toLowerCase().startsWith(queryLower);
+            const bPrefix = b.label.toLowerCase().startsWith(queryLower);
+            if (aPrefix && !bPrefix) return -1;
+            if (bPrefix && !aPrefix) return 1;
+            return b.score - a.score;
+          });
+        activeState = {
+          ...state,
+          suggestions,
+          activeIndex: suggestions.length > 0 ? 0 : -1,
+          pattern: livePattern,
+        };
+      }
+
+      logger.debug('[SlashCompletion] Stale suggestions detected on accept, recomputed', {
+        stalePattern: state.pattern,
+        livePattern,
+        recomputedCount: activeState.suggestions.length
+      });
+    }
+
+    if (activeState.activeIndex < 0 || activeState.activeIndex >= activeState.suggestions.length) {
+      // Nothing to complete against (e.g. no matches for the live input) -
+      // don't fall back to a stale/unrelated suggestion.
+      setState(prev => ({ ...prev, showSuggestions: false, activeIndex: -1 }));
+      return null;
+    }
+
+    const suggestion = activeState.suggestions[activeState.activeIndex];
+
     // Check if we're completing a checkpoint argument
-    const spaceIndex = state.pattern.indexOf(' ');
+    const spaceIndex = activeState.pattern.indexOf(' ');
     let completed: string;
     
     if (spaceIndex > 0 && suggestion.type === 'file') {
       // Completing checkpoint argument - replace the argument part
-      const commandPart = state.pattern.substring(0, spaceIndex + 1); // e.g., "/compare "
+      const commandPart = activeState.pattern.substring(0, spaceIndex + 1); // e.g., "/compare "
       completed = `${commandPart}${suggestion.value}${restOfText}`;
     } else {
       // Completing command name - add space after command
@@ -339,7 +448,7 @@ export function useSlashCompletion({
     });
     
     return completed;
-  }, [state.activeIndex, state.suggestions, state.pattern, inputText]);
+  }, [state, inputText, cursorPosition]);
 
   // Reset autocomplete state
   const reset = useCallback(() => {
@@ -373,16 +482,29 @@ export function useSlashCompletion({
       const query = pattern.substring(1);
       
       const results = fzfRef.current.find(query);
-      const suggestions: Suggestion[] = results.map(result => ({
-        label: result.item.name,
-        value: result.item.name,
-        description: result.item.description,
-        type: 'command' as const,
-        icon: '/',
-        positions: Array.from(result.positions),
-        score: result.score,
-        commandKind: result.item.kind,
-      }));
+      const triggerQueryLower = query.toLowerCase();
+      const suggestions: Suggestion[] = results
+        .map(result => ({
+          label: result.item.name,
+          value: result.item.name,
+          description: result.item.description,
+          type: 'command' as const,
+          icon: '/',
+          positions: Array.from(result.positions),
+          score: result.score,
+          commandKind: result.item.kind,
+        }))
+        .sort((a, b) => {
+          const aExact = a.label.toLowerCase() === triggerQueryLower;
+          const bExact = b.label.toLowerCase() === triggerQueryLower;
+          if (aExact && !bExact) return -1;
+          if (bExact && !aExact) return 1;
+          const aPrefix = a.label.toLowerCase().startsWith(triggerQueryLower);
+          const bPrefix = b.label.toLowerCase().startsWith(triggerQueryLower);
+          if (aPrefix && !bPrefix) return -1;
+          if (bPrefix && !aPrefix) return 1;
+          return b.score - a.score;
+        });
 
       setState(prev => ({
         ...prev,

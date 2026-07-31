@@ -5,45 +5,67 @@ Provides search and retrieval tools for accessing historical conversation memory
 Compatible with OpenClaw's memory search approach.
 """
 
+import asyncio
 import logging
+import time
+import warnings
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from agents import function_tool, RunContextWrapper
 from siada.foundation.code_agent_context import CodeAgentContext
+from siada.foundation.global_cache import get_global_cache, LAST_MEMORY_NAME
 from siada.services.memory import MemorySearch, SearchResult, DEFAULT_CHUNK_SIZE
+
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
+    warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
+    import jieba
 
 
 logger = logging.getLogger(__name__)
 
 
+# ---- System Prompt Guidance ----------------------------
+#
+# Inserted into the agent's system prompt by
+# ``siada.services.memory.combined_memory.build_combined_memory`` whenever
+# inline memory is configured. Mirrors hermes' SESSION_SEARCH_GUIDANCE:
+# a single nudge so the agent recalls past sessions instead of asking the
+# user to repeat themselves. Kept passive — does not push the agent to
+# call ``search_memory`` on every turn.
+
+SESSION_SEARCH_GUIDANCE = (
+    "====\n"
+    "Session Search\n"
+    "\n"
+    "When the user references something from a past conversation or you\n"
+    "suspect relevant cross-session context exists, use `search_memory`\n"
+    "to recall it before asking them to repeat themselves.\n"
+    "===="
+)
+
+
 # ---- Tool Documentation --------------------------------
 
-SEARCH_MEMORY_DOCS = """Search through memory files for relevant information.
+SEARCH_MEMORY_DOCS = """Search through past session history for relevant information.
 
-Mandatory recall step: semantically search memory files (conversation history
-and saved sessions) before answering questions about prior work, decisions,
-dates, people, preferences, or todos.
-
-Use this tool when the user asks about:
-- Previous conversations or tasks
-- Past decisions or preferences  
-- Historical context or project history
-- Anything that might have been discussed before
+Mandatory recall step: search memory before answering questions about prior work,
+decisions, dates, preferences, bugs, or anything that might have been discussed before.
 
 Args:
-    query (str): Search query string (supports both English and Chinese)
-    max_results (int, optional): Maximum number of results to return. Defaults to 5.
-    min_score (float, optional): Minimum relevance score threshold. Defaults to 0.0.
+    query (str): Search query (English or Chinese). Leave empty to list recent sessions.
+    detail_level (str, optional): Summary detail level. One of "brief", "medium", "detailed".
+                                  Defaults to "medium".
 
 Returns:
-    str: Formatted search results with file paths, line numbers, relevance scores,
-         and text snippets. Returns empty results if search fails or finds nothing.
+    str: LLM-summarized session history focused on the query topic.
 
 Examples:
     search_memory("API design decisions")
     search_memory("上次讨论的数据库方案")
-    search_memory("bug fixes from last week", max_results=10)
+    search_memory("")  # list recent sessions
+    search_memory("docker issue", detail_level="detailed")
 """
 
 
@@ -277,19 +299,6 @@ def get_memory_impl(
 # ---- Public Tool Functions --------------------------------
 
 @function_tool(
-    name_override="search_memory", description_override=SEARCH_MEMORY_DOCS
-)
-def search_memory(
-    context: RunContextWrapper[CodeAgentContext],
-    query: str,
-    max_results: int = 5,
-    min_score: float = 0.0
-) -> str:
-
-    return search_memory_impl(query=query, max_results=max_results, min_score=min_score)
-
-
-@function_tool(
     name_override="get_memory", description_override=GET_MEMORY_DOCS
 )
 def get_memory(
@@ -300,3 +309,239 @@ def get_memory(
 ) -> str:
 
     return get_memory_impl(path=path, start_line=start_line, line_count=line_count)
+
+
+# ---- Session Search: private helpers --------------------------------
+
+SUMMARIZE_SYSTEM_PROMPT = """You are reviewing a past conversation transcript to help recall what happened.
+Summarize the conversation with a focus on the search topic. Include:
+1. What the user asked about or wanted to accomplish
+2. What actions were taken and what the outcomes were
+3. Key decisions, solutions found, or conclusions reached
+4. Any specific commands, files, URLs, or technical details that were important
+5. Anything left unresolved or notable
+Be thorough but concise. Preserve specific details. Write in past tense."""
+
+
+def _extract_date_from_path(path: str) -> str:
+    """'session/2025-03-15-14-30-foo.md' → '2025-03-15'"""
+    parts = Path(path).stem.split("-")
+    if len(parts) >= 3:
+        return f"{parts[0]}-{parts[1]}-{parts[2]}"
+    return Path(path).stem
+
+
+def _group_session_hits(hits, current_session_path=None):
+    """去重并保留 FTS ORDER BY rank 的原始顺序，排除当前 session，最多 5 个。"""
+    seen = set()
+    ordered = []
+    for hit in hits:
+        if hit.path == current_session_path:
+            continue
+        if hit.path not in seen:
+            seen.add(hit.path)
+            ordered.append(hit.path)
+    return ordered[:5]
+
+
+def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) -> str:
+    """截断到 max_chars，优先保留 query 关键词命中密集区域。用 jieba 分词支持中文。"""
+    if len(content) <= max_chars:
+        return content
+
+    tokens = [t.strip() for t in jieba.cut_for_search(query) if len(t.strip()) >= 2]
+
+    if not tokens:
+        return content[:max_chars]
+
+    # 收集所有命中位置
+    positions = []
+    for token in tokens:
+        start = 0
+        while True:
+            idx = content.find(token, start)
+            if idx == -1:
+                break
+            positions.append(idx)
+            start = idx + 1
+
+    if not positions:
+        return content[:max_chars]
+
+    positions.sort()
+
+    # 滑动窗口找命中最密集的区域
+    best_start = 0
+    best_count = 0
+    left = 0
+    for right in range(len(positions)):
+        while positions[right] - positions[left] >= max_chars:
+            left += 1
+        count = right - left + 1
+        if count > best_count:
+            best_count = count
+            # bias 前 25%：让窗口稍早开始，保留更多后续上下文
+            bias = max_chars // 4
+            best_start = max(0, positions[left] - bias)
+
+    truncated = content[best_start: best_start + max_chars]
+    if best_start > 0:
+        truncated = "...[earlier content truncated]...\n" + truncated
+    return truncated
+
+
+async def _summarize_session(content: str, query: str, path: str, detail_level: str) -> str:
+    """调用 fast_completion 对单个 session 生成摘要，失败时降级为原文前 500 字。"""
+    from siada.provider.fast_llm import fast_completion
+
+    date_str = _extract_date_from_path(path)
+    user_prompt = (
+        f"Search topic: {query}\n"
+        f"Session date: {date_str}\n\n"
+        f"CONVERSATION TRANSCRIPT:\n{content}\n\n"
+        f"Summarize this conversation with focus on: {query}"
+    )
+    max_tokens = 800 if detail_level == "brief" else 2000
+    try:
+        response = await fast_completion(
+            "",
+            agent_name="search_memory",
+            messages=[
+                {"role": "system", "content": SUMMARIZE_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,
+            max_tokens=max_tokens,
+        )
+        if response and hasattr(response, "choices") and response.choices:
+            return response.choices[0].message.content.strip()
+        raise ValueError("Empty response from LLM")
+    except Exception as e:
+        logger.warning(f"[search_memory] LLM summary failed for {path}: {e}")
+        return content[:500] + "\n\n[LLM summary unavailable]"
+
+
+async def _summarize_sessions_parallel(
+    tasks: list,
+    query: str,
+    detail_level: str,
+    max_concurrency: int = 3,
+) -> list:
+    """并行摘要多个 session，返回 List[(path, summary_text)]"""
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def _bounded(path: str, content: str):
+        async with semaphore:
+            summary = await _summarize_session(content, query, path, detail_level)
+            return path, summary
+
+    results = await asyncio.gather(
+        *[_bounded(p, c) for p, c in tasks],
+        return_exceptions=True,
+    )
+    return [(p, s) for p, s in results if not isinstance(p, BaseException)]
+
+
+def _get_recent_sessions(limit: int = 10) -> str:
+    """列出 session/ 目录最近 N 个文件，返回格式化字符串（零 LLM 调用）。"""
+    session_dir = Path.home() / ".siada-cli" / "workspace" / "memory" / "session"
+    if not session_dir.exists():
+        return "No session history found."
+
+    files = sorted(session_dir.glob("*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if not files:
+        return "No session history found."
+
+    lines = ["# Recent Sessions\n"]
+    for i, f in enumerate(files[:limit], 1):
+        date_str = _extract_date_from_path(f"session/{f.name}")
+        try:
+            preview = f.read_text(encoding="utf-8")[:300].replace("\n", " ").strip()
+        except Exception:
+            preview = "(unreadable)"
+        lines.append(f"{i}. **{date_str}** session/{f.name}")
+        lines.append(f"   预览：{preview}\n")
+
+    return "\n".join(lines)
+
+
+async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
+    """新版 search_memory 主实现：FTS → session 分组 → 并行 LLM 摘要。"""
+    start = time.time()
+    logger.info(f"[SearchMemory] START query={query!r} detail_level={detail_level}")
+
+    # recent 模式：query 为空时列出最近 session
+    if not query or not query.strip():
+        result = _get_recent_sessions()
+        logger.debug(f"[SearchMemory] DONE (recent mode) elapsed={time.time()-start:.1f}s")
+        return result
+
+    # 获取当前 session 相对路径，用于排除自身
+    memory_dir = Path.home() / ".siada-cli" / "workspace" / "memory"
+    abs_path = get_global_cache(LAST_MEMORY_NAME)
+    current_session_rel = None
+    if abs_path:
+        try:
+            current_session_rel = str(Path(abs_path).relative_to(memory_dir))
+        except ValueError:
+            pass
+
+    # FTS 检索
+    memory_search = None
+    try:
+        memory_search = MemorySearch()
+        if not memory_search.fts_available:
+            return "Memory search is not available. The memory database may not be initialized yet."
+        results = memory_search.search(query=query.strip(), limit=20)
+    finally:
+        if memory_search is not None:
+            memory_search.close()
+
+    if not results:
+        return f"No results found for query: {query}"
+
+    # session 分组，保留 FTS 相关度顺序
+    session_paths = _group_session_hits(results, current_session_path=current_session_rel)
+    if not session_paths:
+        return f"No results found for query: {query}"
+
+    # 加载文件内容并截断
+    tasks = []
+    for rel_path in session_paths:
+        full_path = memory_dir / rel_path
+        try:
+            content = full_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"[search_memory] Failed to read {rel_path}: {e}")
+            continue
+        truncated = _truncate_around_matches(content, query)
+        tasks.append((rel_path, truncated))
+
+    if not tasks:
+        return f"No results found for query: {query}"
+
+    # 并行 LLM 摘要
+    summaries = await _summarize_sessions_parallel(tasks, query, detail_level)
+
+    # 格式化输出
+    lines = [f"# Memory Search Results\n", f"**Query:** {query}\n", "## Session History\n"]
+    for path, summary in summaries:
+        date_str = _extract_date_from_path(path)
+        lines.append(f"### Session: {date_str} ({path})")
+        lines.append(summary)
+        lines.append("")
+
+    elapsed = time.time() - start
+    logger.debug(f"[SearchMemory] DONE elapsed={elapsed:.1f}s sessions={len(summaries)}")
+    return "\n".join(lines)
+
+
+@function_tool(
+    name_override="search_memory", description_override=SEARCH_MEMORY_DOCS
+)
+async def search_memory(
+    context: RunContextWrapper[CodeAgentContext],
+    query: str,
+    detail_level: Literal["brief", "medium", "detailed"] = "medium",
+) -> str:
+    return await _search_memory_impl_v2(context, query, detail_level)

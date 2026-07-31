@@ -24,7 +24,15 @@ from siada.support.usage_utils import deserialize_usage
 from siada.support.message_classifier import get_role_and_type_from_item
 from siada.utils import DirectoryUtils
 from siada.config.language_config import normalize_language, get_language_display_name, SUPPORTED_LANGUAGES
-from siada.services.mcp.manager_service import _mcp_manager_service as mcp_service
+# mcp.manager_service is lazy-loaded on first access to avoid pulling in
+# agents.mcp (part of agents SDK, ~500ms) at startup.
+class _LazyMCPService:
+    """Transparent proxy that imports _mcp_manager_service on first attribute access."""
+    def __getattr__(self, name):
+        from siada.services.mcp.manager_service import _mcp_manager_service
+        return getattr(_mcp_manager_service, name)
+
+mcp_service = _LazyMCPService()
 from siada.foundation.logging import logger
 
 # Import custom commands modules directly to avoid circular dependencies
@@ -38,7 +46,30 @@ class SwitchEvent:
         self.kwargs = kwargs
 
 
-_marketplace_update_lock = threading.Lock()
+# Common path prefixes on macOS/Linux that users frequently paste.
+# When a slash input starts with one of these, we suppress "invalid command"
+# telemetry to avoid polluting metrics with false positives.
+_PATH_PREFIX_WHITELIST = ("/var", "/tmp", "/private")
+
+
+def _looks_like_command(command_name: str) -> bool:
+    """Check if a command name contains only valid characters: [a-zA-Z0-9:_-]."""
+    return bool(re.fullmatch(r"[a-zA-Z0-9:_\-]+", command_name))
+
+
+def _looks_like_filepath(slash_input: str) -> bool:
+    """Check if a slash-prefixed input is likely a file path (not a command)."""
+    parts = slash_input.lstrip("/").split()
+    if not parts:
+        return False
+    command_name = parts[0]
+    if not _looks_like_command(command_name):
+        return True
+    # Even if chars are valid, check if the path exists on disk
+    try:
+        return os.path.exists("/" + command_name)
+    except (ValueError, OSError):
+        return False
 
 
 class SlashCommands:
@@ -61,6 +92,16 @@ class SlashCommands:
         self.help = None
         self.editor = editor
         self.custom_command_service = None  # Initialized on first use
+        # Initialize plugin hook runner
+        try:
+            from siada.services.plugins.hook_runner import HookRunner
+            from siada.services.plugins.plugin_loader import PluginLoader
+            self.hook_runner = HookRunner()
+            for _plugin in PluginLoader().load_all():
+                self.hook_runner.register_plugin_hooks(_plugin)
+        except Exception:
+            from siada.services.plugins.hook_runner import HookRunner
+            self.hook_runner = HookRunner()
 
     # ============================================================================
     # Lifecycle Event Methods (Agent Lifecycle Integration)
@@ -208,6 +249,208 @@ class SlashCommands:
     #             import traceback
     #             self.io.print_error(traceback.format_exc())
 
+    def cmd_compact(self, session, args):
+        """Manually compact conversation history to reduce context window usage"""
+        import threading
+
+        # 1. Look up the cached CodeAgentContext for the current workspace
+        from siada.services.siada_runner import SiadaRunner
+        workspace = session.siada_config.workspace
+        context = None
+        for (_, ws), ctx in SiadaRunner._context_cache.items():
+            if ws == workspace:
+                context = ctx
+                break
+
+        if context is None:
+            self.io.print_error(
+                "No agent context found. Please send a message first to initialize the agent."
+            )
+            return
+
+        # 2. Bind the current session so strategy helpers read the right config
+        context.session = session
+
+        # 3. Gather current real API messages
+        real_api_messages = session.task_message_state.get_real_messages()
+        if not real_api_messages:
+            self.io.print_info("No conversation history to compact.")
+            return
+
+        before_count = len(real_api_messages)
+
+        # 4. Run async compaction in a dedicated thread (safe regardless of event-loop state)
+        compacted: list = [None]
+        error: list = [None]
+
+        def _run_compact():
+            import asyncio
+
+            async def _do_compact():
+                from siada.agent_hub.context_filter.compaction_strategy import (
+                    CompactionStrategy,
+                    get_compaction_strategy,
+                )
+                strategy = get_compaction_strategy(context)
+                fixed_overhead = CompactionStrategy.calculate_fixed_overhead(context)
+                return await strategy.compact(
+                    model_run_config=context.model_run_config,
+                    real_api_messages=real_api_messages,
+                    fixed_overhead_tokens=fixed_overhead,
+                )
+
+            loop = asyncio.new_event_loop()
+            try:
+                compacted[0] = loop.run_until_complete(_do_compact())
+            except Exception as exc:
+                error[0] = exc
+            finally:
+                loop.close()
+
+        self.io.print_info("Compacting context...")
+        t = threading.Thread(target=_run_compact, daemon=True)
+        t.start()
+        t.join()
+
+        if error[0]:
+            self.io.print_error(f"Compaction failed: {error[0]}")
+            return
+
+        result = compacted[0]
+
+        # `result.compacted` is an explicit flag set by the strategy itself
+        # (CompactionStrategy.compact(), see compaction_strategy.py) rather
+        # than a list-identity guess.
+        if not result.compacted:
+            self.io.print_info(
+                "Nothing to compact (conversation too short or already compact)."
+            )
+            return
+
+        new_messages = result.messages
+        after_count = len(new_messages)
+
+        # 4.5 Manual /compact just ran (the "active" trigger, as opposed to
+        # the per-LLM-call threshold check in ApiMessageTransferFilter) —
+        # re-inject the goal reminder in case the turn that originally
+        # carried it was just summarized or pruned away by either
+        # compaction strategy. Mirrors
+        # ApiMessageTransferFilter._maybe_reinject_goal_reminder so both the
+        # active and passive compaction triggers behave the same way.
+        from siada.agent_hub.context_filter.api_message_transfer_filter import (
+            ApiMessageTransferFilter,
+        )
+        new_messages = ApiMessageTransferFilter._maybe_reinject_goal_reminder(
+            context, new_messages,
+        )
+        after_count = len(new_messages)
+
+        # 5. Compute tracking info anchored to the current end of the original
+        # message history so the next LLM call uses an incremental update
+        # (compacted + delta) rather than a full refresh that would undo compaction.
+        from siada.agent_hub.context_filter.utils import compute_message_signature
+        from siada.session.task_message_state import RealApiMessage
+        api_messages = session.task_message_state.get_messages()
+        if api_messages:
+            new_last_index = len(api_messages) - 1
+            new_last_signature = compute_message_signature(api_messages[-1])
+        else:
+            new_last_index = -1
+            new_last_signature = ""
+
+        session.task_message_state.set_real_messages(
+            RealApiMessage(
+                real_api_history=new_messages,
+                last_index=new_last_index,
+                last_signature=new_last_signature,
+            )
+        )
+
+        # 6. Persist compacted messages with correct tracking to api_messages.json
+        from siada.agent_hub.context_filter.api_message_transfer_filter import (
+            ApiMessageTransferFilter,
+        )
+        ApiMessageTransferFilter()._sync_api_message_to_file(
+            context, new_messages, tokens_count=0,
+            last_index=new_last_index, last_signature=new_last_signature,
+        )
+
+        self.io.print_info(
+            f"Compacted: {before_count} → {after_count} messages "
+            f"({before_count - after_count} removed)"
+        )
+
+    def cmd_btw(self, session, args):
+        """Ask a quick side question without polluting main conversation"""
+        question = args.strip()
+        if not question:
+            # In ACP/UI mode the frontend intercepts blank /btw and renders the
+            # usage hint in the side panel itself, so this path is only reached
+            # in plain terminal mode where a simple info line is appropriate.
+            self.io.print_info("Usage: /btw <your question>")
+            return
+
+        from siada.services.side_question import run_side_question
+
+        spinner = WaitingSpinner(
+            "Answering...", text_color="#79B8FF", io_instance=self.io
+        )
+
+        spinner.start()
+        try:
+            answer = run_side_question(session, question)
+        except Exception as e:
+            self.io.print_error(f"/btw failed: {e}")
+            if self.verbose:
+                import traceback
+                self.io.print_error(traceback.format_exc())
+            return
+        finally:
+            try:
+                spinner.stop()
+            except Exception:
+                pass
+
+        self._render_btw_answer(question, answer)
+        # 不返回任何 SwitchEvent —— controller 不进入下一轮，主对话状态零变更
+
+    def _render_btw_answer(self, question: str, answer: str):
+        """渲染 /btw 答案：ACP 模式发通知，终端模式用 rich Panel。"""
+        if hasattr(self.io, "acp_adapter") and self.io.acp_adapter is not None:
+            try:
+                from siada.io.acp.message_builder import ACPMessageBuilder
+                msg = ACPMessageBuilder().build_custom_notification(
+                    method="ui/showSideQuestion",
+                    params={"question": question, "answer": answer},
+                )
+                if (
+                    self.io.acp_adapter.transport
+                    and self.io.acp_adapter.transport.is_connected
+                ):
+                    self.io.acp_adapter.transport.send_sync(msg)
+                    logger.info("[btw] ui/showSideQuestion sent via ACP")
+                    return
+                else:
+                    logger.warning("[btw] ACP transport not connected, fallback to terminal")
+            except Exception as e:
+                logger.warning(f"[btw] ACP notification failed, fallback to terminal: {e}")
+
+        # 终端渲染：黄色 Panel + Markdown
+        try:
+            from rich.panel import Panel
+            from rich.markdown import Markdown
+            self.io.console.print(
+                Panel(
+                    Markdown(answer),
+                    title=f"[bold yellow]/btw[/bold yellow]  {question}",
+                    border_style="yellow",
+                    padding=(1, 2),
+                )
+            )
+        except Exception:
+            # 最后兜底：纯文本
+            self.io.print_info(f"[/btw] {question}\n\n{answer}")
+
     def cmd_status(self, session, args):
         "Show the current status"
         # Collect all status information into a single string
@@ -219,6 +462,387 @@ class SlashCommands:
             f"Project Hash: {DirectoryUtils.get_file_path_hash(session.siada_config.workspace)}"
         ]
         self.io.print_info("\n".join(status_lines))
+
+    def cmd_memory(self, session, args: str):
+        """Enable or disable the memory subsystem
+
+        Usage:
+            /memory          - Show current memory status
+            /memory enable   - Enable all memory features
+            /memory disable  - Disable all memory features
+        """
+        sub = args.strip().lower()
+
+        if sub not in ('', 'enable', 'disable'):
+            self.io.print_error(
+                f"Unknown subcommand: '{sub}'. Usage: /memory [enable|disable]"
+            )
+            return
+
+        # Locate the cached CodeAgentContext for this workspace
+        from siada.services.siada_runner import SiadaRunner
+        workspace = session.siada_config.workspace
+        context = None
+        for (_, ws), ctx in SiadaRunner._context_cache.items():
+            if ws == workspace:
+                context = ctx
+                break
+
+        if not sub:
+            # Show current status
+            if context is not None:
+                enabled = getattr(context, 'memory_tools_enabled', True)
+            else:
+                try:
+                    from siada.config.config_loader import load_conf
+                    enabled = load_conf().memory_config.enabled
+                except Exception:
+                    enabled = True
+            status = "enabled" if enabled else "disabled"
+            self.io.print_info(f"Memory: {status}")
+            return
+
+        # Toggle
+        enabled = (sub == 'enable')
+
+        # Update live context immediately — next turn picks it up automatically
+        # because configure_tools_for_context() is called at the start of every run().
+        if context is not None:
+            context.memory_tools_enabled = enabled
+
+            # Also rebuild combined_memory so the system prompt reflects the
+            # new state.  On disable we pass both stores as None so all
+            # memory-layer guidance sections (Common Rules, Inline Memory,
+            # Session Search, Holographic) are stripped.  On enable we reuse
+            # whatever stores were initialised at session start; if the session
+            # started with memory disabled those stores are None — guidance
+            # won't appear until the next session, which is the expected
+            # degraded-but-safe behaviour.
+            try:
+                from siada.services.memory.combined_memory import build_combined_memory
+                _ws = workspace
+                if not enabled:
+                    context.combined_memory = build_combined_memory(_ws, None, None)
+                else:
+                    context.combined_memory = build_combined_memory(
+                        _ws,
+                        getattr(context, 'memory_store', None),
+                        getattr(context, 'holographic_provider', None),
+                    )
+                logger.info(
+                    "[memory] combined_memory rebuilt after toggle (enabled=%s)", enabled
+                )
+            except Exception as _e:
+                logger.warning("[memory] Failed to rebuild combined_memory: %s", _e)
+
+        # Persist to conf.yaml so restarts also pick it up
+        from siada.config.config_loader import save_conf_field
+        if not save_conf_field('memory.enabled', enabled):
+            if self.verbose:
+                logger.error("[memory] Failed to persist memory.enabled to conf.yaml")
+
+        status_str = "enabled" if enabled else "disabled"
+        self.io.print_info(f"Memory {status_str}.")
+        logger.info(f"[memory] {status_str} (persisted to conf.yaml)")
+
+        # Notify frontend in ACP mode
+        self._notify_memory_status(enabled)
+
+    def _notify_memory_status(self, enabled: bool) -> None:
+        """Send ui/memoryStatusChanged ACP notification to update frontend state."""
+        if not (hasattr(self.io, 'acp_adapter') and self.io.acp_adapter is not None):
+            return
+        try:
+            from siada.io.acp.message_builder import ACPMessageBuilder
+            msg = ACPMessageBuilder().build_custom_notification(
+                method="ui/memoryStatusChanged",
+                params={"enabled": enabled},
+            )
+            adapter = self.io.acp_adapter
+            if adapter.transport and adapter.transport.is_connected:
+                adapter.transport.send_sync(msg)
+                logger.info(f"[memory] ui/memoryStatusChanged sent: enabled={enabled}")
+            else:
+                logger.warning("[memory] ACP transport not connected, skip ui/memoryStatusChanged")
+        except Exception as e:
+            logger.warning(f"[memory] Failed to send ACP notification: {e}")
+
+    def cmd_web(self, session, args: str):
+        """Toggle the web search tools (web_search / web_fetch)
+
+        Usage:
+            /web          - Show current web tools status
+            /web enable   - Enable web tools (overrides provider default)
+            /web disable  - Disable web tools (overrides provider default)
+
+        When neither is set, web tools follow the provider default:
+        ON for "li", OFF for every other provider.
+        """
+        sub = args.strip().lower()
+
+        if sub not in ('', 'enable', 'disable'):
+            self.io.print_error(
+                f"Unknown subcommand: '{sub}'. Usage: /web [enable|disable]"
+            )
+            return
+
+        # Locate the cached CodeAgentContext for this workspace
+        from siada.services.siada_runner import SiadaRunner
+        workspace = session.siada_config.workspace
+        context = None
+        for (_, ws), ctx in SiadaRunner._context_cache.items():
+            if ws == workspace:
+                context = ctx
+                break
+
+        # Current configured mode (None=auto/follow-provider-default, True=on, False=off)
+        if context is not None:
+            mode_val = getattr(context, 'web_tools_enabled', None)
+        else:
+            try:
+                from siada.config.config_loader import load_conf
+                mode_val = load_conf().web_config.enabled
+            except Exception:
+                mode_val = None
+
+        def _mode_label(v):
+            if v is True:
+                return "enable"
+            if v is False:
+                return "disable"
+            return "auto"
+
+        def _effective(v, provider):
+            from siada.tools.web import resolve_web_tools_enabled
+            return resolve_web_tools_enabled(provider, v)
+
+        # Resolve current provider for the effective-state display. Prefer the
+        # resolved provider name written by _build_run_config (context.provider),
+        # which is the actual provider used for model calls. Fall back to the raw
+        # llm_config value with model-based routing applied when the context has
+        # not been through a run yet, and finally to the current session's
+        # llm_config (e.g. when no run has populated the context cache).
+        from siada.tools.web import resolve_provider_from_context
+        provider = resolve_provider_from_context(context)
+        if not provider:
+            try:
+                from siada.provider.provider_factory import resolve_provider_by_model
+                llm_cfg = session.siada_config.llm_config
+                provider = resolve_provider_by_model(
+                    getattr(llm_cfg, "model_name", None),
+                    getattr(llm_cfg, "provider", None),
+                )
+            except Exception:
+                provider = None
+
+
+
+        if not sub:
+            mode = _mode_label(mode_val)
+            eff = _effective(mode_val, provider)
+            provider_str = provider or "(unknown)"
+            self.io.print_info(
+                f"Web tools: mode={mode}, effective={'on' if eff else 'off'} "
+                f"(provider={provider_str})"
+            )
+            return
+
+        # enable / disable
+        new_val = (sub == 'enable')
+
+        # Update live context immediately — configure_tools_for_context() runs
+        # at the start of every run() and picks up the new value automatically.
+        if context is not None:
+            context.web_tools_enabled = new_val
+
+        # Persist to conf.yaml so restarts also pick it up
+        from siada.config.config_loader import save_conf_field
+        if not save_conf_field('web.enabled', new_val):
+            if self.verbose:
+                logger.error("[web] Failed to persist web.enabled to conf.yaml")
+
+        eff = _effective(new_val, provider)
+        self.io.print_info(
+            f"Web tools {'enabled' if new_val else 'disabled'} (effective: {'on' if eff else 'off'})."
+        )
+        logger.info(f"[web] set to {_mode_label(new_val)} (persisted to conf.yaml)")
+
+    def cmd_goal(self, session, args: str):
+        """Set or clear a standing goal for this session, then kick off work.
+
+        Usage:
+            /goal <objective>   - Set a new goal, overwriting the current one
+                                   (any status) — no /goal clear needed first.
+                                   Immediately hands the objective to the agent
+                                   as the first real turn (same "SwitchEvent"
+                                   channel as /init and /issue_fix) — /goal
+                                   is not a silent no-op background flag flip,
+                                   it actually starts work on the objective.
+            /goal clear         - Remove the current goal entirely
+
+        Once set, an independent verifier checks after every turn whether the
+        goal has been met. On failure it automatically forces another turn
+        with feedback — no /goal complete command exists, because completion
+        is judged by the verifier, never self-declared. There is also no
+        pause/resume/status subcommand by design — a "complete" goal is
+        dropped automatically, and a "blocked" goal (auto-tripped after
+        repeated verifier failures) is automatically reactivated, as soon as
+        the user sends their next conversational message — see
+        Controller._maybe_reset_goal_on_new_turn.
+
+        Setting or clearing a goal always archives whatever goal it replaces
+        to <session_dir>/goal_history.jsonl first (see
+        goal_storage.append_goal_history) — goal.json itself only ever holds
+        the current goal, so nothing is silently lost.
+        """
+        from siada.services.goal.models import Goal
+        from siada.services.goal import goal_storage
+
+        sub = args.strip()
+        sub_lower = sub.lower()
+
+        session_dir = None
+        if session.state.openai_session and session.state.openai_session.session_folder:
+            session_dir = session.state.openai_session.session_folder
+
+        from siada.services.siada_runner import SiadaRunner
+        workspace = session.siada_config.workspace
+        context = None
+        for (_, ws), ctx in SiadaRunner._context_cache.items():
+            if ws == workspace:
+                context = ctx
+                break
+
+        current_goal = getattr(context, 'goal', None) if context is not None else None
+        if current_goal is None and session_dir is not None:
+            current_goal = goal_storage.load_goal(session_dir)
+
+        if sub_lower == 'clear':
+            if current_goal is not None and session_dir is not None:
+                goal_storage.append_goal_history(session_dir, current_goal)
+            if context is not None:
+                context.goal = None
+            else:
+                # No agent context has been built yet for this workspace (e.g.
+                # /goal clear is the very first command in a fresh session) --
+                # there's nothing live to clear, but drop any not-yet-consumed
+                # staged goal too (see the "set a new goal" branch below for
+                # why pending_goal exists) so it can't resurrect itself into
+                # whatever context the next turn builds.
+                session.state.pending_goal = None
+            if session_dir is not None:
+                goal_storage.clear_goal(session_dir)
+
+            # In ACP mode the frontend already reflects this via the
+            # goalState push below (status bar disappears + transient
+            # notice) — printing a plain chat line here would just show up
+            # as a redundant boxed system message (ProcessBox groups any
+            # plain print_info line into a bordered box). Non-ACP/plain
+            # terminal mode has no such status bar, so it still needs this.
+            if not self._is_acp_mode():
+                self.io.print_info("Goal cleared.")
+            if hasattr(self.io, "acp_adapter") and self.io.acp_adapter is not None:
+                self.io.acp_adapter._send_if_acp(
+                    self.io.acp_adapter.builder.build_custom_notification,
+                    method="context/goalState",
+                    params={"goal": None, "verifying": False},
+                )
+            return
+
+        if not sub:
+            self.io.print_error("Usage: /goal <objective>  |  /goal clear")
+            return
+
+        # Anything else is the objective text for a new goal. Overwriting is
+        # always allowed regardless of the current goal's status (active,
+        # blocked, or complete) — the new goal starts a fresh "active" state
+        # (consecutive_failures reset via Goal.create), and the goal it
+        # replaces is archived to history first so it isn't lost.
+        if current_goal is not None and session_dir is not None:
+            goal_storage.append_goal_history(session_dir, current_goal)
+
+        new_goal = Goal.create(sub)
+        if context is not None:
+            context.goal = new_goal
+        else:
+            # BUGFIX: no agent context exists yet for this workspace -- this
+            # happens whenever /goal is the very first command sent in a
+            # fresh session, i.e. SiadaRunner._context_cache has no entry
+            # for this workspace yet because no conversation turn has run.
+            # Without this branch the goal was ONLY ever written to
+            # goal.json on disk (see goal_storage.save_goal below) and never
+            # attached to any context object -- the SwitchEvent-triggered
+            # conversation turn that immediately follows builds a brand new
+            # context with context.goal defaulting to None, so
+            # turn_hooks.maybe_run_goal_verifier's `if goal is None: return
+            # result` guard silently no-ops forever: the verifier never
+            # runs and the goal status bar never advances past "active",
+            # even though the agent is genuinely doing real work.
+            #
+            # Fix: stage it the same way ResumeService does for a goal
+            # recovered from disk on session resume (see
+            # resume_service.py's `pending_goal` comment) --
+            # SiadaRunner._prepare_context_for_run() unconditionally
+            # consumes session.state.pending_goal into context.goal as soon
+            # as the very next turn builds/prepares its context, which for
+            # /goal is exactly the SwitchEvent(ai_analysis_prompt=sub) turn
+            # returned below.
+            session.state.pending_goal = new_goal
+        if session_dir is not None:
+            goal_storage.save_goal(session_dir, new_goal)
+
+        # In ACP mode the frontend already reflects this via the goalState
+        # push below (persistent "Goal (active): ..." status bar + transient
+        # notice) — see the comment on the /goal clear branch above for why
+        # this print_info is skipped there.
+        if not self._is_acp_mode():
+            self.io.print_info(f"Goal set: {sub}")
+        if hasattr(self.io, "acp_adapter") and self.io.acp_adapter is not None:
+            self.io.acp_adapter._send_if_acp(
+                self.io.acp_adapter.builder.build_custom_notification,
+                method="context/goalState",
+                params={
+                    "goal": {
+                        "objective": new_goal.objective,
+                        "status": new_goal.status,
+                        # See turn_hooks.push_goal_state_via_acp for why this
+                        # is included: drives the frontend's live elapsed-
+                        # time counter next to the status label.
+                        "createdAt": new_goal.created_at,
+                    },
+                    "verifying": False,
+                    "notice": f"Goal set: {sub}",
+                },
+            )
+
+        # /goal must actually DO something, not just flip a background flag —
+        # hand the objective straight to the agent as the first real turn via
+        # the same SwitchEvent(ai_analysis_prompt=...) channel /init and
+        # /issue_fix use. Controller.run() picks this up as `pending_input`
+        # for the next loop iteration, which runs it as a normal CONVERSATION
+        # turn — so it also gets goal-verified afterward, same as any other
+        # turn taken while this goal is active.
+        #
+        # ai_analysis_prompt itself stays the bare objective string, exactly
+        # like /init and /issue_fix — other consumers of this generic
+        # SwitchEvent kwarg (e.g. the Feishu slash-command bridge's
+        # _handle_ai_analysis) only know how to deal with a plain string
+        # here and must keep working unchanged.
+        #
+        # goal_command=True is an extra marker read only by
+        # Controller.run(): it tells the CLI loop to persist this turn's
+        # *actual* user message as the full "/goal <objective>" text (not
+        # just the stripped objective), formatted as a Responses-API input
+        # list rather than a bare string. That list shape is also what
+        # keeps it safe from recursive re-parsing — TurnFactory routes list
+        # inputs straight to ConversationTurn (CommandTurn.can_handle() /
+        # SlashCommands.is_command() only ever inspect strings), so a
+        # literal "/goal " prefix embedded in the text can never be
+        # mistaken for a brand new slash command on the next loop
+        # iteration.
+        return SwitchEvent(ai_analysis_prompt=sub, goal_command=True)
+
+
 
     # def cmd_shell(self, args):
     #     "Open a shell"
@@ -287,9 +911,17 @@ class SlashCommands:
 
         try:
             from siada.models.model_run_config import ModelRunConfig
-            current_provider = session.siada_config.llm_config.provider
+            from siada.provider.provider_factory import resolve_provider_by_model
             new_llm_config = ModelRunConfig(model_name)
-            new_llm_config.provider = current_provider
+            # Use the config-file default provider as the fallback, NOT the current session's
+            # provider. This avoids inheriting a force-assigned provider (e.g. "openai_agents"
+            # was set because the session was running gpt-5.x) when switching to a model that
+            # belongs to a different provider family (e.g. claude-sonnet-4.6 -> "li").
+            default_provider = ModelRunConfig.get_default_config().provider
+            # Resolve the new model's provider (handles legacy keys like
+            # "openai_agents" -> "li"), so users don't need to juggle the
+            # provider concept when switching models.
+            new_llm_config.provider = resolve_provider_by_model(model_name, default_provider)
             session.siada_config.llm_config = new_llm_config
 
             # Reset real API messages to force fresh context with new model
@@ -318,6 +950,39 @@ class SlashCommands:
 
         except Exception as e:
             self.io.print_error(f"Failed to switch model: {e}")
+
+    def cmd_todo_task(self, session, args: str):
+        """Restore the last todo_write state to the frontend display.
+
+        Useful after the TodoDisplay has been closed — re-sends the most recent
+        todo list so you can select a task and press Enter to view its messages.
+        """
+        from siada.tools.todo.recovery import extract_todos_from_messages
+
+        messages = session.task_message_state.get_messages()
+        todos = extract_todos_from_messages(messages)
+
+        if not todos:
+            self.io.print_info("No todo_write call found in current session history.")
+            return
+
+        # Push to frontend via ACP (same path as todo_write_impl)
+        if hasattr(self.io, "acp_adapter") and self.io.acp_adapter is not None:
+            try:
+                todo_dicts = [{"content": t.content, "status": t.status} for t in todos]
+                self.io.acp_adapter._send_if_acp(
+                    self.io.acp_adapter.builder.build_custom_notification,
+                    method="context/todoState",
+                    params={"todos": todo_dicts},
+                )
+                self.io.print_info(f"Restored {len(todos)} todo items.")
+            except Exception as e:
+                self.io.print_error(f"Failed to push todo state: {e}")
+        else:
+            # Terminal fallback: print the list
+            from siada.tools.tool_call_format.formatters import _TODO_STATUS_ICONS  # type: ignore
+            lines = [f"{_TODO_STATUS_ICONS.get(t.status, '?')}  {t.content}" for t in todos]
+            self.io.print_info("\n".join(lines))
 
     def cmd_task_list(self, session, args: str):
         """Show discovered pending tasks and select one to execute
@@ -407,13 +1072,30 @@ class SlashCommands:
         models = ModelInfoService.get_model_names()
         lines = [f"Available models (current: {current_model}):"]
         for m in models:
-            prefix = "* " if m == current_model else "  "
-            lines.append(f"{prefix}{m}")
+            note = " (slowly)" if m == "lpai-glm-5.2" else ""
+            lines.append(f"  {m}{note}")
         lines.append("\nUsage: /model <model_name>")
         self.io.print_info("\n".join(lines))
 
     def is_command(self, inp):
-        return inp[0] in "/!"
+        """Check if input is a command (not a file path).
+        
+        Three-level filtering (ref: slash-command-vs-filepath.md):
+        1. Starts with / or !
+        2. Characters check: command name must match [a-zA-Z0-9:_-]
+        3. Filesystem check: if path exists on disk, treat as text
+        """
+        if not (inp.startswith("/") or inp.startswith("!")):
+            return False
+        if inp.startswith("!"):
+            return True
+        # Valid commands start with exactly one "/". Inputs starting with "//"
+        # (e.g. code comments like "// nihao", or plain "//") are not commands
+        # and should be treated as regular text sent to the model.
+        if inp.startswith("//"):
+            return False
+        # For "/" inputs, check if it's a file path, not a command
+        return not _looks_like_filepath(inp)
 
     def get_raw_completions(self, cmd):
         assert cmd.startswith("/")
@@ -472,6 +1154,22 @@ class SlashCommands:
             if self.custom_command_service:
                 for name in self.custom_command_service.get_command_names():
                     commands.append("/" + name)
+        
+        # Skill commands
+        if session:
+            try:
+                from siada.services.skills import SkillsManager
+                from pathlib import Path
+                workspace = Path(session.siada_config.workspace)
+                manager = SkillsManager.get_instance()
+                outcome = manager.get_skills(workspace)
+                existing = set(commands)
+                for skill in outcome.skills:
+                    skill_cmd = "/" + skill.name
+                    if skill_cmd not in existing:
+                        commands.append(skill_cmd)
+            except Exception:
+                pass
         
         return commands
 
@@ -584,6 +1282,24 @@ class SlashCommands:
                                 # Ignore spinner cleanup errors to avoid breaking command flow
                                 pass
             
+            # Try skill command
+            try:
+                from siada.services.skills import SkillsManager
+                from pathlib import Path
+                workspace = Path(session.siada_config.workspace) if session else Path(os.getcwd())
+                manager = SkillsManager.get_instance()
+                skill = manager.get_skill_by_name(workspace, cmd_name)
+                if skill:
+                    prompt = (
+                        f"Use the {skill.name} skill.\n\n{args}"
+                        if args.strip()
+                        else f"Use the {skill.name} skill."
+                    )
+                    self._emit_task_complete(cmd_name, None)
+                    return SwitchEvent(ai_analysis_prompt=prompt)
+            except Exception:
+                pass
+
             # Command not found
             error = ValueError(f"Command {cmd_name} not found")
             self._emit_task_error(cmd_name, error)
@@ -628,6 +1344,16 @@ class SlashCommands:
         elif len(matching_commands) > 1:
             self.io.print_error(f"Ambiguous command: {', '.join(matching_commands)}")
         else:
+            # Suppress telemetry for known file-path prefixes to avoid
+            # false-positive "invalid command" metrics.
+            is_filepath_like = any(
+                inp.startswith(prefix) for prefix in _PATH_PREFIX_WHITELIST
+            )
+            if not is_filepath_like:
+                logger.info(
+                    f"Unknown command: {first_word}",
+                    extra={"event": "slash_command_invalid", "input": first_word},
+                )
             self.io.print_error(f"Invalid command: {first_word}")
 
     def completions_raw_read_only(self, document, complete_event):
@@ -754,16 +1480,6 @@ class SlashCommands:
 
             return SwitchEvent(model=new_model or session.siada_config.llm_config.model_name)
 
-        elif result.startswith("liid:"):
-            from siada.models.model_base_config import MODEL_SETTING, set_user_model_settings
-            from siada.models.model_run_config import ModelRunConfig
-            set_user_model_settings(list(MODEL_SETTING))
-            default_model = MODEL_SETTING[0].model_name
-            new_llm = ModelRunConfig(default_model)
-            new_llm.provider = 'li'
-            session.siada_config.llm_config = new_llm
-            return SwitchEvent(model=default_model)
-
     def cmd_exit(self, args):
         "Exit the application"
         sys.exit()
@@ -844,6 +1560,13 @@ class SlashCommands:
     # def cmd_edit(self, args=""):
     #     "Siada for /editor: Open an editor to write a prompt"
     #     return self.cmd_editor(args)
+
+    def cmd_statusbar(self):
+        "Toggle status bar items visibility (handled by frontend UI)"
+        # This command is intercepted by the frontend (InputPromptWithWrapUseKPC)
+        # and never reaches the backend in ACP mode. The method exists only so
+        # that get_commands() includes it in the slash command autocomplete list.
+        pass
 
     def cmd_init(self, session, args):
         """Analyze the project and create a tailored SIADA.md file"""
@@ -1827,6 +2550,47 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
 
         return restored_history
 
+    def _sync_api_message_to_file(self, session) -> None:
+        """
+        Sync the current in-memory real API messages to api_messages.json for persistence.
+
+        Called after checkpoint undo/restore so the file reflects the restored state.
+        Delegates to SessionManager.sync_api_messages for the actual file I/O.
+        """
+        from siada.services.session_management import SessionManager
+
+        # Resolve session directory path via SessionManager helper
+        session_path = SessionManager.resolve_session_path(
+            session.siada_config.workspace, session.session_id
+        )
+
+        # Extract real API messages from in-memory state
+        real_messages = session.task_message_state._real_messages
+        if real_messages is not None:
+            real_api_history = real_messages.real_api_history
+            last_index = real_messages.last_index
+            last_signature = real_messages.last_signature
+        else:
+            real_api_history = []
+            last_index = -1
+            last_signature = ""
+
+        # Derive tokens_count from restored usage (best-effort)
+        tokens_count = 0
+        usage = getattr(session.state, "usage", None)
+        if usage is not None:
+            tokens_count = getattr(usage, "total_tokens", 0) or 0
+
+        # Delegate to SessionManager (raises OSError on failure → triggers rollback)
+        SessionManager.sync_api_messages(
+            session_path=session_path,
+            session_id=session.session_id,
+            api_messages=real_api_history,
+            tokens_count=tokens_count,
+            last_index=last_index,
+            last_signature=last_signature,
+        )
+
     def _manage_session_and_restore(self, session, target_commit_hash, restore_history, checkpoint_data):
         """
         Manage OpenAI session clearing and project state restoration with rollback.
@@ -1849,7 +2613,7 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             old_usage = session.state.usage
             
             # Reset the openai session with the restore history
-            await session.state.openai_session.reset_items(restore_history)
+            await session.state.openai_session.safe_reset_items(restore_history)
             
             # Restore RealApiMessage object (if checkpoint has it saved)
             if checkpoint_data.real_api_message is not None:
@@ -1869,21 +2633,45 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
         # Run all async operations in one event loop
         old_items, old_real_items, old_usage = asyncio.run(async_operations())
 
+        # Backup api_messages.json before mutating, so we can roll it back
+        # if the subsequent git restore fails.
+        from siada.services.session_management import SessionManager
+        api_messages_file = SessionManager.resolve_api_messages_file(
+            session.siada_config.workspace, session.session_id
+        )
+        file_existed_before = api_messages_file.exists()
+        file_backup_bytes = api_messages_file.read_bytes() if file_existed_before else None
+
         try:
-            # Restore the project state
+            # Step 1: Sync restored real API messages to api_messages.json first.
+            # If file I/O fails here, git hasn't been touched yet — safe to fail fast.
+            self._sync_api_message_to_file(session)
+            # Step 2: Restore the project state via git.
             session.checkpoint_tracker.git_service.restore_project_from_snapshot(
                 target_commit_hash
             )
             return True
         except BaseException as e:
-            # When restoring project state fails, rollback the OpenAI session
+            # On any failure (file sync or git restore), roll back everything:
+            # api_messages.json, then the in-memory OpenAI session / task state / usage.
             self.io.print_error(f"Failed to restore project state: {str(e)}")
-            
+
+            # Roll back api_messages.json to its pre-sync content
+            try:
+                if file_existed_before:
+                    api_messages_file.write_bytes(file_backup_bytes)
+                elif api_messages_file.exists():
+                    api_messages_file.unlink()
+            except OSError as rollback_err:
+                self.io.print_error(
+                    f"Failed to rollback api_messages.json: {rollback_err}"
+                )
+
             async def rollback_operations():
-                await session.state.openai_session.reset_items(old_items)
+                await session.state.openai_session.safe_reset_items(old_items)
                 session.task_message_state.set_real_messages(old_real_items)
                 session.state.usage = old_usage
-            
+
             asyncio.run(rollback_operations())
             return False
 
@@ -1980,82 +2768,84 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             # In UI mode, send history messages to frontend
             if hasattr(self.io, 'acp_adapter') and self.io.acp_adapter is not None:
                 self._send_history_to_ui(session_data.items)
+
+            # Re-push the resumed session's goal state (if any) so the
+            # GoalStatusBar reappears immediately, instead of staying blank
+            # until the next conversation turn happens to run
+            # SiadaRunner._prepare_context_for_run's lazy
+            # pending_goal -> context.goal consumption. restore_to_running_
+            # session() already staged (or explicitly cleared) this on
+            # session.state.pending_goal -- see its docstring/comment for
+            # why that's the reliable place to read it from here rather
+            # than re-deriving it.
+            self._push_resumed_goal_state_to_ui(session)
         else:
             error_message = result[1] if result else "Unknown error"
             self.io.print_error(error_message)
 
+    def _push_resumed_goal_state_to_ui(self, session) -> None:
+        """Push the just-resumed session's goal state (or an explicit
+        "no goal" clear) to the frontend via ``context/goalState``.
+
+        Only relevant in ACP/UI mode -- plain-terminal mode has no
+        GoalStatusBar to update. objective/status/createdAt/turns are all
+        already persisted to goal.json on every save_goal() call throughout
+        the goal's lifecycle (see goal_storage.py / turn_hooks.py), so no
+        extra persistence work is needed here -- this only needs to
+        RE-SEND that already-durable state to a freshly (re)connected
+        frontend.
+        """
+        if not (hasattr(self.io, 'acp_adapter') and self.io.acp_adapter is not None):
+            return
+
+        goal = session.state.pending_goal
+        if goal is None:
+            # No goal.json for this session (never set, or cleared before
+            # disconnecting) -- explicitly clear any stale status bar the
+            # frontend might still be showing from a previous session.
+            self.io.acp_adapter._send_if_acp(
+                self.io.acp_adapter.builder.build_custom_notification,
+                method="context/goalState",
+                params={"goal": None, "verifying": False},
+            )
+            return
+
+        self.io.acp_adapter._send_if_acp(
+            self.io.acp_adapter.builder.build_custom_notification,
+            method="context/goalState",
+            params={
+                "goal": {
+                    "objective": goal.objective,
+                    "status": goal.status,
+                    "createdAt": goal.created_at,
+                    "turns": goal.turns,
+                },
+                "verifying": False,
+            },
+        )
+
+
     def _send_history_to_ui(self, items: list):
-        """发送历史消息到前端 UI"""
+        """Send history messages to frontend UI via ui/loadHistory notification.
+
+        Uses shared format_native_items_for_display() to convert native items
+        to display messages, then sends as ui/loadHistory (clear + load).
+        """
         try:
             from siada.io.acp.message_builder import ACPMessageBuilder
+            from siada.support.message_classifier import format_native_items_for_display
 
-            # Prepare message list
-            messages = []
-            for item in items:
-                item_type = item.get('type', '')
-                role = item.get('role', 'assistant')
-
-                # function_call: use ToolCallFormatter to generate formatted text consistent with normal runtime
-                if item_type == 'function_call':
-                    from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
-                    name = item.get('name', 'unknown')
-                    arguments = item.get('arguments', '{}')
-                    call_id = item.get('call_id', item.get('id', ''))
-                    formatter = ToolCallFormatterFactory.get_formatter(name)
-                    content, _ = formatter.format_input(call_id, name, arguments)
-                    if content:
-                        messages.append({
-                            "role": "assistant",
-                            "content": content,
-                            "subtype": "tool_use"
-                        })
-                    continue
-
-                # function_call_output: not sent to frontend in normal flow, kept consistent
-                if item_type == 'function_call_output':
-                    continue
-
-                # Extract text content (supports different message formats)
-                content = item.get('content', '')
-                text = ''
-
-                if isinstance(content, str):
-                    text = content
-                elif isinstance(content, list):
-                    for part in content:
-                        if isinstance(part, dict) and part.get('type') in ('output_text', 'text'):
-                            text += part.get('text', '')
-
-                if not text:
-                    continue
-
-                # Strip <task>...</task> wrapper added by agent and appended path comments (user messages only)
-                if role == 'user':
-                    import re
-                    text = re.sub(r'^\s*<task>\s*', '', text)
-                    text = re.sub(r'\s*</task>.*$', '', text, flags=re.DOTALL)
-                    text = text.strip()
-
-                if not text:
-                    continue
-
-                messages.append({
-                    "role": role,
-                    "content": text
-                })
-
-            # Batch send all history messages
+            messages = format_native_items_for_display(items)
+            
             batch_notification = ACPMessageBuilder().build_custom_notification(
                 method="ui/loadHistory",
-                params={
-                    "messages": messages
-                }
+                params={"messages": messages},
             )
 
             if self.io.acp_adapter.transport and self.io.acp_adapter.transport.is_connected:
                 self.io.acp_adapter.transport.send_sync(batch_notification)
                 logger.info(f"Sent {len(messages)} history messages to UI (batch)")
-
+                
         except Exception as e:
             logger.warning(f"Failed to send history to UI: {e}")
 
@@ -2248,58 +3038,6 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
                 import traceback
                 self.io.print_error(traceback.format_exc())
 
-    def cmd_issue_fix(self, session, args):
-        """Fix an issue from Siada Patch Review by issue ID, Only supported internally"""
-        try:
-            # Check current agent
-            current_agent = session.siada_config.agent_name
-            
-            # If not in gerritissuefix agent, prompt user to restart with correct agent
-            if current_agent != "gerritissuefix":
-                self.io.print_info("This command requires GerritIssueFixAgent\nPlease restart with: siada-cli --gerritissuefix")
-                return
-            
-            # ========== Step 1: Parse and validate issue_id ==========
-            issue_id = args.strip()
-            
-            # Check if issue_id is provided
-            if not issue_id:
-                self.io.print_error("Please provide an issue ID")
-                self.io.print_info("Usage: /issue_fix <issue_id>\nExample: /issue_fix 10244b08-ea69-401a-b833-8caabce26ab9")
-                return
-            
-            # Validate UUID format
-            uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-            if not re.match(uuid_pattern, issue_id, re.IGNORECASE):
-                self.io.print_error(f"Invalid issue ID format: {issue_id}")
-                self.io.print_info("Issue ID should be a valid UUID (e.g., 10244b08-ea69-401a-b833-8caabce26ab9)")
-                return
-            
-            # ========== Step 2: Check MCP service ==========    
-            if not mcp_service.has_config():
-                self.io.print_error("MCP service is not configured")
-                self.io.print_info("Please configure li-mate MCP server in ~/.siada-cli/mcp_config.json:")
-                return
-            
-            # Check if li-mate server is configured
-            mcp_config = mcp_service.get_mcp_config()
-            if mcp_config and mcp_config.servers and 'li-mate' not in mcp_config.servers:
-                self.io.print_error("li-mate MCP server is not configured")
-                self.io.print_info("Please add li-mate server configuration in ~/.siada-cli/mcp_config.json")
-                return
-            
-            # ========== Step 3: Display info and return issue_id ==========
-            self.io.print_info(f"Starting issue fix for: {issue_id}")
-            
-            # Return issue_id as input for the agent
-            return SwitchEvent(ai_analysis_prompt=issue_id)
-            
-        except Exception as e:
-            self.io.print_error(f"Failed to start issue fix: {str(e)}")
-            if self.verbose:
-                import traceback
-                self.io.print_error(traceback.format_exc())
-
     def cmd_skill_list(self, session, args):
         """List all available skills"""
         try:
@@ -2418,8 +3156,9 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
         "Show help about all commands"
         self.basic_help()
 
+
     # =========================================================================
-    # Plugin Manager (/plugin)
+    # Plugin Manager (/plugin) — delegates to siada.services.plugins
     # =========================================================================
 
     def _is_acp_mode(self) -> bool:
@@ -2430,319 +3169,88 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
 
     def _plugin_log(self, msg: str):
         """Buffer a plugin status message for later flush."""
-        if not hasattr(self, '_plugin_buf'):
+        if not hasattr(self, "_plugin_buf"):
             self._plugin_buf: list = []
         self._plugin_buf.append(msg)
 
     def _plugin_flush(self):
         """Print all buffered plugin messages as a single box, then clear buffer."""
-        if not getattr(self, '_plugin_buf', None):
+        if not getattr(self, "_plugin_buf", None):
             return
-        combined = '\n'.join(self._plugin_buf)
+        combined = "\n".join(self._plugin_buf)
         self._plugin_buf = []
         self.io.print_info(combined)
 
-    _DEFAULT_MARKETPLACES = [
-        {
-            "name": "lixiang-skills-marketplace",
-            "repo": "https://gitlab.chehejia.com/ai-market/lixiang-skills-marketplace.git",
-            "url": "https://gitlab.chehejia.com/ai-market/lixiang-skills-marketplace.git",
-        },
-    ]
-
-    def _get_plugin_config(self) -> dict:
-        """Read plugin config, injecting default marketplaces if missing."""
-        import json
-        from siada.foundation.constants import SIADA_HOME
-        config_path = SIADA_HOME / "plugin_config.json"
-        if not config_path.exists():
-            config = {"marketplaces": [], "disabled_skills": []}
-        else:
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            except Exception:
-                config = {"marketplaces": [], "disabled_skills": []}
-
-        # Ensure default marketplaces are present (keyed by name)
-        existing_names = {m.get("name") for m in config.get("marketplaces", [])}
-        added = False
-        for default_mp in self._DEFAULT_MARKETPLACES:
-            if default_mp["name"] not in existing_names:
-                config.setdefault("marketplaces", []).insert(0, dict(default_mp))
-                added = True
-        if added:
-            try:
-                SIADA_HOME.mkdir(parents=True, exist_ok=True)
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(config, f, indent=2, ensure_ascii=False)
-            except Exception:
-                pass
-        return config
-
-    def _save_plugin_config(self, config: dict):
-        """Save plugin config to ~/.siada-cli/plugin_config.json"""
-        import json
-        from siada.foundation.constants import SIADA_HOME
-        SIADA_HOME.mkdir(parents=True, exist_ok=True)
-        config_path = SIADA_HOME / "plugin_config.json"
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
-
-    def _fetch_marketplace_skills(self, marketplace: dict, installed_names: set) -> list:
-        """Fetch available skills from marketplace.json first, fallback to repo scan."""
-        import json as _json
-        import urllib.request
-        import urllib.error
-        from urllib.parse import quote
-
-        repo_val = marketplace.get("repo", "")
-        url_val = marketplace.get("url", "")
-        ref_url = url_val or repo_val
-        configured_path = marketplace.get("path", "skills")
-        mp_name = marketplace.get("name", repo_val.split("/")[-1] if "/" in repo_val else repo_val)
-
-        if not ref_url:
-            return []
-
-        # ── Detect provider ──────────────────────────────────────────────
-        is_gitlab = False
-        gitlab_host = ""
-        gitlab_project = ""
-        github_repo = ""  # owner/repo
-
-        if ref_url.startswith("http://") or ref_url.startswith("https://"):
-            from urllib.parse import urlparse
-            parsed = urlparse(ref_url)
-            host = parsed.hostname or ""
-            path_parts = parsed.path.strip("/").removesuffix(".git")
-            if "github.com" in host:
-                github_repo = path_parts  # owner/repo
-            else:
-                # Assume GitLab-compatible (self-hosted or gitlab.com)
-                is_gitlab = True
-                gitlab_host = f"{parsed.scheme}://{host}"
-                gitlab_project = path_parts  # owner/repo
-        elif "/" in ref_url and not ref_url.startswith("git@"):
-            # Short owner/repo form — assume GitHub
-            github_repo = ref_url.removesuffix(".git")
-        else:
-            return []
-
-        def _parse_description(content: str) -> str:
-            in_fm = False
-            for line in content.splitlines():
-                if line.strip() == "---":
-                    in_fm = not in_fm
-                    continue
-                if in_fm and line.startswith("description:"):
-                    return line[len("description:"):].strip().strip('"').strip("'")
-            return ""
-
-        def _fetch_url(url: str, headers: dict | None = None, timeout: int = 8) -> bytes | None:
-            try:
-                req = urllib.request.Request(url, headers=headers or {"User-Agent": "siada-cli"})
-                with urllib.request.urlopen(req, timeout=timeout) as r:
-                    return r.read()
-            except Exception:
-                return None
-
-        def _normalize_marketplace_json(payload: dict) -> list:
-            items = payload.get("skills") if isinstance(payload, dict) else None
-            if not isinstance(items, list):
-                return []
-            skills = []
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                skill_name = item.get("name") or item.get("id") or item.get("slug")
-                if not skill_name:
-                    continue
-                skills.append({
-                    "name": skill_name,
-                    "description": item.get("description", "") or f"Skill from {mp_name}",
-                    "marketplace": repo_val,
-                    "marketplaceName": mp_name,
-                    "installed": skill_name in installed_names,
-                    "installs": str(item.get("installs", "")) if item.get("installs") is not None else "",
-                })
-            return skills
-
-        # ── marketplace.json first ────────────────────────────────────────
-        marketplace_json = None
-        if is_gitlab:
-            encoded_proj = quote(gitlab_project, safe="")
-            for branch_name in (marketplace.get("branch", "main"), "main", "master"):
-                encoded_file = quote(".claude-plugin/marketplace.json", safe="")
-                url = (
-                    f"{gitlab_host}/api/v4/projects/{encoded_proj}/repository/files/{encoded_file}/raw"
-                    f"?ref={quote(branch_name)}"
-                )
-                data = _fetch_url(url)
-                if data:
-                    try:
-                        marketplace_json = _json.loads(data.decode("utf-8", errors="replace"))
-                        break
-                    except Exception:
-                        pass
-        elif github_repo:
-            for branch_name in (marketplace.get("branch", "main"), "main", "master"):
-                url = f"https://raw.githubusercontent.com/{github_repo}/{branch_name}/.claude-plugin/marketplace.json"
-                data = _fetch_url(url)
-                if data:
-                    try:
-                        marketplace_json = _json.loads(data.decode("utf-8", errors="replace"))
-                        break
-                    except Exception:
-                        pass
-
-        if marketplace_json is not None:
-            skills = _normalize_marketplace_json(marketplace_json)
-            if skills:
-                return skills
-
-        # ── Fetch directory listing ───────────────────────────────────────
-        def list_dirs_github(path: str) -> list[str]:
-            url = f"https://api.github.com/repos/{github_repo}/contents/{path}"
-            data = _fetch_url(url, {"User-Agent": "siada-cli", "Accept": "application/vnd.github.v3+json"})
-            if not data:
-                return []
-            try:
-                entries = _json.loads(data)
-                return [e["name"] for e in entries if e.get("type") == "dir" and not e["name"].startswith(".")]
-            except Exception:
-                return []
-
-        def list_dirs_gitlab(path: str) -> list[str]:
-            encoded = quote(gitlab_project, safe="")
-            results = []
-            page = 1
-            while True:
-                url = (
-                    f"{gitlab_host}/api/v4/projects/{encoded}/repository/tree"
-                    f"?path={quote(path)}&per_page=100&page={page}&recursive=false"
-                )
-                try:
-                    req = urllib.request.Request(url, headers={"User-Agent": "siada-cli"})
-                    with urllib.request.urlopen(req, timeout=8) as r:
-                        data = r.read()
-                        next_page = r.headers.get("X-Next-Page", "")
-                except Exception:
-                    break
-                try:
-                    entries = _json.loads(data)
-                    results.extend(
-                        e["name"] for e in entries
-                        if e.get("type") == "tree" and not e["name"].startswith(".")
-                    )
-                except Exception:
-                    break
-                if not next_page:
-                    break
-                page += 1
-            return results
-
-        list_dirs = list_dirs_gitlab if is_gitlab else list_dirs_github
-
-        def has_skill_md(path: str) -> bool:
-            """Return True if the given path contains a SKILL.md file."""
-            if is_gitlab:
-                encoded_proj = quote(gitlab_project, safe="")
-                encoded_file = quote(f"{path}/SKILL.md", safe="")
-                url = f"{gitlab_host}/api/v4/projects/{encoded_proj}/repository/files/{encoded_file}/raw"
-            else:
-                url = f"https://raw.githubusercontent.com/{github_repo}/HEAD/{path}/SKILL.md"
-            return _fetch_url(url, timeout=4) is not None
-
-        # Try configured path first
-        skill_names = list_dirs(configured_path)
-        actual_path = configured_path
-
-        if not skill_names:
-            # Fall back: list root directories
-            root_dirs = list_dirs("")
-            if root_dirs:
-                # Check if root dirs are containers (no SKILL.md themselves)
-                # by looking inside each one for sub-directories
-                for container in root_dirs:
-                    sub_dirs = list_dirs(container)
-                    if sub_dirs:
-                        # Verify at least one sub-dir looks like a skill
-                        sample = sub_dirs[0]
-                        if has_skill_md(f"{container}/{sample}"):
-                            skill_names = sub_dirs
-                            actual_path = container
-                            break
-                if not skill_names:
-                    # Root dirs themselves are likely skills
-                    skill_names = root_dirs
-                    actual_path = ""
-
-        if not skill_names:
-            return []
-
-        # ── Fetch SKILL.md description for each skill ─────────────────────
-        def fetch_skill_md_github(skill: str) -> str:
-            prefix = f"{actual_path}/{skill}" if actual_path else skill
-            url = f"https://raw.githubusercontent.com/{github_repo}/HEAD/{prefix}/SKILL.md"
-            data = _fetch_url(url, timeout=5)
-            return _parse_description(data.decode("utf-8", errors="replace")) if data else ""
-
-        def fetch_skill_md_gitlab(skill: str) -> str:
-            prefix = f"{actual_path}/{skill}" if actual_path else skill
-            encoded_proj = quote(gitlab_project, safe="")
-            encoded_file = quote(f"{prefix}/SKILL.md", safe="")
-            url = f"{gitlab_host}/api/v4/projects/{encoded_proj}/repository/files/{encoded_file}/raw"
-            data = _fetch_url(url, timeout=5)
-            return _parse_description(data.decode("utf-8", errors="replace")) if data else ""
-
-        fetch_desc = fetch_skill_md_gitlab if is_gitlab else fetch_skill_md_github
-
-        skills = []
-        for skill_name in skill_names:
-            description = ""
-            try:
-                description = fetch_desc(skill_name)
-            except Exception:
-                pass
-            skills.append({
-                "name": skill_name,
-                "description": description or f"Skill from {mp_name}",
-                "marketplace": repo_val,
-                "marketplaceName": mp_name,
-                "installed": skill_name in installed_names,
-                "installs": "",
-            })
-
-        return skills
-
     def _send_plugin_manager_ui(self, session):
-        """Collect data and send ui/showPluginManager notification to frontend."""
+        """Collect data and send ui/showPluginManager notification to frontend with detailed elapsed timing."""
+        import time
+        t0 = time.time()
         from siada.services.skills import SkillsManager
+        from siada.services.plugins import MarketplaceManager
         from siada.io.acp.message_builder import ACPMessageBuilder
         from pathlib import Path
 
         workspace = Path(session.siada_config.workspace)
         manager = SkillsManager.get_instance()
         outcome = manager.get_skills(workspace)
-        plugin_config = self._get_plugin_config()
+        t_skills = time.time()
+
+        plugin_config = MarketplaceManager().get_config()
+        t_config = time.time()
 
         disabled_skills = plugin_config.get("disabled_skills", [])
         marketplaces_cfg = plugin_config.get("marketplaces", [])
 
-        # Build installed skills data
+        # Build: skill_dir_name -> plugin_display_name
+        # Uses directory names (no file reads) so it's fast, and works even when
+        # a skill is deduplicated to ~/.siada-cli/skills/ (path-based detection fails).
+        from siada.foundation.constants import SIADA_HOME as _SIADA_HOME
+        import json as _json
+        _plugins_root = _SIADA_HOME / "plugins"
+        installed_plugin_names: set = set()
+        # Map: skill directory name -> plugin display name
+        _skill_dir_to_plugin: dict = {}
+        if _plugins_root.exists():
+            for _pd in sorted(_plugins_root.iterdir()):
+                if not _pd.is_dir():
+                    continue
+                _mp = _pd / ".claude-plugin" / "plugin.json"
+                if _mp.exists():
+                    try:
+                        _pname = _json.loads(_mp.read_text()).get("name", _pd.name)
+                    except Exception:
+                        _pname = _pd.name
+                else:
+                    _pname = _pd.name
+                installed_plugin_names.add(_pname)
+                # Enumerate skill dirs: check 'skills/' subdir first, then plugin root
+                _skills_base = _pd / "skills"
+                _scan_root = _skills_base if _skills_base.is_dir() else _pd
+                try:
+                    for _sd in _scan_root.iterdir():
+                        if _sd.is_dir() and (_sd / "SKILL.md").exists():
+                            if _sd.name not in _skill_dir_to_plugin:
+                                _skill_dir_to_plugin[_sd.name] = _pname
+                except PermissionError:
+                    pass
+        t_plugins = time.time()
+
         installed = []
         installed_names = set()
         for skill in outcome.skills:
+            # First try: match by skill directory name (fast, handles deduplication)
+            _skill_dir = skill.path.parent.name
+            plugin_name = _skill_dir_to_plugin.get(_skill_dir)
             installed.append({
                 "name": skill.name,
                 "description": skill.description[:200] if skill.description else "",
                 "scope": skill.scope.name.lower(),
                 "path": str(skill.path),
+                "plugin_name": plugin_name,
             })
             installed_names.add(skill.name)
+        t_installed = time.time()
 
-        # Build errors data
         errors = []
         for err in outcome.errors:
             errors.append({
@@ -2751,7 +3259,6 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
                 "scope": err.scope.name.lower(),
             })
 
-        # Build marketplaces data (counts based on locally installed)
         marketplaces = []
         for mp in marketplaces_cfg:
             mp_repo = mp.get("repo", "")
@@ -2763,12 +3270,28 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
                 "updatedAt": mp.get("updatedAt", ""),
             })
 
-        # Use cached discover skills stored by 'marketplace update' — no live fetch here
         discover = []
         for mp in marketplaces_cfg:
             for skill in mp.get("_cached_skills", []):
-                skill["installed"] = skill.get("name", "") in installed_names
+                sname = skill.get("name", "")
+                skill["installed"] = sname in installed_plugin_names or sname in installed_names
                 discover.append(skill)
+        t_discover = time.time()
+
+        mcp_servers = []
+        try:
+            from siada.config.mcp_config_loader import MCPConfigLoader
+            mcp_cfg = MCPConfigLoader.load_config()
+            if mcp_cfg and mcp_cfg.servers:
+                for sname, sval in mcp_cfg.servers.items():
+                    mcp_servers.append({
+                        "name": sname,
+                        "command": sval.command or "",
+                        "args": sval.args or [],
+                        "url": sval.url or "",
+                    })
+        except Exception as e:
+            logger.warning(f"Failed to load MCP servers for plugin manager: {e}")
 
         params = {
             "installed": installed,
@@ -2776,6 +3299,7 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             "errors": errors,
             "discover": discover,
             "disabledSkills": disabled_skills,
+            "mcp_servers": mcp_servers,
         }
 
         try:
@@ -2785,40 +3309,56 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             )
             if self.io.acp_adapter.transport and self.io.acp_adapter.transport.is_connected:
                 self.io.acp_adapter.transport.send_sync(message)
-                logger.info("Sent ui/showPluginManager notification")
+                logger.info(
+                    f"Sent ui/showPluginManager notification. Timings: "
+                    f"get_skills={t_skills - t0:.3f}s, "
+                    f"get_config={t_config - t_skills:.3f}s, "
+                    f"scan_plugins={t_plugins - t_config:.3f}s, "
+                    f"build_installed={t_installed - t_plugins:.3f}s, "
+                    f"build_discover={t_discover - t_installed:.3f}s, "
+                    f"total={t_discover - t0:.3f}s"
+                )
         except Exception as e:
             logger.error(f"Failed to send plugin manager notification: {e}")
 
     def cmd_plugin(self, session, args: str):
-        """Manage skills/plugins (discover, install, disable, remove, marketplace)
+        """Manage skills/plugins (discover, install, disable, remove, marketplace, validate)
 
         Usage:
             /plugin                              - Open plugin manager UI
-            /plugin install <repo> <skill>       - Install a skill from a marketplace repo
+            /plugin install <skill> [@mp]        - Install a skill from a marketplace
             /plugin remove <skill>               - Remove an installed user-scope skill
-            /plugin disable <skill>              - Disable a skill (exclude from context)
+            /plugin disable <skill>              - Disable a skill
             /plugin enable <skill>               - Re-enable a disabled skill
-            /plugin marketplace add <owner/repo> - Add a marketplace repository
+            /plugin validate [path]              - Validate a local plugin directory
+            /plugin marketplace add <url/repo>   - Add a marketplace repository
             /plugin marketplace remove <name>    - Remove a marketplace
             /plugin marketplace update <name>    - Refresh marketplace skill list
         """
-        args_stripped = args.strip()
+        from siada.services.plugins import PluginLoader, MarketplaceManager
+        from pathlib import Path
 
-        # Open UI (no args)
+        args_stripped = args.strip()
+        loader = PluginLoader()
+        manager = MarketplaceManager()
+
         if not args_stripped:
-            if hasattr(self.io, 'acp_adapter') and self.io.acp_adapter is not None:
+            if self._is_acp_mode():
                 try:
                     self._send_plugin_manager_ui(session)
                 except Exception as e:
                     self.io.print_error(f"Failed to open plugin manager: {e}")
             else:
-                # Non-ACP mode: print installed skills list
                 try:
+                    import time
+                    t0 = time.time()
                     from siada.services.skills import SkillsManager
-                    from pathlib import Path
-                    manager = SkillsManager.get_instance()
-                    outcome = manager.get_skills(Path(session.siada_config.workspace))
-                    config = self._get_plugin_config()
+                    outcome = SkillsManager.get_instance().get_skills(
+                        Path(session.siada_config.workspace)
+                    )
+                    t_skills = time.time()
+                    config = manager.get_config()
+                    t_config = time.time()
                     disabled = set(config.get("disabled_skills", []))
                     lines = ["Skills:"]
                     for s in sorted(outcome.skills, key=lambda x: (x.scope.value, x.name.lower())):
@@ -2831,8 +3371,12 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
                         lines.append(f"  {mp.get('name', '')} - {mp.get('repo', '')}")
                     if not config.get("marketplaces"):
                         lines.append("  (none configured)")
-                    lines.append("\nUsage: /plugin install <repo> <skill> | /plugin marketplace add <owner/repo>")
                     self.io.print_info("\n".join(lines))
+                    logger.info(
+                        f"/plugin CLI timing: get_skills={t_skills - t0:.3f}s, "
+                        f"get_config={t_config - t_skills:.3f}s, "
+                        f"total={t_config - t0:.3f}s"
+                    )
                 except Exception as e:
                     self.io.print_error(f"Error: {e}")
             return
@@ -2840,133 +3384,24 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
         parts = args_stripped.split(None, 2)
         subcmd = parts[0].lower()
 
-        # ── install <skill> [@marketplace] ────────────────────────────────
         if subcmd == "install":
             rest = args_stripped[len(subcmd):].strip()
             if not rest:
                 self.io.print_error("Usage: /plugin install <skill_name> [@marketplace]")
                 return
-            # Detect @marketplace anywhere in the string (handles any whitespace type)
-            at_idx = rest.find('@')
+            at_idx = rest.find("@")
             if at_idx > 0:
                 skill_name = rest[:at_idx].strip()
                 repo = rest[at_idx + 1:].strip()
             else:
                 tokens = rest.split(None, 1)
                 skill_name = tokens[0]
-                repo = tokens[1].lstrip('@').strip() if len(tokens) > 1 else None
+                repo = tokens[1].lstrip("@").strip() if len(tokens) > 1 else None
             if not skill_name:
                 self.io.print_error("Usage: /plugin install <skill_name> [@marketplace]")
                 return
-            self._plugin_install(session, repo or None, skill_name)
-            self._plugin_flush()
 
-        # ── remove <skill> ────────────────────────────────────────────────
-        elif subcmd == "remove":
-            if len(parts) < 2:
-                self.io.print_error("Usage: /plugin remove <skill_name>")
-                return
-            self._plugin_remove(session, parts[1])
-            self._plugin_flush()
-
-        # ── disable <skill> ───────────────────────────────────────────────
-        elif subcmd == "disable":
-            if len(parts) < 2:
-                self.io.print_error("Usage: /plugin disable <skill_name>")
-                return
-            self._plugin_set_disabled(parts[1], disabled=True)
-            self._plugin_flush()
-
-        # ── enable <skill> ────────────────────────────────────────────────
-        elif subcmd == "enable":
-            if len(parts) < 2:
-                self.io.print_error("Usage: /plugin enable <skill_name>")
-                return
-            self._plugin_set_disabled(parts[1], disabled=False)
-            self._plugin_flush()
-
-        # ── marketplace <action> ──────────────────────────────────────────
-        elif subcmd == "marketplace":
-            if len(parts) < 3:
-                self.io.print_error("Usage: /plugin marketplace add|remove|update <name_or_repo>")
-                return
-            mp_action = parts[1].lower()
-            mp_arg = parts[2]
-            if mp_action == "add":
-                self._plugin_marketplace_add(mp_arg)
-            elif mp_action == "remove":
-                self._plugin_marketplace_remove(mp_arg)
-            elif mp_action == "update":
-                self._plugin_marketplace_update(session, mp_arg)
-            else:
-                self.io.print_error(f"Unknown marketplace action: {mp_action}")
-            self._plugin_flush()
-
-        else:
-            self.io.print_error(f"Unknown /plugin subcommand: {subcmd}")
-            self.io.print_info("Available: install, remove, disable, enable, marketplace")
-
-    def _plugin_install(self, session, repo, skill_name: str):
-        """Install a skill via git clone.
-
-        repo may be None (search all marketplaces), a marketplace name/query,
-        a full URL, or an owner/repo slug. Leading '@' is stripped by the caller.
-        """
-        import shutil
-        import subprocess
-        import tempfile
-        from pathlib import Path
-        from siada.foundation.constants import SIADA_HOME
-
-        plugin_config = self._get_plugin_config()
-        branch = "main"
-        skill_path_prefix = "skills"
-        clone_url = None  # full git-clonable URL
-
-        # ── resolve which marketplace to use ──────────────────────────────
-        if repo is None:
-            marketplaces = plugin_config.get("marketplaces", [])
-            if not marketplaces:
-                self.io.print_error(
-                    "No marketplaces configured. "
-                    "Add one with: /plugin marketplace add <url_or_owner/repo>"
-                )
-                return
-            matched = marketplaces[0]  # default fallback
-            for mp in marketplaces:
-                mp_skills = self._fetch_marketplace_skills(mp, set())
-                if any(s["name"] == skill_name for s in mp_skills):
-                    matched = mp
-                    break
-            branch = matched.get("branch", "main")
-            skill_path_prefix = matched.get("path", "skills")
-            clone_url = matched.get("url") or matched.get("repo", "")
-        else:
-            # repo is a name / short slug / full URL — try marketplace lookup first
-            for mp in plugin_config.get("marketplaces", []):
-                if self._mp_matches(mp, repo):
-                    branch = mp.get("branch", "main")
-                    skill_path_prefix = mp.get("path", "skills")
-                    clone_url = mp.get("url") or mp.get("repo", "")
-                    break
-            if clone_url is None:
-                # treat as a direct URL or owner/repo (GitHub default)
-                clone_url = repo
-                if not clone_url.startswith("http") and not clone_url.startswith("git@"):
-                    clone_url = f"https://github.com/{clone_url}"
-
-        dest_dir = SIADA_HOME / "skills" / skill_name
-        if dest_dir.exists():
-            self.io.print_error(f"Skill '{skill_name}' already exists at {dest_dir}")
-            return
-
-        self._plugin_log(f"Installing '{skill_name}' from {clone_url}...")
-
-        # ── git clone into a temp dir, then copy skill subdirectory ──────
-        with tempfile.TemporaryDirectory() as tmp:
-
-            def _send_clone_progress(phase: str, pct: int):
-                """Forward git clone progress to the frontend via ACP."""
+            def _acp_progress(phase, pct):
                 if not self._is_acp_mode():
                     return
                 try:
@@ -2980,242 +3415,102 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
                 except Exception:
                     pass
 
-            def _run_clone(extra_args: list) -> tuple:
-                """Run git clone with progress streaming. Returns (returncode, stderr_text)."""
-                import re as _re
-                import threading as _threading
-                _progress_re = _re.compile(r'([A-Za-z][A-Za-z ]+):\s+(\d+)%')
+            self._plugin_log(f"Installing '{skill_name}'...")
+            self._plugin_flush()
+            try:
+                plugin = loader.install(skill_name, repo or None, progress_callback=_acp_progress)
+                self._plugin_log(f"✓ Installed '{skill_name}'")
+                # Hot-reload: register the new plugin's hooks into the running hook_runner
+                if hasattr(self, "hook_runner") and plugin is not None:
+                    self.hook_runner.register_plugin_hooks(plugin)
+            except Exception as e:
+                self.io.print_error(f"Install failed: {e}")
+            self._plugin_flush()
+            if self._is_acp_mode():
+                try:
+                    self._send_plugin_manager_ui(session)
+                except Exception:
+                    pass
 
-                proc = subprocess.Popen(
-                    ["git", "clone", "--progress", "--depth=1"] + extra_args + [clone_url, tmp],
-                    stderr=subprocess.PIPE,
-                    stdout=subprocess.DEVNULL,
-                )
-                stderr_lines = []
+        elif subcmd == "remove":
+            if len(parts) < 2:
+                self.io.print_error("Usage: /plugin remove <skill_name>")
+                return
+            try:
+                loader.uninstall(parts[1], Path(session.siada_config.workspace))
+                self._plugin_log(f"✓ Removed plugin '{parts[1]}'")
+            except Exception as e:
+                self.io.print_error(f"Remove failed: {e}")
+            self._plugin_flush()
+            if self._is_acp_mode():
+                try:
+                    self._send_plugin_manager_ui(session)
+                except Exception:
+                    pass
 
-                def _read_stderr():
-                    buf = b""
+        elif subcmd == "disable":
+            if len(parts) < 2:
+                self.io.print_error("Usage: /plugin disable <skill_name>")
+                return
+            loader.set_enabled(parts[1], False)
+            self._plugin_log(f"✓ Disabled skill '{parts[1]}'")
+            self._plugin_flush()
+
+        elif subcmd == "enable":
+            if len(parts) < 2:
+                self.io.print_error("Usage: /plugin enable <skill_name>")
+                return
+            loader.set_enabled(parts[1], True)
+            self._plugin_log(f"✓ Enabled skill '{parts[1]}'")
+            self._plugin_flush()
+
+        elif subcmd == "validate":
+            path = parts[1] if len(parts) > 1 else "."
+            self.io.print_info(f"Validating plugin at {path} ...")
+            errors, warnings = PluginLoader.validate(path)
+            for e in errors:
+                self.io.print_info(f"  ✗ {e}")
+            for w in warnings:
+                self.io.print_info(f"  ⚠ {w}")
+            if not errors and not warnings:
+                self.io.print_info("  ✓ Plugin is valid")
+            self.io.print_info(f"\nResult: {len(errors)} error(s), {len(warnings)} warning(s)")
+
+        elif subcmd == "marketplace":
+            if len(parts) < 3:
+                self.io.print_error("Usage: /plugin marketplace add|remove|update <name_or_repo>")
+                return
+            mp_action = parts[1].lower()
+            mp_arg = parts[2]
+            try:
+                if mp_action == "add":
+                    manager.add_marketplace(mp_arg)
+                    self._plugin_log(f"✓ Added marketplace '{mp_arg}'")
+                    raw_name = mp_arg.rstrip("/").split("/")[-1].removesuffix(".git")
                     try:
-                        while True:
-                            chunk = proc.stderr.read(256)
-                            if not chunk:
-                                break
-                            buf += chunk
-                            parts = _re.split(b"[\r\n]", buf)
-                            buf = parts[-1]
-                            for part in parts[:-1]:
-                                line = part.decode("utf-8", errors="replace").strip()
-                                if line:
-                                    stderr_lines.append(line)
-                                m = _progress_re.search(line)
-                                if m:
-                                    _send_clone_progress(m.group(1).strip(), int(m.group(2)))
+                        manager.update_marketplace(raw_name)
                     except Exception:
                         pass
-
-                t = _threading.Thread(target=_read_stderr, daemon=True)
-                t.start()
-                try:
-                    proc.wait(timeout=120)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait()
-                    return -1, "git clone timed out"
-                t.join(timeout=5)
-                return proc.returncode, "\n".join(stderr_lines[-5:])
-
-            rc, err_text = _run_clone([f"--branch={branch}"])
-            if rc != 0:
-                # Branch not found — clear tmp and retry with remote default
-                for item in Path(tmp).iterdir():
-                    if item.is_dir():
-                        shutil.rmtree(item)
-                    else:
-                        item.unlink()
-                rc, err_text = _run_clone([])
-            if rc != 0:
-                self.io.print_error(f"git clone failed: {err_text}")
-                return
-
-            skill_src = Path(tmp) / skill_path_prefix / skill_name
-            if not skill_src.exists():
-                # Fall back: search one level deep for a directory named skill_name
-                found = next(
-                    (
-                        p
-                        for p in Path(tmp).rglob(skill_name)
-                        if p.is_dir() and p.parent != Path(tmp).parent
-                    ),
-                    None,
-                )
-                if found is None:
-                    self.io.print_error(
-                        f"Skill '{skill_name}' not found in {clone_url}"
-                    )
-                    return
-                skill_src = found
-
-            _send_clone_progress("done", 100)
-            try:
-                shutil.copytree(str(skill_src), str(dest_dir))
+                elif mp_action in ("remove", "rm"):
+                    manager.remove_marketplace(mp_arg)
+                    self._plugin_log(f"✓ Removed marketplace '{mp_arg}'")
+                elif mp_action == "update":
+                    manager.update_marketplace(mp_arg)
+                    self._plugin_log(f"✓ Updated marketplace '{mp_arg}'")
+                else:
+                    self.io.print_error(f"Unknown marketplace action: {mp_action}")
             except Exception as e:
-                self.io.print_error(f"Failed to copy skill: {e}")
-                return
+                self.io.print_error(f"Marketplace operation failed: {e}")
+            self._plugin_flush()
+            if self._is_acp_mode():
+                try:
+                    self._send_plugin_manager_ui(session)
+                except Exception:
+                    pass
 
-        # ── success ───────────────────────────────────────────────────────
-        try:
-            from siada.services.skills import SkillsManager
-            SkillsManager.get_instance().invalidate_cache()
-        except Exception:
-            pass
-        self._plugin_log(f"✓ Installed '{skill_name}'")
-        self._plugin_log("Restart Siada to pick up the new skill.")
-
-    def _plugin_remove(self, session, skill_name: str):
-        """Remove a user-scope skill directory."""
-        import shutil
-        from siada.foundation.constants import SIADA_HOME
-
-        dest_dir = SIADA_HOME / "skills" / skill_name
-        if not dest_dir.exists():
-            self.io.print_error(f"Skill '{skill_name}' not found in user skills ({dest_dir})")
-            return
-
-        try:
-            shutil.rmtree(dest_dir)
-            # Invalidate cache
-            from siada.services.skills import SkillsManager
-            SkillsManager.get_instance().invalidate_cache()
-            self._plugin_log(f"✓ Removed skill '{skill_name}'")
-        except Exception as e:
-            self.io.print_error(f"Failed to remove skill: {e}")
-
-    def _plugin_set_disabled(self, skill_name: str, disabled: bool):
-        """Add or remove a skill from the disabled list in plugin config."""
-        config = self._get_plugin_config()
-        disabled_list: list = config.get("disabled_skills", [])
-
-        if disabled:
-            if skill_name not in disabled_list:
-                disabled_list.append(skill_name)
-            config["disabled_skills"] = disabled_list
-            self._save_plugin_config(config)
-            self._plugin_log(f"✓ Disabled skill '{skill_name}'")
         else:
-            if skill_name in disabled_list:
-                disabled_list.remove(skill_name)
-            config["disabled_skills"] = disabled_list
-            self._save_plugin_config(config)
-            self._plugin_log(f"✓ Enabled skill '{skill_name}'")
-
-    @staticmethod
-    def _mp_matches(mp: dict, query: str) -> bool:
-        """Return True if marketplace entry matches the given name/repo/url query."""
-        q = query.strip().lstrip("@")
-        for field in ("name", "repo", "url"):
-            val = mp.get(field, "")
-            if val == q:
-                return True
-            # strip .git suffix for comparison
-            if val.rstrip("/").removesuffix(".git") == q.removesuffix(".git"):
-                return True
-        return False
-
-    def _plugin_marketplace_add(self, repo_input: str):
-        """Add a marketplace repository to plugin config.
-
-        Accepts a full URL (https://github.com/owner/repo.git or
-        https://gitlab.example.com/owner/repo.git) or a short owner/repo slug.
-        """
-        config = self._get_plugin_config()
-        marketplaces: list = config.get("marketplaces", [])
-
-        # Check for duplicate
-        for mp in marketplaces:
-            if self._mp_matches(mp, repo_input):
-                self.io.print_error(f"Marketplace '{repo_input}' is already configured")
-                return
-
-        # Derive a clean name (last path component, no .git)
-        raw_name = repo_input.rstrip("/").split("/")[-1]
-        name = raw_name.removesuffix(".git")
-
-        entry: dict = {
-            "name": name,
-            "repo": repo_input,   # keep original value as the canonical lookup key
-            "branch": "main",
-            "path": "skills",
-            "available": 0,
-            "installed": 0,
-        }
-        # If it looks like a full URL, store it as "url" so install can use git clone
-        if repo_input.startswith("http://") or repo_input.startswith("https://") or repo_input.startswith("git@"):
-            entry["url"] = repo_input
-
-        marketplaces.append(entry)
-        config["marketplaces"] = marketplaces
-        self._save_plugin_config(config)
-        self._plugin_log(f"✓ Added marketplace '{name}' ({repo_input})")
-        # Fetch skill list immediately so Discover tab is populated right away
-        self._plugin_marketplace_update(None, name)
-
-    def _plugin_marketplace_remove(self, name_or_repo: str):
-        """Remove a marketplace from plugin config."""
-        config = self._get_plugin_config()
-        marketplaces: list = config.get("marketplaces", [])
-        before = len(marketplaces)
-        marketplaces = [mp for mp in marketplaces if not self._mp_matches(mp, name_or_repo)]
-        if len(marketplaces) == before:
-            self.io.print_error(f"Marketplace '{name_or_repo}' not found")
-            return
-        config["marketplaces"] = marketplaces
-        self._save_plugin_config(config)
-        self._plugin_log(f"✓ Removed marketplace '{name_or_repo}'")
-
-    def _plugin_marketplace_update(self, session, name_or_repo: str):
-        """Refresh available count for a marketplace."""
-        config = self._get_plugin_config()
-        marketplaces: list = config.get("marketplaces", [])
-        target = None
-        for mp in marketplaces:
-            if self._mp_matches(mp, name_or_repo):
-                target = mp
-                break
-        if target is None:
-            self.io.print_error(f"Marketplace '{name_or_repo}' not found")
-            return
-
-        if not _marketplace_update_lock.acquire(blocking=False):
-            self.io.print_error("A marketplace update is already in progress. Please wait.")
-            return
-
-        try:
-            self._plugin_log(f"Updating marketplace '{target.get('name')}'...")
-            from siada.services.skills import SkillsManager
-            from pathlib import Path
-            if session is not None:
-                outcome = SkillsManager.get_instance().get_skills(
-                    Path(session.siada_config.workspace)
-                )
-                installed_names = {s.name for s in outcome.skills}
-            else:
-                installed_names = set()
-            skills = self._fetch_marketplace_skills(target, installed_names)
-            target["available"] = len(skills)
-            target["installed"] = sum(1 for s in skills if s["installed"])
-            target["_cached_skills"] = skills
-            import time as _time
-            target["updatedAt"] = _time.strftime("%m/%d/%Y")
-            config["marketplaces"] = marketplaces
-            self._save_plugin_config(config)
-            self._plugin_log(
-                f"✓ Updated '{target.get('name')}': "
-                f"{target['available']} available, {target['installed']} installed"
-            )
-        except Exception as e:
-            self.io.print_error(f"Failed to update marketplace: {e}")
-        finally:
-            _marketplace_update_lock.release()
+            self.io.print_error(f"Unknown /plugin subcommand: {subcmd}")
+            self.io.print_info("Available: install, remove, disable, enable, validate, marketplace")
 
 def main():
     md = SlashCommands(None, None).get_help_md()

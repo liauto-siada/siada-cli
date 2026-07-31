@@ -437,7 +437,7 @@ export class Logger {
 
 // Export singleton instance
 export const logger = new Logger({
-  level: process.env.SIADA_UI_LOG_LEVEL === 'debug' ? LogLevel.DEBUG : LogLevel.INFO,
+  level: process.env.SIADA_DEBUG ? LogLevel.DEBUG : LogLevel.INFO,
   enableConsole: false, // Disabled to prevent terminal crashes
   enableFile: true,
   maxFileSize: 10 * 1024 * 1024, // 10MB

@@ -41,33 +41,12 @@ agents:
     enabled: false
     supported_modes: "non_interactive"
 
-  card:
-    class: "siada.agent_hub.coder.card_agent.CardAgent"
-    description: "Card Generation agent"
-    enabled: false
-    supported_modes: "all"
-
   # Deep Research Agent
   deepresearch:
     class: "siada.agent_hub.coder.deep_research_agent.DeepResearchAgent"
     description: "Web-based research and report generation agent"
     enabled: false
     supported_modes: "all"
-
-  # Gerritissuefix Agent Internal use only
-  gerritissuefix:
-    class: "siada.services.internal.gerrit_issue_fix_agent.GerritIssueFixAgent"
-    description: "Agent for fixing issues from Siada Patch Review"
-    enabled: true
-    supported_modes: "all"
-
-  # Proactive Agent - for background task discovery and daily summaries
-  proactive:
-    class: "siada.agent_hub.proactive.proactive_agent.ProactiveAgent"
-    description: "Proactive agent for task discovery and daily summaries"
-    enabled: true
-    supported_modes: "all"
-
 
   # Proactive Agent - for background task discovery and daily summaries
   proactive:
@@ -79,8 +58,8 @@ agents:
 
 # LLM Configuration
 llm_config:
-  provider: "li"                    # Optional： "li" ， "openrouter", "default"
-  model_name: "claude-sonnet-4.6"
+  provider: "default"               # Optional: "openrouter", "default"
+  model_name: "claude-sonnet-5"
   repo_map_tokens: 8192                     # repo map max token
   repo_map_mul_no_files: 16                 # Multiple without chat files
   repo_verbose: true                        # Enable detailed output or not
@@ -89,11 +68,3 @@ llm_config:
 # - class: Full import path of the Agent class, null means not implemented yet
 # - description: Description of the agent
 # - enabled: Whether the agent is enabled, false means temporarily disabled
-
-# Sub Agent Registry Configuration
-# Used for registering sub agents to backend service when A2A API server starts
-sub_agent_registry:
-  enabled: true                           # Enable automatic registration
-  backend_url: "agent-manager.inner.chj.cloud"  # Backend URL (optional, auto-selected if not set)
-  timeout: 10                             # Request timeout in seconds
-  environment: "prod"                     # Environment: prod/dev/local

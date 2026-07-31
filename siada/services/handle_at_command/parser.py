@@ -231,8 +231,15 @@ class AtCommandParser:
         while index < len(query):
             if query[index] == '@':
                 # Check if it's escaped (preceded by backslash)
-                if index == 0 or query[index - 1] != '\\':
-                    return index
+                if index > 0 and query[index - 1] == '\\':
+                    index += 1
+                    continue
+                # Skip '@' that is part of a filesystem/npm scoped package path
+                # e.g. /node_modules/@openai/codex or /path/to/@scope/pkg
+                if index > 0 and query[index - 1] == '/':
+                    index += 1
+                    continue
+                return index
             index += 1
         return -1
     

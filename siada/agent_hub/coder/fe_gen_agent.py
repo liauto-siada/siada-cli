@@ -9,15 +9,21 @@ from siada.tools.browser import browser_operate_by_gym
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
+from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
 
 
 class FeGenAgent(CodeGenAgent):
 
     def __init__(self, *args, **kwargs):
 
+        _tools = [edit, regex_search_files, run_cmd, list_code_definition_names, browser_operate_by_gym]
+        _pwsh = get_run_powershell_tool_if_available()
+        if _pwsh is not None:
+            _tools.append(_pwsh)
+
         super().__init__(
             name="FeGenAgent",
-            tools=[edit, regex_search_files, run_cmd, list_code_definition_names, browser_operate_by_gym],
+            tools=_tools,
             *args,
             **kwargs
         )

@@ -29,7 +29,7 @@ def default_config():
         enabled=True,
         work_hours="09:00-18:00",
         trigger_interval=60,
-        daily_task_execution_time="08:30",
+        daily_task_execution_time="06:00",
     )
 
 
@@ -381,8 +381,9 @@ class TestDiscoverTasksMutex:
 class TestDailyTaskExecutionTimeConfig:
     """Test that daily_task_execution_time is correctly read from config."""
 
+    @patch("siada.agent_hub.proactive.scheduler.random.randint", return_value=0)
     def test_daily_job_uses_config_time_not_default(
-        self, cron_storage, signal_file, tmp_path
+        self, _mock_randint, cron_storage, signal_file, tmp_path
     ):
         """Verify that _register_daily_job uses the configured time, not the default."""
         # Use a non-default time to ensure it's coming from config
@@ -425,8 +426,9 @@ class TestDailyTaskExecutionTimeConfig:
         finally:
             s.stop()
 
+    @patch("siada.agent_hub.proactive.scheduler.random.randint", return_value=0)
     def test_daily_job_with_yaml_config_loads_correctly(
-        self, cron_storage, signal_file, tmp_path
+        self, _mock_randint, cron_storage, signal_file, tmp_path
     ):
         """
         Integration test: Verify that daily_task_execution_time is correctly loaded
@@ -489,15 +491,16 @@ class TestDailyTaskExecutionTimeConfig:
         finally:
             s.stop()
 
+    @patch("siada.agent_hub.proactive.scheduler.random.randint", return_value=0)
     def test_daily_job_uses_default_when_not_specified(
-        self, cron_storage, signal_file, tmp_path
+        self, _mock_randint, cron_storage, signal_file, tmp_path
     ):
-        """Verify that the default time (08:30) is used when not specified in config."""
+        """Verify that the default time (06:00) is used when not specified in config."""
         config = ProactiveConfig(
             enabled=True,
             work_hours="09:00-18:00",
             trigger_interval=60,
-            # daily_task_execution_time not specified, should use default "08:30"
+            # daily_task_execution_time not specified, should use default "06:00"
         )
         
         s = ProactiveScheduler(
@@ -520,10 +523,10 @@ class TestDailyTaskExecutionTimeConfig:
             hour_field = trigger.fields[5]
             minute_field = trigger.fields[6]
             
-            assert hour_field.expressions[0].first == 8, \
-                f"Expected hour=8, got hour={hour_field.expressions[0].first}"
-            assert minute_field.expressions[0].first == 30, \
-                f"Expected minute=30, got minute={minute_field.expressions[0].first}"
+            assert hour_field.expressions[0].first == 6, \
+                f"Expected hour=6, got hour={hour_field.expressions[0].first}"
+            assert minute_field.expressions[0].first == 0, \
+                f"Expected minute=0, got minute={minute_field.expressions[0].first}"
         finally:
             s.stop()
 
@@ -1001,9 +1004,10 @@ class TestDailyJobsSessionGating:
 
         Pass criteria:
         - _run_all_daily_jobs() does not raise regardless of LLM outcome.
-        - The job sequence log line is emitted (all 4 jobs attempted).
-        - When LLM is unreachable, each handler logs an ERROR but the sequence
-          still reports succeeded=4 / failed=0 — the swallowed-exception bug.
+        - The job sequence log line is emitted (all 4 jobs attempted or skipped).
+        - Handlers now re-raise exceptions so _run_job_sequence correctly counts
+          failures. Consecutive LLM failures may cause remaining LLM jobs to be
+          skipped (rate-limit protection).
         """
         s = ProactiveScheduler(
             config=default_config,
@@ -1014,7 +1018,7 @@ class TestDailyJobsSessionGating:
         with caplog.at_level(logging.INFO, logger="siada.agent_hub.proactive.scheduler"):
             s._run_all_daily_jobs()  # must not raise regardless of LLM outcome
 
-        # Job sequence always runs to completion (handlers never re-raise).
+        # Job sequence always runs to completion (failures are caught by _run_job_sequence).
         finish_records = [r for r in caplog.records if "job sequence finished" in r.message]
         assert len(finish_records) == 1
         assert "total=4" in finish_records[0].message

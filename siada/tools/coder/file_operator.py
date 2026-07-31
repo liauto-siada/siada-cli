@@ -4,16 +4,18 @@ from io import BytesIO
 from pathlib import Path
 
 from agents import RunContextWrapper, function_tool, ToolOutputImage
-from openhands_aci.editor import OHEditor, ToolResult, ToolError
-from openhands_aci.utils.diff import get_diff
+# openhands_aci imports deferred: pandas/numpy DLL loading deadlocks on Windows non-main threads.
+def _get_openhands_imports():
+    from openhands_aci.editor import ToolResult, ToolError
+    from openhands_aci.utils.diff import get_diff
+    return ToolResult, ToolError, get_diff
 
 from siada.foundation.logging import logger
-
-from binaryornot.check import is_binary
 
 from siada.tools.coder.observation.file_observation import FileEditObservation
 from siada.tools.coder.observation.observation import FunctionCallResult, FileEditSource
 from siada.tools.coder.observation.error import ErrorObservation
+# SiadaEditor lazy-imported in _edit_file() to avoid openhands_aci at import time
 from siada.tools.coder.tool_docs import EDIT_DOCS
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.tools.resolve_cwd import resolve_cwd
@@ -22,7 +24,7 @@ from siada.tools.resolve_cwd import resolve_cwd
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
 # this means the model supports image reading with the read_tool
-SUPPRORT_IMAGE_MODELS = {"claude", "gemini"}
+SUPPRORT_IMAGE_MODELS = {"claude", "gemini", "gpt-5.4", "kimi-k3"}
 
 @function_tool(
     name_override="edit_file", description_override=EDIT_DOCS
@@ -92,7 +94,11 @@ def _edit_file(
         # Process image and return base64-encoded result (error handling is internal)
         return read_image(path, effective_root)
 
-    file_editor = OHEditor(workspace_root=effective_root)
+    # Use the Siada-customized editor that applies a line-count + per-line
+    # character truncation policy on the ``view`` command (see
+    # ``siada_editor.py`` for details).
+    from siada.tools.coder.siada_editor import SiadaEditor
+    file_editor = SiadaEditor(workspace_root=effective_root)
     result_str, (old_content, new_content) = _execute_file_editor(
         file_editor,
         command=command,
@@ -106,14 +112,15 @@ def _edit_file(
         siadaignore_controller=siadaignore_controller,
     )
 
-    return FileEditObservation(
-        error=True if result_str.startswith('ERROR:') else False,
+    has_error = result_str.startswith('ERROR:')
+    obs = FileEditObservation(
+        error=has_error,
         content=result_str,
         path=path,
         old_content=old_str,
         new_content=new_str,
         impl_source=FileEditSource.OH_ACI,
-        diff=get_diff(
+        diff=_get_openhands_imports()[2](
             old_contents=old_content or '',
             new_contents=new_content or '',
             filepath=path,
@@ -121,9 +128,54 @@ def _edit_file(
         command=command,
     )
 
+    if not has_error and command in ("str_replace", "create", "insert"):
+        try:
+            from siada.tools.coder.diff_utils import calculate_diff_lines
+            from siada.foundation.telemetry import telemetry
+
+            ctx = context.context
+            task_id = ctx.session_id or ""
+            model_name = ""
+            if ctx.session and ctx.session.siada_config:
+                cfg = ctx.session.siada_config
+                if hasattr(cfg, "llm_config") and hasattr(cfg.llm_config, "model_name"):
+                    model_name = cfg.llm_config.model_name or ""
+            user_id = telemetry.config.user_id or telemetry.device_id
+            try:
+                rel_path = str(Path(path).relative_to(effective_root))
+            except ValueError:
+                rel_path = path
+            git_ctx = getattr(ctx, "git_context", None)
+            repo_id = (git_ctx.repo_id if git_ctx else "") or "not-specified"
+            branch_name = (git_ctx.branch if git_ctx else "") or "not-specified"
+            parent_commit_id = (git_ctx.commit if git_ctx else "") or "not-specified"
+            hunks = calculate_diff_lines(
+                new_content=new_content or "",
+                old_content=old_content or "",
+            )
+            for hunk in hunks:
+                telemetry.captureToolEditFileUsage(
+                    task_id=task_id,
+                    repo_id=repo_id,
+                    parent_commit_id=parent_commit_id,
+                    branch_name=branch_name,
+                    code_snippet=hunk["content"],
+                    start_line=hunk["start_line"],
+                    end_line=hunk["end_line"],
+                    line_count=hunk["line_count"],
+                    file_name=rel_path,
+                    conversation_index=0,
+                    user_id=user_id,
+                    model=model_name,
+                )
+        except Exception as e:
+            logger.debug(f"Failed to capture edit file telemetry: {e}")
+
+    return obs
+
 
 def _execute_file_editor(
-    editor: OHEditor,
+    editor,
     command: str,
     path: str,
     file_text: str | None = None,
@@ -137,7 +189,7 @@ def _execute_file_editor(
     """Execute file editor command and handle exceptions.
 
     Args:
-        editor: The OHEditor instance
+        editor: The editor instance (``SiadaEditor``, a subclass of ``OHEditor``)
         command: Editor command to execute
         path: File path
         file_text: Optional file text content
@@ -151,6 +203,7 @@ def _execute_file_editor(
     Returns:
         tuple: A tuple containing the output string and a tuple of old and new file content
     """
+    ToolResult, ToolError, _ = _get_openhands_imports()
     result: ToolResult | None = None
 
     if file_text is None:
@@ -188,12 +241,29 @@ def _execute_file_editor(
 
     if not result.output:
         logger.warning(f'No output from file_editor for {path}')
-        return '', (None, None)
+        # Return a non-empty ERROR placeholder so downstream persistence /
+        # Responses-API input assembly never drops this tool output. An empty
+        # string can be filtered out and cause
+        # `No tool output found for function call ...` 400 errors when the
+        # request is replayed with `previous_response_id`.
+        return (
+            f"ERROR:\nNo output produced for command '{command}' on path "
+            f"'{path}'. The file may be empty, inaccessible, or the "
+            f"requested view_range is invalid.",
+            (None, None),
+        )
 
     # Filter view command results with siadaignore if controller is available
     output = result.output
     if command == 'view' and siadaignore_controller is not None:
         output = siadaignore_controller.filter_view_output(output)
+        # Guard against the filter stripping everything: never return an empty
+        # string from here (see comment above).
+        if not output:
+            output = (
+                f"ERROR:\nAll content of '{path}' is filtered out by "
+                f".siadaignore; no viewable content available."
+            )
 
     return output, (result.old_content, result.new_content)
 

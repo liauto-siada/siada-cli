@@ -975,8 +975,8 @@ var require_command = __commonJS({
   "node_modules/commander/lib/command.js"(exports) {
     var EventEmitter7 = __require("node:events").EventEmitter;
     var childProcess = __require("node:child_process");
-    var path5 = __require("node:path");
-    var fs7 = __require("node:fs");
+    var path7 = __require("node:path");
+    var fs8 = __require("node:fs");
     var process19 = __require("node:process");
     var { Argument: Argument2, humanReadableArgName } = require_argument();
     var { CommanderError: CommanderError2 } = require_error();
@@ -1908,11 +1908,11 @@ Expecting one of '${allowedValues.join("', '")}'`);
         let launchWithNode = false;
         const sourceExt = [".js", ".ts", ".tsx", ".mjs", ".cjs"];
         function findFile(baseDir, baseName) {
-          const localBin = path5.resolve(baseDir, baseName);
-          if (fs7.existsSync(localBin)) return localBin;
-          if (sourceExt.includes(path5.extname(baseName))) return void 0;
+          const localBin = path7.resolve(baseDir, baseName);
+          if (fs8.existsSync(localBin)) return localBin;
+          if (sourceExt.includes(path7.extname(baseName))) return void 0;
           const foundExt = sourceExt.find(
-            (ext) => fs7.existsSync(`${localBin}${ext}`)
+            (ext) => fs8.existsSync(`${localBin}${ext}`)
           );
           if (foundExt) return `${localBin}${foundExt}`;
           return void 0;
@@ -1924,21 +1924,21 @@ Expecting one of '${allowedValues.join("', '")}'`);
         if (this._scriptPath) {
           let resolvedScriptPath;
           try {
-            resolvedScriptPath = fs7.realpathSync(this._scriptPath);
+            resolvedScriptPath = fs8.realpathSync(this._scriptPath);
           } catch (err) {
             resolvedScriptPath = this._scriptPath;
           }
-          executableDir = path5.resolve(
-            path5.dirname(resolvedScriptPath),
+          executableDir = path7.resolve(
+            path7.dirname(resolvedScriptPath),
             executableDir
           );
         }
         if (executableDir) {
           let localFile = findFile(executableDir, executableFile);
           if (!localFile && !subcommand._executableFile && this._scriptPath) {
-            const legacyName = path5.basename(
+            const legacyName = path7.basename(
               this._scriptPath,
-              path5.extname(this._scriptPath)
+              path7.extname(this._scriptPath)
             );
             if (legacyName !== this._name) {
               localFile = findFile(
@@ -1949,7 +1949,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
           }
           executableFile = localFile || executableFile;
         }
-        launchWithNode = sourceExt.includes(path5.extname(executableFile));
+        launchWithNode = sourceExt.includes(path7.extname(executableFile));
         let proc;
         if (process19.platform !== "win32") {
           if (launchWithNode) {
@@ -2789,7 +2789,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
        * @return {Command}
        */
       nameFromFilename(filename) {
-        this._name = path5.basename(filename, path5.extname(filename));
+        this._name = path7.basename(filename, path7.extname(filename));
         return this;
       }
       /**
@@ -2803,9 +2803,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
        * @param {string} [path]
        * @return {(string|null|Command)}
        */
-      executableDir(path6) {
-        if (path6 === void 0) return this._executableDir;
-        this._executableDir = path6;
+      executableDir(path8) {
+        if (path8 === void 0) return this._executableDir;
+        this._executableDir = path8;
         return this;
       }
       /**
@@ -12316,14 +12316,14 @@ var require_react_reconciler_production = __commonJS({
       }
       var exports2 = {};
       "use strict";
-      var React53 = require_react(), Scheduler2 = require_scheduler(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_PROVIDER_TYPE = Symbol.for("react.provider"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+      var React60 = require_react(), Scheduler2 = require_scheduler(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_PROVIDER_TYPE = Symbol.for("react.provider"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
       Symbol.for("react.scope");
       var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
       Symbol.for("react.legacy_hidden");
       Symbol.for("react.tracing_marker");
       var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
       Symbol.for("react.view_transition");
-      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React53.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
+      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React60.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
       $$$config.cloneMutableInstance;
       var appendInitialChild = $$$config.appendInitialChild, finalizeInitialChildren = $$$config.finalizeInitialChildren, shouldSetTextContent = $$$config.shouldSetTextContent, createTextInstance = $$$config.createTextInstance;
       $$$config.cloneMutableTextInstance;
@@ -13087,10 +13087,10 @@ var require_react_reconciler_development = __commonJS({
           fiber = fiber.next, id--;
         return fiber;
       }
-      function copyWithSetImpl(obj, path5, index, value) {
-        if (index >= path5.length) return value;
-        var key = path5[index], updated = isArrayImpl(obj) ? obj.slice() : assign({}, obj);
-        updated[key] = copyWithSetImpl(obj[key], path5, index + 1, value);
+      function copyWithSetImpl(obj, path7, index, value) {
+        if (index >= path7.length) return value;
+        var key = path7[index], updated = isArrayImpl(obj) ? obj.slice() : assign({}, obj);
+        updated[key] = copyWithSetImpl(obj[key], path7, index + 1, value);
         return updated;
       }
       function copyWithRename(obj, oldPath, newPath) {
@@ -13117,11 +13117,11 @@ var require_react_reconciler_development = __commonJS({
         );
         return updated;
       }
-      function copyWithDeleteImpl(obj, path5, index) {
-        var key = path5[index], updated = isArrayImpl(obj) ? obj.slice() : assign({}, obj);
-        if (index + 1 === path5.length)
+      function copyWithDeleteImpl(obj, path7, index) {
+        var key = path7[index], updated = isArrayImpl(obj) ? obj.slice() : assign({}, obj);
+        if (index + 1 === path7.length)
           return isArrayImpl(updated) ? updated.splice(key, 1) : delete updated[key], updated;
-        updated[key] = copyWithDeleteImpl(obj[key], path5, index + 1);
+        updated[key] = copyWithDeleteImpl(obj[key], path7, index + 1);
         return updated;
       }
       function shouldSuspendImpl() {
@@ -23066,14 +23066,14 @@ var require_react_reconciler_development = __commonJS({
       }
       var exports2 = {};
       "use strict";
-      var React53 = require_react(), Scheduler2 = require_scheduler(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_PROVIDER_TYPE = Symbol.for("react.provider"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+      var React60 = require_react(), Scheduler2 = require_scheduler(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_PROVIDER_TYPE = Symbol.for("react.provider"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
       Symbol.for("react.scope");
       var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
       Symbol.for("react.legacy_hidden");
       Symbol.for("react.tracing_marker");
       var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
       Symbol.for("react.view_transition");
-      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React53.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
+      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React60.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
       $$$config.cloneMutableInstance;
       var appendInitialChild = $$$config.appendInitialChild, finalizeInitialChildren = $$$config.finalizeInitialChildren, shouldSetTextContent = $$$config.shouldSetTextContent, createTextInstance = $$$config.createTextInstance;
       $$$config.cloneMutableTextInstance;
@@ -24506,29 +24506,29 @@ var require_react_reconciler_development = __commonJS({
       var didWarnAboutNestedUpdates = false;
       var didWarnAboutFindNodeInStrictMode = {};
       var overrideHookState = null, overrideHookStateDeletePath = null, overrideHookStateRenamePath = null, overrideProps = null, overridePropsDeletePath = null, overridePropsRenamePath = null, scheduleUpdate = null, setErrorHandler = null, setSuspenseHandler = null;
-      overrideHookState = function(fiber, id, path5, value) {
+      overrideHookState = function(fiber, id, path7, value) {
         id = findHook(fiber, id);
-        null !== id && (path5 = copyWithSetImpl(id.memoizedState, path5, 0, value), id.memoizedState = path5, id.baseState = path5, fiber.memoizedProps = assign({}, fiber.memoizedProps), path5 = enqueueConcurrentRenderForLane(fiber, 2), null !== path5 && scheduleUpdateOnFiber(path5, fiber, 2));
+        null !== id && (path7 = copyWithSetImpl(id.memoizedState, path7, 0, value), id.memoizedState = path7, id.baseState = path7, fiber.memoizedProps = assign({}, fiber.memoizedProps), path7 = enqueueConcurrentRenderForLane(fiber, 2), null !== path7 && scheduleUpdateOnFiber(path7, fiber, 2));
       };
-      overrideHookStateDeletePath = function(fiber, id, path5) {
+      overrideHookStateDeletePath = function(fiber, id, path7) {
         id = findHook(fiber, id);
-        null !== id && (path5 = copyWithDeleteImpl(id.memoizedState, path5, 0), id.memoizedState = path5, id.baseState = path5, fiber.memoizedProps = assign({}, fiber.memoizedProps), path5 = enqueueConcurrentRenderForLane(fiber, 2), null !== path5 && scheduleUpdateOnFiber(path5, fiber, 2));
+        null !== id && (path7 = copyWithDeleteImpl(id.memoizedState, path7, 0), id.memoizedState = path7, id.baseState = path7, fiber.memoizedProps = assign({}, fiber.memoizedProps), path7 = enqueueConcurrentRenderForLane(fiber, 2), null !== path7 && scheduleUpdateOnFiber(path7, fiber, 2));
       };
       overrideHookStateRenamePath = function(fiber, id, oldPath, newPath) {
         id = findHook(fiber, id);
         null !== id && (oldPath = copyWithRename(id.memoizedState, oldPath, newPath), id.memoizedState = oldPath, id.baseState = oldPath, fiber.memoizedProps = assign({}, fiber.memoizedProps), oldPath = enqueueConcurrentRenderForLane(fiber, 2), null !== oldPath && scheduleUpdateOnFiber(oldPath, fiber, 2));
       };
-      overrideProps = function(fiber, path5, value) {
-        fiber.pendingProps = copyWithSetImpl(fiber.memoizedProps, path5, 0, value);
+      overrideProps = function(fiber, path7, value) {
+        fiber.pendingProps = copyWithSetImpl(fiber.memoizedProps, path7, 0, value);
         fiber.alternate && (fiber.alternate.pendingProps = fiber.pendingProps);
-        path5 = enqueueConcurrentRenderForLane(fiber, 2);
-        null !== path5 && scheduleUpdateOnFiber(path5, fiber, 2);
+        path7 = enqueueConcurrentRenderForLane(fiber, 2);
+        null !== path7 && scheduleUpdateOnFiber(path7, fiber, 2);
       };
-      overridePropsDeletePath = function(fiber, path5) {
-        fiber.pendingProps = copyWithDeleteImpl(fiber.memoizedProps, path5, 0);
+      overridePropsDeletePath = function(fiber, path7) {
+        fiber.pendingProps = copyWithDeleteImpl(fiber.memoizedProps, path7, 0);
         fiber.alternate && (fiber.alternate.pendingProps = fiber.pendingProps);
-        path5 = enqueueConcurrentRenderForLane(fiber, 2);
-        null !== path5 && scheduleUpdateOnFiber(path5, fiber, 2);
+        path7 = enqueueConcurrentRenderForLane(fiber, 2);
+        null !== path7 && scheduleUpdateOnFiber(path7, fiber, 2);
       };
       overridePropsRenamePath = function(fiber, oldPath, newPath) {
         fiber.pendingProps = copyWithRename(
@@ -30082,8 +30082,8 @@ var require_react_reconciler_production2 = __commonJS({
         if (null === componentUpdateQueue)
           componentUpdateQueue = createFunctionComponentUpdateQueue(), currentlyRenderingFiber.updateQueue = componentUpdateQueue, componentUpdateQueue.events = [payload];
         else {
-          var events = componentUpdateQueue.events;
-          null === events ? componentUpdateQueue.events = [payload] : events.push(payload);
+          var events2 = componentUpdateQueue.events;
+          null === events2 ? componentUpdateQueue.events = [payload] : events2.push(payload);
         }
       }
       function updateEvent(callback) {
@@ -34967,14 +34967,14 @@ var require_react_reconciler_production2 = __commonJS({
       }
       var exports2 = {};
       "use strict";
-      var React53 = require_react(), Scheduler2 = require_scheduler2(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+      var React60 = require_react(), Scheduler2 = require_scheduler2(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
       Symbol.for("react.scope");
       var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
       Symbol.for("react.legacy_hidden");
       Symbol.for("react.tracing_marker");
       var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
       Symbol.for("react.view_transition");
-      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React53.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
+      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React60.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
       $$$config.cloneMutableInstance;
       var appendInitialChild = $$$config.appendInitialChild, finalizeInitialChildren = $$$config.finalizeInitialChildren, shouldSetTextContent = $$$config.shouldSetTextContent, createTextInstance = $$$config.createTextInstance;
       $$$config.cloneMutableTextInstance;
@@ -35764,10 +35764,10 @@ var require_react_reconciler_development2 = __commonJS({
           fiber = fiber.next, id--;
         return fiber;
       }
-      function copyWithSetImpl(obj, path5, index, value) {
-        if (index >= path5.length) return value;
-        var key = path5[index], updated = isArrayImpl(obj) ? obj.slice() : assign({}, obj);
-        updated[key] = copyWithSetImpl(obj[key], path5, index + 1, value);
+      function copyWithSetImpl(obj, path7, index, value) {
+        if (index >= path7.length) return value;
+        var key = path7[index], updated = isArrayImpl(obj) ? obj.slice() : assign({}, obj);
+        updated[key] = copyWithSetImpl(obj[key], path7, index + 1, value);
         return updated;
       }
       function copyWithRename(obj, oldPath, newPath) {
@@ -35794,11 +35794,11 @@ var require_react_reconciler_development2 = __commonJS({
         );
         return updated;
       }
-      function copyWithDeleteImpl(obj, path5, index) {
-        var key = path5[index], updated = isArrayImpl(obj) ? obj.slice() : assign({}, obj);
-        if (index + 1 === path5.length)
+      function copyWithDeleteImpl(obj, path7, index) {
+        var key = path7[index], updated = isArrayImpl(obj) ? obj.slice() : assign({}, obj);
+        if (index + 1 === path7.length)
           return isArrayImpl(updated) ? updated.splice(key, 1) : delete updated[key], updated;
-        updated[key] = copyWithDeleteImpl(obj[key], path5, index + 1);
+        updated[key] = copyWithDeleteImpl(obj[key], path7, index + 1);
         return updated;
       }
       function shouldSuspendImpl() {
@@ -40296,8 +40296,8 @@ var require_react_reconciler_development2 = __commonJS({
         if (null === componentUpdateQueue)
           componentUpdateQueue = createFunctionComponentUpdateQueue(), currentlyRenderingFiber.updateQueue = componentUpdateQueue, componentUpdateQueue.events = [payload];
         else {
-          var events = componentUpdateQueue.events;
-          null === events ? componentUpdateQueue.events = [payload] : events.push(payload);
+          var events2 = componentUpdateQueue.events;
+          null === events2 ? componentUpdateQueue.events = [payload] : events2.push(payload);
         }
       }
       function mountEvent(callback) {
@@ -47567,14 +47567,14 @@ var require_react_reconciler_development2 = __commonJS({
       }
       var exports2 = {};
       "use strict";
-      var React53 = require_react(), Scheduler2 = require_scheduler2(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+      var React60 = require_react(), Scheduler2 = require_scheduler2(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
       Symbol.for("react.scope");
       var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
       Symbol.for("react.legacy_hidden");
       Symbol.for("react.tracing_marker");
       var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
       Symbol.for("react.view_transition");
-      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React53.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
+      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React60.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
       $$$config.cloneMutableInstance;
       var appendInitialChild = $$$config.appendInitialChild, finalizeInitialChildren = $$$config.finalizeInitialChildren, shouldSetTextContent = $$$config.shouldSetTextContent, createTextInstance = $$$config.createTextInstance;
       $$$config.cloneMutableTextInstance;
@@ -49075,29 +49075,29 @@ var require_react_reconciler_development2 = __commonJS({
       var didWarnAboutNestedUpdates = false;
       var didWarnAboutFindNodeInStrictMode = {};
       var overrideHookState = null, overrideHookStateDeletePath = null, overrideHookStateRenamePath = null, overrideProps = null, overridePropsDeletePath = null, overridePropsRenamePath = null, scheduleUpdate = null, scheduleRetry = null, setErrorHandler = null, setSuspenseHandler = null;
-      overrideHookState = function(fiber, id, path5, value) {
+      overrideHookState = function(fiber, id, path7, value) {
         id = findHook(fiber, id);
-        null !== id && (path5 = copyWithSetImpl(id.memoizedState, path5, 0, value), id.memoizedState = path5, id.baseState = path5, fiber.memoizedProps = assign({}, fiber.memoizedProps), path5 = enqueueConcurrentRenderForLane(fiber, 2), null !== path5 && scheduleUpdateOnFiber(path5, fiber, 2));
+        null !== id && (path7 = copyWithSetImpl(id.memoizedState, path7, 0, value), id.memoizedState = path7, id.baseState = path7, fiber.memoizedProps = assign({}, fiber.memoizedProps), path7 = enqueueConcurrentRenderForLane(fiber, 2), null !== path7 && scheduleUpdateOnFiber(path7, fiber, 2));
       };
-      overrideHookStateDeletePath = function(fiber, id, path5) {
+      overrideHookStateDeletePath = function(fiber, id, path7) {
         id = findHook(fiber, id);
-        null !== id && (path5 = copyWithDeleteImpl(id.memoizedState, path5, 0), id.memoizedState = path5, id.baseState = path5, fiber.memoizedProps = assign({}, fiber.memoizedProps), path5 = enqueueConcurrentRenderForLane(fiber, 2), null !== path5 && scheduleUpdateOnFiber(path5, fiber, 2));
+        null !== id && (path7 = copyWithDeleteImpl(id.memoizedState, path7, 0), id.memoizedState = path7, id.baseState = path7, fiber.memoizedProps = assign({}, fiber.memoizedProps), path7 = enqueueConcurrentRenderForLane(fiber, 2), null !== path7 && scheduleUpdateOnFiber(path7, fiber, 2));
       };
       overrideHookStateRenamePath = function(fiber, id, oldPath, newPath) {
         id = findHook(fiber, id);
         null !== id && (oldPath = copyWithRename(id.memoizedState, oldPath, newPath), id.memoizedState = oldPath, id.baseState = oldPath, fiber.memoizedProps = assign({}, fiber.memoizedProps), oldPath = enqueueConcurrentRenderForLane(fiber, 2), null !== oldPath && scheduleUpdateOnFiber(oldPath, fiber, 2));
       };
-      overrideProps = function(fiber, path5, value) {
-        fiber.pendingProps = copyWithSetImpl(fiber.memoizedProps, path5, 0, value);
+      overrideProps = function(fiber, path7, value) {
+        fiber.pendingProps = copyWithSetImpl(fiber.memoizedProps, path7, 0, value);
         fiber.alternate && (fiber.alternate.pendingProps = fiber.pendingProps);
-        path5 = enqueueConcurrentRenderForLane(fiber, 2);
-        null !== path5 && scheduleUpdateOnFiber(path5, fiber, 2);
+        path7 = enqueueConcurrentRenderForLane(fiber, 2);
+        null !== path7 && scheduleUpdateOnFiber(path7, fiber, 2);
       };
-      overridePropsDeletePath = function(fiber, path5) {
-        fiber.pendingProps = copyWithDeleteImpl(fiber.memoizedProps, path5, 0);
+      overridePropsDeletePath = function(fiber, path7) {
+        fiber.pendingProps = copyWithDeleteImpl(fiber.memoizedProps, path7, 0);
         fiber.alternate && (fiber.alternate.pendingProps = fiber.pendingProps);
-        path5 = enqueueConcurrentRenderForLane(fiber, 2);
-        null !== path5 && scheduleUpdateOnFiber(path5, fiber, 2);
+        path7 = enqueueConcurrentRenderForLane(fiber, 2);
+        null !== path7 && scheduleUpdateOnFiber(path7, fiber, 2);
       };
       overridePropsRenamePath = function(fiber, oldPath, newPath) {
         fiber.pendingProps = copyWithRename(
@@ -52788,6 +52788,7 @@ var init_slashCommandService = __esm({
           // { name: 'multiline-mode', description: 'Toggle multiline mode', requiresSession: false },
           { name: "editor", description: "Open an editor to write a prompt", requiresSession: false },
           { name: "edit", description: "Alias for /editor", requiresSession: false },
+          { name: "statusbar", description: "Toggle status bar items visibility", requiresSession: false },
           { name: "init", description: "Analyze the project and create a tailored SIADA.md file", requiresSession: true },
           { name: "context-file-refresh", description: "Refresh SIADA.md and AGENTS.md context files and show content overview", requiresSession: true },
           { name: "rule-init", description: "Create an empty siada_rule.md file", requiresSession: true },
@@ -52812,7 +52813,8 @@ var init_slashCommandService = __esm({
           { name: "task-list", description: "Show discovered pending tasks and select one to execute", requiresSession: true },
           { name: "lark-auth", description: "Authenticate with Lark MCP server using OAuth 2.0", requiresSession: true },
           { name: "lark-status", description: "Show Lark OAuth authentication status", requiresSession: true },
-          { name: "lark-refresh", description: "Refresh Lark OAuth token", requiresSession: true }
+          { name: "lark-refresh", description: "Refresh Lark OAuth token", requiresSession: true },
+          { name: "memory", description: "Enable or disable the memory subsystem (usage: /memory [enable|disable])", requiresSession: true }
         ];
         builtinCommands.forEach((cmd) => {
           this.commands.set(cmd.name, {
@@ -52882,7 +52884,7 @@ __export(checkpointService_exports, {
   checkpointService: () => checkpointService
 });
 import fs4 from "fs";
-import path2 from "path";
+import path3 from "path";
 import os3 from "os";
 var CheckpointService, checkpointService;
 var init_checkpointService = __esm({
@@ -52918,7 +52920,7 @@ var init_checkpointService = __esm({
           return null;
         }
         const homeDir = os3.homedir();
-        const checkpointDir = path2.join(homeDir, ".siada-cli", "data", "tmp", this.projectHash, "checkpoints", this.sessionId);
+        const checkpointDir = path3.join(homeDir, ".siada-cli", "data", "tmp", this.projectHash, "checkpoints", this.sessionId);
         return checkpointDir;
       }
       /**
@@ -52938,7 +52940,7 @@ var init_checkpointService = __esm({
           const checkpoints = [];
           for (const file of checkpointFiles) {
             try {
-              const filePath = path2.join(checkpointDir, file);
+              const filePath = path3.join(checkpointDir, file);
               const content = fs4.readFileSync(filePath, "utf-8");
               const data = JSON.parse(content);
               checkpoints.push({
@@ -55523,29 +55525,29 @@ var leadingNonPrintingRegex = /^[\p{Default_Ignorable_Code_Point}\p{Control}\p{F
 var rgiEmojiRegex = /^\p{RGI_Emoji}$/v;
 var unqualifiedKeycapRegex = /^[\d#*]\u20E3$/;
 var extendedPictographicRegex = /\p{Extended_Pictographic}/gu;
-function isDoubleWidthNonRgiEmojiSequence(segment) {
-  if (segment.length > 50) {
+function isDoubleWidthNonRgiEmojiSequence(segment2) {
+  if (segment2.length > 50) {
     return false;
   }
-  if (unqualifiedKeycapRegex.test(segment)) {
+  if (unqualifiedKeycapRegex.test(segment2)) {
     return true;
   }
-  if (segment.includes("\u200D")) {
-    const pictographics = segment.match(extendedPictographicRegex);
+  if (segment2.includes("\u200D")) {
+    const pictographics = segment2.match(extendedPictographicRegex);
     return pictographics !== null && pictographics.length >= 2;
   }
   return false;
 }
-function baseVisible(segment) {
-  return segment.replace(leadingNonPrintingRegex, "");
+function baseVisible(segment2) {
+  return segment2.replace(leadingNonPrintingRegex, "");
 }
-function isZeroWidthCluster(segment) {
-  return zeroWidthClusterRegex.test(segment);
+function isZeroWidthCluster(segment2) {
+  return zeroWidthClusterRegex.test(segment2);
 }
-function trailingHalfwidthWidth(segment, eastAsianWidthOptions) {
+function trailingHalfwidthWidth(segment2, eastAsianWidthOptions) {
   let extra = 0;
-  if (segment.length > 1) {
-    for (const char of segment.slice(1)) {
+  if (segment2.length > 1) {
+    for (const char of segment2.slice(1)) {
       if (char >= "\uFF00" && char <= "\uFFEF") {
         extra += eastAsianWidth(char.codePointAt(0), eastAsianWidthOptions);
       }
@@ -55573,17 +55575,17 @@ function stringWidth2(input, options = {}) {
   }
   let width = 0;
   const eastAsianWidthOptions = { ambiguousAsWide: !ambiguousIsNarrow };
-  for (const { segment } of segmenter2.segment(string)) {
-    if (isZeroWidthCluster(segment)) {
+  for (const { segment: segment2 } of segmenter2.segment(string)) {
+    if (isZeroWidthCluster(segment2)) {
       continue;
     }
-    if (rgiEmojiRegex.test(segment) || isDoubleWidthNonRgiEmojiSequence(segment)) {
+    if (rgiEmojiRegex.test(segment2) || isDoubleWidthNonRgiEmojiSequence(segment2)) {
       width += 2;
       continue;
     }
-    const codePoint = baseVisible(segment).codePointAt(0);
+    const codePoint = baseVisible(segment2).codePointAt(0);
     width += eastAsianWidth(codePoint, eastAsianWidthOptions);
-    width += trailingHalfwidthWidth(segment, eastAsianWidthOptions);
+    width += trailingHalfwidthWidth(segment2, eastAsianWidthOptions);
   }
   return width;
 }
@@ -55801,10 +55803,10 @@ function tokenize(str, endChar = Number.POSITIVE_INFINITY) {
   const ret = [];
   let visible = 0;
   let codeEndIndex = 0;
-  for (const { segment, index } of segmenter3.segment(str)) {
+  for (const { segment: segment2, index } of segmenter3.segment(str)) {
     if (index < codeEndIndex)
       continue;
-    const codePoint = segment.codePointAt(0);
+    const codePoint = segment2.codePointAt(0);
     if (ESCAPES2.has(codePoint)) {
       let code;
       const nextCodePoint = str.codePointAt(index + 1);
@@ -55835,10 +55837,10 @@ function tokenize(str, endChar = Number.POSITIVE_INFINITY) {
         continue;
       }
     }
-    const fullWidth = isFullwidthGrapheme(segment, codePoint);
+    const fullWidth = isFullwidthGrapheme(segment2, codePoint);
     ret.push({
       type: "char",
-      value: segment,
+      value: segment2,
       fullWidth
     });
     visible += fullWidth ? 2 : 1;
@@ -56367,13 +56369,13 @@ var setTextNodeValue = (node, text) => {
   markNodeAsDirty(node);
 };
 var getPathToRoot = (node) => {
-  const path5 = [];
+  const path7 = [];
   let current = node;
   while (current) {
-    path5.unshift(current);
+    path7.unshift(current);
     current = current.parentNode;
   }
-  return path5;
+  return path7;
 };
 var isNodeSelectable = (node) => {
   let current = node;
@@ -59510,8 +59512,8 @@ function Text({ color, backgroundColor, dimColor = false, bold = false, italic =
 }
 
 // node_modules/@jrichman/ink/build/components/ErrorOverview.js
-var cleanupPath = (path5) => {
-  return path5?.replace(`file://${cwd()}/`, "");
+var cleanupPath = (path7) => {
+  return path7?.replace(`file://${cwd()}/`, "");
 };
 var stackUtils = new import_stack_utils.default({
   cwd: cwd(),
@@ -60817,10 +60819,10 @@ var import_react24 = __toESM(require_react(), 1);
 var import_react25 = __toESM(require_react(), 1);
 
 // src/cli.ts
-var import_react106 = __toESM(require_react(), 1);
+var import_react115 = __toESM(require_react(), 1);
 
 // src/components/App.tsx
-var import_react105 = __toESM(require_react(), 1);
+var import_react114 = __toESM(require_react(), 1);
 
 // node_modules/ink-spinner/build/index.js
 var import_react54 = __toESM(require_react(), 1);
@@ -61288,19 +61290,19 @@ function appendTrailingAnsiTokens(string, index, tokens) {
   return index;
 }
 function parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments) {
-  const segment = graphemeSegments.containing(index);
-  if (!segment || segment.index !== index) {
+  const segment2 = graphemeSegments.containing(index);
+  if (!segment2 || segment2.index !== index) {
     return;
   }
   return {
     token: {
       type: "character",
       // Intentionally preserve UAX29 behavior (GB3): CRLF is one grapheme cluster.
-      value: segment.segment,
-      visibleWidth: getGraphemeWidth(segment.segment),
+      value: segment2.segment,
+      visibleWidth: getGraphemeWidth(segment2.segment),
       isGraphemeContinuation: false
     },
-    endIndex: index + segment.segment.length
+    endIndex: index + segment2.segment.length
   };
 }
 function collectVisibleCharacters(string) {
@@ -61337,14 +61339,14 @@ function applyGraphemeMetadata(visibleCharacters) {
     scalarOffset += visibleCharacter.value.length;
   }
   let scalarIndex = 0;
-  for (const segment of GRAPHEME_SEGMENTER.segment(visibleString)) {
-    while (scalarIndex < visibleCharacters.length && scalarOffsets[scalarIndex] < segment.index) {
+  for (const segment2 of GRAPHEME_SEGMENTER.segment(visibleString)) {
+    while (scalarIndex < visibleCharacters.length && scalarOffsets[scalarIndex] < segment2.index) {
       scalarIndex++;
     }
     let graphemeIndex = scalarIndex;
     let isFirstInGrapheme = true;
-    while (graphemeIndex < visibleCharacters.length && scalarOffsets[graphemeIndex] < segment.index + segment.segment.length) {
-      visibleCharacters[graphemeIndex].visibleWidth = isFirstInGrapheme ? getGraphemeWidth(segment.segment) : 0;
+    while (graphemeIndex < visibleCharacters.length && scalarOffsets[graphemeIndex] < segment2.index + segment2.segment.length) {
+      visibleCharacters[graphemeIndex].visibleWidth = isFirstInGrapheme ? getGraphemeWidth(segment2.segment) : 0;
       visibleCharacters[graphemeIndex].isGraphemeContinuation = !isFirstInGrapheme;
       isFirstInGrapheme = false;
       graphemeIndex++;
@@ -61398,11 +61400,11 @@ function tokenizeAnsiWithVisibleSegmentation(string, { endCharacter = Number.POS
 function areValuesInSameGrapheme(leftValue, rightValue) {
   const pair = `${leftValue}${rightValue}`;
   const splitIndex = leftValue.length;
-  for (const segment of GRAPHEME_SEGMENTER.segment(pair)) {
-    if (segment.index === splitIndex) {
+  for (const segment2 of GRAPHEME_SEGMENTER.segment(pair)) {
+    if (segment2.index === splitIndex) {
       return false;
     }
-    if (segment.index > splitIndex) {
+    if (segment2.index > splitIndex) {
       return true;
     }
   }
@@ -62576,8 +62578,8 @@ var cleanupYogaNode2 = (node) => {
 var currentUpdatePriority2 = import_constants3.NoEventPriority;
 var currentRootNode2;
 async function loadPackageJson() {
-  const fs7 = await import("node:fs");
-  const content = fs7.readFileSync(new URL("../package.json", import.meta.url), "utf8");
+  const fs8 = await import("node:fs");
+  const content = fs8.readFileSync(new URL("../package.json", import.meta.url), "utf8");
   return JSON.parse(content);
 }
 var packageJson = isDev() ? await loadPackageJson() : { name: void 0, version: void 0 };
@@ -62907,23 +62909,23 @@ var parseEscapedCodePoint = (input, escapeIndex) => {
   };
 };
 var parseKeypresses = (input) => {
-  const events = [];
+  const events2 = [];
   let index = 0;
   const pendingFrom = (pendingStartIndex) => ({
-    events,
+    events: events2,
     pending: input.slice(pendingStartIndex)
   });
   while (index < input.length) {
     const escapeIndex = input.indexOf(escape2, index);
     if (escapeIndex === -1) {
-      events.push(input.slice(index));
+      events2.push(input.slice(index));
       return {
-        events,
+        events: events2,
         pending: ""
       };
     }
     if (escapeIndex > index) {
-      events.push(input.slice(index, escapeIndex));
+      events2.push(input.slice(index, escapeIndex));
     }
     if (escapeIndex === input.length - 1) {
       return pendingFrom(escapeIndex);
@@ -62933,7 +62935,7 @@ var parseKeypresses = (input) => {
       return pendingFrom(escapeIndex);
     }
     if (parsedSequence) {
-      events.push(parsedSequence.sequence);
+      events2.push(parsedSequence.sequence);
       index = parsedSequence.nextIndex;
       continue;
     }
@@ -62947,20 +62949,20 @@ var parseKeypresses = (input) => {
         return pendingFrom(escapeIndex);
       }
       if (doubleEscapeSequence) {
-        events.push(doubleEscapeSequence.sequence);
+        events2.push(doubleEscapeSequence.sequence);
         index = doubleEscapeSequence.nextIndex;
         continue;
       }
-      events.push(input.slice(escapeIndex, escapeIndex + 2));
+      events2.push(input.slice(escapeIndex, escapeIndex + 2));
       index = escapeIndex + 2;
       continue;
     }
     const escapedCodePoint = parseEscapedCodePoint(input, escapeIndex);
-    events.push(escapedCodePoint.sequence);
+    events2.push(escapedCodePoint.sequence);
     index = escapedCodePoint.nextIndex;
   }
   return {
-    events,
+    events: events2,
     pending: ""
   };
 };
@@ -63166,8 +63168,8 @@ function Text2({ color, backgroundColor, dimColor = false, bold = false, italic 
 }
 
 // node_modules/ink/build/components/ErrorOverview.js
-var cleanupPath2 = (path5) => {
-  return path5?.replace(`file://${cwd2()}/`, "");
+var cleanupPath2 = (path7) => {
+  return path7?.replace(`file://${cwd2()}/`, "");
 };
 var stackUtils2 = new import_stack_utils2.default({
   cwd: cwd2(),
@@ -63776,7 +63778,7 @@ function Spinner({ type = "dots" }) {
 var build_default = Spinner;
 
 // src/components/layouts/MainLayout.tsx
-var import_react83 = __toESM(require_react(), 1);
+var import_react90 = __toESM(require_react(), 1);
 
 // src/components/Chat/MessageList.tsx
 var import_react64 = __toESM(require_react(), 1);
@@ -64226,7 +64228,7 @@ ${this.truncateContent(contextStr)}`;
 };
 var logger = new Logger(
   {
-    level: process.env.SIADA_UI_LOG_LEVEL === "debug" ? 0 /* DEBUG */ : 1 /* INFO */,
+    level: process.env.SIADA_DEBUG ? 0 /* DEBUG */ : 1 /* INFO */,
     enableConsole: false,
     // Disabled to prevent terminal crashes
     enableFile: true,
@@ -64529,17 +64531,17 @@ function highlightSegments(text, options = {}) {
   const merged = mergeSegments(allSegments);
   const result = [];
   let lastEnd = 0;
-  for (const segment of merged) {
-    if (segment.start > lastEnd) {
+  for (const segment2 of merged) {
+    if (segment2.start > lastEnd) {
       result.push({
         type: "text",
-        content: text.substring(lastEnd, segment.start),
+        content: text.substring(lastEnd, segment2.start),
         start: lastEnd,
-        end: segment.start
+        end: segment2.start
       });
     }
-    result.push(segment);
-    lastEnd = segment.end;
+    result.push(segment2);
+    lastEnd = segment2.end;
   }
   if (lastEnd < text.length) {
     result.push({
@@ -64614,9 +64616,9 @@ function normalizeLanguage(lang) {
 }
 
 // src/components/common/HighlightedText.tsx
-function renderSegment(segment, key, defaultColor, bold, italic, dimColor) {
+function renderSegment(segment2, key, defaultColor, bold, italic, dimColor) {
   let color;
-  switch (segment.type) {
+  switch (segment2.type) {
     case "path":
       color = theme.highlight.path;
       break;
@@ -64625,7 +64627,7 @@ function renderSegment(segment, key, defaultColor, bold, italic, dimColor) {
       break;
     case "inlineCode":
       color = theme.highlight.inlineCode;
-      const codeContent = segment.content.replace(/^`|`$/g, "");
+      const codeContent = segment2.content.replace(/^`|`$/g, "");
       return /* @__PURE__ */ import_react55.default.createElement(Text, { key, color, bold: true }, codeContent);
     case "url":
       color = theme.highlight.url;
@@ -64644,7 +64646,7 @@ function renderSegment(segment, key, defaultColor, bold, italic, dimColor) {
       italic,
       dimColor
     },
-    segment.content
+    segment2.content
   );
 }
 var HighlightedText = ({
@@ -64677,7 +64679,7 @@ var HighlightedText = ({
     );
   }
   return /* @__PURE__ */ import_react55.default.createElement(import_react55.default.Fragment, null, segments.map(
-    (segment, index) => renderSegment(segment, index, defaultColor, bold, italic, dimColor)
+    (segment2, index) => renderSegment(segment2, index, defaultColor, bold, italic, dimColor)
   ));
 };
 
@@ -78420,75 +78422,200 @@ function colorizeCode({
 
 // src/components/markdown/TableRenderer.tsx
 var import_react58 = __toESM(require_react(), 1);
+var SAFETY_MARGIN = 4;
+var MIN_COLUMN_WIDTH = 3;
+function stripInlineMarkdown(text) {
+  return (text || "").replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1").replace(/_(.*?)_/g, "$1").replace(/~~(.*?)~~/g, "$1").replace(/`(.*?)`/g, "$1").replace(/<u>(.*?)<\/u>/g, "$1").replace(/.*\[(.*?)\]\(.*\)/g, "$1");
+}
+function wrapCellText(text, width) {
+  if (width <= 0) return [text];
+  if (!text) return [""];
+  const tokens = text.split(/(\s+)/).filter((t) => t.length > 0);
+  const lines = [];
+  let line = "";
+  let lineWidth = 0;
+  const pushLine = () => {
+    if (line.length > 0) {
+      lines.push(line.replace(/\s+$/, ""));
+    }
+    line = "";
+    lineWidth = 0;
+  };
+  const appendChunk = (chunk) => {
+    line += chunk;
+    lineWidth += getPlainTextLength(chunk);
+  };
+  for (const token of tokens) {
+    const tokenWidth = getPlainTextLength(token);
+    const isWhitespace2 = /^\s+$/.test(token);
+    if (lineWidth + tokenWidth <= width) {
+      appendChunk(token);
+      continue;
+    }
+    if (isWhitespace2) {
+      pushLine();
+      continue;
+    }
+    if (tokenWidth <= width) {
+      pushLine();
+      appendChunk(token);
+      continue;
+    }
+    for (const ch of token) {
+      const cw = getPlainTextLength(ch);
+      if (lineWidth + cw > width) {
+        pushLine();
+      }
+      appendChunk(ch);
+    }
+  }
+  pushLine();
+  return lines.length > 0 ? lines : [""];
+}
+function getMinWidth(text) {
+  const stripped = stripInlineMarkdown(text);
+  const words = stripped.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) return MIN_COLUMN_WIDTH;
+  let max = MIN_COLUMN_WIDTH;
+  for (const w of words) {
+    const wWidth = getPlainTextLength(w);
+    const effective = /^\s*$/.test(w) ? MIN_COLUMN_WIDTH : containsWideRun(w) ? Math.min(wWidth, MIN_COLUMN_WIDTH * 2) : wWidth;
+    if (effective > max) max = effective;
+  }
+  return Math.max(max, MIN_COLUMN_WIDTH);
+}
+function containsWideRun(s) {
+  return !/[A-Za-z0-9]/.test(s);
+}
+function getIdealWidth(text) {
+  return Math.max(
+    getPlainTextLength(stripInlineMarkdown(text)),
+    MIN_COLUMN_WIDTH
+  );
+}
 var TableRenderer = ({
   headers,
   rows,
   terminalWidth
 }) => {
-  const columnWidths = headers.map((header, index) => {
-    const headerWidth = getPlainTextLength(header);
-    const maxRowWidth = Math.max(
-      ...rows.map((row) => getPlainTextLength(row[index] || ""))
-    );
-    return Math.max(headerWidth, maxRowWidth) + 2;
+  const numCols = headers.length;
+  const minWidths = headers.map((header, colIdx) => {
+    let w = getMinWidth(header);
+    for (const row of rows) {
+      w = Math.max(w, getMinWidth(row[colIdx] || ""));
+    }
+    return w;
   });
-  const totalWidth = columnWidths.reduce((sum, width) => sum + width + 1, 1);
-  const scaleFactor = totalWidth > terminalWidth ? terminalWidth / totalWidth : 1;
-  const adjustedWidths = columnWidths.map(
-    (width) => Math.floor(width * scaleFactor)
+  const idealWidths = headers.map((header, colIdx) => {
+    let w = getIdealWidth(header);
+    for (const row of rows) {
+      w = Math.max(w, getIdealWidth(row[colIdx] || ""));
+    }
+    return w;
+  });
+  const borderOverhead = 1 + numCols * 3;
+  const availableWidth = Math.max(
+    terminalWidth - borderOverhead - SAFETY_MARGIN,
+    numCols * MIN_COLUMN_WIDTH
   );
-  const renderCell = (content, width, isHeader = false) => {
-    const contentWidth = Math.max(0, width - 2);
-    const displayWidth = getPlainTextLength(content);
-    let cellContent = content;
-    if (displayWidth > contentWidth) {
-      if (contentWidth <= 3) {
-        cellContent = content.substring(
-          0,
-          Math.min(content.length, contentWidth)
-        );
-      } else {
-        let left = 0;
-        let right = content.length;
-        let bestTruncated = content;
-        while (left <= right) {
-          const mid = Math.floor((left + right) / 2);
-          const candidate = content.substring(0, mid);
-          const candidateWidth = getPlainTextLength(candidate);
-          if (candidateWidth <= contentWidth - 3) {
-            bestTruncated = candidate;
-            left = mid + 1;
-          } else {
-            right = mid - 1;
-          }
-        }
-        cellContent = bestTruncated + "...";
+  const totalMin = minWidths.reduce((s, w) => s + w, 0);
+  const totalIdeal = idealWidths.reduce((s, w) => s + w, 0);
+  let columnContentWidths;
+  if (totalIdeal <= availableWidth) {
+    columnContentWidths = idealWidths.slice();
+  } else if (totalMin <= availableWidth) {
+    const extra = availableWidth - totalMin;
+    const overflows = idealWidths.map((ideal, i) => Math.max(0, ideal - minWidths[i]));
+    const totalOverflow = overflows.reduce((s, o) => s + o, 0);
+    columnContentWidths = minWidths.map((min, i) => {
+      if (totalOverflow === 0) return min;
+      const add = Math.floor(overflows[i] / totalOverflow * extra);
+      return min + add;
+    });
+    let used = columnContentWidths.reduce((s, w) => s + w, 0);
+    let leftover = availableWidth - used;
+    if (leftover > 0) {
+      const order = overflows.map((o, i) => ({ o, i })).sort((a, b) => b.o - a.o);
+      let k = 0;
+      while (leftover > 0 && order.length > 0) {
+        columnContentWidths[order[k % order.length].i] += 1;
+        leftover -= 1;
+        k += 1;
       }
     }
-    const plainContent = cellContent.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1").replace(/_(.*?)_/g, "$1").replace(/~~(.*?)~~/g, "$1").replace(/`(.*?)`/g, "$1").replace(/<u>(.*?)<\/u>/g, "$1").replace(/.*\[(.*?)\]\(.*\)/g, "$1");
-    const actualDisplayWidth = getPlainTextLength(plainContent);
-    const paddingNeeded = Math.max(0, contentWidth - actualDisplayWidth);
-    return /* @__PURE__ */ import_react58.default.createElement(Text, null, isHeader ? /* @__PURE__ */ import_react58.default.createElement(Text, { bold: true, color: theme.text.link }, plainContent) : /* @__PURE__ */ import_react58.default.createElement(Text, null, plainContent), " ".repeat(paddingNeeded));
+  } else {
+    const scale = availableWidth / totalMin;
+    columnContentWidths = minWidths.map(
+      (w) => Math.max(Math.floor(w * scale), MIN_COLUMN_WIDTH)
+    );
+  }
+  const adjustedWidths = columnContentWidths.map((w) => w + 2);
+  const padCellLine = (text, contentWidth) => {
+    const visual = getPlainTextLength(text);
+    const need = Math.max(0, contentWidth - visual);
+    return text + " ".repeat(need);
   };
-  const renderBorder2 = (type) => {
+  const buildBorder = (type) => {
     const chars = {
       top: { left: "\u250C", middle: "\u252C", right: "\u2510", horizontal: "\u2500" },
       middle: { left: "\u251C", middle: "\u253C", right: "\u2524", horizontal: "\u2500" },
       bottom: { left: "\u2514", middle: "\u2534", right: "\u2518", horizontal: "\u2500" }
     };
-    const char = chars[type];
-    const borderParts = adjustedWidths.map((w) => char.horizontal.repeat(w));
-    const border = char.left + borderParts.join(char.middle) + char.right;
-    return /* @__PURE__ */ import_react58.default.createElement(Text, { color: colors.gray[500], wrap: "truncate-end" }, border);
+    const c2 = chars[type];
+    const parts = adjustedWidths.map((w) => c2.horizontal.repeat(w));
+    return c2.left + parts.join(c2.middle) + c2.right;
   };
-  const renderRow = (cells, isHeader = false) => {
-    const renderedCells = cells.map((cell, index) => {
-      const width = adjustedWidths[index] || 0;
-      return renderCell(cell || "", width, isHeader);
+  const buildRowLines = (cells) => {
+    const cellLines = cells.map((cell, index) => {
+      const contentWidth = Math.max(0, (adjustedWidths[index] || 0) - 2);
+      const plainContent = stripInlineMarkdown(cell || "");
+      return wrapCellText(plainContent, contentWidth);
     });
-    return /* @__PURE__ */ import_react58.default.createElement(Text, { color: theme.text.primary, wrap: "truncate-end" }, "\u2502", " ", renderedCells.map((cell, index) => /* @__PURE__ */ import_react58.default.createElement(import_react58.default.Fragment, { key: index }, cell, index < renderedCells.length - 1 ? " \u2502 " : "")), " ", "\u2502");
+    const maxLines = Math.max(...cellLines.map((ls) => ls.length), 1);
+    const out = [];
+    for (let lineIdx = 0; lineIdx < maxLines; lineIdx++) {
+      let line = "\u2502";
+      for (let i = 0; i < cells.length; i++) {
+        const contentWidth = Math.max(0, (adjustedWidths[i] || 0) - 2);
+        const text = cellLines[i]?.[lineIdx] ?? "";
+        line += " " + padCellLine(text, contentWidth) + " \u2502";
+      }
+      out.push(line);
+    }
+    return out;
   };
-  return /* @__PURE__ */ import_react58.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, renderBorder2("top"), renderRow(headers, true), renderBorder2("middle"), rows.map((row, index) => /* @__PURE__ */ import_react58.default.createElement(import_react58.default.Fragment, { key: index }, renderRow(row))), renderBorder2("bottom"));
+  const borderColor = colors.gray[500];
+  const textColor = theme.text.primary;
+  const headerColor = theme.text.link;
+  const lineNodes = [];
+  let key = 0;
+  lineNodes.push(
+    /* @__PURE__ */ import_react58.default.createElement(Text, { key: key++, color: borderColor }, buildBorder("top"))
+  );
+  for (const headerLine of buildRowLines(headers)) {
+    lineNodes.push(
+      /* @__PURE__ */ import_react58.default.createElement(Text, { key: key++, bold: true, color: headerColor }, headerLine)
+    );
+  }
+  lineNodes.push(
+    /* @__PURE__ */ import_react58.default.createElement(Text, { key: key++, color: borderColor }, buildBorder("middle"))
+  );
+  for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+    for (const dataLine of buildRowLines(rows[rowIdx])) {
+      lineNodes.push(
+        /* @__PURE__ */ import_react58.default.createElement(Text, { key: key++, color: textColor }, dataLine)
+      );
+    }
+    if (rowIdx < rows.length - 1) {
+      lineNodes.push(
+        /* @__PURE__ */ import_react58.default.createElement(Text, { key: key++, color: borderColor }, buildBorder("middle"))
+      );
+    }
+  }
+  lineNodes.push(
+    /* @__PURE__ */ import_react58.default.createElement(Text, { key: key++, color: borderColor }, buildBorder("bottom"))
+  );
+  return /* @__PURE__ */ import_react58.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, lineNodes);
 };
 
 // src/components/common/MarkdownText.tsx
@@ -78782,10 +78909,18 @@ var TOOL_PATTERNS = {
   update_file: /^In the file `([^`]+)`[,`].*(?:replace|insert)/,
   undo_edit: /^Undo the last edit for the file `([^`]+)`/,
   run_command: /^Run the following command:/,
+  run_powershell: /^Run the following PowerShell command:/,
   search: /^Search for: (.+?) in (.+?) with file pattern/,
   analyze: /^Analyze definitions in `([^`]+)`/,
-  crawl: /^Crawl the url: (.+?) with format/,
-  browser: /^> Siada will (.+)/
+  web: /^(?:Crawl the url:|Fetch URL:|Web search:)\s*(.+)/,
+  browser: /^> Siada will (.+)/,
+  memory_search: /^Searching memory:\s*(.+)/,
+  memory_write: /^Save to memory/,
+  fact_store: /^Fact memory(?:\s+(.+))?/,
+  fact_feedback: /^Fact feedback(?:\s+(.+))?/,
+  sub_agent: /^Sub-agent task:\s*(.+)/,
+  lark: /^Send Lark/,
+  todo_write: /^(?:Clearing todo list|[○◐✓?]\s+.+)/
 };
 function parseToolCall(content) {
   if (!content) return null;
@@ -78845,6 +78980,14 @@ function createParsedResult(type, match, fullContent) {
         summary: "Run command",
         details: command
       };
+    case "run_powershell":
+      const psMatch = fullContent.match(/```powershell\s*\n(.+?)\n```/s);
+      const psCommand = psMatch ? psMatch[1].trim() : "";
+      return {
+        type,
+        summary: "Run PowerShell command",
+        details: psCommand
+      };
     case "search":
       return {
         type,
@@ -78858,10 +79001,10 @@ function createParsedResult(type, match, fullContent) {
         path: match[1],
         details: match[1]
       };
-    case "crawl":
+    case "web":
       return {
         type,
-        summary: "Crawl URL",
+        summary: "Web request",
         details: match[1]
       };
     case "browser":
@@ -78870,6 +79013,51 @@ function createParsedResult(type, match, fullContent) {
         summary: "Browser action",
         details: match[1]
       };
+    case "memory_search":
+      return {
+        type,
+        summary: "Search memory",
+        details: match[1]
+      };
+    case "memory_write":
+      return {
+        type,
+        summary: "Save to memory",
+        details: fullContent.substring("Save to memory".length).trim()
+      };
+    case "fact_store":
+      return {
+        type,
+        summary: "Fact memory",
+        details: (match[1] || "").trim()
+      };
+    case "fact_feedback":
+      return {
+        type,
+        summary: "Fact feedback",
+        details: (match[1] || "").trim()
+      };
+    case "sub_agent":
+      return {
+        type,
+        summary: "Sub-agent task",
+        details: match[1]
+      };
+    case "lark":
+      return {
+        type,
+        summary: "Lark notification",
+        details: fullContent.substring("Send Lark".length).trim()
+      };
+    case "todo_write": {
+      const progressMatch = fullContent.match(/\[(\d+)\/(\d+) completed\]/);
+      const summary = progressMatch ? `Todo List (${progressMatch[1]}/${progressMatch[2]} done)` : fullContent.startsWith("Clearing") ? "Clear todo list" : "Todo List";
+      return {
+        type,
+        summary,
+        details: fullContent
+      };
+    }
     default:
       return {
         type,
@@ -78877,6 +79065,895 @@ function createParsedResult(type, match, fullContent) {
         details: fullContent
       };
   }
+}
+
+// node_modules/diff/libesm/diff/base.js
+var Diff = class {
+  diff(oldStr, newStr, options = {}) {
+    let callback;
+    if (typeof options === "function") {
+      callback = options;
+      options = {};
+    } else if ("callback" in options) {
+      callback = options.callback;
+    }
+    const oldString = this.castInput(oldStr, options);
+    const newString = this.castInput(newStr, options);
+    const oldTokens = this.removeEmpty(this.tokenize(oldString, options));
+    const newTokens = this.removeEmpty(this.tokenize(newString, options));
+    return this.diffWithOptionsObj(oldTokens, newTokens, options, callback);
+  }
+  diffWithOptionsObj(oldTokens, newTokens, options, callback) {
+    var _a;
+    const done = (value) => {
+      value = this.postProcess(value, options);
+      if (callback) {
+        setTimeout(function() {
+          callback(value);
+        }, 0);
+        return void 0;
+      } else {
+        return value;
+      }
+    };
+    const newLen = newTokens.length, oldLen = oldTokens.length;
+    let editLength = 1;
+    let maxEditLength = newLen + oldLen;
+    if (options.maxEditLength != null) {
+      maxEditLength = Math.min(maxEditLength, options.maxEditLength);
+    }
+    const maxExecutionTime = (_a = options.timeout) !== null && _a !== void 0 ? _a : Infinity;
+    const abortAfterTimestamp = Date.now() + maxExecutionTime;
+    const bestPath = [{ oldPos: -1, lastComponent: void 0 }];
+    let newPos = this.extractCommon(bestPath[0], newTokens, oldTokens, 0, options);
+    if (bestPath[0].oldPos + 1 >= oldLen && newPos + 1 >= newLen) {
+      return done(this.buildValues(bestPath[0].lastComponent, newTokens, oldTokens));
+    }
+    let minDiagonalToConsider = -Infinity, maxDiagonalToConsider = Infinity;
+    const execEditLength = () => {
+      for (let diagonalPath = Math.max(minDiagonalToConsider, -editLength); diagonalPath <= Math.min(maxDiagonalToConsider, editLength); diagonalPath += 2) {
+        let basePath;
+        const removePath = bestPath[diagonalPath - 1], addPath = bestPath[diagonalPath + 1];
+        if (removePath) {
+          bestPath[diagonalPath - 1] = void 0;
+        }
+        let canAdd = false;
+        if (addPath) {
+          const addPathNewPos = addPath.oldPos - diagonalPath;
+          canAdd = addPath && 0 <= addPathNewPos && addPathNewPos < newLen;
+        }
+        const canRemove = removePath && removePath.oldPos + 1 < oldLen;
+        if (!canAdd && !canRemove) {
+          bestPath[diagonalPath] = void 0;
+          continue;
+        }
+        if (!canRemove || canAdd && removePath.oldPos < addPath.oldPos) {
+          basePath = this.addToPath(addPath, true, false, 0, options);
+        } else {
+          basePath = this.addToPath(removePath, false, true, 1, options);
+        }
+        newPos = this.extractCommon(basePath, newTokens, oldTokens, diagonalPath, options);
+        if (basePath.oldPos + 1 >= oldLen && newPos + 1 >= newLen) {
+          return done(this.buildValues(basePath.lastComponent, newTokens, oldTokens)) || true;
+        } else {
+          bestPath[diagonalPath] = basePath;
+          if (basePath.oldPos + 1 >= oldLen) {
+            maxDiagonalToConsider = Math.min(maxDiagonalToConsider, diagonalPath - 1);
+          }
+          if (newPos + 1 >= newLen) {
+            minDiagonalToConsider = Math.max(minDiagonalToConsider, diagonalPath + 1);
+          }
+        }
+      }
+      editLength++;
+    };
+    if (callback) {
+      (function exec2() {
+        setTimeout(function() {
+          if (editLength > maxEditLength || Date.now() > abortAfterTimestamp) {
+            return callback(void 0);
+          }
+          if (!execEditLength()) {
+            exec2();
+          }
+        }, 0);
+      })();
+    } else {
+      while (editLength <= maxEditLength && Date.now() <= abortAfterTimestamp) {
+        const ret = execEditLength();
+        if (ret) {
+          return ret;
+        }
+      }
+    }
+  }
+  addToPath(path7, added, removed, oldPosInc, options) {
+    const last = path7.lastComponent;
+    if (last && !options.oneChangePerToken && last.added === added && last.removed === removed) {
+      return {
+        oldPos: path7.oldPos + oldPosInc,
+        lastComponent: { count: last.count + 1, added, removed, previousComponent: last.previousComponent }
+      };
+    } else {
+      return {
+        oldPos: path7.oldPos + oldPosInc,
+        lastComponent: { count: 1, added, removed, previousComponent: last }
+      };
+    }
+  }
+  extractCommon(basePath, newTokens, oldTokens, diagonalPath, options) {
+    const newLen = newTokens.length, oldLen = oldTokens.length;
+    let oldPos = basePath.oldPos, newPos = oldPos - diagonalPath, commonCount = 0;
+    while (newPos + 1 < newLen && oldPos + 1 < oldLen && this.equals(oldTokens[oldPos + 1], newTokens[newPos + 1], options)) {
+      newPos++;
+      oldPos++;
+      commonCount++;
+      if (options.oneChangePerToken) {
+        basePath.lastComponent = { count: 1, previousComponent: basePath.lastComponent, added: false, removed: false };
+      }
+    }
+    if (commonCount && !options.oneChangePerToken) {
+      basePath.lastComponent = { count: commonCount, previousComponent: basePath.lastComponent, added: false, removed: false };
+    }
+    basePath.oldPos = oldPos;
+    return newPos;
+  }
+  equals(left, right, options) {
+    if (options.comparator) {
+      return options.comparator(left, right);
+    } else {
+      return left === right || !!options.ignoreCase && left.toLowerCase() === right.toLowerCase();
+    }
+  }
+  removeEmpty(array) {
+    const ret = [];
+    for (let i = 0; i < array.length; i++) {
+      if (array[i]) {
+        ret.push(array[i]);
+      }
+    }
+    return ret;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  castInput(value, options) {
+    return value;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  tokenize(value, options) {
+    return Array.from(value);
+  }
+  join(chars) {
+    return chars.join("");
+  }
+  postProcess(changeObjects, options) {
+    return changeObjects;
+  }
+  get useLongestToken() {
+    return false;
+  }
+  buildValues(lastComponent, newTokens, oldTokens) {
+    const components = [];
+    let nextComponent;
+    while (lastComponent) {
+      components.push(lastComponent);
+      nextComponent = lastComponent.previousComponent;
+      delete lastComponent.previousComponent;
+      lastComponent = nextComponent;
+    }
+    components.reverse();
+    const componentLen = components.length;
+    let componentPos = 0, newPos = 0, oldPos = 0;
+    for (; componentPos < componentLen; componentPos++) {
+      const component = components[componentPos];
+      if (!component.removed) {
+        if (!component.added && this.useLongestToken) {
+          let value = newTokens.slice(newPos, newPos + component.count);
+          value = value.map(function(value2, i) {
+            const oldValue = oldTokens[oldPos + i];
+            return oldValue.length > value2.length ? oldValue : value2;
+          });
+          component.value = this.join(value);
+        } else {
+          component.value = this.join(newTokens.slice(newPos, newPos + component.count));
+        }
+        newPos += component.count;
+        if (!component.added) {
+          oldPos += component.count;
+        }
+      } else {
+        component.value = this.join(oldTokens.slice(oldPos, oldPos + component.count));
+        oldPos += component.count;
+      }
+    }
+    return components;
+  }
+};
+
+// node_modules/diff/libesm/util/string.js
+function longestCommonPrefix(str1, str2) {
+  let i;
+  for (i = 0; i < str1.length && i < str2.length; i++) {
+    if (str1[i] != str2[i]) {
+      return str1.slice(0, i);
+    }
+  }
+  return str1.slice(0, i);
+}
+function longestCommonSuffix(str1, str2) {
+  let i;
+  if (!str1 || !str2 || str1[str1.length - 1] != str2[str2.length - 1]) {
+    return "";
+  }
+  for (i = 0; i < str1.length && i < str2.length; i++) {
+    if (str1[str1.length - (i + 1)] != str2[str2.length - (i + 1)]) {
+      return str1.slice(-i);
+    }
+  }
+  return str1.slice(-i);
+}
+function replacePrefix(string, oldPrefix, newPrefix) {
+  if (string.slice(0, oldPrefix.length) != oldPrefix) {
+    throw Error(`string ${JSON.stringify(string)} doesn't start with prefix ${JSON.stringify(oldPrefix)}; this is a bug`);
+  }
+  return newPrefix + string.slice(oldPrefix.length);
+}
+function replaceSuffix(string, oldSuffix, newSuffix) {
+  if (!oldSuffix) {
+    return string + newSuffix;
+  }
+  if (string.slice(-oldSuffix.length) != oldSuffix) {
+    throw Error(`string ${JSON.stringify(string)} doesn't end with suffix ${JSON.stringify(oldSuffix)}; this is a bug`);
+  }
+  return string.slice(0, -oldSuffix.length) + newSuffix;
+}
+function removePrefix(string, oldPrefix) {
+  return replacePrefix(string, oldPrefix, "");
+}
+function removeSuffix(string, oldSuffix) {
+  return replaceSuffix(string, oldSuffix, "");
+}
+function maximumOverlap(string1, string2) {
+  return string2.slice(0, overlapCount(string1, string2));
+}
+function overlapCount(a, b) {
+  let startA = 0;
+  if (a.length > b.length) {
+    startA = a.length - b.length;
+  }
+  let endB = b.length;
+  if (a.length < b.length) {
+    endB = a.length;
+  }
+  const map = Array(endB);
+  let k = 0;
+  map[0] = 0;
+  for (let j = 1; j < endB; j++) {
+    if (b[j] == b[k]) {
+      map[j] = map[k];
+    } else {
+      map[j] = k;
+    }
+    while (k > 0 && b[j] != b[k]) {
+      k = map[k];
+    }
+    if (b[j] == b[k]) {
+      k++;
+    }
+  }
+  k = 0;
+  for (let i = startA; i < a.length; i++) {
+    while (k > 0 && a[i] != b[k]) {
+      k = map[k];
+    }
+    if (a[i] == b[k]) {
+      k++;
+    }
+  }
+  return k;
+}
+function segment(string, segmenter4) {
+  const parts = [];
+  for (const segmentObj of Array.from(segmenter4.segment(string))) {
+    const segment2 = segmentObj.segment;
+    if (parts.length && /\s/.test(parts[parts.length - 1]) && /\s/.test(segment2)) {
+      parts[parts.length - 1] += segment2;
+    } else {
+      parts.push(segment2);
+    }
+  }
+  return parts;
+}
+function trailingWs(string, segmenter4) {
+  if (segmenter4) {
+    return leadingAndTrailingWs(string, segmenter4)[1];
+  }
+  let i;
+  for (i = string.length - 1; i >= 0; i--) {
+    if (!string[i].match(/\s/)) {
+      break;
+    }
+  }
+  return string.substring(i + 1);
+}
+function leadingWs(string, segmenter4) {
+  if (segmenter4) {
+    return leadingAndTrailingWs(string, segmenter4)[0];
+  }
+  const match = string.match(/^\s*/);
+  return match ? match[0] : "";
+}
+function leadingAndTrailingWs(string, segmenter4) {
+  if (!segmenter4) {
+    return [leadingWs(string), trailingWs(string)];
+  }
+  if (segmenter4.resolvedOptions().granularity != "word") {
+    throw new Error('The segmenter passed must have a granularity of "word"');
+  }
+  const segments = segment(string, segmenter4);
+  const firstSeg = segments[0];
+  const lastSeg = segments[segments.length - 1];
+  const head = /\s/.test(firstSeg) ? firstSeg : "";
+  const tail = /\s/.test(lastSeg) ? lastSeg : "";
+  return [head, tail];
+}
+
+// node_modules/diff/libesm/diff/word.js
+var extendedWordChars = "a-zA-Z0-9_\\u{AD}\\u{C0}-\\u{D6}\\u{D8}-\\u{F6}\\u{F8}-\\u{2C6}\\u{2C8}-\\u{2D7}\\u{2DE}-\\u{2FF}\\u{1E00}-\\u{1EFF}";
+var tokenizeIncludingWhitespace = new RegExp(`[${extendedWordChars}]+|\\s+|[^${extendedWordChars}]`, "ug");
+var WordDiff = class extends Diff {
+  equals(left, right, options) {
+    if (options.ignoreCase) {
+      left = left.toLowerCase();
+      right = right.toLowerCase();
+    }
+    return left.trim() === right.trim();
+  }
+  tokenize(value, options = {}) {
+    let parts;
+    if (options.intlSegmenter) {
+      const segmenter4 = options.intlSegmenter;
+      if (segmenter4.resolvedOptions().granularity != "word") {
+        throw new Error('The segmenter passed must have a granularity of "word"');
+      }
+      parts = segment(value, segmenter4);
+    } else {
+      parts = value.match(tokenizeIncludingWhitespace) || [];
+    }
+    const tokens = [];
+    let prevPart = null;
+    parts.forEach((part) => {
+      if (/\s/.test(part)) {
+        if (prevPart == null) {
+          tokens.push(part);
+        } else {
+          tokens.push(tokens.pop() + part);
+        }
+      } else if (prevPart != null && /\s/.test(prevPart)) {
+        if (tokens[tokens.length - 1] == prevPart) {
+          tokens.push(tokens.pop() + part);
+        } else {
+          tokens.push(prevPart + part);
+        }
+      } else {
+        tokens.push(part);
+      }
+      prevPart = part;
+    });
+    return tokens;
+  }
+  join(tokens) {
+    return tokens.map((token, i) => {
+      if (i == 0) {
+        return token;
+      } else {
+        return token.replace(/^\s+/, "");
+      }
+    }).join("");
+  }
+  postProcess(changes, options) {
+    if (!changes || options.oneChangePerToken) {
+      return changes;
+    }
+    let lastKeep = null;
+    let insertion = null;
+    let deletion = null;
+    changes.forEach((change) => {
+      if (change.added) {
+        insertion = change;
+      } else if (change.removed) {
+        deletion = change;
+      } else {
+        if (insertion || deletion) {
+          dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, change, options.intlSegmenter);
+        }
+        lastKeep = change;
+        insertion = null;
+        deletion = null;
+      }
+    });
+    if (insertion || deletion) {
+      dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, null, options.intlSegmenter);
+    }
+    return changes;
+  }
+};
+var wordDiff = new WordDiff();
+function dedupeWhitespaceInChangeObjects(startKeep, deletion, insertion, endKeep, segmenter4) {
+  if (deletion && insertion) {
+    const [oldWsPrefix, oldWsSuffix] = leadingAndTrailingWs(deletion.value, segmenter4);
+    const [newWsPrefix, newWsSuffix] = leadingAndTrailingWs(insertion.value, segmenter4);
+    if (startKeep) {
+      const commonWsPrefix = longestCommonPrefix(oldWsPrefix, newWsPrefix);
+      startKeep.value = replaceSuffix(startKeep.value, newWsPrefix, commonWsPrefix);
+      deletion.value = removePrefix(deletion.value, commonWsPrefix);
+      insertion.value = removePrefix(insertion.value, commonWsPrefix);
+    }
+    if (endKeep) {
+      const commonWsSuffix = longestCommonSuffix(oldWsSuffix, newWsSuffix);
+      endKeep.value = replacePrefix(endKeep.value, newWsSuffix, commonWsSuffix);
+      deletion.value = removeSuffix(deletion.value, commonWsSuffix);
+      insertion.value = removeSuffix(insertion.value, commonWsSuffix);
+    }
+  } else if (insertion) {
+    if (startKeep) {
+      const ws = leadingWs(insertion.value, segmenter4);
+      insertion.value = insertion.value.substring(ws.length);
+    }
+    if (endKeep) {
+      const ws = leadingWs(endKeep.value, segmenter4);
+      endKeep.value = endKeep.value.substring(ws.length);
+    }
+  } else if (startKeep && endKeep) {
+    const newWsFull = leadingWs(endKeep.value, segmenter4), [delWsStart, delWsEnd] = leadingAndTrailingWs(deletion.value, segmenter4);
+    const newWsStart = longestCommonPrefix(newWsFull, delWsStart);
+    deletion.value = removePrefix(deletion.value, newWsStart);
+    const newWsEnd = longestCommonSuffix(removePrefix(newWsFull, newWsStart), delWsEnd);
+    deletion.value = removeSuffix(deletion.value, newWsEnd);
+    endKeep.value = replacePrefix(endKeep.value, newWsFull, newWsEnd);
+    startKeep.value = replaceSuffix(startKeep.value, newWsFull, newWsFull.slice(0, newWsFull.length - newWsEnd.length));
+  } else if (endKeep) {
+    const endKeepWsPrefix = leadingWs(endKeep.value, segmenter4);
+    const deletionWsSuffix = trailingWs(deletion.value, segmenter4);
+    const overlap = maximumOverlap(deletionWsSuffix, endKeepWsPrefix);
+    deletion.value = removeSuffix(deletion.value, overlap);
+  } else if (startKeep) {
+    const startKeepWsSuffix = trailingWs(startKeep.value, segmenter4);
+    const deletionWsPrefix = leadingWs(deletion.value, segmenter4);
+    const overlap = maximumOverlap(startKeepWsSuffix, deletionWsPrefix);
+    deletion.value = removePrefix(deletion.value, overlap);
+  }
+}
+var WordsWithSpaceDiff = class extends Diff {
+  tokenize(value) {
+    const regex3 = new RegExp(`(\\r?\\n)|[${extendedWordChars}]+|[^\\S\\n\\r]+|[^${extendedWordChars}]`, "ug");
+    return value.match(regex3) || [];
+  }
+};
+var wordsWithSpaceDiff = new WordsWithSpaceDiff();
+function diffWordsWithSpace(oldStr, newStr, options) {
+  return wordsWithSpaceDiff.diff(oldStr, newStr, options);
+}
+
+// node_modules/diff/libesm/diff/line.js
+var LineDiff = class extends Diff {
+  constructor() {
+    super(...arguments);
+    this.tokenize = tokenize2;
+  }
+  equals(left, right, options) {
+    if (options.ignoreWhitespace) {
+      if (!options.newlineIsToken || !left.includes("\n")) {
+        left = left.trim();
+      }
+      if (!options.newlineIsToken || !right.includes("\n")) {
+        right = right.trim();
+      }
+    } else if (options.ignoreNewlineAtEof && !options.newlineIsToken) {
+      if (left.endsWith("\n")) {
+        left = left.slice(0, -1);
+      }
+      if (right.endsWith("\n")) {
+        right = right.slice(0, -1);
+      }
+    }
+    return super.equals(left, right, options);
+  }
+};
+var lineDiff = new LineDiff();
+function diffLines(oldStr, newStr, options) {
+  return lineDiff.diff(oldStr, newStr, options);
+}
+function tokenize2(value, options) {
+  if (options.stripTrailingCr) {
+    value = value.replace(/\r\n/g, "\n");
+  }
+  const retLines = [], linesAndNewlines = value.split(/(\n|\r\n)/);
+  if (!linesAndNewlines[linesAndNewlines.length - 1]) {
+    linesAndNewlines.pop();
+  }
+  for (let i = 0; i < linesAndNewlines.length; i++) {
+    const line = linesAndNewlines[i];
+    if (i % 2 && !options.newlineIsToken) {
+      retLines[retLines.length - 1] += line;
+    } else {
+      retLines.push(line);
+    }
+  }
+  return retLines;
+}
+
+// node_modules/diff/libesm/patch/create.js
+function structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, options) {
+  let optionsObj;
+  if (!options) {
+    optionsObj = {};
+  } else if (typeof options === "function") {
+    optionsObj = { callback: options };
+  } else {
+    optionsObj = options;
+  }
+  if (typeof optionsObj.context === "undefined") {
+    optionsObj.context = 4;
+  }
+  const context = optionsObj.context;
+  if (optionsObj.newlineIsToken) {
+    throw new Error("newlineIsToken may not be used with patch-generation functions, only with diffing functions");
+  }
+  if (!optionsObj.callback) {
+    return diffLinesResultToPatch(diffLines(oldStr, newStr, optionsObj));
+  } else {
+    const { callback } = optionsObj;
+    diffLines(oldStr, newStr, Object.assign(Object.assign({}, optionsObj), { callback: (diff4) => {
+      const patch = diffLinesResultToPatch(diff4);
+      callback(patch);
+    } }));
+  }
+  function diffLinesResultToPatch(diff4) {
+    if (!diff4) {
+      return;
+    }
+    diff4.push({ value: "", lines: [] });
+    function contextLines(lines) {
+      return lines.map(function(entry) {
+        return " " + entry;
+      });
+    }
+    const hunks = [];
+    let oldRangeStart = 0, newRangeStart = 0, curRange = [], oldLine = 1, newLine = 1;
+    for (let i = 0; i < diff4.length; i++) {
+      const current = diff4[i], lines = current.lines || splitLines(current.value);
+      current.lines = lines;
+      if (current.added || current.removed) {
+        if (!oldRangeStart) {
+          const prev = diff4[i - 1];
+          oldRangeStart = oldLine;
+          newRangeStart = newLine;
+          if (prev) {
+            curRange = context > 0 ? contextLines(prev.lines.slice(-context)) : [];
+            oldRangeStart -= curRange.length;
+            newRangeStart -= curRange.length;
+          }
+        }
+        for (const line of lines) {
+          curRange.push((current.added ? "+" : "-") + line);
+        }
+        if (current.added) {
+          newLine += lines.length;
+        } else {
+          oldLine += lines.length;
+        }
+      } else {
+        if (oldRangeStart) {
+          if (lines.length <= context * 2 && i < diff4.length - 2) {
+            for (const line of contextLines(lines)) {
+              curRange.push(line);
+            }
+          } else {
+            const contextSize = Math.min(lines.length, context);
+            for (const line of contextLines(lines.slice(0, contextSize))) {
+              curRange.push(line);
+            }
+            const hunk = {
+              oldStart: oldRangeStart,
+              oldLines: oldLine - oldRangeStart + contextSize,
+              newStart: newRangeStart,
+              newLines: newLine - newRangeStart + contextSize,
+              lines: curRange
+            };
+            hunks.push(hunk);
+            oldRangeStart = 0;
+            newRangeStart = 0;
+            curRange = [];
+          }
+        }
+        oldLine += lines.length;
+        newLine += lines.length;
+      }
+    }
+    for (const hunk of hunks) {
+      for (let i = 0; i < hunk.lines.length; i++) {
+        if (hunk.lines[i].endsWith("\n")) {
+          hunk.lines[i] = hunk.lines[i].slice(0, -1);
+        } else {
+          hunk.lines.splice(i + 1, 0, "\\ No newline at end of file");
+          i++;
+        }
+      }
+    }
+    return {
+      oldFileName,
+      newFileName,
+      oldHeader,
+      newHeader,
+      hunks
+    };
+  }
+}
+function splitLines(text) {
+  const hasTrailingNl = text.endsWith("\n");
+  const result = text.split("\n").map((line) => line + "\n");
+  if (hasTrailingNl) {
+    result.pop();
+  } else {
+    result.push(result.pop().slice(0, -1));
+  }
+  return result;
+}
+
+// src/components/diff/DiffView.tsx
+var React27 = __toESM(require_react(), 1);
+import path from "node:path";
+var COLORS = {
+  added: "#1a4a1a",
+  removed: "#4a1a1a",
+  addedWord: "#2d7a2d",
+  removedWord: "#7a2d2d",
+  lineNum: "#666666",
+  filePath: "#8888cc"
+};
+var CHANGE_THRESHOLD = 0.4;
+function transformLines(lines) {
+  return lines.map((raw) => {
+    const code = raw.slice(1);
+    if (raw.startsWith("+")) return { code, type: "add", lineNum: 0, originalCode: code };
+    if (raw.startsWith("-")) return { code, type: "remove", lineNum: 0, originalCode: code };
+    return { code, type: "nochange", lineNum: 0, originalCode: code };
+  });
+}
+function pairAdjacentLines(lines) {
+  const result = [];
+  let i = 0;
+  while (i < lines.length) {
+    const cur = lines[i];
+    if (!cur) {
+      i++;
+      continue;
+    }
+    if (cur.type === "remove") {
+      const removes = [cur];
+      let j = i + 1;
+      while (j < lines.length && lines[j]?.type === "remove") {
+        removes.push(lines[j]);
+        j++;
+      }
+      const adds = [];
+      while (j < lines.length && lines[j]?.type === "add") {
+        adds.push(lines[j]);
+        j++;
+      }
+      if (removes.length > 0 && adds.length > 0) {
+        const pairCount = Math.min(removes.length, adds.length);
+        for (let k = 0; k < pairCount; k++) {
+          const r2 = removes[k];
+          const a = adds[k];
+          r2.wordDiff = true;
+          a.wordDiff = true;
+          r2.matchedLine = a;
+          a.matchedLine = r2;
+        }
+        result.push(...removes);
+        result.push(...adds);
+        i = j;
+      } else {
+        result.push(cur);
+        i++;
+      }
+    } else {
+      result.push(cur);
+      i++;
+    }
+  }
+  return result;
+}
+function numberLines(lines, startLine) {
+  let n = startLine;
+  const result = [];
+  const queue = [...lines];
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    const line = { ...cur, lineNum: n };
+    if (cur.type === "remove") {
+      result.push(line);
+      let numRemoved = 0;
+      while (queue[0]?.type === "remove") {
+        n++;
+        result.push({ ...queue.shift(), lineNum: n });
+        numRemoved++;
+      }
+      n -= numRemoved;
+    } else {
+      n++;
+      result.push(line);
+    }
+  }
+  return result;
+}
+function wrapCode(code, maxWidth) {
+  if (maxWidth <= 0) return [code];
+  if (code.length <= maxWidth) return [code];
+  const result = [];
+  for (let i = 0; i < code.length; i += maxWidth) {
+    result.push(code.slice(i, i + maxWidth));
+  }
+  return result;
+}
+function renderStandardLine(item, maxWidth, totalWidth, lineIndex) {
+  const { type, code, lineNum } = item;
+  const gutterWidth = maxWidth + 1;
+  const diffPrefixWidth = 1;
+  const availWidth = Math.max(1, totalWidth - gutterWidth - diffPrefixWidth);
+  const wrappedLines = wrapCode(code, availWidth);
+  const line = wrappedLines[lineIndex] ?? "";
+  const lineNumStr = lineIndex === 0 ? lineNum.toString().padStart(maxWidth) + " " : " ".repeat(maxWidth) + " ";
+  const sigil = type === "add" ? "+" : type === "remove" ? "-" : " ";
+  const contentWidth = lineNumStr.length + 1 + line.length;
+  const padding = Math.max(0, totalWidth - contentWidth);
+  const bgColor = type === "add" ? COLORS.added : type === "remove" ? COLORS.removed : void 0;
+  return { lineNumStr, sigil, bgColor, content: line, padding };
+}
+function renderWordDiffLine(item, maxWidth, totalWidth) {
+  const { type, lineNum, wordDiff: wordDiff2, matchedLine, originalCode } = item;
+  if (!wordDiff2 || !matchedLine) return null;
+  const removedText = type === "remove" ? originalCode : matchedLine.originalCode;
+  const addedText = type === "remove" ? matchedLine.originalCode : originalCode;
+  const parts = diffWordsWithSpace(removedText, addedText, { ignoreCase: false });
+  const totalLen = removedText.length + addedText.length;
+  const changedLen = parts.filter((p) => p.added || p.removed).reduce((s, p) => s + p.value.length, 0);
+  if (totalLen > 0 && changedLen / totalLen > CHANGE_THRESHOLD) return null;
+  const gutterWidth = maxWidth + 1;
+  const diffPrefixWidth = 1;
+  const availWidth = Math.max(1, totalWidth - gutterWidth - diffPrefixWidth);
+  const bgColor = type === "add" ? COLORS.added : COLORS.removed;
+  const sigil = type === "add" ? "+" : "-";
+  const lineNumStr = lineNum.toString().padStart(maxWidth) + " ";
+  const visibleParts = [];
+  for (const part of parts) {
+    let show = false;
+    let isWordHighlight = false;
+    if (type === "add") {
+      if (part.added) {
+        show = true;
+        isWordHighlight = true;
+      } else if (!part.removed) {
+        show = true;
+      }
+    } else {
+      if (part.removed) {
+        show = true;
+        isWordHighlight = true;
+      } else if (!part.added) {
+        show = true;
+      }
+    }
+    if (show) visibleParts.push({ text: part.value, wordHighlight: isWordHighlight });
+  }
+  const fullText = visibleParts.map((p) => p.text).join("");
+  const contentWidth = lineNumStr.length + 1 + fullText.length;
+  const padding = Math.max(0, totalWidth - contentWidth);
+  const contentNodes = visibleParts.map((p, i) => /* @__PURE__ */ React27.createElement(
+    Text,
+    {
+      key: i,
+      backgroundColor: p.wordHighlight ? type === "add" ? COLORS.addedWord : COLORS.removedWord : bgColor
+    },
+    p.text
+  ));
+  contentNodes.push(/* @__PURE__ */ React27.createElement(Text, { key: "pad", backgroundColor: bgColor }, " ".repeat(padding)));
+  return [
+    /* @__PURE__ */ React27.createElement(Box_default, { key: `${type}-${lineNum}`, flexDirection: "row" }, /* @__PURE__ */ React27.createElement(Text, { backgroundColor: bgColor, dimColor: false }, lineNumStr, sigil), /* @__PURE__ */ React27.createElement(Text, { backgroundColor: bgColor }, contentNodes))
+  ];
+}
+function renderHunk(hunk, totalWidth) {
+  const lineObjs = transformLines(hunk.lines);
+  const paired = pairAdjacentLines(lineObjs);
+  const numbered = numberLines(paired, hunk.oldStart);
+  const maxLineNum = Math.max(...numbered.map((l) => l.lineNum), 0);
+  const maxWidth = Math.max(maxLineNum.toString().length + 1, 1);
+  const nodes = [];
+  for (const item of numbered) {
+    if (item.wordDiff && item.matchedLine) {
+      const wordNodes = renderWordDiffLine(item, maxWidth, totalWidth);
+      if (wordNodes) {
+        nodes.push(...wordNodes);
+        continue;
+      }
+    }
+    const gutterWidth = maxWidth + 1;
+    const diffPrefixWidth = 1;
+    const availWidth = Math.max(1, totalWidth - gutterWidth - diffPrefixWidth);
+    const wrappedLines = wrapCode(item.code, availWidth);
+    const lineCount = Math.max(1, wrappedLines.length);
+    for (let li = 0; li < lineCount; li++) {
+      const rendered = renderStandardLine(item, maxWidth, totalWidth, li);
+      const { lineNumStr, sigil, bgColor, content, padding } = rendered;
+      nodes.push(
+        /* @__PURE__ */ React27.createElement(Box_default, { key: `${item.type}-${item.lineNum}-${li}`, flexDirection: "row" }, /* @__PURE__ */ React27.createElement(Text, { backgroundColor: bgColor, dimColor: item.type === "nochange" }, lineNumStr, sigil), /* @__PURE__ */ React27.createElement(Text, { backgroundColor: bgColor, dimColor: item.type === "nochange" }, content, " ".repeat(padding)))
+      );
+    }
+  }
+  return nodes;
+}
+var DiffView = ({ filePath, hunks, width }) => {
+  const totalWidth = width ?? (process.stdout.columns || 80);
+  const displayPath = path.basename(filePath);
+  return /* @__PURE__ */ React27.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ React27.createElement(Text, { color: COLORS.filePath }, displayPath), /* @__PURE__ */ React27.createElement(Text, { dimColor: true }, "\u2500".repeat(totalWidth)), hunks.map((hunk, hunkIdx) => /* @__PURE__ */ React27.createElement(Box_default, { key: hunkIdx, flexDirection: "column" }, hunkIdx > 0 && /* @__PURE__ */ React27.createElement(Text, { dimColor: true }, "..."), renderHunk(hunk, totalWidth).map((node, i) => /* @__PURE__ */ React27.createElement(Box_default, { key: i }, node)))), /* @__PURE__ */ React27.createElement(Text, { dimColor: true }, "\u2500".repeat(totalWidth)));
+};
+
+// src/utils/diff.ts
+var CONTEXT_LINES = 3;
+var AMPERSAND_TOKEN = "<<:AMPERSAND_TOKEN:>>";
+var DOLLAR_TOKEN = "<<:DOLLAR_TOKEN:>>";
+function escapeForDiff(s) {
+  return s.replaceAll("&", AMPERSAND_TOKEN).replaceAll("$", DOLLAR_TOKEN);
+}
+function unescapeFromDiff(s) {
+  return s.replaceAll(AMPERSAND_TOKEN, "&").replaceAll(DOLLAR_TOKEN, "$");
+}
+function getSimplePatch(filePath, oldString, newString) {
+  const result = structuredPatch(
+    filePath,
+    filePath,
+    escapeForDiff(oldString),
+    escapeForDiff(newString),
+    void 0,
+    void 0,
+    { context: CONTEXT_LINES }
+  );
+  if (!result) return [];
+  return result.hunks.map((h) => ({
+    ...h,
+    lines: h.lines.map(unescapeFromDiff)
+  }));
+}
+function parseFileEditContent(content) {
+  const fullMatch = content.match(
+    /^In the file `([^`]+)`+, replace the string:\n```[^\n]*\n([\s\S]*?)\n```\nwith:\n```[^\n]*\n([\s\S]*?)\n```/
+  );
+  if (fullMatch) {
+    return {
+      filePath: fullMatch[1],
+      oldString: fullMatch[2],
+      newString: fullMatch[3],
+      isComplete: true
+    };
+  }
+  return null;
+}
+
+// src/utils/formatter.ts
+function formatElapsedShort(totalSeconds) {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  return `${Math.round(seconds / 3600)}h`;
+}
+function formatDate(date) {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
 }
 
 // src/components/Chat/Message.tsx
@@ -78931,6 +80008,7 @@ var MessageInternal = ({ message, isNewGroup = true, disableTruncation = false, 
   const isAnswer = subtype === "answer";
   const isErrorBox = subtype === "error_box";
   const isShell = subtype === "shell";
+  const isGoalResult = subtype === "goal_result";
   const terminalHeight = typeof globalThis.process !== "undefined" && globalThis.process.stdout?.rows || 24;
   const terminalWidth = typeof globalThis.process !== "undefined" && globalThis.process.stdout?.columns || 80;
   const dynamicMaxLines = Math.max(terminalHeight / 2, 5);
@@ -78971,11 +80049,11 @@ var MessageInternal = ({ message, isNewGroup = true, disableTruncation = false, 
     ));
   }
   if (isThinking) {
-    const cleanContent = safeContent.replace(/[▶►]\s*\*{0,2}THINKING\*{0,2}\s*/i, "").trim();
+    const cleanContent = safeContent.replace(/^[\s▶►]*\*{0,2}THINKING\*{0,2}:\s*/i, "").replace(/^[\s▶►]*\*{0,2}THINKING\*{0,2}\s*/i, "").replace(/^\s+/, "").trim();
+    if (cleanContent.length === 0) return null;
     if (isCollapsed) {
       const lines = cleanContent.split("\n");
-      let firstLine = lines[0] || cleanContent;
-      firstLine = firstLine.replace(/^THINKING:\s*/i, "").trim();
+      const firstLine = lines.find((l) => l.trim().length > 0) || cleanContent;
       const summary = firstLine.length > 100 ? firstLine.substring(0, 100) + "..." : firstLine;
       return /* @__PURE__ */ import_react61.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react61.default.createElement(Text, { color: "gray" }, "\u25CF ", summary, "... (ctrl+o to expand thinking)"));
     }
@@ -79031,16 +80109,36 @@ var MessageInternal = ({ message, isNewGroup = true, disableTruncation = false, 
           case "analyze":
             compactDisplay = `Analyze(${parsed.path})`;
             break;
-          case "crawl":
-            compactDisplay = `Crawl(${parsed.details})`;
+          case "web":
+            compactDisplay = `Web(${parsed.details})`;
             break;
           case "browser":
             compactDisplay = `Browser(${parsed.details})`;
+            break;
+          case "fact_store":
+            compactDisplay = parsed.details ? `Fact(${parsed.details})` : "Fact memory";
+            break;
+          case "fact_feedback":
+            compactDisplay = parsed.details ? `FactFeedback(${parsed.details})` : "Fact feedback";
             break;
           default:
             compactDisplay = parsed.summary;
         }
         return /* @__PURE__ */ import_react61.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react61.default.createElement(Text, { color: "gray", dimColor: true }, icons.tool, " ", compactDisplay));
+      }
+    }
+    const editInfo = parseFileEditContent(cleanContent);
+    if (editInfo?.isComplete) {
+      const hunks = getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString);
+      if (hunks.length > 0) {
+        return /* @__PURE__ */ import_react61.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1, marginLeft: 2, marginRight: 2 }, /* @__PURE__ */ import_react61.default.createElement(
+          DiffView,
+          {
+            filePath: editInfo.filePath,
+            hunks,
+            width: Math.max(terminalWidth - 6, 40)
+          }
+        ));
       }
     }
     return /* @__PURE__ */ import_react61.default.createElement(
@@ -79063,6 +80161,21 @@ var MessageInternal = ({ message, isNewGroup = true, disableTruncation = false, 
   }
   if (isProcess) {
     return /* @__PURE__ */ import_react61.default.createElement(Box_default, { flexDirection: "column", marginBottom: 0, paddingLeft: 2 }, /* @__PURE__ */ import_react61.default.createElement(Text, { dimColor: true }, safeContent));
+  }
+  if (isGoalResult) {
+    const goalResult = message.metadata?.goalResult;
+    if (!goalResult) return null;
+    const achieved = goalResult.achieved;
+    const icon = achieved ? "\u2713" : "\u25CB";
+    const iconColor = achieved ? "green" : "yellow";
+    const label = achieved ? "achieved" : "not yet achieved";
+    const elapsedStr = formatElapsedShort(goalResult.elapsedSeconds);
+    const turnsStr = `${goalResult.turns} turn${goalResult.turns === 1 ? "" : "s"}`;
+    const summaryLine = /* @__PURE__ */ import_react61.default.createElement(Text, null, /* @__PURE__ */ import_react61.default.createElement(Text, { color: iconColor, bold: true }, icon), /* @__PURE__ */ import_react61.default.createElement(Text, null, " "), /* @__PURE__ */ import_react61.default.createElement(Text, { color: "cyan", bold: true }, " Goal "), /* @__PURE__ */ import_react61.default.createElement(Text, null, " ", label, " (", elapsedStr, " \xB7 ", turnsStr, ")"));
+    if (isCollapsed) {
+      return /* @__PURE__ */ import_react61.default.createElement(Box_default, { marginTop: 1, marginBottom: 1 }, /* @__PURE__ */ import_react61.default.createElement(Text, null, summaryLine, /* @__PURE__ */ import_react61.default.createElement(Text, { color: "gray" }, " (ctrl+o to expand)")));
+    }
+    return /* @__PURE__ */ import_react61.default.createElement(Box_default, { flexDirection: "column", marginTop: 1, marginBottom: 1 }, summaryLine, /* @__PURE__ */ import_react61.default.createElement(Box_default, { flexDirection: "column", paddingLeft: 2 }, /* @__PURE__ */ import_react61.default.createElement(Text, { dimColor: true }, "Objective: ", goalResult.objective), /* @__PURE__ */ import_react61.default.createElement(Text, { dimColor: true }, "Reason: ", goalResult.reason), goalResult.nextAction && /* @__PURE__ */ import_react61.default.createElement(Text, { dimColor: true }, "Next action: ", goalResult.nextAction)));
   }
   if (isErrorBox) {
     return /* @__PURE__ */ import_react61.default.createElement(
@@ -79137,11 +80250,12 @@ var Banner = ({
   version,
   workingDir,
   agent = "coder",
-  provider = "li",
+  provider = "default",
   model,
   prePlanMode = true,
   isCollapsed = false,
-  showAgentInfo = true
+  showAgentInfo = true,
+  quotaUsage = null
 }) => {
   const { columns } = useTerminalSize();
   const contentWidth = Math.max(0, columns - 2);
@@ -79220,6 +80334,10 @@ var Banner = ({
         segments.push({ text: "; " });
         segments.push({ text: "pre-plan mode", color: "green" });
       }
+      if (quotaUsage !== null && quotaUsage !== void 0) {
+        segments.push({ text: "; Balance: " });
+        segments.push({ text: quotaUsage, color: "green" });
+      }
       segments.push({ text: "; " });
       segments.push({
         text: isCollapsed ? "compact mode" : "expanded mode",
@@ -79246,8 +80364,88 @@ var Banner = ({
   ), renderContentLine(/* @__PURE__ */ import_react63.default.createElement(Text, null, " ".repeat(contentWidth)), "spacer-bottom"), /* @__PURE__ */ import_react63.default.createElement(Text, { color: borderColor, bold: true }, bottomBorder));
 };
 
+// src/utils/flickerMonitor.ts
+var ENV = typeof globalThis.process !== "undefined" && globalThis.process.env || {};
+var ENABLED = ENV.SIADA_FLICKER_MONITOR === "1" || !!ENV.SIADA_DEBUG;
+var FLICKER_WINDOW_MS = parseInt(ENV.SIADA_FLICKER_WINDOW_MS ?? "800", 10);
+var FLICKER_MIN_EVENTS = parseInt(ENV.SIADA_FLICKER_MIN_EVENTS ?? "2", 10);
+var events = [];
+var MAX_EVENTS = 500;
+var lastAlertTime = 0;
+function captureStack() {
+  if (!ENABLED) return void 0;
+  const oldLimit = Error.stackTraceLimit;
+  Error.stackTraceLimit = 12;
+  const err = new Error();
+  Error.stackTraceLimit = oldLimit;
+  const stack = err.stack ?? "";
+  const lines = stack.split("\n");
+  return lines.slice(3).join("\n");
+}
+function emitAlert(alert) {
+  logger.warn("\u26A1 Flicker detected \u2014 multiple screen clears in rapid succession", {
+    component: "FlickerMonitor",
+    operation: "flicker_alert",
+    eventCount: alert.eventCount,
+    intervalMs: alert.intervalMs,
+    sources: alert.events.map((e) => e.source),
+    reasons: alert.events.map((e) => e.reason),
+    messageCounts: alert.events.map((e) => e.messageCount),
+    timestamp: new Date(alert.timestamp).toISOString()
+  });
+  const summary = alert.events.map((e, i) => `  [${i}] ${e.source}: ${e.reason}`).join("\n");
+  const msg = `
+\x1B[33m\u26A1 [FlickerMonitor] ${alert.eventCount} screen clears in ${alert.intervalMs}ms:\x1B[0m
+${summary}
+`;
+  try {
+    process.stderr.write(msg);
+  } catch {
+  }
+}
+function recordFlicker(source2, reason, options) {
+  if (!ENABLED) return;
+  const now = Date.now();
+  const evt = {
+    timestamp: now,
+    source: source2,
+    reason,
+    messageCount: options?.messageCount,
+    remountKey: options?.remountKey,
+    metadata: options?.metadata,
+    stackTrace: options?.captureStack === false ? void 0 : captureStack()
+  };
+  events.push(evt);
+  if (events.length > MAX_EVENTS) {
+    events.splice(0, events.length - MAX_EVENTS);
+  }
+  logger.info("Screen clear event recorded", {
+    component: "FlickerMonitor",
+    operation: "clear_event",
+    source: source2,
+    reason,
+    messageCount: evt.messageCount,
+    remountKey: evt.remountKey,
+    timestamp: new Date(now).toISOString()
+  });
+  const windowStart = now - FLICKER_WINDOW_MS;
+  const recent = events.filter((e) => e.timestamp >= windowStart);
+  if (recent.length >= FLICKER_MIN_EVENTS) {
+    if (now - lastAlertTime >= FLICKER_WINDOW_MS) {
+      lastAlertTime = now;
+      const alert = {
+        timestamp: now,
+        events: [...recent],
+        intervalMs: now - recent[0].timestamp,
+        eventCount: recent.length
+      };
+      emitAlert(alert);
+    }
+  }
+}
+
 // src/components/Chat/MessageList.tsx
-var MessageList = import_react64.default.memo(({ messages, headerProps, terminalWidth, isCollapsed = false }) => {
+var MessageList = import_react64.default.memo(({ messages, headerProps, terminalWidth, isCollapsed = false, noStatic = false }) => {
   const scrollRef = (0, import_react64.useRef)(null);
   const icons = getIcons();
   const [historyRemountKey, setHistoryRemountKey] = (0, import_react64.useState)(0);
@@ -79272,6 +80470,10 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
         operation: "clear_terminal",
         reason: "terminal_resize"
       });
+      recordFlicker("refreshStatic", "clearTerminal + Static remount", {
+        messageCount: staticMessages.length,
+        remountKey: historyRemountKey
+      });
       stdout.write(base_exports.clearTerminal);
     }
     setHistoryRemountKey((prev) => {
@@ -79287,6 +80489,10 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
   (0, import_react64.useEffect)(() => {
     const currentModel = headerProps?.model;
     if (prevModelRef.current !== void 0 && prevModelRef.current !== currentModel) {
+      recordFlicker("model_change", `Model changed: ${prevModelRef.current} \u2192 ${currentModel}`, {
+        messageCount: staticMessages.length,
+        remountKey: historyRemountKey
+      });
       refreshStatic();
     }
     prevModelRef.current = currentModel;
@@ -79310,6 +80516,10 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
         isCollapsed,
         historyRemountKey
       });
+      recordFlicker("resize_debounced", `Terminal resize or collapse toggle (width=${terminalWidth}, collapsed=${isCollapsed})`, {
+        messageCount: staticMessages.length,
+        remountKey: historyRemountKey
+      });
       refreshStatic();
     }, 300);
     return () => {
@@ -79323,13 +80533,32 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
       scrollRef.current.scrollToBottom();
     }
   }, [messages]);
+  const keepThinkingIdsRef = (0, import_react64.useRef)(null);
+  const lastCollapsedForThinkingRef = (0, import_react64.useRef)(null);
   const groupMessages = (0, import_react64.useCallback)((messages2, collapsed) => {
     const groups = [];
+    const MAX_THINKING_MESSAGES = 2;
+    if (lastCollapsedForThinkingRef.current === null) {
+      lastCollapsedForThinkingRef.current = collapsed;
+    } else if (lastCollapsedForThinkingRef.current !== collapsed) {
+      const thinkingIds = [];
+      for (const msg of messages2) {
+        if (msg.metadata?.subtype === "thinking") {
+          thinkingIds.push(msg.id);
+        }
+      }
+      keepThinkingIdsRef.current = new Set(thinkingIds.slice(-MAX_THINKING_MESSAGES));
+      lastCollapsedForThinkingRef.current = collapsed;
+    }
+    const keepThinkingIds = keepThinkingIdsRef.current;
     for (let i = 0; i < messages2.length; i++) {
       const msg = messages2[i];
       const isStreamEnd = msg.metadata?.isStreaming === false && msg.metadata?.streamEnd === true;
       const isEmpty = !msg.content || msg.content.trim() === "";
       if (isStreamEnd && isEmpty) {
+        continue;
+      }
+      if (keepThinkingIds && msg.metadata?.subtype === "thinking" && !keepThinkingIds.has(msg.id)) {
         continue;
       }
       const isToolUse = msg.metadata?.subtype === "tool_use";
@@ -79342,7 +80571,7 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
             (sum, t) => sum + (t.path || t.details || t.summary).split("\n").length,
             0
           );
-          const maxGroupLines = Math.max((process.stdout.rows || 24) - 11, 1);
+          const maxGroupLines = Math.max((process.stdout.rows || 13) - 12, 1);
           if (lastGroup && lastGroup.isAggregated && lastGroup.aggregatedTools && groupLines < maxGroupLines) {
             lastGroup.aggregatedTools.push(parsed);
             continue;
@@ -79371,7 +80600,8 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
       return { staticGroups: [], pendingGroups: [] };
     }
     const currentSignatures = allGroups.map((group, idx) => {
-      return `type:${group.type}|id:${group.message.id}|len:${group.message.content?.length || 0}`;
+      const done = !!group.message?.metadata?.streamEnd;
+      return `type:${group.type}|id:${group.message?.id ?? `g${idx}`}|done:${done}`;
     });
     let needsRemount = false;
     const lastSignatures = lastStaticGroupSignaturesRef.current;
@@ -79420,7 +80650,21 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
       });
     }
     if (needsRemount) {
+      recordFlicker("group_signature_remount", "Group signature changed \u2014 existing group content modified", {
+        messageCount: staticMessages.length,
+        metadata: {
+          changedGroupIndex: lastSignatures.findIndex((s, i) => i < currentSignatures.length && s !== currentSignatures[i])
+        }
+      });
       setTimeout(() => refreshStatic(), 0);
+      const lastGroupDone = !!lastGroup.message?.metadata?.streamEnd;
+      if (!lastGroupDone && estimatedLines <= halfHeight) {
+        lastStaticGroupSignaturesRef.current = currentSignatures.slice(0, -1);
+        return {
+          staticGroups: allGroups.slice(0, -1),
+          pendingGroups: [lastGroup]
+        };
+      }
       lastStaticGroupSignaturesRef.current = currentSignatures;
       return {
         staticGroups: allGroups,
@@ -79442,6 +80686,7 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
   }, [staticMessages, groupMessages, stdout, refreshStatic, isCollapsed]);
   const renderGroup = (0, import_react64.useCallback)(
     (group, idx, isStatic) => {
+      if (!group.message) return null;
       if (group.isAggregated && group.aggregatedTools && group.aggregatedTools.length > 0) {
         const icons2 = getIcons();
         const tools = group.aggregatedTools;
@@ -79471,17 +80716,41 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
             case "run_command":
               parts.push(count === 1 ? "Run 1 command" : `Run ${count} commands`);
               break;
+            case "run_powershell":
+              parts.push(count === 1 ? "Run 1 PowerShell command" : `Run ${count} PowerShell commands`);
+              break;
             case "search":
               parts.push(count === 1 ? "1 search" : `${count} searches`);
               break;
             case "analyze":
               parts.push(count === 1 ? "Analyze 1 file" : `Analyze ${count} files`);
               break;
-            case "crawl":
-              parts.push(count === 1 ? "Crawl 1 URL" : `Crawl ${count} URLs`);
+            case "web":
+              parts.push(count === 1 ? "1 web request" : `${count} web requests`);
               break;
             case "browser":
               parts.push(count === 1 ? "1 browser action" : `${count} browser actions`);
+              break;
+            case "memory_search":
+              parts.push(count === 1 ? "Search memory" : `${count} memory searches`);
+              break;
+            case "memory_write":
+              parts.push(count === 1 ? "Save to memory" : `${count} memory saves`);
+              break;
+            case "fact_store":
+              parts.push(count === 1 ? "Fact memory" : `${count} fact memory ops`);
+              break;
+            case "fact_feedback":
+              parts.push(count === 1 ? "Fact feedback" : `${count} fact feedbacks`);
+              break;
+            case "sub_agent":
+              parts.push(count === 1 ? "1 sub-agent task" : `${count} sub-agent tasks`);
+              break;
+            case "lark":
+              parts.push(count === 1 ? "1 Lark notification" : `${count} Lark notifications`);
+              break;
+            case "todo_write":
+              parts.push("Todo List");
               break;
           }
         }
@@ -79490,6 +80759,27 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
         const groupedByType = /* @__PURE__ */ new Map();
         tools.forEach((tool) => {
           let items = groupedByType.get(tool.type) || [];
+          if (tool.type === "todo_write" && tool.details) {
+            const allLines = tool.details.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim() && !l.match(/^\[\d+\/\d+ completed\]$/));
+            let centerIdx = -1;
+            for (let i = allLines.length - 1; i >= 0; i--) {
+              if (allLines[i].startsWith("\u25D0")) {
+                centerIdx = i;
+                break;
+              }
+            }
+            if (centerIdx === -1) centerIdx = allLines.findIndex((l) => l.startsWith("\u25CB"));
+            if (centerIdx === -1) centerIdx = allLines.length - 1;
+            const start = Math.max(0, centerIdx - 2);
+            const end = Math.min(allLines.length - 1, centerIdx + 2);
+            const windowLines = [];
+            if (start > 0) windowLines.push("\u2026");
+            for (let i = start; i <= end; i++) windowLines.push(allLines[i]);
+            if (end < allLines.length - 1) windowLines.push("\u2026");
+            for (const line of windowLines) items.push(line);
+            groupedByType.set(tool.type, items);
+            return;
+          }
           let displayItem = "";
           if (tool.path) {
             const pathParts = tool.path.split("/");
@@ -79500,7 +80790,12 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
               displayItem = filename;
             }
           } else if (tool.details) {
-            displayItem = tool.details;
+            const detailLines = tool.details.split("\n");
+            if (detailLines.length > 5) {
+              displayItem = detailLines.slice(0, 5).join("\n") + "\n\u2026";
+            } else {
+              displayItem = tool.details;
+            }
           }
           if (displayItem) {
             items.push(displayItem);
@@ -79513,15 +80808,18 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
           const isLastType = typeIndex === groupedByType.size - 1;
           const totalItemsInGroup = previewItems.length + (hiddenCount > 0 ? 1 : 0);
           return /* @__PURE__ */ import_react64.default.createElement(Box_default, { key: type, flexDirection: "column" }, previewItems.map((item, itemIndex) => {
+            if (type === "todo_write") {
+              return /* @__PURE__ */ import_react64.default.createElement(Box_default, { key: itemIndex }, /* @__PURE__ */ import_react64.default.createElement(Text, { color: "gray" }, item));
+            }
             const isLastInGroup = itemIndex === previewItems.length - 1 && hiddenCount === 0;
-            const prefix = isLastInGroup && isLastType ? "\u2514\u2500 " : isLastInGroup ? "\u2514\u2500 " : "\u251C\u2500 ";
+            const prefix = isLastInGroup && isLastType ? "\u2514\u2500 " : "\u251C\u2500 ";
             return /* @__PURE__ */ import_react64.default.createElement(Box_default, { key: itemIndex }, /* @__PURE__ */ import_react64.default.createElement(Text, { color: "gray" }, prefix, item));
-          }), hiddenCount > 0 && /* @__PURE__ */ import_react64.default.createElement(Box_default, null, /* @__PURE__ */ import_react64.default.createElement(Text, { color: "gray" }, isLastType ? "\u2514\u2500 " : "\u2514\u2500 ", "\u2026 +", hiddenCount, " more")));
+          }), hiddenCount > 0 && type !== "todo_write" && /* @__PURE__ */ import_react64.default.createElement(Box_default, null, /* @__PURE__ */ import_react64.default.createElement(Text, { color: "gray" }, isLastType ? "\u2514\u2500 " : "\u2514\u2500 ", "\u2026 +", hiddenCount, " more")));
         })));
       }
-      const key = group.message.id;
+      const key = group.message.id ?? `group-${idx}`;
       let isNewGroup = true;
-      if (key.includes("_split_")) {
+      if (key?.includes("_split_")) {
         const match = key.match(/_split_(\d+)$/);
         if (match) {
           const splitIndex = parseInt(match[1], 10);
@@ -79543,9 +80841,15 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
     },
     [isCollapsed]
   );
+  if (noStatic) {
+    return /* @__PURE__ */ import_react64.default.createElement(Box_default, { ref: scrollRef, flexDirection: "column", padding: 0 }, headerProps && /* @__PURE__ */ import_react64.default.createElement(Banner, { ...headerProps }), staticGroups.map((group, idx) => renderGroup(group, idx, false)), pendingGroups.map(
+      (group, idx) => renderGroup(group, staticGroups.length + idx, false)
+    ));
+  }
   return /* @__PURE__ */ import_react64.default.createElement(Box_default, { ref: scrollRef, flexDirection: "column", padding: 0 }, /* @__PURE__ */ import_react64.default.createElement(Static, { key: historyRemountKey, items: [{ type: "header" }, ...staticGroups] }, (item, index) => {
-    if (index === 0 && "type" in item && item.type === "header" && headerProps) {
-      return /* @__PURE__ */ import_react64.default.createElement(Banner, { key: "header", ...headerProps });
+    if (index === 0 && "type" in item && item.type === "header") {
+      if (headerProps) return /* @__PURE__ */ import_react64.default.createElement(Banner, { key: "header", ...headerProps });
+      return /* @__PURE__ */ import_react64.default.createElement(import_react64.default.Fragment, { key: "no-header" });
     }
     return renderGroup(item, index - 1, true);
   }), pendingGroups.map(
@@ -79554,7 +80858,7 @@ var MessageList = import_react64.default.memo(({ messages, headerProps, terminal
 });
 
 // src/components/Input/InputPromptWithWrapUseKPC.tsx
-var import_react79 = __toESM(require_react(), 1);
+var import_react82 = __toESM(require_react(), 1);
 
 // src/hooks/useCommandCompletion.ts
 var import_react68 = __toESM(require_react(), 1);
@@ -79564,7 +80868,7 @@ var import_react65 = __toESM(require_react(), 1);
 
 // src/services/fileSearch.ts
 import * as fs3 from "fs";
-import * as path from "path";
+import * as path2 from "path";
 var FileSearchService = class {
   cwd;
   maxResults;
@@ -79586,7 +80890,7 @@ var FileSearchService = class {
    */
   loadGitIgnore() {
     try {
-      const gitignorePath = path.join(this.cwd, ".gitignore");
+      const gitignorePath = path2.join(this.cwd, ".gitignore");
       if (fs3.existsSync(gitignorePath)) {
         const content = fs3.readFileSync(gitignorePath, "utf-8");
         content.split("\n").forEach((line) => {
@@ -79603,7 +80907,7 @@ var FileSearchService = class {
    * Check if path should be ignored
    */
   shouldIgnore(filePath) {
-    const basename2 = path.basename(filePath);
+    const basename2 = path2.basename(filePath);
     const alwaysIgnore = [
       "node_modules",
       ".git",
@@ -79628,7 +80932,7 @@ var FileSearchService = class {
    * Simple pattern matching for gitignore
    */
   matchesPattern(filePath, pattern) {
-    const basename2 = path.basename(filePath);
+    const basename2 = path2.basename(filePath);
     if (pattern.includes("*")) {
       const regex3 = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
       return regex3.test(basename2) || regex3.test(filePath);
@@ -79682,7 +80986,7 @@ var FileSearchService = class {
     try {
       const commonDirs = ["src", "tests", "docs", "lib", "app"];
       for (const dir of commonDirs) {
-        const dirPath = path.join(this.cwd, dir);
+        const dirPath = path2.join(this.cwd, dir);
         if (fs3.existsSync(dirPath) && fs3.statSync(dirPath).isDirectory()) {
           defaults.push(dir + "/");
         }
@@ -79693,7 +80997,7 @@ var FileSearchService = class {
           continue;
         }
         if (!this.shouldIgnore(file)) {
-          const fullPath = path.join(this.cwd, file);
+          const fullPath = path2.join(this.cwd, file);
           const stat = fs3.statSync(fullPath);
           defaults.push(stat.isDirectory() ? file + "/" : file);
         }
@@ -79722,17 +81026,17 @@ var FileSearchService = class {
     try {
       const entries = fs3.readdirSync(currentPath);
       for (const entry of entries) {
-        const fullPath = path.join(currentPath, entry);
+        const fullPath = path2.join(currentPath, entry);
         if (this.shouldIgnore(fullPath)) {
           continue;
         }
-        const relativePath = path.relative(this.cwd, fullPath);
+        const relativePath = path2.relative(this.cwd, fullPath);
         if (this.matches(relativePath, pattern) || this.matches(entry, pattern)) {
           const stat = fs3.statSync(fullPath);
           const finalPath = stat.isDirectory() ? relativePath + "/" : relativePath;
           const score = this.calculateMatchScore(relativePath, entry, pattern);
           if (score >= 180) {
-            const pathDepth = relativePath.split(path.sep).length;
+            const pathDepth = relativePath.split(path2.sep).length;
             results.push({
               path: finalPath,
               score,
@@ -79852,7 +81156,7 @@ var FileSearchService = class {
    * Get icon for file type
    */
   getFileIcon(filePath) {
-    const ext = path.extname(filePath);
+    const ext = path2.extname(filePath);
     if (filePath.endsWith("/")) {
       return "";
     }
@@ -79863,7 +81167,7 @@ var FileSearchService = class {
    */
   getFileDescription(filePath) {
     try {
-      const fullPath = path.join(this.cwd, filePath);
+      const fullPath = path2.join(this.cwd, filePath);
       const stat = fs3.statSync(fullPath);
       if (stat.isDirectory()) {
         return "Directory";
@@ -79914,8 +81218,8 @@ function useAtCompletion({
   (0, import_react65.useEffect)(() => {
     fileSearchRef.current = new FileSearchService(cwd3, {
       maxResults: 20,
-      maxDepth: 6,
-      // Balanced depth: enough for most files, not too slow
+      maxDepth: 10,
+      // Increased to 10 for deeper monorepo structures
       respectGitIgnore: true
     });
   }, [cwd3]);
@@ -80089,12 +81393,12 @@ function useAtCompletion({
     setState((prev) => {
       if (prev.suggestions.length === 0) return prev;
       const newIndex = prev.activeIndex <= 0 ? prev.suggestions.length - 1 : prev.activeIndex - 1;
-      const MAX_VISIBLE2 = 8;
+      const MAX_VISIBLE3 = 8;
       let newVisibleStart = prev.visibleStartIndex;
       if (newIndex < newVisibleStart) {
         newVisibleStart = newIndex;
-      } else if (newIndex >= newVisibleStart + MAX_VISIBLE2) {
-        newVisibleStart = Math.max(0, newIndex - MAX_VISIBLE2 + 1);
+      } else if (newIndex >= newVisibleStart + MAX_VISIBLE3) {
+        newVisibleStart = Math.max(0, newIndex - MAX_VISIBLE3 + 1);
       }
       return {
         ...prev,
@@ -80107,14 +81411,14 @@ function useAtCompletion({
     setState((prev) => {
       if (prev.suggestions.length === 0) return prev;
       const newIndex = prev.activeIndex >= prev.suggestions.length - 1 ? 0 : prev.activeIndex + 1;
-      const MAX_VISIBLE2 = 8;
+      const MAX_VISIBLE3 = 8;
       let newVisibleStart = prev.visibleStartIndex;
       if (newIndex < newVisibleStart) {
         newVisibleStart = 0;
-      } else if (newIndex >= newVisibleStart + MAX_VISIBLE2) {
+      } else if (newIndex >= newVisibleStart + MAX_VISIBLE3) {
         newVisibleStart = Math.min(
-          prev.suggestions.length - MAX_VISIBLE2,
-          newIndex - MAX_VISIBLE2 + 1
+          prev.suggestions.length - MAX_VISIBLE3,
+          newIndex - MAX_VISIBLE3 + 1
         );
       }
       return {
@@ -81211,6 +82515,16 @@ function useSlashCompletion({
       }));
       return;
     }
+    const slashInput = firstLine.substring(1);
+    const commandName = slashInput.split(" ")[0];
+    if (!/^[a-zA-Z0-9:_-]*$/.test(commandName)) {
+      setState((prev) => ({
+        ...prev,
+        showSuggestions: false,
+        mode: "IDLE" /* IDLE */
+      }));
+      return;
+    }
     const cursorLine = inputText.substring(0, cursorPosition).split("\n").length - 1;
     if (cursorLine !== 0) {
       setState((prev) => ({
@@ -81237,12 +82551,12 @@ function useSlashCompletion({
     debounceTimerRef.current = setTimeout(() => {
       const spaceIndex = pattern.indexOf(" ");
       if (spaceIndex > 0) {
-        const commandName = pattern.substring(1, spaceIndex);
+        const commandName2 = pattern.substring(1, spaceIndex);
         const checkpointCommands = ["compare", "undo", "restore"];
-        if (checkpointCommands.includes(commandName)) {
+        if (checkpointCommands.includes(commandName2)) {
           const argQuery = pattern.substring(spaceIndex + 1);
           logger.debug("[SlashCompletion] Checkpoint argument completion", {
-            command: commandName,
+            command: commandName2,
             argQuery
           });
           const checkpoints = checkpointService.searchCheckpoints(argQuery);
@@ -81275,6 +82589,7 @@ function useSlashCompletion({
       const query = pattern.substring(1);
       logger.debug("[SlashCompletion] Searching", { query });
       const results = fzfRef.current.find(query);
+      const queryLower = query.toLowerCase();
       const suggestions = results.map((result) => ({
         label: result.item.name,
         value: result.item.name,
@@ -81284,9 +82599,19 @@ function useSlashCompletion({
         positions: Array.from(result.positions),
         score: result.score,
         commandKind: result.item.kind
-      }));
+      })).sort((a, b) => {
+        const aExact = a.label.toLowerCase() === queryLower;
+        const bExact = b.label.toLowerCase() === queryLower;
+        if (aExact && !bExact) return -1;
+        if (bExact && !aExact) return 1;
+        const aPrefix = a.label.toLowerCase().startsWith(queryLower);
+        const bPrefix = b.label.toLowerCase().startsWith(queryLower);
+        if (aPrefix && !bPrefix) return -1;
+        if (bPrefix && !aPrefix) return 1;
+        return b.score - a.score;
+      });
       const perfectMatch = suggestions.some(
-        (s) => s.label.toLowerCase() === query.toLowerCase()
+        (s) => s.label.toLowerCase() === queryLower
       );
       logger.debug("[SlashCompletion] Search completed", {
         query,
@@ -81348,17 +82673,81 @@ function useSlashCompletion({
     });
   }, []);
   const acceptSuggestion = (0, import_react66.useCallback)(() => {
-    if (state.activeIndex < 0 || state.activeIndex >= state.suggestions.length) {
-      return null;
-    }
-    const suggestion = state.suggestions[state.activeIndex];
     const firstLineEnd = inputText.indexOf("\n");
     const firstLine = firstLineEnd === -1 ? inputText : inputText.substring(0, firstLineEnd);
     const restOfText = firstLineEnd === -1 ? "" : inputText.substring(firstLineEnd);
-    const spaceIndex = state.pattern.indexOf(" ");
+    const livePattern = firstLine.substring(0, Math.min(cursorPosition, firstLine.length));
+    let activeState = state;
+    if (livePattern !== state.pattern && fzfRef.current) {
+      const spaceIndex2 = livePattern.indexOf(" ");
+      if (spaceIndex2 > 0) {
+        const commandName = livePattern.substring(1, spaceIndex2);
+        const checkpointCommands = ["compare", "undo", "restore"];
+        if (checkpointCommands.includes(commandName)) {
+          const argQuery = livePattern.substring(spaceIndex2 + 1);
+          const checkpoints = checkpointService.searchCheckpoints(argQuery);
+          const suggestions = checkpoints.map((cp) => ({
+            label: cp.file_name,
+            value: cp.file_name,
+            description: `${cp.tool} - ${cp.timestamp}`,
+            type: "file",
+            icon: "\u{1F4E6}",
+            positions: [],
+            score: 0
+          }));
+          activeState = {
+            ...state,
+            suggestions,
+            activeIndex: suggestions.length > 0 ? 0 : -1,
+            pattern: livePattern
+          };
+        }
+      } else {
+        const query = livePattern.substring(1);
+        const results = fzfRef.current.find(query);
+        const queryLower = query.toLowerCase();
+        const suggestions = results.map((result) => ({
+          label: result.item.name,
+          value: result.item.name,
+          description: result.item.description,
+          type: "command",
+          icon: "",
+          positions: Array.from(result.positions),
+          score: result.score,
+          commandKind: result.item.kind
+        })).sort((a, b) => {
+          const aExact = a.label.toLowerCase() === queryLower;
+          const bExact = b.label.toLowerCase() === queryLower;
+          if (aExact && !bExact) return -1;
+          if (bExact && !aExact) return 1;
+          const aPrefix = a.label.toLowerCase().startsWith(queryLower);
+          const bPrefix = b.label.toLowerCase().startsWith(queryLower);
+          if (aPrefix && !bPrefix) return -1;
+          if (bPrefix && !aPrefix) return 1;
+          return b.score - a.score;
+        });
+        activeState = {
+          ...state,
+          suggestions,
+          activeIndex: suggestions.length > 0 ? 0 : -1,
+          pattern: livePattern
+        };
+      }
+      logger.debug("[SlashCompletion] Stale suggestions detected on accept, recomputed", {
+        stalePattern: state.pattern,
+        livePattern,
+        recomputedCount: activeState.suggestions.length
+      });
+    }
+    if (activeState.activeIndex < 0 || activeState.activeIndex >= activeState.suggestions.length) {
+      setState((prev) => ({ ...prev, showSuggestions: false, activeIndex: -1 }));
+      return null;
+    }
+    const suggestion = activeState.suggestions[activeState.activeIndex];
+    const spaceIndex = activeState.pattern.indexOf(" ");
     let completed;
     if (spaceIndex > 0 && suggestion.type === "file") {
-      const commandPart = state.pattern.substring(0, spaceIndex + 1);
+      const commandPart = activeState.pattern.substring(0, spaceIndex + 1);
       completed = `${commandPart}${suggestion.value}${restOfText}`;
     } else {
       completed = `/${suggestion.value} ${restOfText}`;
@@ -81374,7 +82763,7 @@ function useSlashCompletion({
       completed: completed.substring(0, 50)
     });
     return completed;
-  }, [state.activeIndex, state.suggestions, state.pattern, inputText]);
+  }, [state, inputText, cursorPosition]);
   const reset = (0, import_react66.useCallback)(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -81400,6 +82789,7 @@ function useSlashCompletion({
       const pattern = firstLine.substring(0, Math.min(cursorPosition, firstLine.length));
       const query = pattern.substring(1);
       const results = fzfRef.current.find(query);
+      const triggerQueryLower = query.toLowerCase();
       const suggestions = results.map((result) => ({
         label: result.item.name,
         value: result.item.name,
@@ -81409,7 +82799,17 @@ function useSlashCompletion({
         positions: Array.from(result.positions),
         score: result.score,
         commandKind: result.item.kind
-      }));
+      })).sort((a, b) => {
+        const aExact = a.label.toLowerCase() === triggerQueryLower;
+        const bExact = b.label.toLowerCase() === triggerQueryLower;
+        if (aExact && !bExact) return -1;
+        if (bExact && !aExact) return 1;
+        const aPrefix = a.label.toLowerCase().startsWith(triggerQueryLower);
+        const bPrefix = b.label.toLowerCase().startsWith(triggerQueryLower);
+        if (aPrefix && !bPrefix) return -1;
+        if (bPrefix && !aPrefix) return 1;
+        return b.score - a.score;
+      });
       setState((prev) => ({
         ...prev,
         suggestions,
@@ -81796,13 +83196,23 @@ function useCommandCompletion({
     const firstLineEnd = inputText.indexOf("\n");
     const firstLine = firstLineEnd === -1 ? inputText : inputText.substring(0, firstLineEnd);
     const cursorLine = inputText.substring(0, cursorPosition).split("\n").length - 1;
-    if (firstLine.startsWith("/") && cursorLine === 0) {
-      return "SLASH" /* SLASH */;
-    }
     const textBefore = inputText.substring(0, cursorPosition);
     const atPos = textBefore.lastIndexOf("@");
     if (atPos !== -1) {
-      return "AT" /* AT */;
+      const charBeforeAt = atPos === 0 ? "" : textBefore[atPos - 1];
+      const isAtTokenStart = atPos === 0 || /\s/.test(charBeforeAt ?? "");
+      const afterAt = textBefore.substring(atPos + 1);
+      const cursorInAtToken = !/\s/.test(afterAt);
+      if (isAtTokenStart && cursorInAtToken) {
+        return "AT" /* AT */;
+      }
+    }
+    if (firstLine.startsWith("/") && cursorLine === 0) {
+      const slashInput = firstLine.substring(1);
+      const commandName = slashInput.split(" ")[0];
+      if (/^[a-zA-Z0-9:_-]*$/.test(commandName)) {
+        return "SLASH" /* SLASH */;
+      }
     }
     if (enablePromptSuggestions && !firstLine.startsWith("/") && !inputText.includes("@") && inputText.trim().length >= 2) {
       return "PROMPT" /* PROMPT */;
@@ -81891,15 +83301,15 @@ var HighlightedText2 = import_react69.default.memo(({ text, positions, isActive 
   if (lastIndex < text.length) {
     segments.push({ text: text.substring(lastIndex), highlighted: false });
   }
-  return /* @__PURE__ */ import_react69.default.createElement(import_react69.default.Fragment, null, segments.map((segment, idx) => /* @__PURE__ */ import_react69.default.createElement(
+  return /* @__PURE__ */ import_react69.default.createElement(import_react69.default.Fragment, null, segments.map((segment2, idx) => /* @__PURE__ */ import_react69.default.createElement(
     Text,
     {
       key: idx,
-      color: segment.highlighted ? "yellow" : isActive ? "cyan" : "white",
-      bold: isActive || segment.highlighted,
-      backgroundColor: segment.highlighted ? "blue" : void 0
+      color: segment2.highlighted ? "yellow" : isActive ? "cyan" : "white",
+      bold: isActive || segment2.highlighted,
+      backgroundColor: segment2.highlighted ? "blue" : void 0
     },
-    segment.text
+    segment2.text
   )));
 });
 HighlightedText2.displayName = "HighlightedText";
@@ -82233,7 +83643,7 @@ var import_react72 = __toESM(require_react(), 1);
 // src/services/shellExecutionService.ts
 import { spawn } from "child_process";
 import * as os4 from "os";
-import * as path3 from "path";
+import * as path4 from "path";
 import * as fs5 from "fs";
 import * as crypto from "crypto";
 var DEFAULT_OPTIONS = {
@@ -82285,7 +83695,7 @@ var ShellExecutionService = class {
     let commandToExecute = command;
     if (process.platform !== "win32") {
       const pwdFileName = `shell_pwd_${crypto.randomBytes(6).toString("hex")}.tmp`;
-      pwdFilePath = path3.join(os4.tmpdir(), pwdFileName);
+      pwdFilePath = path4.join(os4.tmpdir(), pwdFileName);
       let cmd = command.trim();
       if (!cmd.endsWith(";") && !cmd.endsWith("&")) {
         cmd += ";";
@@ -82632,18 +84042,18 @@ function useShellCommand(options) {
 // src/hooks/useShellHistory.ts
 var import_react73 = __toESM(require_react(), 1);
 import * as fs6 from "fs";
-import * as path4 from "path";
+import * as path5 from "path";
 import * as os5 from "os";
 var DEFAULT_OPTIONS2 = {
   maxEntries: 100,
   autoSave: true
 };
 function getDefaultHistoryPath() {
-  const siadaDir = path4.join(os5.homedir(), ".siada");
+  const siadaDir = path5.join(os5.homedir(), ".siada");
   if (!fs6.existsSync(siadaDir)) {
     fs6.mkdirSync(siadaDir, { recursive: true });
   }
-  return path4.join(siadaDir, "shell_history");
+  return path5.join(siadaDir, "shell_history");
 }
 function loadHistory(filePath) {
   try {
@@ -83273,6 +84683,21 @@ function textBufferReducer(state, action, options = {}) {
           cursorCol: 0,
           preferredCol: null
         };
+      } else if (cursorRow > 0) {
+        const nextState = pushUndo(state);
+        const newLines = [...nextState.lines];
+        const prevLineContent = newLines[cursorRow - 1] || "";
+        const currentLineContent = newLines[cursorRow] || "";
+        const newCol = cpLen(prevLineContent);
+        newLines[cursorRow - 1] = prevLineContent + currentLineContent;
+        newLines.splice(cursorRow, 1);
+        return {
+          ...nextState,
+          lines: newLines,
+          cursorRow: cursorRow - 1,
+          cursorCol: newCol,
+          preferredCol: null
+        };
       }
       return state;
     }
@@ -83819,6 +85244,41 @@ var KEY_INFO_MAP = {
   "OQ": { name: "f2" },
   "OR": { name: "f3" },
   "OS": { name: "f4" },
+  // Numeric keypad (application keypad mode, ESC O prefix)
+  "OM": { name: "return" },
+  // Numpad Enter
+  "Oj": { name: "*", insertable: true, char: "*" },
+  // Numpad *
+  "Ok": { name: "+", insertable: true, char: "+" },
+  // Numpad +
+  "Ol": { name: ",", insertable: true, char: "," },
+  // Numpad ,
+  "Om": { name: "-", insertable: true, char: "-" },
+  // Numpad -
+  "On": { name: ".", insertable: true, char: "." },
+  // Numpad .
+  "Oo": { name: "/", insertable: true, char: "/" },
+  // Numpad /
+  "Op": { name: "0", insertable: true, char: "0" },
+  // Numpad 0
+  "Oq": { name: "1", insertable: true, char: "1" },
+  // Numpad 1
+  "Or": { name: "2", insertable: true, char: "2" },
+  // Numpad 2
+  "Os": { name: "3", insertable: true, char: "3" },
+  // Numpad 3
+  "Ot": { name: "4", insertable: true, char: "4" },
+  // Numpad 4
+  "Ou": { name: "5", insertable: true, char: "5" },
+  // Numpad 5
+  "Ov": { name: "6", insertable: true, char: "6" },
+  // Numpad 6
+  "Ow": { name: "7", insertable: true, char: "7" },
+  // Numpad 7
+  "Ox": { name: "8", insertable: true, char: "8" },
+  // Numpad 8
+  "Oy": { name: "9", insertable: true, char: "9" },
+  // Numpad 9
   "[9u": { name: "tab" },
   "[13u": { name: "return" },
   "[27u": { name: "escape" },
@@ -83866,16 +85326,25 @@ function charLengthAt(str, i) {
   const code = str.codePointAt(i);
   return code !== void 0 && code >= kUTF16SurrogateThreshold ? 2 : 1;
 }
+var KITTY_PROTOCOL_TERMINALS = /* @__PURE__ */ new Set([
+  "iTerm.app",
+  "WezTerm",
+  "ghostty",
+  "WarpTerminal"
+]);
 function isKittyProtocolEnabled() {
   const term = process.env.TERM;
   const termProgram = process.env.TERM_PROGRAM;
-  if (term && term.includes("kitty")) {
+  if (term && term.includes("kitty") || process.env.KITTY_WINDOW_ID) {
     return true;
   }
-  if (termProgram && termProgram.toLowerCase().includes("kitty")) {
+  if (termProgram && KITTY_PROTOCOL_TERMINALS.has(termProgram)) {
     return true;
   }
   return false;
+}
+function shouldEnableKittyKeyboard() {
+  return isKittyProtocolEnabled();
 }
 function parseMouseEvent(sequence) {
   if (SGR_MOUSE_REGEX.test(sequence)) {
@@ -84050,6 +85519,8 @@ function* emitKeys(keypressHandler) {
         if (keyInfo.shift) shift = true;
         if (keyInfo.ctrl) ctrl = true;
         if (keyInfo.alt) alt = true;
+        if (keyInfo.insertable) insertable = true;
+        if (keyInfo.char) sequence = keyInfo.char;
       } else {
         name = "undefined";
         if ((ctrl || alt) && (code.endsWith("u") || code.endsWith("~"))) {
@@ -84184,20 +85655,22 @@ function bufferPaste(keypressHandler) {
         }
         buffer += key.sequence;
       }
-      if (buffer.length > 0) {
-        const cleanedBuffer = buffer.replace(/[\r\n]+$/, "");
-        if (cleanedBuffer.length > 0) {
-          keypressHandler({
-            name: "paste",
-            shift: false,
-            alt: false,
-            ctrl: false,
-            cmd: false,
-            insertable: true,
-            sequence: cleanedBuffer
-          });
-        }
-      }
+      const cleanedBuffer = buffer.replace(/[\r\n]+$/, "");
+      logger.info("[KeypressContext] bufferPaste done", {
+        rawBufferLength: buffer.length,
+        cleanedBufferLength: cleanedBuffer.length,
+        cleanedPreview: cleanedBuffer.slice(0, 80),
+        isEmpty: cleanedBuffer.length === 0
+      });
+      keypressHandler({
+        name: "paste",
+        shift: false,
+        alt: false,
+        ctrl: false,
+        cmd: false,
+        insertable: cleanedBuffer.length > 0,
+        sequence: cleanedBuffer
+      });
     }
   }();
   bufferer.next();
@@ -84324,6 +85797,15 @@ function KeypressProvider({
         operation: "enable_bracketed_paste"
       });
     }
+    const kittyEnabled = shouldEnableKittyKeyboard() && process.stdout.isTTY;
+    if (kittyEnabled) {
+      process.stdout.write("\x1B[>1u");
+      logger.info("Kitty keyboard protocol enabled", {
+        component: "KeypressContext",
+        operation: "enable_kitty_keyboard",
+        termProgram: process.env.TERM_PROGRAM
+      });
+    }
     logger.info("\u{1F525} Process.stdin configured", {
       component: "KeypressContext",
       operation: "configure_process_stdin",
@@ -84351,6 +85833,9 @@ function KeypressProvider({
     return () => {
       if (process.stdout.isTTY) {
         process.stdout.write("\x1B[?2004l");
+      }
+      if (kittyEnabled) {
+        process.stdout.write("\x1B[<u");
       }
       process.stdin.removeListener("data", dataListener);
       if (wasRaw === false) {
@@ -84556,11 +86041,21 @@ var import_react78 = __toESM(require_react(), 1);
 import { readFileSync as readFileSync6, existsSync as existsSync7, writeFileSync as writeFileSync3, mkdirSync as mkdirSync3 } from "fs";
 import { join as join5, dirname } from "path";
 import { homedir as homedir3 } from "os";
+var DEFAULT_STATUSBAR_ITEMS = [
+  "model",
+  "balance",
+  "total_cost",
+  "hit_rate",
+  "git_branch",
+  "workspace",
+  "cost_time",
+  "token_usage"
+];
 var ConfigManager = class {
   config = {};
   configPaths = [
     join5(homedir3(), ".siadauirc"),
-    join5(homedir3(), ".config", "siada-ui", "config.json"),
+    join5(homedir3(), ".siada-cli", "ui-config.json"),
     join5(process.cwd(), ".siadauirc")
   ];
   constructor() {
@@ -84603,10 +86098,23 @@ var ConfigManager = class {
     this.persistConfig();
   }
   /**
+   * Get status bar visible items
+   */
+  getStatusbarItems() {
+    return this.config.statusbarItems || DEFAULT_STATUSBAR_ITEMS;
+  }
+  /**
+   * Set status bar visible items and persist
+   */
+  setStatusbarItems(items) {
+    this.config.statusbarItems = items;
+    this.persistConfig();
+  }
+  /**
    * Persist current configuration to file
    */
   persistConfig() {
-    const configPath = join5(homedir3(), ".config", "siada-ui", "config.json");
+    const configPath = join5(homedir3(), ".siada-cli", "ui-config.json");
     try {
       const configDir = dirname(configPath);
       if (!existsSync7(configDir)) {
@@ -84693,11 +86201,129 @@ function useEditorDialog() {
   };
 }
 
+// src/components/StatusBarDialog/StatusBarDialog.tsx
+var import_react79 = __toESM(require_react(), 1);
+var STATUSBAR_ITEM_LABELS = {
+  model: "Model: kivy-glm-5.2",
+  balance: "Balance: 25.34%",
+  input_cost: "in:\xA50.0012(12,345)",
+  output_cost: "out:\xA50.0034(6,789)",
+  cache_write_cost: "cw:\xA50.0001(100)",
+  cache_read_cost: "cr:\xA50.0023(1,234)",
+  total_cost: "cost:\xA50.0046(19,234)",
+  hit_rate: "hit:45.2%",
+  git_branch: "\u2387 main",
+  workspace: "~/projects/foo",
+  cost_time: "12.3s",
+  token_usage: "68,284 / 600,000 tokens"
+};
+var STATUSBAR_ITEM_DESCRIPTIONS = {
+  model: "Name of the model currently in use",
+  balance: "Account balance, as a percentage of remaining quota",
+  input_cost: "Cost and token count for input not served from cache",
+  output_cost: "Cost and token count for model output",
+  cache_write_cost: "Cost and token count for writing context into the cache (first-time context)",
+  cache_read_cost: "Cost and token count for context served from cache (reused context)",
+  total_cost: "Total accumulated cost and token count for this turn",
+  hit_rate: "Cache hit rate = cache-read tokens / (input + cache-read) tokens; higher means more context reuse",
+  git_branch: "Git branch of the current working directory",
+  workspace: "Path of the current working directory",
+  cost_time: "Elapsed time for this turn (from turn start to the latest model response)",
+  token_usage: "Tokens used in the current context / the model's context window limit"
+};
+var STATUSBAR_KEYS = Object.keys(STATUSBAR_ITEM_LABELS);
+function StatusBarDialog({
+  visibleItems,
+  onToggle,
+  onClose
+}) {
+  const [selectedIndex, setSelectedIndex] = (0, import_react79.useState)(0);
+  useKeypress(
+    (key) => {
+      if (key.name === "up") {
+        setSelectedIndex((prev) => Math.max(0, prev - 1));
+        return;
+      }
+      if (key.name === "down") {
+        setSelectedIndex((prev) => Math.min(STATUSBAR_KEYS.length - 1, prev + 1));
+        return;
+      }
+      if (key.name === "space" || key.name === "return") {
+        onToggle(STATUSBAR_KEYS[selectedIndex]);
+        return;
+      }
+      if (key.name === "escape") {
+        onClose();
+        return;
+      }
+    },
+    { isActive: true }
+  );
+  return /* @__PURE__ */ import_react79.default.createElement(
+    Box_default,
+    {
+      flexDirection: "column",
+      borderStyle: "round",
+      borderColor: "gray",
+      paddingX: 2,
+      paddingY: 1,
+      width: "100%"
+    },
+    /* @__PURE__ */ import_react79.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react79.default.createElement(Text, { bold: true, color: "white" }, "Status Bar Items")),
+    STATUSBAR_KEYS.map((key, index) => {
+      const isSelected = index === selectedIndex;
+      const isVisible = visibleItems.includes(key);
+      const label = STATUSBAR_ITEM_LABELS[key];
+      return /* @__PURE__ */ import_react79.default.createElement(Box_default, { key, marginLeft: 1 }, /* @__PURE__ */ import_react79.default.createElement(
+        Text,
+        {
+          color: isSelected ? "cyan" : "white",
+          bold: isSelected
+        },
+        isVisible ? "\u25CF " : "\u25CB ",
+        label
+      ));
+    }),
+    /* @__PURE__ */ import_react79.default.createElement(Box_default, { marginTop: 1, paddingX: 1 }, /* @__PURE__ */ import_react79.default.createElement(Text, { color: "gray" }, STATUSBAR_ITEM_DESCRIPTIONS[STATUSBAR_KEYS[selectedIndex]])),
+    /* @__PURE__ */ import_react79.default.createElement(Box_default, { marginTop: 1, borderStyle: "single", borderColor: "gray", paddingX: 1 }, /* @__PURE__ */ import_react79.default.createElement(Text, null, "\u2191\u2193 Navigate \u2022 Space/Enter Toggle \u2022 Esc Close"))
+  );
+}
+
+// src/components/StatusBarDialog/useStatusBarDialog.ts
+var import_react80 = __toESM(require_react(), 1);
+function useStatusBarDialog() {
+  const [isOpen, setIsOpen] = (0, import_react80.useState)(false);
+  const [visibleItems, setVisibleItems] = (0, import_react80.useState)(
+    configManager.getStatusbarItems()
+  );
+  const openDialog = (0, import_react80.useCallback)(() => {
+    setVisibleItems(configManager.getStatusbarItems());
+    setIsOpen(true);
+  }, []);
+  const closeDialog = (0, import_react80.useCallback)(() => {
+    setIsOpen(false);
+  }, []);
+  const handleToggle = (0, import_react80.useCallback)((key) => {
+    setVisibleItems((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      configManager.setStatusbarItems(next);
+      return next;
+    });
+  }, []);
+  return {
+    isOpen,
+    visibleItems,
+    openDialog,
+    closeDialog,
+    handleToggle
+  };
+}
+
 // src/components/Input/InputPromptWithWrapUseKPC.tsx
-import { writeFileSync as writeFileSync4, unlinkSync as unlinkSync4, mkdtempSync, readFileSync as readFileSync7, rmdirSync } from "fs";
-import { join as join6 } from "path";
-import { tmpdir as tmpdir2 } from "os";
-import { spawnSync as spawnSync2 } from "child_process";
+import { writeFileSync as writeFileSync5, unlinkSync as unlinkSync4, mkdtempSync, readFileSync as readFileSync7, rmdirSync } from "fs";
+import { join as join7 } from "path";
+import { tmpdir as tmpdir3, homedir as homedir5 } from "os";
+import { spawnSync as spawnSync2, execSync as execSync2 } from "child_process";
 
 // src/constants/phrases.ts
 var THINKING_PHRASES = [
@@ -84715,13 +86341,382 @@ var INFORMATIVE_TIPS = [
 ];
 var PHRASE_CHANGE_INTERVAL = 15e3;
 
+// src/utils/clipboard.ts
+import { execFile } from "child_process";
+import * as os6 from "os";
+import * as path6 from "path";
+import * as fs7 from "fs";
+var CLIPBOARD_TIMEOUT_MS = 3e3;
+function execWithTimeout(cmd, args, timeoutMs = CLIPBOARD_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const proc = execFile(
+      cmd,
+      args,
+      { encoding: "buffer", timeout: timeoutMs, maxBuffer: 30 * 1024 * 1024 },
+      // 30 MB
+      (err, stdout, stderr) => {
+        if (err) reject(err);
+        else resolve({
+          stdout,
+          stderr: stderr?.toString("utf8") ?? ""
+        });
+      }
+    );
+  });
+}
+function isPng(buf) {
+  return buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71;
+}
+function isJpeg(buf) {
+  return buf.length > 3 && buf[0] === 255 && buf[1] === 216 && buf[2] === 255;
+}
+function saveTempImage(data) {
+  let ext;
+  let mediaType;
+  if (isPng(data)) {
+    ext = ".png";
+    mediaType = "image/png";
+  } else if (isJpeg(data)) {
+    ext = ".jpg";
+    mediaType = "image/jpeg";
+  } else if (data.length > 3 && data[0] === 71 && data[1] === 73 && data[2] === 70) {
+    ext = ".gif";
+    mediaType = "image/gif";
+  } else if (data.length > 12 && data[0] === 82 && data[1] === 73 && data[2] === 70 && data[3] === 70) {
+    ext = ".webp";
+    mediaType = "image/webp";
+  } else {
+    return null;
+  }
+  const filePath = path6.join(os6.tmpdir(), `siada-paste-${Date.now()}${ext}`);
+  fs7.writeFileSync(filePath, data);
+  return { filePath, mediaType };
+}
+var MACOS_PYTHON_IMAGE = `
+import sys, base64
+try:
+    from AppKit import NSPasteboard
+    pb = NSPasteboard.generalPasteboard()
+    for t in ('public.png', 'public.tiff', 'public.jpeg'):
+        d = pb.dataForType_(t)
+        if d:
+            sys.stdout.buffer.write(base64.b64encode(bytes(d)))
+            sys.exit(0)
+except Exception as e:
+    sys.stderr.write(str(e))
+sys.exit(0)
+`;
+function resolveMacosPython() {
+  const fromEnv = process.env.SIADA_PYTHON_PATH;
+  if (fromEnv && fromEnv.trim()) {
+    return fromEnv.trim();
+  }
+  return "python3";
+}
+async function getImageFromClipboardMacos() {
+  const pythonBin = resolveMacosPython();
+  logger.info("[clipboard] getImageFromClipboardMacos: running python+AppKit", {
+    pythonBin,
+    fromEnv: !!process.env.SIADA_PYTHON_PATH
+  });
+  try {
+    const { stdout, stderr } = await execWithTimeout(pythonBin, ["-c", MACOS_PYTHON_IMAGE]);
+    const b64 = stdout.toString("utf8").trim();
+    logger.info("[clipboard] python result", {
+      b64Length: b64.length,
+      hasData: !!b64,
+      stderr: stderr ? stderr.slice(0, 500) : ""
+    });
+    if (!b64) {
+      if (stderr && /No module named ['"]?AppKit['"]?/i.test(stderr)) {
+        logger.warn(
+          "[clipboard] AppKit/PyObjC missing on this Python interpreter \u2014 image paste cannot work. Set SIADA_PYTHON_PATH to a Python that has pyobjc-framework-Cocoa installed (the siada-agenthub conda env normally does).",
+          { pythonBin }
+        );
+      }
+      return null;
+    }
+    const data = Buffer.from(b64, "base64");
+    const result = saveTempImage(data);
+    logger.info("[clipboard] saveTempImage result", { result });
+    return result;
+  } catch (err) {
+    logger.warn("[clipboard] python clipboard read failed", {
+      err: String(err),
+      pythonBin
+    });
+    return null;
+  }
+}
+async function getImageFromClipboardLinux() {
+  const cmds = [
+    ["wl-paste", ["--type", "image/png", "--no-newline"]],
+    ["xclip", ["-selection", "clipboard", "-t", "image/png", "-o"]]
+  ];
+  for (const [cmd, args] of cmds) {
+    try {
+      const { stdout } = await execWithTimeout(cmd, args);
+      if (stdout.length > 0) {
+        const result = saveTempImage(stdout);
+        if (result) return result;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+async function getImageFromClipboardWindows() {
+  const tmpPath = path6.join(os6.tmpdir(), `siada-paste-${Date.now()}.png`);
+  const psScript = `
+Add-Type -AssemblyName System.Windows.Forms
+$img = [Windows.Forms.Clipboard]::GetImage()
+if ($null -ne $img) {
+  $img.Save('${tmpPath.replace(/\\/g, "\\\\")}')
+  Write-Output 'ok'
+}
+`;
+  try {
+    const { stdout } = await execWithTimeout("powershell", ["-Command", psScript]);
+    if (stdout.toString().trim() === "ok" && fs7.existsSync(tmpPath)) {
+      return { filePath: tmpPath, mediaType: "image/png" };
+    }
+  } catch {
+  }
+  return null;
+}
+async function getImageFromClipboard() {
+  logger.info("[clipboard] getImageFromClipboard called", { platform: process.platform });
+  switch (process.platform) {
+    case "darwin":
+      return getImageFromClipboardMacos();
+    case "linux":
+      return getImageFromClipboardLinux();
+    case "win32":
+      return getImageFromClipboardWindows();
+    default:
+      logger.warn("[clipboard] unsupported platform", { platform: process.platform });
+      return null;
+  }
+}
+async function getTextFromClipboard() {
+  try {
+    let stdout;
+    if (process.platform === "darwin") {
+      stdout = (await execWithTimeout("pbpaste", [])).stdout;
+    } else if (process.platform === "linux") {
+      try {
+        stdout = (await execWithTimeout("wl-paste", ["--no-newline"])).stdout;
+      } catch {
+        stdout = (await execWithTimeout("xclip", ["-selection", "clipboard", "-o"])).stdout;
+      }
+    } else {
+      return null;
+    }
+    const text = stdout.toString("utf8");
+    logger.info("[clipboard] getTextFromClipboard result", { length: text.length });
+    return text.length > 0 ? text : null;
+  } catch (err) {
+    logger.warn("[clipboard] getTextFromClipboard failed", { err: String(err) });
+    return null;
+  }
+}
+async function copyTextToClipboard(text) {
+  try {
+    if (process.platform === "darwin") {
+      await new Promise((resolve, reject) => {
+        const { spawn: spawn4 } = __require("child_process");
+        const proc = spawn4("pbcopy", [], { stdio: ["pipe", "ignore", "ignore"] });
+        proc.on("error", reject);
+        proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`pbcopy exit ${code}`)));
+        proc.stdin.end(text, "utf8");
+      });
+      return true;
+    } else if (process.platform === "linux") {
+      for (const [cmd, args] of [["wl-copy", []], ["xclip", ["-selection", "clipboard"]]]) {
+        try {
+          await new Promise((resolve, reject) => {
+            const { spawn: spawn4 } = __require("child_process");
+            const proc = spawn4(cmd, args, { stdio: ["pipe", "ignore", "ignore"] });
+            proc.on("error", reject);
+            proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`${cmd} exit ${code}`)));
+            proc.stdin.end(text, "utf8");
+          });
+          return true;
+        } catch {
+          continue;
+        }
+      }
+      return false;
+    } else if (process.platform === "win32") {
+      await new Promise((resolve, reject) => {
+        const { spawn: spawn4 } = __require("child_process");
+        const proc = spawn4("clip", [], { stdio: ["pipe", "ignore", "ignore"] });
+        proc.on("error", reject);
+        proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`clip exit ${code}`)));
+        proc.stdin.end(text, "utf8");
+      });
+      return true;
+    }
+    return false;
+  } catch (err) {
+    logger.warn("[clipboard] copyTextToClipboard failed", { err: String(err) });
+    return false;
+  }
+}
+
+// src/store/promptQueueStore.ts
+var _queue = [];
+var _listeners = /* @__PURE__ */ new Set();
+var _snapshot = [];
+function _notify() {
+  _snapshot = _queue.slice();
+  _listeners.forEach((l) => l());
+}
+var promptQueueStore = {
+  subscribe(listener) {
+    _listeners.add(listener);
+    return () => _listeners.delete(listener);
+  },
+  getSnapshot() {
+    return _snapshot;
+  },
+  enqueue(content, imagePaths) {
+    const item = {
+      id: `queue-${Date.now()}-${Math.random()}`,
+      content,
+      imagePaths,
+      addedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    _queue.push(item);
+    _notify();
+    return item;
+  },
+  getById(id) {
+    return _queue.find((i) => i.id === id);
+  },
+  removeById(id) {
+    const idx = _queue.findIndex((i) => i.id === id);
+    if (idx !== -1) {
+      _queue.splice(idx, 1);
+      _notify();
+    }
+  },
+  dequeue() {
+    if (_queue.length === 0) return void 0;
+    const item = _queue.shift();
+    _notify();
+    return item;
+  },
+  clear() {
+    _queue.length = 0;
+    _notify();
+  },
+  getLength() {
+    return _queue.length;
+  },
+  /**
+   * Drain all queued items and return their combined content.
+   * Mirrors Claude Code's `popAllEditable`: collects all items (every item is
+   * considered editable in siada-cli), clears the store, and returns the merged
+   * text and collected image paths so the caller can restore them to the input box.
+   */
+  popAllEditable() {
+    if (_queue.length === 0) return { text: "", imagePaths: [] };
+    const items = _queue.splice(0, _queue.length);
+    _notify();
+    const text = items.map((i) => i.content).join("\n");
+    const imagePaths = items.flatMap((i) => i.imagePaths ?? []);
+    return { text, imagePaths };
+  }
+};
+
+// src/components/Todo/TodoDisplay.tsx
+var import_react81 = __toESM(require_react(), 1);
+var STATUS_ICONS = {
+  pending: "\u25CB",
+  in_progress: "\u25D0",
+  completed: "\u2713"
+};
+var STATUS_COLORS = {
+  pending: "gray",
+  in_progress: "yellow",
+  completed: "green"
+};
+var MAX_VISIBLE = 5;
+var TodoDisplay = ({
+  items,
+  activeIndex,
+  width
+}) => {
+  if (!items || items.length === 0) return null;
+  const total = items.length;
+  let effectiveActive = activeIndex;
+  if (effectiveActive < 0) {
+    const inProgressIdx = items.findIndex((item) => item.status === "in_progress");
+    if (inProgressIdx >= 0) {
+      effectiveActive = inProgressIdx;
+    } else {
+      const pendingIdx = items.findIndex((item) => item.status === "pending");
+      effectiveActive = pendingIdx >= 0 ? pendingIdx : total - 1;
+    }
+  }
+  const start = Math.max(0, Math.min(effectiveActive - 2, total - MAX_VISIBLE));
+  const end = Math.min(total, start + MAX_VISIBLE);
+  const visible = items.slice(start, end);
+  const hasAbove = start > 0;
+  const hasBelow = end < total;
+  const displayPos = activeIndex >= 0 ? `${activeIndex + 1}` : "-";
+  return /* @__PURE__ */ import_react81.default.createElement(Box_default, { flexDirection: "column", paddingX: 1, width }, /* @__PURE__ */ import_react81.default.createElement(Box_default, { justifyContent: "space-between" }, /* @__PURE__ */ import_react81.default.createElement(Text, { color: "cyan", dimColor: true }, "Todos"), /* @__PURE__ */ import_react81.default.createElement(Text, { color: "cyan", dimColor: true }, hasAbove ? " \u25B2 " : "   ", "(", displayPos, "/", total, ")", hasBelow ? " \u25BC" : "  ")), visible.map((item, visIdx) => {
+    const globalIdx = start + visIdx;
+    const isActive = globalIdx === activeIndex;
+    const icon = STATUS_ICONS[item.status] ?? "?";
+    const iconColor = STATUS_COLORS[item.status] ?? "white";
+    return /* @__PURE__ */ import_react81.default.createElement(Box_default, { key: globalIdx, flexDirection: "row" }, /* @__PURE__ */ import_react81.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react81.default.createElement(Text, { color: iconColor }, icon, " "), /* @__PURE__ */ import_react81.default.createElement(
+      Text,
+      {
+        color: isActive ? "cyan" : void 0,
+        bold: isActive,
+        dimColor: item.status === "completed" && !isActive
+      },
+      item.content
+    ));
+  }), /* @__PURE__ */ import_react81.default.createElement(Box_default, null, /* @__PURE__ */ import_react81.default.createElement(Text, { color: "gray" }, "\u2191\u2193 navigate \u2022 Tab focus \u2022 Enter open \u2022 Esc close")));
+};
+
 // src/components/Input/InputPromptWithWrapUseKPC.tsx
-var InputPromptWithWrapUseKPC = import_react79.default.memo(({
+var PASTE_THRESHOLD = 800;
+var PASTE_LINE_THRESHOLD = 10;
+function formatPasteRef(id, numLines) {
+  return `[Pasted text #${id} +${numLines} lines]`;
+}
+var PASTE_REF_SUFFIX_RE = /\[Pasted text #(\d+) \+\d+ lines\]$/;
+function expandPasteRefs(text, map) {
+  return text.replace(/\[Pasted text #(\d+) \+\d+ lines\]/g, (_, id) => map.get(Number(id)) ?? "");
+}
+function formatImageRef(id) {
+  return `[Image #${id}]`;
+}
+var IMAGE_REF_SUFFIX_RE = /\[Image #(\d+)\]$/;
+function collectImagePaths(text, map) {
+  const paths = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const m of text.matchAll(/\[Image #(\d+)\]/g)) {
+    const id = Number(m[1]);
+    if (!seen.has(id) && map.has(id)) {
+      seen.add(id);
+      paths.push(map.get(id));
+    }
+  }
+  return paths;
+}
+var InputPromptWithWrapUseKPC = import_react82.default.memo(({
   onSubmit,
   onAddMessage,
   onUpdateMessage,
   placeholder = "Type your message, /command, or @path/to/file ...",
   disabled = false,
+  disabledMessage = "Waiting for response...",
   focus = true,
   maxLines = 20,
   width,
@@ -84729,42 +86724,129 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
   mcpResources = [],
   loading = false,
   onStopExecution,
-  tokenUsage
+  onFlushQueueAndRun,
+  onCancelPendingQueue,
+  tokenUsage,
+  model,
+  quotaUsage = null,
+  todoItems = [],
+  onTodoSelect,
+  cacheStatus = null,
+  workingDir
 }) => {
   const CursorAwareText = Text;
   const { stdout } = use_stdout_default();
   const terminalWidth = width ?? stdout?.columns ?? 80;
-  const randomTip = (0, import_react79.useMemo)(
+  const randomTip = (0, import_react82.useMemo)(
     () => INFORMATIVE_TIPS[Math.floor(Math.random() * INFORMATIVE_TIPS.length)],
     []
   );
+  const editorDialog = useEditorDialog();
+  const statusBarDialog = useStatusBarDialog();
+  const formatCost = (cny) => `\xA5${cny.toFixed(4)}`;
+  const formatTokenCount = (count) => count.toLocaleString("en-US");
+  const formatDuration = (seconds) => {
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}m${s}s`;
+  };
+  const formatWorkspace = (dir) => {
+    const home = homedir5();
+    return dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir;
+  };
+  const getGitBranch = (dir) => {
+    try {
+      const result = execSync2("git branch --show-current", {
+        cwd: dir,
+        encoding: "utf-8",
+        timeout: 2e3
+      }).trim();
+      return result || null;
+    } catch {
+      return null;
+    }
+  };
+  const gitBranch = (0, import_react82.useMemo)(() => {
+    if (!workingDir) return null;
+    return getGitBranch(workingDir);
+  }, [workingDir]);
+  const STATUS_BAR_COLOR = "white";
+  const GROUP_SEPARATOR = "  \u2502  ";
+  const ITEM_SEPARATOR = "  ";
+  const measureWidth = (segs) => {
+    let width2 = 0;
+    segs.forEach((seg, idx) => {
+      if (idx > 0) {
+        width2 += segs[idx - 1].group !== seg.group ? GROUP_SEPARATOR.length : ITEM_SEPARATOR.length;
+      }
+      width2 += seg.text.length;
+    });
+    return width2;
+  };
+  const statusBarParts = (0, import_react82.useMemo)(() => {
+    const parts = [];
+    const visibleKeys = statusBarDialog.visibleItems;
+    const cs = cacheStatus;
+    const tu = tokenUsage;
+    const addIfVisible = (key, text, group) => {
+      if (visibleKeys.includes(key) && text !== null) {
+        parts.push({ key, text, group });
+      }
+    };
+    addIfVisible("model", model ? `${model}` : null, 1);
+    addIfVisible("balance", quotaUsage !== null && quotaUsage !== void 0 ? `Balance: ${quotaUsage}` : null, 1);
+    addIfVisible("input_cost", cs ? `in:${formatCost(cs.accumulated_input_cost)}(${formatTokenCount(cs.accumulated_input)})` : null, 2);
+    addIfVisible("output_cost", cs ? `out:${formatCost(cs.accumulated_output_cost)}(${formatTokenCount(cs.accumulated_output)})` : null, 2);
+    addIfVisible("cache_write_cost", cs ? `cw:${formatCost(cs.accumulated_cache_write_cost)}(${formatTokenCount(cs.accumulated_cache_write)})` : null, 2);
+    addIfVisible("cache_read_cost", cs ? `cr:${formatCost(cs.accumulated_cache_read_cost)}(${formatTokenCount(cs.accumulated_cache_read)})` : null, 2);
+    addIfVisible("total_cost", cs ? `cost:${formatCost(cs.accumulated_total_cost)}(${formatTokenCount(cs.accumulated_input + cs.accumulated_output + cs.accumulated_cache_read + cs.accumulated_cache_write)})` : null, 2);
+    addIfVisible("hit_rate", cs && cs.accumulated_hit_rate != null ? `hit:${cs.accumulated_hit_rate.toFixed(2)}%` : null, 3);
+    addIfVisible("cost_time", cs ? formatDuration(cs.cost_time_seconds) : null, 3);
+    addIfVisible("git_branch", gitBranch ? `\u2387 ${gitBranch}` : null, 4);
+    addIfVisible("workspace", workingDir ? formatWorkspace(workingDir) : null, 4);
+    const rightText = visibleKeys.includes("token_usage") && tu?.message ? tu.message : null;
+    const available = Math.max(terminalWidth - 2 - (rightText ? rightText.length + 2 : 0), 0);
+    let segments = parts;
+    if (measureWidth(segments) > available) {
+      segments = segments.filter((seg) => seg.group !== 2 || seg.key === "total_cost");
+    }
+    if (measureWidth(segments) > available) {
+      segments = segments.filter((seg) => seg.group !== 3);
+    }
+    return { segments, right: rightText };
+  }, [model, quotaUsage, cacheStatus, tokenUsage, gitBranch, workingDir, statusBarDialog.visibleItems, terminalWidth]);
   const FRAME_PADDING_AND_BORDER = 4;
   const PROMPT_PREFIX_WIDTH = 2;
   const FRAME_OVERHEAD = FRAME_PADDING_AND_BORDER + PROMPT_PREFIX_WIDTH;
   const CURSOR_EXTRA = 1;
-  const SAFETY_MARGIN = 1;
+  const SAFETY_MARGIN2 = 1;
   const viewportWidth = Math.max(
-    terminalWidth - FRAME_OVERHEAD - CURSOR_EXTRA - SAFETY_MARGIN,
+    terminalWidth - FRAME_OVERHEAD - CURSOR_EXTRA - SAFETY_MARGIN2,
     40
   );
   const buffer = useEnhancedTextBuffer({
     width: viewportWidth,
     height: maxLines
   });
-  const [historyIndex, setHistoryIndex] = (0, import_react79.useState)(-1);
-  const [tempInput, setTempInput] = (0, import_react79.useState)("");
-  const historyRef = (0, import_react79.useRef)([]);
-  const [expandedIndex, setExpandedIndex] = (0, import_react79.useState)(-1);
-  const [submitBlocked, setSubmitBlocked] = (0, import_react79.useState)(false);
+  const [historyIndex, setHistoryIndex] = (0, import_react82.useState)(-1);
+  const [tempInput, setTempInput] = (0, import_react82.useState)("");
+  const historyRef = (0, import_react82.useRef)([]);
+  const pastedTextsRef = (0, import_react82.useRef)(/* @__PURE__ */ new Map());
+  const nextPasteIdRef = (0, import_react82.useRef)(1);
+  const imagePathsRef = (0, import_react82.useRef)(/* @__PURE__ */ new Map());
+  const nextImageIdRef = (0, import_react82.useRef)(1);
+  const [expandedIndex, setExpandedIndex] = (0, import_react82.useState)(-1);
+  const [todoFocused, setTodoFocused] = (0, import_react82.useState)(false);
+  const [todoActiveIndex, setTodoActiveIndex] = (0, import_react82.useState)(0);
   const appState = useAppState();
   const dispatch = useAppDispatch();
   const shellModeActive = appState.shellModeActive;
-  const editorDialog = useEditorDialog();
-  const shellModeRef = (0, import_react79.useRef)(shellModeActive);
-  (0, import_react79.useEffect)(() => {
+  const shellModeRef = (0, import_react82.useRef)(shellModeActive);
+  (0, import_react82.useEffect)(() => {
     shellModeRef.current = shellModeActive;
   }, [shellModeActive]);
-  const cursorOffset = (0, import_react79.useMemo)(() => {
+  const cursorOffset = (0, import_react82.useMemo)(() => {
     let offset = 0;
     const actualRow = Math.min(buffer.cursorRow, buffer.lines.length - 1);
     for (let i = 0; i < actualRow; i++) {
@@ -84808,13 +86890,13 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
     autoSave: true
   });
   const [visualRow, visualCol] = buffer.visualCursor;
-  const openExternalEditor = (0, import_react79.useCallback)(async () => {
+  const openExternalEditor = (0, import_react82.useCallback)(async () => {
     if (disabled) return;
-    const tmpDir = mkdtempSync(join6(tmpdir2(), "siada-edit-"));
-    const filePath = join6(tmpDir, "buffer.txt");
+    const tmpDir = mkdtempSync(join7(tmpdir3(), "siada-edit-"));
+    const filePath = join7(tmpDir, "buffer.txt");
     const currentText = buffer.text;
     try {
-      writeFileSync4(filePath, currentText, "utf-8");
+      writeFileSync5(filePath, currentText, "utf-8");
       const preferredEditor = configManager.getPreferredEditor();
       const { command, args, source: source2 } = resolveEditorCommand(preferredEditor);
       logger.info("[InputPromptWithWrapUseKPC] Opening external editor", {
@@ -84861,16 +86943,15 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       }
     }
   }, [buffer, disabled]);
-  const handleSubmit = (0, import_react79.useCallback)(async () => {
+  const handleSubmit = (0, import_react82.useCallback)(async () => {
     const trimmed = buffer.text.trim();
     if (!trimmed || disabled) return;
-    if (loading) {
-      setSubmitBlocked(true);
-      setTimeout(() => setSubmitBlocked(false), 2e3);
-      return;
-    }
     if (trimmed === "/editor" || trimmed === "/edit") {
       editorDialog.openDialog();
+      return;
+    }
+    if (trimmed === "/statusbar") {
+      statusBarDialog.openDialog();
       return;
     }
     const currentShellMode = shellModeRef.current;
@@ -84950,7 +87031,13 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       if (historyRef.current.length > 100) {
         historyRef.current.pop();
       }
-      onSubmit(trimmed);
+      const expandedText = expandPasteRefs(trimmed, pastedTextsRef.current);
+      pastedTextsRef.current.clear();
+      nextPasteIdRef.current = 1;
+      const imagePaths = collectImagePaths(trimmed, imagePathsRef.current);
+      imagePathsRef.current.clear();
+      nextImageIdRef.current = 1;
+      onSubmit(expandedText, imagePaths.length > 0 ? imagePaths : void 0);
       buffer.clear();
       setHistoryIndex(-1);
     }
@@ -84964,13 +87051,42 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
     onSubmit,
     resetShellHistoryIndex,
     editorDialog.openDialog,
+    statusBarDialog.openDialog,
     loading,
     onAddMessage,
     onUpdateMessage
   ]);
   useKeypress((key) => {
-    if (editorDialog.isOpen) return;
+    if (editorDialog.isOpen || statusBarDialog.isOpen) return;
     if (disabled || !focus) return;
+    if (todoItems.length > 0) {
+      if (key.name === "tab" && buffer.text.trim() === "" && !showSuggestions) {
+        setTodoFocused((f) => !f);
+        return;
+      }
+      if (todoFocused) {
+        if (key.name === "up") {
+          setTodoActiveIndex((i) => Math.max(0, i - 1));
+          return;
+        }
+        if (key.name === "down") {
+          setTodoActiveIndex((i) => Math.min(todoItems.length - 1, i + 1));
+          return;
+        }
+        if (key.name === "return" || key.name === "enter") {
+          const item = todoItems[todoActiveIndex];
+          if (item) {
+            setTodoFocused(false);
+            onTodoSelect?.(item.content);
+          }
+          return;
+        }
+        if (key.name === "escape") {
+          setTodoFocused(false);
+          return;
+        }
+      }
+    }
     if (key.sequence === "!" && buffer.text.trim() === "" && !showSuggestions) {
       dispatch(toggleShellMode());
       buffer.clear();
@@ -84981,8 +87097,8 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
         dispatch(setShellMode(false));
       } else if (showSuggestions) {
         resetCompletion();
-      } else if (loading && onStopExecution) {
-        onStopExecution();
+      } else if (loading) {
+        (onFlushQueueAndRun ?? onStopExecution)?.();
       }
       return;
     }
@@ -85012,9 +87128,7 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       }
     }
     if ((key.name === "return" || key.name === "enter") && (key.shift || key.alt || key.ctrl)) {
-      if (buffer.lines.length < maxLines) {
-        buffer.insert("\n");
-      }
+      buffer.insert("\n");
       return;
     }
     if ((key.name === "return" || key.name === "enter") && !key.shift) {
@@ -85022,9 +87136,15 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       return;
     }
     if (key.ctrl && key.name === "j") {
-      if (buffer.lines.length < maxLines) {
-        buffer.insert("\n");
+      buffer.insert("\n");
+      return;
+    }
+    if (key.name === "up" && !showSuggestions && buffer.text.trim() === "" && promptQueueStore.getLength() > 0) {
+      const drained = promptQueueStore.popAllEditable();
+      if (drained.text) {
+        buffer.setText(drained.text);
       }
+      onCancelPendingQueue?.();
       return;
     }
     if (key.name === "up" && !showSuggestions && visualRow === 0) {
@@ -85063,6 +87183,42 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       }
       return;
     }
+    if (key.ctrl && key.name === "p" && !showSuggestions) {
+      if (shellModeActive) {
+        const cmd = shellHistoryUp();
+        if (cmd !== null) {
+          buffer.setText(cmd);
+        }
+      } else if (historyRef.current.length > 0) {
+        if (historyIndex === -1) {
+          setTempInput(buffer.text);
+        }
+        const newIndex = Math.min(historyIndex + 1, historyRef.current.length - 1);
+        if (newIndex >= 0) {
+          buffer.setText(historyRef.current[newIndex]);
+          setHistoryIndex(newIndex);
+        }
+      }
+      return;
+    }
+    if (key.ctrl && key.name === "n" && !showSuggestions) {
+      if (shellModeActive) {
+        const cmd = shellHistoryDown();
+        if (cmd !== null) {
+          buffer.setText(cmd);
+        } else {
+          buffer.clear();
+        }
+      } else if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        buffer.setText(historyRef.current[newIndex]);
+        setHistoryIndex(newIndex);
+      } else if (historyIndex === 0) {
+        buffer.setText(tempInput);
+        setHistoryIndex(-1);
+      }
+      return;
+    }
     if (key.ctrl && key.name === "w") {
       buffer.deleteWordLeft();
       return;
@@ -85083,6 +87239,26 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       buffer.moveCursor("end");
       return;
     }
+    if (key.ctrl && key.shift && key.name === "a") {
+      buffer.moveCursor("home");
+      return;
+    }
+    if (key.ctrl && key.shift && key.name === "e") {
+      buffer.moveCursor("end");
+      return;
+    }
+    if (key.ctrl && key.name === "f") {
+      buffer.moveCursor("right");
+      return;
+    }
+    if (key.ctrl && key.name === "l") {
+      buffer.moveCursor("end");
+      return;
+    }
+    if (key.alt && key.name === "d") {
+      buffer.deleteWordRight();
+      return;
+    }
     if (key.ctrl && key.name === "x") {
       openExternalEditor();
       return;
@@ -85091,11 +87267,26 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       buffer.clear();
       return;
     }
-    if (key.name === "left" && key.alt) {
+    if (key.ctrl && key.name === "b") {
+      const textToCopy = buffer.text;
+      if (textToCopy) {
+        void copyTextToClipboard(textToCopy);
+      }
+      return;
+    }
+    if (key.name === "left" && (key.alt || key.ctrl)) {
       buffer.moveCursor("wordLeft");
       return;
     }
-    if (key.name === "right" && key.alt) {
+    if (key.name === "right" && (key.alt || key.ctrl)) {
+      buffer.moveCursor("wordRight");
+      return;
+    }
+    if (key.alt && key.name === "b") {
+      buffer.moveCursor("wordLeft");
+      return;
+    }
+    if (key.alt && key.name === "f") {
       buffer.moveCursor("wordRight");
       return;
     }
@@ -85116,6 +87307,19 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       return;
     }
     if (key.name === "backspace" || key.name === "delete") {
+      const beforeCursor = buffer.text.slice(0, cursorOffset);
+      const pasteMatch = PASTE_REF_SUFFIX_RE.exec(beforeCursor);
+      if (pasteMatch) {
+        buffer.backspace(pasteMatch[0].length);
+        pastedTextsRef.current.delete(Number(pasteMatch[1]));
+        return;
+      }
+      const imageMatch = IMAGE_REF_SUFFIX_RE.exec(beforeCursor);
+      if (imageMatch) {
+        buffer.backspace(imageMatch[0].length);
+        imagePathsRef.current.delete(Number(imageMatch[1]));
+        return;
+      }
       buffer.backspace();
       return;
     }
@@ -85127,22 +87331,93 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       buffer.scroll(5);
       return;
     }
-    if (key.name === "paste" && key.sequence) {
+    if ((key.ctrl || key.cmd) && key.name === "v") {
+      logger.info("[InputPromptWithWrapUseKPC] Ctrl/Cmd+V detected, reading clipboard", {
+        ctrl: key.ctrl,
+        cmd: key.cmd
+      });
+      void (async () => {
+        try {
+          const image2 = await getImageFromClipboard();
+          logger.info("[InputPromptWithWrapUseKPC] getImageFromClipboard result", {
+            hasImage: !!image2,
+            filePath: image2?.filePath,
+            mediaType: image2?.mediaType
+          });
+          if (image2) {
+            const imageId = nextImageIdRef.current++;
+            imagePathsRef.current.set(imageId, image2.filePath);
+            buffer.insert(formatImageRef(imageId));
+            return;
+          }
+          const text = await getTextFromClipboard();
+          logger.info("[InputPromptWithWrapUseKPC] getTextFromClipboard result", { length: text?.length ?? 0 });
+          if (text) {
+            const numLines = text.split("\n").length;
+            if (text.length > PASTE_THRESHOLD || numLines > PASTE_LINE_THRESHOLD) {
+              const pasteId = nextPasteIdRef.current++;
+              pastedTextsRef.current.set(pasteId, text);
+              buffer.insert(formatPasteRef(pasteId, numLines));
+            } else {
+              buffer.insert(text);
+            }
+          }
+        } catch (err) {
+          logger.error("[InputPromptWithWrapUseKPC] clipboard read error", String(err));
+        }
+      })();
+      return;
+    }
+    if (key.name === "paste") {
+      const text = key.sequence;
+      logger.info("[InputPromptWithWrapUseKPC] paste event", {
+        textLength: text.length,
+        isEmpty: !text,
+        preview: text.slice(0, 60)
+      });
+      if (!text) {
+        void (async () => {
+          try {
+            const image2 = await getImageFromClipboard();
+            logger.info("[InputPromptWithWrapUseKPC] empty-paste getImageFromClipboard result", {
+              hasImage: !!image2,
+              filePath: image2?.filePath,
+              mediaType: image2?.mediaType
+            });
+            if (image2) {
+              const imageId = nextImageIdRef.current++;
+              imagePathsRef.current.set(imageId, image2.filePath);
+              buffer.insert(formatImageRef(imageId));
+            }
+          } catch (err) {
+            logger.error("[InputPromptWithWrapUseKPC] empty-paste getImageFromClipboard error", String(err));
+          }
+        })();
+        return;
+      }
+      const numLines = text.split("\n").length;
       logger.info("[InputPromptWithWrapUseKPC] Paste event received", {
         component: "InputPromptWithWrapUseKPC",
-        pasteLength: key.sequence.length
+        pasteLength: text.length,
+        numLines
       });
-      buffer.insert(key.sequence);
+      if (text.length > PASTE_THRESHOLD || numLines > PASTE_LINE_THRESHOLD) {
+        const pasteId = nextPasteIdRef.current++;
+        pastedTextsRef.current.set(pasteId, text);
+        buffer.insert(formatPasteRef(pasteId, numLines));
+      } else {
+        buffer.insert(text);
+      }
       return;
     }
     if (key.insertable && key.sequence && !key.ctrl && !key.alt) {
       buffer.insert(key.sequence);
     }
   }, { isActive: focus && !disabled });
-  const borderColor = submitBlocked ? "red" : disabled ? githubTheme.border.disabled : focus ? githubTheme.border.focused : githubTheme.border.default;
+  const borderColor = disabled ? githubTheme.border.disabled : focus ? githubTheme.border.focused : githubTheme.border.default;
   const promptChar = shellModeActive ? "! " : "\u25B8 ";
   if (disabled) {
-    return /* @__PURE__ */ import_react79.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react79.default.createElement(ShellModeIndicator, { active: shellModeActive, cwd: cwd3 }), /* @__PURE__ */ import_react79.default.createElement(
+    return /* @__PURE__ */ import_react82.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react82.default.createElement(ShellModeIndicator, { active: shellModeActive, cwd: cwd3 }), /* @__PURE__ */ import_react82.default.createElement(
       Box_default,
       {
         borderStyle: "round",
@@ -85153,12 +87428,12 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
         alignItems: "flex-start",
         minHeight: 3
       },
-      /* @__PURE__ */ import_react79.default.createElement(Text, { color: githubTheme.input.prompt }, promptChar),
-      /* @__PURE__ */ import_react79.default.createElement(Box_default, { flexGrow: 1, flexDirection: "column" }, /* @__PURE__ */ import_react79.default.createElement(Text, { color: githubTheme.text.secondary }, "Waiting for response..."))
+      /* @__PURE__ */ import_react82.default.createElement(Text, { color: githubTheme.input.prompt }, promptChar),
+      /* @__PURE__ */ import_react82.default.createElement(Box_default, { flexGrow: 1, flexDirection: "column" }, /* @__PURE__ */ import_react82.default.createElement(Text, { color: githubTheme.text.secondary }, disabledMessage))
     ));
   }
   if (buffer.text.length === 0) {
-    return /* @__PURE__ */ import_react79.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react79.default.createElement(ShellModeIndicator, { active: shellModeActive, cwd: cwd3 }), /* @__PURE__ */ import_react79.default.createElement(
+    return /* @__PURE__ */ import_react82.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react82.default.createElement(ShellModeIndicator, { active: shellModeActive, cwd: cwd3 }), /* @__PURE__ */ import_react82.default.createElement(
       Box_default,
       {
         borderStyle: "round",
@@ -85169,14 +87444,29 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
         alignItems: "flex-start",
         minHeight: 3
       },
-      /* @__PURE__ */ import_react79.default.createElement(Text, { color: githubTheme.input.prompt }, promptChar),
-      /* @__PURE__ */ import_react79.default.createElement(Box_default, { flexGrow: 1, flexDirection: "column" }, focus ? /* @__PURE__ */ import_react79.default.createElement(Text, null, source_default.inverse(" "), /* @__PURE__ */ import_react79.default.createElement(Text, { color: githubTheme.input.placeholder }, shellModeActive ? "Enter shell command..." : placeholder)) : /* @__PURE__ */ import_react79.default.createElement(Text, { color: githubTheme.input.placeholder }, shellModeActive ? "Enter shell command..." : placeholder))
-    ), !editorDialog.isOpen && !showSuggestions && /* @__PURE__ */ import_react79.default.createElement(Box_default, { marginTop: 0, paddingLeft: 1, paddingRight: 1, flexDirection: "row", justifyContent: "space-between" }, /* @__PURE__ */ import_react79.default.createElement(Text, { color: "gray", dimColor: true }, randomTip), tokenUsage && /* @__PURE__ */ import_react79.default.createElement(Text, { color: "cyan", dimColor: true }, tokenUsage.message)));
+      /* @__PURE__ */ import_react82.default.createElement(Text, { color: githubTheme.input.prompt }, promptChar),
+      /* @__PURE__ */ import_react82.default.createElement(Box_default, { flexGrow: 1, flexDirection: "column" }, focus ? /* @__PURE__ */ import_react82.default.createElement(Text, null, source_default.inverse(" "), /* @__PURE__ */ import_react82.default.createElement(Text, { color: githubTheme.input.placeholder }, shellModeActive ? "Enter shell command..." : placeholder)) : /* @__PURE__ */ import_react82.default.createElement(Text, { color: githubTheme.input.placeholder }, shellModeActive ? "Enter shell command..." : placeholder))
+    ), !editorDialog.isOpen && !statusBarDialog.isOpen && !showSuggestions && statusBarParts.segments.length > 0 && /* @__PURE__ */ import_react82.default.createElement(Box_default, { marginTop: 0, paddingLeft: 1, paddingRight: 1, flexDirection: "row", justifyContent: "space-between" }, /* @__PURE__ */ import_react82.default.createElement(Text, null, statusBarParts.segments.map((seg, idx) => /* @__PURE__ */ import_react82.default.createElement(Text, { key: seg.key, color: STATUS_BAR_COLOR }, idx > 0 && (seg.group !== statusBarParts.segments[idx - 1].group ? "  \u2502  " : "  "), seg.text))), statusBarParts.right && /* @__PURE__ */ import_react82.default.createElement(Text, { color: "cyan", dimColor: true }, statusBarParts.right)), !editorDialog.isOpen && todoItems.length > 0 && /* @__PURE__ */ import_react82.default.createElement(Box_default, { marginTop: 0 }, /* @__PURE__ */ import_react82.default.createElement(
+      TodoDisplay,
+      {
+        items: todoItems,
+        activeIndex: todoFocused ? todoActiveIndex : -1,
+        width: terminalWidth,
+        onSelect: (idx) => {
+          const item = todoItems[idx];
+          if (item) {
+            setTodoFocused(false);
+            onTodoSelect?.(item.content);
+          }
+        },
+        onClose: () => setTodoFocused(false)
+      }
+    )));
   }
   const linesToRender = buffer.visibleVisualLines;
   const scrollVisualRow = buffer.scrollOffset;
   const [cursorVisualRowAbsolute, cursorVisualColAbsolute] = buffer.visualCursor;
-  return /* @__PURE__ */ import_react79.default.createElement(Box_default, { flexDirection: "column" }, !editorDialog.isOpen && /* @__PURE__ */ import_react79.default.createElement(ShellModeIndicator, { active: shellModeActive, cwd: cwd3 }), !editorDialog.isOpen && /* @__PURE__ */ import_react79.default.createElement(import_react79.default.Fragment, null, /* @__PURE__ */ import_react79.default.createElement(
+  return /* @__PURE__ */ import_react82.default.createElement(Box_default, { flexDirection: "column" }, !editorDialog.isOpen && /* @__PURE__ */ import_react82.default.createElement(ShellModeIndicator, { active: shellModeActive, cwd: cwd3 }), !editorDialog.isOpen && /* @__PURE__ */ import_react82.default.createElement(import_react82.default.Fragment, null, /* @__PURE__ */ import_react82.default.createElement(
     Box_default,
     {
       borderStyle: "round",
@@ -85187,12 +87477,12 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       alignItems: "flex-start",
       minHeight: 3
     },
-    /* @__PURE__ */ import_react79.default.createElement(Text, { color: githubTheme.input.prompt }, promptChar),
-    /* @__PURE__ */ import_react79.default.createElement(Box_default, { flexGrow: 1, flexDirection: "column" }, linesToRender.map((lineText, visualIdxInRenderedSet) => {
+    /* @__PURE__ */ import_react82.default.createElement(Text, { color: githubTheme.input.prompt }, promptChar),
+    /* @__PURE__ */ import_react82.default.createElement(Box_default, { flexGrow: 1, flexDirection: "column" }, linesToRender.map((lineText, visualIdxInRenderedSet) => {
       const absoluteVisualIdx = scrollVisualRow + visualIdxInRenderedSet;
       const mapEntry = buffer.visualToLogicalMap[absoluteVisualIdx];
       if (!mapEntry) {
-        return /* @__PURE__ */ import_react79.default.createElement(Box_default, { key: `line-${visualIdxInRenderedSet}`, height: 1 }, /* @__PURE__ */ import_react79.default.createElement(Text, { color: githubTheme.input.text }, lineText));
+        return /* @__PURE__ */ import_react82.default.createElement(Box_default, { key: `line-${visualIdxInRenderedSet}`, height: 1 }, /* @__PURE__ */ import_react82.default.createElement(Text, { color: githubTheme.input.text }, lineText));
       }
       const cursorVisualRow = cursorVisualRowAbsolute - scrollVisualRow;
       const isOnCursorLine = focus && visualIdxInRenderedSet === cursorVisualRow;
@@ -85216,22 +87506,22 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
           );
         }
         renderedLine.push(
-          /* @__PURE__ */ import_react79.default.createElement(Text, { key: `token-0`, color: githubTheme.input.text }, display)
+          /* @__PURE__ */ import_react82.default.createElement(Text, { key: `token-0`, color: githubTheme.input.text }, display)
         );
         const isAtEndOfLine2 = cursorVisualColAbsolute === lineLen;
         if (isAtEndOfLine2) {
           renderedLine.push(
-            /* @__PURE__ */ import_react79.default.createElement(Text, { key: `cursor-end-${cursorVisualColAbsolute}` }, focus ? source_default.inverse(" ") : " ")
+            /* @__PURE__ */ import_react82.default.createElement(Text, { key: `cursor-end-${cursorVisualColAbsolute}` }, focus ? source_default.inverse(" ") : " ")
           );
         }
       } else {
         renderedLine.push(
-          /* @__PURE__ */ import_react79.default.createElement(Text, { key: `token-0`, color: githubTheme.input.text }, lineText)
+          /* @__PURE__ */ import_react82.default.createElement(Text, { key: `token-0`, color: githubTheme.input.text }, lineText)
         );
       }
       const isAtEndOfLine = cursorVisualColAbsolute === lineLen;
       const imePosition = isOnCursorLine && isAtEndOfLine ? cursorVisualColAbsolute + 1 : cursorVisualColAbsolute;
-      return /* @__PURE__ */ import_react79.default.createElement(Box_default, { key: `line-${visualIdxInRenderedSet}`, height: 1 }, /* @__PURE__ */ import_react79.default.createElement(
+      return /* @__PURE__ */ import_react82.default.createElement(Box_default, { key: `line-${visualIdxInRenderedSet}`, height: 1 }, /* @__PURE__ */ import_react82.default.createElement(
         CursorAwareText,
         {
           terminalCursorFocus: focus && isOnCursorLine,
@@ -85240,7 +87530,22 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
         renderedLine
       ));
     }))
-  ), submitBlocked && /* @__PURE__ */ import_react79.default.createElement(Box_default, { marginTop: 0, paddingLeft: 1 }, /* @__PURE__ */ import_react79.default.createElement(Text, { color: "red" }, "\u26A0 Agent is still responding. Press Ctrl+C to stop, then submit your message."))), !editorDialog.isOpen && !showSuggestions && /* @__PURE__ */ import_react79.default.createElement(Box_default, { marginTop: 0, paddingLeft: 1, paddingRight: 1, flexDirection: "row", justifyContent: "space-between" }, /* @__PURE__ */ import_react79.default.createElement(Text, { color: "gray", dimColor: true }, randomTip), tokenUsage && /* @__PURE__ */ import_react79.default.createElement(Text, { color: "cyan", dimColor: true }, tokenUsage.message)), !editorDialog.isOpen && showSuggestions && /* @__PURE__ */ import_react79.default.createElement(Box_default, { marginTop: 0 }, /* @__PURE__ */ import_react79.default.createElement(
+  )), !editorDialog.isOpen && !statusBarDialog.isOpen && !showSuggestions && statusBarParts.segments.length > 0 && /* @__PURE__ */ import_react82.default.createElement(Box_default, { marginTop: 0, paddingLeft: 1, paddingRight: 1, flexDirection: "row", justifyContent: "space-between" }, /* @__PURE__ */ import_react82.default.createElement(Text, null, statusBarParts.segments.map((seg, idx) => /* @__PURE__ */ import_react82.default.createElement(Text, { key: seg.key, color: STATUS_BAR_COLOR }, idx > 0 && (seg.group !== statusBarParts.segments[idx - 1].group ? "  \u2502  " : "  "), seg.text))), statusBarParts.right && /* @__PURE__ */ import_react82.default.createElement(Text, { color: "cyan", dimColor: true }, statusBarParts.right)), !editorDialog.isOpen && todoItems.length > 0 && /* @__PURE__ */ import_react82.default.createElement(Box_default, { marginTop: 0 }, /* @__PURE__ */ import_react82.default.createElement(
+    TodoDisplay,
+    {
+      items: todoItems,
+      activeIndex: todoFocused ? todoActiveIndex : -1,
+      width: terminalWidth,
+      onSelect: (idx) => {
+        const item = todoItems[idx];
+        if (item) {
+          setTodoFocused(false);
+          onTodoSelect?.(item.content);
+        }
+      },
+      onClose: () => setTodoFocused(false)
+    }
+  )), !editorDialog.isOpen && showSuggestions && /* @__PURE__ */ import_react82.default.createElement(Box_default, { marginTop: 0 }, /* @__PURE__ */ import_react82.default.createElement(
     SuggestionsDisplay,
     {
       suggestions,
@@ -85252,30 +87557,37 @@ var InputPromptWithWrapUseKPC = import_react79.default.memo(({
       expandedIndex,
       dualColumnLayout: completionMode === "SLASH" /* SLASH */ || completionMode === "PROMPT" /* PROMPT */
     }
-  )), editorDialog.isOpen && /* @__PURE__ */ import_react79.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react79.default.createElement(
+  )), editorDialog.isOpen && /* @__PURE__ */ import_react82.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react82.default.createElement(
     EditorDialog,
     {
       currentEditor: editorDialog.currentEditor,
       onSelect: editorDialog.handleSelect,
       onCancel: editorDialog.closeDialog
     }
+  )), statusBarDialog.isOpen && /* @__PURE__ */ import_react82.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react82.default.createElement(
+    StatusBarDialog,
+    {
+      visibleItems: statusBarDialog.visibleItems,
+      onToggle: statusBarDialog.handleToggle,
+      onClose: statusBarDialog.closeDialog
+    }
   )));
 });
 
 // src/components/common/ThinkingIndicator.tsx
-var import_react82 = __toESM(require_react(), 1);
+var import_react85 = __toESM(require_react(), 1);
 
 // src/components/common/ThinkingSpinner.tsx
-var import_react80 = __toESM(require_react(), 1);
+var import_react83 = __toESM(require_react(), 1);
 var SPINNER_FRAMES = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
-var COLORS = ["cyan", "blueBright", "magentaBright"];
+var COLORS2 = ["cyan", "blueBright", "magentaBright"];
 var ThinkingSpinner = ({
   active = true,
   interval = 200
   // Increased from 100ms to 200ms to reduce refresh rate
 }) => {
-  const [frameIndex, setFrameIndex] = (0, import_react80.useState)(0);
-  (0, import_react80.useEffect)(() => {
+  const [frameIndex, setFrameIndex] = (0, import_react83.useState)(0);
+  (0, import_react83.useEffect)(() => {
     if (!active) {
       return;
     }
@@ -85290,29 +87602,29 @@ var ThinkingSpinner = ({
     return null;
   }
   const frame = SPINNER_FRAMES[frameIndex];
-  const color = COLORS[frameIndex % COLORS.length];
-  return /* @__PURE__ */ import_react80.default.createElement(Text, { color, bold: true }, frame);
+  const color = COLORS2[frameIndex % COLORS2.length];
+  return /* @__PURE__ */ import_react83.default.createElement(Text, { color, bold: true }, frame);
 };
 
 // src/hooks/useThinkingPhrases.ts
-var import_react81 = __toESM(require_react(), 1);
+var import_react84 = __toESM(require_react(), 1);
 function useThinkingPhrases({
   isActive,
   customPhrases
 }) {
-  const phrasePoolRef = (0, import_react81.useRef)(
+  const phrasePoolRef = (0, import_react84.useRef)(
     customPhrases && customPhrases.length > 0 ? customPhrases : [...THINKING_PHRASES, ...WITTY_PHRASES]
   );
-  const [currentPhrase, setCurrentPhrase] = (0, import_react81.useState)(phrasePoolRef.current[0]);
-  const intervalRef = (0, import_react81.useRef)(null);
-  (0, import_react81.useEffect)(() => {
+  const [currentPhrase, setCurrentPhrase] = (0, import_react84.useState)(phrasePoolRef.current[0]);
+  const intervalRef = (0, import_react84.useRef)(null);
+  (0, import_react84.useEffect)(() => {
     if (customPhrases && customPhrases.length > 0) {
       phrasePoolRef.current = customPhrases;
     } else {
       phrasePoolRef.current = [...THINKING_PHRASES, ...WITTY_PHRASES];
     }
   }, [customPhrases]);
-  (0, import_react81.useEffect)(() => {
+  (0, import_react84.useEffect)(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -85339,17 +87651,17 @@ function useThinkingPhrases({
 }
 
 // src/components/common/ThinkingIndicator.tsx
-var ThinkingIndicator = import_react82.default.memo(({
+var ThinkingIndicator = import_react85.default.memo(({
   active = false,
   customPhrases,
   showTime = true
 }) => {
-  const [elapsedSeconds, setElapsedSeconds] = (0, import_react82.useState)(0);
+  const [elapsedSeconds, setElapsedSeconds] = (0, import_react85.useState)(0);
   const currentPhrase = useThinkingPhrases({
     isActive: active,
     customPhrases
   });
-  (0, import_react82.useEffect)(() => {
+  (0, import_react85.useEffect)(() => {
     if (!active) {
       setElapsedSeconds(0);
       return;
@@ -85372,15 +87684,300 @@ var ThinkingIndicator = import_react82.default.memo(({
     const secs = seconds % 60;
     return `${minutes}m ${secs}s`;
   };
-  return /* @__PURE__ */ import_react82.default.createElement(Box_default, { flexDirection: "row", gap: 1 }, /* @__PURE__ */ import_react82.default.createElement(ThinkingSpinner, { active }), /* @__PURE__ */ import_react82.default.createElement(Text, { color: "cyan" }, currentPhrase), showTime && elapsedSeconds > 0 && /* @__PURE__ */ import_react82.default.createElement(Text, { color: "gray", dimColor: true }, "(", formatTime(elapsedSeconds), ")"));
+  return /* @__PURE__ */ import_react85.default.createElement(Box_default, { flexDirection: "row", gap: 1 }, /* @__PURE__ */ import_react85.default.createElement(ThinkingSpinner, { active }), /* @__PURE__ */ import_react85.default.createElement(Text, { color: "cyan" }, currentPhrase), showTime && elapsedSeconds > 0 && /* @__PURE__ */ import_react85.default.createElement(Text, { color: "gray", dimColor: true }, "(", formatTime(elapsedSeconds), ")"));
 });
 
+// src/components/SideQuestion/SideQuestionPanel.tsx
+var import_react86 = __toESM(require_react(), 1);
+import { spawn as spawn2 } from "node:child_process";
+var VIEWPORT_LINES = 12;
+var SideQuestionPanel = ({
+  items,
+  onHide,
+  onRemove,
+  onClearHistory,
+  onFork
+}) => {
+  const activeIndex = items.length - 1;
+  const [scrollOffset, setScrollOffset] = (0, import_react86.useState)(0);
+  const [copiedFlash, setCopiedFlash] = (0, import_react86.useState)(false);
+  (0, import_react86.useEffect)(() => {
+    setScrollOffset(0);
+  }, [items.length]);
+  (0, import_react86.useEffect)(() => {
+    if (!copiedFlash) return;
+    const timer = setTimeout(() => setCopiedFlash(false), 3e3);
+    return () => clearTimeout(timer);
+  }, [copiedFlash]);
+  const activeItem = items[activeIndex];
+  const isAnswering = activeItem?.answer === null;
+  const answerLines = (0, import_react86.useMemo)(() => {
+    if (!activeItem?.answer) return [];
+    return activeItem.answer.split("\n");
+  }, [activeItem?.answer]);
+  const maxScroll = Math.max(0, answerLines.length - VIEWPORT_LINES);
+  const handleKeypress = (0, import_react86.useCallback)((key) => {
+    if (key.name === "escape" || key.ctrl && (key.name === "c" || key.name === "d")) {
+      onHide();
+      return;
+    }
+    if (key.name === "x" && !key.ctrl && !key.meta) {
+      onClearHistory?.();
+      return;
+    }
+    if (!isAnswering && activeItem) {
+      if (key.name === "c" && !key.ctrl && !key.meta) {
+        try {
+          const proc = spawn2("pbcopy");
+          proc.on("error", () => {
+          });
+          proc.stdin.write(activeItem.answer ?? "");
+          proc.stdin.end();
+        } catch {
+        }
+        setCopiedFlash(true);
+        return;
+      }
+      if (key.name === "up" || key.ctrl && key.name === "p") {
+        setScrollOffset((o) => Math.max(0, o - 1));
+        return;
+      }
+      if (key.name === "down" || key.ctrl && key.name === "n") {
+        setScrollOffset((o) => Math.min(maxScroll, o + 1));
+        return;
+      }
+    }
+  }, [activeItem, isAnswering, maxScroll, onHide, onClearHistory]);
+  useKeypress(handleKeypress, { isActive: true });
+  if (items.length === 0 || !activeItem) return null;
+  return (
+    // paddingLeft=1 aligns /btw with the ThinkingIndicator spinner
+    /* @__PURE__ */ import_react86.default.createElement(Box_default, { flexDirection: "column", paddingLeft: 1, paddingRight: 1, marginTop: 1 }, items.map((item, index) => {
+      const isCurrentActive = index === activeIndex;
+      const isAnsweringItem = item.answer === null;
+      if (!isCurrentActive) {
+        return /* @__PURE__ */ import_react86.default.createElement(Box_default, { key: item.id }, /* @__PURE__ */ import_react86.default.createElement(Text, { color: "gray", bold: true }, "/btw "), /* @__PURE__ */ import_react86.default.createElement(Text, { color: "gray" }, item.question));
+      }
+      const itemAnswerLines = item.answer ? item.answer.split("\n") : [];
+      const itemVisibleAnswer = itemAnswerLines.slice(scrollOffset, scrollOffset + VIEWPORT_LINES).join("\n");
+      return /* @__PURE__ */ import_react86.default.createElement(Box_default, { key: item.id, flexDirection: "column", marginTop: index > 0 ? 1 : 0 }, /* @__PURE__ */ import_react86.default.createElement(Box_default, null, /* @__PURE__ */ import_react86.default.createElement(Text, { color: "#c5a3ff", bold: true }, "/btw "), /* @__PURE__ */ import_react86.default.createElement(Text, { color: "white" }, item.question)), /* @__PURE__ */ import_react86.default.createElement(Box_default, { marginTop: 1, marginLeft: 2, flexDirection: "column" }, isAnsweringItem ? /* @__PURE__ */ import_react86.default.createElement(Box_default, null, /* @__PURE__ */ import_react86.default.createElement(Text, { color: "#c5a3ff" }, /* @__PURE__ */ import_react86.default.createElement(build_default, { type: "dots" })), /* @__PURE__ */ import_react86.default.createElement(Text, { color: "#c5a3ff" }, " Answering...")) : /* @__PURE__ */ import_react86.default.createElement(MarkdownText, { content: itemVisibleAnswer })));
+    }), /* @__PURE__ */ import_react86.default.createElement(Box_default, { marginTop: 1 }, copiedFlash ? /* @__PURE__ */ import_react86.default.createElement(Text, { dimColor: true }, "\u2191/\u2193 to scroll \xB7 ", /* @__PURE__ */ import_react86.default.createElement(Text, { color: "green" }, "Copied to clipboard"), " \xB7 x to clear history \xB7 Esc to close") : /* @__PURE__ */ import_react86.default.createElement(Text, { dimColor: true }, isAnswering ? "x to clear history \xB7 Esc to close" : "\u2191/\u2193 scroll \xB7 c copy \xB7 x clear history \xB7 Esc close")))
+  );
+};
+
+// src/components/Queue/PromptQueuePreview.tsx
+var import_react87 = __toESM(require_react(), 1);
+var MAX_PREVIEW_CHARS = 60;
+function truncate(text) {
+  if (text.length <= MAX_PREVIEW_CHARS) return text;
+  return `${text.slice(0, MAX_PREVIEW_CHARS)}\u2026`;
+}
+var PromptQueuePreview = import_react87.default.memo(({ queue }) => {
+  if (queue.length === 0) return null;
+  return /* @__PURE__ */ import_react87.default.createElement(Box_default, { flexDirection: "column", paddingLeft: 1, paddingBottom: 1 }, queue.map((item, i) => /* @__PURE__ */ import_react87.default.createElement(Box_default, { key: item.id, flexDirection: "row", gap: 1 }, /* @__PURE__ */ import_react87.default.createElement(Text, { color: "gray", dimColor: true }, `[${i + 1}]`), /* @__PURE__ */ import_react87.default.createElement(Text, { color: "white" }, truncate(item.content)), item.imagePaths && item.imagePaths.length > 0 && /* @__PURE__ */ import_react87.default.createElement(Text, { color: "gray", dimColor: true }, `+${item.imagePaths.length} img`))), /* @__PURE__ */ import_react87.default.createElement(Box_default, null, /* @__PURE__ */ import_react87.default.createElement(Text, { color: "gray", dimColor: true }, `${queue.length} queued \xB7 \u2191 edit \xB7 Esc run now`)));
+});
+PromptQueuePreview.displayName = "PromptQueuePreview";
+
+// src/components/Todo/TodoDetailView.tsx
+var import_react88 = __toESM(require_react(), 1);
+var STATUS_ICONS2 = {
+  pending: "\u25CB",
+  in_progress: "\u25D0",
+  completed: "\u2713"
+};
+var STATUS_COLORS2 = {
+  pending: "gray",
+  in_progress: "yellow",
+  completed: "green"
+};
+var TodoDetailView = ({
+  todo,
+  messages,
+  range,
+  terminalWidth,
+  onClose
+}) => {
+  const { stdout } = use_stdout_default();
+  (0, import_react88.useInsertionEffect)(() => {
+    recordFlicker("manual_clear", "TodoDetailView: entering alternate screen buffer (\\x1b[?1049h\\x1b[2J\\x1b[H)", {
+      captureStack: false
+    });
+    stdout?.write("\x1B[?1049h\x1B[2J\x1B[H");
+    return () => {
+      recordFlicker("manual_clear", "TodoDetailView: leaving alternate screen buffer (\\x1b[?1049l)", {
+        captureStack: false
+      });
+      stdout?.write("\x1B[?1049l");
+    };
+  }, [stdout]);
+  useKeypress((key) => {
+    if (key.name === "escape") onClose();
+  }, { isActive: true });
+  const slicedMessages = range ? messages.slice(range.startIdx, range.endIdx ?? messages.length) : [];
+  const icon = STATUS_ICONS2[todo.status] ?? "?";
+  const iconColor = STATUS_COLORS2[todo.status] ?? "white";
+  const msgCount = slicedMessages.length;
+  return /* @__PURE__ */ import_react88.default.createElement(Box_default, { flexDirection: "column", width: terminalWidth }, slicedMessages.length === 0 ? /* @__PURE__ */ import_react88.default.createElement(Box_default, { paddingX: 2, paddingY: 1 }, /* @__PURE__ */ import_react88.default.createElement(Text, { color: "gray" }, "No messages recorded for this step.")) : /* @__PURE__ */ import_react88.default.createElement(
+    MessageList,
+    {
+      messages: slicedMessages,
+      terminalWidth,
+      isCollapsed: false,
+      noStatic: true
+    }
+  ), /* @__PURE__ */ import_react88.default.createElement(
+    Box_default,
+    {
+      borderStyle: "single",
+      borderColor: "cyan",
+      paddingX: 1,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      flexShrink: 0
+    },
+    /* @__PURE__ */ import_react88.default.createElement(Box_default, null, /* @__PURE__ */ import_react88.default.createElement(Text, { color: iconColor }, icon, " "), /* @__PURE__ */ import_react88.default.createElement(Text, { color: "cyan", bold: true }, todo.content), /* @__PURE__ */ import_react88.default.createElement(Text, { color: "gray" }, "  [", todo.status, "]")),
+    /* @__PURE__ */ import_react88.default.createElement(Text, { color: "gray" }, msgCount, " message", msgCount !== 1 ? "s" : "")
+  ), /* @__PURE__ */ import_react88.default.createElement(Box_default, { paddingX: 1, flexShrink: 0 }, /* @__PURE__ */ import_react88.default.createElement(Text, { color: "gray" }, "Esc close")));
+};
+
+// src/components/Goal/GoalStatusBar.tsx
+var import_react89 = __toESM(require_react(), 1);
+var STATUS_COLORS3 = {
+  active: "cyan",
+  blocked: "red",
+  complete: "green"
+};
+var STATUS_LABELS = {
+  active: "Goal (active)",
+  blocked: "Goal (blocked)",
+  complete: "Goal complete"
+};
+var formatElapsed = (seconds) => {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes}m ${secs}s`;
+};
+var truncateNotice = (text, maxWidth) => {
+  if (maxWidth <= 0) return "";
+  if (stringWidth2(text) <= maxWidth) return text;
+  if (maxWidth <= 3) {
+    let result2 = "";
+    for (const ch of text) {
+      if (stringWidth2(result2 + ch) > maxWidth) break;
+      result2 += ch;
+    }
+    return result2;
+  }
+  const budget = maxWidth - 3;
+  let result = "";
+  for (const ch of text) {
+    if (stringWidth2(result + ch) > budget) break;
+    result += ch;
+  }
+  return `${result}...`;
+};
+var GoalStatusBar = ({ goalState, width, notice, isCollapsed = true }) => {
+  const goal = goalState?.goal;
+  const createdAt = goal?.createdAt;
+  const status = goal?.status;
+  const turns = goal?.turns;
+  const [elapsedSeconds, setElapsedSeconds] = (0, import_react89.useState)(0);
+  (0, import_react89.useEffect)(() => {
+    if (!createdAt) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const startMs = new Date(createdAt).getTime();
+    const tick = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1e3)));
+    tick();
+    if (status === "complete") {
+      return;
+    }
+    const timer = setInterval(tick, 1e3);
+    return () => clearInterval(timer);
+  }, [createdAt, status]);
+  if (!goal && !notice) return null;
+  const color = goal ? STATUS_COLORS3[goal.status] ?? "white" : "white";
+  const label = goal ? STATUS_LABELS[goal.status] ?? "Goal" : null;
+  const elapsedText = createdAt && elapsedSeconds > 0 ? ` (${formatElapsed(elapsedSeconds)}${typeof turns === "number" && turns > 0 ? ` \xB7 ${turns} turn${turns === 1 ? "" : "s"}` : ""})` : "";
+  const hintText = goal && isCollapsed ? " (ctrl+o for details)" : "";
+  const labelWidth = label ? label.length + elapsedText.length + hintText.length : 0;
+  const rowWidth = width ? width - 2 : 80;
+  const noticeMaxWidth = rowWidth - 2 - (labelWidth ? labelWidth + 1 : 0);
+  const displayNotice = notice ? truncateNotice(notice, noticeMaxWidth) : notice;
+  const elapsedCore = createdAt && elapsedSeconds > 0 ? formatElapsed(elapsedSeconds) : "";
+  const turnsSuffix = typeof turns === "number" && turns > 0 ? ` \xB7 ${turns} turn${turns === 1 ? "" : "s"}` : "";
+  const hintChunk = goal && isCollapsed ? "(ctrl+o for details)" : "";
+  const noticeBlockWidth = displayNotice ? 2 + stringWidth2(displayNotice) : 0;
+  const availableForLabelBlock = Math.max(
+    0,
+    rowWidth - noticeBlockWidth - (noticeBlockWidth > 0 ? 1 : 0)
+  );
+  let includeHint = Boolean(hintChunk) && Boolean(label);
+  let includeTurns = Boolean(turnsSuffix);
+  let includeElapsed = Boolean(elapsedCore);
+  let displayLabel = label ?? "";
+  if (label) {
+    const measure = (withHint, withTurns, withElapsed) => {
+      const chunks = [displayLabel];
+      if (withElapsed) chunks.push(`(${elapsedCore}${withTurns ? turnsSuffix : ""})`);
+      if (withHint) chunks.push(hintChunk);
+      return chunks.reduce((sum, c2) => sum + stringWidth2(c2), 0) + (chunks.length - 1);
+    };
+    if (measure(includeHint, includeTurns, includeElapsed) > availableForLabelBlock) {
+      includeHint = false;
+    }
+    if (measure(includeHint, includeTurns, includeElapsed) > availableForLabelBlock) {
+      includeTurns = false;
+    }
+    if (measure(includeHint, includeTurns, includeElapsed) > availableForLabelBlock) {
+      includeElapsed = false;
+    }
+    if (measure(includeHint, includeTurns, includeElapsed) > availableForLabelBlock) {
+      displayLabel = truncateNotice(displayLabel, availableForLabelBlock);
+    }
+  }
+  return /* @__PURE__ */ import_react89.default.createElement(Box_default, { flexDirection: "column", paddingX: 1, width }, /* @__PURE__ */ import_react89.default.createElement(Box_default, { flexDirection: "row", justifyContent: "space-between", width: width ? width - 2 : void 0 }, /* @__PURE__ */ import_react89.default.createElement(Box_default, { flexDirection: "row", gap: 1 }, displayNotice && /* @__PURE__ */ import_react89.default.createElement(import_react89.default.Fragment, null, /* @__PURE__ */ import_react89.default.createElement(Text, { color: "#c5a3ff" }, "\u25CF"), /* @__PURE__ */ import_react89.default.createElement(Text, { color: "gray" }, displayNotice))), label && // Rendered as ONE <Text> (not separate sibling <Text> elements in a
+  // gapped Box) with wrap="truncate-end" — this is a hard guarantee
+  // against ever wrapping onto a second line, regardless of how Yoga
+  // ends up distributing width between this block and the notice
+  // block on the left. The width-budget logic above (measure() /
+  // includeHint / includeTurns / includeElapsed) already tries to
+  // proactively drop the least essential pieces so truncation is
+  // rarely needed in practice, but wrap="truncate-end" is the actual
+  // mechanism that prevents Ink/Yoga from ever emitting a second
+  // line here — which, when it happened, visually bled into
+  // whatever renders directly below (e.g. the input box's border).
+  // Multiple <Text> elements as flex siblings can each wrap
+  // independently even when their combined content technically
+  // "fits" by our own measurement, if Yoga's actual width allocation
+  // for this flex child differs even slightly from what we assumed;
+  // nesting everything inside one wrap-controlled <Text> removes
+  // that assumption entirely.
+  /* @__PURE__ */ import_react89.default.createElement(Text, { wrap: "truncate-end" }, /* @__PURE__ */ import_react89.default.createElement(Text, { color, bold: goal?.status === "complete" }, displayLabel), includeElapsed && /* @__PURE__ */ import_react89.default.createElement(Text, { color: "gray", dimColor: true }, " ", "(", elapsedCore, includeTurns ? turnsSuffix : "", ")"), includeHint && /* @__PURE__ */ import_react89.default.createElement(Text, { color: "gray", dimColor: true }, " ", hintChunk))), goal && !isCollapsed && /* @__PURE__ */ import_react89.default.createElement(
+    Box_default,
+    {
+      flexDirection: "column",
+      marginTop: 1,
+      paddingX: 1,
+      borderStyle: "single",
+      borderColor: "gray",
+      width: width ? width - 2 : void 0
+    },
+    /* @__PURE__ */ import_react89.default.createElement(Text, null, /* @__PURE__ */ import_react89.default.createElement(Text, { dimColor: true }, "Objective: "), /* @__PURE__ */ import_react89.default.createElement(Text, { color: "gray" }, goal.objective)),
+    /* @__PURE__ */ import_react89.default.createElement(Text, { color: "gray", dimColor: true }, "Status: ", goal.status, createdAt ? ` \xB7 Started: ${formatDate(createdAt)}` : "", typeof turns === "number" ? ` \xB7 Turns: ${turns}` : "")
+  ));
+};
+
 // src/components/layouts/MainLayout.tsx
-var MainLayout = import_react83.default.memo(({
+var MainLayout = import_react90.default.memo(({
   version = "0.0.0",
   workingDir,
   agent = "coder",
-  provider = "li",
+  provider = "default",
   model,
   prePlanMode = true,
   messages,
@@ -85391,18 +87988,36 @@ var MainLayout = import_react83.default.memo(({
   onAddMessage,
   onUpdateMessage,
   onStopExecution,
+  onFlushQueueAndRun,
+  onCancelPendingQueue,
   isCollapsed = false,
   interactiveInput,
   onSendInteractiveInput,
-  sessionId
+  sessionId,
+  sideQuestions = [],
+  sideQuestionNotice = null,
+  sideQuestionPanelVisible = false,
+  onHideSideQuestionPanel,
+  onClearSideQuestionsHistory,
+  onRemoveSideQuestion,
+  onForkSideQuestion,
+  quotaUsage = null,
+  promptQueue = [],
+  todoItems = [],
+  todoMessageRanges,
+  goalState = null,
+  goalNotice = null,
+  cacheStatus = null
 }) => {
+  const [todoDetailTodo, setTodoDetailTodo] = (0, import_react90.useState)(null);
+  const showSideQuestionPanel = sideQuestions.length > 0 && sideQuestionPanelVisible;
   const { columns, rows } = useTerminalSize();
-  const placeholder = (0, import_react83.useMemo)(() => {
+  const placeholder = (0, import_react90.useMemo)(() => {
     if (!isReady) return "Agent is initializing...";
     if (loading) return "Type next message while thinking...";
     return "Type a message, /command, or @path/to/file ...";
   }, [isReady, loading]);
-  const headerProps = (0, import_react83.useMemo)(() => ({
+  const headerProps = (0, import_react90.useMemo)(() => ({
     version,
     workingDir,
     agent,
@@ -85411,7 +88026,7 @@ var MainLayout = import_react83.default.memo(({
     prePlanMode,
     isCollapsed
   }), [version, workingDir, agent, provider, model, prePlanMode, isCollapsed]);
-  return /* @__PURE__ */ import_react83.default.createElement(
+  return /* @__PURE__ */ import_react90.default.createElement(
     Box_default,
     {
       flexDirection: "column",
@@ -85419,14 +88034,23 @@ var MainLayout = import_react83.default.memo(({
       flexGrow: 0,
       flexShrink: 0
     },
-    /* @__PURE__ */ import_react83.default.createElement(
+    /* @__PURE__ */ import_react90.default.createElement(
       Box_default,
       {
         flexDirection: "column",
         flexGrow: 0,
         flexShrink: 0
       },
-      /* @__PURE__ */ import_react83.default.createElement(
+      todoDetailTodo ? /* @__PURE__ */ import_react90.default.createElement(
+        TodoDetailView,
+        {
+          todo: todoItems.find((t) => t.content === todoDetailTodo) ?? { content: todoDetailTodo, status: "pending" },
+          messages,
+          range: todoMessageRanges?.get(todoDetailTodo),
+          terminalWidth: columns,
+          onClose: () => setTodoDetailTodo(null)
+        }
+      ) : /* @__PURE__ */ import_react90.default.createElement(import_react90.default.Fragment, null, /* @__PURE__ */ import_react90.default.createElement(
         MessageList,
         {
           key: sessionId || "default",
@@ -85435,10 +88059,18 @@ var MainLayout = import_react83.default.memo(({
           terminalWidth: columns,
           isCollapsed
         }
-      ),
-      loading && isReady && !interactiveInput && /* @__PURE__ */ import_react83.default.createElement(Box_default, { paddingLeft: 1, paddingBottom: 1 }, /* @__PURE__ */ import_react83.default.createElement(ThinkingIndicator, { active: loading, showTime: true })),
-      interactiveInput && /* @__PURE__ */ import_react83.default.createElement(Box_default, { paddingLeft: 1, paddingBottom: 0, flexDirection: "column" }, /* @__PURE__ */ import_react83.default.createElement(Box_default, null, /* @__PURE__ */ import_react83.default.createElement(Text, { color: "yellow", bold: true }, "Interactive Input Required")), /* @__PURE__ */ import_react83.default.createElement(Box_default, null, /* @__PURE__ */ import_react83.default.createElement(Text, { color: "white" }, interactiveInput.prompt))),
-      /* @__PURE__ */ import_react83.default.createElement(Box_default, { flexGrow: 0, flexShrink: 0 }, /* @__PURE__ */ import_react83.default.createElement(
+      ), (loading || promptQueue.length > 0) && isReady && !interactiveInput && /* @__PURE__ */ import_react90.default.createElement(Box_default, { paddingLeft: 1, paddingBottom: 1 }, /* @__PURE__ */ import_react90.default.createElement(ThinkingIndicator, { active: loading || promptQueue.length > 0, showTime: true })), !loading && promptQueue.length === 0 && goalState?.verifying && isReady && !interactiveInput && /* @__PURE__ */ import_react90.default.createElement(Box_default, { paddingLeft: 1, paddingTop: 1, paddingBottom: 1, flexDirection: "row", gap: 1 }, /* @__PURE__ */ import_react90.default.createElement(ThinkingSpinner, { active: true }), /* @__PURE__ */ import_react90.default.createElement(Text, { color: "yellow" }, "Goal verifying...")), /* @__PURE__ */ import_react90.default.createElement(PromptQueuePreview, { queue: promptQueue }), interactiveInput && /* @__PURE__ */ import_react90.default.createElement(Box_default, { paddingLeft: 1, paddingBottom: 0, flexDirection: "column" }, /* @__PURE__ */ import_react90.default.createElement(Box_default, null, /* @__PURE__ */ import_react90.default.createElement(Text, { color: "yellow", bold: true }, "Interactive Input Required")), /* @__PURE__ */ import_react90.default.createElement(Box_default, null, /* @__PURE__ */ import_react90.default.createElement(Text, { color: "white" }, interactiveInput.prompt))), showSideQuestionPanel && /* @__PURE__ */ import_react90.default.createElement(Box_default, { flexGrow: 0, flexShrink: 0 }, /* @__PURE__ */ import_react90.default.createElement(
+        SideQuestionPanel,
+        {
+          items: sideQuestions,
+          onHide: onHideSideQuestionPanel ?? (() => {
+          }),
+          onClearHistory: onClearSideQuestionsHistory,
+          onRemove: onRemoveSideQuestion ?? (() => {
+          }),
+          onFork: onForkSideQuestion
+        }
+      )), sideQuestionNotice && !showSideQuestionPanel && /* @__PURE__ */ import_react90.default.createElement(Box_default, { paddingLeft: 1 }, /* @__PURE__ */ import_react90.default.createElement(Text, { color: "gray" }, sideQuestionNotice)), /* @__PURE__ */ import_react90.default.createElement(GoalStatusBar, { goalState, width: columns, notice: goalNotice, isCollapsed }), /* @__PURE__ */ import_react90.default.createElement(Box_default, { flexGrow: 0, flexShrink: 0 }, /* @__PURE__ */ import_react90.default.createElement(
         InputPromptWithWrapUseKPC,
         {
           onSubmit: interactiveInput && onSendInteractiveInput ? (value) => {
@@ -85447,28 +88079,37 @@ var MainLayout = import_react83.default.memo(({
           onAddMessage,
           onUpdateMessage,
           onStopExecution,
-          disabled: !isReady,
+          onFlushQueueAndRun,
+          onCancelPendingQueue,
+          disabled: !isReady || showSideQuestionPanel,
+          disabledMessage: showSideQuestionPanel ? "/btw side panel is active \xB7 Esc to close" : void 0,
           loading: loading && !interactiveInput,
           placeholder: interactiveInput ? interactiveInput.isPassword ? "Enter password..." : "Enter input..." : placeholder,
-          focus: true,
+          focus: !showSideQuestionPanel,
           width: columns,
           cwd: workingDir,
-          tokenUsage: interactiveInput ? null : tokenUsage
+          tokenUsage: interactiveInput ? null : tokenUsage,
+          model,
+          quotaUsage,
+          cacheStatus,
+          workingDir,
+          todoItems,
+          onTodoSelect: (content) => setTodoDetailTodo(content)
         }
-      ))
+      )))
     )
   );
 });
 MainLayout.displayName = "MainLayout";
 
 // src/components/SessionBrowser/SessionBrowser.tsx
-var import_react92 = __toESM(require_react(), 1);
+var import_react99 = __toESM(require_react(), 1);
 
 // src/components/SessionBrowser/hooks/useSessionBrowser.ts
-var import_react85 = __toESM(require_react(), 1);
+var import_react92 = __toESM(require_react(), 1);
 
 // src/components/SessionBrowser/hooks/useSessionBrowserState.ts
-var import_react84 = __toESM(require_react(), 1);
+var import_react91 = __toESM(require_react(), 1);
 
 // src/utils/sessionUtils.ts
 function formatTimeAgo(isoString) {
@@ -85715,13 +88356,13 @@ var sessionBrowserReducer = (state, action) => {
   }
 };
 function useSessionBrowserState() {
-  return (0, import_react84.useReducer)(sessionBrowserReducer, initialState2);
+  return (0, import_react91.useReducer)(sessionBrowserReducer, initialState2);
 }
 
 // src/services/sessionLoader.ts
-import { readFileSync as readFileSync8, writeFileSync as writeFileSync5, readdirSync as readdirSync3, existsSync as existsSync8, statSync as statSync3 } from "fs";
-import { join as join7 } from "path";
-import { homedir as homedir4 } from "os";
+import { readFileSync as readFileSync8, writeFileSync as writeFileSync6, readdirSync as readdirSync3, existsSync as existsSync9, statSync as statSync3 } from "fs";
+import { join as join8 } from "path";
+import { homedir as homedir6 } from "os";
 import { createHash } from "crypto";
 function stripTaskTags(text) {
   return text.replace(/^\s*<task>\s*/s, "").replace(/\s*<\/task>[\s\S]*$/s, "").trim();
@@ -85730,15 +88371,15 @@ function getProjectHash(projectRoot) {
   return createHash("sha256").update(projectRoot).digest("hex");
 }
 function getGlobalTempDir() {
-  return join7(homedir4(), ".siada-cli", "data", "tmp");
+  return join8(homedir6(), ".siada-cli", "data", "tmp");
 }
 function getProjectSessionsDir(projectRoot) {
   const projectHash = getProjectHash(projectRoot);
-  return join7(getGlobalTempDir(), projectHash, "sessions");
+  return join8(getGlobalTempDir(), projectHash, "sessions");
 }
 function loadProjectMetadata(projectDir) {
-  const metadataPath = join7(projectDir, "project_metadata.json");
-  if (existsSync8(metadataPath)) {
+  const metadataPath = join8(projectDir, "project_metadata.json");
+  if (existsSync9(metadataPath)) {
     try {
       const data = readFileSync8(metadataPath, "utf-8");
       return JSON.parse(data);
@@ -85754,10 +88395,11 @@ function loadProjectMetadata(projectDir) {
   };
 }
 function loadSessionMetadata(sessionDir, sessionId) {
-  const metadataPath = join7(sessionDir, "metadata.json");
-  const apiHistoryPath = join7(sessionDir, "api_history.json");
+  const metadataPath = join8(sessionDir, "metadata.json");
+  const apiHistoryPath = join8(sessionDir, "api_history.json");
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
-  if (existsSync8(metadataPath)) {
+  const _startTime = Date.now();
+  if (existsSync9(metadataPath)) {
     try {
       const stats = statSync3(metadataPath);
       if (stats.size > MAX_FILE_SIZE) {
@@ -85768,12 +88410,19 @@ function loadSessionMetadata(sessionDir, sessionId) {
         return null;
       }
       const data = readFileSync8(metadataPath, "utf-8");
-      return JSON.parse(data);
+      const result = JSON.parse(data);
+      logger.logWithTiming(0 /* DEBUG */, "[PERF] loadSessionMetadata via metadata.json", _startTime, {
+        component: "sessionLoader",
+        operation: "load_session_metadata",
+        sessionId,
+        fileSize: stats.size
+      });
+      return result;
     } catch (error) {
       logger.warn("Failed to load metadata.json", { sessionId, error });
     }
   }
-  if (existsSync8(apiHistoryPath)) {
+  if (existsSync9(apiHistoryPath)) {
     try {
       const stats = statSync3(apiHistoryPath);
       if (stats.size > MAX_FILE_SIZE) {
@@ -85801,6 +88450,13 @@ function loadSessionMetadata(sessionDir, sessionId) {
           }
         }
       }
+      logger.logWithTiming(0 /* DEBUG */, "[PERF] loadSessionMetadata via api_history.json (fallback, full read+parse)", _startTime, {
+        component: "sessionLoader",
+        operation: "load_session_metadata_fallback",
+        sessionId,
+        fileSize: stats.size,
+        itemCount: items.length
+      });
       return {
         created_at: stats.birthtime.toISOString(),
         last_updated: stats.mtime.toISOString(),
@@ -85814,9 +88470,10 @@ function loadSessionMetadata(sessionDir, sessionId) {
   return null;
 }
 function loadCurrentProjectSessions(projectRoot, currentSessionId) {
+  const _startTime = Date.now();
   const sessions = [];
   const sessionsDir = getProjectSessionsDir(projectRoot);
-  if (!existsSync8(sessionsDir)) {
+  if (!existsSync9(sessionsDir)) {
     logger.info("Sessions directory does not exist", { sessionsDir });
     return sessions;
   }
@@ -85825,7 +88482,7 @@ function loadCurrentProjectSessions(projectRoot, currentSessionId) {
     const sessionDirs = readdirSync3(sessionsDir);
     for (const sessionId of sessionDirs) {
       try {
-        const sessionDir = join7(sessionsDir, sessionId);
+        const sessionDir = join8(sessionsDir, sessionId);
         const stat = statSync3(sessionDir);
         if (!stat.isDirectory()) {
           continue;
@@ -85860,8 +88517,11 @@ function loadCurrentProjectSessions(projectRoot, currentSessionId) {
     sessions.forEach((session, idx) => {
       session.index = idx + 1;
     });
-    logger.info("Loaded current project sessions", {
+    logger.logWithTiming(1 /* INFO */, "[PERF] Loaded current project sessions", _startTime, {
+      component: "sessionLoader",
+      operation: "load_current_project_sessions",
       projectRoot,
+      sessionDirCount: sessionDirs.length,
       count: sessions.length
     });
   } catch (error) {
@@ -85870,28 +88530,29 @@ function loadCurrentProjectSessions(projectRoot, currentSessionId) {
   return sessions;
 }
 function loadAllProjectsSessions(currentSessionId) {
+  const _startTime = Date.now();
   const allSessions = [];
   const globalTempDir = getGlobalTempDir();
-  if (!existsSync8(globalTempDir)) {
+  if (!existsSync9(globalTempDir)) {
     logger.info("Global temp directory does not exist", { globalTempDir });
     return allSessions;
   }
   try {
     const projectDirs = readdirSync3(globalTempDir);
     for (const projectHash of projectDirs) {
-      const projectDir = join7(globalTempDir, projectHash);
+      const projectDir = join8(globalTempDir, projectHash);
       if (!statSync3(projectDir).isDirectory()) {
         continue;
       }
-      const sessionsDir = join7(projectDir, "sessions");
-      if (!existsSync8(sessionsDir)) {
+      const sessionsDir = join8(projectDir, "sessions");
+      if (!existsSync9(sessionsDir)) {
         continue;
       }
       const projectMetadata = loadProjectMetadata(projectDir);
       const sessionDirs = readdirSync3(sessionsDir);
       for (const sessionId of sessionDirs) {
         try {
-          const sessionDir = join7(sessionsDir, sessionId);
+          const sessionDir = join8(sessionsDir, sessionId);
           const stat = statSync3(sessionDir);
           if (!stat.isDirectory()) {
             continue;
@@ -85931,7 +88592,9 @@ function loadAllProjectsSessions(currentSessionId) {
     allSessions.forEach((session, idx) => {
       session.index = idx + 1;
     });
-    logger.info("Loaded all projects sessions", {
+    logger.logWithTiming(1 /* INFO */, "[PERF] Loaded all projects sessions", _startTime, {
+      component: "sessionLoader",
+      operation: "load_all_projects_sessions",
       projectCount: projectDirs.length,
       sessionCount: allSessions.length
     });
@@ -85948,9 +88611,9 @@ function loadSessions(scope, projectRoot, currentSessionId) {
   }
 }
 function renameSession(sessionId, projectRoot, newName) {
-  const sessionDir = join7(getProjectSessionsDir(projectRoot), sessionId);
-  const metadataPath = join7(sessionDir, "metadata.json");
-  if (!existsSync8(metadataPath)) {
+  const sessionDir = join8(getProjectSessionsDir(projectRoot), sessionId);
+  const metadataPath = join8(sessionDir, "metadata.json");
+  if (!existsSync9(metadataPath)) {
     throw new Error(`Session metadata not found: ${metadataPath}`);
   }
   const raw = readFileSync8(metadataPath, "utf-8");
@@ -85960,7 +88623,7 @@ function renameSession(sessionId, projectRoot, newName) {
   } else {
     delete metadata.custom_name;
   }
-  writeFileSync5(metadataPath, JSON.stringify(metadata, null, 2), "utf-8");
+  writeFileSync6(metadataPath, JSON.stringify(metadata, null, 2), "utf-8");
   logger.info("Session renamed", { sessionId, newName });
 }
 
@@ -85972,7 +88635,7 @@ function useSessionBrowser({
   acpClient
 }) {
   const [state, dispatch] = useSessionBrowserState();
-  const loadSessionsData = (0, import_react85.useCallback)(async () => {
+  const loadSessionsData = (0, import_react92.useCallback)(async () => {
     dispatch({ type: "SET_LOADING", payload: true });
     dispatch({ type: "SET_ERROR", payload: null });
     try {
@@ -85994,14 +88657,14 @@ function useSessionBrowser({
       dispatch({ type: "SET_LOADING", payload: false });
     }
   }, [projectRoot, currentSessionId, state.scope]);
-  (0, import_react85.useEffect)(() => {
+  (0, import_react92.useEffect)(() => {
     loadSessionsData();
   }, [loadSessionsData]);
-  const moveSelection = (0, import_react85.useCallback)((delta) => {
+  const moveSelection = (0, import_react92.useCallback)((delta) => {
     const newIndex = state.activeIndex + delta;
     dispatch({ type: "SET_ACTIVE_INDEX", payload: newIndex });
   }, [state.activeIndex]);
-  const handleSearchInput = (0, import_react85.useCallback)((char) => {
+  const handleSearchInput = (0, import_react92.useCallback)((char) => {
     if (char === "\x7F" || char === "\b") {
       dispatch({ type: "BACKSPACE_SEARCH" });
     } else if (char === "") {
@@ -86010,19 +88673,19 @@ function useSessionBrowser({
       dispatch({ type: "APPEND_TO_SEARCH", payload: char });
     }
   }, []);
-  const toggleSearchMode = (0, import_react85.useCallback)(() => {
+  const toggleSearchMode = (0, import_react92.useCallback)(() => {
     dispatch({ type: "TOGGLE_SEARCH_MODE" });
   }, []);
-  const cycleSortOrder = (0, import_react85.useCallback)(() => {
+  const cycleSortOrder = (0, import_react92.useCallback)(() => {
     dispatch({ type: "CYCLE_SORT_ORDER" });
   }, []);
-  const toggleScope = (0, import_react85.useCallback)(() => {
+  const toggleScope = (0, import_react92.useCallback)(() => {
     dispatch({ type: "TOGGLE_SCOPE" });
     setTimeout(() => {
       loadSessionsData();
     }, 0);
   }, [loadSessionsData]);
-  const resumeSession = (0, import_react85.useCallback)(async () => {
+  const resumeSession = (0, import_react92.useCallback)(async () => {
     const session = state.filteredSessions[state.activeIndex];
     if (!session) {
       logger.warn("No session selected");
@@ -86046,10 +88709,10 @@ function useSessionBrowser({
       });
     }
   }, [state.filteredSessions, state.activeIndex, projectRoot, onResume]);
-  const dismissRedirect = (0, import_react85.useCallback)(() => {
+  const dismissRedirect = (0, import_react92.useCallback)(() => {
     dispatch({ type: "SET_REDIRECT_CMD", payload: null });
   }, []);
-  const deleteSession = (0, import_react85.useCallback)(async () => {
+  const deleteSession = (0, import_react92.useCallback)(async () => {
     const session = state.filteredSessions[state.activeIndex];
     if (!session) {
       return;
@@ -86072,20 +88735,20 @@ function useSessionBrowser({
       });
     }
   }, [state.filteredSessions, state.activeIndex, acpClient, projectRoot, loadSessionsData]);
-  const startRename = (0, import_react85.useCallback)(() => {
+  const startRename = (0, import_react92.useCallback)(() => {
     const session = state.filteredSessions[state.activeIndex];
     if (!session) return;
     const currentName = session.displayName || session.firstUserMessage || "";
     dispatch({ type: "ENTER_RENAME_MODE", payload: currentName });
   }, [state.filteredSessions, state.activeIndex]);
-  const handleRenameInput = (0, import_react85.useCallback)((char) => {
+  const handleRenameInput = (0, import_react92.useCallback)((char) => {
     if (char === "\x7F" || char === "\b") {
       dispatch({ type: "BACKSPACE_RENAME" });
     } else {
       dispatch({ type: "APPEND_TO_RENAME", payload: char });
     }
   }, []);
-  const confirmRename = (0, import_react85.useCallback)(async () => {
+  const confirmRename = (0, import_react92.useCallback)(async () => {
     const session = state.filteredSessions[state.activeIndex];
     if (!session) {
       dispatch({ type: "EXIT_RENAME_MODE" });
@@ -86107,7 +88770,7 @@ function useSessionBrowser({
       });
     }
   }, [state.filteredSessions, state.activeIndex, state.renameInput, projectRoot, loadSessionsData]);
-  const cancelRename = (0, import_react85.useCallback)(() => {
+  const cancelRename = (0, import_react92.useCallback)(() => {
     dispatch({ type: "EXIT_RENAME_MODE" });
   }, []);
   return {
@@ -86200,7 +88863,7 @@ function useSessionBrowserInput({
 }
 
 // src/components/SessionBrowser/SessionBrowserHeader.tsx
-var import_react86 = __toESM(require_react(), 1);
+var import_react93 = __toESM(require_react(), 1);
 var SessionBrowserHeader = ({
   totalCount,
   filteredCount,
@@ -86218,33 +88881,33 @@ var SessionBrowserHeader = ({
   }[sortOrder];
   const sortIcon = sortReverse ? "\u2193" : "\u2191";
   const scopeLabel = scope === "all" ? "All Projects" : projectName ? `Current Project: ${projectName}` : "Current Project";
-  return /* @__PURE__ */ import_react86.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, /* @__PURE__ */ import_react86.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1 }, /* @__PURE__ */ import_react86.default.createElement(Text, { bold: true, color: "cyan" }, "Resume Session (", scopeLabel, ")")), /* @__PURE__ */ import_react86.default.createElement(Box_default, { paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react86.default.createElement(Text, { color: "gray", dimColor: true }, "Showing ", filteredCount, " of ", totalCount, " sessions \xB7 Page ", currentPage, "/", totalPages, " \xB7 Sort: ", sortLabel, " ", sortIcon)));
+  return /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { bold: true, color: "cyan" }, "Resume Session (", scopeLabel, ")")), /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, "Showing ", filteredCount, " of ", totalCount, " sessions \xB7 Page ", currentPage, "/", totalPages, " \xB7 Sort: ", sortLabel, " ", sortIcon)));
 };
 
 // src/components/SessionBrowser/SessionBrowserFooter.tsx
-var import_react87 = __toESM(require_react(), 1);
+var import_react94 = __toESM(require_react(), 1);
 var SessionBrowserFooter = ({
   isSearchMode,
   hasResults,
   scope
 }) => {
   if (isSearchMode) {
-    return /* @__PURE__ */ import_react87.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react87.default.createElement(Text, { color: "gray", dimColor: true }, "Type to search \xB7 Enter to confirm \xB7 Esc to cancel"));
+    return /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, "Type to search \xB7 Enter to confirm \xB7 Esc to cancel"));
   }
   if (!hasResults) {
-    return /* @__PURE__ */ import_react87.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react87.default.createElement(Text, { color: "gray", dimColor: true }, "Ctrl+A ", scope === "current" ? "all projects" : "current only", " \xB7 Esc to exit"));
+    return /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, "Ctrl+A ", scope === "current" ? "all projects" : "current only", " \xB7 Esc to exit"));
   }
   const scopeHint = scope === "current" ? "all projects" : "current only";
-  return /* @__PURE__ */ import_react87.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react87.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter resume \xB7 Ctrl+R rename \xB7 s sort \xB7 Ctrl+A ", scopeHint, " \xB7 / search \xB7 Esc exit"));
+  return /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter resume \xB7 Ctrl+R rename \xB7 s sort \xB7 Ctrl+A ", scopeHint, " \xB7 / search \xB7 Esc exit"));
 };
 
 // src/components/SessionBrowser/SearchBox.tsx
-var import_react88 = __toESM(require_react(), 1);
+var import_react95 = __toESM(require_react(), 1);
 var SearchBox = ({ query, isActive }) => {
   if (!isActive && !query) {
     return null;
   }
-  return /* @__PURE__ */ import_react88.default.createElement(
+  return /* @__PURE__ */ import_react95.default.createElement(
     Box_default,
     {
       borderStyle: "round",
@@ -86252,17 +88915,17 @@ var SearchBox = ({ query, isActive }) => {
       paddingX: 1,
       marginBottom: 1
     },
-    /* @__PURE__ */ import_react88.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, "\u2315 ", query, isActive && /* @__PURE__ */ import_react88.default.createElement(Text, { color: "cyan" }, "\u2588"))
+    /* @__PURE__ */ import_react95.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, "\u2315 ", query, isActive && /* @__PURE__ */ import_react95.default.createElement(Text, { color: "cyan" }, "\u2588"))
   );
 };
 
 // src/components/SessionBrowser/RenameBox.tsx
-var import_react89 = __toESM(require_react(), 1);
+var import_react96 = __toESM(require_react(), 1);
 var RenameBox = ({ value, isActive }) => {
   if (!isActive) {
     return null;
   }
-  return /* @__PURE__ */ import_react89.default.createElement(
+  return /* @__PURE__ */ import_react96.default.createElement(
     Box_default,
     {
       borderStyle: "round",
@@ -86270,18 +88933,18 @@ var RenameBox = ({ value, isActive }) => {
       paddingX: 1,
       marginBottom: 1
     },
-    /* @__PURE__ */ import_react89.default.createElement(Text, { color: "yellow" }, "\u270E Rename: "),
-    /* @__PURE__ */ import_react89.default.createElement(Text, { color: "white" }, value),
-    /* @__PURE__ */ import_react89.default.createElement(Text, { color: "yellow" }, "\u2588"),
-    /* @__PURE__ */ import_react89.default.createElement(Text, { color: "gray", dimColor: true }, "  Enter to confirm \xB7 Esc to cancel")
+    /* @__PURE__ */ import_react96.default.createElement(Text, { color: "yellow" }, "\u270E Rename: "),
+    /* @__PURE__ */ import_react96.default.createElement(Text, { color: "white" }, value),
+    /* @__PURE__ */ import_react96.default.createElement(Text, { color: "yellow" }, "\u2588"),
+    /* @__PURE__ */ import_react96.default.createElement(Text, { color: "gray", dimColor: true }, "  Enter to confirm \xB7 Esc to cancel")
   );
 };
 
 // src/components/SessionBrowser/SessionList.tsx
-var import_react91 = __toESM(require_react(), 1);
+var import_react98 = __toESM(require_react(), 1);
 
 // src/components/SessionBrowser/SessionItem.tsx
-var import_react90 = __toESM(require_react(), 1);
+var import_react97 = __toESM(require_react(), 1);
 var SessionItem = ({
   session,
   isActive,
@@ -86292,7 +88955,7 @@ var SessionItem = ({
   const displayMessage = truncateText(session.displayName || session.firstUserMessage, 60);
   const indicator = session.isCurrentSession ? "\u25CF" : isActive ? "\u276F" : " ";
   const messageDisplay = showProjectName && session.projectName ? `[${session.projectName}] ${displayMessage}` : displayMessage;
-  return /* @__PURE__ */ import_react90.default.createElement(Box_default, { flexDirection: "column", paddingLeft: 1 }, /* @__PURE__ */ import_react90.default.createElement(Box_default, null, /* @__PURE__ */ import_react90.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, indicator, " ", messageDisplay)), /* @__PURE__ */ import_react90.default.createElement(Box_default, { paddingLeft: 2 }, /* @__PURE__ */ import_react90.default.createElement(Text, { color: "gray", dimColor: true }, timeAgo, " \xB7 ", session.messageCount, " messages", session.matchCount && session.matchCount > 0 ? ` \xB7 ${session.matchCount} matches` : "")), showMatchSnippets && session.matchSnippets && session.matchSnippets.length > 0 && /* @__PURE__ */ import_react90.default.createElement(Box_default, { paddingLeft: 2, flexDirection: "column" }, session.matchSnippets.map((snippet, idx) => /* @__PURE__ */ import_react90.default.createElement(Text, { key: idx, color: "yellow", dimColor: true }, "\u2192 ", truncateText(snippet, 70)))));
+  return /* @__PURE__ */ import_react97.default.createElement(Box_default, { flexDirection: "column", paddingLeft: 1 }, /* @__PURE__ */ import_react97.default.createElement(Box_default, null, /* @__PURE__ */ import_react97.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, indicator, " ", messageDisplay)), /* @__PURE__ */ import_react97.default.createElement(Box_default, { paddingLeft: 2 }, /* @__PURE__ */ import_react97.default.createElement(Text, { color: "gray", dimColor: true }, timeAgo, " \xB7 ", session.messageCount, " messages", session.matchCount && session.matchCount > 0 ? ` \xB7 ${session.matchCount} matches` : "")), showMatchSnippets && session.matchSnippets && session.matchSnippets.length > 0 && /* @__PURE__ */ import_react97.default.createElement(Box_default, { paddingLeft: 2, flexDirection: "column" }, session.matchSnippets.map((snippet, idx) => /* @__PURE__ */ import_react97.default.createElement(Text, { key: idx, color: "yellow", dimColor: true }, "\u2192 ", truncateText(snippet, 70)))));
 };
 
 // src/components/SessionBrowser/SessionList.tsx
@@ -86305,14 +88968,14 @@ var SessionList = ({
   showProjectName = false
 }) => {
   if (sessions.length === 0) {
-    return /* @__PURE__ */ import_react91.default.createElement(Box_default, { paddingX: 1, marginY: 2 }, /* @__PURE__ */ import_react91.default.createElement(Text, { color: "yellow" }, "No sessions found."));
+    return /* @__PURE__ */ import_react98.default.createElement(Box_default, { paddingX: 1, marginY: 2 }, /* @__PURE__ */ import_react98.default.createElement(Text, { color: "yellow" }, "No sessions found."));
   }
   const startIndex = scrollOffset;
   const endIndex = Math.min(startIndex + visibleCount, sessions.length);
   const visibleSessions = sessions.slice(startIndex, endIndex);
-  return /* @__PURE__ */ import_react91.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, visibleSessions.map((session, idx) => {
+  return /* @__PURE__ */ import_react98.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, visibleSessions.map((session, idx) => {
     const globalIndex = startIndex + idx;
-    return /* @__PURE__ */ import_react91.default.createElement(
+    return /* @__PURE__ */ import_react98.default.createElement(
       SessionItem,
       {
         key: session.id,
@@ -86322,7 +88985,7 @@ var SessionList = ({
         showProjectName
       }
     );
-  }), startIndex > 0 && /* @__PURE__ */ import_react91.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react91.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191 More above...")), endIndex < sessions.length && /* @__PURE__ */ import_react91.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react91.default.createElement(Text, { color: "gray", dimColor: true }, "\u2193 More below...")));
+  }), startIndex > 0 && /* @__PURE__ */ import_react98.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react98.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191 More above...")), endIndex < sessions.length && /* @__PURE__ */ import_react98.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react98.default.createElement(Text, { color: "gray", dimColor: true }, "\u2193 More below...")));
 };
 
 // src/components/SessionBrowser/SessionBrowser.tsx
@@ -86365,7 +89028,7 @@ var SessionBrowser = ({
     cancelRename,
     onExit
   });
-  const { startIndex, endIndex } = (0, import_react92.useMemo)(() => {
+  const { startIndex, endIndex } = (0, import_react99.useMemo)(() => {
     const visibleCount2 = Math.max(5, state.terminalHeight - 10);
     return calculateVisibleRange(
       state.filteredSessions.length,
@@ -86373,7 +89036,7 @@ var SessionBrowser = ({
       visibleCount2
     );
   }, [state.filteredSessions.length, state.activeIndex, state.terminalHeight]);
-  const projectName = (0, import_react92.useMemo)(() => {
+  const projectName = (0, import_react99.useMemo)(() => {
     if (state.scope === "current" && state.sessions.length > 0 && state.sessions[0].projectName) {
       return state.sessions[0].projectName;
     }
@@ -86384,15 +89047,15 @@ var SessionBrowser = ({
   const currentPage = Math.floor(state.activeIndex / visibleCount) + 1;
   const totalPages = Math.ceil(state.filteredSessions.length / visibleCount);
   if (state.loading) {
-    return /* @__PURE__ */ import_react92.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react92.default.createElement(Text, { color: "cyan" }, /* @__PURE__ */ import_react92.default.createElement(build_default, { type: "dots" })), /* @__PURE__ */ import_react92.default.createElement(Text, null, " Loading sessions...")));
+    return /* @__PURE__ */ import_react99.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react99.default.createElement(Text, { color: "cyan" }, /* @__PURE__ */ import_react99.default.createElement(build_default, { type: "dots" })), /* @__PURE__ */ import_react99.default.createElement(Text, null, " Loading sessions...")));
   }
   if (state.error) {
-    return /* @__PURE__ */ import_react92.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Box_default, { marginBottom: 1, borderStyle: "single", borderColor: "red", paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Text, { color: "red", bold: true }, "Error")), /* @__PURE__ */ import_react92.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Text, { color: "red" }, state.error)), /* @__PURE__ */ import_react92.default.createElement(Box_default, { marginTop: 1, paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Text, { color: "gray", dimColor: true }, "Press Esc or q to close")));
+    return /* @__PURE__ */ import_react99.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Box_default, { marginBottom: 1, borderStyle: "single", borderColor: "red", paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Text, { color: "red", bold: true }, "Error")), /* @__PURE__ */ import_react99.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Text, { color: "red" }, state.error)), /* @__PURE__ */ import_react99.default.createElement(Box_default, { marginTop: 1, paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Text, { color: "gray", dimColor: true }, "Press Esc or q to close")));
   }
   if (state.sessions.length === 0) {
-    return /* @__PURE__ */ import_react92.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Box_default, { marginBottom: 1, borderStyle: "single", borderColor: "yellow", paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Text, { color: "yellow", bold: true }, "No Sessions Found")), /* @__PURE__ */ import_react92.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Text, null, "No saved sessions available.")), /* @__PURE__ */ import_react92.default.createElement(Box_default, { marginTop: 1, paddingX: 1 }, /* @__PURE__ */ import_react92.default.createElement(Text, { color: "gray", dimColor: true }, "Press Esc or q to close")));
+    return /* @__PURE__ */ import_react99.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Box_default, { marginBottom: 1, borderStyle: "single", borderColor: "yellow", paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Text, { color: "yellow", bold: true }, "No Sessions Found")), /* @__PURE__ */ import_react99.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Text, null, "No saved sessions available.")), /* @__PURE__ */ import_react99.default.createElement(Box_default, { marginTop: 1, paddingX: 1 }, /* @__PURE__ */ import_react99.default.createElement(Text, { color: "gray", dimColor: true }, "Press Esc or q to close")));
   }
-  return /* @__PURE__ */ import_react92.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react92.default.createElement(
+  return /* @__PURE__ */ import_react99.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react99.default.createElement(
     SessionBrowserHeader,
     {
       totalCount: state.sessions.length,
@@ -86404,19 +89067,19 @@ var SessionBrowser = ({
       scope: state.scope,
       projectName
     }
-  ), /* @__PURE__ */ import_react92.default.createElement(
+  ), /* @__PURE__ */ import_react99.default.createElement(
     SearchBox,
     {
       query: state.searchQuery,
       isActive: state.isSearchMode
     }
-  ), /* @__PURE__ */ import_react92.default.createElement(
+  ), /* @__PURE__ */ import_react99.default.createElement(
     RenameBox,
     {
       value: state.renameInput,
       isActive: state.isRenameMode
     }
-  ), /* @__PURE__ */ import_react92.default.createElement(
+  ), /* @__PURE__ */ import_react99.default.createElement(
     SessionList,
     {
       sessions: state.filteredSessions,
@@ -86426,7 +89089,7 @@ var SessionBrowser = ({
       onSelect: resumeSession,
       showProjectName: state.scope === "all"
     }
-  ), state.redirectCmd && /* @__PURE__ */ import_react92.default.createElement(
+  ), state.redirectCmd && /* @__PURE__ */ import_react99.default.createElement(
     Box_default,
     {
       borderStyle: "single",
@@ -86435,11 +89098,11 @@ var SessionBrowser = ({
       paddingX: 1,
       marginTop: 1
     },
-    /* @__PURE__ */ import_react92.default.createElement(Text, { color: "yellow", bold: true }, "Session Workspace Mismatch"),
-    /* @__PURE__ */ import_react92.default.createElement(Text, null, "This session belongs to a different workspace. To resume it, run:"),
-    /* @__PURE__ */ import_react92.default.createElement(Text, { color: "cyan" }, "  ", state.redirectCmd),
-    /* @__PURE__ */ import_react92.default.createElement(Text, { color: "gray", dimColor: true }, "Press any key to dismiss")
-  ), /* @__PURE__ */ import_react92.default.createElement(
+    /* @__PURE__ */ import_react99.default.createElement(Text, { color: "yellow", bold: true }, "Session Workspace Mismatch"),
+    /* @__PURE__ */ import_react99.default.createElement(Text, null, "This session belongs to a different workspace. To resume it, run:"),
+    /* @__PURE__ */ import_react99.default.createElement(Text, { color: "cyan" }, "  ", state.redirectCmd),
+    /* @__PURE__ */ import_react99.default.createElement(Text, { color: "gray", dimColor: true }, "Press any key to dismiss")
+  ), /* @__PURE__ */ import_react99.default.createElement(
     SessionBrowserFooter,
     {
       isSearchMode: state.isSearchMode,
@@ -86450,55 +89113,125 @@ var SessionBrowser = ({
 };
 
 // src/components/PluginManager/PluginManager.tsx
-var import_react93 = __toESM(require_react(), 1);
+var import_react100 = __toESM(require_react(), 1);
 var TABS = ["Discover", "Installed", "Marketplaces"];
-var MAX_VISIBLE = 8;
+var MAX_VISIBLE2 = 8;
 var PluginManager = ({ data, installProgress, onAction, onExit }) => {
   const { columns } = useTerminalSize();
-  const [activeTab, setActiveTab] = (0, import_react93.useState)(0);
-  const [activeIndex, setActiveIndex] = (0, import_react93.useState)(0);
-  const [searchQuery, setSearchQuery] = (0, import_react93.useState)("");
-  const [isSearching, setIsSearching] = (0, import_react93.useState)(false);
-  const [isAddingMarketplace, setIsAddingMarketplace] = (0, import_react93.useState)(false);
-  const [addInput, setAddInput] = (0, import_react93.useState)("");
-  const [localInstalled, setLocalInstalled] = (0, import_react93.useState)(
-    () => new Set(data.installed.map((s) => s.name))
-  );
-  const [localDisabled, setLocalDisabled] = (0, import_react93.useState)(
+  const [activeTab, setActiveTab] = (0, import_react100.useState)(0);
+  const [activeIndex, setActiveIndex] = (0, import_react100.useState)(0);
+  const [searchQuery, setSearchQuery] = (0, import_react100.useState)("");
+  const [isSearching, setIsSearching] = (0, import_react100.useState)(false);
+  const [isAddingMarketplace, setIsAddingMarketplace] = (0, import_react100.useState)(false);
+  const [addInput, setAddInput] = (0, import_react100.useState)("");
+  const [localInstalled, setLocalInstalled] = (0, import_react100.useState)(() => {
+    const names = new Set(data.installed.map((s) => s.name));
+    for (const skill of data.discover) {
+      if (skill.installed) names.add(skill.name);
+    }
+    return names;
+  });
+  const [localDisabled, setLocalDisabled] = (0, import_react100.useState)(
     () => new Set(data.disabledSkills ?? [])
   );
-  const [localRemovedSkills, setLocalRemovedSkills] = (0, import_react93.useState)(/* @__PURE__ */ new Set());
-  const [localRemovedMps, setLocalRemovedMps] = (0, import_react93.useState)(/* @__PURE__ */ new Set());
-  const [localExtraMarketplaces, setLocalExtraMarketplaces] = (0, import_react93.useState)([]);
-  const [pendingMsg, setPendingMsg] = (0, import_react93.useState)("");
-  (0, import_react93.useEffect)(() => {
+  const [localRemovedSkills, setLocalRemovedSkills] = (0, import_react100.useState)(/* @__PURE__ */ new Set());
+  const [localRemovedMps, setLocalRemovedMps] = (0, import_react100.useState)(/* @__PURE__ */ new Set());
+  const [localExtraMarketplaces, setLocalExtraMarketplaces] = (0, import_react100.useState)([]);
+  const [pendingMsg, setPendingMsg] = (0, import_react100.useState)("");
+  (0, import_react100.useEffect)(() => {
     if (!pendingMsg) return;
     const t = setTimeout(() => setPendingMsg(""), 9e4);
     return () => clearTimeout(t);
   }, [pendingMsg]);
-  (0, import_react93.useEffect)(() => {
+  (0, import_react100.useEffect)(() => {
     setPendingMsg("");
   }, [installProgress]);
-  (0, import_react93.useEffect)(() => {
+  (0, import_react100.useEffect)(() => {
     setPendingMsg("");
   }, [data]);
-  const discoverSkills = (0, import_react93.useMemo)(() => {
+  (0, import_react100.useEffect)(() => {
+    setLocalInstalled((prev) => {
+      const names = new Set(data.installed.map((s) => s.name));
+      for (const skill of data.discover) {
+        if (skill.installed) names.add(skill.name);
+      }
+      for (const name of prev) {
+        names.add(name);
+      }
+      return names;
+    });
+  }, [data]);
+  const discoverSkills = (0, import_react100.useMemo)(() => {
     const q = searchQuery.toLowerCase();
     return data.discover.filter(
       (s) => !q || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
     );
   }, [data.discover, searchQuery]);
-  const installedSkills = (0, import_react93.useMemo)(
-    () => data.installed.filter((s) => !localRemovedSkills.has(s.name)),
-    [data.installed, localRemovedSkills]
-  );
-  const visibleMarketplaces = (0, import_react93.useMemo)(
+  const installedSkills = (0, import_react100.useMemo)(() => {
+    const skills = data.installed.filter((s) => !localRemovedSkills.has(s.name)).map((s) => ({ ...s, isMcp: false }));
+    const mcps = (data.mcp_servers || []).map((m) => ({
+      name: m.name,
+      description: m.url ? `HTTP: ${m.url}` : `stdio: ${m.command}${m.args.length ? " " + m.args.join(" ") : ""}`,
+      scope: "system",
+      path: m.url || m.command,
+      isMcp: true,
+      plugin_name: null
+    }));
+    return [...skills, ...mcps];
+  }, [data.installed, data.mcp_servers, localRemovedSkills]);
+  const installedSections = (0, import_react100.useMemo)(() => {
+    const skills = data.installed.filter((s) => !localRemovedSkills.has(s.name)).map((s) => ({ ...s, isMcp: false }));
+    const mcps = (data.mcp_servers || []).map((m) => ({
+      name: m.name,
+      description: m.url ? `HTTP: ${m.url}` : `stdio: ${m.command}${m.args.length ? " " + m.args.join(" ") : ""}`,
+      scope: "system",
+      path: m.url || m.command,
+      isMcp: true,
+      plugin_name: null
+    }));
+    const entries = [];
+    let selectIdx = 0;
+    const pluginMap = /* @__PURE__ */ new Map();
+    const standaloneSkills = [];
+    for (const s of skills) {
+      if (s.plugin_name) {
+        const existing = pluginMap.get(s.plugin_name) ?? [];
+        existing.push(s);
+        pluginMap.set(s.plugin_name, existing);
+      } else {
+        standaloneSkills.push(s);
+      }
+    }
+    if (pluginMap.size > 0) {
+      entries.push({ kind: "header", label: `Plugins (${pluginMap.size})` });
+      for (const [pname, pskills] of pluginMap) {
+        entries.push({ kind: "header", label: `  \u25B8 ${pname}` });
+        for (const s of pskills) {
+          entries.push({ kind: "skill", skill: s, selectIdx: selectIdx++ });
+        }
+      }
+    }
+    if (standaloneSkills.length > 0) {
+      entries.push({ kind: "header", label: `Skills (${standaloneSkills.length})` });
+      for (const s of standaloneSkills) {
+        entries.push({ kind: "skill", skill: s, selectIdx: selectIdx++ });
+      }
+    }
+    if (mcps.length > 0) {
+      entries.push({ kind: "header", label: `MCP Servers (${mcps.length})` });
+      for (const m of mcps) {
+        entries.push({ kind: "skill", skill: m, selectIdx: selectIdx++ });
+      }
+    }
+    return entries;
+  }, [data.installed, data.mcp_servers, localRemovedSkills]);
+  const visibleMarketplaces = (0, import_react100.useMemo)(
     () => [...data.marketplaces, ...localExtraMarketplaces].filter(
       (m) => !localRemovedMps.has(m.name)
     ),
     [data.marketplaces, localExtraMarketplaces, localRemovedMps]
   );
-  const getItemCount = (0, import_react93.useCallback)(
+  const getItemCount = (0, import_react100.useCallback)(
     (tabIdx) => {
       switch (tabIdx) {
         case 0:
@@ -86513,14 +89246,14 @@ var PluginManager = ({ data, installProgress, onAction, onExit }) => {
     },
     [discoverSkills.length, installedSkills.length, visibleMarketplaces.length]
   );
-  const switchTab = (0, import_react93.useCallback)((delta) => {
+  const switchTab = (0, import_react100.useCallback)((delta) => {
     setActiveTab((t) => {
       const next = (t + delta + TABS.length) % TABS.length;
       setActiveIndex(0);
       return next;
     });
   }, []);
-  const moveSelection = (0, import_react93.useCallback)(
+  const moveSelection = (0, import_react100.useCallback)(
     (delta) => {
       setActiveIndex((i) => {
         const count = getItemCount(activeTab);
@@ -86595,11 +89328,11 @@ var PluginManager = ({ data, installProgress, onAction, onExit }) => {
       return;
     }
     if (key.name === "pageup") {
-      moveSelection(-MAX_VISIBLE);
+      moveSelection(-MAX_VISIBLE2);
       return;
     }
     if (key.name === "pagedown") {
-      moveSelection(MAX_VISIBLE);
+      moveSelection(MAX_VISIBLE2);
       return;
     }
     const tabName = TABS[activeTab];
@@ -86631,6 +89364,7 @@ var PluginManager = ({ data, installProgress, onAction, onExit }) => {
     } else if (tabName === "Installed") {
       const skill = installedSkills[activeIndex];
       if (!skill) return;
+      if (skill.isMcp) return;
       if (key.sequence === "d" || key.sequence === "D") {
         if (localDisabled.has(skill.name)) {
           setLocalDisabled((s) => {
@@ -86670,7 +89404,7 @@ var PluginManager = ({ data, installProgress, onAction, onExit }) => {
     }
   });
   const sep2 = "\u2500".repeat(Math.max(10, columns - 2));
-  const renderTabBar = () => /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "row", paddingX: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { bold: true, color: "white" }, " Plugins  "), TABS.map((tab3, i) => /* @__PURE__ */ import_react93.default.createElement(
+  const renderTabBar = () => /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "row", paddingX: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { bold: true, color: "white" }, " Plugins  "), TABS.map((tab3, i) => /* @__PURE__ */ import_react100.default.createElement(
     Text,
     {
       key: tab3,
@@ -86679,52 +89413,69 @@ var PluginManager = ({ data, installProgress, onAction, onExit }) => {
     },
     tab3,
     "   "
-  )), /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, "(\u2190/\u2192 or tab to move)")), /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, sep2));
+  )), /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, "(\u2190/\u2192 or tab to move)")), /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, sep2));
   const renderDiscoverTab = () => {
     const skills = discoverSkills;
-    const startIdx = Math.max(0, activeIndex - MAX_VISIBLE + 1);
-    const endIdx = Math.min(skills.length, startIdx + MAX_VISIBLE);
+    const startIdx = Math.max(0, activeIndex - MAX_VISIBLE2 + 1);
+    const endIdx = Math.min(skills.length, startIdx + MAX_VISIBLE2);
     const visible = skills.slice(startIdx, endIdx);
-    return /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, `Discover plugins (${skills.length}/${data.discover.length})`)), /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react93.default.createElement(
+    return /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, `Discover plugins (${skills.length}/${data.discover.length})`)), /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react100.default.createElement(
       Box_default,
       {
         borderStyle: "round",
         borderColor: isSearching ? "cyan" : "gray",
         paddingX: 1
       },
-      /* @__PURE__ */ import_react93.default.createElement(Text, { color: isSearching ? "cyan" : "gray" }, isSearching ? `\u2315 ${searchQuery}\u258B` : searchQuery ? `\u2315 ${searchQuery}` : "\u2315 Search\u2026")
-    )), skills.length === 0 && /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, data.marketplaces.length === 0 ? "No marketplaces configured. Add one in the Marketplaces tab." : searchQuery ? "No skills match your search." : "No skills available from configured marketplaces.")), visible.map((skill, relIdx) => {
+      /* @__PURE__ */ import_react100.default.createElement(Text, { color: isSearching ? "cyan" : "gray" }, isSearching ? `\u2315 ${searchQuery}\u258B` : searchQuery ? `\u2315 ${searchQuery}` : "\u2315 Search\u2026")
+    )), skills.length === 0 && /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, data.marketplaces.length === 0 ? "No marketplaces configured. Add one in the Marketplaces tab." : searchQuery ? "No skills match your search." : "No skills available from configured marketplaces.")), visible.map((skill, relIdx) => {
       const absIdx = startIdx + relIdx;
       const isActive = absIdx === activeIndex;
       const isInstalled = localInstalled.has(skill.name);
-      return /* @__PURE__ */ import_react93.default.createElement(Box_default, { key: skill.name, paddingX: 2, flexDirection: "column" }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "row" }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, isActive ? "\u276F " : "  "), /* @__PURE__ */ import_react93.default.createElement(Text, { color: isInstalled ? "green" : "gray" }, isInstalled ? "\u25C9" : "\u25EF"), /* @__PURE__ */ import_react93.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, ` ${skill.name}`), /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, ` \xB7 ${skill.marketplaceName || skill.marketplace}${skill.installs ? ` \xB7 ${skill.installs} installs` : ""}`)), /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingLeft: 4 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, skill.description.length > 72 ? skill.description.slice(0, 69) + "..." : skill.description)));
-    }), startIdx > 0 && /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, `\u2191 ${startIdx} more above`)), endIdx < skills.length && /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, "\u2193 more below")), installProgress ? (() => {
+      return /* @__PURE__ */ import_react100.default.createElement(Box_default, { key: skill.name, paddingX: 2, flexDirection: "column" }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "row" }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, isActive ? "\u276F " : "  "), /* @__PURE__ */ import_react100.default.createElement(Text, { color: isInstalled ? "green" : "gray" }, isInstalled ? "\u25C9" : "\u25EF"), /* @__PURE__ */ import_react100.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, ` ${skill.name}`), /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, ` \xB7 ${skill.marketplaceName || skill.marketplace}${skill.installs ? ` \xB7 ${skill.installs} installs` : ""}`)), /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingLeft: 4 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, skill.description.length > 72 ? skill.description.slice(0, 69) + "..." : skill.description)));
+    }), startIdx > 0 && /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, `\u2191 ${startIdx} more above`)), endIdx < skills.length && /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, "\u2193 more below")), installProgress ? (() => {
       const barWidth = Math.max(20, Math.min(40, columns - 36));
       const filled = Math.round(installProgress.percent / 100 * barWidth);
       const bar = "\u2588".repeat(filled) + "\u2591".repeat(barWidth - filled);
-      return /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, marginTop: 1, flexDirection: "column" }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "row", gap: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "yellow" }, `\u29D7 ${installProgress.skillName}`), /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, installProgress.phase)), /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "row", gap: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "cyan" }, bar), /* @__PURE__ */ import_react93.default.createElement(Text, { color: "white", bold: true }, `${installProgress.percent}%`)));
-    })() : pendingMsg ? /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, marginTop: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "yellow" }, `\u29D7 ${pendingMsg}`)) : null);
+      return /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, marginTop: 1, flexDirection: "column" }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "row", gap: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "yellow" }, `\u29D7 ${installProgress.skillName}`), /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, installProgress.phase)), /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "row", gap: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "cyan" }, bar), /* @__PURE__ */ import_react100.default.createElement(Text, { color: "white", bold: true }, `${installProgress.percent}%`)));
+    })() : pendingMsg ? /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, marginTop: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "yellow" }, `\u29D7 ${pendingMsg}`)) : null);
   };
   const renderInstalledTab = () => {
-    const skills = installedSkills;
-    const startIdx = Math.max(0, activeIndex - MAX_VISIBLE + 1);
-    const endIdx = Math.min(skills.length, startIdx + MAX_VISIBLE);
-    const visible = skills.slice(startIdx, endIdx);
-    return /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, `Installed skills (${skills.length})`)), skills.length === 0 && /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, "No skills installed. Install from the Discover tab.")), visible.map((skill, relIdx) => {
-      const absIdx = startIdx + relIdx;
-      const isActive = absIdx === activeIndex;
+    const totalSelectable = installedSkills.length;
+    const sections = installedSections;
+    const windowStart = Math.max(0, activeIndex - MAX_VISIBLE2 + 1);
+    const windowEnd = Math.min(totalSelectable, windowStart + MAX_VISIBLE2);
+    const visibleHeaders = /* @__PURE__ */ new Set();
+    let currentHeaderIdx = -1;
+    for (let i = 0; i < sections.length; i++) {
+      const e = sections[i];
+      if (e.kind === "header") {
+        currentHeaderIdx = i;
+      } else if (currentHeaderIdx >= 0 && e.selectIdx >= windowStart && e.selectIdx < windowEnd) {
+        visibleHeaders.add(currentHeaderIdx);
+      }
+    }
+    return /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, `Installed (${totalSelectable})`)), totalSelectable === 0 && /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, "No skills, plugins or MCP servers installed.")), windowStart > 0 && /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, `\u2191 more above`)), sections.map((entry, i) => {
+      if (entry.kind === "header") {
+        if (!visibleHeaders.has(i)) return null;
+        const isTopLevel = !entry.label.startsWith("  ");
+        return /* @__PURE__ */ import_react100.default.createElement(Box_default, { key: `hdr-${i}`, paddingX: 2, marginTop: isTopLevel && i > 0 ? 1 : 0 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: isTopLevel ? "cyan" : "gray", bold: isTopLevel, dimColor: !isTopLevel }, entry.label));
+      }
+      if (entry.selectIdx < windowStart || entry.selectIdx >= windowEnd) return null;
+      const { skill, selectIdx } = entry;
+      const isActive = selectIdx === activeIndex;
       const isDisabled = localDisabled.has(skill.name);
-      const scopeLabel = skill.scope === "user" ? "[user]" : skill.scope === "repo" ? "[repo]" : "[system]";
-      return /* @__PURE__ */ import_react93.default.createElement(Box_default, { key: skill.name, paddingX: 2, flexDirection: "column" }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "row" }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, isActive ? "\u276F " : "  "), /* @__PURE__ */ import_react93.default.createElement(Text, { color: isDisabled ? "gray" : isActive ? "cyan" : "white" }, `${isDisabled ? "\u25CB" : "\u25CF"} ${skill.name}`), /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, `  ${scopeLabel}${isDisabled ? "  [disabled]" : ""}`)), /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingLeft: 4 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, skill.description.length > 72 ? skill.description.slice(0, 69) + "..." : skill.description)));
-    }), startIdx > 0 && /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, `\u2191 ${startIdx} more above`)), endIdx < skills.length && /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, "\u2193 more below")));
+      const scopeLabel = skill.isMcp ? "[mcp]" : skill.scope === "user" ? "[user]" : skill.scope === "repo" ? "[repo]" : "[sys]";
+      const indent = skill.plugin_name ? 6 : 4;
+      return /* @__PURE__ */ import_react100.default.createElement(Box_default, { key: skill.name, paddingX: 2, flexDirection: "column" }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "row" }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, isActive ? "\u276F " : "  "), /* @__PURE__ */ import_react100.default.createElement(Text, { color: skill.isMcp ? "yellow" : isDisabled ? "gray" : isActive ? "cyan" : "white" }, `${skill.isMcp ? "\u25C8" : isDisabled ? "\u25CB" : "\u25CF"} ${skill.name}`), /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, `  ${scopeLabel}${isDisabled ? " [disabled]" : ""}`)), /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingLeft: indent }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, skill.description.length > 70 ? skill.description.slice(0, 67) + "..." : skill.description)));
+    }), windowEnd < totalSelectable && /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 4 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, "\u2193 more below")));
   };
   const renderMarketplacesTab = () => {
     const mps = visibleMarketplaces;
-    return /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, "Manage marketplaces")), isAddingMarketplace && /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { borderStyle: "round", borderColor: "cyan", paddingX: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "cyan" }, "repo (owner/repo): "), /* @__PURE__ */ import_react93.default.createElement(Text, { color: "white" }, `${addInput}\u258B`))), /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, flexDirection: "row" }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: activeIndex === 0 ? "cyan" : "gray" }, activeIndex === 0 ? "\u276F " : "  "), /* @__PURE__ */ import_react93.default.createElement(Text, { color: activeIndex === 0 ? "cyan" : "green", bold: true }, "+ Add Marketplace")), mps.map((mp, i) => {
+    return /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, "Manage marketplaces")), isAddingMarketplace && /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, marginBottom: 1 }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { borderStyle: "round", borderColor: "cyan", paddingX: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "cyan" }, "repo (owner/repo): "), /* @__PURE__ */ import_react100.default.createElement(Text, { color: "white" }, `${addInput}\u258B`))), /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, flexDirection: "row" }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: activeIndex === 0 ? "cyan" : "gray" }, activeIndex === 0 ? "\u276F " : "  "), /* @__PURE__ */ import_react100.default.createElement(Text, { color: activeIndex === 0 ? "cyan" : "green", bold: true }, "+ Add Marketplace")), mps.map((mp, i) => {
       const rowIdx = i + 1;
       const isActive = rowIdx === activeIndex;
       const isUpdating = pendingMsg.startsWith(`Fetching skills from '${mp.name}'`);
-      return /* @__PURE__ */ import_react93.default.createElement(Box_default, { key: mp.name, paddingX: 2, flexDirection: "column", marginTop: 1 }, /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "row" }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, isActive ? "\u276F " : "  "), /* @__PURE__ */ import_react93.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: true }, `\u25CF ${mp.name}`)), /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingLeft: 4, flexDirection: "column" }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, mp.repo), isUpdating ? /* @__PURE__ */ import_react93.default.createElement(Text, { color: "yellow" }, `\u29D7 Fetching skill list...`) : /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, `${mp.available} available \u2022 ${mp.installed} installed${mp.updatedAt ? ` \u2022 Updated ${mp.updatedAt}` : ""}`)));
+      return /* @__PURE__ */ import_react100.default.createElement(Box_default, { key: mp.name, paddingX: 2, flexDirection: "column", marginTop: 1 }, /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "row" }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: isActive ? "cyan" : "gray" }, isActive ? "\u276F " : "  "), /* @__PURE__ */ import_react100.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: true }, `\u25CF ${mp.name}`)), /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingLeft: 4, flexDirection: "column" }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, mp.repo), isUpdating ? /* @__PURE__ */ import_react100.default.createElement(Text, { color: "yellow" }, `\u29D7 Fetching skill list...`) : /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, `${mp.available} available \u2022 ${mp.installed} installed${mp.updatedAt ? ` \u2022 Updated ${mp.updatedAt}` : ""}`)));
     }));
   };
   const renderFooter = () => {
@@ -86743,7 +89494,7 @@ var PluginManager = ({ data, installProgress, onAction, onExit }) => {
     } else {
       hint = "\u2191\u2193 navigate \xB7 \u2190/\u2192 or tab to switch \xB7 Esc to exit";
     }
-    return /* @__PURE__ */ import_react93.default.createElement(Box_default, { paddingX: 2, marginTop: 1 }, /* @__PURE__ */ import_react93.default.createElement(Text, { color: "gray", dimColor: true }, hint));
+    return /* @__PURE__ */ import_react100.default.createElement(Box_default, { paddingX: 2, marginTop: 1 }, /* @__PURE__ */ import_react100.default.createElement(Text, { color: "gray", dimColor: true }, hint));
   };
   const renderContent = () => {
     const tabName = TABS[activeTab];
@@ -86751,11 +89502,11 @@ var PluginManager = ({ data, installProgress, onAction, onExit }) => {
     if (tabName === "Installed") return renderInstalledTab();
     return renderMarketplacesTab();
   };
-  return /* @__PURE__ */ import_react93.default.createElement(Box_default, { flexDirection: "column" }, renderTabBar(), renderContent(), renderFooter());
+  return /* @__PURE__ */ import_react100.default.createElement(Box_default, { flexDirection: "column" }, renderTabBar(), renderContent(), renderFooter());
 };
 
 // src/components/Login/LoginSelector.tsx
-var import_react94 = __toESM(require_react(), 1);
+var import_react101 = __toESM(require_react(), 1);
 var PROVIDERS_SNAPSHOT = [
   {
     id: "kimi",
@@ -86848,13 +89599,13 @@ var OPTIONS = [
 var LoginSelector = ({ onSelect, providers, cancelable, liidDisabled, submitting = false }) => {
   const effectiveProviders = providers && providers.length > 0 ? providers : PROVIDERS_SNAPSHOT;
   const visibleOptions = liidDisabled ? OPTIONS.filter((option) => option.id === "3") : OPTIONS;
-  const [activeIndex, setActiveIndex] = (0, import_react94.useState)(0);
-  const [phase, setPhase] = (0, import_react94.useState)("selecting");
-  const [selectedProvider, setSelectedProvider] = (0, import_react94.useState)(null);
-  const [selectedModel, setSelectedModel] = (0, import_react94.useState)(null);
-  const [inputBuffer, setInputBuffer] = (0, import_react94.useState)("");
-  const [customBaseUrl, setCustomBaseUrl] = (0, import_react94.useState)("");
-  const [customModelName, setCustomModelName] = (0, import_react94.useState)("");
+  const [activeIndex, setActiveIndex] = (0, import_react101.useState)(0);
+  const [phase, setPhase] = (0, import_react101.useState)("selecting");
+  const [selectedProvider, setSelectedProvider] = (0, import_react101.useState)(null);
+  const [selectedModel, setSelectedModel] = (0, import_react101.useState)(null);
+  const [inputBuffer, setInputBuffer] = (0, import_react101.useState)("");
+  const [customBaseUrl, setCustomBaseUrl] = (0, import_react101.useState)("");
+  const [customModelName, setCustomModelName] = (0, import_react101.useState)("");
   const clamp2 = (val, len) => Math.min(Math.max(0, val), len - 1);
   const isSubmitKey = (key) => key.name === "return" || key.name === "enter";
   useKeypress((key) => {
@@ -86977,44 +89728,44 @@ var LoginSelector = ({ onSelect, providers, cancelable, liidDisabled, submitting
     }
   }, { isActive: !submitting });
   if (phase === "provider-select") {
-    return /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { bold: true, color: "cyan" }, "Configure API Key \u2014 Choose Provider")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "Select your model provider:")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, effectiveProviders.map((p, i) => {
+    return /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { bold: true, color: "cyan" }, "Configure API Key \u2014 Choose Provider")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "Select your model provider:")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, effectiveProviders.map((p, i) => {
       const isActive = i === activeIndex;
-      return /* @__PURE__ */ import_react94.default.createElement(Box_default, { key: p.id, flexDirection: "row", marginBottom: 0 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react94.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, p.name), p.models.length > 0 ? /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "  ", p.models.length, " models") : null);
-    })), /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc back")));
+      return /* @__PURE__ */ import_react101.default.createElement(Box_default, { key: p.id, flexDirection: "row", marginBottom: 0 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react101.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, p.name), p.models.length > 0 ? /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "  ", p.models.length, " models") : null);
+    })), /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc back")));
   }
   if (phase === "model-select") {
     const models = selectedProvider?.models ?? [];
-    return /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { bold: true, color: "cyan" }, selectedProvider?.name ?? "Provider", " \u2014 Choose Model")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "Select a model:")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, models.map((m, i) => {
+    return /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { bold: true, color: "cyan" }, selectedProvider?.name ?? "Provider", " \u2014 Choose Model")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "Select a model:")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, models.map((m, i) => {
       const isActive = i === activeIndex;
-      return /* @__PURE__ */ import_react94.default.createElement(Box_default, { key: m.id, flexDirection: "row", marginBottom: 0 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react94.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, m.id), /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "  ", m.name, " \xB7 ", m.context, "K ctx"));
-    })), /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc back")));
+      return /* @__PURE__ */ import_react101.default.createElement(Box_default, { key: m.id, flexDirection: "row", marginBottom: 0 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react101.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, m.id), /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "  ", m.name, " \xB7 ", m.context, "K ctx"));
+    })), /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc back")));
   }
   if (phase === "baseurl-input") {
-    return /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { bold: true, color: "cyan" }, "Custom Provider \u2014 Base URL")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "Enter provider base URL (OpenAI-compatible):")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "cyan" }, "> "), /* @__PURE__ */ import_react94.default.createElement(Text, null, inputBuffer), /* @__PURE__ */ import_react94.default.createElement(Text, { color: "cyan" }, "\u2588")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, "Enter confirm \xB7 Esc back")));
+    return /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { bold: true, color: "cyan" }, "Custom Provider \u2014 Base URL")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "Enter provider base URL (OpenAI-compatible):")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "cyan" }, "> "), /* @__PURE__ */ import_react101.default.createElement(Text, null, inputBuffer), /* @__PURE__ */ import_react101.default.createElement(Text, { color: "cyan" }, "\u2588")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "gray", dimColor: true }, "Enter confirm \xB7 Esc back")));
   }
   if (phase === "model-name-input") {
-    return /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { bold: true, color: "cyan" }, "Custom Provider \u2014 Model Name")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 0 }, /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "Base URL: "), /* @__PURE__ */ import_react94.default.createElement(Text, { color: "cyan" }, customBaseUrl)), /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "Enter model name (e.g. gpt-4o, llama-3-70b):")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "cyan" }, "> "), /* @__PURE__ */ import_react94.default.createElement(Text, null, inputBuffer), /* @__PURE__ */ import_react94.default.createElement(Text, { color: "cyan" }, "\u2588")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, "Enter confirm \xB7 Esc back")));
+    return /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { bold: true, color: "cyan" }, "Custom Provider \u2014 Model Name")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 0 }, /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "Base URL: "), /* @__PURE__ */ import_react101.default.createElement(Text, { color: "cyan" }, customBaseUrl)), /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "Enter model name (e.g. gpt-4o, llama-3-70b):")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "cyan" }, "> "), /* @__PURE__ */ import_react101.default.createElement(Text, null, inputBuffer), /* @__PURE__ */ import_react101.default.createElement(Text, { color: "cyan" }, "\u2588")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "gray", dimColor: true }, "Enter confirm \xB7 Esc back")));
   }
   if (phase === "apikey-input") {
     const providerName = selectedProvider?.name ?? "Provider";
     const hint = selectedProvider?.apiKeyHint ?? "";
     const modelDesc = selectedProvider?.id === "custom" ? customModelName : selectedModel?.id ?? "";
-    return /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { bold: true, color: "cyan" }, providerName, " \u2014 API Key")), modelDesc ? /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 0 }, /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "Model: "), /* @__PURE__ */ import_react94.default.createElement(Text, { color: "cyan" }, modelDesc)) : null, hint ? /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "Format: ", hint)) : null, /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "cyan" }, "> "), /* @__PURE__ */ import_react94.default.createElement(Text, null, inputBuffer), /* @__PURE__ */ import_react94.default.createElement(Text, { color: "cyan" }, "\u2588")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, submitting ? "Submitting login..." : "Enter submit \xB7 Esc back")));
+    return /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { bold: true, color: "cyan" }, providerName, " \u2014 API Key")), modelDesc ? /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 0 }, /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "Model: "), /* @__PURE__ */ import_react101.default.createElement(Text, { color: "cyan" }, modelDesc)) : null, hint ? /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "Format: ", hint)) : null, /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "cyan" }, "> "), /* @__PURE__ */ import_react101.default.createElement(Text, null, inputBuffer), /* @__PURE__ */ import_react101.default.createElement(Text, { color: "cyan" }, "\u2588")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "gray", dimColor: true }, submitting ? "Submitting login..." : "Enter submit \xB7 Esc back")));
   }
-  return /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { bold: true, color: "cyan" }, "Sign In")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, liidDisabled ? "You are not signed in. Please configure an API key to continue:" : "You are not signed in. Choose a sign-in method:")), /* @__PURE__ */ import_react94.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, visibleOptions.map((opt, index) => {
+  return /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { bold: true, color: "cyan" }, "Sign In")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, liidDisabled ? "You are not signed in. Please configure an API key to continue:" : "You are not signed in. Choose a sign-in method:")), /* @__PURE__ */ import_react101.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, visibleOptions.map((opt, index) => {
     const isActive = index === activeIndex;
-    return /* @__PURE__ */ import_react94.default.createElement(Box_default, { key: opt.id, flexDirection: "row", marginBottom: 0 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react94.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, opt.label), /* @__PURE__ */ import_react94.default.createElement(Text, { dimColor: true }, "  ", opt.description));
-  })), /* @__PURE__ */ import_react94.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react94.default.createElement(Text, { color: "gray", dimColor: true }, cancelable ? "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc cancel" : "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc/q skip")));
+    return /* @__PURE__ */ import_react101.default.createElement(Box_default, { key: opt.id, flexDirection: "row", marginBottom: 0 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react101.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, opt.label), /* @__PURE__ */ import_react101.default.createElement(Text, { dimColor: true }, "  ", opt.description));
+  })), /* @__PURE__ */ import_react101.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react101.default.createElement(Text, { color: "gray", dimColor: true }, cancelable ? "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc cancel" : "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc/q skip")));
 };
 
 // src/components/Login/LoginWaiting.tsx
-var import_react95 = __toESM(require_react(), 1);
+var import_react102 = __toESM(require_react(), 1);
 var LoginWaiting = ({ url, openBrowser }) => {
-  return /* @__PURE__ */ import_react95.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react95.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react95.default.createElement(Text, { bold: true, color: "cyan" }, "Authenticating")), /* @__PURE__ */ import_react95.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, openBrowser ? /* @__PURE__ */ import_react95.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react95.default.createElement(Text, null, "Browser opened. If it did not open automatically, visit:")) : /* @__PURE__ */ import_react95.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react95.default.createElement(Text, null, "Visit the following URL on any device to authenticate:")), /* @__PURE__ */ import_react95.default.createElement(Box_default, { marginBottom: 1, paddingX: 1 }, /* @__PURE__ */ import_react95.default.createElement(Text, { color: "cyan", bold: true }, url)), /* @__PURE__ */ import_react95.default.createElement(Box_default, null, /* @__PURE__ */ import_react95.default.createElement(Text, { color: "yellow" }, /* @__PURE__ */ import_react95.default.createElement(build_default, { type: "dots" })), /* @__PURE__ */ import_react95.default.createElement(Text, null, " Waiting for authentication...")), /* @__PURE__ */ import_react95.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react95.default.createElement(Text, { dimColor: true }, "Press Ctrl+C to cancel"))));
+  return /* @__PURE__ */ import_react102.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react102.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1, marginBottom: 1 }, /* @__PURE__ */ import_react102.default.createElement(Text, { bold: true, color: "cyan" }, "Authenticating")), /* @__PURE__ */ import_react102.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, openBrowser ? /* @__PURE__ */ import_react102.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react102.default.createElement(Text, null, "Browser opened. If it did not open automatically, visit:")) : /* @__PURE__ */ import_react102.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react102.default.createElement(Text, null, "Visit the following URL on any device to authenticate:")), /* @__PURE__ */ import_react102.default.createElement(Box_default, { marginBottom: 1, paddingX: 1 }, /* @__PURE__ */ import_react102.default.createElement(Text, { color: "cyan", bold: true }, url)), /* @__PURE__ */ import_react102.default.createElement(Box_default, null, /* @__PURE__ */ import_react102.default.createElement(Text, { color: "yellow" }, /* @__PURE__ */ import_react102.default.createElement(build_default, { type: "dots" })), /* @__PURE__ */ import_react102.default.createElement(Text, null, " Waiting for authentication...")), /* @__PURE__ */ import_react102.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react102.default.createElement(Text, { dimColor: true }, "Press Ctrl+C to cancel"))));
 };
 
 // src/components/TaskSelector/TaskSelector.tsx
-var import_react96 = __toESM(require_react(), 1);
+var import_react103 = __toESM(require_react(), 1);
 var PRIORITY_LABEL = {
   high: { label: "!!!", color: "red" },
   medium: { label: "!  ", color: "yellow" },
@@ -87029,8 +89780,8 @@ var CATEGORY_COLOR = {
   other: "gray"
 };
 var TaskSelector = ({ tasks, onSelect, onExit }) => {
-  const [activeIndex, setActiveIndex] = (0, import_react96.useState)(0);
-  const moveSelection = (0, import_react96.useCallback)((delta) => {
+  const [activeIndex, setActiveIndex] = (0, import_react103.useState)(0);
+  const moveSelection = (0, import_react103.useCallback)((delta) => {
     setActiveIndex((prev) => {
       const next = prev + delta;
       if (next < 0) return 0;
@@ -87051,21 +89802,21 @@ var TaskSelector = ({ tasks, onSelect, onExit }) => {
     }
   });
   if (tasks.length === 0) {
-    return /* @__PURE__ */ import_react96.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react96.default.createElement(Box_default, { marginBottom: 1, borderStyle: "single", borderColor: "yellow", paddingX: 1 }, /* @__PURE__ */ import_react96.default.createElement(Text, { color: "yellow", bold: true }, "No Tasks Found")), /* @__PURE__ */ import_react96.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react96.default.createElement(Text, { color: "gray", dimColor: true }, "Run the proactive daemon to discover tasks.  Esc/q to close")));
+    return /* @__PURE__ */ import_react103.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react103.default.createElement(Box_default, { marginBottom: 1, borderStyle: "single", borderColor: "yellow", paddingX: 1 }, /* @__PURE__ */ import_react103.default.createElement(Text, { color: "yellow", bold: true }, "No Tasks Found")), /* @__PURE__ */ import_react103.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react103.default.createElement(Text, { color: "gray", dimColor: true }, "Run the proactive daemon to discover tasks.  Esc/q to close")));
   }
   const activeTask = tasks[activeIndex];
-  return /* @__PURE__ */ import_react96.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react96.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, /* @__PURE__ */ import_react96.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1 }, /* @__PURE__ */ import_react96.default.createElement(Text, { bold: true, color: "cyan" }, "Pending Tasks")), /* @__PURE__ */ import_react96.default.createElement(Box_default, { paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react96.default.createElement(Text, { color: "gray", dimColor: true }, tasks.length, " task", tasks.length !== 1 ? "s" : "", " discovered"))), /* @__PURE__ */ import_react96.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, tasks.map((task, index) => {
+  return /* @__PURE__ */ import_react103.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react103.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, /* @__PURE__ */ import_react103.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1 }, /* @__PURE__ */ import_react103.default.createElement(Text, { bold: true, color: "cyan" }, "Pending Tasks")), /* @__PURE__ */ import_react103.default.createElement(Box_default, { paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react103.default.createElement(Text, { color: "gray", dimColor: true }, tasks.length, " task", tasks.length !== 1 ? "s" : "", " discovered"))), /* @__PURE__ */ import_react103.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, tasks.map((task, index) => {
     const isActive = index === activeIndex;
     const prio = PRIORITY_LABEL[task.priority] ?? { label: "   ", color: "gray" };
     const catColor = CATEGORY_COLOR[task.category] ?? "white";
     const conf = task.confidence.toFixed(2);
     const cat = task.category.slice(0, 5).padEnd(5);
-    return /* @__PURE__ */ import_react96.default.createElement(Box_default, { key: task.id, flexDirection: "column" }, /* @__PURE__ */ import_react96.default.createElement(Box_default, { flexDirection: "row" }, /* @__PURE__ */ import_react96.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react96.default.createElement(Text, { color: prio.color, bold: isActive }, prio.label), /* @__PURE__ */ import_react96.default.createElement(Text, null, " "), /* @__PURE__ */ import_react96.default.createElement(Text, { color: catColor, dimColor: !isActive }, cat), /* @__PURE__ */ import_react96.default.createElement(Text, { color: "gray", dimColor: true }, " ", conf, "  "), /* @__PURE__ */ import_react96.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, task.title), task.needs_confirmation && /* @__PURE__ */ import_react96.default.createElement(Text, { color: "yellow", dimColor: true }, " [confirm]")), isActive && /* @__PURE__ */ import_react96.default.createElement(Box_default, { paddingLeft: 10, marginBottom: 1 }, /* @__PURE__ */ import_react96.default.createElement(Text, { color: "gray", dimColor: true, wrap: "wrap" }, task.description.length > 120 ? task.description.slice(0, 120) + "\u2026" : task.description)));
-  })), /* @__PURE__ */ import_react96.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react96.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter execute \xB7 Esc/q exit")));
+    return /* @__PURE__ */ import_react103.default.createElement(Box_default, { key: task.id, flexDirection: "column" }, /* @__PURE__ */ import_react103.default.createElement(Box_default, { flexDirection: "row" }, /* @__PURE__ */ import_react103.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react103.default.createElement(Text, { color: prio.color, bold: isActive }, prio.label), /* @__PURE__ */ import_react103.default.createElement(Text, null, " "), /* @__PURE__ */ import_react103.default.createElement(Text, { color: catColor, dimColor: !isActive }, cat), /* @__PURE__ */ import_react103.default.createElement(Text, { color: "gray", dimColor: true }, " ", conf, "  "), /* @__PURE__ */ import_react103.default.createElement(Text, { color: isActive ? "cyan" : "white", bold: isActive }, task.title), task.needs_confirmation && /* @__PURE__ */ import_react103.default.createElement(Text, { color: "yellow", dimColor: true }, " [confirm]")), isActive && /* @__PURE__ */ import_react103.default.createElement(Box_default, { paddingLeft: 10, marginBottom: 1 }, /* @__PURE__ */ import_react103.default.createElement(Text, { color: "gray", dimColor: true, wrap: "wrap" }, task.description.length > 120 ? task.description.slice(0, 120) + "\u2026" : task.description)));
+  })), /* @__PURE__ */ import_react103.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react103.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter execute \xB7 Esc/q exit")));
 };
 
 // src/components/ModelSelector/ModelSelector.tsx
-var import_react97 = __toESM(require_react(), 1);
+var import_react104 = __toESM(require_react(), 1);
 var ModelSelector = ({
   models,
   currentModel,
@@ -87073,8 +89824,8 @@ var ModelSelector = ({
   onExit
 }) => {
   const initialIndex = Math.max(0, models.indexOf(currentModel));
-  const [activeIndex, setActiveIndex] = (0, import_react97.useState)(initialIndex);
-  const moveSelection = (0, import_react97.useCallback)((delta) => {
+  const [activeIndex, setActiveIndex] = (0, import_react104.useState)(initialIndex);
+  const moveSelection = (0, import_react104.useCallback)((delta) => {
     setActiveIndex((prev) => {
       const next = prev + delta;
       if (next < 0) return 0;
@@ -87097,42 +89848,52 @@ var ModelSelector = ({
     }
   });
   if (models.length === 0) {
-    return /* @__PURE__ */ import_react97.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react97.default.createElement(Box_default, { marginBottom: 1, borderStyle: "single", borderColor: "yellow", paddingX: 1 }, /* @__PURE__ */ import_react97.default.createElement(Text, { color: "yellow", bold: true }, "No Models Available")), /* @__PURE__ */ import_react97.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react97.default.createElement(Text, { color: "gray", dimColor: true }, "Press Esc or q to close")));
+    return /* @__PURE__ */ import_react104.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, /* @__PURE__ */ import_react104.default.createElement(Box_default, { marginBottom: 1, borderStyle: "single", borderColor: "yellow", paddingX: 1 }, /* @__PURE__ */ import_react104.default.createElement(Text, { color: "yellow", bold: true }, "No Models Available")), /* @__PURE__ */ import_react104.default.createElement(Box_default, { paddingX: 1 }, /* @__PURE__ */ import_react104.default.createElement(Text, { color: "gray", dimColor: true }, "Press Esc or q to close")));
   }
-  return /* @__PURE__ */ import_react97.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react97.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, /* @__PURE__ */ import_react97.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1 }, /* @__PURE__ */ import_react97.default.createElement(Text, { bold: true, color: "cyan" }, "Switch Model")), /* @__PURE__ */ import_react97.default.createElement(Box_default, { paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react97.default.createElement(Text, { color: "gray", dimColor: true }, "Current: ", /* @__PURE__ */ import_react97.default.createElement(Text, { color: "green" }, currentModel), "  ", "\xB7", "  ", models.length, " models available"))), /* @__PURE__ */ import_react97.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, models.map((model, index) => {
+  return /* @__PURE__ */ import_react104.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react104.default.createElement(Box_default, { flexDirection: "column", marginBottom: 1 }, /* @__PURE__ */ import_react104.default.createElement(Box_default, { borderStyle: "single", borderColor: "cyan", paddingX: 1 }, /* @__PURE__ */ import_react104.default.createElement(Text, { bold: true, color: "cyan" }, "Switch Model")), /* @__PURE__ */ import_react104.default.createElement(Box_default, { paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react104.default.createElement(Text, { color: "gray", dimColor: true }, "Current: ", /* @__PURE__ */ import_react104.default.createElement(Text, { color: "green" }, currentModel), "  ", "\xB7", "  ", models.length, " models available"))), /* @__PURE__ */ import_react104.default.createElement(Box_default, { flexDirection: "column", paddingX: 1 }, models.map((model, index) => {
     const isActive = index === activeIndex;
     const isCurrent = model === currentModel;
-    return /* @__PURE__ */ import_react97.default.createElement(Box_default, { key: `${model}-${index}`, flexDirection: "row" }, /* @__PURE__ */ import_react97.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react97.default.createElement(
+    const note = model === "lpai-glm-5.2" ? "(slowly)" : "";
+    return /* @__PURE__ */ import_react104.default.createElement(Box_default, { key: `${model}-${index}`, flexDirection: "row" }, /* @__PURE__ */ import_react104.default.createElement(Text, { color: isActive ? "cyan" : "white" }, isActive ? "\u25B6 " : "  "), /* @__PURE__ */ import_react104.default.createElement(
       Text,
       {
         color: isActive ? "cyan" : isCurrent ? "green" : "white",
         bold: isActive
       },
       model
-    ), isCurrent && /* @__PURE__ */ import_react97.default.createElement(Text, { color: "green", dimColor: true }, "  ", "(current)"));
-  })), /* @__PURE__ */ import_react97.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react97.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc/q exit")));
+    ), note && /* @__PURE__ */ import_react104.default.createElement(Text, { color: isActive ? "cyan" : isCurrent ? "green" : "white" }, "  ", note), isCurrent && /* @__PURE__ */ import_react104.default.createElement(Text, { color: "green", dimColor: true }, "  ", "(current)"));
+  })), /* @__PURE__ */ import_react104.default.createElement(Box_default, { borderStyle: "single", borderColor: "gray", paddingX: 1, marginTop: 1 }, /* @__PURE__ */ import_react104.default.createElement(Text, { color: "gray", dimColor: true }, "\u2191\u2193/j/k navigate \xB7 Enter select \xB7 Esc/q exit")));
 };
 
 // src/hooks/useAcp/index.ts
-var import_react101 = __toESM(require_react(), 1);
+var import_react108 = __toESM(require_react(), 1);
 
 // src/hooks/useAcp/state/index.ts
-var import_react98 = __toESM(require_react(), 1);
+var import_react105 = __toESM(require_react(), 1);
 function useACPState() {
-  const [client, setClient] = (0, import_react98.useState)(null);
-  const [messages, setMessages] = (0, import_react98.useState)([]);
-  const [connectionStatus, setConnectionStatus] = (0, import_react98.useState)({
+  const [client, setClient] = (0, import_react105.useState)(null);
+  const [messages, setMessages] = (0, import_react105.useState)([]);
+  const [connectionStatus, setConnectionStatus] = (0, import_react105.useState)({
     connected: false,
     connecting: true,
     ready: false
   });
-  const [loading, setLoading] = (0, import_react98.useState)(false);
-  const [tokenUsage, setTokenUsage] = (0, import_react98.useState)(null);
-  const [bannerInfo, setBannerInfo] = (0, import_react98.useState)(null);
-  const [interactiveInput, setInteractiveInput] = (0, import_react98.useState)(null);
-  const [loginState, setLoginState] = (0, import_react98.useState)(null);
-  const clientRef = (0, import_react98.useRef)(null);
-  const currentSessionIdRef = (0, import_react98.useRef)(null);
+  const [loading, setLoading] = (0, import_react105.useState)(false);
+  const [tokenUsage, setTokenUsage] = (0, import_react105.useState)(null);
+  const [cacheStatus, setCacheStatus] = (0, import_react105.useState)(null);
+  const [bannerInfo, setBannerInfo] = (0, import_react105.useState)(null);
+  const [interactiveInput, setInteractiveInput] = (0, import_react105.useState)(null);
+  const [loginState, setLoginState] = (0, import_react105.useState)(null);
+  const [todoItems, setTodoItems] = (0, import_react105.useState)([]);
+  const [todoMessageRanges, setTodoMessageRanges] = (0, import_react105.useState)(/* @__PURE__ */ new Map());
+  const [goalState, setGoalState] = (0, import_react105.useState)(null);
+  const clientRef = (0, import_react105.useRef)(null);
+  const messagesRef = (0, import_react105.useRef)([]);
+  const currentSessionIdRef = (0, import_react105.useRef)(null);
+  const pendingHistoryRef = (0, import_react105.useRef)(false);
+  const historyBufferRef = (0, import_react105.useRef)([]);
+  const pendingUserMessageIdRef = (0, import_react105.useRef)(null);
+  const pullHistoryTimeoutRef = (0, import_react105.useRef)(null);
   return {
     client,
     setClient,
@@ -87144,19 +89905,32 @@ function useACPState() {
     setLoading,
     tokenUsage,
     setTokenUsage,
+    cacheStatus,
+    setCacheStatus,
     bannerInfo,
     setBannerInfo,
     interactiveInput,
     setInteractiveInput,
     loginState,
     setLoginState,
+    todoItems,
+    setTodoItems,
+    todoMessageRanges,
+    setTodoMessageRanges,
+    goalState,
+    setGoalState,
     clientRef,
-    currentSessionIdRef
+    messagesRef,
+    currentSessionIdRef,
+    pendingHistoryRef,
+    historyBufferRef,
+    pendingUserMessageIdRef,
+    pullHistoryTimeoutRef
   };
 }
 
 // src/hooks/useAcp/streaming/index.ts
-var import_react99 = __toESM(require_react(), 1);
+var import_react106 = __toESM(require_react(), 1);
 
 // src/utils/markdownUtilities.ts
 function findEnclosingCodeBlockStart(content, index) {
@@ -87212,15 +89986,42 @@ function countLines(content) {
 
 // src/hooks/useAcp/streaming/index.ts
 var STREAM_FLUSH_MS = 80;
-function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, model }) {
-  const toolMessageIdCounterRef = (0, import_react99.useRef)(0);
-  const currentStreamingMessageRef = (0, import_react99.useRef)(null);
-  const accumulatedContentRef = (0, import_react99.useRef)("");
-  const splitCounterRef = (0, import_react99.useRef)(0);
-  const streamFlushTimerRef = (0, import_react99.useRef)(null);
-  const streamPendingAppendRef = (0, import_react99.useRef)("");
-  const streamTargetSubtypeRef = (0, import_react99.useRef)(null);
-  const flushStreamingNow = (0, import_react99.useCallback)(() => {
+var ICON_TO_STATUS = {
+  "\u25CB": "pending",
+  "\u25D0": "in_progress",
+  "\u2713": "completed",
+  "?": "pending"
+};
+function parseTodoWriteContent(content) {
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+  if (trimmed === "Clearing todo list") return [];
+  const lines = trimmed.split("\n");
+  const todos = [];
+  let foundAny = false;
+  for (const line of lines) {
+    const stripped = line.trim();
+    if (!stripped || stripped.match(/^\[\d+\/\d+ completed\]$/)) continue;
+    const match = stripped.match(/^([○◐✓?])\s{1,3}(.+)$/);
+    if (!match) {
+      if (foundAny) continue;
+      return null;
+    }
+    foundAny = true;
+    const status = ICON_TO_STATUS[match[1]] ?? "pending";
+    todos.push({ content: match[2].trimEnd(), status });
+  }
+  return foundAny ? todos : null;
+}
+function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, model, pullHistoryTimeoutRef, messagesRef, setTodoItems, setTodoMessageRanges }) {
+  const toolMessageIdCounterRef = (0, import_react106.useRef)(0);
+  const currentStreamingMessageRef = (0, import_react106.useRef)(null);
+  const accumulatedContentRef = (0, import_react106.useRef)("");
+  const splitCounterRef = (0, import_react106.useRef)(0);
+  const streamFlushTimerRef = (0, import_react106.useRef)(null);
+  const streamPendingAppendRef = (0, import_react106.useRef)("");
+  const streamTargetSubtypeRef = (0, import_react106.useRef)(null);
+  const flushStreamingNow = (0, import_react106.useCallback)(() => {
     if (streamFlushTimerRef.current) {
       clearTimeout(streamFlushTimerRef.current);
       streamFlushTimerRef.current = null;
@@ -87230,6 +90031,21 @@ function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, 
       const fullContent = accumulatedContentRef.current;
       streamPendingAppendRef.current = "";
       if (!fullContent) return;
+      const splitPoint = findLastSafeSplitPoint(fullContent);
+      const afterText = fullContent.substring(splitPoint);
+      const afterLines = countLines(afterText);
+      const terminalHeight = stdout?.rows || 50;
+      const maxDynamicLines = Math.max(terminalHeight / 2, 5);
+      if (afterLines > maxDynamicLines) {
+        logger.debug("flushStreamingNow skipped \u2014 answer content too tall for pending area", {
+          component: "Streaming",
+          operation: "flush_skip",
+          afterLines,
+          maxDynamicLines,
+          contentLength: fullContent.length
+        });
+        return;
+      }
       setMessages((prev) => {
         for (let i = prev.length - 1; i >= 0; i--) {
           const m = prev[i];
@@ -87260,18 +90076,22 @@ function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, 
       }
       return prev;
     });
-  }, [setMessages]);
-  const scheduleStreamingFlush = (0, import_react99.useCallback)(() => {
+  }, [setMessages, stdout]);
+  const scheduleStreamingFlush = (0, import_react106.useCallback)(() => {
     if (streamFlushTimerRef.current) return;
     streamFlushTimerRef.current = setTimeout(() => {
       streamFlushTimerRef.current = null;
       flushStreamingNow();
     }, STREAM_FLUSH_MS);
   }, [flushStreamingNow]);
-  const resetStreaming = (0, import_react99.useCallback)(() => {
+  const resetStreaming = (0, import_react106.useCallback)(() => {
     if (streamFlushTimerRef.current) {
       clearTimeout(streamFlushTimerRef.current);
       streamFlushTimerRef.current = null;
+    }
+    if (pullHistoryTimeoutRef.current) {
+      clearTimeout(pullHistoryTimeoutRef.current);
+      pullHistoryTimeoutRef.current = null;
     }
     streamPendingAppendRef.current = "";
     streamTargetSubtypeRef.current = null;
@@ -87279,7 +90099,16 @@ function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, 
     accumulatedContentRef.current = "";
     splitCounterRef.current = 0;
   }, []);
-  const handleAgentMessage = (0, import_react99.useCallback)((message) => {
+  const handleAgentMessage = (0, import_react106.useCallback)((message) => {
+    if (message.metadata?.reason === "quota_update") {
+      try {
+        const info = JSON.parse(message.content);
+        setBannerInfo((prev) => prev ? { ...prev, quotaUsage: info.quota_usage ?? null } : prev);
+      } catch (e) {
+        logger.error("Failed to parse quota_update", e);
+      }
+      return;
+    }
     if (message.metadata?.reason === "banner_info" && message.metadata?.type === "banner") {
       try {
         const info = JSON.parse(message.content);
@@ -87287,12 +90116,14 @@ function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, 
           version: info.version,
           workingDir: info.working_dir || workingDir,
           agent: info.agent || "coder",
-          provider: info.provider || "li",
+          provider: info.provider || "default",
           model: info.model || model,
           prePlanMode: info.pre_plan || false,
           thinkingTokens: info.thinking_tokens,
           reasoningEffort: info.reasoning_effort,
-          parallelToolCalls: info.parallel_tool_calls
+          parallelToolCalls: info.parallel_tool_calls,
+          quotaUsage: info.quota_usage ?? null,
+          memoryEnabled: info.memory_enabled ?? true
         });
         logger.info("Banner info updated", { info });
       } catch (e) {
@@ -87428,7 +90259,7 @@ function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, 
       setMessages((prev) => [...prev, message]);
     }
   }, [setMessages, setBannerInfo, stdout, workingDir, model, flushStreamingNow, scheduleStreamingFlush]);
-  const handleToolUse = (0, import_react99.useCallback)((toolData) => {
+  const handleToolUse = (0, import_react106.useCallback)((toolData) => {
     const chunkIndex = toolData.metadata?.chunkIndex ?? 0;
     const isFinal = toolData.metadata.streamEnd;
     const content = toolData.content || "";
@@ -87468,19 +90299,51 @@ function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, 
       streamPendingAppendRef.current = "";
       currentStreamingMessageRef.current = null;
       accumulatedContentRef.current = "";
+      setMessages((prev) => {
+        let finalContent = content;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].metadata?.subtype === "tool_use") {
+            finalContent = prev[i].content || content;
+            break;
+          }
+        }
+        const parsed = parseTodoWriteContent(finalContent);
+        if (parsed !== null) {
+          setTodoItems(parsed);
+          const currentMsgCount = prev.length;
+          setTodoMessageRanges((prevRanges) => {
+            const next = new Map(prevRanges);
+            for (const [key, range] of next.entries()) {
+              if (range.endIdx === null) {
+                const stillInProgress = parsed.some((t) => t.content === key && t.status === "in_progress");
+                if (!stillInProgress) {
+                  next.set(key, { ...range, endIdx: currentMsgCount });
+                }
+              }
+            }
+            for (const todo of parsed) {
+              if (todo.status === "in_progress" && !next.has(todo.content)) {
+                next.set(todo.content, { startIdx: currentMsgCount, endIdx: null });
+              }
+            }
+            return next;
+          });
+        }
+        return prev;
+      });
     }
-  }, [setMessages, flushStreamingNow]);
+  }, [setMessages, flushStreamingNow, setTodoItems, setTodoMessageRanges]);
   return { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse };
 }
 
 // src/hooks/useAcp/events/index.ts
-var import_react100 = __toESM(require_react(), 1);
+var import_react107 = __toESM(require_react(), 1);
 
 // src/acp/client.ts
 import { EventEmitter as EventEmitter6 } from "events";
 
 // src/acp/adapter.ts
-import { spawn as spawn2 } from "child_process";
+import { spawn as spawn3 } from "child_process";
 import { EventEmitter as EventEmitter5 } from "events";
 var MAX_RESTART_ATTEMPTS = 3;
 var RESTART_DELAY = 2e3;
@@ -87587,10 +90450,14 @@ ${input}
     }
     try {
       const spawnStart = Date.now();
-      this.process = spawn2(command, args, {
+      this.process = spawn3(command, args, {
         cwd: config.workingDir,
         stdio: ["pipe", "pipe", "pipe"],
-        env: env3
+        env: env3,
+        // On Windows, hide the console window that Node.js would otherwise
+        // create for the spawned Python subprocess. Without this flag a blank
+        // black cmd window pops up every time the backend process starts.
+        windowsHide: true
       });
       logger.info(`[PERF][adapter] Python process spawned (pid=${this.process.pid}) | +${Date.now() - startTime}ms since adapter.start()`);
       this.setupEventHandlers();
@@ -87748,36 +90615,6 @@ ${input}
         });
         this.messageBuffer = this.messageBuffer.substring(this.messageBuffer.length / 2);
       }
-      if (!this.isReady) {
-        const readyIndicators = [
-          ">"
-          // Input prompt
-        ];
-        const foundIndicator = readyIndicators.find(
-          (indicator) => chunk.includes(indicator)
-        );
-        if (foundIndicator) {
-          logger.info("\u2705 Detected siada-cli ready signal", {
-            component: "Adapter",
-            operation: "stdout",
-            indicator: foundIndicator,
-            preview: chunk.substring(0, 200)
-          });
-          if (!this.isReady) {
-            this.isReady = true;
-            if (this.readyResolver) {
-              this.readyResolver();
-              this.readyResolver = null;
-            }
-          }
-        } else {
-          logger.debug("\u274C No ready indicator found in output", {
-            component: "Adapter",
-            operation: "stdout",
-            preview: chunk.substring(0, 200)
-          });
-        }
-      }
       logger.debug("Adding chunk to message buffer", {
         component: "Adapter",
         operation: "stdout",
@@ -87873,8 +90710,19 @@ ${input}
           const lastSubLineRaw = subLines[subLines.length - 1] ?? "";
           const lastSubLine = lastSubLineRaw.trim();
           if (lastSubLine) {
-            if (lastSubLine.startsWith("{") && !lastSubLine.endsWith("}")) {
-              remainingBuffer = lastSubLine;
+            if (lastSubLine.startsWith("{")) {
+              try {
+                JSON.parse(lastSubLine);
+                linesToProcess.push(lastSubLine);
+              } catch (err) {
+                logger.info("Incomplete JSON in last sub-line, buffering for next chunk", {
+                  length: lastSubLine.length,
+                  preview: lastSubLine.slice(0, 200),
+                  tail: lastSubLine.slice(-200),
+                  error: err instanceof Error ? err.message : String(err)
+                });
+                remainingBuffer = lastSubLine;
+              }
             } else {
               linesToProcess.push(lastSubLine);
             }
@@ -88002,6 +90850,25 @@ ${input}
           this.emit("ui:showPluginManager", json2.params);
           return true;
         }
+        if (json2.method === "ui/showSideQuestion") {
+          logger.info("Received ui/showSideQuestion notification", {
+            component: "Adapter",
+            operation: "tryParseACPJson",
+            questionLen: json2.params?.question?.length ?? 0,
+            answerLen: json2.params?.answer?.length ?? 0
+          });
+          this.emit("ui:showSideQuestion", json2.params);
+          return true;
+        }
+        if (json2.method === "ui/memoryStatusChanged") {
+          logger.info("Received ui/memoryStatusChanged notification", {
+            component: "Adapter",
+            operation: "tryParseACPJson",
+            enabled: json2.params?.enabled
+          });
+          this.emit("ui:memoryStatusChanged", json2.params);
+          return true;
+        }
         if (json2.method === "ui/pluginInstallProgress") {
           this.emit("ui:pluginInstallProgress", json2.params);
           return true;
@@ -88013,6 +90880,24 @@ ${input}
             messageCount: json2.params?.messages?.length || 0
           });
           this.emit("ui:loadHistory", json2.params);
+          return true;
+        }
+        if (json2.method === "ui/appendHistory") {
+          logger.info("Received ui/appendHistory notification", {
+            component: "Adapter",
+            operation: "tryParseACPJson",
+            messageCount: json2.params?.messages?.length || 0
+          });
+          this.emit("ui:appendHistory", json2.params);
+          return true;
+        }
+        if (json2.method === "session/pullHistoryDone") {
+          logger.info("Received session/pullHistoryDone notification", {
+            component: "Adapter",
+            operation: "tryParseACPJson",
+            signature: json2.params?.signature
+          });
+          this.emit("session:pullHistoryDone", json2.params);
           return true;
         }
         if (json2.method === "ui/showLoginSelector") {
@@ -88047,6 +90932,25 @@ ${input}
             operation: "tryParseACPJson"
           });
           this.emit("ui:loginDismiss", json2.params);
+          return true;
+        }
+        if (json2.method === "context/todoState") {
+          logger.info("Received context/todoState notification", {
+            component: "Adapter",
+            operation: "tryParseACPJson",
+            todoCount: json2.params?.todos?.length || 0
+          });
+          this.emit("context:todoState", json2.params);
+          return true;
+        }
+        if (json2.method === "context/goalState") {
+          logger.info("Received context/goalState notification", {
+            component: "Adapter",
+            operation: "tryParseACPJson",
+            goalStatus: json2.params?.goal?.status,
+            verifying: json2.params?.verifying
+          });
+          this.emit("context:goalState", json2.params);
           return true;
         }
         logger.debug("Received ACP message", {
@@ -88144,6 +91048,22 @@ ${input}
       case "lifecycle_event":
         this.handleLifecycleEvent(params);
         break;
+      case "cache_status":
+        logger.info("\u{1F4CA} Cache status received", {
+          component: "Adapter",
+          operation: "handleACPSessionUpdate",
+          contentLength: content.length
+        });
+        try {
+          const cacheData = JSON.parse(content);
+          this.emit("cacheStatus", cacheData);
+        } catch (e) {
+          logger.warn("Failed to parse cache_status content", {
+            component: "Adapter",
+            error: e
+          });
+        }
+        break;
       case "banner_info":
         logger.info("\u{1F4CB} Banner info received", {
           component: "Adapter",
@@ -88199,7 +91119,34 @@ ${input}
           timestamp: (/* @__PURE__ */ new Date()).toISOString()
         };
         this.emit("message", bannerEvent);
+        if (!this.isReady && this.readyResolver) {
+          logger.info("[Adapter] [waitForReady] siada-cli ready signal received (banner_info)", {
+            component: "Adapter",
+            operation: "waitForReady"
+          });
+          this.isReady = true;
+          const resolver = this.readyResolver;
+          this.readyResolver = null;
+          resolver();
+        }
         break;
+      case "session_title": {
+        this.emit("session:title", content);
+        break;
+      }
+      case "quota_update": {
+        const quotaEvent = {
+          type: "message",
+          data: {
+            content,
+            blockType: "system",
+            metadata: { reason: "quota_update" }
+          },
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        this.emit("message", quotaEvent);
+        break;
+      }
       case "input_ready":
         if (metadata.animation_control === "stop") {
           logger.info("\u{1F6D1} Animation control: STOP (input ready)", {
@@ -88243,6 +91190,14 @@ ${input}
           this.emit("animation:start");
         }
         break;
+      case "queue_item_consumed":
+        logger.info("\u{1F5D1}\uFE0F Queue item consumed", {
+          component: "Adapter",
+          operation: "handleACPSessionUpdate",
+          queueId: metadata.id
+        });
+        this.emit("queue:itemConsumed", { id: metadata.id, content: metadata.content });
+        break;
       default:
         logger.warn("Unknown session update reason", {
           component: "Adapter",
@@ -88257,9 +91212,15 @@ ${input}
     const startTime = Date.now();
     let input = "";
     switch (message.method) {
-      case "agent/execute":
-        input = message.params.prompt;
+      case "agent/execute": {
+        const { prompt, image_paths, queue_id } = message.params;
+        input = JSON.stringify({
+          prompt,
+          ...image_paths && image_paths.length > 0 ? { image_paths } : {},
+          ...queue_id ? { queue_id } : {}
+        });
         break;
+      }
       case "agent/stop":
         input = "";
         break;
@@ -88336,7 +91297,7 @@ ${input}
     }
   }
   async sendRawInput(input, meta) {
-    if (!this.process || !this.isReady) {
+    if (!this.isProcessRunning()) {
       const error = new Error("Adapter not ready");
       logger.error("Cannot send raw input: adapter not ready", error, {
         component: "Adapter",
@@ -88363,16 +91324,12 @@ ${input}
         operation: "waitForReady",
         timeout
       });
-      let hasOutput = false;
-      const checkInterval = 500;
-      const minWaitTime = 1500;
       const startTime = Date.now();
       const timer = setTimeout(() => {
         logger.warn("Timeout waiting for siada-cli ready signal, proceeding anyway", {
           component: "Adapter",
           operation: "waitForReady",
-          timeout,
-          hadOutput: hasOutput
+          timeout
         });
         this.readyResolver = null;
         resolve();
@@ -88384,33 +91341,8 @@ ${input}
           elapsedTime: Date.now() - startTime
         });
         clearTimeout(timer);
-        if (intervalTimer) clearInterval(intervalTimer);
         resolve();
       };
-      const intervalTimer = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        if (this.messageBuffer.length > 0) {
-          hasOutput = true;
-        }
-        if (!this.isReady && this.readyResolver) {
-          if (hasOutput && elapsed >= minWaitTime || elapsed >= minWaitTime * 2) {
-            logger.info("Minimum wait time elapsed, marking as ready", {
-              component: "Adapter",
-              operation: "waitForReady",
-              elapsedTime: elapsed,
-              hadOutput: hasOutput,
-              bufferSize: this.messageBuffer.length
-            });
-            clearTimeout(timer);
-            clearInterval(intervalTimer);
-            this.isReady = true;
-            this.readyResolver();
-            this.readyResolver = null;
-          }
-        } else if (this.isReady) {
-          clearInterval(intervalTimer);
-        }
-      }, checkInterval);
     });
   }
   /**
@@ -88562,10 +91494,47 @@ ${input}
     }
   }
   /**
-   * Check if adapter is ready
+   * Send a JSON-RPC notification to the backend (no id, no response expected).
+   * Used for lightweight frontend→backend signals like session/pullHistory.
+   */
+  sendNotification(method, params) {
+    if (!this.process || !this.process.stdin) {
+      logger.warn("Cannot send notification: process or stdin not available", {
+        component: "Adapter",
+        operation: "sendNotification",
+        method
+      });
+      return;
+    }
+    const notification = JSON.stringify({
+      jsonrpc: "2.0",
+      method,
+      params: params || {}
+    });
+    const writeData = `<<<SIADA_MSG_START>>>
+${notification}
+<<<SIADA_MSG_END>>>
+`;
+    logger.info("Sending JSON-RPC notification to backend", {
+      component: "Adapter",
+      operation: "sendNotification",
+      method,
+      params
+    });
+    this.process.stdin.write(writeData);
+  }
+  /**
+   * Check if connected
    */
   isAdapterReady() {
-    return this.isReady && this.process !== null;
+    return this.isReady && !!this.process && this.process.exitCode === null;
+  }
+  /**
+   * Check if the child process is running (even before it is fully "ready").
+   * Used by sendLoginChoice to allow sending during the startup login window.
+   */
+  isProcessRunning() {
+    return !!this.process && !this.process.killed && this.process.exitCode === null;
   }
   // ============================================================================
   // Lifecycle Event Handlers
@@ -89407,6 +92376,14 @@ var SiadaACPClient = class extends EventEmitter6 {
       });
       this.emit("checkpoints:update", checkpoints);
     });
+    this.adapter.on("session:title", (title) => {
+      logger.info("Session title received", {
+        component: "Client",
+        operation: "session_title",
+        title
+      });
+      this.emit("session:title", title);
+    });
     this.adapter.on("session:id", (sessionId) => {
       logger.info("Session ID received", {
         component: "Client",
@@ -89432,6 +92409,14 @@ var SiadaACPClient = class extends EventEmitter6 {
       });
       this.emit("tokenUsage", data);
     });
+    this.adapter.on("cacheStatus", (data) => {
+      logger.debug("Cache status received", {
+        component: "Client",
+        operation: "cache_status",
+        hitRate: data?.hit_rate
+      });
+      this.emit("cacheStatus", data);
+    });
     this.adapter.on("interactive:input", (data) => {
       logger.info("Interactive input request received", {
         component: "Client",
@@ -89449,6 +92434,14 @@ var SiadaACPClient = class extends EventEmitter6 {
         reason: data.reason
       });
       this.emit("interactive:cancel", data);
+    });
+    this.adapter.on("session:pullHistoryDone", (data) => {
+      logger.info("Session pullHistoryDone received", {
+        component: "Client",
+        operation: "session_pullHistoryDone",
+        messageCount: data?.messages?.length || 0
+      });
+      this.emit("session:pullHistoryDone", data);
     });
   }
   /**
@@ -89613,7 +92606,7 @@ var SiadaACPClient = class extends EventEmitter6 {
   /**
    * Send a message to siada-cli
    */
-  async sendMessage(content) {
+  async sendMessage(content, imagePaths, options) {
     if (!this.connected) {
       const error = new Error("Not connected to siada-cli");
       logger.error("Cannot send message: not connected", error, {
@@ -89634,7 +92627,7 @@ var SiadaACPClient = class extends EventEmitter6 {
     });
     const message = {
       method: "agent/execute",
-      params: { prompt: content },
+      params: imagePaths && imagePaths.length > 0 ? { prompt: content, image_paths: imagePaths, ...options?.queueId ? { queue_id: options.queueId } : {} } : { prompt: content, ...options?.queueId ? { queue_id: options.queueId } : {} },
       id: messageId
     };
     try {
@@ -89656,7 +92649,7 @@ var SiadaACPClient = class extends EventEmitter6 {
     }
   }
   async sendLoginChoice(choice, payload) {
-    if (!this.connected) {
+    if (!this.connected && !this.adapter.isProcessRunning()) {
       const error = new Error("Not connected to siada-cli");
       logger.error("Cannot send login choice: not connected", error, {
         component: "Client",
@@ -89698,6 +92691,20 @@ var SiadaACPClient = class extends EventEmitter6 {
     }
   }
   /**
+   * Send a JSON-RPC notification to the backend (fire-and-forget).
+   * Used for lightweight signals like session/pullHistory.
+   */
+  sendNotification(method, params) {
+    this.adapter.sendNotification(method, params);
+  }
+  /**
+   * Tell the backend to discard all queued (not-yet-consumed) pending prompts.
+   * Fire-and-forget — backend clears _pending_injections deque.
+   */
+  cancelPendingQueue() {
+    this.adapter.sendNotification("queue/cancelPending", {});
+  }
+  /**
    * Send interrupt signal to agent (Ctrl+C)
    */
   async interrupt() {
@@ -89731,13 +92738,13 @@ var SiadaACPClient = class extends EventEmitter6 {
   /**
    * Read file content
    */
-  async readFile(path5) {
+  async readFile(path7) {
     if (!this.connected) {
       throw new Error("Not connected to siada-cli");
     }
     const message = {
       method: "files/read",
-      params: { path: path5 },
+      params: { path: path7 },
       id: this.generateMessageId()
     };
     await this.adapter.sendMessage(message);
@@ -89789,6 +92796,17 @@ var SiadaACPClient = class extends EventEmitter6 {
   }
 };
 
+// src/utils/terminalTitle.ts
+function setTerminalTitle(title) {
+  const clean = title.replace(/[\x00-\x1f\x7f]/g, "").trim();
+  if (!clean) return;
+  if (process.platform === "win32") {
+    process.title = clean;
+    return;
+  }
+  process.stdout.write(`\x1B]0;${clean}\x07`);
+}
+
 // src/hooks/useAcp/events/index.ts
 function useClientEvents(config, handlers) {
   const {
@@ -89799,20 +92817,33 @@ function useClientEvents(config, handlers) {
     setInteractiveInput,
     setLoginState,
     setMessages,
+    setTodoItems,
+    setTodoMessageRanges,
+    setGoalState,
+    messagesRef,
     clientRef,
     currentSessionIdRef,
+    pendingHistoryRef,
+    historyBufferRef,
+    pendingUserMessageIdRef,
+    pullHistoryTimeoutRef,
+    setBannerInfo,
+    setCacheStatus,
     handleAgentMessage,
     handleToolUse,
     flushStreamingNow,
     resetStreaming
   } = handlers;
-  (0, import_react100.useEffect)(() => {
+  (0, import_react107.useEffect)(() => {
     let mounted = true;
+    const consumedIds = /* @__PURE__ */ new Set();
     const initClient = async () => {
       try {
         const _acpStart = Date.now();
         logger.info(`[PERF][acp] initClient start`);
         const acpClient = new SiadaACPClient(config);
+        logger.info(`[PERF][acp] SiadaACPClient created | +${Date.now() - _acpStart}ms`);
+        clientRef.current = acpClient;
         acpClient.on("connected", () => {
           if (mounted) {
             logger.info(`[PERF][acp] Client connected | +${Date.now() - _acpStart}ms`);
@@ -89869,12 +92900,25 @@ function useClientEvents(config, handlers) {
               setMessages([]);
               setTokenUsage(null);
               resetStreaming();
+              consumedIds.clear();
+              pendingHistoryRef.current = false;
+              historyBufferRef.current = [];
+              pendingUserMessageIdRef.current = null;
+              if (pullHistoryTimeoutRef.current) {
+                clearTimeout(pullHistoryTimeoutRef.current);
+                pullHistoryTimeoutRef.current = null;
+              }
               logger.info("Session changed, cleared message history", { previousSessionId, sessionId });
             }
             currentSessionIdRef.current = sessionId;
             Promise.resolve().then(() => (init_checkpointService(), checkpointService_exports)).then(({ checkpointService: checkpointService2 }) => {
               checkpointService2.setSessionId(sessionId);
             });
+          }
+        });
+        acpClient.on("session:title", (title) => {
+          if (mounted) {
+            setTerminalTitle(title);
           }
         });
         acpClient.on("project:hash", (projectHash) => {
@@ -89889,11 +92933,38 @@ function useClientEvents(config, handlers) {
             setTokenUsage({ contextSize: data.contextSize, contextMax: data.contextMax, message: data.message });
           }
         });
+        acpClient.on("cacheStatus", (data) => {
+          if (mounted) {
+            logger.info("[CacheStatus] received", {
+              component: "useClientEvents",
+              totalCost: data.accumulated_total_cost,
+              timeSeconds: data.cost_time_seconds
+            });
+            setCacheStatus(data);
+          }
+        });
         acpClient.on("animation:stop", () => {
           if (mounted) setLoading(false);
         });
         acpClient.on("animation:start", () => {
           if (mounted) setLoading(true);
+        });
+        acpClient.adapter.on("queue:itemConsumed", (data) => {
+          if (mounted && data?.id) {
+            const item = promptQueueStore.getById(data.id);
+            const content = item ? item.content : data.content;
+            if (content && !consumedIds.has(data.id)) {
+              consumedIds.add(data.id);
+              setMessages((prev) => [...prev, {
+                id: `user_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+                type: "user",
+                content,
+                timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+                author: "You"
+              }]);
+            }
+            promptQueueStore.removeById(data.id);
+          }
         });
         acpClient.on("interactive:input", (data) => {
           if (mounted) {
@@ -89912,7 +92983,7 @@ function useClientEvents(config, handlers) {
               setMessages((prev) => [...prev, {
                 id: `system_${Date.now()}`,
                 type: "system",
-                content: "Interactive input cancelled: command timed out",
+                content: "Command timed out",
                 timestamp: (/* @__PURE__ */ new Date()).toISOString(),
                 author: "System"
               }]);
@@ -89948,6 +93019,29 @@ function useClientEvents(config, handlers) {
         acpClient.on("stderr", (message) => {
           if (mounted) logger.warn("stderr", { preview: message.substring(0, 200) });
         });
+        acpClient.adapter.on("startup:error", (params) => {
+          if (!mounted) return;
+          const errMsg = params?.content || "Unknown startup error";
+          logger.error("Startup error from backend", new Error(errMsg));
+          setLoading(false);
+          setConnectionStatus({
+            connected: false,
+            connecting: false,
+            ready: false,
+            error: errMsg
+          });
+          setMessages((prev) => [...prev, {
+            id: `startup_error_${Date.now()}`,
+            type: "error",
+            content: `Startup failed: ${errMsg}
+
+The backend exited. Please fix the configuration (e.g. ~/.siada-cli/conf.yaml) and restart.`,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+            author: "System"
+          }]);
+          setInteractiveInput(null);
+          setLoginState(null);
+        });
         acpClient.adapter.on("ui:showLoginSelector", (params) => {
           if (mounted) {
             process.stdout?.write("\x1B[2J\x1B[H");
@@ -89977,7 +93071,120 @@ function useClientEvents(config, handlers) {
             setLoginState(null);
           }
         });
+        acpClient.on("session:pullHistoryDone", (data) => {
+          if (mounted) {
+            if (pullHistoryTimeoutRef.current) {
+              clearTimeout(pullHistoryTimeoutRef.current);
+              pullHistoryTimeoutRef.current = null;
+            }
+            const pendingUserMsgId = pendingUserMessageIdRef.current;
+            pendingHistoryRef.current = false;
+            pendingUserMessageIdRef.current = null;
+            historyBufferRef.current = [];
+            const rawMessages = data?.messages || [];
+            if (rawMessages.length > 0) {
+              const normalizedMessages = rawMessages.map((m, i) => ({
+                id: `history_${Date.now()}_${i}`,
+                type: m.type || (m.role === "user" ? "user" : "agent"),
+                content: m.content || "",
+                timestamp: m.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+                author: m.author || (m.role === "user" ? "You" : "Siada"),
+                metadata: m.subtype ? { subtype: m.subtype } : void 0
+              }));
+              logger.info("\u{1F4E5} pullHistoryDone: inserting history messages", {
+                component: "useACP",
+                operation: "pullHistoryDone",
+                count: normalizedMessages.length,
+                pendingUserMessageId: pendingUserMsgId
+              });
+              setMessages((prev) => {
+                const userIdx = pendingUserMsgId ? prev.findIndex((m) => m.id === pendingUserMsgId) : -1;
+                if (userIdx >= 0) {
+                  const before = prev.slice(0, userIdx);
+                  const after = prev.slice(userIdx);
+                  return [...before, ...normalizedMessages, ...after];
+                }
+                return [...prev, ...normalizedMessages];
+              });
+            } else {
+              logger.info("\u{1F4E5} pullHistoryDone: no history messages", {
+                component: "useACP",
+                operation: "pullHistoryDone"
+              });
+            }
+          }
+        });
+        const todoItemsLocal = { current: [] };
+        const todoRangesLocal = { current: /* @__PURE__ */ new Map() };
+        const handleTodoState = (params) => {
+          if (!mounted) return;
+          const newItems = params?.todos ?? [];
+          const ranges2 = todoRangesLocal.current;
+          const prevInProgressKeys = new Set(
+            todoItemsLocal.current.filter((t) => t.status === "in_progress").map((t) => t.content)
+          );
+          const newInProgressKeys = new Set(
+            newItems.filter((t) => t.status === "in_progress").map((t) => t.content)
+          );
+          for (const key of prevInProgressKeys) {
+            if (!newInProgressKeys.has(key)) {
+              const range = ranges2.get(key);
+              if (range && range.endIdx === null) {
+                ranges2.set(key, { ...range, endIdx: messagesRef.current.length });
+              }
+            }
+          }
+          for (const key of newInProgressKeys) {
+            if (!prevInProgressKeys.has(key)) {
+              ranges2.set(key, { startIdx: messagesRef.current.length, endIdx: null });
+            }
+          }
+          if (newItems.length === 0) {
+            for (const [key, range] of ranges2.entries()) {
+              if (range.endIdx === null) {
+                ranges2.set(key, { ...range, endIdx: messagesRef.current.length });
+              }
+            }
+          }
+          todoItemsLocal.current = newItems;
+          setTodoItems([...newItems]);
+          setTodoMessageRanges((prev) => {
+            const merged = new Map(prev);
+            for (const [key, range] of ranges2.entries()) {
+              merged.set(key, range);
+            }
+            return merged;
+          });
+          logger.debug("[TodoState] updated", { count: newItems.length });
+        };
+        acpClient.adapter.on("context:todoState", handleTodoState);
+        const handleGoalState = (params) => {
+          if (!mounted) return;
+          setGoalState(params);
+          logger.debug("[GoalState] updated", { status: params?.goal?.status, verifying: params?.verifying });
+        };
+        acpClient.adapter.on("context:goalState", handleGoalState);
+        acpClient.adapter.on("ui:appendHistory", (data) => {
+          if (mounted && data?.messages?.length) {
+            const normalizedMessages = data.messages.map((m, i) => ({
+              id: `history_${Date.now()}_${i}`,
+              type: m.type || (m.role === "user" ? "user" : "agent"),
+              content: m.content || "",
+              timestamp: m.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+              author: m.author || (m.role === "user" ? "You" : "Siada"),
+              metadata: m.subtype ? { subtype: m.subtype } : void 0
+            }));
+            setMessages((prev) => [...prev, ...normalizedMessages]);
+          }
+        });
+        acpClient.adapter.on("ui:memoryStatusChanged", (params) => {
+          if (mounted) {
+            logger.info("Memory status changed", { component: "useClientEvents", enabled: params?.enabled });
+            setBannerInfo((prev) => prev ? { ...prev, memoryEnabled: params.enabled } : prev);
+          }
+        });
         await acpClient.connect();
+        logger.info(`[PERF][acp] connect() resolved | +${Date.now() - _acpStart}ms`);
         if (mounted) {
           setClient(acpClient);
           clientRef.current = acpClient;
@@ -90016,12 +93223,19 @@ function useClientEvents(config, handlers) {
 function useACP(config) {
   const state = useACPState();
   const { stdout } = use_stdout_default2();
+  (0, import_react108.useEffect)(() => {
+    state.messagesRef.current = state.messages;
+  }, [state.messages]);
   const { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse } = useStreamingMessages({
     setMessages: state.setMessages,
     setBannerInfo: state.setBannerInfo,
     stdout,
     workingDir: config.workingDir,
-    model: config.model
+    model: config.model,
+    pullHistoryTimeoutRef: state.pullHistoryTimeoutRef,
+    messagesRef: state.messagesRef,
+    setTodoItems: state.setTodoItems,
+    setTodoMessageRanges: state.setTodoMessageRanges
   });
   useClientEvents(config, {
     setClient: state.setClient,
@@ -90031,14 +93245,24 @@ function useACP(config) {
     setInteractiveInput: state.setInteractiveInput,
     setLoginState: state.setLoginState,
     setMessages: state.setMessages,
+    setTodoItems: state.setTodoItems,
+    setTodoMessageRanges: state.setTodoMessageRanges,
+    setGoalState: state.setGoalState,
+    messagesRef: state.messagesRef,
     clientRef: state.clientRef,
     currentSessionIdRef: state.currentSessionIdRef,
+    pendingHistoryRef: state.pendingHistoryRef,
+    historyBufferRef: state.historyBufferRef,
+    pendingUserMessageIdRef: state.pendingUserMessageIdRef,
+    pullHistoryTimeoutRef: state.pullHistoryTimeoutRef,
+    setBannerInfo: state.setBannerInfo,
+    setCacheStatus: state.setCacheStatus,
     handleAgentMessage,
     handleToolUse,
     flushStreamingNow,
     resetStreaming
   });
-  const sendMessage = (0, import_react101.useCallback)(async (content) => {
+  const sendMessage = (0, import_react108.useCallback)(async (content, imagePaths, options) => {
     if (!state.client) {
       state.setMessages((prev) => [...prev, {
         id: `warning_${Date.now()}`,
@@ -90059,15 +93283,66 @@ function useACP(config) {
       }]);
       return;
     }
-    state.setMessages((prev) => [...prev, {
-      id: `user_${Date.now()}`,
-      type: "user",
-      content,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      author: "You"
-    }]);
+    if (options?.queueId) {
+      try {
+        await state.client.sendMessage(content, imagePaths, options);
+      } catch (error) {
+        state.setMessages((prev) => [...prev, {
+          id: `error_${Date.now()}`,
+          type: "error",
+          content: `Failed to send message: ${error instanceof Error ? error.message : "Unknown error"}`,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          author: "System"
+        }]);
+      }
+      return;
+    }
+    const trimmedContent = content.trim();
+    const isBtwCommand = trimmedContent === "/btw" || trimmedContent.startsWith("/btw ");
+    const userMsgId = `user_${Date.now()}`;
+    state.pendingHistoryRef.current = true;
+    state.historyBufferRef.current = [];
+    state.pendingUserMessageIdRef.current = isBtwCommand ? null : userMsgId;
+    state.client.sendNotification("session/pullHistory", {});
+    if (state.pullHistoryTimeoutRef.current) {
+      clearTimeout(state.pullHistoryTimeoutRef.current);
+    }
+    state.pullHistoryTimeoutRef.current = setTimeout(() => {
+      if (state.pendingHistoryRef.current) {
+        logger.warn("pullHistory timeout, flushing buffer before user message", {
+          component: "useACP",
+          operation: "pullHistory_timeout"
+        });
+        const buffered = state.historyBufferRef.current;
+        const pendingId = state.pendingUserMessageIdRef.current;
+        state.historyBufferRef.current = [];
+        state.pendingHistoryRef.current = false;
+        state.pendingUserMessageIdRef.current = null;
+        if (buffered.length > 0) {
+          state.setMessages((prev) => {
+            const userIdx = pendingId ? prev.findIndex((m) => m.id === pendingId) : -1;
+            if (userIdx >= 0) {
+              const before = prev.slice(0, userIdx);
+              const after = prev.slice(userIdx);
+              return [...before, ...buffered, ...after];
+            }
+            return [...prev, ...buffered];
+          });
+        }
+      }
+      state.pullHistoryTimeoutRef.current = null;
+    }, 3e3);
+    if (!isBtwCommand) {
+      state.setMessages((prev) => [...prev, {
+        id: userMsgId,
+        type: "user",
+        content,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        author: "You"
+      }]);
+    }
     try {
-      await state.client.sendMessage(content);
+      await state.client.sendMessage(content, imagePaths, options);
     } catch (error) {
       state.setMessages((prev) => [...prev, {
         id: `error_${Date.now()}`,
@@ -90079,30 +93354,35 @@ function useACP(config) {
       state.setLoading(false);
     }
   }, [state.client]);
-  const stopExecution = (0, import_react101.useCallback)(async () => {
+  const cancelPendingQueue = (0, import_react108.useCallback)(() => {
+    state.client?.cancelPendingQueue();
+  }, [state.client]);
+  const stopExecution = (0, import_react108.useCallback)(async (showInterruptMessage = true) => {
     if (!state.client || !state.client.isConnected()) return;
     try {
       await state.client.interrupt();
       state.setInteractiveInput(null);
-      state.setMessages((prev) => [...prev, {
-        id: `system_${Date.now()}`,
-        type: "system",
-        content: "Execution interrupted, Ctrl+C again to exit",
-        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        author: "System"
-      }]);
+      if (showInterruptMessage) {
+        state.setMessages((prev) => [...prev, {
+          id: `system_${Date.now()}`,
+          type: "system",
+          content: "Execution interrupted, Ctrl+C again to exit",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          author: "System"
+        }]);
+      }
     } catch (error) {
       logger.error("Failed to interrupt execution", error);
       state.setInteractiveInput(null);
     }
   }, [state.client]);
-  const addMessage = (0, import_react101.useCallback)((message) => {
+  const addMessage = (0, import_react108.useCallback)((message) => {
     state.setMessages((prev) => [...prev, message]);
   }, []);
-  const updateMessage = (0, import_react101.useCallback)((id, updates) => {
+  const updateMessage = (0, import_react108.useCallback)((id, updates) => {
     state.setMessages((prev) => prev.map((msg) => msg.id === id ? { ...msg, ...updates } : msg));
   }, []);
-  const sendInteractiveInput = (0, import_react101.useCallback)(async (input) => {
+  const sendInteractiveInput = (0, import_react108.useCallback)(async (input) => {
     if (!state.client || !state.client.isConnected()) return;
     try {
       await state.client.sendMessage(input);
@@ -90113,11 +93393,13 @@ function useACP(config) {
       state.setInteractiveInput(null);
     }
   }, [state.client]);
-  const clearMessages = (0, import_react101.useCallback)(() => {
+  const clearMessages = (0, import_react108.useCallback)(() => {
+    recordFlicker("clearMessages", `useACP.clearMessages \u2014 clearing ${state.messagesRef.current?.length ?? 0} messages`);
     state.setMessages([]);
   }, []);
   return {
     client: state.client,
+    clientRef: state.clientRef,
     messages: state.messages,
     connectionStatus: state.connectionStatus,
     loading: state.loading,
@@ -90128,21 +93410,26 @@ function useACP(config) {
     sendMessage,
     sendInteractiveInput,
     stopExecution,
+    cancelPendingQueue,
     addMessage,
     updateMessage,
     clearMessages,
-    sessionId: state.currentSessionIdRef.current
+    sessionId: state.currentSessionIdRef.current,
+    cacheStatus: state.cacheStatus,
+    todoItems: state.todoItems,
+    todoMessageRanges: state.todoMessageRanges,
+    goalState: state.goalState
   };
 }
 
 // src/hooks/useMemoryMonitor.ts
-var import_react102 = __toESM(require_react(), 1);
+var import_react109 = __toESM(require_react(), 1);
 function useMemoryMonitor(messages, workingDir, model) {
-  const messagesRef = (0, import_react102.useRef)(messages);
-  (0, import_react102.useEffect)(() => {
+  const messagesRef = (0, import_react109.useRef)(messages);
+  (0, import_react109.useEffect)(() => {
     messagesRef.current = messages;
   }, [messages]);
-  (0, import_react102.useEffect)(() => {
+  (0, import_react109.useEffect)(() => {
     logger.info("App started", { workingDir, model });
     const interval = setInterval(() => {
       const heapUsedMB = process.memoryUsage().heapUsed / 1024 / 1024;
@@ -90161,10 +93448,10 @@ function useMemoryMonitor(messages, workingDir, model) {
 }
 
 // src/hooks/useBackendExit.ts
-var import_react103 = __toESM(require_react(), 1);
+var import_react110 = __toESM(require_react(), 1);
 function useBackendExit(client, exit) {
-  const exitCalledRef = (0, import_react103.useRef)(false);
-  (0, import_react103.useEffect)(() => {
+  const exitCalledRef = (0, import_react110.useRef)(false);
+  (0, import_react110.useEffect)(() => {
     if (!client) return;
     const handleExit = (code) => {
       if (exitCalledRef.current) return;
@@ -90180,7 +93467,7 @@ function useBackendExit(client, exit) {
 }
 
 // src/hooks/useAdapterEvents.ts
-var import_react104 = __toESM(require_react(), 1);
+var import_react111 = __toESM(require_react(), 1);
 function useAdapterEvents(client, handlers) {
   const {
     setShowSessionBrowser,
@@ -90189,9 +93476,10 @@ function useAdapterEvents(client, handlers) {
     setModelSelectorData,
     setTaskSelectorTasks,
     setInstallProgress,
-    setPluginManagerData
+    setPluginManagerData,
+    appendSideQuestion
   } = handlers;
-  (0, import_react104.useEffect)(() => {
+  (0, import_react111.useEffect)(() => {
     if (!client) return;
     const handleShowSessionBrowser = () => {
       logger.info("Received ui:showSessionBrowser");
@@ -90199,6 +93487,7 @@ function useAdapterEvents(client, handlers) {
     };
     const handleLoadHistory = (params) => {
       logger.info("Received ui:loadHistory", { messageCount: params?.messages?.length ?? 0 });
+      recordFlicker("clearMessages", `ui:loadHistory \u2014 clearing all messages before loading ${params?.messages?.length ?? 0} history items`);
       clearMessages();
       if (Array.isArray(params?.messages)) {
         for (const msg of params.messages) {
@@ -90213,6 +93502,29 @@ function useAdapterEvents(client, handlers) {
             });
           }
         }
+      }
+    };
+    const handleAppendHistory = (params) => {
+      logger.info("Received ui:appendHistory event", {
+        component: "App",
+        operation: "append_history",
+        messageCount: params?.messages?.length || 0
+      });
+      if (params?.messages && Array.isArray(params.messages)) {
+        for (const msg of params.messages) {
+          if (msg.role && msg.content) {
+            const newMessage = {
+              id: `deferred-${Date.now()}-${Math.random()}`,
+              type: msg.role === "user" ? "user" : "agent",
+              content: msg.content,
+              timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+              author: msg.role === "user" ? "User" : "Assistant",
+              metadata: msg.subtype ? { subtype: msg.subtype } : void 0
+            };
+            addMessage(newMessage);
+          }
+        }
+        logger.info(`Appended ${params.messages.length} deferred messages to UI`);
       }
     };
     const handleShowModelSelector = (params) => {
@@ -90244,19 +93556,32 @@ function useAdapterEvents(client, handlers) {
         disabledSkills: params?.disabledSkills ?? []
       });
     };
+    const handleShowSideQuestion = (params) => {
+      if (params?.question && params?.answer) {
+        logger.info("Received ui:showSideQuestion", { questionLen: params.question.length });
+        appendSideQuestion({
+          question: params.question,
+          answer: params.answer
+        });
+      }
+    };
     client.adapter.on("ui:showSessionBrowser", handleShowSessionBrowser);
     client.adapter.on("ui:loadHistory", handleLoadHistory);
+    client.adapter.on("ui:appendHistory", handleAppendHistory);
     client.adapter.on("ui:showModelSelector", handleShowModelSelector);
     client.adapter.on("ui:showTaskSelector", handleShowTaskSelector);
     client.adapter.on("ui:showPluginManager", handleShowPluginManager);
     client.adapter.on("ui:pluginInstallProgress", handlePluginInstallProgress);
+    client.adapter.on("ui:showSideQuestion", handleShowSideQuestion);
     return () => {
       client.adapter.off("ui:showSessionBrowser", handleShowSessionBrowser);
       client.adapter.off("ui:loadHistory", handleLoadHistory);
+      client.adapter.off("ui:appendHistory", handleAppendHistory);
       client.adapter.off("ui:showModelSelector", handleShowModelSelector);
       client.adapter.off("ui:showTaskSelector", handleShowTaskSelector);
       client.adapter.off("ui:showPluginManager", handleShowPluginManager);
       client.adapter.off("ui:pluginInstallProgress", handlePluginInstallProgress);
+      client.adapter.off("ui:showSideQuestion", handleShowSideQuestion);
     };
   }, [
     client,
@@ -90266,28 +93591,82 @@ function useAdapterEvents(client, handlers) {
     setModelSelectorData,
     setTaskSelectorTasks,
     setInstallProgress,
-    setPluginManagerData
+    setPluginManagerData,
+    appendSideQuestion
   ]);
 }
 
+// src/hooks/usePromptDrain.ts
+var import_react112 = __toESM(require_react(), 1);
+function usePromptDrain(loading) {
+  const prevLoadingRef = (0, import_react112.useRef)(loading);
+  (0, import_react112.useEffect)(() => {
+    const wasLoading = prevLoadingRef.current;
+    prevLoadingRef.current = loading;
+    if (!wasLoading || loading) return;
+    promptQueueStore.clear();
+  }, [loading]);
+}
+
+// src/hooks/usePromptQueueSnapshot.ts
+var import_react113 = __toESM(require_react(), 1);
+function usePromptQueueSnapshot() {
+  return (0, import_react113.useSyncExternalStore)(
+    promptQueueStore.subscribe,
+    promptQueueStore.getSnapshot
+  );
+}
+
 // src/components/App.tsx
-var LoadingView = ({ message, footer }) => /* @__PURE__ */ import_react105.default.createElement(Box_default, { flexDirection: "column", padding: 1 }, /* @__PURE__ */ import_react105.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react105.default.createElement(Text, { color: "cyan", bold: true }, "Siada CLI")), /* @__PURE__ */ import_react105.default.createElement(Box_default, null, /* @__PURE__ */ import_react105.default.createElement(Text, { color: "yellow" }, /* @__PURE__ */ import_react105.default.createElement(build_default, { type: "dots" })), /* @__PURE__ */ import_react105.default.createElement(Text, null, " ", message)), footer && /* @__PURE__ */ import_react105.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react105.default.createElement(Text, { dimColor: true }, footer)));
+var LoadingView = ({ message, footer }) => /* @__PURE__ */ import_react114.default.createElement(Box_default, { flexDirection: "column", padding: 1 }, /* @__PURE__ */ import_react114.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react114.default.createElement(Text, { color: "cyan", bold: true }, "Siada CLI")), /* @__PURE__ */ import_react114.default.createElement(Box_default, null, /* @__PURE__ */ import_react114.default.createElement(Text, { color: "yellow" }, /* @__PURE__ */ import_react114.default.createElement(build_default, { type: "dots" })), /* @__PURE__ */ import_react114.default.createElement(Text, null, " ", message)), footer && /* @__PURE__ */ import_react114.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react114.default.createElement(Text, { dimColor: true }, footer)));
 var ErrorView = ({
   title,
   message,
   hint,
   exitHint,
   errorIcon
-}) => /* @__PURE__ */ import_react105.default.createElement(Box_default, { flexDirection: "column", padding: 1 }, /* @__PURE__ */ import_react105.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react105.default.createElement(Text, { color: "red", bold: true }, errorIcon, " ", title)), /* @__PURE__ */ import_react105.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react105.default.createElement(Text, { color: "red" }, message)), /* @__PURE__ */ import_react105.default.createElement(Box_default, null, /* @__PURE__ */ import_react105.default.createElement(Text, { dimColor: true }, hint)), /* @__PURE__ */ import_react105.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react105.default.createElement(Text, { dimColor: true }, exitHint)));
+}) => /* @__PURE__ */ import_react114.default.createElement(Box_default, { flexDirection: "column", padding: 1 }, /* @__PURE__ */ import_react114.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react114.default.createElement(Text, { color: "red", bold: true }, errorIcon, " ", title)), /* @__PURE__ */ import_react114.default.createElement(Box_default, { marginBottom: 1 }, /* @__PURE__ */ import_react114.default.createElement(Text, { color: "red" }, message)), /* @__PURE__ */ import_react114.default.createElement(Box_default, null, /* @__PURE__ */ import_react114.default.createElement(Text, { dimColor: true }, hint)), /* @__PURE__ */ import_react114.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react114.default.createElement(Text, { dimColor: true }, exitHint)));
 var App3 = ({ config, onExit }) => {
   const { exit } = use_app_default();
-  const [isCollapsed, setIsCollapsed] = (0, import_react105.useState)(true);
-  const [isSubmittingLogin, setIsSubmittingLogin] = (0, import_react105.useState)(false);
-  const [showSessionBrowser, setShowSessionBrowser] = (0, import_react105.useState)(false);
-  const [modelSelectorData, setModelSelectorData] = (0, import_react105.useState)(null);
-  const [pluginManagerData, setPluginManagerData] = (0, import_react105.useState)(null);
-  const [installProgress, setInstallProgress] = (0, import_react105.useState)(null);
-  const [taskSelectorTasks, setTaskSelectorTasks] = (0, import_react105.useState)(null);
+  const [isCollapsed, setIsCollapsed] = (0, import_react114.useState)(true);
+  const [isSubmittingLogin, setIsSubmittingLogin] = (0, import_react114.useState)(false);
+  const [showSessionBrowser, setShowSessionBrowser] = (0, import_react114.useState)(false);
+  const [modelSelectorData, setModelSelectorData] = (0, import_react114.useState)(null);
+  const [pluginManagerData, setPluginManagerData] = (0, import_react114.useState)(null);
+  const [installProgress, setInstallProgress] = (0, import_react114.useState)(null);
+  const [taskSelectorTasks, setTaskSelectorTasks] = (0, import_react114.useState)(null);
+  const [sideQuestions, setSideQuestions] = (0, import_react114.useState)([]);
+  const [sideQuestionPanelVisible, setSideQuestionPanelVisible] = (0, import_react114.useState)(false);
+  const [sideQuestionNotice, setSideQuestionNotice] = (0, import_react114.useState)(null);
+  const appendPendingSideQuestion = (0, import_react114.useCallback)((question) => {
+    setSideQuestions((prev) => [
+      ...prev,
+      { question, answer: null, id: `btw-${Date.now()}-${Math.random()}` }
+    ]);
+    setSideQuestionPanelVisible(true);
+  }, []);
+  const showSideQuestionUsage = (0, import_react114.useCallback)(() => {
+    setSideQuestionNotice("Usage: /btw <your question>");
+  }, []);
+  (0, import_react114.useEffect)(() => {
+    if (!sideQuestionNotice) return;
+    const timer = setTimeout(() => setSideQuestionNotice(null), 4e3);
+    return () => clearTimeout(timer);
+  }, [sideQuestionNotice]);
+  const [goalNotice, setGoalNotice] = (0, import_react114.useState)(null);
+  (0, import_react114.useEffect)(() => {
+    if (!goalNotice) return;
+    const timer = setTimeout(() => setGoalNotice(null), 4e3);
+    return () => clearTimeout(timer);
+  }, [goalNotice]);
+  const hideSideQuestionPanel = (0, import_react114.useCallback)(() => {
+    setSideQuestionPanelVisible(false);
+  }, []);
+  (0, import_react114.useEffect)(() => {
+    if (sideQuestions.length === 0 && sideQuestionPanelVisible) {
+      setSideQuestionPanelVisible(false);
+    }
+  }, [sideQuestions.length, sideQuestionPanelVisible]);
   const icons = getIcons();
   const {
     messages,
@@ -90300,12 +93679,69 @@ var App3 = ({ config, onExit }) => {
     sendMessage,
     sendInteractiveInput,
     stopExecution,
+    cancelPendingQueue,
     addMessage,
     updateMessage,
     clearMessages,
     client,
-    sessionId
+    clientRef,
+    sessionId,
+    todoItems,
+    todoMessageRanges,
+    cacheStatus,
+    goalState
   } = useACP(config);
+  (0, import_react114.useEffect)(() => {
+    if (goalState?.notice) {
+      setGoalNotice(goalState.notice);
+    }
+  }, [goalState?.notice]);
+  (0, import_react114.useEffect)(() => {
+    if (goalState?.result) {
+      const r2 = goalState.result;
+      addMessage({
+        id: `goal_result_${Date.now()}`,
+        type: "system",
+        content: "",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        author: "System",
+        metadata: {
+          subtype: "goal_result",
+          goalResult: r2
+        }
+      });
+    }
+  }, [goalState?.result]);
+  const appendSideQuestion = (0, import_react114.useCallback)(
+    (item) => {
+      setSideQuestions((prev) => {
+        let idx = -1;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].question === item.question && prev[i].answer === null) {
+            idx = i;
+            break;
+          }
+        }
+        if (idx !== -1) {
+          return prev.map((q, i) => i === idx ? { ...q, answer: item.answer } : q);
+        }
+        return [...prev, { ...item, id: `btw-${Date.now()}-${Math.random()}` }];
+      });
+    },
+    []
+  );
+  const removeSideQuestion = (0, import_react114.useCallback)((id) => {
+    setSideQuestions((prev) => prev.filter((q) => q.id !== id));
+  }, []);
+  const clearSideQuestionsHistory = (0, import_react114.useCallback)(() => {
+    setSideQuestions((prev) => prev.length > 0 ? [prev[prev.length - 1]] : prev);
+  }, []);
+  const forkSideQuestion = (0, import_react114.useCallback)((item) => {
+    setSideQuestions([]);
+    if (item.question) {
+      setTimeout(() => sendMessage(item.question), 0);
+    }
+  }, [sendMessage]);
   useBackendExit(client, exit);
   useAdapterEvents(client, {
     setShowSessionBrowser,
@@ -90314,21 +93750,45 @@ var App3 = ({ config, onExit }) => {
     setModelSelectorData,
     setTaskSelectorTasks,
     setInstallProgress,
-    setPluginManagerData
+    setPluginManagerData,
+    appendSideQuestion
   });
-  const stableSendMessage = (0, import_react105.useCallback)((message) => {
-    sendMessage(message);
-  }, [sendMessage]);
-  const stableStopExecution = (0, import_react105.useCallback)(() => {
+  const stableSendMessage = (0, import_react114.useCallback)((message, imagePaths) => {
+    const trimmed = message.trim();
+    if (trimmed.startsWith("/btw ") || trimmed === "/btw") {
+      const question = trimmed.startsWith("/btw ") ? trimmed.slice(5).trim() : "";
+      if (!question) {
+        showSideQuestionUsage();
+        return;
+      }
+      appendPendingSideQuestion(question);
+      setTimeout(() => sendMessage(message, imagePaths), 0);
+      return;
+    }
+    if (loading) {
+      const item = promptQueueStore.enqueue(message, imagePaths);
+      sendMessage(message, imagePaths, { queueId: item.id });
+      return;
+    }
+    sendMessage(message, imagePaths);
+  }, [sendMessage, appendPendingSideQuestion, showSideQuestionUsage, loading]);
+  usePromptDrain(loading);
+  const promptQueue = usePromptQueueSnapshot();
+  const stableStopExecution = (0, import_react114.useCallback)(() => {
+    cancelPendingQueue();
+    promptQueueStore.clear();
     stopExecution();
+  }, [cancelPendingQueue, stopExecution]);
+  const stableFlushQueueAndRun = (0, import_react114.useCallback)(() => {
+    stopExecution(false);
   }, [stopExecution]);
-  const stableAddMessage = (0, import_react105.useCallback)((message) => {
+  const stableAddMessage = (0, import_react114.useCallback)((message) => {
     addMessage(message);
   }, [addMessage]);
-  const stableUpdateMessage = (0, import_react105.useCallback)((id, updates) => {
+  const stableUpdateMessage = (0, import_react114.useCallback)((id, updates) => {
     updateMessage(id, updates);
   }, [updateMessage]);
-  const handleSelectModel = (0, import_react105.useCallback)(async (modelName) => {
+  const handleSelectModel = (0, import_react114.useCallback)(async (modelName) => {
     setModelSelectorData(null);
     logger.info("Selecting model", { component: "App", operation: "select_model", modelName });
     try {
@@ -90337,7 +93797,7 @@ var App3 = ({ config, onExit }) => {
       logger.error("Failed to switch model", { component: "App", operation: "select_model_error", error });
     }
   }, [client]);
-  const handleSelectTask = (0, import_react105.useCallback)(async (task) => {
+  const handleSelectTask = (0, import_react114.useCallback)(async (task) => {
     logger.info("Selecting task", { component: "App", operation: "select_task", taskId: task.id, title: task.title });
     setTaskSelectorTasks(null);
     const actions = task.suggested_actions?.length ? "\n\nSuggested actions:\n" + task.suggested_actions.map((a) => `- ${a}`).join("\n") : "";
@@ -90348,10 +93808,10 @@ var App3 = ({ config, onExit }) => {
 ${task.description}${actions}`;
     await sendMessage(message);
   }, [sendMessage]);
-  const handleCloseTaskSelector = (0, import_react105.useCallback)(() => {
+  const handleCloseTaskSelector = (0, import_react114.useCallback)(() => {
     setTaskSelectorTasks(null);
   }, []);
-  const handlePluginAction = (0, import_react105.useCallback)(
+  const handlePluginAction = (0, import_react114.useCallback)(
     async (message) => {
       logger.info("Plugin manager action", {
         component: "App",
@@ -90365,10 +93825,16 @@ ${task.description}${actions}`;
     },
     [client]
   );
-  const handleClosePluginManager = (0, import_react105.useCallback)(() => {
+  const handleClosePluginManager = (0, import_react114.useCallback)(() => {
     setPluginManagerData(null);
   }, []);
-  (0, import_react105.useEffect)(() => {
+  (0, import_react114.useEffect)(() => {
+    if (installProgress?.percent === 100 && pluginManagerData) {
+      const t = setTimeout(() => setPluginManagerData(null), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [installProgress?.percent, pluginManagerData]);
+  (0, import_react114.useEffect)(() => {
     if (loginState?.phase === "waiting" && loginState.openBrowser && loginState.url) {
       import("child_process").then(({ exec: exec2 }) => {
         const platform2 = process.platform;
@@ -90378,23 +93844,29 @@ ${task.description}${actions}`;
       });
     }
   }, [loginState]);
-  (0, import_react105.useEffect)(() => {
+  (0, import_react114.useEffect)(() => {
     if (loginState?.phase !== "selecting") {
       setIsSubmittingLogin(false);
     }
   }, [loginState?.phase]);
-  const handleLoginSelect = (0, import_react105.useCallback)(async (choice, apiKey) => {
-    if (!client || isSubmittingLogin) {
+  const handleLoginSelect = (0, import_react114.useCallback)(async (choice, apiKey) => {
+    const activeClient = client ?? clientRef.current;
+    if (!activeClient || isSubmittingLogin) {
+      logger.warn("[handleLoginSelect] no active client yet, ignoring login choice", {
+        choice,
+        clientNull: !client,
+        clientRefNull: !clientRef.current
+      });
       return;
     }
     setIsSubmittingLogin(true);
     try {
-      await client.sendLoginChoice(choice, choice === "3" ? apiKey : void 0);
+      await activeClient.sendLoginChoice(choice, choice === "3" ? apiKey : void 0);
     } catch {
       setIsSubmittingLogin(false);
     }
-  }, [client, isSubmittingLogin]);
-  const handleResumeSession = (0, import_react105.useCallback)(async (sessionId2) => {
+  }, [client, clientRef, isSubmittingLogin]);
+  const handleResumeSession = (0, import_react114.useCallback)(async (sessionId2) => {
     try {
       if (client) {
         await client.sendMessage(`/resume ${sessionId2}`);
@@ -90404,22 +93876,32 @@ ${task.description}${actions}`;
       logger.error("Failed to resume session", { error });
     }
   }, [client]);
-  const handleCloseSessionBrowser = (0, import_react105.useCallback)(() => {
+  const handleCloseSessionBrowser = (0, import_react114.useCallback)(() => {
     setShowSessionBrowser(false);
   }, []);
   useMemoryMonitor(messages, config.workingDir, config.model);
-  const ctrlCCountRef = (0, import_react105.useRef)(0);
-  const ctrlCTimerRef = (0, import_react105.useRef)(null);
-  const handleKeypress = (0, import_react105.useCallback)((key) => {
+  const ctrlCCountRef = (0, import_react114.useRef)(0);
+  const ctrlCTimerRef = (0, import_react114.useRef)(null);
+  const handleKeypress = (0, import_react114.useCallback)((key) => {
     if (key.ctrl && key.name === "c") {
       ctrlCCountRef.current += 1;
       if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current);
       if (ctrlCCountRef.current === 1) {
+        recordFlicker("ctrl_c_interrupt", "Ctrl+C: stopExecution + system message + queue clear", {
+          messageCount: messages.length
+        });
         stableStopExecution();
         ctrlCTimerRef.current = setTimeout(() => {
           ctrlCCountRef.current = 0;
         }, 2e3);
       } else {
+        recordFlicker("ctrl_c_interrupt", "Ctrl+C (double): exit app \u2014 clearing overlays before exit", {
+          messageCount: messages.length
+        });
+        setPluginManagerData(null);
+        setModelSelectorData(null);
+        setTaskSelectorTasks(null);
+        setShowSessionBrowser(false);
         onExit?.(sessionId);
         exit();
       }
@@ -90427,21 +93909,23 @@ ${task.description}${actions}`;
     }
     if (key.ctrl && key.name === "o") {
       setIsCollapsed((prev) => {
-        process.stdout?.write("\x1B[2J\x1B[H");
+        recordFlicker("ctrl_o_collapse", `Ctrl+O: toggle collapse mode ${prev} \u2192 ${!prev}`, {
+          messageCount: messages.length
+        });
         return !prev;
       });
     }
-  }, [stableStopExecution, onExit, sessionId, exit]);
+  }, [stableStopExecution, onExit, sessionId, exit, messages.length]);
   useKeypress(handleKeypress);
   const startupError = messages.find(
     (m) => m.type === "error" || m.metadata?.type === "startup_error"
   );
   const viewState = (() => {
+    if (loginState?.phase === "selecting") return "login_selecting";
+    if (loginState?.phase === "waiting") return "login_waiting";
     if (connectionStatus.connecting) return "connecting";
     if (connectionStatus.error && !connectionStatus.connected) return "connection_error";
     if (startupError) return "startup_error";
-    if (loginState?.phase === "selecting") return "login_selecting";
-    if (loginState?.phase === "waiting") return "login_waiting";
     if (connectionStatus.connected && !connectionStatus.ready) return "initializing";
     if (connectionStatus.ready && !bannerInfo) return "loading_config";
     if (pluginManagerData) return "plugin_manager";
@@ -90452,11 +93936,11 @@ ${task.description}${actions}`;
   })();
   switch (viewState) {
     case "connecting":
-      return /* @__PURE__ */ import_react105.default.createElement(LoadingView, { message: "Connecting to siada-cli...", footer: `Working directory: ${config.workingDir}` });
+      return /* @__PURE__ */ import_react114.default.createElement(LoadingView, { message: "Connecting to siada-cli...", footer: `Working directory: ${config.workingDir}` });
     case "initializing":
-      return /* @__PURE__ */ import_react105.default.createElement(LoadingView, { message: "Initializing agent...", footer: "Please wait while the agent starts up" });
+      return /* @__PURE__ */ import_react114.default.createElement(LoadingView, { message: "Initializing agent...", footer: "Please wait while the agent starts up" });
     case "connection_error":
-      return /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(
         ErrorView,
         {
           errorIcon: icons.error,
@@ -90467,7 +93951,7 @@ ${task.description}${actions}`;
         }
       );
     case "startup_error":
-      return /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(
         ErrorView,
         {
           errorIcon: icons.error,
@@ -90479,19 +93963,19 @@ ${task.description}${actions}`;
       );
     case "login_selecting": {
       const s = loginState;
-      return /* @__PURE__ */ import_react105.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react114.default.createElement(
         Banner,
         {
           version: bannerInfo?.version,
           workingDir: bannerInfo?.workingDir || config.workingDir,
           agent: bannerInfo?.agent || "coder",
-          provider: bannerInfo?.provider || "li",
+          provider: bannerInfo?.provider || "default",
           model: bannerInfo?.model || config.model,
           prePlanMode: bannerInfo?.prePlanMode || false,
           isCollapsed,
           showAgentInfo: false
         }
-      ), /* @__PURE__ */ import_react105.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react105.default.createElement(
+      ), /* @__PURE__ */ import_react114.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react114.default.createElement(
         LoginSelector,
         {
           onSelect: handleLoginSelect,
@@ -90504,24 +93988,24 @@ ${task.description}${actions}`;
     }
     case "login_waiting": {
       const s = loginState;
-      return /* @__PURE__ */ import_react105.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(Box_default, { flexDirection: "column" }, /* @__PURE__ */ import_react114.default.createElement(
         Banner,
         {
           version: bannerInfo?.version,
           workingDir: bannerInfo?.workingDir || config.workingDir,
           agent: bannerInfo?.agent || "coder",
-          provider: bannerInfo?.provider || "li",
+          provider: bannerInfo?.provider || "default",
           model: bannerInfo?.model || config.model,
           prePlanMode: bannerInfo?.prePlanMode || false,
           isCollapsed,
           showAgentInfo: false
         }
-      ), /* @__PURE__ */ import_react105.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react105.default.createElement(LoginWaiting, { url: s.url, openBrowser: s.openBrowser })));
+      ), /* @__PURE__ */ import_react114.default.createElement(Box_default, { marginTop: 1 }, /* @__PURE__ */ import_react114.default.createElement(LoginWaiting, { url: s.url, openBrowser: s.openBrowser })));
     }
     case "loading_config":
-      return /* @__PURE__ */ import_react105.default.createElement(LoadingView, { message: "Loading configuration..." });
+      return /* @__PURE__ */ import_react114.default.createElement(LoadingView, { message: "Loading configuration..." });
     case "plugin_manager":
-      return /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(
         PluginManager,
         {
           data: pluginManagerData,
@@ -90531,7 +94015,7 @@ ${task.description}${actions}`;
         }
       );
     case "task_selector":
-      return /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(
         TaskSelector,
         {
           tasks: taskSelectorTasks,
@@ -90540,7 +94024,7 @@ ${task.description}${actions}`;
         }
       );
     case "model_selector":
-      return /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(
         ModelSelector,
         {
           models: modelSelectorData.models,
@@ -90550,7 +94034,7 @@ ${task.description}${actions}`;
         }
       );
     case "session_browser":
-      return /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(
         SessionBrowser,
         {
           projectRoot: config.workingDir,
@@ -90560,13 +94044,13 @@ ${task.description}${actions}`;
         }
       );
     default:
-      return /* @__PURE__ */ import_react105.default.createElement(AppProvider, null, /* @__PURE__ */ import_react105.default.createElement(Box_default, { flexDirection: "column", height: "95%", flexShrink: 0, flexGrow: 0, overflow: "hidden" }, /* @__PURE__ */ import_react105.default.createElement(
+      return /* @__PURE__ */ import_react114.default.createElement(AppProvider, null, /* @__PURE__ */ import_react114.default.createElement(Box_default, { flexDirection: "column", height: "95%", flexShrink: 0, flexGrow: 0, overflow: "hidden" }, /* @__PURE__ */ import_react114.default.createElement(
         MainLayout,
         {
           version: bannerInfo?.version || "0.0.0",
           workingDir: bannerInfo?.workingDir || config.workingDir,
           agent: bannerInfo?.agent || "coder",
-          provider: bannerInfo?.provider || "li",
+          provider: bannerInfo?.provider || "default",
           model: bannerInfo?.model || config.model,
           prePlanMode: bannerInfo?.prePlanMode || false,
           messages,
@@ -90577,10 +94061,26 @@ ${task.description}${actions}`;
           onAddMessage: stableAddMessage,
           onUpdateMessage: stableUpdateMessage,
           onStopExecution: stableStopExecution,
+          onFlushQueueAndRun: stableFlushQueueAndRun,
+          onCancelPendingQueue: cancelPendingQueue,
           isCollapsed,
           interactiveInput,
           onSendInteractiveInput: sendInteractiveInput,
-          sessionId
+          sessionId,
+          sideQuestions,
+          sideQuestionNotice,
+          sideQuestionPanelVisible,
+          onHideSideQuestionPanel: hideSideQuestionPanel,
+          goalState,
+          goalNotice,
+          onClearSideQuestionsHistory: clearSideQuestionsHistory,
+          onRemoveSideQuestion: removeSideQuestion,
+          onForkSideQuestion: forkSideQuestion,
+          quotaUsage: bannerInfo?.quotaUsage ?? null,
+          promptQueue,
+          todoItems,
+          todoMessageRanges,
+          cacheStatus
         }
       )));
   }
@@ -90588,7 +94088,7 @@ ${task.description}${actions}`;
 
 // src/cli.ts
 import { readFileSync as readFileSync9 } from "fs";
-import { join as join8, dirname as dirname2 } from "path";
+import { join as join9, dirname as dirname2 } from "path";
 import { fileURLToPath } from "url";
 
 // src/utils/terminalDetector.ts
@@ -90700,9 +94200,10 @@ function createWorkingStdio() {
 // src/cli.ts
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = dirname2(__filename);
+var _T0 = Date.now();
 function readVersion() {
   try {
-    const content = readFileSync9(join8(__dirname, "../../pyproject.toml"), "utf-8");
+    const content = readFileSync9(join9(__dirname, "../../pyproject.toml"), "utf-8");
     const match = content.match(/^version\s*=\s*"([^"]+)"/m);
     return match ? match[1] : "0.1.0";
   } catch (error) {
@@ -90711,7 +94212,8 @@ function readVersion() {
   }
 }
 function configureLogger(options) {
-  if (options.debug) {
+  if (options.debug || process.env.SIADA_DEBUG) {
+    process.env.SIADA_DEBUG = "1";
     logger.setLevel(0 /* DEBUG */);
     return;
   }
@@ -90772,14 +94274,15 @@ function buildConfig(workingDir, options) {
 function renderApp(config, options) {
   const { stdout: inkStdout, stderr: inkStderr } = createWorkingStdio();
   let sessionIdOnExit = null;
-  const AppWithProvider = import_react106.default.createElement(
+  const AppWithProvider = import_react115.default.createElement(
     KeypressProvider,
     null,
-    import_react106.default.createElement(App3, { config, onExit: (id) => {
+    import_react115.default.createElement(App3, { config, onExit: (id) => {
       sessionIdOnExit = id;
     } })
   );
   const useAlternateBuffer = options.alternateBuffer === true;
+  logger.info(`[ui-timing] phase=render_called        elapsed_ms=${Date.now() - _T0}`);
   const { waitUntilExit } = render_default(AppWithProvider, {
     stdout: inkStdout,
     stderr: inkStderr,
@@ -90800,10 +94303,10 @@ function renderApp(config, options) {
 To continue this session, run: siada-cli --resume ${sessionIdOnExit}
 `);
     }
-    process.exit(0);
+    setImmediate(() => process.exit(0));
   }).catch((error) => {
     logger.error("Application exited with error", error);
-    process.exit(1);
+    setImmediate(() => process.exit(1));
   });
 }
 function createProgram() {
@@ -90820,8 +94323,10 @@ function main() {
   });
   createProgram().action((workingDir, options) => {
     configureLogger(options);
+    logger.info(`[ui-timing] phase=logger_configured  elapsed_ms=${Date.now() - _T0}`);
     logger.info("Starting siada-cli-ui", { workingDir, options });
     const config = buildConfig(workingDir, options);
+    logger.info(`[ui-timing] phase=config_built        elapsed_ms=${Date.now() - _T0}`);
     logger.info(getTerminalInfoString());
     try {
       renderApp(config, options);

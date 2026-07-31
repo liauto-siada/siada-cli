@@ -81,7 +81,7 @@ def _patch_converter():
         return None
 
     with patch.multiple(
-        "siada.agent_hub.context_filter.turn_prune_compaction_strategy.Converter",
+        "siada.agent_hub.context_filter.compaction_strategy.Converter",
         maybe_easy_input_message=_maybe_easy_input,
         maybe_input_message=_maybe_input,
         maybe_function_tool_call=_maybe_function_tool_call,
@@ -96,39 +96,6 @@ def _patch_converter():
 @pytest.fixture
 def strategy():
     return TurnPruneSummaryCompaction()
-
-
-# ── Test: _keep_recent_turns ─────────────────────────────────────────
-
-class TestKeepRecentTurns:
-    def test_fewer_turns_than_max(self, strategy):
-        msgs = [_user_msg("a"), _user_msg("b")]
-        result = strategy._keep_recent_turns(msgs, 5)
-        assert len(result) == 2
-
-    def test_exact_turns(self, strategy):
-        msgs = [_user_msg("a"), _user_msg("b"), _user_msg("c")]
-        result = strategy._keep_recent_turns(msgs, 3)
-        assert len(result) == 3
-
-    def test_truncates_old_turns(self, strategy):
-        msgs = [
-            _user_msg("1"),
-            _assistant_msg(),
-            _user_msg("2"),
-            _assistant_msg(),
-            _user_msg("3"),
-        ]
-        result = strategy._keep_recent_turns(msgs, 2)
-        # should keep from 2nd user msg onward
-        assert len(result) == 3
-        assert result[0] == msgs[2]
-
-    def test_max_turns_one(self, strategy):
-        msgs = [_user_msg("1"), _user_msg("2"), _user_msg("3")]
-        result = strategy._keep_recent_turns(msgs, 1)
-        assert len(result) == 1
-        assert result[0]["content"] == "3"
 
 
 # ── Test: _repair_tool_pairs ────────────────────────────────────────
@@ -544,42 +511,6 @@ class TestSplitRecentTurns:
         assert len(to_summarize) > 0
 
 
-class TestExtractToolFailures:
-    def test_detects_error_in_output(self, strategy):
-        msgs = [
-            _user_msg("go"),
-            _assistant_msg(["tid1"]),
-            _tool_result_msg("tid1", "Error: command failed with exit code 1"),
-        ]
-        failures = strategy._extract_tool_failures(msgs)
-        assert len(failures) == 1
-        assert failures[0]["call_id"] == "tid1"
-        assert failures[0]["tool_name"] == "test"
-
-    def test_no_failures(self, strategy):
-        msgs = [
-            _user_msg("go"),
-            _assistant_msg(["tid1"]),
-            _tool_result_msg("tid1", "success: all tests passed"),
-        ]
-        failures = strategy._extract_tool_failures(msgs)
-        assert len(failures) == 0
-
-
-class TestGenerateStatsDescription:
-    def test_stats_fallback(self, strategy):
-        msgs = [
-            _user_msg("hi"),
-            _assistant_msg(["t1"]),
-            _tool_result_msg("t1"),
-            _user_msg("bye"),
-        ]
-        stats = strategy._generate_stats_description(msgs)
-        assert "<context>" in stats
-        assert "2 user messages" in stats
-        assert "1 tool calls" in stats
-
-
 class TestAssembleCompacted:
     def test_with_user_first_in_recent(self, strategy):
         """When recent starts with user msg, ack is inserted."""
@@ -603,22 +534,10 @@ class TestAssembleCompacted:
         assert len(result) == 1  # just summary
 
 
-class TestEstimateTokens:
-    def test_basic_estimate(self, strategy):
-        msgs = [_user_msg("hello world")]
-        tokens = strategy._estimate_tokens(msgs)
-        assert tokens > 0
-
-    def test_more_messages_more_tokens(self, strategy):
-        msgs1 = [_user_msg("a")]
-        msgs2 = [_user_msg("a"), _user_msg("b"), _user_msg("c")]
-        assert strategy._estimate_tokens(msgs2) > strategy._estimate_tokens(msgs1)
-
-
-# ── Test: _prune_to_budget ───────────────────────────────────────────
+# ── Test: _prune_messages_to_token_budget ─────────────────────────────
 
 class TestPruneToBudget:
-    """Comprehensive tests for _prune_to_budget binary-search pruning."""
+    """Comprehensive tests for _prune_messages_to_token_budget binary-search pruning."""
 
     @staticmethod
     def _make_context(context_window: int):
@@ -629,16 +548,19 @@ class TestPruneToBudget:
         return ctx
 
     def test_no_user_messages_returns_empty(self, strategy):
-        """When there are no user messages, return empty list."""
+        """When there are no user messages and over budget, return empty list."""
         msgs = [_assistant_msg(["id1"]), _tool_result_msg("id1")]
         ctx = self._make_context(100_000)
-        result = strategy._prune_to_budget(msgs, ctx)
+        budget = int(ctx.model_run_config.context_window * 0.75)
+        # Force over budget to trigger binary search (no user indices → [])
+        with patch.object(strategy, "_count_tokens", return_value=budget + 1):
+            result = strategy._prune_messages_to_token_budget(msgs, budget, ctx)
         assert result == []
 
     def test_empty_messages_returns_empty(self, strategy):
         """Empty input returns empty output."""
         ctx = self._make_context(100_000)
-        result = strategy._prune_to_budget([], ctx)
+        result = strategy._prune_messages_to_token_budget([], int(ctx.model_run_config.context_window * 0.75), ctx)
         assert result == []
 
     def test_all_fit_within_budget_keeps_all(self, strategy):
@@ -652,7 +574,7 @@ class TestPruneToBudget:
         # Use a huge context window so everything fits
         ctx = self._make_context(10_000_000)
         with patch.object(strategy, "_count_tokens", return_value=100):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # Should keep from first user turn (index 0)
         assert len(result) == 4
         assert result[0]["content"] == "turn1"
@@ -675,7 +597,7 @@ class TestPruneToBudget:
                 return 500
             return 99999  # anything more exceeds budget
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # budget = 1000 * 0.75 = 750, only last turn fits
         assert result[0]["content"] == "turn3"
 
@@ -711,7 +633,7 @@ class TestPruneToBudget:
             return 9999
 
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # Should start from t3
         assert result[0]["content"] == "t3"
 
@@ -736,7 +658,7 @@ class TestPruneToBudget:
                 return 500
             return 9999
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # t2 with its matched pair should be kept
         assert any(m.get("content") == "t2" for m in result)
         # The matched pair fc_new should be intact
@@ -762,7 +684,7 @@ class TestPruneToBudget:
                 return 500
             return 9999
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # Orphan tool_result should be removed by _repair_tool_pairs
         orphan_results = [m for m in result if m.get("call_id") == "fc_orphan" and m.get("_type") == "tool_result"]
         assert len(orphan_results) == 0
@@ -772,12 +694,12 @@ class TestPruneToBudget:
         msgs = [_user_msg("only_turn"), _assistant_msg(["t1"]), _tool_result_msg("t1")]
         ctx = self._make_context(1000)
         with patch.object(strategy, "_count_tokens", return_value=9999):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # Even if it exceeds budget, the last (only) user turn is the best we can do
         assert result[0]["content"] == "only_turn"
 
     def test_budget_calculation_uses_summary_budget_ratio(self, strategy):
-        """Verify budget = context_window * SUMMARY_BUDGET_RATIO."""
+        """Verify budget = context_window * summary_budget_ratio."""
         msgs = [_user_msg("t1"), _user_msg("t2")]
         ctx = self._make_context(10000)  # budget = 10000 * 0.75 = 7500
 
@@ -788,24 +710,28 @@ class TestPruneToBudget:
             return 100  # everything fits
 
         with patch.object(strategy, "_count_tokens", side_effect=spy_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # All should be kept since everything fits
         assert result[0]["content"] == "t1"
 
     def test_exact_budget_boundary(self, strategy):
-        """Messages exactly at budget should be kept (<=)."""
+        """Messages exactly at budget should be kept (<=).
+        Note: safety margin is now in calculate_tokens, but tests mock
+        _count_tokens directly, so the mock return values are the
+        "already inflated" counts compared against budget."""
         msgs = [
             _user_msg("t1"), _assistant_msg(["a1"]), _tool_result_msg("a1"),
             _user_msg("t2"),
         ]
         ctx = self._make_context(1000)  # budget = 750
+        budget = int(ctx.model_run_config.context_window * 0.75)
 
         def fake_count(candidate, _ctx):
             if len(candidate) == 4:  # all msgs
-                return 750  # exactly at budget
+                return budget  # exactly at budget
             return 200
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, budget, ctx)
         # Exactly at budget, should keep all from t1
         assert result[0]["content"] == "t1"
         assert len(result) == 4
@@ -825,7 +751,7 @@ class TestPruneToBudget:
                 return 400
             return 100
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         assert result[0]["content"] == "t2"
 
     def test_many_turns_logarithmic_calls(self, strategy):
@@ -846,7 +772,7 @@ class TestPruneToBudget:
                 return 500
             return 9999
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            strategy._prune_to_budget(msgs, ctx)
+            strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # Binary search on 64 items should need at most ~7 calls (log2(64) + 1)
         assert call_count <= 10, f"Expected O(log N) calls, got {call_count}"
 
@@ -871,7 +797,7 @@ class TestPruneToBudget:
                 return 500
             return 9999
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         assert result[0]["content"] == "t2"
         # Should have t2, a2, tool_a2, t3, a3, tool_a3 = 6 messages
         assert len(result) == 6
@@ -892,12 +818,12 @@ class TestPruneToBudget:
                 return 500
             return 9999
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # First message must be user after repair
         assert result[0].get("_type") == "user" or result[0].get("role") == "user"
 
     def test_non_user_prefix_dropped(self, strategy):
-        """Messages before the first user message are silently dropped."""
+        """Messages before the first user message are silently dropped when pruning occurs."""
         msgs = [
             _assistant_msg(["pre_fc"]),      # non-user prefix
             _tool_result_msg("pre_fc"),       # non-user prefix
@@ -905,9 +831,16 @@ class TestPruneToBudget:
             _assistant_msg(["a1"]),
             _tool_result_msg("a1"),
         ]
-        ctx = self._make_context(10_000_000)
-        with patch.object(strategy, "_count_tokens", return_value=100):
-            result = strategy._prune_to_budget(msgs, ctx)
+        ctx = self._make_context(1000)
+        budget = int(ctx.model_run_config.context_window * 0.75)  # 750
+
+        # Force: all 5 msgs over budget, but from user t1 (3 msgs) fits
+        def fake_count(candidate, _ctx):
+            if len(candidate) <= 3:
+                return 500
+            return budget + 1
+        with patch.object(strategy, "_count_tokens", side_effect=fake_count):
+            result = strategy._prune_messages_to_token_budget(msgs, budget, ctx)
         # Prefix before first user msg is dropped (cut at user_indices[0]=2)
         assert result[0]["content"] == "t1"
         # pre_fc pair should not be in result
@@ -926,7 +859,7 @@ class TestPruneToBudget:
         def fake_count(candidate, _ctx):
             return 500  # everything fits
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         assert result[0]["content"] == "t1"
         assert len(result) == 4
 
@@ -945,7 +878,7 @@ class TestPruneToBudget:
                 return 800  # from t1: exceeds
             return 200  # from t2: fits
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         assert result[0]["content"] == "t2"
         assert len(result) == 1
 
@@ -960,7 +893,7 @@ class TestPruneToBudget:
 
         # Every candidate exceeds budget
         with patch.object(strategy, "_count_tokens", return_value=9999):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         # best = hi = last user turn, returned even though it exceeds
         assert result[0]["content"] == "t3"
         assert len(result) == 1
@@ -981,13 +914,14 @@ class TestPruneToBudget:
                 return 500
             return 9999
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         assert result[0]["content"] == "t3"
         assert len(result) == 2
 
     def test_non_monotonic_token_counts_binary_search_correctness(self, strategy):
         """Binary search assumes monotonicity (more msgs = more tokens).
-        Verify it works correctly under that assumption."""
+        Verify it works correctly under that assumption.
+        Note: _count_tokens is mocked so safety margin is irrelevant here."""
         # 4 user turns, tokens strictly decrease as we drop older turns
         msgs = [
             _user_msg("t1"), _assistant_msg(["a1"]), _tool_result_msg("a1"),
@@ -1001,12 +935,13 @@ class TestPruneToBudget:
         def fake_count(candidate, _ctx):
             start = len(msgs) - len(candidate)
             # Monotonically decreasing: 900, 700, 400, 200
+            # t2 (700) fits within budget 750, should be chosen (earliest fit)
             token_map = {0: 900, 3: 700, 6: 400, 7: 200}
             return token_map.get(start, 9999)
 
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
-        # t2 onwards = 700 tokens <= 750, should be chosen (earliest fit)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
+        # t2 onwards = 700 tokens <= budget(750), should be chosen (earliest fit)
         assert result[0]["content"] == "t2"
 
     def test_large_gap_between_user_messages(self, strategy):
@@ -1025,7 +960,7 @@ class TestPruneToBudget:
                 return 900
             return 300  # from t2
         with patch.object(strategy, "_count_tokens", side_effect=fake_count):
-            result = strategy._prune_to_budget(msgs, ctx)
+            result = strategy._prune_messages_to_token_budget(msgs, int(ctx.model_run_config.context_window * 0.75), ctx)
         assert result[0]["content"] == "t2"
         # Only t2 remains (no assistant/tool after it)
         assert len(result) == 1

@@ -94,6 +94,8 @@ class InputOutput:
     bell_on_next_input = False
     notifications_command = None
     _instance = None  # Singleton instance for get_instance()
+    _notification_handler = None  # Handler for JSON-RPC notifications from frontend
+    _pending_image_paths = None   # Image file paths received with the last user message
 
     @classmethod
     def get_instance(cls) -> "InputOutput | None":
@@ -189,6 +191,12 @@ class InputOutput:
         self.prompt_session = None
         self.is_dumb_terminal = is_dumb_terminal()
 
+        # Initialize ACP attributes early so they are always defined,
+        # even if prompt_toolkit initialization below raises an exception
+        # and the except-block calls print_error() before we reach line 233.
+        self.acp_enabled = acp_enabled
+        self.acp_adapter = None
+
         if self.is_dumb_terminal:
             self.pretty = False
             fancy_input = False
@@ -226,10 +234,6 @@ class InputOutput:
             self._initialize_printer()
             if self.is_dumb_terminal:
                 self.print_info("Detected dumb terminal, disabling fancy input and pretty output.")
-        
-        # Initialize ACP components
-        self.acp_enabled = acp_enabled
-        self.acp_adapter = None
         
         # Initialize ACP if enabled
         if self.acp_enabled:
@@ -474,6 +478,38 @@ class InputOutput:
                                 logger.debug(f"[IO.get_input] Reading progress: {line_count} lines, {total_bytes} bytes")
                         line = '\n'.join(message_lines)
                         logger.info(f"[IO.get_input] Multiline message assembled: total_length={len(line)}, first_100_chars={repr(line[:100])}, last_100_chars={repr(line[-100:] if len(line) > 100 else line)}")
+                        
+                        # Intercept JSON-RPC notifications from frontend (e.g. session/pullHistory)
+                        # Notifications have jsonrpc="2.0", method, but no id field.
+                        # Also handle agent/execute JSON envelope with image_paths.
+                        if line.strip().startswith('{'):
+                            try:
+                                import json
+                                parsed = json.loads(line)
+                                if isinstance(parsed, dict):
+                                    # JSON-RPC notification (no id field)
+                                    if (self._notification_handler
+                                            and parsed.get("jsonrpc") == "2.0"
+                                            and "method" in parsed
+                                            and "id" not in parsed):
+                                        method = parsed["method"]
+                                        params = parsed.get("params", {})
+                                        logger.info(f"[IO.get_input] Intercepted JSON-RPC notification: method={method}")
+                                        try:
+                                            self._notification_handler(method, params)
+                                        except Exception as e:
+                                            logger.error(f"[IO.get_input] Notification handler error: {e}")
+                                        # Continue reading next input, don't return this as user message
+                                        continue
+                                    # Multimodal message: {"prompt": "...", "image_paths": [...]}
+                                    if "prompt" in parsed:
+                                        image_paths = parsed.get("image_paths") or []
+                                        if image_paths:
+                                            self._pending_image_paths = image_paths
+                                            logger.info(f"[IO.get_input] Multimodal message: {len(image_paths)} image(s)")
+                                        line = parsed["prompt"]
+                            except (json.JSONDecodeError, ValueError):
+                                pass  # Not valid JSON, treat as normal user input
                     else:
                         # No marker - in ACP mode, discard incomplete/malformed messages
                         # and continue waiting for a properly formatted message
@@ -1098,8 +1134,8 @@ class InputOutput:
         Args:
             event_data: Event data dictionary containing lifecycle information
         """
-        # Only send in ACP mode
-        if not self.acp_enabled or not self.acp_adapter:
+        # Only send in ACP mode.
+        if not getattr(self, "acp_enabled", False) or not getattr(self, "acp_adapter", None):
             return
         
         try:

@@ -3,31 +3,40 @@ import os
 import time
 from pathlib import Path, PurePosixPath
 
-try:
-    import git
+# Lazy: git (GitPython) is ~95ms to import.  Defer to first get_git_root() call.
+_git = None
+_ANY_GIT_ERROR = None
 
-    ANY_GIT_ERROR = [
-        git.exc.ODBError,
-        git.exc.GitError,
-        git.exc.InvalidGitRepositoryError,
-        git.exc.GitCommandNotFound,
+
+def _init_git():
+    """Import git lazily and build the exception tuple."""
+    global _git, _ANY_GIT_ERROR
+    if _ANY_GIT_ERROR is not None:
+        return
+    try:
+        import git
+
+        _git = git
+        errs = [
+            git.exc.ODBError,
+            git.exc.GitError,
+            git.exc.InvalidGitRepositoryError,
+            git.exc.GitCommandNotFound,
+        ]
+    except ImportError:
+        _git = None
+        errs = []
+    errs += [
+        OSError,
+        IndexError,
+        BufferError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        AssertionError,
+        TimeoutError,
     ]
-except ImportError:
-    git = None
-    ANY_GIT_ERROR = []
-
-ANY_GIT_ERROR += [
-    OSError,
-    IndexError,
-    BufferError,
-    TypeError,
-    ValueError,
-    AttributeError,
-    AssertionError,
-    TimeoutError,
-]
-ANY_GIT_ERROR = tuple(ANY_GIT_ERROR)
-
+    _ANY_GIT_ERROR = tuple(errs)
 
 
 def get_git_root(path=None):
@@ -39,13 +48,16 @@ def get_git_root(path=None):
     Returns:
         str or None: Path to git repository root, or None if not found
     """
+    _init_git()
+    if _git is None:
+        return None
     try:
         # If path is provided, start search from that directory
         if path:
-            repo = git.Repo(path, search_parent_directories=True)
+            repo = _git.Repo(path, search_parent_directories=True)
         else:
             # Default behavior: search from current directory
-            repo = git.Repo(search_parent_directories=True)
+            repo = _git.Repo(search_parent_directories=True)
         return repo.working_tree_dir
-    except (git.InvalidGitRepositoryError, FileNotFoundError):
+    except (_git.InvalidGitRepositoryError, FileNotFoundError):
         return None

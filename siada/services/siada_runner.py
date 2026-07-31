@@ -1,7 +1,9 @@
 import asyncio
 import time
 
-from siada.foundation.context import set_context_var, MODEL_PROVIDER_NAME, LLM_CONFIG, AGENT_NAME
+from siada.foundation.context import set_context_var, set_session_id, MODEL_PROVIDER_NAME, LLM_CONFIG, AGENT_NAME
+
+from siada.foundation.code_agent_context import RuntimeSource
 from siada.session.session_models import RunningSession
 from typing import Optional, Literal, overload
 
@@ -21,9 +23,14 @@ from siada.services.model_wrapper import ModelProviderWrapper
 from siada.agent_hub.context_filter.context_capture_filter import context_capture_filter
 from siada.session import RunningSessionManager
 
+from siada.services.memory.combined_memory import build_combined_memory
+
+
 class SiadaRunner:
 
     _context_cache: dict[tuple, object] = {}
+    _agent_cache: dict[str, object] = {}
+    _agent_cache_refreshing: set[str] = set()
 
     @staticmethod
     async def _prepare_checkpoint_with_timeout(session):
@@ -74,7 +81,7 @@ class SiadaRunner:
                     timeout=CHECKPOINT_INIT_TIMEOUT,
                 )
                 elapsed_time = time.time() - start_time
-                logging.info(f"Checkpoint initialized for session {session.session_id} (took {elapsed_time:.2f}s)")
+                logging.debug(f"Checkpoint initialized for session {session.session_id} (took {elapsed_time:.2f}s)")
                 # Stop spinner if it was created
                 stop_spinner(spinner)
                 spinner = None
@@ -91,7 +98,7 @@ class SiadaRunner:
                     timeout=CHECKPOINT_INIT_TIMEOUT,
                 )
                 elapsed_time = time.time() - start_time
-                logging.info(f"Checkpoint snapshot created for session {session.session_id} (took {elapsed_time:.2f}s)")
+                logging.debug(f"Checkpoint snapshot created for session {session.session_id} (took {elapsed_time:.2f}s)")
         except asyncio.TimeoutError:
             # Stop spinner if it was created
             stop_spinner(spinner)
@@ -122,7 +129,8 @@ class SiadaRunner:
     async def build_context(
         agent: SiadaAgent,
         workspace: Optional[str] = None,
-        session: Optional[RunningSession] = None
+        session: Optional[RunningSession] = None,
+        runtime_source: str = RuntimeSource.CLI,
     ):
         """
         Build the execution context for an agent, including run configuration.
@@ -141,7 +149,7 @@ class SiadaRunner:
         # Build context — cached per (agent_name, workspace) to avoid repeated heavy I/O
         context = await SiadaRunner.get_context(agent, running_session, workspace)
 
-        await SiadaRunner._prepare_context_for_run(context, running_session)
+        await SiadaRunner._prepare_context_for_run(context, running_session, runtime_source)
 
         run_config = SiadaRunner._build_run_config(context, running_session)
         openai_session = running_session.state.openai_session
@@ -160,7 +168,11 @@ class SiadaRunner:
         return context
 
     @staticmethod
-    async def _prepare_context_for_run(context, running_session: RunningSession):
+    async def _prepare_context_for_run(
+        context,
+        running_session: RunningSession,
+        runtime_source: str = RuntimeSource.CLI,
+    ):
         """
         Prepare per-run context state before each agent execution.
 
@@ -172,7 +184,20 @@ class SiadaRunner:
             running_session: The current running session.
         """
         context.session = running_session
+        context.runtime_source = runtime_source
         await SiadaRunner._prepare_checkpoint_with_timeout(running_session)
+
+        # Consume pending_todos staged by ResumeService after session restore
+        if running_session.state.pending_todos and not context.todos:
+            context.todos = running_session.state.pending_todos
+            running_session.state.pending_todos = None
+            logging.debug(f"[todo] Applied {len(context.todos)} recovered todos to context")
+
+        # Consume pending_goal staged by ResumeService after session restore
+        if running_session.state.pending_goal is not None and context.goal is None:
+            context.goal = running_session.state.pending_goal
+            running_session.state.pending_goal = None
+            logging.debug("[goal] Applied recovered goal to context")
 
     @staticmethod
     async def _build_agent_context(
@@ -195,43 +220,13 @@ class SiadaRunner:
         if workspace:
             context.root_dir = workspace
 
-        # Load workspace-scoped resources
+        # Resolve workspace and initialize the per-workspace controller.
+        # Memory-layer assembly (rule_memory + siada.md + MEMORY/USER + guidance)
+        # happens at the bottom via ``build_combined_memory`` so this method
+        # stays focused on lifecycle wiring.
         workspace_path = workspace or (running_session.siada_config.workspace if running_session else None)
+
         if workspace_path:
-            # Load and combine all memory sources into a single field
-            memory_parts = []
-
-            # 1. Load hierarchical context from siada_rule.md files (rule_memory)
-            try:
-                from siada.services.rule_memory import load_hierarchical_context
-                rule_content, rule_count, _ = load_hierarchical_context(workspace_path)
-                if rule_count > 0 and rule_content:
-                    memory_parts.append(rule_content)
-            except Exception as e:
-                logging.warning(f"Failed to load rule_memory: {e}")
-
-            # 2. Load user memory from siada.md
-            try:
-                from siada.services.siada_memory import load_siada_memory
-                user_mem = load_siada_memory(workspace_path)
-                if user_mem:
-                    memory_parts.append(user_mem)
-            except Exception as e:
-                logging.debug(f"Failed to load user memory: {e}")
-
-            # 3. Load structured memory (from ~/.siada-cli/workspace/memory)
-            try:
-                from siada.agent_hub.coder.prompt.base.memory_section import get_memory_section
-                structured_mem = get_memory_section()
-                if structured_mem:
-                    memory_parts.append(structured_mem)
-            except Exception as e:
-                logging.debug(f"Failed to load structured memory: {e}")
-
-            # Combine all memory sources into a single field
-            context.combined_memory = "\n\n".join(memory_parts) if memory_parts else None
-
-            # Initialize SiadaIgnore controller
             try:
                 from siada.foundation.siadaignore_controller import SiadaIgnoreController
                 controller = SiadaIgnoreController(workspace_path)
@@ -240,7 +235,7 @@ class SiadaRunner:
             except Exception as e:
                 logging.warning(f"Failed to init SiadaIgnoreController: {e}")
 
-        # Load agent configuration (pre_plan / preferred_language) fresh from conf.yaml
+        # Load agent configuration (pre_plan / preferred_language / max_turns) fresh from conf.yaml
         try:
             from siada.config.config_loader import load_conf
             from siada.config.language_config import get_agent_default_language
@@ -248,12 +243,98 @@ class SiadaRunner:
             context.pre_plan = bool(_conf.pre_plan) if _conf.pre_plan else False
             agent_name = running_session.siada_config.agent_name if running_session else None
             context.preferred_language = _conf.preferred_language or get_agent_default_language(agent_name)
+            context.max_turns = _conf.code_agent_config.max_turns
+            # Web tools tri-state switch (None=auto, True=on, False=off). The
+            # provider-based default is resolved at tool-config time using
+            # context.provider, which is set per-run in _build_run_config.
+            context.web_tools_enabled = _conf.web_config.enabled
+
+            # Initialize MemoryStore and inject inline memory blocks.
+            # memory_config.enabled acts as the master switch: when False, all
+            # memory tools and memory-related system prompt sections are suppressed.
+            mc = _conf.memory_config
+            if not mc.enabled:
+                # Master switch is OFF — disable all memory features.
+                context.memory_tools_enabled = False
+                context.memory_store = None
+                context.holographic_provider = None
+                logging.info("[memory] master switch OFF — memory tools and system prompt disabled")
+            else:
+                # Master switch is ON — initialize sub-layers per their own flags.
+                context.memory_tools_enabled = True
+
+                # Inline memory (MEMORY.md / USER.md)
+                if mc.memory_facts_enabled or mc.user_profile_enabled:
+                    try:
+                        from siada.services.memory.memory_store import MemoryStore
+                        store = MemoryStore(
+                            memory_char_limit=mc.memory_char_limit,
+                            user_char_limit=mc.user_char_limit,
+                            memory_facts_enabled=mc.memory_facts_enabled,
+                            user_profile_enabled=mc.user_profile_enabled,
+                        )
+                        store.load_from_disk()
+                        context.memory_store = store
+                        # NOTE: snapshot blocks (MEMORY.md / USER.md / inline guidance)
+                        # are pulled from this store by ``build_combined_memory`` below.
+                    except Exception as e:
+                        logging.warning(f"Failed to initialize MemoryStore: {e}")
+                        context.memory_store = None
+                else:
+                    context.memory_store = None
+
+                # Holographic structured fact memory (third tier).
+                # Only initialized when the master switch is ON; the holographic
+                # sub-flag ``hc.enabled`` further gates the feature.
+                hc = _conf.holographic_config
+                if hc.enabled:
+                    try:
+                        from siada.services.memory.holographic.provider import (
+                            HolographicProvider,
+                        )
+                        provider = HolographicProvider.from_config(hc)
+                        provider.initialize()
+                        context.holographic_provider = provider
+                    except Exception as e:
+                        logging.warning(
+                            f"Failed to initialize HolographicProvider: {e}"
+                        )
+                        context.holographic_provider = None
+                else:
+                    context.holographic_provider = None
         except Exception as e:
             logging.warning(f"Failed to load conf.yaml for pre_plan/preferred_language: {e}")
             context.pre_plan = False
+            context.memory_store = None
+            context.holographic_provider = None
             if running_session:
                 from siada.config.language_config import get_agent_default_language
                 context.preferred_language = get_agent_default_language(running_session.siada_config.agent_name)
+
+        # Build the combined_memory snapshot (rule_memory + siada.md + MEMORY/USER
+        # blocks + memory/holographic guidance). Called once here at session
+        # start; rebuilt on context-compaction events from
+        # ``api_message_transfer_filter``. NEVER called from per-turn paths.
+        context.combined_memory = build_combined_memory(
+            workspace_path,
+            context.memory_store,
+            context.holographic_provider,
+        )
+
+        # Resolve git info for the workspace once at session start so telemetry
+        # can report real repo_id / branch / commit without repeating the lookup
+        # on every conversation turn.
+        try:
+            from siada.support.git_info import get_workspace_git_info
+            logging.debug(f"Resolving git info for workspace: {workspace_path}")
+            context.git_context = get_workspace_git_info(workspace_path)
+            logging.debug(
+                f"Git info resolved: repo_url={context.git_context.repo_url!r}, "
+                f"branch={context.git_context.branch!r}, "
+                f"commit={context.git_context.commit!r}"
+            )
+        except Exception as e:
+            logging.debug(f"Failed to resolve git info for telemetry: {e}")
 
         return context
 
@@ -267,7 +348,12 @@ class SiadaRunner:
         """
         llm_config = running_session.siada_config.llm_config
         model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
-        model_provider_name = llm_config.provider
+        # Auto-route model family (e.g. gpt-5.x) to required provider, so users
+        # don't need to care about the provider concept.
+        from siada.provider.provider_factory import resolve_provider_by_model
+        model_provider_name = resolve_provider_by_model(
+            llm_config.model_name, llm_config.provider
+        )
         model_provider = get_provider(model_provider_name)
 
         provider_wrapper = ModelProviderWrapper(
@@ -296,6 +382,7 @@ class SiadaRunner:
         session: RunningSession = None,
         *,
         stream: Literal[True],
+        runtime_source: str = RuntimeSource.CLI,
     ) -> RunResultStreaming: ...
 
     @overload
@@ -307,6 +394,7 @@ class SiadaRunner:
         session: RunningSession = None,
         *,
         stream: Literal[False],
+        runtime_source: str = RuntimeSource.CLI,
     ) -> RunResult: ...
 
     @staticmethod
@@ -316,6 +404,8 @@ class SiadaRunner:
         workspace: str = None,
         session: RunningSession = None,
         stream: bool = False,
+        runtime_source: str = RuntimeSource.CLI,
+        run_config: Optional["RunConfig"] = None,
     ) -> RunResult | RunResultStreaming:
         """
         Run the specified Agent.
@@ -326,29 +416,51 @@ class SiadaRunner:
             workspace: Workspace path, optional.
             session: The running session object, optional.
             stream: Whether to enable streaming output, defaults to False.
+            run_config: Optional pre-built RunConfig. When provided, bypasses
+                _build_run_config so callers (e.g. cron tasks) can pin model/provider
+                while still going through the full SiadaRunner telemetry path.
 
         Returns:
             Union[RunResult, RunResultStreaming]: Returns a regular or streaming result based on the stream parameter.
         """
         session_id = session.session_id if session else "N/A"
-        logging.info(f"[Runner] Starting agent execution - agent: {agent_name}, session: {session_id}, stream: {stream}")
-        
-        # Detect im_mode from session metadata on disk (single source of truth)
-        from siada.session.ownership import SessionOwnershipManager
-        im_mode = SessionOwnershipManager.is_im_session(session) if session else False
+
+        # Re-bind the coroutine-local session_id to the session actually being
+        # run. The context var is otherwise only set once at session creation
+        # (RunningSessionManager.create_session), which goes stale for reused
+        # sessions in long-lived multi-session hosts (e.g. Lark) and after
+        # /resume (where the RunningSession object is reused but its session_id
+        # is mutated in place). Without this, per-request tracing headers such
+        # as X-Siada-Task-ID could carry a different session's id, mismatching
+        # the conversation telemetry that reads session.session_id directly.
+        # set_session_id is contextvar-based and Task-isolated, so concurrent
+        # runs never interfere with each other.
+        if session is not None:
+            set_session_id(session.session_id)
+
+        from siada.foundation.context import get_context_var
+        t_start = get_context_var('turn_start_time')
+        t_extra = f" (waited {time.time() - t_start:.3f}s from turn_start)" if t_start else ""
+        logging.info(f"[Runner] Starting agent execution - agent: {agent_name}, session: {session_id}, stream: {stream}{t_extra}")
+
         start_time = time.time()
-        agent = await SiadaRunner.get_agent(agent_name, im_mode=im_mode)
+        agent = await SiadaRunner.get_agent(agent_name)
         elapsed = time.time() - start_time
-        logging.info(f"[Runner] Agent loaded (took {elapsed:.2f}s)")
+        logging.debug(f"[Runner] Agent loaded (took {elapsed:.3f}s)")
         
-        # Set agent_name in contextvars BEFORE Runner.run so child tasks inherit it
-        set_context_var(AGENT_NAME, agent_name)
 
         # Build context (now returns context, run_config, and openai_session)
         start_time = time.time()
-        context, run_config, openai_session = await SiadaRunner.build_context(agent, workspace, session)
+        context, built_run_config, openai_session = await SiadaRunner.build_context(
+            agent,
+            workspace,
+            session,
+            runtime_source=runtime_source,
+        )
+        # Allow caller to override run_config (e.g. cron tasks that pin a specific model)
+        run_config = run_config or built_run_config
         elapsed = time.time() - start_time
-        logging.info(f"[Runner] Context and run config built (took {elapsed:.2f}s)")
+        logging.debug(f"[Runner] Context and run config built (took {elapsed:.3f}s)")
 
         # set_trace_processors([create_detailed_logger(output_file="agent_trace.log")])
         console_output = session.siada_config.console_output if session else True
@@ -359,8 +471,23 @@ class SiadaRunner:
         if session and session.spinner:
             session.spinner.start()
 
+        # Ensure the agents-SDK monkey-patches (e.g. soft-handling of
+        # hallucinated tool names) are applied before any turn runs. This is
+        # idempotent — the normal path patches inside the agents-init warmup
+        # thread; this call is a safety net for entry points that bypass
+        # siadahub.py (tests, external scripts).
+        try:
+            from siada.foundation.sdk_patches import apply_sdk_patches
+            apply_sdk_patches()
+        except Exception:
+            pass
+
+        user_input = SiadaRunner._maybe_merge_goal_reminder(context, user_input)
+
+
         # Execute agent with run_config and openai_session
         start_time = time.time()
+
         if stream:
             # Stream execution
             logging.info("[Runner] Starting streamed agent execution")
@@ -370,20 +497,92 @@ class SiadaRunner:
             logging.info("[Runner] Starting normal agent execution")
             result = await agent.run(user_input, context, run_config=run_config, openai_session=openai_session)
         elapsed = time.time() - start_time
-        logging.info(f"[Runner] Agent execution completed (took {elapsed:.2f}s)")
+        logging.debug(f"[Runner] Agent execution completed (took {elapsed:.2f}s)")
 
         return result
 
 
     @staticmethod
-    async def get_agent(agent_name: str, im_mode: bool = False) -> SiadaAgent:
+    def _maybe_merge_goal_reminder(context, user_input):
+        """Merge the hidden /goal reminder into ``user_input``, but only
+        ONCE per goal activation — not on every turn.
+
+        Replaces the old per-LLM-call ``GoalReminderFilter``. Doing it here,
+        before the run starts, means the reminder becomes part of the real
+        ``input`` the SDK's ``Runner`` receives, so the SDK's own session
+        persistence writes it to ``api_history.json`` like any other turn
+        input — see ``merge_goal_reminder_into_input``'s docstring for the
+        full rationale on *why* this moved out of the filter chain.
+
+        That persistence is exactly why this must be gated to "once per
+        activation" via ``goal.reminder_injected``: unlike the old ephemeral
+        per-call injection (thrown away after each LLM call, so repeating it
+        every turn was free), a merged-in reminder now lives in
+        ``api_history.json`` forever. Re-merging it on every subsequent
+        turn while the goal stays active would keep appending the same
+        multi-paragraph block into persisted history turn after turn.
+        ``goal.reminder_injected`` is reset to False whenever the goal
+        (re)activates — a brand new goal via ``Goal.create()``, or a
+        "blocked" goal reactivated by
+        ``turn_hooks.maybe_reset_goal_on_new_turn`` — so it still gets
+        freshly reminded at each meaningful activation point, just not on
+        every single turn in between.
+        """
+        goal = getattr(context, "goal", None)
+        if goal is None or getattr(goal, "status", None) != "active":
+            return user_input
+        if getattr(goal, "reminder_injected", False):
+            return user_input
+
+        from siada.services.goal.prompts import merge_goal_reminder_into_input
+        user_input = merge_goal_reminder_into_input(user_input, goal)
+
+        goal.reminder_injected = True
+        goal.touch()
+
+        # Persist the flag immediately so it isn't lost if the process
+        # restarts mid-turn (the reminder text itself is already safely on
+        # its way into api_history.json via the SDK's own persistence).
+        running_session = getattr(context, "session", None)
+        session_folder = None
+        if running_session is not None:
+            openai_session = running_session.state.openai_session
+            if openai_session is not None:
+                session_folder = openai_session.session_folder
+        if session_folder is not None:
+            try:
+                from siada.services.goal import goal_storage
+                goal_storage.save_goal(session_folder, goal)
+            except Exception as e:
+                logging.warning(f"[goal] Failed to persist reminder_injected flag: {e}")
+
+        return user_input
+
+    @staticmethod
+    async def _refresh_agent_background(agent_name: str) -> None:
+
+        """Rebuild agent in background and update cache (stale-while-revalidate)."""
+        SiadaRunner._agent_cache_refreshing.add(agent_name)
+        try:
+            class_path = get_agent_class_path(agent_name)
+            agent_class = import_agent_class(class_path)
+            agent = agent_class()
+            await SiadaRunner._configure_mcp_servers(agent)
+            SiadaRunner._agent_cache[agent_name] = agent
+            logging.info(f"[get_agent] Background refresh complete: {agent_name}")
+        except Exception as e:
+            logging.warning(f"[get_agent] Background refresh failed for {agent_name}: {e}")
+        finally:
+            SiadaRunner._agent_cache_refreshing.discard(agent_name)
+
+    @staticmethod
+    async def get_agent(agent_name: str) -> SiadaAgent:
         """
         Get the corresponding Agent instance based on agent name
         
         Args:
             agent_name: Agent name, supports case-insensitive matching
                        e.g.: 'bugfix', 'BugFix', 'bug_fix', etc.
-            im_mode: Whether to enable IM mode for the agent.
 
         Returns:
             Agent: The corresponding Agent instance
@@ -393,6 +592,14 @@ class SiadaRunner:
             FileNotFoundError: Raised when the configuration file does not exist
             ImportError: Raised when unable to import Agent class
         """
+        # Return cached agent immediately; trigger a background refresh so the next
+        # turn gets an updated instance (stale-while-revalidate).
+        if agent_name in SiadaRunner._agent_cache:
+            logging.info(f"[get_agent] Returning cached agent: {agent_name}")
+            if agent_name not in SiadaRunner._agent_cache_refreshing:
+                asyncio.create_task(SiadaRunner._refresh_agent_background(agent_name))
+            return SiadaRunner._agent_cache[agent_name]
+
         logging.info(f"[get_agent] Starting to load agent: {agent_name}")
 
         # Get agent class path from configuration
@@ -404,21 +611,22 @@ class SiadaRunner:
             start_time = time.time()
             agent_class = import_agent_class(class_path)
             elapsed = time.time() - start_time
-            logging.info(f"[get_agent] Agent class imported (took {elapsed:.3f}s)")
+            logging.debug(f"[get_agent] Agent class imported (took {elapsed:.3f}s)")
             
             # Instantiate agent
             start_time = time.time()
-            agent = agent_class(im_mode=im_mode)
+            agent = agent_class()
             elapsed = time.time() - start_time
-            logging.info(f"[get_agent] Agent instantiated (took {elapsed:.3f}s)")
+            logging.debug(f"[get_agent] Agent instantiated (took {elapsed:.3f}s)")
 
             # Configure MCP servers for the agent
             start_time = time.time()
             await SiadaRunner._configure_mcp_servers(agent)
             elapsed = time.time() - start_time
-            logging.info(f"[get_agent] MCP servers configured (took {elapsed:.3f}s)")
+            logging.debug(f"[get_agent] MCP servers configured (took {elapsed:.3f}s)")
 
             logging.info(f"[get_agent] Agent {agent_name} loaded successfully")
+            SiadaRunner._agent_cache[agent_name] = agent
             return agent
         except (ImportError, AttributeError) as e:
             raise ImportError(f"Failed to import agent class '{class_path}': {e}")
@@ -439,35 +647,109 @@ class SiadaRunner:
             agent: The agent instance to configure
         """
         try:
-            from siada.services.mcp.manager_service import _mcp_manager_service
+            from siada.services.mcp.manager_service import _mcp_manager_service, MCPServerFactory
 
-            # Check if MCP configuration is available
-            if not _mcp_manager_service.has_config():
-                logging.debug("No MCP configuration available, skipping MCP server configuration")
-                return
+            # ── Global MCP servers (from conf.yaml / mcp_config.json) ──────────
+            mcp_servers: list = []
+            global_mcp_task = None
+            if _mcp_manager_service.has_config():
+                # Check and refresh lark-mcp token if needed (only requires config, not connections).
+                logging.debug("Checking lark-mcp token status...")
+                await _mcp_manager_service.check_and_refresh_lark_token()
 
-            # Check and refresh lark-mcp token if needed (only requires config, not connections).
-            logging.debug("Checking lark-mcp token status...")
-            await _mcp_manager_service.check_and_refresh_lark_token()
-
-            # Lazy initialization: establish connections in the current event loop.
-            # This ensures MCP stdio connections live in the same loop that uses them.
-            if not _mcp_manager_service.is_initialized:
-                logging.info("Initializing MCP connections (lazy init in agent's event loop)...")
-                await _mcp_manager_service.initialize()
-                logging.info("MCP service connected successfully")
-
-            # Get MCP servers from the initialized service
-            mcp_servers = _mcp_manager_service.get_mcp_servers_for_agent()
-            if mcp_servers:
-                # Configure the agent with MCP servers using official SDK mechanism
-                agent.mcp_servers = mcp_servers
-                agent.mcp_config = {"convert_schemas_to_strict": True}
-
-                for server in mcp_servers:
-                    logging.debug(f"   - {server.name}")
+                # Lazy initialization: establish connections in the current event loop.
+                # This ensures MCP stdio connections live in the same loop that uses them.
+                if not _mcp_manager_service.is_initialized:
+                    logging.info("Initializing MCP connections (lazy init in agent's event loop)...")
+                    # Background task for parallel non-blocking global MCP initialization
+                    import asyncio
+                    global_mcp_task = asyncio.create_task(_mcp_manager_service.initialize())
+                else:
+                    mcp_servers = _mcp_manager_service.get_mcp_servers_for_agent() or []
+                    for server in mcp_servers:
+                        logging.debug(f"   global MCP: {server.name}")
             else:
-                logging.warning("MCP service initialized but no servers available for agent configuration")
+                logging.debug("No global MCP configuration available")
+
+            # ── Plugin MCP servers (from plugin.json mcpServers / .mcp.json) ───
+            plugin_mcp_servers: list = []
+            try:
+                import asyncio
+                import time
+                t_plugin_start = time.time()
+                from siada.services.plugins.plugin_loader import (
+                    PluginLoader,
+                    extract_plugin_mcp_configs,
+                )
+
+                plugins = PluginLoader().load_all()
+                plugin_configs = extract_plugin_mcp_configs(
+                    [p for p in plugins if p.enabled]
+                )
+                logging.debug(f"Plugin loader loaded {len(plugins)} plugins ({len(plugin_configs)} configs) in {time.time() - t_plugin_start:.3f}s")
+                
+                async def connect_with_timeout(scoped_name, srv_config):
+                    t_connect_start = time.time()
+                    try:
+                        server = MCPServerFactory.create_server(scoped_name, srv_config)
+                        if server:
+                            logging.info(f"Connecting to plugin MCP server: {scoped_name} ({srv_config.url if hasattr(srv_config, 'url') else 'stdio'})")
+                            # Parallel non-blocking connection with 3s timeout
+                            await asyncio.wait_for(server.connect(), timeout=3.0)
+                            logging.debug(f"Plugin MCP server connected: {scoped_name} (took {time.time() - t_connect_start:.3f}s)")
+                            return server
+                    except asyncio.TimeoutError:
+                        logging.warning(
+                            f"Plugin MCP server '{scoped_name}' connection timed out after 3.0s"
+                        )
+                    except Exception as srv_err:
+                        logging.warning(
+                            f"Plugin MCP server '{scoped_name}' failed to connect: {srv_err}"
+                        )
+                    return None
+
+                # Launch all plugin MCP server connections concurrently
+                tasks = [
+                    connect_with_timeout(scoped_name, srv_config)
+                    for scoped_name, srv_config in plugin_configs
+                ]
+                
+                if global_mcp_task:
+                    # Gather BOTH global and plugin connections concurrently.
+                    # Cap global MCP init at 8s so a slow server (e.g. li-mate 30s timeout)
+                    # doesn't block the first turn indefinitely.
+                    _GLOBAL_MCP_TIMEOUT = 8.0
+                    bounded_global = asyncio.ensure_future(
+                        asyncio.wait_for(asyncio.shield(global_mcp_task), timeout=_GLOBAL_MCP_TIMEOUT)
+                    )
+                    results = await asyncio.gather(bounded_global, *tasks, return_exceptions=True)
+                    global_res = results[0]
+                    if isinstance(global_res, Exception):
+                        logging.warning(
+                            f"Global MCP init did not complete within {_GLOBAL_MCP_TIMEOUT}s, "
+                            f"proceeding without global servers (init continues in background)"
+                        )
+                    elif isinstance(global_res, list):
+                        mcp_servers = _mcp_manager_service.get_mcp_servers_for_agent() or []
+                    plugin_res = results[1:]
+                else:
+                    plugin_res = await asyncio.gather(*tasks, return_exceptions=True) if tasks else []
+
+                for srv in plugin_res:
+                    if srv:
+                        plugin_mcp_servers.append(srv)
+            except Exception as plugin_err:
+                logging.warning(f"Failed to load plugin MCP servers: {plugin_err}")
+
+            # ── Attach merged server list to agent ───────────────────────────
+            all_servers = mcp_servers + plugin_mcp_servers
+            if all_servers:
+                agent.mcp_servers = all_servers
+                agent.mcp_config = {"convert_schemas_to_strict": True}
+                logging.info(
+                    f"MCP configured: {len(mcp_servers)} global + "
+                    f"{len(plugin_mcp_servers)} plugin server(s)"
+                )
 
         except Exception as e:
             logging.error(f"Failed to configure MCP servers for agent: {e}")

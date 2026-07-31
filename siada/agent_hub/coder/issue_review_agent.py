@@ -14,6 +14,7 @@ from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.patch_selection_completion import patch_selection_completion
 from siada.tools.coder.run_cmd import run_cmd
+from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
 
 class IssueReviewAgent(CodeGenAgent):
     """
@@ -21,9 +22,13 @@ class IssueReviewAgent(CodeGenAgent):
     """
 
     def __init__(self, *args, **kwargs):
+        _tools = [edit, regex_search_files, run_cmd, list_code_definition_names, patch_selection_completion]
+        _pwsh = get_run_powershell_tool_if_available()
+        if _pwsh is not None:
+            _tools.append(_pwsh)
         super().__init__(
             name="IssueReviewAgent",
-            tools=[edit, regex_search_files, run_cmd, list_code_definition_names, patch_selection_completion],
+            tools=_tools,
             tool_use_behavior={
                 "stop_at_tool_names": ["patch_selection_completion"],
             },

@@ -12,8 +12,12 @@ class NoInteractiveController:
         self.session = session
 
     def run(self, user_input: str) -> int:
+        from siada.entrypoint.siadahub import _ensure_litellm_ready, _ensure_agents_ready
+        _ensure_litellm_ready()
+        _ensure_agents_ready()
+
         from siada.services.siada_runner import SiadaRunner
-        
+
         async def run_async():
             # Run the agent
             result = await SiadaRunner.run_agent(

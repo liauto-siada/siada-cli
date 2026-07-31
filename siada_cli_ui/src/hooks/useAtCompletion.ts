@@ -99,7 +99,7 @@ export function useAtCompletion({
   useEffect(() => {
     fileSearchRef.current = new FileSearchService(cwd, {
       maxResults: 20,
-      maxDepth: 6,  // Balanced depth: enough for most files, not too slow
+      maxDepth: 10,  // Increased to 10 for deeper monorepo structures
       respectGitIgnore: true
     });
   }, [cwd]);

@@ -17,17 +17,12 @@ To add a new memory type:
 from pathlib import Path
 from datetime import datetime
 from agents import Agent, Runner, RunConfig, function_tool, RunContextWrapper
-from siada.models.model_setting_converter import ModelSettingsConverter
-from siada.provider.provider_factory import get_provider
-from siada.services.model_wrapper import ModelProviderWrapper
-from siada.services.input_processor import process_input
-from siada.foundation.context import get_context_var, set_context_var, LLM_CONFIG, AGENT_NAME
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.logging import logger
+from siada.agent_hub.hooks.siada_basic_agent_hooks import SiadaBasicAgentHooks
 from siada.tools.coder.file_operator import edit
 from siada.services.memory.task_instructions.system_prompt import SYSTEM_PROMPT
 from siada.services.memory.task_instructions.structured_event import INSTRUCTION as STRUCTURED_EVENT
-from siada.services.memory.task_instructions.experience import INSTRUCTION as EXPERIENCE
 from siada.tools.coder.file_search import regex_search_files
 
 
@@ -89,8 +84,9 @@ def _build_task_list() -> list[tuple[str, str]]:
     """
     memory_dir = str(_get_memory_dir())
     return [
-        ("structured_event", STRUCTURED_EVENT.format(memory_dir=memory_dir, events_file_list=_list_dir_files("events"))),
-        ("experience",       EXPERIENCE.format(memory_dir=memory_dir, experience_file_list=_list_dir_files("experience")))
+        ("structured_event", STRUCTURED_EVENT.format(memory_dir=memory_dir, events_file_list=_list_dir_files("events")))
+        # Due to content overlap with memory.md, it has been temporarily removed
+        # ("experience",       EXPERIENCE.format(memory_dir=memory_dir, experience_file_list=_list_dir_files("experience")))
     ]
 
 
@@ -102,31 +98,27 @@ def _get_memory_agent() -> Agent:
         name="MemoryAgent",
         instructions=system_prompt,
         tools=[edit, delete_memory_file, regex_search_files],
+        # Use the generic composite hook. Its default processor chain
+        # scopes AGENT_NAME per LLM call so the outgoing X-Siada-Event-Type
+        # header is tagged as "MemoryAgent" and then cleared on on_llm_end,
+        # preventing the tag from leaking into unrelated follow-up requests
+        # that share the same asyncio task. Extra processors can be layered
+        # in later via `extra_processors=[...]` without touching this agent.
+        hooks=SiadaBasicAgentHooks(),
     )
 
 
 # ---- Run Config --------------------------------
 
 def _build_run_config() -> RunConfig:
-    llm_config = get_context_var(LLM_CONFIG)
-    if not llm_config:
-        raise ValueError("[MemoryAgent] LLM_CONFIG not found in global context")
+    """RunConfig for MemoryAgent.
 
-    model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
-    model_provider = get_provider(llm_config.provider)
-    provider_wrapper = ModelProviderWrapper(
-        base_provider=model_provider,
-        input_processor=process_input,
-    )
-
-    logger.info(f"[MemoryAgent] model={llm_config.model_name} provider={llm_config.provider}")
-
-    return RunConfig(
-        tracing_disabled=getattr(llm_config, 'tracing_disabled', False),
-        model=llm_config.model_name,
-        model_provider=provider_wrapper,
-        model_settings=model_settings,
-    )
+    MemoryAgent always runs on the fast model (DeepSeek via li provider),
+    regardless of the main agent's model choice. See
+    ``siada.provider.fast_llm`` for the policy.
+    """
+    from siada.provider.fast_llm import build_fast_run_config
+    return build_fast_run_config()
 
 
 # ---- Main Entry Point --------------------------------
@@ -146,7 +138,9 @@ d
         dict with 'success' bool and 'completed_tasks' list
     """
     try:
-        logger.info("[memory-agent] Starting memory pipeline")
+        # MemoryAgent always uses the fast model (see _build_run_config →
+        # fast_llm.build_fast_run_config). No contextvar juggling needed.
+        logger.info("[memory-agent] Starting memory pipeline (fast model)")
 
         agent = _get_memory_agent()
         run_config = _build_run_config()
@@ -167,9 +161,6 @@ d
         )}]
         result = None
         completed = []
-
-        # Set agent name in contextvars so LLM request headers can pick it up
-        set_context_var(AGENT_NAME, "MemoryAgent")
 
         for i, (task_name, instruction) in enumerate(task_list, start=1):
             logger.info(f"[memory-agent] Task {i}/{len(task_list)}: {task_name}")

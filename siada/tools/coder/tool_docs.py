@@ -4,7 +4,13 @@ EDIT_DOCS= """Custom editing tool for viewing, creating and editing files in pla
 * The following binary file extensions can be viewed in Markdown format: [".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".flac", ".pdf", ".docx"]. 
 * Image files ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]) are automatically returned as base64-encoded data URIs optimized for AI vision models.
 * The `create` command cannot be used if the specified `path` already exists as a file
-* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`
+* Truncation for `view` on text files (two layers; lines are never character-truncated):
+  1. Byte cap: files > 100 KB are cut to the first 100 KB; output ends with `[FILE TRUNCATED: ...]`. Then switch to `regex_search_files` or `run_cmd` (grep/head/tail) — `view_range` cannot reach the dropped bytes.
+  2. Line pagination (default 1000 lines): no `view_range` → `[1, min(1000, N)]`; `[a, -1]` → `[a, N]`; `[a, b]` → as given (auto-clamped/swapped).
+* Each `view` output ends with exactly ONE suffix — act on it:
+  - `[FILE TRUNCATED: ...]` → use search/grep, stop paging.
+  - `(Showing lines S-E of N total. Use view_range=<suggested> ...)` → more lines left; `<suggested>` is the next 1000-line window (or `[E+1, -1]` when ≤1000 remain). Follow it verbatim, don't widen it yourself.
+  - `(File has N lines total.)` → EOF reached, no follow-up needed.
 * The `undo_edit` command will revert the last edit made to the file at `path`
 * This tool can be used for creating and editing files in plain-text format.
 

@@ -9,16 +9,29 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from abc import ABC, abstractmethod
-from typing import List, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import List, Optional, TYPE_CHECKING
 
 from agents.models.chatcmpl_converter import Converter
 from siada.agent_hub.coder.prompt.compact_prompt import (
     _auto_compact_response,
     get_compact_system_prompt,
 )
+from siada.agent_hub.context_filter.utils import (
+    calculate_tokens,
+    estimate_tokens,
+    _convert_tools_to_openai_params,
+)
 from siada.provider.client_factory import get_client
+from siada.foundation.context import agent_name_scope
 from siada.foundation.logging import logger
+
+# Event-type marker used in the X-Siada-Event-Type header for compaction LLM calls.
+# Overrides AGENT_NAME for the duration of call_llm_to_compact() so server-side
+# analytics can distinguish compaction traffic from normal agent traffic.
+COMPACTION_AGENT_NAME = "context_compaction"
 
 if TYPE_CHECKING:
     from siada.foundation.code_agent_context import CodeAgentContext
@@ -28,6 +41,23 @@ if TYPE_CHECKING:
 class CompactionError(Exception):
     """Raised when message compaction/truncation fails."""
     pass
+
+
+@dataclass
+class CompactionResult:
+    """Result of a single `CompactionStrategy.compact()` pass.
+
+    Callers must key off `compacted` to decide whether anything actually
+    changed — not identity comparisons against the input list. `messages`
+    is always safe to use as "the current message list" either way:
+      - compacted=False → `messages` is the exact `real_api_messages`
+        object the caller originally passed in.
+      - compacted=True  → `messages` is a brand-new list.
+    """
+
+    messages: List
+    summary: Optional[str] = None       # generated summary (for persistence / cascading)
+    compacted: bool = False             # whether compaction actually happened
 
 
 class CompactionStrategy(ABC):
@@ -51,28 +81,170 @@ class CompactionStrategy(ABC):
         """Fraction of recent messages to preserve after compaction."""
         ...
 
+    @property
+    @abstractmethod
+    def summary_budget_ratio(self) -> float:
+        """Max portion of context window for the LLM summarization call."""
+        ...
+
     def should_compact(self, tokens_count: int, model_config: "ModelRunConfig") -> bool:
         """Check if compaction is needed based on token count and threshold."""
         threshold = model_config.context_window * self.token_threshold_ratio
         return tokens_count >= threshold
 
-    @abstractmethod
     async def compact(
         self,
-        context: "CodeAgentContext",
+        model_run_config: "ModelRunConfig",
         real_api_messages: List,
-    ) -> List:
+        *,
+        fixed_overhead_tokens: int = 0,
+    ) -> CompactionResult:
         """
         Execute the compaction strategy.
 
+        This is a template method: it hands ``_compact_impl()`` a private
+        shallow copy of ``real_api_messages`` and normalizes the result so
+        every caller can rely on a single, enforced contract regardless of
+        which concrete strategy ran — expressed explicitly via
+        ``CompactionResult.compacted``, never via list-identity comparisons:
+          - ``compacted=False`` → ``result.messages`` is the exact
+            ``real_api_messages`` object the caller passed in.
+          - ``compacted=True``  → ``result.messages`` is a brand-new list.
+
+        Subclasses implement ``_compact_impl()`` and are free to mutate the
+        list they receive in place (e.g. slicing/reassigning) without any
+        risk of corrupting the caller's original ``real_api_messages``
+        reference — the copy here makes that guarantee, so callers (and
+        subclasses) don't each have to reimplement it.
+
         Args:
-            context: The code agent context
+            model_run_config: Model run config (provides model name, context window, provider)
             real_api_messages: All real API messages
+            fixed_overhead_tokens: Pre-computed token overhead for system
+                instructions + tool definitions.  Subtracted from internal
+                budget calculations so compaction targets the correct size.
 
         Returns:
-            Compacted list of messages
+            CompactionResult with an explicit `compacted` flag.
+        """
+        working_copy = list(real_api_messages)
+        result = await self._compact_impl(
+            model_run_config, working_copy, fixed_overhead_tokens=fixed_overhead_tokens,
+        )
+        if not result.compacted:
+            # No-op: hand back the TRUE original object regardless of what
+            # `result.messages` happens to be (even if a subclass mutated
+            # the working copy in place and echoed it back) — callers must
+            # never see anything other than their own original reference
+            # on the no-op path.
+            return CompactionResult(
+                messages=real_api_messages, summary=result.summary, compacted=False,
+            )
+        return result
+
+    @abstractmethod
+    async def _compact_impl(
+        self,
+        model_run_config: "ModelRunConfig",
+        real_api_messages: List,
+        *,
+        fixed_overhead_tokens: int = 0,
+    ) -> CompactionResult:
+        """
+        Concrete compaction logic implemented by subclasses.
+
+        ``real_api_messages`` is a private copy owned by this call — see
+        ``compact()`` for the identity contract this enables. Return a
+        ``CompactionResult`` with ``compacted`` set explicitly:
+          - ``compacted=False`` for a no-op (whatever ``messages`` you put
+            in this case is discarded by ``compact()`` in favor of the
+            caller's true original list).
+          - ``compacted=True`` with ``messages`` set to the new list for a
+            real change.
+
+        Args:
+            model_run_config: Model run config (provides model name, context window, provider)
+            real_api_messages: All real API messages (private copy)
+            fixed_overhead_tokens: Pre-computed token overhead for system
+                instructions + tool definitions.  Subtracted from internal
+                budget calculations so compaction targets the correct size.
+
+        Returns:
+            CompactionResult with an explicit `compacted` flag.
         """
         ...
+
+    # ── fixed overhead calculation ───────────────────────────────────
+
+    @staticmethod
+    def calculate_fixed_overhead(
+        context: "CodeAgentContext",
+        instructions: str | None = None,
+        tools=None,
+    ) -> int:
+        """
+        Calculate the fixed token overhead for instructions + tools.
+
+        This overhead is constant across compaction iterations and should be
+        subtracted from budget calculations so messages are compressed to the
+        correct target size.
+
+        Args:
+            context: code agent context (for model name)
+            instructions: system instructions text
+            tools: list of agent Tool objects
+
+        Returns:
+            Total fixed overhead in tokens
+        """
+        _t_overhead_start = time.perf_counter()
+        overhead = 0
+        model_name = context.model_run_config.model_name
+
+        if instructions:
+            instruction_tokens = calculate_tokens(model_name, instructions)
+            overhead += instruction_tokens
+            logger.info(
+                "[calculate_fixed_overhead] instruction_tokens=%d, model=%s",
+                instruction_tokens, model_name,
+            )
+
+        if tools:
+            _t0 = time.perf_counter()
+            try:
+                import litellm
+                openai_tools = _convert_tools_to_openai_params(tools)
+                if openai_tools:
+                    # Use litellm's _count_extra to measure tool definition tokens
+                    with_tools = litellm.token_counter(
+                        model=model_name,
+                        messages=[{"role": "user", "content": "x"}],
+                        tools=openai_tools,
+                    )
+                    without_tools = litellm.token_counter(
+                        model=model_name,
+                        messages=[{"role": "user", "content": "x"}],
+                    )
+                    tool_tokens = with_tools - without_tools
+                    overhead += tool_tokens
+                    logger.info(
+                        "[calculate_fixed_overhead] tool_tokens=%d (with=%d, without=%d), "
+                        "num_tools=%d, model=%s, tool_token_count=%.1fms",
+                        tool_tokens, with_tools, without_tools,
+                        len(openai_tools), model_name,
+                        (time.perf_counter() - _t0) * 1000,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "[calculate_fixed_overhead] Failed to calculate tool tokens: %s", e,
+                )
+
+        logger.info(
+            "[PERF][calculate_fixed_overhead] total_overhead=%d, model=%s | %.1fms",
+            overhead, model_name,
+            (time.perf_counter() - _t_overhead_start) * 1000,
+        )
+        return overhead
 
     # ── message type helpers ────────────────────────────────────────
 
@@ -207,27 +379,69 @@ class CompactionStrategy(ABC):
 
     # ── LLM summarization ──────────────────────────────────────────
 
+    def _get_compaction_system_prompt(self) -> str:
+        """Return the system prompt for the LLM summarization call.
+
+        Subclasses can override to use a different prompt style.
+        Default uses the CLI/TUI compact prompt.
+        """
+        return get_compact_system_prompt()
+
+    def _get_compaction_user_prompt(self) -> str:
+        """Return the user prompt for the LLM summarization call.
+
+        Subclasses can override to use a different prompt style.
+        Default uses the CLI/TUI compact prompt.
+        """
+        return _auto_compact_response()
+
     async def call_llm_to_compact(
-        self, context: "CodeAgentContext", history_to_compact: List
+        self, model_run_config: "ModelRunConfig", history_to_compact: List
     ) -> str | None:
         """
         Call LLM to generate a summary of the given message history.
 
+        Uses _get_compaction_system_prompt() and _get_compaction_user_prompt()
+        for prompt customization — subclasses override those methods
+        instead of duplicating the LLM call logic.
+
+        If SIADA_COMPACT_MODEL env var is set, uses that model for the
+        summarization call instead of the main agent model. This allows
+        using a cheaper/smaller model for compaction.
+
         Args:
-            context: The code agent context (provides provider and model info)
+            model_run_config: Model run config (provides provider and model info)
             history_to_compact: Messages to summarize
 
         Returns:
             Extracted summary string, or None on failure
         """
-        provider = context.provider
-        model = context.model_run_config.model_name
+        import os
+
+        provider = model_run_config.provider
+        main_model = model_run_config.model_name
+        # Allow overriding the compact model via env var
+        model = os.environ.get("SIADA_COMPACT_MODEL", main_model)
+        if model != main_model:
+            logger.info(
+                "[call_llm_to_compact] Using compact model '%s' instead of main model '%s'",
+                model, main_model,
+            )
 
         compact_messages = Converter.items_to_messages(history_to_compact) + [
-            {"role": "user", "content": _auto_compact_response()}
+            {"role": "user", "content": self._get_compaction_user_prompt()}
         ]
         compact_messages.insert(
-            0, {"role": "system", "content": get_compact_system_prompt()}
+            0, {"role": "system", "content": self._get_compaction_system_prompt()}
+        )
+
+        # Log the compact call details
+        compact_msg_tokens = self._count_tokens(
+            compact_messages, model_run_config,
+        )
+        logger.info(
+            "[call_llm_to_compact] Sending %d messages (%d tokens) to model '%s'",
+            len(compact_messages), compact_msg_tokens, model,
         )
 
         llm_client = get_client(provider)
@@ -237,26 +451,44 @@ class CompactionStrategy(ABC):
             "messages": compact_messages,
         }
 
-        # Only add empty tools list for Anthropic/Claude models with default provider to avoid litellm error
+        # Only add empty tools list for Anthropic/Claude models to avoid litellm error
         if "anthropic" in model.lower() or "claude" in model.lower():
             complete_kwargs["tools"] = []
-        response = await llm_client.completion(**complete_kwargs)
+
+        # Temporarily override AGENT_NAME so the X-Siada-Event-Type header on
+        # this LLM request is tagged as a compaction call. `agent_name_scope`
+        # restores the previous value (or removes the key if it was absent)
+        # on exit, preventing the override from leaking into subsequent
+        # requests that share the same asyncio task.
+        _t0 = time.perf_counter()
+        with agent_name_scope(COMPACTION_AGENT_NAME):
+            response = await llm_client.completion(**complete_kwargs)
+        _llm_elapsed_ms = (time.perf_counter() - _t0) * 1000
 
         if response and response.choices and response.choices[0].message:
             raw_content = response.choices[0].message.content
-            return self._extract_summary(raw_content)
+            summary = self._extract_summary(raw_content)
+            logger.info(
+                "[PERF][call_llm_to_compact] model=%s input_tokens=%d "
+                "summary_chars=%d | llm_call=%.1fms",
+                model, compact_msg_tokens,
+                len(summary) if summary else 0, _llm_elapsed_ms,
+            )
+            return summary
+        logger.info(
+            "[PERF][call_llm_to_compact] model=%s input_tokens=%d "
+            "empty_response | llm_call=%.1fms",
+            model, compact_msg_tokens, _llm_elapsed_ms,
+        )
         return None
 
     @staticmethod
     def _extract_summary(content: str | None) -> str | None:
         """
-        Extract the summary XML from the LLM response content.
-
-        Args:
-            content: The full LLM response content
+        Extract the <context>...</context> block from the LLM response.
 
         Returns:
-            Extracted <context>...</context> block, or the full content if not found
+            Extracted block, or the full content if not found, or None if empty
         """
         if not content:
             return content
@@ -265,6 +497,401 @@ class CompactionStrategy(ABC):
         if match:
             return match.group(0)
         return content
+
+    # ── tool pair helpers (shared by subclasses) ────────────────────
+
+    @staticmethod
+    def _extract_tool_use_ids(msg) -> set:
+        """Extract tool_use / function_call IDs from an assistant message.
+
+        In the OpenAI Responses API, function_call items are top-level items
+        in the messages list (not nested inside msg.content). The structure is:
+        {type: "function_call", call_id: "xxx", name: "...", arguments: "..."}
+        """
+        ids: set = set()
+        if isinstance(msg, dict):
+            if msg.get("type") in ("tool_use", "function_call"):
+                tid = msg.get("call_id") or msg.get("id")
+                if tid:
+                    ids.add(tid)
+        else:
+            msg_type = getattr(msg, "type", None)
+            if msg_type in ("tool_use", "function_call"):
+                tid = getattr(msg, "call_id", None) or getattr(msg, "id", None)
+                if tid:
+                    ids.add(tid)
+        return ids
+
+    @staticmethod
+    def _extract_tool_result_ids(msg) -> set:
+        """Extract the matching call_id from a function response message.
+
+        In the OpenAI Responses API, FunctionCallOutput has:
+        - call_id: the matching ID that pairs with function_call's call_id
+        - id: the item's own unique ID (NOT for pairing, should be ignored)
+        """
+        ids: set = set()
+        if isinstance(msg, dict):
+            val = msg.get("call_id")
+            if val:
+                ids.add(val)
+        else:
+            val = getattr(msg, "call_id", None)
+            if val:
+                ids.add(val)
+        return ids
+
+    def _repair_tool_pairs(self, messages: List) -> List:
+        """
+        Fix orphan tool_use / tool_result after truncation.
+
+        The API requires every function_call to have a matching
+        function_call_output and vice versa. A typical response group is:
+            [reasoning] -> [output_message] -> function_call -> function_call_output
+        When an orphan function_call is removed, its preceding reasoning and
+        output_message from the same response group must also be removed.
+        """
+        if not messages:
+            return messages
+
+        # Collect all function_call call_ids
+        tool_use_ids: set = set()
+        for msg in messages:
+            if self.is_assistant_message(msg):
+                tool_use_ids.update(self._extract_tool_use_ids(msg))
+
+        # Collect all function_call_output call_ids
+        tool_result_ids: set = set()
+        for msg in messages:
+            if self.is_function_response(msg):
+                tool_result_ids.update(self._extract_tool_result_ids(msg))
+
+        # Mark indices to remove
+        remove_indices: set = set()
+        for i, msg in enumerate(messages):
+            if self.is_function_response(msg):
+                # Orphan function_call_output (no matching function_call)
+                msg_ids = self._extract_tool_result_ids(msg)
+                if msg_ids and not msg_ids.intersection(tool_use_ids):
+                    remove_indices.add(i)
+            elif self.is_assistant_message(msg):
+                use_ids = self._extract_tool_use_ids(msg)
+                if use_ids and not use_ids.intersection(tool_result_ids):
+                    # Orphan function_call (no matching function_call_output)
+                    remove_indices.add(i)
+                    # Also remove preceding reasoning/output_message items
+                    # that belong to the same response group
+                    j = i - 1
+                    while j >= 0 and j not in remove_indices:
+                        prev = messages[j]
+                        if self.is_user_message(prev) or self.is_function_response(prev):
+                            break
+                        prev_use_ids = self._extract_tool_use_ids(prev)
+                        if prev_use_ids:
+                            break
+                        if self.is_assistant_message(prev):
+                            remove_indices.add(j)
+                        else:
+                            break
+                        j -= 1
+
+        # Build result excluding removed indices
+        result = [msg for i, msg in enumerate(messages) if i not in remove_indices]
+
+        # Ensure first message is user
+        while result and not self.is_user_message(result[0]):
+            result.pop(0)
+
+        return result
+
+    # ── token counting (shared by subclasses) ───────────────────────
+
+    def _count_tokens(
+        self, messages: List, model_run_config: "ModelRunConfig | None" = None
+    ) -> int:
+        """
+        Count tokens using litellm when model_run_config is available,
+        falling back to rough char-based estimate otherwise.
+
+        Note: calculate_tokens() already applies TOKEN_ESTIMATION_SAFETY_MARGIN
+        to inflate counts, so all budget comparisons automatically include
+        safety headroom.
+        """
+        model_name = model_run_config.model_name if model_run_config is not None else None
+        return calculate_tokens(model_name, messages)
+
+    # ── prune / trim helpers (shared by subclasses) ─────────────────
+
+    def _prune_messages_to_token_budget(
+        self, messages: List, budget_tokens: int, model_run_config: "ModelRunConfig"
+    ) -> List:
+        """
+        Prune messages from the oldest end so the total fits within budget_tokens.
+
+        Uses binary search on user turn boundaries for efficiency.
+        Repairs orphan tool pairs after pruning.
+
+        Note: calculate_tokens() (called by _count_tokens) already applies
+        a safety margin to inflate token counts, so all comparisons against
+        budget_tokens automatically include safety headroom.
+
+        Args:
+            messages: messages to prune
+            budget_tokens: max allowed token count
+            model_run_config: model run config (for token counting)
+
+        Returns:
+            Pruned message list fitting within budget.
+        """
+        initial_count = len(messages)
+        initial_tokens = self._count_tokens(messages, model_run_config)
+        logger.info(
+            "[_prune_messages_to_token_budget] START: "
+            "initial_messages=%d, initial_tokens=%d (includes safety margin), "
+            "budget_tokens=%d",
+            initial_count, initial_tokens, budget_tokens,
+        )
+
+        if initial_tokens <= budget_tokens:
+            logger.info(
+                "[_prune_messages_to_token_budget] Already within budget, no pruning needed"
+            )
+            return messages
+
+        # Find all user turn boundaries (each is a valid cut point)
+        user_indices = [
+            i for i, m in enumerate(messages) if self.is_user_message(m)
+        ]
+        logger.info(
+            "[_prune_messages_to_token_budget] Found %d user turn boundaries at indices: %s",
+            len(user_indices), user_indices,
+        )
+        if not user_indices:
+            logger.warning(
+                "[_prune_messages_to_token_budget] No user messages found, returning empty list"
+            )
+            return []
+
+        # Binary search: find the earliest user turn boundary where
+        # messages[boundary:] fits within budget
+        lo, hi = 0, len(user_indices) - 1
+        best = hi  # worst case: keep only the last user turn
+
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            candidate = messages[user_indices[mid]:]
+            candidate_tokens = self._count_tokens(candidate, model_run_config)
+            logger.debug(
+                "[_prune_messages_to_token_budget] Binary search: lo=%d, hi=%d, mid=%d, "
+                "cut_at_index=%d, candidate_messages=%d, candidate_tokens=%d",
+                lo, hi, mid, user_indices[mid], len(candidate), candidate_tokens,
+            )
+            if candidate_tokens <= budget_tokens:
+                best = mid
+                hi = mid - 1  # try to keep more (earlier boundary)
+            else:
+                lo = mid + 1  # need to drop more old turns
+
+        pruned_count = user_indices[best]
+        messages = messages[user_indices[best]:]
+        logger.info(
+            "[_prune_messages_to_token_budget] Pruned %d oldest messages "
+            "(cut at user turn index %d), remaining=%d messages",
+            pruned_count, user_indices[best], len(messages),
+        )
+
+        # Repair orphan tool pairs caused by pruning
+        before_repair = len(messages)
+        messages = self._repair_tool_pairs(messages)
+        after_repair = len(messages)
+        if before_repair != after_repair:
+            logger.info(
+                "[_prune_messages_to_token_budget] Repaired orphan tool pairs: "
+                "messages %d -> %d",
+                before_repair, after_repair,
+            )
+
+        final_tokens = self._count_tokens(messages, model_run_config)
+        logger.info(
+            "[_prune_messages_to_token_budget] DONE: "
+            "final_messages=%d, final_tokens=%d, budget_tokens=%d, "
+            "tokens_saved=%d",
+            len(messages), final_tokens, budget_tokens,
+            initial_tokens - final_tokens,
+        )
+        return messages
+
+    def _trim_kept_history(
+        self, messages: List, model_run_config: "ModelRunConfig", budget_tokens: int
+    ) -> List:
+        """
+        Trim history_to_keep to fit within budget_tokens.
+
+        Strategy:
+          1. If already within budget, return as-is.
+          2. Keep only from the last user message onwards.
+          3. If still over budget, remove oldest tool call groups
+             (assistant msgs + function_call_output) one by one after
+             the last user message, until within budget.
+
+        Args:
+            messages: the history_to_keep portion
+            model_run_config: model run config (for token counting)
+            budget_tokens: max allowed token count
+
+        Returns:
+            Trimmed message list.
+        """
+        initial_count = len(messages) if messages else 0
+        initial_tokens = self._count_tokens(messages, model_run_config) if messages else 0
+        logger.info(
+            "[_trim_kept_history] START: "
+            "initial_messages=%d, initial_tokens=%d, budget_tokens=%d",
+            initial_count, initial_tokens, budget_tokens,
+        )
+
+        if not messages or initial_tokens <= budget_tokens:
+            logger.info(
+                "[_trim_kept_history] Already within budget or empty, no trimming needed"
+            )
+            return messages
+
+        # Step 2: keep only from the last user message
+        last_user_idx = None
+        for i in range(len(messages) - 1, -1, -1):
+            if self.is_user_message(messages[i]):
+                last_user_idx = i
+                break
+
+        if last_user_idx is not None and last_user_idx > 0:
+            dropped = last_user_idx
+            messages = messages[last_user_idx:]
+            tokens_after_step2 = self._count_tokens(messages, model_run_config)
+            logger.info(
+                "[_trim_kept_history] Step 2: Kept from last user message (index=%d), "
+                "dropped %d messages, remaining=%d messages, tokens=%d",
+                last_user_idx, dropped, len(messages), tokens_after_step2,
+            )
+        else:
+            tokens_after_step2 = self._count_tokens(messages, model_run_config)
+            logger.info(
+                "[_trim_kept_history] Step 2: No earlier messages to drop "
+                "(last_user_idx=%s), messages=%d, tokens=%d",
+                last_user_idx, len(messages), tokens_after_step2,
+            )
+
+        if tokens_after_step2 <= budget_tokens:
+            logger.info(
+                "[_trim_kept_history] Within budget after Step 2, done"
+            )
+            return messages
+
+        # Step 3: within the last user turn, remove oldest tool call groups
+        # one by one until within budget.
+        #
+        # A tool call group = [reasoning?] [output_message?] [function_call] [function_call_output]
+        # Groups are ordered oldest → newest.
+        # We remove from the oldest side first, since newest groups are more relevant.
+        tool_groups = self._identify_tool_call_groups(messages)
+        logger.info(
+            "[_trim_kept_history] Step 3: Found %d tool call groups to consider removing",
+            len(tool_groups),
+        )
+
+        if not tool_groups:
+            logger.info(
+                "[_trim_kept_history] No tool call groups found, returning as-is"
+            )
+            return messages
+
+        # Accumulate indices to remove, adding one more group each iteration
+        indices_to_remove: set[int] = set()
+        groups_removed = 0
+        for group_start, group_end in tool_groups:
+            # Mark this group's message indices for removal
+            indices_to_remove.update(range(group_start, group_end))
+            groups_removed += 1
+
+            # Check if removing these groups brings us within budget
+            candidate = [m for j, m in enumerate(messages) if j not in indices_to_remove]
+            candidate_tokens = self._count_tokens(candidate, model_run_config)
+            logger.debug(
+                "[_trim_kept_history] Removed group %d (indices %d-%d), "
+                "candidate_messages=%d, candidate_tokens=%d",
+                groups_removed, group_start, group_end - 1,
+                len(candidate), candidate_tokens,
+            )
+            if candidate_tokens <= budget_tokens:
+                logger.info(
+                    "[_trim_kept_history] Within budget after removing %d tool groups",
+                    groups_removed,
+                )
+                break
+
+        # Apply the accumulated removal
+        before_removal = len(messages)
+        messages = [m for j, m in enumerate(messages) if j not in indices_to_remove]
+        logger.info(
+            "[_trim_kept_history] Removed %d messages (%d tool groups), "
+            "remaining=%d messages",
+            before_removal - len(messages), groups_removed, len(messages),
+        )
+
+        # Repair any orphan pairs
+        before_repair = len(messages)
+        messages = self._repair_tool_pairs(messages)
+        if before_repair != len(messages):
+            logger.info(
+                "[_trim_kept_history] Repaired orphan tool pairs: messages %d -> %d",
+                before_repair, len(messages),
+            )
+
+        final_tokens = self._count_tokens(messages, model_run_config)
+        logger.info(
+            "[_trim_kept_history] DONE: "
+            "final_messages=%d, final_tokens=%d, budget_tokens=%d, "
+            "tokens_saved=%d",
+            len(messages), final_tokens, budget_tokens,
+            initial_tokens - final_tokens,
+        )
+        return messages
+
+    def _identify_tool_call_groups(self, messages: List) -> List[tuple[int, int]]:
+        """
+        Identify tool call groups within a single user turn.
+
+        A group is: [reasoning?] [output_message?] [function_call] [function_call_output]
+        Starts scanning from index 1 (skipping the leading user message).
+
+        Returns:
+            List of (start_index, end_index_exclusive) tuples for each group,
+            ordered from oldest to newest.
+        """
+        groups: list[tuple[int, int]] = []
+        i = 1  # skip the first user message
+        while i < len(messages):
+            # Skip user messages (shouldn't happen within a single turn, but be safe)
+            if self.is_user_message(messages[i]):
+                i += 1
+                continue
+
+            # Start of a potential tool call group
+            group_start = i
+
+            # Scan consecutive assistant messages
+            while i < len(messages) and self.is_assistant_message(messages[i]):
+                i += 1
+
+            # Check for function_call_output following the assistant messages
+            if i < len(messages) and self.is_function_response(messages[i]):
+                i += 1  # include the function_call_output
+                groups.append((group_start, i))
+            else:
+                # No function_call_output — this is a trailing assistant block
+                # (e.g. final response), don't treat as removable group
+                break
+
+        return groups
 
     # ── compressed history assembly ─────────────────────────────────
 
@@ -318,79 +945,14 @@ class CompactionStrategy(ABC):
         return result
 
 
-class SummarizeWithHeaderCompaction(CompactionStrategy):
-    """
-    Conservative summarize-and-keep-header compaction.
-
-    Triggers at 70% context window, preserves 30% of recent messages.
-    Keeps the first user-assistant pair as a header in the compressed output,
-    followed by an LLM-generated summary and the recent message tail.
-
-    Typically used for CLI / TUI sessions.
-    """
-
-    @property
-    def token_threshold_ratio(self) -> float:
-        return 0.7
-
-    @property
-    def preserve_ratio(self) -> float:
-        return 0.3
-
-    async def compact(
-        self,
-        context,
-        real_api_messages,
-    ) -> List:
-        compress_before_index = self.find_index_after_fraction(
-            history=real_api_messages, fraction=1 - self.preserve_ratio
-        )
-
-        # Snap forward past assistant/function messages, but stop after a function response
-        while compress_before_index < len(real_api_messages) and (
-            self.is_assistant_message(real_api_messages[compress_before_index])
-            or self.is_function_response(real_api_messages[compress_before_index])
-        ):
-            compress_before_index += 1
-            if self.is_function_response(real_api_messages[compress_before_index - 1]):
-                break
-
-        compress_before_index = self.adjust_compression_index_for_boundary_cases(
-            real_api_messages, compress_before_index
-        )
-
-        if compress_before_index <= 1:
-            return real_api_messages
-
-        history_to_compress = real_api_messages[:compress_before_index]
-        history_to_keep = real_api_messages[compress_before_index:]
-
-        if not history_to_keep:
-            raise ValueError("No messages to keep after compression")
-
-        summary = await self.call_llm_to_compact(
-            context=context, history_to_compact=history_to_compress
-        )
-
-        if not summary:
-            return real_api_messages
-
-        return self.create_compressed_message_history(
-            header_message=self.try_get_first_user_assistant_pair(
-                real_api_messages, compress_before_index
-            ),
-            summary=summary,
-            history_to_keep=history_to_keep,
-        )
-
-
 def _resolve_strategy_by_name(name: str) -> CompactionStrategy | None:
     """Resolve a compaction strategy by its registered name.
 
     Returns:
         Strategy instance, or None if name is unrecognized.
     """
-    # Lazy import to avoid circular dependency
+    # Lazy imports to avoid circular dependency
+    from .header_summary_compaction_strategy import SummarizeWithHeaderCompaction
     from .turn_prune_compaction_strategy import TurnPruneSummaryCompaction
 
     registry: dict[str, type] = {
@@ -439,4 +1001,5 @@ def get_compaction_strategy(context: "CodeAgentContext") -> CompactionStrategy:
         # IM mode uses the dedicated multi-layer pipeline
         from .turn_prune_compaction_strategy import TurnPruneSummaryCompaction
         return TurnPruneSummaryCompaction()
+    from .header_summary_compaction_strategy import SummarizeWithHeaderCompaction
     return SummarizeWithHeaderCompaction()

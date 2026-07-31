@@ -17,6 +17,7 @@ export interface UserConfig {
   theme?: 'dark' | 'light';
   shortcuts?: Record<string, string>;
   preferredEditor?: EditorType;
+  statusbarItems?: string[];
   siada?: {
     path?: string;
     pythonPath?: string;
@@ -27,11 +28,16 @@ export interface UserConfig {
   };
 }
 
+const DEFAULT_STATUSBAR_ITEMS = [
+  'model', 'balance', 'total_cost',
+  'hit_rate', 'git_branch', 'workspace', 'cost_time', 'token_usage',
+];
+
 export class ConfigManager {
   private config: UserConfig = {};
   private configPaths = [
     join(homedir(), '.siadauirc'),
-    join(homedir(), '.config', 'siada-ui', 'config.json'),
+    join(homedir(), '.siada-cli', 'ui-config.json'),
     join(process.cwd(), '.siadauirc'),
   ];
 
@@ -84,11 +90,26 @@ export class ConfigManager {
   }
 
   /**
+   * Get status bar visible items
+   */
+  getStatusbarItems(): string[] {
+    return this.config.statusbarItems || DEFAULT_STATUSBAR_ITEMS;
+  }
+
+  /**
+   * Set status bar visible items and persist
+   */
+  setStatusbarItems(items: string[]): void {
+    this.config.statusbarItems = items;
+    this.persistConfig();
+  }
+
+  /**
    * Persist current configuration to file
    */
   private persistConfig(): void {
-    // Use the first config path as primary (user home directory)
-    const configPath = join(homedir(), '.config', 'siada-ui', 'config.json');
+    // Use the siada-cli config directory
+    const configPath = join(homedir(), '.siada-cli', 'ui-config.json');
     
     try {
       // Ensure directory exists

@@ -102,6 +102,7 @@ _global_cache = GlobalCache()
 
 # Define constant keys
 LAST_MEMORY_NAME = 'LAST_MEMORY_NAME'
+ACP_LEGACY_ADAPTER = 'ACP_LEGACY_ADAPTER'
 
 # Provide convenience functions
 def set_global_cache(key: str, value: Any) -> None:

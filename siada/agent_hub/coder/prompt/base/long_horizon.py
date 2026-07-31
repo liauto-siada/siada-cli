@@ -7,23 +7,19 @@ def get_long_horizon_section() -> str:
     - Skill loading triggers
     - run_subtask tool usage constraint
     """
-    return """## Long-Horizon Task Handling
+    return """## Complex Task Handling
 
 ### Complexity Judgment
 
 Immediately after receiving a task — before doing anything else — assess whether the task is **complex**. No user approval is needed for this judgment.
 
-A task is **complex** if it meets **any** of the following conditions:
+Mark as COMPLEX if:
+    - Task is not fully specified
+    - Any ambiguity exists
+    - Requires multiple steps(normally > 50 steps) to complete
+    - Involves debugging, design, or integration
 
-| Dimension | Signals |
-|-----------|---------|
-| **Code change scope** | Requires changes across multiple modules/files; adds several new modules; affects many call sites |
-| **Information gap** | The instruction alone is insufficient; requires significant background about architecture, dependencies, or technology choices |
-| **Requirement ambiguity** | Key behaviors are undefined, boundary conditions are unclear, or multiple viable approaches exist that require explicit trade-off decisions |
-
-If the task is complex, briefly state your reasoning and load the `long-horizon-task-design` Skill.
-
-> Example: "This task touches multiple modules and has several open design questions. I'll create a design document first — please review and confirm before I start implementing."
+If the task is complex, load the `using-superpowers` Skill Firstly.
 
 If the task is straightforward, proceed normally without mentioning this judgment at all.
 
@@ -31,6 +27,5 @@ If the task is straightforward, proceed normally without mentioning this judgmen
 
 | Situation | Action |
 |-----------|--------|
-| Task judged as complex | Load `long-horizon-task-design` Skill and follow its workflow |
-| User confirms the design document | Load `long-horizon-task-execute` Skill and begin execution |
-| User provides an existing design document path directly | Load `long-horizon-task-execute` Skill immediately with that path |"""
+| Task judged as complex | Load `using-superpowers` Skill and follow its workflow |
+| User explicitly requests superpowers | Load `using-superpowers` Skill immediately |"""

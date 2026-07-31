@@ -13,10 +13,19 @@ const TOOL_PATTERNS = {
   update_file: /^In the file `([^`]+)`[,`].*(?:replace|insert)/,
   undo_edit: /^Undo the last edit for the file `([^`]+)`/,
   run_command: /^Run the following command:/,
+  run_powershell: /^Run the following PowerShell command:/,
   search: /^Search for: (.+?) in (.+?) with file pattern/,
   analyze: /^Analyze definitions in `([^`]+)`/,
-  crawl: /^Crawl the url: (.+?) with format/,
+  web: /^(?:Crawl the url:|Fetch URL:|Web search:)\s*(.+)/,
   browser: /^> Siada will (.+)/,
+  memory_search: /^Searching memory:\s*(.+)/,
+  memory_write: /^Save to memory/,
+  fact_store: /^Fact memory(?:\s+(.+))?/,
+  fact_feedback: /^Fact feedback(?:\s+(.+))?/,
+  sub_agent: /^Sub-agent task:\s*(.+)/,
+
+  lark: /^Send Lark/,
+  todo_write: /^(?:Clearing todo list|[○◐✓?]\s+.+)/,
 } as const;
 
 export type ToolType = keyof typeof TOOL_PATTERNS;
@@ -110,6 +119,16 @@ function createParsedResult(
         details: command,
       };
 
+    case 'run_powershell':
+      // Extract command from powershell code block if present
+      const psMatch = fullContent.match(/```powershell\s*\n(.+?)\n```/s);
+      const psCommand = psMatch ? psMatch[1].trim() : '';
+      return {
+        type,
+        summary: 'Run PowerShell command',
+        details: psCommand,
+      };
+
     case 'search':
       return {
         type,
@@ -125,10 +144,10 @@ function createParsedResult(
         details: match[1],
       };
 
-    case 'crawl':
+    case 'web':
       return {
         type,
-        summary: 'Crawl URL',
+        summary: 'Web request',
         details: match[1],
       };
 
@@ -138,6 +157,61 @@ function createParsedResult(
         summary: 'Browser action',
         details: match[1],
       };
+
+    case 'memory_search':
+      return {
+        type,
+        summary: 'Search memory',
+        details: match[1],
+      };
+
+    case 'memory_write':
+      return {
+        type,
+        summary: 'Save to memory',
+        details: fullContent.substring('Save to memory'.length).trim(),
+      };
+
+    case 'fact_store':
+      return {
+        type,
+        summary: 'Fact memory',
+        details: (match[1] || '').trim(),
+      };
+
+    case 'fact_feedback':
+      return {
+        type,
+        summary: 'Fact feedback',
+        details: (match[1] || '').trim(),
+      };
+
+    case 'sub_agent':
+
+      return {
+        type,
+        summary: 'Sub-agent task',
+        details: match[1],
+      };
+
+    case 'lark':
+      return {
+        type,
+        summary: 'Lark notification',
+        details: fullContent.substring('Send Lark'.length).trim(),
+      };
+
+    case 'todo_write': {
+      const progressMatch = fullContent.match(/\[(\d+)\/(\d+) completed\]/);
+      const summary = progressMatch
+        ? `Todo List (${progressMatch[1]}/${progressMatch[2]} done)`
+        : fullContent.startsWith('Clearing') ? 'Clear todo list' : 'Todo List';
+      return {
+        type,
+        summary,
+        details: fullContent,
+      };
+    }
 
     default:
       return {
@@ -192,17 +266,42 @@ export function formatCompactSummary(groups: Map<ToolType, ParsedToolCall[]>): s
       case 'run_command':
         parts.push(count === 1 ? 'Run 1 command' : `Run ${count} commands`);
         break;
+      case 'run_powershell':
+        parts.push(count === 1 ? 'Run 1 PowerShell command' : `Run ${count} PowerShell commands`);
+        break;
       case 'search':
         parts.push(count === 1 ? 'Search' : `${count} searches`);
         break;
       case 'analyze':
         parts.push(count === 1 ? 'Analyze code' : `Analyze ${count} files`);
         break;
-      case 'crawl':
-        parts.push(count === 1 ? 'Crawl URL' : `Crawl ${count} URLs`);
+      case 'web':
+        parts.push(count === 1 ? '1 web request' : `${count} web requests`);
         break;
       case 'browser':
         parts.push(count === 1 ? 'Browser action' : `${count} browser actions`);
+        break;
+      case 'memory_search':
+        parts.push(count === 1 ? 'Search memory' : `${count} memory searches`);
+        break;
+      case 'memory_write':
+        parts.push(count === 1 ? 'Save to memory' : `${count} memory saves`);
+        break;
+      case 'fact_store':
+        parts.push(count === 1 ? 'Fact memory' : `${count} fact memory ops`);
+        break;
+      case 'fact_feedback':
+        parts.push(count === 1 ? 'Fact feedback' : `${count} fact feedbacks`);
+        break;
+      case 'sub_agent':
+
+        parts.push(count === 1 ? '1 sub-agent task' : `${count} sub-agent tasks`);
+        break;
+      case 'lark':
+        parts.push(count === 1 ? '1 Lark notification' : `${count} Lark notifications`);
+        break;
+      case 'todo_write':
+        parts.push('Todo List');
         break;
     }
   }

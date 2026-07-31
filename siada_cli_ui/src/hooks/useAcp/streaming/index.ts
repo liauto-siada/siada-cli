@@ -1,7 +1,7 @@
-import { useRef, useCallback, Dispatch, SetStateAction } from 'react';
+import { useRef, useCallback, Dispatch, SetStateAction, MutableRefObject } from 'react';
 import { Writable } from 'stream';
 import { Message } from '../../../types/index.js';
-import { BannerInfo } from '../types.js';
+import { BannerInfo, TodoItem, TodoMessageRange } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 import {
   findLastSafeSplitPoint,
@@ -13,15 +13,60 @@ import {
 // 50-120ms is the sweet spot: lower causes too-frequent redraws, higher hurts the "typing" feel.
 const STREAM_FLUSH_MS = 80;
 
+// Status icon → status string mapping (matches formatters.py _TODO_STATUS_ICONS)
+const ICON_TO_STATUS: Record<string, TodoItem['status']> = {
+  '○': 'pending',
+  '◐': 'in_progress',
+  '✓': 'completed',
+  '?': 'pending',
+};
+
+/** Parse todo_write tool call content into TodoItem[].
+ *  Returns null when content doesn't look like a todo_write output. */
+function parseTodoWriteContent(content: string): TodoItem[] | null {
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+
+  // "Clearing todo list" → empty list
+  if (trimmed === 'Clearing todo list') return [];
+
+  // Each line is either "ICON  content text" or "[N/M completed]" or empty
+  const lines = trimmed.split('\n');
+  const todos: TodoItem[] = [];
+  let foundAny = false;
+
+  for (const line of lines) {
+    const stripped = line.trim();
+    if (!stripped || stripped.match(/^\[\d+\/\d+ completed\]$/)) continue;
+
+    const match = stripped.match(/^([○◐✓?])\s{1,3}(.+)$/);
+    if (!match) {
+      // If we already parsed some lines this is probably valid but has extra text; skip
+      if (foundAny) continue;
+      // If we haven't found any yet, this isn't a todo_write message
+      return null;
+    }
+    foundAny = true;
+    const status = ICON_TO_STATUS[match[1]] ?? 'pending';
+    todos.push({ content: match[2].trimEnd(), status });
+  }
+
+  return foundAny ? todos : null;
+}
+
 interface StreamingDeps {
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setBannerInfo: Dispatch<SetStateAction<BannerInfo | null>>;
   stdout: (Writable & { rows?: number }) | null;
   workingDir: string;
   model: string | undefined;
+  pullHistoryTimeoutRef: MutableRefObject<NodeJS.Timeout | null>;
+  messagesRef: MutableRefObject<Message[]>;
+  setTodoItems: Dispatch<SetStateAction<TodoItem[]>>;
+  setTodoMessageRanges: Dispatch<SetStateAction<Map<string, TodoMessageRange>>>;
 }
 
-export function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, model }: StreamingDeps) {
+export function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, model, pullHistoryTimeoutRef, messagesRef, setTodoItems, setTodoMessageRanges }: StreamingDeps) {
   const toolMessageIdCounterRef = useRef(0);
   const currentStreamingMessageRef = useRef<{
     id: string;
@@ -49,6 +94,33 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       const fullContent = accumulatedContentRef.current;
       streamPendingAppendRef.current = '';
       if (!fullContent) return;
+
+      // Guard: if the pending portion of the answer is too tall for the dynamic
+      // (non-Static) area, skip the overwrite. The target message is likely
+      // already in Static — overwriting its content would change content.length,
+      // which (before the signature fix) triggered a flicker loop of
+      // clear-screen + remount every 80ms.
+      //
+      // The content will still be flushed when:
+      //   - A split happens in handleAgentMessage (freezes old part, creates new pending block)
+      //   - The stream ends (streamEnd handler sets final content + metadata)
+      //   - A new stream starts (flushStreamingNow is called explicitly)
+      const splitPoint = findLastSafeSplitPoint(fullContent);
+      const afterText = fullContent.substring(splitPoint);
+      const afterLines = countLines(afterText);
+      const terminalHeight = stdout?.rows || 50;
+      const maxDynamicLines = Math.max(terminalHeight / 2, 5);
+
+      if (afterLines > maxDynamicLines) {
+        logger.debug('flushStreamingNow skipped — answer content too tall for pending area', {
+          component: 'Streaming',
+          operation: 'flush_skip',
+          afterLines,
+          maxDynamicLines,
+          contentLength: fullContent.length,
+        });
+        return;
+      }
 
       setMessages(prev => {
         for (let i = prev.length - 1; i >= 0; i--) {
@@ -85,7 +157,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       }
       return prev;
     });
-  }, [setMessages]);
+  }, [setMessages, stdout]);
 
   const scheduleStreamingFlush = useCallback(() => {
     if (streamFlushTimerRef.current) return;
@@ -100,6 +172,11 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       clearTimeout(streamFlushTimerRef.current);
       streamFlushTimerRef.current = null;
     }
+    // Clear pullHistory timeout
+    if (pullHistoryTimeoutRef.current) {
+      clearTimeout(pullHistoryTimeoutRef.current);
+      pullHistoryTimeoutRef.current = null;
+    }
     streamPendingAppendRef.current = '';
     streamTargetSubtypeRef.current = null;
     currentStreamingMessageRef.current = null;
@@ -108,6 +185,16 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
   }, []);
 
   const handleAgentMessage = useCallback((message: Message) => {
+    if (message.metadata?.reason === 'quota_update') {
+      try {
+        const info = JSON.parse(message.content);
+        setBannerInfo(prev => prev ? { ...prev, quotaUsage: info.quota_usage ?? null } : prev);
+      } catch (e) {
+        logger.error('Failed to parse quota_update', e);
+      }
+      return;
+    }
+
     if (message.metadata?.reason === 'banner_info' && message.metadata?.type === 'banner') {
       try {
         const info = JSON.parse(message.content);
@@ -115,12 +202,14 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           version: info.version,
           workingDir: info.working_dir || workingDir,
           agent: info.agent || 'coder',
-          provider: info.provider || 'li',
+          provider: info.provider || 'default',
           model: info.model || model,
           prePlanMode: info.pre_plan || false,
           thinkingTokens: info.thinking_tokens,
           reasoningEffort: info.reasoning_effort,
           parallelToolCalls: info.parallel_tool_calls,
+          quotaUsage: info.quota_usage ?? null,
+          memoryEnabled: info.memory_enabled ?? true,
         });
         logger.info('Banner info updated', { info });
       } catch (e) {
@@ -318,8 +407,45 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       streamPendingAppendRef.current = '';
       currentStreamingMessageRef.current = null;
       accumulatedContentRef.current = '';
+
+      // Parse todo_write content and update todo state immediately (before ACP notification arrives)
+      // Use setMessages functional form to read the latest state after flushStreamingNow
+      setMessages(prev => {
+        let finalContent = content;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].metadata?.subtype === 'tool_use') {
+            finalContent = prev[i].content || content;
+            break;
+          }
+        }
+        const parsed = parseTodoWriteContent(finalContent);
+        if (parsed !== null) {
+          setTodoItems(parsed);
+          const currentMsgCount = prev.length;
+          setTodoMessageRanges(prevRanges => {
+            const next = new Map(prevRanges);
+            // Close previously open in_progress ranges that are no longer in_progress
+            for (const [key, range] of next.entries()) {
+              if (range.endIdx === null) {
+                const stillInProgress = parsed.some(t => t.content === key && t.status === 'in_progress');
+                if (!stillInProgress) {
+                  next.set(key, { ...range, endIdx: currentMsgCount });
+                }
+              }
+            }
+            // Open new in_progress ranges
+            for (const todo of parsed) {
+              if (todo.status === 'in_progress' && !next.has(todo.content)) {
+                next.set(todo.content, { startIdx: currentMsgCount, endIdx: null });
+              }
+            }
+            return next;
+          });
+        }
+        return prev; // messages state unchanged, we only read it
+      });
     }
-  }, [setMessages, flushStreamingNow]);
+  }, [setMessages, flushStreamingNow, setTodoItems, setTodoMessageRanges]);
 
   return { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse };
 }

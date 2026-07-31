@@ -24,7 +24,7 @@ export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
   version = '0.0.0',
   workingDir,
   agent = 'coder',
-  provider = 'li',
+  provider = 'default',
   model,
   prePlanMode = true,
   isCollapsed = false,

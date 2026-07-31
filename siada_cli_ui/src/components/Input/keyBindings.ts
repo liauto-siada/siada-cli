@@ -104,8 +104,14 @@ export const defaultKeyBindings: KeyBindingConfig = {
   [Command.RIGHT]: [{ key: 'right' }],
   [Command.UP]: [{ key: 'up', shift: false }],
   [Command.DOWN]: [{ key: 'down', shift: false }],
-  [Command.WORD_LEFT]: [{ key: 'left', ctrl: true }],
-  [Command.WORD_RIGHT]: [{ key: 'right', ctrl: true }],
+  [Command.WORD_LEFT]: [
+    { key: 'left', ctrl: true },   // Ctrl+Left
+    { key: 'left', command: true }, // Meta/Alt+Left (Option+Left on macOS)
+  ],
+  [Command.WORD_RIGHT]: [
+    { key: 'right', ctrl: true },   // Ctrl+Right
+    { key: 'right', command: true }, // Meta/Alt+Right (Option+Right on macOS)
+  ],
 
   // Text deletion
   [Command.BACKSPACE]: [{ key: 'backspace' }],

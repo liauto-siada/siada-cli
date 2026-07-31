@@ -2,9 +2,11 @@ import os
 import platform
 import re
 import select as _select
+import shutil
 import subprocess
 import sys
 import threading
+from functools import lru_cache
 from io import BytesIO
 
 import pexpect
@@ -148,6 +150,20 @@ def kill_process_tree(pid):
         logger.debug(f"Process {pid} already terminated or access denied: {e}")
 
 
+def _make_no_pager_env():
+    """Return a copy of the current environment with terminal pagers disabled.
+
+    Prevents tools like git/less from invoking interactive pagers that would
+    block command execution inside a Siada session.
+    """
+    env = os.environ.copy()
+    env['GIT_PAGER'] = 'cat'
+    env['SYSTEMD_PAGER'] = 'cat'
+    env['PAGER'] = 'cat'
+    env['LESS'] = '-FRX'
+    return env
+
+
 def _validate_cwd(cwd):
     """Validate working directory exists and is a directory.
     
@@ -177,7 +193,7 @@ def _report_error(message, error_print=None):
         pass
 
 
-def run_cmd_impl(command, verbose=False, cwd=None, error_print=None):
+def run_cmd_impl(command, verbose=False, cwd=None, error_print=None, timeout=None):
     # import time
     # start_time = time.time()
     
@@ -186,22 +202,24 @@ def run_cmd_impl(command, verbose=False, cwd=None, error_print=None):
     if cwd_error:
         _report_error(cwd_error, error_print)
         return 1, cwd_error
-    
+
+    effective_timeout = timeout if timeout and timeout > 0 else COMMAND_TIMEOUT
+
     try:
         # Determine which execution method to use
         if platform.system() == "Windows":
             # Windows doesn't support pexpect well
-            result = run_cmd_subprocess(command, verbose, cwd)
+            result = run_cmd_subprocess(command, verbose, cwd, timeout=effective_timeout)
         elif sys.stdin.isatty() and hasattr(pexpect, "spawn"):
             # Traditional TTY mode - use interact() for full interactivity
-            result = run_cmd_pexpect(command, verbose, cwd)
+            result = run_cmd_pexpect(command, verbose, cwd, timeout=effective_timeout)
         elif is_acp_mode() and hasattr(pexpect, "spawn"):
             # ACP mode (new UI) - use pexpect with expect/sendline pattern
             # This allows interactive commands to work even without TTY
-            result = run_cmd_pexpect_acp(command, verbose, cwd)
+            result = run_cmd_pexpect_acp(command, verbose, cwd, timeout=effective_timeout)
         else:
             # Fallback to subprocess (no interactivity)
-            result = run_cmd_subprocess(command, verbose, cwd)
+            result = run_cmd_subprocess(command, verbose, cwd, timeout=effective_timeout)
         
         # elapsed_time = time.time() - start_time
         # print(f"\n[time: {elapsed_time:.2f}s]")
@@ -276,7 +294,210 @@ def _check_and_truncate_output(output_list, new_data, output_truncated):
     return False, True
 
 
-def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.encoding):
+def _run_subprocess_core(
+    *,
+    popen_args,
+    shell: bool,
+    cwd,
+    timeout: int,
+    encoding,
+    verbose: bool,
+):
+    """Shared subprocess driver loop with reader-thread + queue draining.
+
+    Used by both run_cmd_subprocess (shell=True, str command) and
+    run_powershell_impl (shell=False, argv list).
+    """
+    try:
+        process = subprocess.Popen(
+            popen_args,
+            stdin=subprocess.DEVNULL,  # Close stdin so non-interactive tools (e.g. python -c on Windows) receive EOF immediately instead of blocking
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            # Binary mode: avoids Windows pipe-buffer deadlock.
+            # _select.select() on Windows raises OSError on pipe objects, so the
+            # old select+read(1) loop never actually read anything — the child's
+            # pipe buffer filled up and it stalled waiting for space, causing a
+            # timeout.  Using a reader thread + read1(4096) drains whatever bytes
+            # are currently available without waiting for a full 4096-byte chunk,
+            # so the pipe is always emptied promptly on both Windows and POSIX.
+            shell=shell,
+            bufsize=-1,  # default BufferedReader — required for read1()
+            cwd=cwd,
+            env=_make_no_pager_env(),
+        )
+
+        import codecs as _codecs
+        import queue
+        import time
+
+        output = []
+        output_truncated = False
+        effective_timeout = timeout if timeout and timeout > 0 else COMMAND_TIMEOUT
+        _enc = encoding or sys.stdout.encoding or "utf-8"
+        _decoder = _codecs.getincrementaldecoder(_enc)("replace")
+
+        # Drain stdout in a dedicated reader thread and feed decoded text into a
+        # queue.  The main thread pulls from the queue with a short timeout so the
+        # COMMAND_TIMEOUT check keeps running every 0.5 s.
+        stdout_queue: queue.Queue[str | None] = queue.Queue()
+
+        def _reader():
+            try:
+                while True:
+                    raw = process.stdout.read1(4096)
+                    if not raw:
+                        break
+                    text = _decoder.decode(raw).replace("\r\n", "\n")
+                    if text:
+                        stdout_queue.put(text)
+            finally:
+                remaining = _decoder.decode(b"", final=True)
+                if remaining:
+                    stdout_queue.put(remaining.replace("\r\n", "\n"))
+                stdout_queue.put(None)  # sentinel: EOF
+
+        import threading as _threading
+        reader_thread = _threading.Thread(target=_reader, daemon=True)
+        reader_thread.start()
+
+        start_time = time.time()
+
+        try:
+            while True:
+                # Check for timeout
+                if time.time() - start_time > effective_timeout:
+                    try:
+                        from siada.io.io import InputOutput
+                        io = InputOutput.get_instance()
+                        if io:
+                            io.print_error("_run_subprocess_core timed out, killing process...")
+                    except Exception:
+                        pass
+                    process.kill()
+                    process.wait()
+                    try:
+                        from siada.io.io import InputOutput
+                        io = InputOutput.get_instance()
+                        if io:
+                            io.print_error("_run_subprocess_core timed out, killing process success.")
+                    except Exception:
+                        pass
+                    return 1, f"Command timed out after {effective_timeout} seconds"
+
+                try:
+                    chunk = stdout_queue.get(timeout=0.5)
+                except queue.Empty:
+                    continue
+
+                if chunk is None:
+                    break
+
+                output_truncated, should_add = _check_and_truncate_output(output, chunk, output_truncated)
+                if should_add:
+                    output.append(chunk)
+
+            reader_thread.join(timeout=2)
+            process.wait()
+            return process.returncode, "".join(output)
+        finally:
+            # Ensure the process and its streams are properly closed
+            try:
+                if process.stdout:
+                    process.stdout.close()
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait()
+            except Exception:
+                pass
+    except Exception as e:
+        return 1, str(e)
+
+
+@lru_cache(maxsize=1)
+def _resolve_powershell_executable() -> str:
+    """Find PowerShell executable. Prefer pwsh (7+), fall back to powershell (5.1).
+
+    Returns absolute path. Raises RuntimeError if neither is found.
+    Result cached for the process lifetime.
+    """
+    pwsh = shutil.which("pwsh")
+    if pwsh:
+        return pwsh
+    powershell = shutil.which("powershell")
+    if powershell:
+        return powershell
+    raise RuntimeError(
+        "PowerShell executable not found. Neither 'pwsh' nor 'powershell' is on PATH."
+    )
+
+
+def _build_powershell_wrapped_command(user_command: str) -> str:
+    """Wrap user command with UTF-8 setup prefix and exit-code capture suffix.
+
+    Prefix forces console output encoding to UTF-8 (avoids PS 5.1's UTF-16 LE BOM).
+    Suffix captures $LASTEXITCODE with $? fallback, working around PS 5.1's
+    stderr-sets-$?-to-false bug.
+    """
+    prefix = (
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+        "$OutputEncoding = [System.Text.Encoding]::UTF8; "
+    )
+    suffix = (
+        "; $_ec = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } "
+        "elseif ($?) { 0 } else { 1 }; exit $_ec"
+    )
+    return f"{prefix}{user_command}{suffix}"
+
+
+def run_powershell_impl(command, verbose=False, cwd=None, timeout=None):
+    """Execute a PowerShell command on Windows.
+
+    Returns (returncode, stdout_text). On non-Windows platforms raises
+    RuntimeError — the upstream tool registration should prevent this from
+    being reached, but we fail loud rather than silently mis-execute.
+    """
+    if platform.system() != "Windows":
+        raise RuntimeError("run_powershell_impl is Windows-only")
+
+    cwd_error = _validate_cwd(cwd)
+    if cwd_error:
+        return 1, cwd_error
+
+    effective_timeout = timeout if timeout and timeout > 0 else COMMAND_TIMEOUT
+
+    try:
+        ps_exe = _resolve_powershell_executable()
+    except RuntimeError as e:
+        return 1, str(e)
+
+    wrapped = _build_powershell_wrapped_command(command)
+    argv = [
+        ps_exe,
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        wrapped,
+    ]
+
+    if verbose:
+        print("Using run_powershell_impl:", command)
+        print("PowerShell exe:", ps_exe)
+
+    try:
+        return _run_subprocess_core(
+            popen_args=argv,
+            shell=False,
+            cwd=cwd,
+            timeout=effective_timeout,
+            encoding="utf-8",
+            verbose=verbose,
+        )
+    except OSError as e:
+        return 1, f"Error occurred while running PowerShell command '{command}': {e}"
+
+
+def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.encoding, timeout=None):
     if verbose:
         print("Using run_cmd_subprocess:", command)
 
@@ -296,92 +517,14 @@ def run_cmd_subprocess(command, verbose=False, cwd=None, encoding=sys.stdout.enc
             if platform.system() == "Windows":
                 print("Parent process:", parent_process)
 
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            shell=True,
-            encoding=encoding,
-            errors="replace",
-            bufsize=0,  # Set bufsize to 0 for unbuffered output
-            universal_newlines=True,
+        return _run_subprocess_core(
+            popen_args=command,
+            shell=isinstance(command, str),
             cwd=cwd,
+            timeout=timeout if timeout and timeout > 0 else COMMAND_TIMEOUT,
+            encoding=encoding,
+            verbose=verbose,
         )
-
-        import time
-        output = []
-        start_time = time.time()
-        output_truncated = False
-        
-        try:
-            while True:
-                # Check for timeout
-                if time.time() - start_time > COMMAND_TIMEOUT:
-                    print("run_cmd_subprocess timed out, killing process...")  
-                    # Add IO to print errors for sending ACP messages
-                    try:
-                        from siada.io.io import InputOutput
-                        io = InputOutput.get_instance()
-                        if io:
-                            io.print_error("run_cmd_subprocess timed out, killing process...")
-                    except:
-                        pass
-                    process.kill()
-                    process.wait()
-                    print("run_cmd_subprocess timed out, killing process success.")  
-                    # Add IO to print errors for sending ACP messages
-                    try:
-                        from siada.io.io import InputOutput
-                        io = InputOutput.get_instance()
-                        if io:
-                            io.print_error("run_cmd_subprocess timed out, killing process success.")
-                    except:
-                        pass
-                    return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
-                
-                # Check if process has finished
-                if process.poll() is not None:
-                    # Read any remaining output
-                    remaining = process.stdout.read()
-                    if remaining:
-                        output_truncated, should_add = _check_and_truncate_output(output, remaining, output_truncated)
-                        if should_add:
-                            output.append(remaining)
-                        # print(remaining, end="", flush=True) # for real-time printing, disable to avoid duplicate prints
-                    break
-                
-                # Use select with timeout to avoid blocking read(1) which would
-                # prevent the timeout check at the top of the loop from executing.
-                # Without this, read(1) blocks indefinitely when the subprocess
-                # produces no output, making the COMMAND_TIMEOUT ineffective.
-                try:
-                    ready, _, _ = _select.select([process.stdout], [], [], 0.5)
-                    if ready:
-                        chunk = process.stdout.read(1)
-                        if chunk:
-                            output_truncated, should_add = _check_and_truncate_output(output, chunk, output_truncated)
-                            if should_add:
-                                output.append(chunk)
-                            # print(chunk, end="", flush=True)  # for real-time printing , disable to avoid duplicate prints
-                        else:
-                            # EOF - process closed stdout
-                            time.sleep(0.01)
-                    # else: select timed out, loop back to check COMMAND_TIMEOUT
-                except Exception:
-                    # Handle any read errors
-                    time.sleep(0.01)
-            return process.returncode, "".join(output)
-        finally:
-            # Ensure the process and its streams are properly closed
-            try:
-                if process.stdout:
-                    process.stdout.close()
-                if process.poll() is None:
-                    process.terminate()
-                    process.wait()
-            except Exception:
-                pass
     except Exception as e:
         return 1, str(e)
 
@@ -471,7 +614,7 @@ def _poll_stdin_with_timeout_check(is_timed_out, poll_interval=0.5):
             continue
 
 
-def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
+def run_cmd_pexpect_acp(command, verbose=False, cwd=None, timeout=None):
     """
     Run a shell command using pexpect in ACP mode (non-TTY environment).
     
@@ -488,6 +631,7 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
     :param command: The command to run as a string.
     :param verbose: If True, print output in real-time.
     :param cwd: Working directory for the command.
+    :param timeout: Timeout in seconds. Defaults to COMMAND_TIMEOUT.
     :return: A tuple containing (exit_status, output)
     """
     if verbose:
@@ -499,6 +643,7 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
     timed_out = False
     interrupted = False  # Track if user pressed Ctrl+C
     output_truncated = False
+    effective_timeout = timeout if timeout and timeout > 0 else COMMAND_TIMEOUT
 
     def timeout_callback():
         nonlocal timed_out
@@ -507,7 +652,7 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
             return
             
         timed_out = True
-        logger.warning(f"Command timed out after {COMMAND_TIMEOUT} seconds, killing process...")
+        logger.warning(f"Command timed out after {effective_timeout} seconds, killing process...")
         
         # Send interactive_input_cancel to frontend to dismiss any active input prompt
         # This must happen BEFORE killing the child process, so the frontend knows
@@ -557,7 +702,7 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
         _cancel_event.clear()
         
         # Start timeout timer
-        timer = threading.Timer(COMMAND_TIMEOUT, timeout_callback)
+        timer = threading.Timer(effective_timeout, timeout_callback)
         timer.start()
 
         # Use the SHELL environment variable
@@ -566,10 +711,11 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
             logger.debug(f"With shell: {shell}")
 
         # Spawn the command
+        no_pager_env = _make_no_pager_env()
         if os.path.exists(shell):
-            child = pexpect.spawn(shell, args=["-c", command], encoding="utf-8", cwd=cwd, timeout=1)
+            child = pexpect.spawn(shell, args=["-c", command], encoding="utf-8", cwd=cwd, timeout=1, env=no_pager_env)
         else:
-            child = pexpect.spawn(command, encoding="utf-8", cwd=cwd, timeout=1)
+            child = pexpect.spawn(command, encoding="utf-8", cwd=cwd, timeout=1, env=no_pager_env)
         
         child.delaybeforesend = None
         
@@ -617,11 +763,29 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
                     current_chunks_len = len(output_chunks)
                     if current_chunks_len > last_prompt_handled_at and output_chunks:
                         current_output = "".join(output_chunks)
-                        # Check last few lines for interactive prompts
-                        # Use \r\n and \n as line separators (pexpect may use \r\n)
-                        last_lines = re.split(r'[\r\n]+', current_output)[-5:]
-                        last_text = '\n'.join(line for line in last_lines if line.strip())
-                        
+
+                        # A real interactive prompt (e.g. "Password: ") leaves the
+                        # cursor on the same line without a trailing newline, since
+                        # the child process is blocked waiting for input right after
+                        # printing the prompt. Ordinary output (e.g. log lines from
+                        # `grep`/`cat`) is always newline-terminated once flushed.
+                        # If the buffer currently ends with a newline, there is no
+                        # "dangling" line waiting for input, so skip the check to
+                        # avoid false positives from log content that happens to
+                        # match one of the broad patterns below.
+                        ends_with_newline = current_output.endswith(('\n', '\r'))
+
+                        # Only inspect the actual last (possibly incomplete) line,
+                        # not a block of the last few lines - matching against a
+                        # multi-line block can trigger on a line that isn't the one
+                        # the cursor is actually sitting on.
+                        last_lines = re.split(r'[\r\n]+', current_output)
+                        last_text = last_lines[-1] if last_lines else ''
+
+                        if ends_with_newline or not last_text.strip():
+                            last_prompt_handled_at = current_chunks_len
+                            continue
+
                         for pattern in compiled_patterns:
                             if pattern.search(last_text):
                                 # Interactive prompt detected! Get user input
@@ -756,7 +920,7 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
             pass
         
         if timed_out:
-            return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
+            return 1, f"Command timed out after {effective_timeout} seconds"
         
         if interrupted or _cancel_event.is_set():
             return 1, "Command interrupted by user (Ctrl+C)"
@@ -791,7 +955,7 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
         raise  # Re-raise to let conversation_turn handle it
     except (pexpect.ExceptionPexpect, TypeError, ValueError) as e:
         if timed_out:
-            return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
+            return 1, f"Command timed out after {effective_timeout} seconds"
         error_msg = f"Error running command {command}: {e}"
         logger.error(error_msg)
         return 1, error_msg
@@ -803,7 +967,7 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None):
             timer.cancel()
 
 
-def run_cmd_pexpect(command, verbose=False, cwd=None):
+def run_cmd_pexpect(command, verbose=False, cwd=None, timeout=None):
     """
     Run a shell command interactively using pexpect, capturing all output.
     
@@ -822,6 +986,7 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
     timer = None
     timed_out = False  # Flag to track if command timed out
     output_truncated = False  # Flag to track if output was truncated
+    effective_timeout = timeout if timeout and timeout > 0 else COMMAND_TIMEOUT
 
     def output_callback(b):
         nonlocal output_truncated
@@ -849,7 +1014,7 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
         timed_out = True
         if child and child.isalive():
             if verbose:
-                print(f"\nCommand timed out after {COMMAND_TIMEOUT} seconds, killing process...")
+                print(f"\nCommand timed out after {effective_timeout} seconds, killing process...")
             try:
                 child.kill(9)  # Force kill the process
             except:
@@ -857,7 +1022,7 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
 
     try:
         # Start timeout timer
-        timer = threading.Timer(COMMAND_TIMEOUT, timeout_callback)
+        timer = threading.Timer(effective_timeout, timeout_callback)
         timer.start()
 
         # Use the SHELL environment variable, falling back to /bin/sh if not set
@@ -883,22 +1048,23 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
             needs_interactive = True
         elif first_word and first_word not in standard_commands:
             needs_interactive = True
+        no_pager_env = _make_no_pager_env()
         if os.path.exists(shell):
             # Use the shell from SHELL environment variable
             if needs_interactive:
                 # Use -i for aliases, functions, and version managers (slower but necessary)
                 if verbose:
                     print("Running pexpect.spawn with interactive shell (-i):", shell)
-                child = pexpect.spawn(shell, args=["-i", "-c", command], encoding="utf-8", cwd=cwd)
+                child = pexpect.spawn(shell, args=["-i", "-c", command], encoding="utf-8", cwd=cwd, env=no_pager_env)
             else:
                 if verbose:
                     print("Running pexpect.spawn with non-interactive shell (-c):", shell)
-                child = pexpect.spawn(shell, args=["-c", command], encoding="utf-8", cwd=cwd)
+                child = pexpect.spawn(shell, args=["-c", command], encoding="utf-8", cwd=cwd, env=no_pager_env)
         else:
             # Fall back to spawning the command directly
             if verbose:
                 print("Running pexpect.spawn without shell.")
-            child = pexpect.spawn(command, encoding="utf-8", cwd=cwd)
+            child = pexpect.spawn(command, encoding="utf-8", cwd=cwd, env=no_pager_env)
         child.delaybeforesend = None
 
         # Transfer control to the user, capturing output
@@ -909,13 +1075,13 @@ def run_cmd_pexpect(command, verbose=False, cwd=None):
         
         # Check if command was terminated due to timeout
         if timed_out:
-            return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
+            return 1, f"Command timed out after {effective_timeout} seconds"
         
         return child.exitstatus, output.getvalue().decode("utf-8", errors="replace")
 
     except (pexpect.ExceptionPexpect, TypeError, ValueError) as e:
         if timed_out:
-            return 1, f"Command timed out after {COMMAND_TIMEOUT} seconds"
+            return 1, f"Command timed out after {effective_timeout} seconds"
         error_msg = f"Error running command {command}: {e}"
         return 1, error_msg
     finally:

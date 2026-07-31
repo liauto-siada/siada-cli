@@ -3,7 +3,6 @@ import re
 from typing import List, Optional
 from pathlib import Path
 import os
-import pandas as pd
 
 class GitDiffUtil:
     """Utility class for getting Git repository diff information, excluding test files."""
@@ -137,7 +136,7 @@ class GitDiffUtil:
         Returns:
             dict: including added, deleted, total, and net changes
         """
-        if not diff_text or pd.isna(diff_text):
+        if not diff_text:
             return {'added': 0, 'deleted': 0, 'total': 0, 'net': 0}
         
         lines = diff_text.split('\n')
@@ -177,7 +176,7 @@ class GitDiffUtil:
         Returns:
             dict: including number of files changed and whether function definitions were changed
         """
-        if not diff_text or pd.isna(diff_text):
+        if not diff_text:
             return {'files_changed': 0, 'has_function_changes': False}
         
         file_pattern = r'diff --git a/(.*?) b/'

@@ -57,12 +57,13 @@ class TokenUsageReporterProcessor(AgentHooks):
             token_data = self._extract_token_data(usage)
             
             # 5. Get model name and convert for li provider
+            raw_model_name = getattr(siada_config.llm_config, 'model_name', None)
             model_name = self._get_model_name(siada_config)
             if not model_name:
                 return
             
             # 6. Calculate total cost
-            total_cost = self._calculate_cost(model_name, token_data)
+            total_cost = self._calculate_cost(model_name, token_data, raw_model_name)
             
             # 7. Report to telemetry
             telemetry.captureApiTokenUsage(
@@ -164,13 +165,20 @@ class TokenUsageReporterProcessor(AgentHooks):
             logger.debug(f"Failed to convert model name: {e}")
             return model_name
 
-    def _calculate_cost(self, model_name: str, token_data: Dict[str, int]) -> float:
+    def _calculate_cost(
+        self,
+        model_name: str,
+        token_data: Dict[str, int],
+        raw_model_name: Optional[str] = None,
+    ) -> float:
         """
         Calculate the total cost of token usage.
 
         Args:
-            model_name: Model name
+            model_name: Model name (li-provider-converted)
             token_data: Token data dict
+            raw_model_name: Original (pre-conversion) model name, tried first so
+                user-defined pricing in ~/.siada-cli/models.json can take effect
 
         Returns:
             Total cost in CNY
@@ -178,11 +186,12 @@ class TokenUsageReporterProcessor(AgentHooks):
         try:
             from siada.models.model_pricing import calculate_token_cost
             return calculate_token_cost(
-                model_name=model_name,
+                model_name=raw_model_name or model_name,
                 input_tokens=token_data['input_tokens'],
                 output_tokens=token_data['output_tokens'],
                 cache_write_tokens=token_data['cache_write_tokens'],
-                cache_read_tokens=token_data['cache_read_tokens']
+                cache_read_tokens=token_data['cache_read_tokens'],
+                fallback_model_name=model_name,
             )
         except Exception as e:
             logger.debug(f"Failed to calculate cost: {e}")

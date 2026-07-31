@@ -85,22 +85,37 @@ export function useCommandCompletion({
   // Detect completion mode based on input
   const detectedMode = useMemo(() => {
     if (!enabled) return CompletionMode.IDLE;
-    
-    // Check for slash command (must be at start of first line)
+
     const firstLineEnd = inputText.indexOf('\n');
     const firstLine = firstLineEnd === -1 ? inputText : inputText.substring(0, firstLineEnd);
     const cursorLine = inputText.substring(0, cursorPosition).split('\n').length - 1;
-    
-    if (firstLine.startsWith('/') && cursorLine === 0) {
-      return CompletionMode.SLASH;
-    }
-    
-    // Check for @ file completion (anywhere in the text)
+
+    // Priority 1: @ file completion — only when the cursor is currently inside
+    // an independent @ token (i.e. @ is at the start of a token: preceded by
+    // whitespace or at the beginning of the line, and there's no whitespace
+    // between @ and the cursor). This allows "/cmd @xxx" to still trigger
+    // file completion even when the line starts with '/'.
     const textBefore = inputText.substring(0, cursorPosition);
     const atPos = textBefore.lastIndexOf('@');
-    
     if (atPos !== -1) {
-      return CompletionMode.AT;
+      const charBeforeAt = atPos === 0 ? '' : textBefore[atPos - 1];
+      const isAtTokenStart = atPos === 0 || /\s/.test(charBeforeAt ?? '');
+      // Ensure no whitespace between @ and cursor (cursor is within the @ token)
+      const afterAt = textBefore.substring(atPos + 1);
+      const cursorInAtToken = !/\s/.test(afterAt);
+      if (isAtTokenStart && cursorInAtToken) {
+        return CompletionMode.AT;
+      }
+    }
+
+    // Priority 2: slash command (must be at start of first line, cursor on line 0,
+    // and command name must only contain [a-zA-Z0-9:_-] to exclude file paths)
+    if (firstLine.startsWith('/') && cursorLine === 0) {
+      const slashInput = firstLine.substring(1);
+      const commandName = slashInput.split(' ')[0];
+      if (/^[a-zA-Z0-9:_-]*$/.test(commandName)) {
+        return CompletionMode.SLASH;
+      }
     }
     
     // Check for prompt suggestions (plain text, no / or @)

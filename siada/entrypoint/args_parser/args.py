@@ -9,7 +9,6 @@ import shtab
 import yaml
 import siada
 from siada import __version__
-from siada.io.io import InputOutput
 
 
 
@@ -58,6 +57,7 @@ def get_parser(default_config_files, git_root):
         print(f"Warning: Failed to load agent config, using defaults: {e}")
         # Add IO to print errors for sending ACP messages
         try:
+            from siada.io.io import InputOutput
             io = InputOutput.get_instance()
             if io:
                 io.print_error(f"Warning: Failed to load agent config, using defaults: {e}")
@@ -107,13 +107,6 @@ def get_parser(default_config_files, git_root):
         help="Resume a previous session. Use --resume <session_id> to resume a specific session, "
              "or --resume alone to show the session browser (interactive mode) or resume the latest "
              "session (non-interactive mode).",
-    )
-
-    group.add_argument(
-        "--resume-list",
-        action="store_true",
-        default=False,
-        help="List all sessions for the current workspace and exit.",
     )
 
     ##########
@@ -170,9 +163,14 @@ def get_parser(default_config_files, git_root):
 
     group.add_argument(
         "--provider",
-        choices=["openrouter", "li", "default"],
+        choices=["openrouter", "default"],
         default=None,
-        help="Specify the provider to use for the main chat (choices: openrouter, li, default: li)",
+        help=(
+            "Specify the provider to use for the main chat "
+            "(choices: openrouter, default). "
+            "Responses-only models (e.g. gpt-5.x) are routed to the native "
+            "OpenAI Responses API inside the provider automatically."
+        ),
         metavar="PROVIDER",
     )
 
@@ -209,7 +207,8 @@ def get_parser(default_config_files, git_root):
         "--acp",
         action="store_true",
         default=False,
-        help="Enable ACP (Agent Client Protocol) mode for structured communication (default: False)",
+        help="Start as a standard ACP (Agent Client Protocol) stdio server for external "
+             "clients such as Zed / vscode-acp (default: False)",
     )
 
     group.add_argument(
@@ -320,51 +319,19 @@ def get_parser(default_config_files, git_root):
     )
 
     ##########
-    group = parser.add_argument_group("A2A API Server mode")
-
-    group.add_argument(
-        "--api_server",
-        action="store_true",
-        help="Start A2A API server mode (alternative to interactive CLI)",
-        default=False,
-    )
-
-    group.add_argument(
-        "--a2a-port",
-        type=int,
-        metavar="PORT",
-        help="A2A API server port (default: 8001)",
-        default=8001,
-    )
-
-    group.add_argument(
-        "--a2a-host",
-        metavar="HOST",
-        help="A2A API server host to bind (default: 0.0.0.0 for external access, use 127.0.0.1 for local only)",
-        default="0.0.0.0",
-    )
-
-    group.add_argument(
-        "--a2a-agents-dir",
-        metavar="DIR",
-        help="A2A agents directory path (default: auto-detected from siada package installation)",
-        default=str(Path(siada.__file__).parent / "agent_hub" / "a2a" / "a2a_agents"),
-    )
-
-    group.add_argument(
-        "--stop_api_server",
-        action="store_true",
-        help="Stop the running A2A API server",
-        default=False,
-    )
-
-    ##########
     group = parser.add_argument_group("Proactive Daemon Management")
 
     group.add_argument(
         "--stop-daemon",
         action="store_true",
         help="Stop the proactive daemon process",
+        default=False,
+    )
+
+    group.add_argument(
+        "--restart-daemon",
+        action="store_true",
+        help="Restart the proactive daemon process (stop then start)",
         default=False,
     )
 
@@ -380,6 +347,52 @@ def get_parser(default_config_files, git_root):
         action="store_true",
         help="Show discovered pending tasks from proactive agent",
         default=False,
+    )
+
+    group.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help=(
+            "Do not auto-start the proactive daemon for this session "
+            "(useful for benchmarks / one-shot scripted runs that must "
+            "not have background jobs mutating ~/.siada-cli/workspace/memory)"
+        ),
+        default=False,
+    )
+
+    ##########
+    group = parser.add_argument_group("Headroom proxy integration")
+
+    group.add_argument(
+        "--headroom",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable headroom proxy integration (one-click startup). Starts a "
+            "local `headroom proxy`, waits until it is healthy, routes LLM "
+            "traffic through it, and cleans up on exit."
+        ),
+    )
+
+    group.add_argument(
+        "--no-headroom",
+        action="store_true",
+        default=False,
+        help="Explicitly disable headroom proxy integration (overrides conf.yaml).",
+    )
+
+    group.add_argument(
+        "--headroom-port",
+        type=int,
+        default=None,
+        help="Headroom proxy port (default: 8787 or value from conf.yaml).",
+    )
+
+    group.add_argument(
+        "--headroom-budget",
+        type=float,
+        default=None,
+        help="Headroom USD budget limit (default: from conf.yaml).",
     )
 
     return parser
@@ -424,10 +437,6 @@ class SiadaArgs:
     @property
     def resume(self):
         return self._get('resume', None)
-
-    @property
-    def resume_list(self) -> bool:
-        return self._get('resume_list', False)
 
     # ACP
     @property
@@ -558,19 +567,14 @@ class SiadaArgs:
     def list_models(self) -> bool:
         return self._get('list_models', False)
 
-    # A2A server
-    @property
-    def api_server(self) -> bool:
-        return self._get('api_server', False)
-
-    @property
-    def stop_api_server(self) -> bool:
-        return self._get('stop_api_server', False)
-
     # Proactive daemon
     @property
     def stop_daemon(self) -> bool:
         return self._get('stop_daemon', False)
+
+    @property
+    def restart_daemon(self) -> bool:
+        return self._get('restart_daemon', False)
 
     @property
     def daemon_status(self) -> bool:
@@ -579,3 +583,24 @@ class SiadaArgs:
     @property
     def task_list(self) -> bool:
         return self._get('task_list', False)
+
+    @property
+    def no_daemon(self) -> bool:
+        return self._get('no_daemon', False)
+
+    # Headroom proxy integration
+    @property
+    def headroom(self) -> bool:
+        return self._get('headroom', False) or False
+
+    @property
+    def no_headroom(self) -> bool:
+        return self._get('no_headroom', False) or False
+
+    @property
+    def headroom_port(self):
+        return self._get('headroom_port', None)
+
+    @property
+    def headroom_budget(self):
+        return self._get('headroom_budget', None)

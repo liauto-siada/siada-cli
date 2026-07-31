@@ -1,6 +1,7 @@
 from typing import Optional, List, Any
 from agents import Agent, ModelResponse, RunContextWrapper, RunHooks, TContext, TResponseInputItem, Tool
 from siada.foundation.code_agent_context import CodeAgentContext
+from siada.foundation.logging import logger
 from siada.agent_hub.hooks.agent_processors.context_track_processor import ContextTrackProcessor
 from siada.agent_hub.hooks.processors.checkpointing_processor import CheckpointingProcessor
 
@@ -21,10 +22,8 @@ class SiadaRunHooks(RunHooks):
             processors: List of RunHooks processors to use. If None, defaults to standard processors.
         """
         if processors is None:
-            # Default processors
             self.processors = [
                 CheckpointingProcessor(),
-                # Add more processors here as needed
             ]
         else:
             self.processors = processors
@@ -37,7 +36,14 @@ class SiadaRunHooks(RunHooks):
         input_items: list[TResponseInputItem],
     ) -> None:
         """Called just before invoking the LLM for this agent."""
-        
+        # Inject any pending additionalContext messages collected by hook guardrails.
+        code_ctx = context.context
+        if code_ctx is not None and code_ctx.hook_pending_contexts:
+            for ctx_text in code_ctx.hook_pending_contexts:
+                input_items.append({"role": "system", "content": ctx_text})
+                logger.info(f"[SiadaRunHooks] additionalContext injected at index={len(input_items)-1}, total_items={len(input_items)}: {ctx_text[:120]}")
+            code_ctx.hook_pending_contexts.clear()
+
         # Delegate to all processors
         for processor in self.processors:
             await processor.on_llm_start(context, agent, system_prompt, input_items)

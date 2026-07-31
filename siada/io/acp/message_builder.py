@@ -33,6 +33,7 @@ class SessionUpdateReason(Enum):
     FAILED = "failed"
     INTERACTIVE_INPUT_REQUEST = "interactive_input_request"  # Request user input for interactive command
     INTERACTIVE_INPUT_CANCEL = "interactive_input_cancel"    # Cancel/dismiss interactive input (e.g., timeout)
+    QUEUE_ITEM_CONSUMED = "queue_item_consumed"               # Mid-turn injection consumed by PendingUserInputInjector
 
 
 @dataclass
@@ -476,7 +477,7 @@ class ACPMessageBuilder:
         
         return self.build_session_update(
             reason=SessionUpdateReason.INTERACTIVE_INPUT_CANCEL,
-            content=f"Interactive input cancelled: {reason}",
+            content=f"{reason}",
             metadata=metadata
         )
     

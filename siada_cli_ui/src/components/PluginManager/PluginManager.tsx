@@ -15,6 +15,15 @@ export interface SkillInfo {
   description: string;
   scope: 'user' | 'repo' | 'system';
   path: string;
+  isMcp?: boolean;
+  plugin_name?: string | null;
+}
+
+export interface MCPServerInfo {
+  name: string;
+  command: string;
+  args: string[];
+  url: string;
 }
 
 export interface MarketplaceInfo {
@@ -46,6 +55,7 @@ export interface PluginManagerData {
   errors: PluginError[];
   discover: DiscoverSkill[];
   disabledSkills?: string[];
+  mcp_servers?: MCPServerInfo[];
 }
 
 export interface InstallProgress {
@@ -81,9 +91,15 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
   const [isAddingMarketplace, setIsAddingMarketplace] = useState(false);
   const [addInput, setAddInput] = useState('');
 
-  const [localInstalled, setLocalInstalled] = useState<Set<string>>(
-    () => new Set(data.installed.map(s => s.name))
-  );
+  const [localInstalled, setLocalInstalled] = useState<Set<string>>(() => {
+    const names = new Set(data.installed.map(s => s.name));
+    // Also seed with marketplace plugin names that are already installed
+    // (plugin name != skill name, e.g. "hookify" vs "Writing Hookify Rules")
+    for (const skill of data.discover) {
+      if (skill.installed) names.add(skill.name);
+    }
+    return names;
+  });
   const [localDisabled, setLocalDisabled] = useState<Set<string>>(
     () => new Set(data.disabledSkills ?? [])
   );
@@ -106,6 +122,21 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
     setPendingMsg('');
   }, [data]);
 
+  // Sync localInstalled when data refreshes (e.g. after install/remove)
+  useEffect(() => {
+    setLocalInstalled(prev => {
+      const names = new Set(data.installed.map((s: SkillInfo) => s.name));
+      for (const skill of data.discover) {
+        if (skill.installed) names.add(skill.name);
+      }
+      // Preserve any optimistic adds that aren't yet reflected in data
+      for (const name of prev) {
+        names.add(name);
+      }
+      return names;
+    });
+  }, [data]);
+
   // ─── Derived ─────────────────────────────────────────────────────────────
 
   const discoverSkills = useMemo(() => {
@@ -115,10 +146,85 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
     );
   }, [data.discover, searchQuery]);
 
-  const installedSkills = useMemo(
-    () => data.installed.filter(s => !localRemovedSkills.has(s.name)),
-    [data.installed, localRemovedSkills]
-  );
+  // Flat list of selectable items for navigation (no headers)
+  type InstalledSkillEntry = SkillInfo & { isMcp: boolean };
+
+  const installedSkills = useMemo((): InstalledSkillEntry[] => {
+    const skills = data.installed
+      .filter(s => !localRemovedSkills.has(s.name))
+      .map(s => ({ ...s, isMcp: false as const }));
+    const mcps = (data.mcp_servers || []).map(m => ({
+      name: m.name,
+      description: m.url ? `HTTP: ${m.url}` : `stdio: ${m.command}${m.args.length ? ' ' + m.args.join(' ') : ''}`,
+      scope: 'system' as const,
+      path: m.url || m.command,
+      isMcp: true as const,
+      plugin_name: null,
+    }));
+    return [...skills, ...mcps];
+  }, [data.installed, data.mcp_servers, localRemovedSkills]);
+
+  // Grouped structure for rendering: section headers + selectable items
+  // Each entry is either a header (no selectIdx) or a skill with its navigation index
+  type SectionHeader = { kind: 'header'; label: string };
+  type SectionSkill = { kind: 'skill'; skill: InstalledSkillEntry; selectIdx: number };
+  type SectionEntry = SectionHeader | SectionSkill;
+
+  const installedSections = useMemo((): SectionEntry[] => {
+    const skills = data.installed
+      .filter(s => !localRemovedSkills.has(s.name))
+      .map(s => ({ ...s, isMcp: false as const }));
+    const mcps = (data.mcp_servers || []).map(m => ({
+      name: m.name,
+      description: m.url ? `HTTP: ${m.url}` : `stdio: ${m.command}${m.args.length ? ' ' + m.args.join(' ') : ''}`,
+      scope: 'system' as const,
+      path: m.url || m.command,
+      isMcp: true as const,
+      plugin_name: null,
+    }));
+
+    const entries: SectionEntry[] = [];
+    let selectIdx = 0;
+
+    // Group plugin skills by plugin_name
+    const pluginMap = new Map<string, InstalledSkillEntry[]>();
+    const standaloneSkills: InstalledSkillEntry[] = [];
+    for (const s of skills) {
+      if (s.plugin_name) {
+        const existing = pluginMap.get(s.plugin_name) ?? [];
+        existing.push(s);
+        pluginMap.set(s.plugin_name, existing);
+      } else {
+        standaloneSkills.push(s);
+      }
+    }
+
+    if (pluginMap.size > 0) {
+      entries.push({ kind: 'header', label: `Plugins (${pluginMap.size})` });
+      for (const [pname, pskills] of pluginMap) {
+        entries.push({ kind: 'header', label: `  \u25b8 ${pname}` });
+        for (const s of pskills) {
+          entries.push({ kind: 'skill', skill: s, selectIdx: selectIdx++ });
+        }
+      }
+    }
+
+    if (standaloneSkills.length > 0) {
+      entries.push({ kind: 'header', label: `Skills (${standaloneSkills.length})` });
+      for (const s of standaloneSkills) {
+        entries.push({ kind: 'skill', skill: s, selectIdx: selectIdx++ });
+      }
+    }
+
+    if (mcps.length > 0) {
+      entries.push({ kind: 'header', label: `MCP Servers (${mcps.length})` });
+      for (const m of mcps) {
+        entries.push({ kind: 'skill', skill: m, selectIdx: selectIdx++ });
+      }
+    }
+
+    return entries;
+  }, [data.installed, data.mcp_servers, localRemovedSkills]);
 
   const visibleMarketplaces = useMemo(
     () =>
@@ -276,6 +382,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
     } else if (tabName === 'Installed') {
       const skill = installedSkills[activeIndex];
       if (!skill) return;
+      if (skill.isMcp) return; // MCP servers cannot be disabled/removed from TUI
       if (key.sequence === 'd' || key.sequence === 'D') {
         if (localDisabled.has(skill.name)) {
           setLocalDisabled(s => {
@@ -455,48 +562,86 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
   };
 
   const renderInstalledTab = () => {
-    const skills = installedSkills;
-    const startIdx = Math.max(0, activeIndex - MAX_VISIBLE + 1);
-    const endIdx = Math.min(skills.length, startIdx + MAX_VISIBLE);
-    const visible = skills.slice(startIdx, endIdx);
+    const totalSelectable = installedSkills.length;
+    const sections = installedSections;
+
+    const windowStart = Math.max(0, activeIndex - MAX_VISIBLE + 1);
+    const windowEnd = Math.min(totalSelectable, windowStart + MAX_VISIBLE);
+
+    // Pre-compute which header indices have at least one visible skill after them
+    // (until the next header), so we can hide irrelevant section headers when scrolled
+    const visibleHeaders = new Set<number>();
+    let currentHeaderIdx = -1;
+    for (let i = 0; i < sections.length; i++) {
+      const e = sections[i];
+      if (e.kind === 'header') {
+        currentHeaderIdx = i;
+      } else if (currentHeaderIdx >= 0 && e.selectIdx >= windowStart && e.selectIdx < windowEnd) {
+        visibleHeaders.add(currentHeaderIdx);
+      }
+    }
 
     return (
       <Box flexDirection="column">
         <Box paddingX={2} marginBottom={1}>
-          <Text color="gray" dimColor>{`Installed skills (${skills.length})`}</Text>
+          <Text color="gray" dimColor>
+            {`Installed (${totalSelectable})`}
+          </Text>
         </Box>
 
-        {skills.length === 0 && (
+        {totalSelectable === 0 && (
           <Box paddingX={4}>
-            <Text color="gray" dimColor>
-              No skills installed. Install from the Discover tab.
-            </Text>
+            <Text color="gray" dimColor>No skills, plugins or MCP servers installed.</Text>
           </Box>
         )}
 
-        {visible.map((skill, relIdx) => {
-          const absIdx = startIdx + relIdx;
-          const isActive = absIdx === activeIndex;
+        {windowStart > 0 && (
+          <Box paddingX={4}>
+            <Text color="gray" dimColor>{`\u2191 more above`}</Text>
+          </Box>
+        )}
+
+        {sections.map((entry, i) => {
+          if (entry.kind === 'header') {
+            if (!visibleHeaders.has(i)) return null;
+            const isTopLevel = !entry.label.startsWith('  ');
+            return (
+              <Box key={`hdr-${i}`} paddingX={2} marginTop={isTopLevel && i > 0 ? 1 : 0}>
+                <Text color={isTopLevel ? 'cyan' : 'gray'} bold={isTopLevel} dimColor={!isTopLevel}>
+                  {entry.label}
+                </Text>
+              </Box>
+            );
+          }
+          if (entry.selectIdx < windowStart || entry.selectIdx >= windowEnd) return null;
+          const { skill, selectIdx } = entry;
+          const isActive = selectIdx === activeIndex;
           const isDisabled = localDisabled.has(skill.name);
-          const scopeLabel =
-            skill.scope === 'user' ? '[user]' : skill.scope === 'repo' ? '[repo]' : '[system]';
+          const scopeLabel = skill.isMcp
+            ? '[mcp]'
+            : skill.scope === 'user'
+            ? '[user]'
+            : skill.scope === 'repo'
+            ? '[repo]'
+            : '[sys]';
+          const indent = skill.plugin_name ? 6 : 4;
           return (
             <Box key={skill.name} paddingX={2} flexDirection="column">
               <Box flexDirection="row">
                 <Text color={isActive ? 'cyan' : 'gray'}>
                   {isActive ? '\u276f ' : '  '}
                 </Text>
-                <Text color={isDisabled ? 'gray' : isActive ? 'cyan' : 'white'}>
-                  {`${isDisabled ? '\u25cb' : '\u25cf'} ${skill.name}`}
+                <Text color={skill.isMcp ? 'yellow' : isDisabled ? 'gray' : isActive ? 'cyan' : 'white'}>
+                  {`${skill.isMcp ? '\u25c8' : isDisabled ? '\u25cb' : '\u25cf'} ${skill.name}`}
                 </Text>
                 <Text color="gray" dimColor>
-                  {`  ${scopeLabel}${isDisabled ? '  [disabled]' : ''}`}
+                  {`  ${scopeLabel}${isDisabled ? ' [disabled]' : ''}`}
                 </Text>
               </Box>
-              <Box paddingLeft={4}>
+              <Box paddingLeft={indent}>
                 <Text color="gray" dimColor>
-                  {skill.description.length > 72
-                    ? skill.description.slice(0, 69) + '...'
+                  {skill.description.length > 70
+                    ? skill.description.slice(0, 67) + '...'
                     : skill.description}
                 </Text>
               </Box>
@@ -504,12 +649,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
           );
         })}
 
-        {startIdx > 0 && (
-          <Box paddingX={4}>
-            <Text color="gray" dimColor>{`\u2191 ${startIdx} more above`}</Text>
-          </Box>
-        )}
-        {endIdx < skills.length && (
+        {windowEnd < totalSelectable && (
           <Box paddingX={4}>
             <Text color="gray" dimColor>{'\u2193 more below'}</Text>
           </Box>

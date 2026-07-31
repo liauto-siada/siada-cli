@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import os
 import importlib
-from typing import Dict, Any, Tuple, Optional
+import inspect
+from typing import TYPE_CHECKING, Dict, Any, Tuple, Optional
 
 from siada.foundation.context import get_context_var, MODEL_PROVIDER_NAME, LLM_CONFIG
 from siada.provider.llm_client import LLMClient
-from litellm.types.utils import ModelResponse as LitellmModelResponse
-import inspect
+
+if TYPE_CHECKING:
+    from litellm.types.utils import ModelResponse as LitellmModelResponse
 
 CLIENT_DIR = os.path.dirname(__file__)
 client_map: Dict[str, LLMClient] = {}
@@ -102,36 +106,46 @@ def get_client_with_kwargs(default_kwargs: Dict[str, Any]) -> Tuple[LLMClient, D
 
 async def simple_completion(
     prompt: str,
+    *,
+    agent_name: Optional[str] = None,
     **kwargs
 ) -> Optional[LitellmModelResponse]:
     """
     Simplified LLM completion interface - just pass context and prompt.
-    
+
     This is a convenience wrapper around get_client_with_kwargs that pre-configures
     common parameters, making it easier to call LLM for simple tasks.
-    
+
     Args:
         prompt: The user prompt to send to the LLM
+        agent_name: Optional override for the AGENT_NAME context variable for
+            the duration of this call only. Use this when a non-agent code path
+            invokes `simple_completion` and wants the request to show up in
+            server-side analytics with a meaningful tag (e.g. "bug_desc_optimizer")
+            instead of inheriting whatever the surrounding coroutine had set.
+            The previous value is restored automatically, so the override never
+            leaks into subsequent work on the same task.
         **kwargs: Optional parameters like temperature, max_tokens, stream, etc.
                   Will override defaults if provided.
-        
+
     Returns:
         LitellmModelResponse: The LLM response, or None if failed
-        
+
     Example:
         # Basic usage
-        response = await simple_completion(context, "Generate a slug for: user discussion")
-        
+        response = await simple_completion("Generate a slug for: user discussion")
+
         # With custom parameters
         response = await simple_completion(
-            context, 
-            "Analyze this code", 
+            "Analyze this code",
             temperature=0.5,
-            max_tokens=500
+            max_tokens=500,
+            agent_name="code_analysis",
         )
     """
     from siada.foundation.setting import settings
-    
+    from siada.foundation.context import agent_name_scope
+
     # Prepare default kwargs with preset parameters
     default_kwargs = {
         'model': settings.DEFAULT_MODEL,
@@ -146,8 +160,9 @@ async def simple_completion(
     
     # Get client and complete kwargs from context
     client, complete_kwargs = get_client_with_kwargs(default_kwargs)
-    
-    # Make the completion call
-    response = await client.completion(**complete_kwargs)
-    
+
+    # Scope AGENT_NAME override to this call only (no-op if not provided)
+    with agent_name_scope(agent_name):
+        response = await client.completion(**complete_kwargs)
+
     return response

@@ -39,26 +39,30 @@ class ContextDiscovery:
     
     def _find_project_root(self) -> Optional[str]:
         """
-        Find project root by looking for .git directory
-        
+        Find project root by looking for .git directory.
+
+        If no git root exists, treat the current workspace as project root.
+
         Returns:
-            Absolute path to project root, or None if not found
+            Absolute path to project root
         """
         current = self.workspace
-        
+
         while True:
             git_dir = os.path.join(current, '.git')
             if os.path.isdir(git_dir):
                 logger.debug(f"[Discovery] Found project root: {current}")
                 return current
-            
+
             parent = os.path.dirname(current)
             if parent == current:  # Reached filesystem root
                 break
             current = parent
-        
-            logger.debug("[Discovery] No project root found (no .git directory)")
-        return None
+
+        logger.debug(
+            "[Discovery] No project root found (no .git directory), using workspace as project root"
+        )
+        return self.workspace
     
     def _find_global_files(self) -> List[str]:
         """

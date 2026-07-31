@@ -88,6 +88,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           const isActive = index === activeIndex;
           const isCurrent = model === currentModel;
 
+          const note = model === 'lpai-glm-5.2' ? '(slowly)' : '';
+
           return (
             <Box key={`${model}-${index}`} flexDirection="row">
               <Text color={isActive ? 'cyan' : 'white'}>
@@ -99,6 +101,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               >
                 {model}
               </Text>
+              {note && (
+                <Text color={isActive ? 'cyan' : isCurrent ? 'green' : 'white'}>
+                  {'  '}{note}
+                </Text>
+              )}
               {isCurrent && (
                 <Text color="green" dimColor>
                   {'  '}(current)

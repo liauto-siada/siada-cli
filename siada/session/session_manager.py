@@ -42,8 +42,11 @@ class RunningSessionManager:
                 if not history:
                     return
                 
-                # Convert message list to JSON string with proper format for frontend
-                formatted_history = RunningSessionManager._format_history_for_frontend(history)
+                # Convert message list to JSON string for telemetry upload.
+                # The platform expects raw model-context (incl. holographic
+                # prefetch / IM context blocks); the frontend display path
+                # has its own strip in ``message_classifier.format_native_items_for_display``.
+                formatted_history = RunningSessionManager._format_history_for_telemetry(history)
                 
                 # Extract system prompt from formatted history (first message if it's a system message)
                 system_prompt = ""
@@ -104,6 +107,22 @@ class RunningSessionManager:
                 last_message = history[-1] if history else {}
                 conversation_role = last_message.get('role', 'assistant')
                 
+                # Resolve repo_id from cached git context; fall back to workspace path.
+                # Scan the context cache by workspace so this works regardless of agent name
+                # and regardless of whether the system_prompt branch above was taken.
+                try:
+                    from siada.services.siada_runner import SiadaRunner as _SR
+                    _ws = siada_config.workspace
+                    _cached_ctx = next(
+                        (v for k, v in _SR._context_cache.items() if k[1] == _ws), None
+                    )
+                    git_ctx = getattr(_cached_ctx, "git_context", None) if _cached_ctx else None
+                except Exception:
+                    git_ctx = None
+                repo_id = (git_ctx.repo_id if git_ctx else "") or (
+                    siada_config.workspace if hasattr(siada_config, "workspace") else ""
+                )
+
                 # Call telemetry - Conversation Turn
                 telemetry.captureConversation(
                     task_id=session.session_id,
@@ -112,7 +131,7 @@ class RunningSessionManager:
                     message_list_length=len(history),
                     conversation_index=len(history),
                     conversation_role=conversation_role,
-                    repo_id=siada_config.workspace if hasattr(siada_config, 'workspace') else None,
+                    repo_id=repo_id,
                     user_id=None,  # Will use user_id from config
                     model=model_name,
                     chat_mode="act",
@@ -138,11 +157,23 @@ class RunningSessionManager:
         return telemetry_hook
     
     @staticmethod
-    def _format_history_for_frontend(history: list) -> list:
-        """
-        Format conversation history to match frontend expected format.
-        
-        Expected format:
+    def _format_history_for_telemetry(history: list) -> list:
+        """Format conversation history for telemetry upload (raw context).
+
+        Despite the legacy name "for frontend", this helper has only ever
+        fed ``telemetry.captureConversation``. Frontend rendering is handled
+        separately by
+        ``siada.support.message_classifier.format_native_items_for_display``,
+        which is responsible for stripping sentinel-wrapped injection blocks
+        (holographic prefetch / IM context) before showing the chat bubble.
+
+        We deliberately keep the **raw** content here so the platform sees
+        the same context the model actually saw — including any holographic
+        facts that were prefetched into a turn — for evaluation, debugging
+        and audit purposes.
+
+        Output format:
+
         [
             {
                 "role": "user",
@@ -158,46 +189,43 @@ class RunningSessionManager:
                 ]
             }
         ]
-        
-        处理规则：
-        1. 有 role 字段：按原 role 处理，提取 content 字段
-        2. 没有 role 字段：归类为 user 消息，把整个消息对象作为内容
-        
-        Args:
-            history: Raw conversation history from session
-            
-        Returns:
-            Formatted history with content in array format
+
+        Rules:
+          1. ``role`` present  → classify by role, expand ``content``.
+          2. ``role`` missing  → fall back to user/assistant by item type
+             (function_call / reasoning → assistant; others → user); embed
+             the whole raw message JSON so the platform can reconstruct
+             tool calls verbatim.
         """
         formatted_history = []
-        
+
         for msg in history:
             msg_type = msg.get("type", "")
-            
+
             # Check if role field exists
             if "role" in msg:
                 # Has role: process according to original role
                 role = msg.get("role")
                 if not role:
                     continue
-                
-                # Handle content
+
+                # Handle content. Note: we forward text verbatim — no
+                # injection-block stripping here, that is the frontend
+                # display layer's job.
                 content = msg.get("content")
                 formatted_content = []
-                
+
                 if isinstance(content, str):
-                    # String content: wrap directly
                     if content:
                         formatted_content.append({"type": "text", "text": content})
                 elif isinstance(content, list):
                     # List content: process item by item
                     for item in content:
                         if isinstance(item, dict):
-                            # Dict item: extract type and text
+                            # Dict item: keep the real type from the message item
+                            # (e.g. "output_text", "reasoning_text", "text"), do not
+                            # rewrite it to "text".
                             item_type = item.get("type", "text")
-                            # Convert output_text to text
-                            if item_type == "output_text":
-                                item_type = "text"
                             item_text = item.get("text", "")
                             # Only add items with non-empty text
                             if item_text:
@@ -207,17 +235,14 @@ class RunningSessionManager:
                                 })
                         elif isinstance(item, str) and item:
                             # String item: only add non-empty strings
-                            formatted_content.append({
-                                "type": "text",
-                                "text": item
-                            })
+                            formatted_content.append({"type": "text", "text": item})
                 elif content:
                     # Other types: convert to string
                     formatted_content.append({
                         "type": "text",
                         "text": str(content)
                     })
-                
+
                 # Only add messages with non-empty content
                 if formatted_content:
                     formatted_history.append({
@@ -227,26 +252,29 @@ class RunningSessionManager:
             else:
                 # No role: determine role based on type field
                 # function_call is classified as assistant, others as user
-                if msg_type == "function_call":
+                if msg_type == "function_call" or msg_type == "reasoning":
                     role = "assistant"
                 else:
                     role = "user"
-                
-                # Use the entire message object as content
+
+                # Use the entire message object as content, keep the real
+                # message type (e.g. "reasoning", "function_call",
+                # "function_call_output") instead of hardcoding "text".
                 import json
                 msg_json = json.dumps(msg, ensure_ascii=False, indent=2)
+                item_type = msg_type if msg_type else "text"
                 formatted_history.append({
                     "role": role,
                     "content": [
                         {
-                            "type": "text",
+                            "type": item_type,
                             "text": msg_json
                         }
                     ]
                 })
-        
+
         return formatted_history
-    
+
     @staticmethod
     def create_session(
         siada_config: RunningConfig,
@@ -264,8 +292,8 @@ class RunningSessionManager:
         """
         # Use provided session_id or generate timestamp-based ID
         if session_id is None:
-            # Generate session_id as current timestamp in milliseconds (13 digits)
-            session_id = str(uuid.uuid4())
+            from siada.foundation.id_generator import generate_session_id
+            session_id = generate_session_id()
         
         # Store session_id in coroutine-local context for downstream tracing
         from siada.foundation.context import set_session_id
@@ -277,22 +305,25 @@ class RunningSessionManager:
             siada_config=siada_config,
         )
         
-        # Create associated FileSession with same ID
-        from siada.services.file_session import FileSession
+        # Register a lazy factory for FileSession so that the agents SDK
+        # (imported by file_session.py at module level) is not pulled in on the
+        # startup critical path.  The factory is called on first access to
+        # session.state.openai_session (inside the agent run loop).
         from siada.utils import DirectoryUtils
-        
-        # Create telemetry hook if enabled
         telemetry_hook = RunningSessionManager._create_telemetry_hook(session, siada_config)
-        
-        # Create File Session with proper sessions directory and telemetry hook
         sessions_dir = DirectoryUtils.get_global_sessions_dir(siada_config.workspace)
-        file_session = FileSession(
-            session_id=session_id,
-            sessions_dir=sessions_dir,
-            on_items_added=telemetry_hook,
-            project_root=siada_config.workspace,
-        )
-        session.state.openai_session = file_session
+        _sid, _sdir, _hook, _root = session_id, sessions_dir, telemetry_hook, siada_config.workspace
+
+        def _file_session_factory():
+            from siada.services.file_session import FileSession
+            return FileSession(
+                session_id=_sid,
+                sessions_dir=_sdir,
+                on_items_added=_hook,
+                project_root=_root,
+            )
+
+        session.state._openai_session_factory = _file_session_factory
 
         if siada_config.checkpointing_config and siada_config.checkpointing_config.enable:
             # Get max_checkpoint_files from config, default to 50 if not set

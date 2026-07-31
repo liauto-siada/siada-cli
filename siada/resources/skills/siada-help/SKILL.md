@@ -123,8 +123,29 @@ python {skill_dir}/scripts/config_manager.py validate
 | `proactive.work_hours` | string |
 | `proactive.trigger_interval` | int |
 | `proactive.daily_task_execution_time` | string |
+| `proactive.daily_im_send_time` | string |
 | `proactive.auto_execute_enabled` | bool |
+| `proactive.send_daily_summary_to_im` | bool |
+| `auto_update.enabled` | bool |
+| `auto_update.check_interval_minutes` | int |
+| `auto_update.channel` | string |
+| `code_agent.max_turns` | int |
+| `memory.enabled` | bool |
+| `memory.user_profile_enabled` | bool |
+| `memory.memory_facts_enabled` | bool |
+| `memory.memory_char_limit` | int |
+| `memory.user_char_limit` | int |
+| `memory.holographic.enabled` | bool |
+| `memory.holographic.hrr_enabled` | bool |
+| `memory.holographic.hrr_dim` | int |
+| `memory.holographic.prefetch_limit` | int |
+| `memory.holographic.temporal_decay_half_life` | int |
+| `web.enabled` | bool |
+| `compaction_strategy` | string |
 | `command_timeout` | int |
+
+Some sections (`lark.*`, `sub_agent.llm_config`, `proactive.llm_config`) are objects, not simple scalars — `config_manager.py set` can't target them directly. For those, tell the user to edit `~/.siada-cli/conf.yaml` directly; see `references/configuration.md` for the full shape and examples.
+
 
 ---
 

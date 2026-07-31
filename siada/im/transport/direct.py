@@ -5,14 +5,17 @@ The SDK handles authentication, reconnection, and heartbeat internally.
 """
 
 import asyncio
+import json
 import logging
-import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import AsyncIterator, Optional, TYPE_CHECKING
 
+from siada.im.feishu.notification_templates import (
+    get_direct_transport_notification_template,
+)
 from siada.im.models import IMMessage, IMResponse
-from siada.im.transport.base import LRUDedup, Transport, is_stale_event
+from siada.im.transport.base import LarkNotificationMixin, LRUDedup, Transport, is_stale_event
 
 if TYPE_CHECKING:
     from siada.im.adapter.feishu import LarkDirectAdapter
@@ -31,9 +34,11 @@ class DirectTransportConfig:
     http_timeout_ms: int = 30000
     media_max_mb: int = 30
     resolve_sender_names: bool = True
+    notify_email: Optional[str] = None  # email to receive connect/disconnect notifications
+    preferred_language: Optional[str] = None
 
 
-class DirectTransport(Transport):
+class DirectTransport(Transport, LarkNotificationMixin):
     """Direct WebSocket connection to Lark platform.
 
     Uses lark-oapi SDK's WSClient for persistent WS connection.
@@ -77,6 +82,9 @@ class DirectTransport(Transport):
             f"(open_id={self._bot_open_id})"
         )
 
+        # Notify user via Lark that connection is established
+        await self._send_connected_notification()
+
     async def _fetch_bot_identity(self) -> None:
         """Fetch bot info via Lark API to get open_id and name.
 
@@ -85,7 +93,7 @@ class DirectTransport(Transport):
         try:
             import lark_oapi as lark
 
-            client = self._get_lark_client()
+            client = self._adapter._get_lark_client()
 
             # Use BaseRequest (raw mode) since lark_oapi may not include the bot module
             request: lark.BaseRequest = lark.BaseRequest.builder() \
@@ -109,18 +117,6 @@ class DirectTransport(Transport):
                 )
         except Exception as e:
             logger.warning(f"Failed to fetch bot identity: {e}")
-
-    def _get_lark_client(self):
-        """Create a lark-oapi Client instance."""
-        import lark_oapi as lark
-
-        domain = self._resolve_domain()
-        return lark.Client.builder() \
-            .app_id(self._config.app_id) \
-            .app_secret(self._config.app_secret) \
-            .domain(domain) \
-            .timeout(self._config.http_timeout_ms / 1000) \
-            .build()
 
     async def _start_websocket(self) -> None:
         """Start Lark WebSocket long connection via lark-oapi WSClient.
@@ -332,14 +328,47 @@ class DirectTransport(Transport):
             msg = await self._message_queue.get()
             yield msg
 
-    async def send(self, response: IMResponse) -> None:
-        """Send a response via Lark HTTP API (delegated to adapter)."""
+    async def send(self, response: IMResponse) -> Optional[str]:
+        """Send a response via Lark HTTP API (delegated to adapter).
+
+        Returns the platform message_id on success, None on failure.
+        """
         chat_id = response.chat_id or ""
-        await self._adapter.send_message(chat_id, response)
+        return await self._adapter.send_message(chat_id, response)
+
+    # ── Notification helpers ──────────────────────────────────────────
+
+    def _get_notify_email(self) -> Optional[str]:
+        return self._config.notify_email
+
+    def _get_notification_lark_client(self):
+        return self._adapter._get_lark_client()
+
+    def _get_notify_language(self) -> Optional[str]:
+        return self._config.preferred_language
+
+    async def _send_connected_notification(self) -> None:
+        """Notify user that direct connection is established."""
+        template = get_direct_transport_notification_template(
+            self._config.preferred_language,
+        )
+        await self._send_lark_notification(template.connected_message)
+
+    async def _send_disconnected_notification(self) -> None:
+        """Notify user that the direct connection has been stopped."""
+        template = get_direct_transport_notification_template(
+            self._config.preferred_language,
+        )
+        await self._send_lark_notification(template.disconnected_message)
+
+    # ── Disconnect ────────────────────────────────────────────────────
 
     async def disconnect(self) -> None:
         """Stop WS client and cleanup."""
         logger.info("DirectTransport disconnecting...")
+        # Send disconnect notification before tearing down resources
+        if self._connected:
+            await self._send_disconnected_notification()
         self._connected = False
         if self._ws_client:
             try:
@@ -355,12 +384,3 @@ class DirectTransport(Transport):
         """Check if transport is connected and healthy."""
         return self._connected and self._bot_open_id is not None
 
-    def _resolve_domain(self) -> str:
-        """Resolve Lark API domain."""
-        import lark_oapi as lark
-        if self._config.domain == "lark":
-            return lark.LARK_DOMAIN
-        elif self._config.domain == "lark_cn":
-            return lark.FEISHU_DOMAIN
-        else:
-            return self._config.domain.rstrip("/")
