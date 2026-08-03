@@ -10,9 +10,29 @@
 
 本仓库包含 **Siada CLI**，这是一个命令行 AI 工作流工具，为代码开发、调试和自动化任务提供专业化的智能代理。
 
-Siada CLI 可感知用户的**项目上下文**、**计算机环境**与**跨会话持久记忆**，并支持 Terminal、飞书、Web 等多种入口，提供一致、可持续的个性化智能辅助。
+Siada CLI 可感知用户的**项目上下文**、**计算机环境**与**跨会话持久记忆**，并支持 Terminal、飞书、ACP 客户端、Web 等多种入口，提供一致、可持续的个性化智能辅助。
 
-> **当前最新版本：v1.7.0**
+> **当前最新版本：v1.7.20**
+
+---
+
+## v1.7.20 新特性
+
+### 1. 跨平台扩展与生态兼容
+
+- **真正的跨平台** — 完整支持 **macOS、Linux、Windows**，三端体验一致。不是"POSIX 工具 + 兼容层"：命令执行按平台原生实现（Unix 走 `pexpect` PTY，Windows 自动识别 **PowerShell / cmd**），终端主题探测、系统通知、IPC（Unix socket 与 **命名管道**）、守护进程拉起、`ripgrep` 二进制、Node UI 引导均有各平台专属路径。
+- **原生支持飞书（Lark）Bot** — 内置 Bot 通道，带流式卡片与输入状态提示，无需任何胶水代码即可在聊天中驱动 Siada。参见[远程控制指南](./remote_control_lark_zh.md)。
+- **ACP 原生** — 提供独立的 [Agent Client Protocol](https://agentclientprotocol.com/) 服务（`siada-acp`），可自由接入 Zed、Kiro、vscode-acp 、微信、飞书等任意 ACP 生态客户端。终端、聊天、编辑器、Web 共用同一内核。
+
+### 2. 把模型性能榨到极致
+
+- **对齐一线水平** — 在 Claude、GPT 系列模型上，真实代码生成与缺陷修复效果与 Claude Code、Codex 等现有编码工具持平。
+- **面向国产/开源模型深度优化** — 针对 **GLM-5.2**、**DeepSeek V4 Flash / Pro**、**Kimi**、**Qwen** 做了专门工程化：多轮工具调用间的 reasoning 内容回放、按模型映射 thinking 参数、按模型设定上下文与 token 预算，以及对快速模型的幻觉工具名与重复调用循环的抑制。
+
+### 3. 长周期执行与自我迭代记忆
+
+- **长周期任务执行** — 自动判定任务复杂度，Spec 驱动的 Research → Plan → Act 流水线，子 Agent 独立上下文编排，配合 Checkpoint 与自动压缩，可在数百步的任务链上保持目标不漂移。
+- **自我迭代的记忆** — 跨会话持久记忆 + **结构化事实库**（实体抽取、全息 HRR 向量检索、信任度评分、矛盾检测），并有后台复盘与更新流水线。记忆不是只增不减的日志，而是会被打分、纠正与淘汰。
 
 ---
 
@@ -20,10 +40,10 @@ Siada CLI 可感知用户的**项目上下文**、**计算机环境**与**跨会
 
 - **代码生成** — 创建新功能、Web 界面、重构代码，支持多种编程语言
 - **错误修复** — 自动识别、分析和修复大型代码库中的代码缺陷
-- **长周期任务执行** — 通过 Spec 驱动执行与子 Agent 编排，稳定完成跨越多步骤、大量上下文切换的复杂开发任务，避免目标漂移
-- **自我进化** — 持久记忆与定时主动任务，让助手持续进化
+- **长周期任务执行** — 通过 Spec 驱动执行与子 Agent 编排，稳定完成跨越多步骤的复杂开发任务
+- **自我进化** — 持久记忆、事实库与定时主动任务，让助手持续进化
 - **主机管理** — 支持对个人电脑、文档的远程管理与处理
-- **多入口支持** — 终端（交互/非交互）、飞书远程控制、Web 界面，随你选择
+- **多入口支持** — 终端（交互/非交互）、飞书 Bot、ACP 客户端、Web 界面
 
 ---
 
@@ -33,18 +53,26 @@ Siada CLI 可感知用户的**项目上下文**、**计算机环境**与**跨会
 
 | 要求 | 详情 |
 |---|---|
-| 操作系统 | macOS、Linux |
-| GCC | 11+ |
+| 操作系统 | macOS、Linux、Windows |
+| Python | 3.12 – 3.13 |
+| GCC | 11+（macOS / Linux） |
 | 包管理器 | [uv](https://github.com/astral-sh/uv) |
 
 ### 安装
 
 **第一步：安装 uv**
+
+macOS / Linux：
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-**第二步：安装 Siada CLI**
+Windows（PowerShell）：
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**第二步：安装 Siada CLI**（各平台命令一致）
 ```bash
 uv tool install --force --python python3.12 --compile --with pip siada-cli@latest
 ```
@@ -118,15 +146,25 @@ siada-cli
 siada-cli --no-interactive "修复 src/main.py 中的空指针异常"
 ```
 
-### 飞书远程控制
-将 Siada CLI 连接到飞书工作空间，通过消息远程下发任务。详见[飞书远程控制使用指南](./remote_control_lark_zh.md)。
+### 飞书（Lark）Bot
+将 Siada CLI 连接到飞书工作空间，通过消息远程下发任务，原生支持流式回复。详见[飞书远程控制使用指南](./remote_control_lark_zh.md)。
+
+### ACP 模式（编辑器 / 三方客户端）
+以 Agent Client Protocol 对外提供服务，可被任意 ACP 客户端接入：
+```bash
+siada-acp
+```
+或以 ACP 方式启动内置 UI：
+```bash
+siada-cli --acp
+```
 
 ---
 
 ## 核心特性
 
-### 记忆系统
-跨会话持久记忆让 Siada 记住你的偏好、代码库上下文和历史决策，每次交互都更加精准。
+### 记忆系统与事实库
+跨会话持久记忆让 Siada 记住你的偏好、代码库上下文和历史决策。在此之上，结构化事实库会抽取命名实体、通过全息（HRR）向量检索、根据反馈维护信任度评分并检测矛盾——知识是被不断提炼的，而不只是被不断堆积。
 
 ### Checkpoint 检查点
 在关键决策点保存和恢复 Agent 状态，让你对长时任务保持完全掌控。
@@ -145,6 +183,9 @@ siada-cli --no-interactive "修复 src/main.py 中的空指针异常"
 
 ### 自动压缩
 智能压缩对话历史，在不丢失关键上下文的前提下保持在模型上下文限制内。详见[压缩策略配置](./compaction_configuration_zh.md)。
+
+### 平台感知的工具执行
+工具执行会适配宿主操作系统，而不是假定单一环境：macOS/Linux 使用基于 PTY 的 Shell，Windows 自动识别 PowerShell/cmd，按平台分发 `ripgrep` 二进制，使用原生系统通知，并按操作系统选择 IPC 与守护进程方案。提示词中也会携带探测到的操作系统信息，让模型生成的命令在你的机器上真正可执行。
 
 ---
 

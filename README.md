@@ -10,9 +10,31 @@
 
 This repository contains **Siada CLI**, a command-line AI workflow tool that provides specialized intelligent agents for code development, debugging, and automation tasks.
 
-Siada CLI is context-aware of your **project**, **computing environment**, and **cross-session persistent memory**, offering consistent, personalized, and continuously improving intelligent assistance across Terminal, Feishu (Lark), and Web interfaces.
+Siada CLI is context-aware of your **project**, **computing environment**, and **cross-session persistent memory**, offering consistent, personalized, and continuously improving intelligent assistance across Terminal, Feishu (Lark), ACP clients, and Web interfaces.
 
-> **Current latest version: v1.7.0**
+> **Current latest version: v1.7.20**
+
+---
+
+## What's New in v1.7.20
+
+### 1. Runs Everywhere, Plugs Into Anything
+
+- **True cross-platform** — fully supported on **macOS, Linux, and Windows**, with a consistent experience on all three. Not a POSIX tool with a compatibility shim: shell execution is platform-native (`pexpect` PTY on Unix, **PowerShell / cmd detection** on Windows), and terminal theme detection, notifications, IPC (Unix socket vs. **named pipe**), daemon spawning, `ripgrep` binaries, and the Node UI bootstrap all have dedicated per-platform paths.
+- **Native Feishu (Lark) bot** — a built-in bot transport with streaming cards and typing indicators, so you can drive Siada from chat without writing any glue code. See [Remote Control Guide](./docs/remote_control_lark.md).
+- **ACP-native** — ships a standalone [Agent Client Protocol](https://agentclientprotocol.com/) server (`siada-acp`), so Siada drops into any ACP-compatible client (Zed, Kiro, vscode-acp, …) as a first-class agent. Terminal, chat, editor, and Web all talk to the same core.
+
+### 2. Squeezes the Most Out of Every Model
+
+- **On par with the best on frontier models** — on Claude and GPT families, Siada CLI matches leading coding tools such as Claude Code and Codex on real-world code generation and bug fixing.
+- **Deeply tuned for domestic/open models** — dedicated engineering for **GLM-5.2**, **DeepSeek V4 Flash / Pro**, **Kimi**, and **Qwen**: reasoning-content replay across multi-turn tool calls, per-model thinking-parameter mapping, per-model context and token budgets, and hallucination/loop suppression for fast models that invent tool names or repeat identical calls.
+- **One interface, any provider** — unified provider layer over LiteLLM, plus [custom endpoints](./docs/external_model_configuration.md) for private deployments.
+
+### 3. Long-Horizon Execution and Self-Evolving Memory
+
+- **Long-horizon task execution** — automatic task-complexity judgment, spec-driven Research → Plan → Act pipelines, sub-agent orchestration with clean context windows, checkpoints, and auto-compaction keep goals on track across task chains of hundreds of steps.
+- **Self-evolving memory** — cross-session persistent memory combined with a **structured fact store** (entity extraction, holographic/HRR vector retrieval, trust scoring, and contradiction detection) plus a background review-and-update pipeline. Memory is not just an append-only log: it is scored, corrected, and pruned over time.
+- **Proactive automation** — run Siada as a background daemon with scheduled tasks so it keeps working, and keeps improving, between your sessions.
 
 ---
 
@@ -20,10 +42,10 @@ Siada CLI is context-aware of your **project**, **computing environment**, and *
 
 - **Code Generation** — Create new features, web interfaces, and refactor code with multi-language support
 - **Bug Fixing** — Automatically identify, analyze, and fix code defects in large codebases
-- **Long-Horizon Task Execution** — Tackle complex, multi-step development tasks through spec-driven execution and sub-agent orchestration, keeping goals on track across long task chains
-- **Self-Evolution** — Persistent memory and scheduled proactive tasks keep the assistant continuously improving
+- **Long-Horizon Task Execution** — Tackle complex, multi-step development tasks through spec-driven execution and sub-agent orchestration
+- **Self-Evolution** — Persistent memory, fact store, and scheduled proactive tasks keep the assistant continuously improving
 - **Host Management** — Remote management and processing of your local machine and documents
-- **Multi-Entry Support** — Use in Terminal (interactive/non-interactive), Feishu remote control, or Web UI
+- **Multi-Entry Support** — Terminal (interactive/non-interactive), Feishu bot, ACP clients, or Web UI
 
 ---
 
@@ -33,18 +55,26 @@ Siada CLI is context-aware of your **project**, **computing environment**, and *
 
 | Requirement | Details |
 |---|---|
-| OS | macOS, Linux |
-| GCC | 11+ |
+| OS | macOS, Linux, Windows |
+| Python | 3.12 – 3.13 |
+| GCC | 11+ (macOS / Linux) |
 | Package Manager | [uv](https://github.com/astral-sh/uv) |
 
 ### Install
 
 **Step 1: Install uv**
+
+macOS / Linux:
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-**Step 2: Install Siada CLI**
+Windows (PowerShell):
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Step 2: Install Siada CLI** (same command on all platforms)
 ```bash
 uv tool install --force --python python3.12 --compile --with pip siada-cli@latest
 ```
@@ -118,15 +148,25 @@ siada-cli
 siada-cli --no-interactive "Fix the null pointer exception in src/main.py"
 ```
 
-### Feishu Remote Control
-Connect Siada CLI to your Feishu (Lark) workspace and send tasks remotely. See [Remote Control Guide](./docs/remote_control_lark.md).
+### Feishu (Lark) Bot
+Connect Siada CLI to your Feishu workspace and send tasks from chat — natively supported, with streaming replies. See [Remote Control Guide](./docs/remote_control_lark.md).
+
+### ACP Mode (editor / third-party clients)
+Expose Siada over the Agent Client Protocol so any ACP-compatible client can use it:
+```bash
+siada-acp
+```
+Or launch the bundled UI over ACP:
+```bash
+siada-cli --acp
+```
 
 ---
 
 ## Key Features
 
-### Memory System
-Cross-session persistent memory lets Siada remember your preferences, codebase context, and past decisions — making every interaction more accurate over time.
+### Memory System & Fact Store
+Cross-session persistent memory lets Siada remember your preferences, codebase context, and past decisions. On top of it, a structured fact store extracts named entities, retrieves via holographic (HRR) vectors, tracks trust scores with feedback, and detects contradictions — so knowledge is refined rather than merely accumulated.
 
 ### Checkpoint
 Save and restore agent states at key decision points, giving you full control over long-running tasks.
@@ -144,7 +184,10 @@ Run Siada as a background daemon to execute proactive, scheduled automation task
 Place `siada_rule.md` or `.siadarules/` files in your project or home directory to set persistent AI behavior rules without repeating yourself in every conversation.
 
 ### Auto Compaction
-Intelligently compress conversation history to stay within model context limits without losing critical context.
+Intelligently compress conversation history to stay within model context limits without losing critical context. See [Compaction Configuration](./docs/compaction_configuration.md).
+
+### Platform-Aware Tooling
+Tool execution adapts to the host OS instead of assuming a single environment: PTY-based shell on macOS/Linux, PowerShell/cmd auto-detection on Windows, platform-specific `ripgrep` binaries, native notifications, and OS-appropriate IPC and daemon handling. Prompts also carry the detected OS so the model generates commands that actually run on your machine.
 
 ---
 
