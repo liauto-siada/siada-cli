@@ -133,6 +133,14 @@ export interface CommandDefinition {
   
   /** Command description */
   description: string;
+
+  /**
+   * Concise argument-format hint (e.g. "[<objective> | clear]" for /goal),
+   * shown as dimmed inline "ghost text" right after the command name once
+   * it has been fully typed and before any argument has been entered.
+   * Empty/undefined means no hint is shown for this command.
+   */
+  argumentHint?: string;
   
   /** Sub-commands */
   subCommands?: CommandDefinition[];

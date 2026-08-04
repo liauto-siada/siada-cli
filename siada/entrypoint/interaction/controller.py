@@ -16,7 +16,7 @@ from siada.entrypoint.interaction.running_config import RunningConfig
 # heavy agents SDK (conversation_turn.py → from agents import ...) at module load time.
 from siada.foundation.logging import logger as logging
 from siada.services.agent_loader import get_agent_class_path, import_agent_class
-from siada.support.slash_commands import SlashCommands, SwitchEvent
+from siada.support.slash_commands import SlashCommands, SwitchEvent, get_argument_hint
 from siada.support.spinner import WaitingSpinner
 from rich.console import Console
 
@@ -1034,7 +1034,8 @@ class Controller:
                         
                         slash_commands.append({
                             "name": cmd_name,
-                            "description": description
+                            "description": description,
+                            "argument_hint": get_argument_hint(cmd_name),
                         })
                 except Exception as e:
                     logging.warning(f"[Controller] Failed to get slash commands: {e}")

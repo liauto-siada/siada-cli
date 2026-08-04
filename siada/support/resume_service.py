@@ -184,6 +184,7 @@ class ResumeService:
 
 
             # Step 4: restore RealApiMessage from api_messages.json.
+            # (see _align_last_index for how the tracking anchor is derived)
             # Filtered-out items are never compacted, so they appear verbatim at the
             # tail of api_messages. Strip them from the tail before restoring.
             if session_data.api_messages and filtered_items:
@@ -194,11 +195,45 @@ class ResumeService:
                         api_messages_to_use.pop()
                     else:
                         break
-                # Always compute last_index/last_signature from filtered_items,
-                # then update the persisted session data
-                last_item = filtered_items[-1]
-                persisted_last_index = len(filtered_items) - 1
-                persisted_last_signature = compute_message_signature(last_item)
+                # The tracking anchor must point at the history position of the
+                # LAST message that api_messages already covers — NOT at the end
+                # of the history. api_messages is the model-visible snapshot taken
+                # *before* the last LLM call, so everything produced after that
+                # call (assistant reply, tool calls/outputs, the next user turn)
+                # is still missing from it. Anchoring at len(history) - 1 makes the
+                # next incremental update start its delta after those items and
+                # silently drop them from the model's context.
+                #
+                # The anchor is resolved by aligning api_messages against the
+                # history as a subsequence (history may contain extra items that
+                # never reach api_messages, e.g. post-filter goal/todo reminders),
+                # and it is computed over native items only because
+                # FileSession.get_items() hides cross-session ``_injected`` items
+                # from the next LLM input.
+                native_items = [
+                    item for item in filtered_items
+                    if not (isinstance(item, dict) and item.get("_injected"))
+                ]
+                persisted_last_index = self._align_last_index(native_items, api_messages_to_use)
+                if persisted_last_index is None:
+                    # Cannot align (e.g. api_messages starts with a compaction
+                    # summary that has no counterpart in history): fall back to a
+                    # full refresh instead of corrupting the context. The persisted
+                    # tracking must be reset too, otherwise the stale values in
+                    # api_messages.json win in _read_tracking_info_from_file.
+                    logger.info(
+                        "Could not align api_messages with history on resume; "
+                        "next LLM call will do a full refresh"
+                    )
+                    running_session.state.task_message_state.reset_real_messages()
+                    if session_data.session_path:
+                        SessionManager.update_api_messages_tracking(
+                            session_data.session_path, -1, ""
+                        )
+                    return
+                persisted_last_signature = compute_message_signature(
+                    native_items[persisted_last_index]
+                )
                 # Persist computed values back to api_messages.json
                 if session_data.session_path:
                     SessionManager.update_api_messages_tracking(
@@ -222,9 +257,38 @@ class ResumeService:
                     )
             else:
                 running_session.state.task_message_state.reset_real_messages()
+                if session_data.session_path:
+                    SessionManager.update_api_messages_tracking(
+                        session_data.session_path, -1, ""
+                    )
 
             logger.info(f"Session restored (reusing session_id): {session_data.session_id}")
 
         except Exception as e:
             logger.error(f"Failed to restore session: {e}")
             raise
+
+    @staticmethod
+    def _align_last_index(items: list, api_messages: list) -> Optional[int]:
+        """Locate the history index of the last message covered by api_messages.
+
+        api_messages is a subsequence of the history: the history can contain
+        items that never make it into the model-visible snapshot (post-filter
+        goal/todo reminders), and api_messages can contain items with no history
+        counterpart (compaction summaries). The pair is aligned from the tail so
+        that trailing compaction summaries do not break the match, and the index
+        of the last matched history item is returned.
+
+        Returns None when no api_message could be matched at all, which means the
+        caller must fall back to a full refresh.
+        """
+        i = len(items) - 1
+        j = len(api_messages) - 1
+        anchor: Optional[int] = None
+        while i >= 0 and j >= 0:
+            if compute_message_signature(items[i]) == compute_message_signature(api_messages[j]):
+                if anchor is None:
+                    anchor = i
+                j -= 1
+            i -= 1
+        return anchor

@@ -72,6 +72,36 @@ def _looks_like_filepath(slash_input: str) -> bool:
         return False
 
 
+# Concise, Claude-Code-style argument hints shown inline in the CLI input box
+# right after a fully-typed command name (before the user has typed any
+# argument yet), e.g. "/goal " renders as "/goal [<objective> | clear]" with
+# the hint dimmed. Keys use the same hyphenated command name exposed via
+# get_commands()/matching_commands() (cmd_pre_plan_mode -> "pre-plan-mode"),
+# i.e. the `cmd_name` built in Controller.show_announcements(). Commands that
+# take no meaningful argument, or only open a picker/UI with no argument, are
+# intentionally omitted (empty hint -> nothing is rendered).
+ARGUMENT_HINTS: dict[str, str] = {
+    "btw": "<question>",
+    "memory": "[enable | disable]",
+    "web": "[enable | disable]",
+    "goal": "[<objective> | clear]",
+    "model": "[<model_name>]",
+    "rule-global-add": "<text>",
+    "compare": "<checkpoint_filename>",
+    "undo": "<checkpoint_filename>",
+    "restore": "<checkpoint_filename>",
+    "resume": "[<index> | <session_id> | latest | --all]",
+    "lang": "<en | zh-CN>",
+    "pre-plan-mode": "<true | false>",
+    "plugin": "[install | remove | enable | disable | validate | marketplace] <args>",
+}
+
+
+def get_argument_hint(cmd_name: str) -> str:
+    """Return a concise argument-format hint for a slash command, or "" if none."""
+    return ARGUMENT_HINTS.get(cmd_name, "")
+
+
 class SlashCommands:
 
     def clone(self):

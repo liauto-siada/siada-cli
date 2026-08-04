@@ -133,6 +133,10 @@ class RunTurn(ABC):
         li_mate_message = _extract_li_mate_message(error)
         if li_mate_message:
             self.config.io.print_error(f"{li_mate_message}\n")
+        # Handle rate limit errors (e.g. Moonshot 429): only tell the user
+        # the model is rate limited, don't show the raw provider error.
+        elif "RateLimitError" in error_type:
+            self.config.io.print_error("模型限流，请稍后输入继续重试\n")
         # Identify BadGatewayError (litellm)
         elif "BadGatewayError" in error_type or "BadGatewayError" in error_str:
             self.config.io.print_error(

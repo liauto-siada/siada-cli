@@ -10,6 +10,8 @@ export interface SlashCommandInfo {
   description: string;
   requiresSession?: boolean;
   kind?: CommandKind;
+  /** Concise argument-format hint, e.g. "[<objective> | clear]" for /goal */
+  argumentHint?: string;
 }
 
 /**
@@ -47,7 +49,7 @@ export class SlashCommandService {
   /**
    * Update commands from backend (called when receiving slash commands via ACP)
    */
-  updateCommandsFromBackend(backendCommands: Array<{name: string, description: string}>): void {
+  updateCommandsFromBackend(backendCommands: Array<{name: string, description: string, argument_hint?: string}>): void {
     // Clear existing commands
     this.commands.clear();
     
@@ -59,6 +61,7 @@ export class SlashCommandService {
         requiresSession: false,  // Backend will handle session requirements
         kind: 'BUILTIN' as CommandKind,
         autoExecute: false,
+        argumentHint: cmd.argument_hint || undefined,
       });
     });
     
@@ -76,7 +79,9 @@ export class SlashCommandService {
     // Fallback: define the built-in commands based on slash_commands.py
     const builtinCommands: SlashCommandInfo[] = [
       { name: 'status', description: 'Show the current status', requiresSession: true },
-      { name: 'model', description: 'Switch to a different model (opens UI picker)', requiresSession: true },
+      { name: 'goal', description: 'Set or clear a standing goal for this session, then kick off work', requiresSession: true, argumentHint: '[<objective> | clear]' },
+      { name: 'btw', description: 'Ask a quick side question without polluting main conversation', requiresSession: true, argumentHint: '<question>' },
+      { name: 'model', description: 'Switch to a different model (opens UI picker)', requiresSession: true, argumentHint: '[<model_name>]' },
       // { name: 'models', description: 'Search the list of available models', requiresSession: false }, // Removed: /model already provides this functionality
       { name: 'run', description: 'Run a shell command (alias: !)', requiresSession: true },
       { name: 'logout', description: 'Sign out and clear stored credentials', requiresSession: false },
@@ -92,26 +97,28 @@ export class SlashCommandService {
       { name: 'rule-show', description: 'Display combined hierarchical context content', requiresSession: true },
       { name: 'rule-refresh', description: 'Refresh hierarchical context content', requiresSession: true },
       { name: 'rule-list', description: 'List all loaded hierarchical context files', requiresSession: true },
-      { name: 'rule-global-add', description: 'Add memory entry to global context file', requiresSession: true },
+      { name: 'rule-global-add', description: 'Add memory entry to global context file', requiresSession: true, argumentHint: '<text>' },
       { name: 'rule-status', description: 'Display current hierarchical context status', requiresSession: true },
       { name: 'mcp-server', description: 'List all MCP servers and their connection status', requiresSession: true },
       { name: 'mcp-list', description: 'List all MCP servers and their available tools', requiresSession: true },
-      { name: 'compare', description: 'Compare files between working directory and checkpoint', requiresSession: true },
-      { name: 'undo', description: 'Undo the target checkpoint', requiresSession: true },
-      { name: 'restore', description: 'Restore files from a checkpoint', requiresSession: true },
+      { name: 'compare', description: 'Compare files between working directory and checkpoint', requiresSession: true, argumentHint: '<checkpoint_filename>' },
+      { name: 'undo', description: 'Undo the target checkpoint', requiresSession: true, argumentHint: '<checkpoint_filename>' },
+      { name: 'restore', description: 'Restore files from a checkpoint', requiresSession: true, argumentHint: '<checkpoint_filename>' },
+      { name: 'resume', description: 'Resume a previous session', requiresSession: true, argumentHint: '[<index> | <session_id> | latest | --all]' },
       { name: 'clear', description: 'Start a new task session without previous conversation history', requiresSession: true },
-      { name: 'lang', description: 'Switch language preference between English and Chinese', requiresSession: true },
-      { name: 'pre-plan-mode', description: 'Toggle plan mode for tool execution', requiresSession: true },
-      { name: 'issue-fix', description: 'Fix an issue from Siada Patch Review by issue ID', requiresSession: true },
+      { name: 'lang', description: 'Switch language preference between English and Chinese', requiresSession: true, argumentHint: '<en | zh-CN>' },
+      { name: 'pre-plan-mode', description: 'Toggle plan mode for tool execution', requiresSession: true, argumentHint: '<true | false>' },
+      { name: 'issue-fix', description: 'Fix an issue from Siada Patch Review by issue ID', requiresSession: true, argumentHint: '<issue_id>' },
       { name: 'help', description: 'Show help about commands', requiresSession: false },
-      { name: 'plugin', description: 'Open plugin/skill manager (discover, install, disable skills)', requiresSession: true },
+      { name: 'plugin', description: 'Open plugin/skill manager (discover, install, disable skills)', requiresSession: true, argumentHint: '[install | remove | enable | disable | validate | marketplace] <args>' },
       { name: 'skill-list', description: 'List all available skills', requiresSession: true },
       { name: 'skill-reload', description: 'Reload skills (clear cache and rediscover)', requiresSession: true },
       { name: 'task-list', description: 'Show discovered pending tasks and select one to execute', requiresSession: true },
       { name: 'lark-auth', description: 'Authenticate with Lark MCP server using OAuth 2.0', requiresSession: true },
       { name: 'lark-status', description: 'Show Lark OAuth authentication status', requiresSession: true },
       { name: 'lark-refresh', description: 'Refresh Lark OAuth token', requiresSession: true },
-      { name: 'memory', description: 'Enable or disable the memory subsystem (usage: /memory [enable|disable])', requiresSession: true },
+      { name: 'memory', description: 'Enable or disable the memory subsystem (usage: /memory [enable|disable])', requiresSession: true, argumentHint: '[enable | disable]' },
+      { name: 'web', description: 'Toggle the web search tools (web_search / web_fetch)', requiresSession: true, argumentHint: '[enable | disable]' },
     ];
 
     builtinCommands.forEach(cmd => {
@@ -121,6 +128,7 @@ export class SlashCommandService {
         requiresSession: cmd.requiresSession,
         kind: cmd.kind || 'BUILTIN' as CommandKind,
         autoExecute: false,
+        argumentHint: cmd.argumentHint,
       });
     });
 

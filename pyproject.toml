@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "siada-cli"
-version = "1.7.20"
+version = "1.7.21"
 description = "Siada CLI is a Ai Pair Programming Tool in terminal"
 packages = [{include = "siada"}, {include = "siada_cli_ui"}, {include = "agent_config.yaml"}]
 include = [

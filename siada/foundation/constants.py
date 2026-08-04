@@ -16,4 +16,4 @@ CHECKPOINT_INIT_TIMEOUT = 60  # timeout for checkpoint initialization (seconds)
 # `litellm.num_retries=3`, so on Anthropic Timeout the wrapper will retry
 # up to 3 more times. Worst-case wall clock for a single chat_complete is
 # therefore ~ 4 × LLM_API_POST_TIMEOUT (1 original + 3 wrapper retries).
-LLM_API_POST_TIMEOUT = 600  # 10 minutes (single litellm attempt)
+LLM_API_POST_TIMEOUT = 600 * 2  # 20 minutes (single litellm attempt)

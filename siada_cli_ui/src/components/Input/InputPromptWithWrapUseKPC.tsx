@@ -62,6 +62,17 @@ import { INFORMATIVE_TIPS } from '../../constants/phrases.js';
 import { getImageFromClipboard, getTextFromClipboard, copyTextToClipboard } from '../../utils/clipboard.js';
 import { promptQueueStore } from '../../store/promptQueueStore.js';
 import { TodoDisplay } from '../Todo/TodoDisplay.js';
+import { slashCommandService } from '../../services/slashCommandService.js';
+
+/** Matches a fully-typed slash command name with no argument yet, e.g.
+ * "/goal" or "/goal  " — used to decide when to show the dimmed inline
+ * argument-format hint (ghost text) right after the command name. */
+const COMMAND_ONLY_RE = /^\/([a-zA-Z0-9:_-]+)( *)$/;
+
+/** Matches the leading slash-command token of the input (e.g. "/goal" in
+ * "/goal fix the bug") — that token is rendered with a highlight color so the
+ * command name visually stands out from the rest of the typed text. */
+const SLASH_COMMAND_TOKEN_RE = /^\/[a-zA-Z0-9:_-]+/;
 
 // Threshold: pastes longer than this are collapsed into a placeholder pill
 const PASTE_THRESHOLD = 800;
@@ -355,6 +366,30 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     return offset;
   }, [buffer.cursorRow, buffer.cursorCol, buffer.lines]);
 
+  // Argument-hint lookup (command name -> concise hint text), loaded once
+  // from slashCommandService. Mirrors the same one-shot-on-mount pattern
+  // used by useSlashCompletion's own command list load.
+  const [commandHints, setCommandHints] = useState<Map<string, string>>(new Map());
+  // Known command names — the leading "/xxx" token is only highlighted when it
+  // exactly matches one of these, so typos / arbitrary "/foo" text stay plain.
+  const [commandNames, setCommandNames] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let mounted = true;
+    slashCommandService.getCommands().then((cmds) => {
+      if (!mounted) return;
+      const map = new Map<string, string>();
+      const names = new Set<string>();
+      cmds.forEach((c) => {
+        names.add(c.name);
+        if (c.argumentHint) map.set(c.name, c.argumentHint);
+      });
+      setCommandHints(map);
+      setCommandNames(names);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Unified command completion hook (@ and / support)
   const {
@@ -375,6 +410,17 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     enabled: focus && !disabled,
     mcpResources,
   });
+
+  // Inline "ghost text" argument hint (e.g. "/goal" -> "[<objective> | clear]")
+  // shown right after the cursor once a known command name has been fully
+  // typed and no argument has been entered yet. Computed synchronously from
+  // buffer.text (not from the debounced completion hook's showSuggestions
+  // state) so it appears immediately with no timing dependency.
+  const activeCommandHint = useMemo(() => {
+    const match = COMMAND_ONLY_RE.exec(buffer.text);
+    if (!match) return null;
+    return commandHints.get(match[1]) ?? null;
+  }, [buffer.text, commandHints]);
 
   const {
     execute: executeShellCommand,
@@ -1065,53 +1111,72 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
 
                 const lineLen = cpLen(lineText);
 
-                if (isOnCursorLine) {
-                  const relativeVisualColForHighlight = cursorVisualColAbsolute;
-                  const segStart = 0;
-                  const segEnd = lineLen;
-                  let display = lineText;
+                // Length of the leading "/command" token — only meaningful on
+                // the very first visual line, and only when the typed name is
+                // an exact match of a known command (so "/goa", "/nope" etc.
+                // stay plain). That token is rendered with a highlight color.
+                const cmdTokenLen = (() => {
+                  if (absoluteVisualIdx !== 0) return 0;
+                  const token = SLASH_COMMAND_TOKEN_RE.exec(lineText)?.[0];
+                  if (!token) return 0;
+                  return commandNames.has(token.slice(1)) ? cpLen(token) : 0;
+                })();
 
-                  if (
-                    relativeVisualColForHighlight >= segStart &&
-                    relativeVisualColForHighlight < segEnd
-                  ) {
-                    const charToHighlight = cpSlice(
-                      display,
-                      relativeVisualColForHighlight - segStart,
-                      relativeVisualColForHighlight - segStart + 1,
-                    );
-                    const highlighted = focus
-                      ? chalk.inverse(charToHighlight)
-                      : charToHighlight;
-                    display =
-                      cpSlice(display, 0, relativeVisualColForHighlight - segStart) +
-                      highlighted +
-                      cpSlice(
-                        display,
-                        relativeVisualColForHighlight - segStart + 1,
-                      );
-                  }
+                // Embed the inverse block cursor into a segment when the cursor
+                // falls inside it. `offset` is the segment's start column.
+                const withCursor = (segment: string, offset: number): string => {
+                  if (!isOnCursorLine || !focus) return segment;
+                  const idx = cursorVisualColAbsolute - offset;
+                  if (idx < 0 || idx >= cpLen(segment)) return segment;
+                  return (
+                    cpSlice(segment, 0, idx) +
+                    chalk.inverse(cpSlice(segment, idx, idx + 1)) +
+                    cpSlice(segment, idx + 1)
+                  );
+                };
 
+                if (cmdTokenLen > 0) {
                   renderedLine.push(
-                    <Text key={`token-0`} color={githubTheme.input.text}>
-                      {display}
+                    <Text key="cmd-token" color={githubTheme.primary} bold>
+                      {withCursor(cpSlice(lineText, 0, cmdTokenLen), 0)}
                     </Text>,
                   );
+                  renderedLine.push(
+                    <Text key={`token-0`} color={githubTheme.input.text}>
+                      {withCursor(cpSlice(lineText, cmdTokenLen), cmdTokenLen)}
+                    </Text>,
+                  );
+                } else {
+                  renderedLine.push(
+                    <Text key={`token-0`} color={githubTheme.input.text}>
+                      {withCursor(lineText, 0)}
+                    </Text>,
+                  );
+                }
 
-                  const isAtEndOfLine = cursorVisualColAbsolute === lineLen;
-                  if (isAtEndOfLine) {
+                if (isOnCursorLine) {
+                  const cursorAtEnd = cursorVisualColAbsolute === lineLen;
+                  if (cursorAtEnd) {
                     renderedLine.push(
                       <Text key={`cursor-end-${cursorVisualColAbsolute}`}>
                         {focus ? chalk.inverse(' ') : ' '}
                       </Text>,
                     );
                   }
-                } else {
-                  renderedLine.push(
-                    <Text key={`token-0`} color={githubTheme.input.text}>
-                      {lineText}
-                    </Text>,
-                  );
+
+                  // Inline argument-hint "ghost text" — the expected argument
+                  // format, shown right after the cursor once a known command
+                  // name has been fully typed. Uses text.secondary (#8b949e)
+                  // and no Ink `dimColor`: muted (#484f58) plus ANSI dim made
+                  // it practically invisible on dark terminals, while
+                  // secondary still reads as a hint rather than typed input.
+                  if (cursorAtEnd && activeCommandHint) {
+                    renderedLine.push(
+                      <Text key="cmd-arg-hint" color={githubTheme.text.secondary}>
+                        {activeCommandHint}
+                      </Text>,
+                    );
+                  }
                 }
 
                 const isAtEndOfLine = cursorVisualColAbsolute === lineLen;

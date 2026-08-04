@@ -96,13 +96,13 @@ class MemoryService:
         """
         try:
             from siada.models.model_base_config import get_model_config
-            from siada.provider.fast_llm import _resolve_fast_model_name
-            model_name = _resolve_fast_model_name()
-            cfg = get_model_config(model_name)
+            from siada.provider.fast_llm import get_fast_model_name
+            fast_model = get_fast_model_name()
+            cfg = get_model_config(fast_model)
             if cfg and cfg.context_window:
                 logger.info(
                     f"[memory-service] max_session_tokens resolved from "
-                    f"{model_name}.context_window={cfg.context_window}"
+                    f"{fast_model}.context_window={cfg.context_window}"
                 )
                 return cfg.context_window
         except Exception:

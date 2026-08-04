@@ -99,6 +99,12 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         output_price=24,
         cache_read_price=1.2,
     ),
+    "kivy-deepseek-v4-flash-0731": ModelPricing(
+        model_name="kivy-deepseek-v4-flash-0731",
+        input_price=1.0,
+        output_price=2.0,
+        cache_read_price=0.02,
+    ),
     "kivy-deepseek-v4-flash": ModelPricing(
         model_name="kivy-deepseek-v4-flash",
         input_price=1.0,

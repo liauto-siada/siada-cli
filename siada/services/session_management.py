@@ -221,9 +221,15 @@ class SessionManager:
         
         # Handle "latest"
         if identifier.lower() == 'latest':
-            if sessions:
-                return sessions[-1]
-            return None
+            # Skip empty placeholder sessions: every process eagerly creates a
+            # session directory at startup, so the process doing the resume (and
+            # any aborted run) leaves behind a newer 0-message session that would
+            # otherwise win "latest" and resume an empty history — losing the
+            # conversation and forcing a full refresh on the next LLM call.
+            for session in reversed(sessions):
+                if session.message_count > 0:
+                    return session
+            return sessions[-1] if sessions else None
         
         # Try as index number
         try:

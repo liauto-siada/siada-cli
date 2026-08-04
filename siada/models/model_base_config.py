@@ -127,6 +127,14 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         default_thinking_tokens=1024,
     ),
     ModelBaseConfig(
+        model_name="kivy-deepseek-v4-flash-0731",
+        max_tokens=384_000,
+        context_window=1_000_000,
+        parallel_tool_calls=True,
+        supports_extra_params=["thinking_tokens"],
+        default_thinking_tokens=1024,
+    ),
+    ModelBaseConfig(
         model_name="kivy-deepseek-v4-flash",
         max_tokens=384_000,
         context_window=1_000_000,
@@ -145,7 +153,7 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="bailian-kimi-k3",
         # max_tokens=131_072,
-        context_window=348_576,
+        context_window=200_000,
         parallel_tool_calls=False,
         supports_extra_params=["thinking_tokens"],
         default_thinking_tokens=1024,

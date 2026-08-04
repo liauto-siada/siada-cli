@@ -52765,7 +52765,8 @@ var init_slashCommandService = __esm({
             requiresSession: false,
             // Backend will handle session requirements
             kind: "BUILTIN",
-            autoExecute: false
+            autoExecute: false,
+            argumentHint: cmd.argument_hint || void 0
           });
         });
         this.initialized = true;
@@ -52779,7 +52780,9 @@ var init_slashCommandService = __esm({
         }
         const builtinCommands = [
           { name: "status", description: "Show the current status", requiresSession: true },
-          { name: "model", description: "Switch to a different model (opens UI picker)", requiresSession: true },
+          { name: "goal", description: "Set or clear a standing goal for this session, then kick off work", requiresSession: true, argumentHint: "[<objective> | clear]" },
+          { name: "btw", description: "Ask a quick side question without polluting main conversation", requiresSession: true, argumentHint: "<question>" },
+          { name: "model", description: "Switch to a different model (opens UI picker)", requiresSession: true, argumentHint: "[<model_name>]" },
           // { name: 'models', description: 'Search the list of available models', requiresSession: false }, // Removed: /model already provides this functionality
           { name: "run", description: "Run a shell command (alias: !)", requiresSession: true },
           { name: "logout", description: "Sign out and clear stored credentials", requiresSession: false },
@@ -52795,26 +52798,28 @@ var init_slashCommandService = __esm({
           { name: "rule-show", description: "Display combined hierarchical context content", requiresSession: true },
           { name: "rule-refresh", description: "Refresh hierarchical context content", requiresSession: true },
           { name: "rule-list", description: "List all loaded hierarchical context files", requiresSession: true },
-          { name: "rule-global-add", description: "Add memory entry to global context file", requiresSession: true },
+          { name: "rule-global-add", description: "Add memory entry to global context file", requiresSession: true, argumentHint: "<text>" },
           { name: "rule-status", description: "Display current hierarchical context status", requiresSession: true },
           { name: "mcp-server", description: "List all MCP servers and their connection status", requiresSession: true },
           { name: "mcp-list", description: "List all MCP servers and their available tools", requiresSession: true },
-          { name: "compare", description: "Compare files between working directory and checkpoint", requiresSession: true },
-          { name: "undo", description: "Undo the target checkpoint", requiresSession: true },
-          { name: "restore", description: "Restore files from a checkpoint", requiresSession: true },
+          { name: "compare", description: "Compare files between working directory and checkpoint", requiresSession: true, argumentHint: "<checkpoint_filename>" },
+          { name: "undo", description: "Undo the target checkpoint", requiresSession: true, argumentHint: "<checkpoint_filename>" },
+          { name: "restore", description: "Restore files from a checkpoint", requiresSession: true, argumentHint: "<checkpoint_filename>" },
+          { name: "resume", description: "Resume a previous session", requiresSession: true, argumentHint: "[<index> | <session_id> | latest | --all]" },
           { name: "clear", description: "Start a new task session without previous conversation history", requiresSession: true },
-          { name: "lang", description: "Switch language preference between English and Chinese", requiresSession: true },
-          { name: "pre-plan-mode", description: "Toggle plan mode for tool execution", requiresSession: true },
-          { name: "issue-fix", description: "Fix an issue from Siada Patch Review by issue ID", requiresSession: true },
+          { name: "lang", description: "Switch language preference between English and Chinese", requiresSession: true, argumentHint: "<en | zh-CN>" },
+          { name: "pre-plan-mode", description: "Toggle plan mode for tool execution", requiresSession: true, argumentHint: "<true | false>" },
+          { name: "issue-fix", description: "Fix an issue from Siada Patch Review by issue ID", requiresSession: true, argumentHint: "<issue_id>" },
           { name: "help", description: "Show help about commands", requiresSession: false },
-          { name: "plugin", description: "Open plugin/skill manager (discover, install, disable skills)", requiresSession: true },
+          { name: "plugin", description: "Open plugin/skill manager (discover, install, disable skills)", requiresSession: true, argumentHint: "[install | remove | enable | disable | validate | marketplace] <args>" },
           { name: "skill-list", description: "List all available skills", requiresSession: true },
           { name: "skill-reload", description: "Reload skills (clear cache and rediscover)", requiresSession: true },
           { name: "task-list", description: "Show discovered pending tasks and select one to execute", requiresSession: true },
           { name: "lark-auth", description: "Authenticate with Lark MCP server using OAuth 2.0", requiresSession: true },
           { name: "lark-status", description: "Show Lark OAuth authentication status", requiresSession: true },
           { name: "lark-refresh", description: "Refresh Lark OAuth token", requiresSession: true },
-          { name: "memory", description: "Enable or disable the memory subsystem (usage: /memory [enable|disable])", requiresSession: true }
+          { name: "memory", description: "Enable or disable the memory subsystem (usage: /memory [enable|disable])", requiresSession: true, argumentHint: "[enable | disable]" },
+          { name: "web", description: "Toggle the web search tools (web_search / web_fetch)", requiresSession: true, argumentHint: "[enable | disable]" }
         ];
         builtinCommands.forEach((cmd) => {
           this.commands.set(cmd.name, {
@@ -52822,7 +52827,8 @@ var init_slashCommandService = __esm({
             description: cmd.description,
             requiresSession: cmd.requiresSession,
             kind: cmd.kind || "BUILTIN",
-            autoExecute: false
+            autoExecute: false,
+            argumentHint: cmd.argumentHint
           });
         });
         this.initialized = true;
@@ -86685,6 +86691,9 @@ var TodoDisplay = ({
 };
 
 // src/components/Input/InputPromptWithWrapUseKPC.tsx
+init_slashCommandService();
+var COMMAND_ONLY_RE = /^\/([a-zA-Z0-9:_-]+)( *)$/;
+var SLASH_COMMAND_TOKEN_RE = /^\/[a-zA-Z0-9:_-]+/;
 var PASTE_THRESHOLD = 800;
 var PASTE_LINE_THRESHOLD = 10;
 function formatPasteRef(id, numLines) {
@@ -86857,6 +86866,25 @@ var InputPromptWithWrapUseKPC = import_react82.default.memo(({
     }
     return offset;
   }, [buffer.cursorRow, buffer.cursorCol, buffer.lines]);
+  const [commandHints, setCommandHints] = (0, import_react82.useState)(/* @__PURE__ */ new Map());
+  const [commandNames, setCommandNames] = (0, import_react82.useState)(/* @__PURE__ */ new Set());
+  (0, import_react82.useEffect)(() => {
+    let mounted = true;
+    slashCommandService.getCommands().then((cmds) => {
+      if (!mounted) return;
+      const map = /* @__PURE__ */ new Map();
+      const names = /* @__PURE__ */ new Set();
+      cmds.forEach((c2) => {
+        names.add(c2.name);
+        if (c2.argumentHint) map.set(c2.name, c2.argumentHint);
+      });
+      setCommandHints(map);
+      setCommandNames(names);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const {
     suggestions,
     activeIndex,
@@ -86875,6 +86903,11 @@ var InputPromptWithWrapUseKPC = import_react82.default.memo(({
     enabled: focus && !disabled,
     mcpResources
   });
+  const activeCommandHint = (0, import_react82.useMemo)(() => {
+    const match = COMMAND_ONLY_RE.exec(buffer.text);
+    if (!match) return null;
+    return commandHints.get(match[1]) ?? null;
+  }, [buffer.text, commandHints]);
   const {
     execute: executeShellCommand
   } = useShellCommand({
@@ -87488,36 +87521,42 @@ var InputPromptWithWrapUseKPC = import_react82.default.memo(({
       const isOnCursorLine = focus && visualIdxInRenderedSet === cursorVisualRow;
       const renderedLine = [];
       const lineLen = cpLen(lineText);
-      if (isOnCursorLine) {
-        const relativeVisualColForHighlight = cursorVisualColAbsolute;
-        const segStart = 0;
-        const segEnd = lineLen;
-        let display = lineText;
-        if (relativeVisualColForHighlight >= segStart && relativeVisualColForHighlight < segEnd) {
-          const charToHighlight = cpSlice(
-            display,
-            relativeVisualColForHighlight - segStart,
-            relativeVisualColForHighlight - segStart + 1
-          );
-          const highlighted = focus ? source_default.inverse(charToHighlight) : charToHighlight;
-          display = cpSlice(display, 0, relativeVisualColForHighlight - segStart) + highlighted + cpSlice(
-            display,
-            relativeVisualColForHighlight - segStart + 1
-          );
-        }
+      const cmdTokenLen = (() => {
+        if (absoluteVisualIdx !== 0) return 0;
+        const token = SLASH_COMMAND_TOKEN_RE.exec(lineText)?.[0];
+        if (!token) return 0;
+        return commandNames.has(token.slice(1)) ? cpLen(token) : 0;
+      })();
+      const withCursor = (segment2, offset) => {
+        if (!isOnCursorLine || !focus) return segment2;
+        const idx = cursorVisualColAbsolute - offset;
+        if (idx < 0 || idx >= cpLen(segment2)) return segment2;
+        return cpSlice(segment2, 0, idx) + source_default.inverse(cpSlice(segment2, idx, idx + 1)) + cpSlice(segment2, idx + 1);
+      };
+      if (cmdTokenLen > 0) {
         renderedLine.push(
-          /* @__PURE__ */ import_react82.default.createElement(Text, { key: `token-0`, color: githubTheme.input.text }, display)
+          /* @__PURE__ */ import_react82.default.createElement(Text, { key: "cmd-token", color: githubTheme.primary, bold: true }, withCursor(cpSlice(lineText, 0, cmdTokenLen), 0))
         );
-        const isAtEndOfLine2 = cursorVisualColAbsolute === lineLen;
-        if (isAtEndOfLine2) {
+        renderedLine.push(
+          /* @__PURE__ */ import_react82.default.createElement(Text, { key: `token-0`, color: githubTheme.input.text }, withCursor(cpSlice(lineText, cmdTokenLen), cmdTokenLen))
+        );
+      } else {
+        renderedLine.push(
+          /* @__PURE__ */ import_react82.default.createElement(Text, { key: `token-0`, color: githubTheme.input.text }, withCursor(lineText, 0))
+        );
+      }
+      if (isOnCursorLine) {
+        const cursorAtEnd = cursorVisualColAbsolute === lineLen;
+        if (cursorAtEnd) {
           renderedLine.push(
             /* @__PURE__ */ import_react82.default.createElement(Text, { key: `cursor-end-${cursorVisualColAbsolute}` }, focus ? source_default.inverse(" ") : " ")
           );
         }
-      } else {
-        renderedLine.push(
-          /* @__PURE__ */ import_react82.default.createElement(Text, { key: `token-0`, color: githubTheme.input.text }, lineText)
-        );
+        if (cursorAtEnd && activeCommandHint) {
+          renderedLine.push(
+            /* @__PURE__ */ import_react82.default.createElement(Text, { key: "cmd-arg-hint", color: githubTheme.text.secondary }, activeCommandHint)
+          );
+        }
       }
       const isAtEndOfLine = cursorVisualColAbsolute === lineLen;
       const imePosition = isOnCursorLine && isAtEndOfLine ? cursorVisualColAbsolute + 1 : cursorVisualColAbsolute;
