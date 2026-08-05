@@ -12,11 +12,11 @@ This repository contains **Siada CLI**, a command-line AI workflow tool that pro
 
 Siada CLI is context-aware of your **project**, **computing environment**, and **cross-session persistent memory**, offering consistent, personalized, and continuously improving intelligent assistance across Terminal, Feishu (Lark), ACP clients, and Web interfaces.
 
-> **Current latest version: v1.7.20**
+> **Current latest version: v1.7.21**
 
 ---
 
-## What's New in v1.7.20
+## What's New in v1.7.21
 
 ### 1. Runs Everywhere, Plugs Into Anything
 
