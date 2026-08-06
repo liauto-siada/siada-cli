@@ -20,6 +20,7 @@ from acp.helpers import SessionUpdate, update_available_commands
 from acp.interfaces import Client
 from acp.schema import (
     AgentCapabilities,
+    AuthenticateResponse,
     AvailableCommand,
     ClientCapabilities,
     Implementation,
@@ -32,6 +33,9 @@ from acp.schema import (
     SetSessionConfigOptionResponse,
     TextContentBlock,
 )
+
+from siada import __version__
+from siada.acp_server.auth import get_auth_methods
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +90,28 @@ class SiadaAcpAgent(Agent):
         client_info: Implementation | None = None,
         **_: Any,
     ) -> InitializeResponse:
+        # Zed decides whether to render the "Authenticate" banner from
+        # ClientCapabilities._meta["terminal-auth"]; the registry-required
+        # type/args/env shape is always emitted regardless.
+        meta = (client_capabilities.field_meta or {}) if client_capabilities else {}
         return InitializeResponse(
             protocol_version=PROTOCOL_VERSION,
             agent_capabilities=AgentCapabilities(
                 session_capabilities=SessionCapabilities(list=SessionListCapabilities()),
             ),
-            agent_info=Implementation(name="siada", title="Siada", version="1.7.17"),
+            agent_info=Implementation(name="siada", title="Siada", version=__version__),
+            auth_methods=get_auth_methods(meta.get("terminal-auth") is True),
         )
+
+    async def authenticate(self, method_id: str, **_: Any) -> AuthenticateResponse | None:
+        """Terminal Auth happens out-of-band via ``siada-cli --login``.
+
+        Clients that call ``authenticate`` anyway get a successful no-op;
+        credentials written by the terminal flow are picked up when the
+        agent process is restarted.
+        """
+        logger.info("authenticate() called with method_id=%s (terminal auth is out-of-band)", method_id)
+        return None
 
     async def new_session(self, cwd: str, **_: Any) -> NewSessionResponse:
         session_id = str(uuid4())

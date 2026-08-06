@@ -550,6 +550,7 @@ _BACKEND_ONLY_ARGS = {
     "--restart-daemon",
     "--daemon-status",
     "--resume-list",
+    "--login",
     "--user-id",
     "--access-token",
 }

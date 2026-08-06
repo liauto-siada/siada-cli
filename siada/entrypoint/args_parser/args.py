@@ -220,6 +220,13 @@ def get_parser(default_config_files, git_root):
 
     group = parser.add_argument_group("Authentication")
     group.add_argument(
+        "--login",
+        action="store_true",
+        help="Run the interactive sign-in flow in the terminal and exit "
+             "(used by ACP clients for Terminal Auth)",
+        default=False,
+    )
+    group.add_argument(
         "--logout",
         action="store_true",
         help="Sign out and clear stored credentials",

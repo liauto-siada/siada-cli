@@ -389,6 +389,22 @@ def handle_special_commands(args, conf: Config, io) -> Optional[int]:
         from siada.services.version_checker import version_checker
         return 0 if version_checker.install_upgrade(io) else 1
 
+    # Terminal Auth (ACP): run the interactive sign-in flow and exit.
+    if args.login:
+        from siada.entrypoint.login.login_prompt import ensure_logged_in
+        try:
+            user_id = ensure_logged_in(io, acp_mode=False)
+        except SystemExit:
+            raise
+        except Exception as exc:
+            io.print_error(f"Login error: {exc}")
+            return 1
+        if not user_id:
+            io.print_error("Login was not completed.")
+            return 1
+        io.print_info("Login complete. You can now use Siada from your ACP client.")
+        return 0
+
     # Logout
     if args.logout:
         try:
