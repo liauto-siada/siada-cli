@@ -4892,21 +4892,20 @@ protobuf = ">=5.0,<7.0"
 
 [[package]]
 name = "opentelemetry-resourcedetector-gcp"
-version = "1.12.0a0"
-description = "Google Cloud resource detector for OpenTelemetry"
+version = "1.14.0"
+description = "Google Cloud Resource Detector for OpenTelemetry"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_resourcedetector_gcp-1.12.0a0-py3-none-any.whl", hash = "sha256:e803688d14e2969fe816077be81f7b034368314d485863f12ce49daba7c81919"},
-    {file = "opentelemetry_resourcedetector_gcp-1.12.0a0.tar.gz", hash = "sha256:d5e3f78283a272eb92547e00bbeff45b7332a34ae791a70ab4eba81af9bc3baf"},
+    {file = "opentelemetry_resourcedetector_gcp-1.14.0-py3-none-any.whl", hash = "sha256:cc4818570933b5c651aef80fbf6e8fbe26d63fe6fbc24ce22ae37e78744d30eb"},
+    {file = "opentelemetry_resourcedetector_gcp-1.14.0.tar.gz", hash = "sha256:10b41802acf815838a85c9fe1dae02f5d27ebc17527b77441111c010bead95bc"},
 ]
 
 [package.dependencies]
 opentelemetry-api = ">=1.30,<2.0"
 opentelemetry-sdk = ">=1.30,<2.0"
 requests = ">=2.24,<3.0"
-typing_extensions = ">=4.0,<5.0"
 
 [[package]]
 name = "opentelemetry-sdk"
@@ -8588,4 +8587,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "16ae7e60c1d79453f9dcb77af3eaf9583698493fd9a917f7f9113fb514014130"
+content-hash = "89fab2d145db96a1d198f9bc131785f7a04fa6350feec7a93b7bdaf0d4fd3cb1"

@@ -62,13 +62,12 @@ mcp = "1.26.0"
 aiohttp = ">=3.8.0,<4.0.0"
 drawille = ">=0.1.0,<1.0.0"
 google-adk = {version = "1.26.0", extras = ["a2a", "extensions"]}
-# Pin explicitly: google-adk 1.26.0 requires opentelemetry-resourcedetector-gcp>=1.9.0a0,<2.0.0,
-# but the only non-prerelease release in that range (1.13.0) was yanked upstream
-# ("breaks imports") with no fixed follow-up release published yet. The only
-# installable versions satisfying google-adk's constraint are pre-release (alpha)
-# builds, so pin to the latest available one and allow pre-releases for this
-# specific package to keep dependency resolution deterministic.
-opentelemetry-resourcedetector-gcp = {version = "1.12.0a0", allow-prereleases = true}
+# Pin to stable releases only: google-adk 1.26.0 requires
+# opentelemetry-resourcedetector-gcp>=1.9.0a0,<2.0.0. The first stable release
+# (1.13.0) was yanked upstream ("breaks imports"); 1.14.0 is the first usable
+# stable. A prerelease pin (e.g. 1.12.0a0) cannot be used here because plain
+# `uvx siada-cli` (used by the ACP registry CI) rejects prerelease-only pins.
+opentelemetry-resourcedetector-gcp = ">=1.14.0,<2.0.0"
 
 concurrent-log-handler = ">=0.9.25,<1.0.0"
 toml = "^0.10.2"
