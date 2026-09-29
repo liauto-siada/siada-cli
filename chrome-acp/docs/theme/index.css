@@ -1,0 +1,990 @@
+/**
+ * Zed-inspired theme for rspress
+ * Design principles: Sharp, minimal, modern. Black/white/gray primary. Blue accent.
+ * Reference: https://zed.dev - Tailwind classes analyzed from their site
+ */
+
+/* Google Fonts: Zed docs uses IA Writer Quattro S (body) + Lora (titles) */
+/* IA Writer Quattro S is not on Google Fonts, using iA Writer Quattro alternative via CDN */
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap');
+
+/* Typography - Zed docs style: reading-focused, book-like quality */
+/* Override rspress default font variables */
+:root {
+  --rp-font-family-base: 'iA Writer Quattro S', 'iA Writer Quattro', sans-serif;
+  --rp-font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+/* Load iA Writer Quattro S font */
+@font-face {
+  font-family: 'iA Writer Quattro S';
+  src: url('https://cdn.jsdelivr.net/gh/nickolasburr/ia-fonts@master/fonts/iAWriterQuattroS-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'iA Writer Quattro S';
+  src: url('https://cdn.jsdelivr.net/gh/nickolasburr/ia-fonts@master/fonts/iAWriterQuattroS-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+html, body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision !important;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.005);
+}
+
+/* Titles use Lora serif font - like Zed docs */
+h1, h2, h3, h4, h5, h6,
+.rp-home-hero__title,
+.rp-home-hero__title-brand,
+.rp-home-hero__subtitle {
+  font-family: 'Lora', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+  font-weight: 500;
+}
+
+code, pre, kbd, samp {
+  font-family: var(--rp-font-family-mono);
+}
+
+/* Brand colors - Zed uses accent-blue (#3b82f6) with careful opacity control */
+:where(:root) {
+  --rp-c-brand: #3b82f6;
+  --rp-c-brand-light: #60a5fa;
+  --rp-c-brand-lighter: #93c5fd;
+  --rp-c-brand-dark: #2563eb;
+  --rp-c-brand-darker: #1d4ed8;
+  --rp-c-brand-tint: rgba(59, 130, 246, 0.1);
+}
+
+/* Sharp corners - Zed uses rounded-sm (0.125rem) or rounded-xs */
+:where(:root) {
+  --rp-radius: 0.125rem;
+  --rp-radius-small: 0.0625rem;
+  --rp-radius-large: 0.25rem;
+}
+
+/* Light Mode - Clean white with proper contrast (Zed: bg-white/60, border-offgray-100) */
+:where(html:not(.rp-dark)) {
+  --rp-c-bg: #ffffff;
+  --rp-c-bg-soft: #fafafa;
+  --rp-c-bg-mute: #f5f5f5;
+  --rp-c-bg-alt: #ffffff;
+
+  /* Zed light: border-offgray-100, border-gray-300/70 */
+  --rp-c-divider: rgba(0, 0, 0, 0.12);
+  --rp-c-divider-light: rgba(0, 0, 0, 0.08);
+
+  --rp-c-text-0: #0a0a0a;
+  --rp-c-text-1: #171717;
+  --rp-c-text-2: #525252;
+  --rp-c-text-3: #a3a3a3;
+  --rp-c-text-4: #d4d4d4;
+
+  --rp-c-text-code: #1e40af;
+  --rp-c-text-code-bg: rgba(59, 130, 246, 0.06);
+  --rp-c-text-code-border: rgba(59, 130, 246, 0.12);
+
+  --rp-c-link: var(--rp-c-brand-dark);
+
+  /* Code block - Zed: bg-white/60 with subtle border */
+  --rp-code-title-bg: #fafafa;
+  --rp-code-block-color: #1f2937;
+  --rp-code-block-bg: #fafafa;
+  --rp-code-block-border: 1px solid rgba(0, 0, 0, 0.1);
+
+  /* Home */
+  --rp-home-hero-title-color: #0a0a0a;
+  /* NOTE: This is also used for .rp-button--brand background! */
+  --rp-home-hero-title-bg: var(--rp-c-brand);
+  --rp-home-background-bg: #ffffff;
+  --rp-home-feature-bg: #fafafa;
+}
+
+/* Dark Mode - Pure black like Zed (Zed dark: bg-black, border-gray-600/40, border-blue-300/20) */
+:where(html.rp-dark) {
+  --rp-c-bg: #000000;
+  --rp-c-bg-soft: #0a0a0a;
+  --rp-c-bg-mute: #141414;
+  --rp-c-bg-alt: #000000;
+
+  /* Zed dark: border-gray-600/40 (~0.4 opacity), border-white/10 */
+  --rp-c-divider: rgba(255, 255, 255, 0.18);
+  --rp-c-divider-light: rgba(255, 255, 255, 0.12);
+
+  --rp-c-text-0: #ffffff;
+  --rp-c-text-1: #fafafa;
+  --rp-c-text-2: #a1a1aa;
+  --rp-c-text-3: #52525b;
+  --rp-c-text-4: #27272a;
+
+  /* Zed: text-blue-300, decoration-blue-300/20 */
+  --rp-c-text-code: #93c5fd;
+  --rp-c-text-code-bg: rgba(59, 130, 246, 0.12);
+  --rp-c-text-code-border: rgba(59, 130, 246, 0.2);
+
+  --rp-c-link: var(--rp-c-brand-light);
+
+  /* Code block - Zed uses visible borders */
+  --rp-code-title-bg: #0a0a0a;
+  --rp-code-block-color: #e5e7eb;
+  --rp-code-block-bg: #0a0a0a;
+  --rp-code-block-border: 1px solid rgba(255, 255, 255, 0.15);
+
+  /* Home - Zed: bg-offgray-800/5 */
+  --rp-home-hero-title-color: #ffffff;
+  /* NOTE: This is also used for .rp-button--brand background! */
+  --rp-home-hero-title-bg: var(--rp-c-brand);
+  --rp-home-background-bg: #000000;
+  --rp-home-feature-bg: rgba(255, 255, 255, 0.05);
+}
+
+/* Shiki - GitHub Dark High Contrast style for dark mode */
+:where(html.rp-dark) {
+  --shiki-foreground: #f0f3f6;
+  --shiki-background: transparent;
+  --shiki-token-constant: #91cbff;
+  --shiki-token-string: #addcff;
+  --shiki-token-comment: #768390;
+  --shiki-token-keyword: #ff9492;
+  --shiki-token-parameter: #f0b72f;
+  --shiki-token-function: #dcbdfb;
+  --shiki-token-string-expression: #addcff;
+  --shiki-token-punctuation: #f0f3f6;
+  --shiki-token-link: #addcff;
+  --shiki-token-deleted: #ff9492;
+  --shiki-token-inserted: #26cd4d;
+}
+
+/* Shiki - Clean light mode */
+:where(html:not(.rp-dark)) {
+  --shiki-foreground: #1f2937;
+  --shiki-background: transparent;
+  --shiki-token-constant: #1d4ed8;
+  --shiki-token-string: #059669;
+  --shiki-token-comment: #9ca3af;
+  --shiki-token-keyword: #dc2626;
+  --shiki-token-parameter: #d97706;
+  --shiki-token-function: #7c3aed;
+  --shiki-token-string-expression: #059669;
+  --shiki-token-punctuation: #374151;
+  --shiki-token-link: #059669;
+  --shiki-token-deleted: #dc2626;
+  --shiki-token-inserted: #059669;
+}
+
+/* Gray scale */
+:where(:root) {
+  --rp-c-gray: #71717a;
+  --rp-c-gray-light-1: #a1a1aa;
+  --rp-c-gray-light-2: #d4d4d8;
+  --rp-c-gray-light-3: #e4e4e7;
+  --rp-c-gray-light-4: #f4f4f5;
+  --rp-c-gray-light-5: #fafafa;
+}
+
+/* Subtle shadows - Zed uses inset shadows: [box-shadow:hsl(218,_13%,_50%,_0.05)_0_-2px_0_0_inset] */
+:where(:root) {
+  --rp-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --rp-shadow-2: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --rp-shadow-3: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --rp-shadow-4: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --rp-shadow-5: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+/* Force dark mode as default */
+html {
+  color-scheme: dark;
+}
+
+/* ============================================
+   Zed-style Component Overrides
+   Based on: https://zed.dev Tailwind analysis
+   ============================================ */
+
+/* Links - Zed light: decoration-accent-blue/20, dark: decoration-blue-300/20 */
+/* Light mode links */
+html:not(.rp-dark) a {
+  text-decoration-color: rgba(37, 99, 235, 0.25);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+
+html:not(.rp-dark) a:hover {
+  text-decoration-color: rgba(37, 99, 235, 0.8);
+}
+
+/* Dark mode links */
+html.rp-dark a {
+  text-decoration-color: rgba(147, 197, 253, 0.2);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+
+html.rp-dark a:hover {
+  text-decoration-color: rgba(147, 197, 253, 0.8);
+}
+
+/* Buttons and interactive elements */
+.rp-button,
+button,
+.rp-nav-item,
+.rp-sidebar-item {
+  transition: border-color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+/* Sidebar items hover - Zed: hover:bg-offgray-100 (light) / hover:bg-white/5 (dark) */
+html:not(.rp-dark) .rp-sidebar-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+html.rp-dark .rp-sidebar-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Code blocks - sharper corners, visible borders */
+pre,
+code {
+  border-radius: var(--rp-radius);
+}
+
+/* Inline code - Zed light: bg-offgray-100, dark: bg-white/10 */
+html:not(.rp-dark) :not(pre) > code {
+  background-color: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+html.rp-dark :not(pre) > code {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Tables - Zed-style borders */
+table {
+  border-collapse: collapse;
+}
+
+html:not(.rp-dark) th,
+html:not(.rp-dark) td {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+html.rp-dark th,
+html.rp-dark td {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Blockquote - Zed: border-l-2 border-offgray-200 (light) / border-white/20 (dark) */
+html:not(.rp-dark) blockquote {
+  border-left: 2px solid rgba(0, 0, 0, 0.12);
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+html.rp-dark blockquote {
+  border-left: 2px solid rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Nav and header - Zed: border-offgray-100 (light) / border-white/10 (dark) */
+html:not(.rp-dark) .rp-nav,
+html:not(.rp-dark) .rp-doc-layout-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.rp-dark .rp-nav,
+html.rp-dark .rp-doc-layout-header {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Sidebar border - same treatment */
+html:not(.rp-dark) .rp-sidebar {
+  border-right-color: rgba(0, 0, 0, 0.08);
+}
+
+html.rp-dark .rp-sidebar {
+  border-right-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Cards/Features - rspress uses .rp-home-feature__card (with double underscore) */
+/* Zed: border-offgray-100 (light) / border-white/10 (dark), hover:border-blue, rounded-sm */
+
+/* Force 2x2 grid layout for features */
+.rp-home-feature {
+  max-width: 56rem; /* Narrower for 2x2 */
+}
+
+.rp-home-feature__item {
+  width: calc(50% - var(--rp-home-feature-gap, 15px)) !important;
+}
+
+@media (max-width: 640px) {
+  .rp-home-feature__item {
+    width: 100% !important; /* Stack on mobile */
+  }
+}
+
+.rp-home-feature__card {
+  border-radius: 0.25rem !important; /* Override the default 2rem */
+}
+
+html:not(.rp-dark) .rp-home-feature__card {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.02);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+html:not(.rp-dark) .rp-home-feature__card:hover {
+  border-color: rgba(37, 99, 235, 0.5);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+
+html.rp-dark .rp-home-feature__card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+html.rp-dark .rp-home-feature__card:hover {
+  border-color: rgba(147, 197, 253, 0.5);
+  box-shadow: 0 2px 8px rgba(147, 197, 253, 0.08);
+}
+
+/* Feature icon - sharper corners */
+.rp-home-feature__icon {
+  border-radius: 0.25rem !important;
+}
+
+/* TOC (Table of Contents) - Zed-style active indicator */
+html:not(.rp-dark) .rp-toc-item--active .rp-toc-item__text {
+  color: var(--rp-c-brand-dark);
+}
+
+html:not(.rp-dark) .rp-toc-item--active:before {
+  background-color: var(--rp-c-brand-dark);
+}
+
+html.rp-dark .rp-toc-item--active .rp-toc-item__text {
+  color: var(--rp-c-brand-light);
+}
+
+html.rp-dark .rp-toc-item--active:before {
+  background-color: var(--rp-c-brand-light);
+}
+
+/* Search button - rspress uses .rp-search-button */
+html:not(.rp-dark) .rp-search-button {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+html:not(.rp-dark) .rp-search-button:hover {
+  border-color: var(--rp-c-brand);
+}
+
+html.rp-dark .rp-search-button {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+html.rp-dark .rp-search-button:hover {
+  border-color: var(--rp-c-brand-light);
+}
+
+/* Search panel input */
+html:not(.rp-dark) .rp-search-panel__input-form {
+  border: 1px solid var(--rp-c-brand);
+}
+
+html.rp-dark .rp-search-panel__input-form {
+  border: 1px solid var(--rp-c-brand-light);
+}
+
+/* Search panel modal - sharper corners */
+.rp-search-panel__modal {
+  border-radius: 0.25rem !important;
+}
+
+/* Buttons - Zed: hover:bg-offgray-100 (light) / hover:bg-white/5 (dark) */
+/* Only apply to alt buttons, not brand buttons which have their own bg */
+html:not(.rp-dark) .rp-button--alt:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+html.rp-dark .rp-button--alt:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Callout containers - sharper corners, Zed-style */
+.rp-callout {
+  border-radius: 0.25rem !important;
+}
+
+/* Override callout title bar to be sharper */
+.rp-callout__title:before {
+  border-radius: 0 0.125rem 0.125rem 0 !important;
+}
+
+/* ============================================
+   Custom Landing Page Styles - Zed Inspired
+   Sharp, minimal, high-contrast design
+   ============================================ */
+
+/* Landing page container */
+.landing-page {
+  min-height: 100vh;
+  background: var(--rp-c-bg);
+}
+
+/* Animations */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hero Section - Zed style: bold, centered, spacious */
+.hero-section {
+  padding: 8rem 1.5rem 4rem;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+}
+
+.hero-section.visible {
+  opacity: 1;
+}
+
+.hero-content {
+  max-width: 720px;
+  margin: 0 auto;
+  animation: fadeUp 0.6s ease-out;
+}
+
+/* Hero title - Zed: Large serif, gradient text */
+.hero-title {
+  font-family: 'Lora', serif !important;
+  font-size: clamp(2.75rem, 7vw, 4rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0 0 1.5rem;
+  color: var(--rp-c-text-0);
+}
+
+/* Hero subtitle */
+.hero-subtitle {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: var(--rp-c-text-2);
+  margin: 0 0 2.5rem;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-subtitle a {
+  color: var(--rp-c-brand-light) !important;
+  text-decoration: underline !important;
+  text-decoration-color: rgba(147, 197, 253, 0.3) !important;
+}
+
+html:not(.rp-dark) .hero-subtitle a {
+  color: var(--rp-c-brand) !important;
+  text-decoration-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+.hero-subtitle a:hover {
+  text-decoration-color: rgba(147, 197, 253, 0.8) !important;
+}
+
+html:not(.rp-dark) .hero-subtitle a:hover {
+  text-decoration-color: rgba(59, 130, 246, 0.8) !important;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.hero-note {
+  font-size: 0.8125rem;
+  color: var(--rp-c-text-3);
+  margin: 0;
+}
+
+/* Buttons - Zed style: sharp, with kbd hints */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 1rem;
+  background: var(--rp-c-brand);
+  color: white !important;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 4px;
+  text-decoration: none !important;
+  border: none;
+  box-shadow:
+    hsl(221, 83%, 40%) 0px -2px 0px 0px inset,
+    rgba(0, 0, 0, 0.25) 0px 1px 2px 0px;
+  transition: all 0.15s ease;
+}
+
+.btn-primary:hover {
+  background: var(--rp-c-brand-light);
+  box-shadow:
+    hsl(221, 83%, 50%) 0px -2px 0px 0px inset,
+    rgba(0, 0, 0, 0.3) 0px 2px 4px 0px;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: transparent;
+  color: var(--rp-c-text-1) !important;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  text-decoration: none !important;
+  transition: all 0.15s ease;
+}
+
+html:not(.rp-dark) .btn-secondary {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+html:not(.rp-dark) .btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+.btn-large {
+  padding: 0.75rem 1.25rem;
+  font-size: 0.9375rem;
+}
+
+/* Showcase Section - Zed style: prominent video */
+.showcase-section {
+  padding: 0 1.5rem 6rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.5s ease-out 0.15s;
+}
+
+.showcase-section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.showcase-container {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.showcase-video {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 25px 80px -20px rgba(0, 0, 0, 0.6);
+}
+
+html:not(.rp-dark) .showcase-video {
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 25px 80px -20px rgba(0, 0, 0, 0.2);
+}
+
+/* Section Common Styles - Zed style */
+.section-title {
+  font-family: 'Lora', serif !important;
+  font-size: 1.875rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin: 0 0 0.75rem;
+  color: var(--rp-c-text-0);
+}
+
+.section-subtitle {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--rp-c-text-2);
+  text-align: center;
+  margin: 0 0 3rem;
+  max-width: 540px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Features Section - Zed style: 3-column grid */
+.features-section {
+  padding: 6rem 1.5rem;
+  border-top: 1px solid var(--rp-c-divider-light);
+}
+
+.features-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+@media (max-width: 768px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.feature-card {
+  text-align: center;
+}
+
+.feature-title {
+  font-family: 'Lora', serif !important;
+  font-size: 1.125rem;
+  font-weight: 500;
+  margin: 0 0 0.5rem;
+  color: var(--rp-c-text-0);
+}
+
+.feature-description {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--rp-c-text-2);
+  margin: 0;
+}
+
+/* Agents Section - Zed style: card grid like "Agents on ACP" */
+.agents-section {
+  padding: 6rem 1.5rem;
+  border-top: 1px solid var(--rp-c-divider-light);
+}
+
+.agents-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .agents-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .agents-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Agent card - Zed style */
+.agent-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  text-decoration: none !important;
+  transition: all 0.15s ease;
+}
+
+html:not(.rp-dark) .agent-card {
+  background: white;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.agent-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html:not(.rp-dark) .agent-card:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.agent-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.agent-header > svg:last-child {
+  margin-left: auto;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.agent-card:hover .agent-header > svg:last-child {
+  opacity: 0.7;
+}
+
+/* Agent icon styling */
+.agent-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+/* Dark mode: invert the icons so they appear light (Rspress uses .dark class) */
+html.dark .agent-icon {
+  filter: invert(1);
+}
+
+.agent-card:hover .agent-icon {
+  opacity: 1;
+}
+
+.agent-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--rp-c-text-0);
+}
+
+.agent-description {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--rp-c-text-2);
+  margin: 0;
+}
+
+.agents-more {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.9375rem;
+  color: var(--rp-c-text-2);
+}
+
+.agents-more a {
+  color: var(--rp-c-brand-light) !important;
+  text-decoration: underline !important;
+  text-decoration-color: rgba(147, 197, 253, 0.3) !important;
+}
+
+html:not(.rp-dark) .agents-more a {
+  color: var(--rp-c-brand) !important;
+  text-decoration-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+.agents-more a:hover {
+  text-decoration-color: rgba(147, 197, 253, 0.8) !important;
+}
+
+html:not(.rp-dark) .agents-more a:hover {
+  text-decoration-color: rgba(59, 130, 246, 0.8) !important;
+}
+
+/* Install Section - Zed style: clean terminal card */
+.install-section {
+  padding: 6rem 1.5rem;
+  border-top: 1px solid var(--rp-c-divider-light);
+}
+
+.install-container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.install-card {
+  background: rgba(10, 10, 10, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+html:not(.rp-dark) .install-card {
+  background: #fafafa;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.install-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html:not(.rp-dark) .install-header {
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.install-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--rp-c-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: var(--rp-c-text-2);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+html:not(.rp-dark) .copy-button {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.copy-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--rp-c-text-1);
+}
+
+html:not(.rp-dark) .copy-button:hover {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.install-code {
+  padding: 1.25rem 1.25rem;
+  font-family: var(--rp-font-family-mono);
+  font-size: 0.8125rem;
+  line-height: 2;
+}
+
+.code-line {
+  display: flex;
+  gap: 0.625rem;
+}
+
+.code-comment {
+  color: var(--rp-c-text-3);
+}
+
+.code-prompt {
+  color: var(--rp-c-brand-light);
+  user-select: none;
+}
+
+html:not(.rp-dark) .code-prompt {
+  color: var(--rp-c-brand);
+}
+
+.code-command {
+  color: var(--rp-c-text-1);
+}
+
+.install-footer {
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.8125rem;
+  color: var(--rp-c-text-2);
+}
+
+html:not(.rp-dark) .install-footer {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+.install-footer a {
+  color: var(--rp-c-brand-light) !important;
+  text-decoration: underline !important;
+  text-decoration-color: rgba(147, 197, 253, 0.3) !important;
+}
+
+html:not(.rp-dark) .install-footer a {
+  color: var(--rp-c-brand) !important;
+  text-decoration-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+.install-footer a:hover {
+  text-decoration-color: rgba(147, 197, 253, 0.8) !important;
+}
+
+html:not(.rp-dark) .install-footer a:hover {
+  text-decoration-color: rgba(59, 130, 246, 0.8) !important;
+}
+
+/* CTA Section - Zed style: clean, centered */
+.cta-section {
+  padding: 6rem 1.5rem;
+  text-align: center;
+  border-top: 1px solid var(--rp-c-divider-light);
+}
+
+.cta-container {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.cta-title {
+  font-family: 'Lora', serif !important;
+  font-size: 1.75rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin: 0 0 2rem;
+  color: var(--rp-c-text-0);
+}
+
+.cta-actions {
+  display: flex;
+  justify-content: center;
+}
+
+/* Footer - Zed style: minimal */
+.landing-footer {
+  padding: 2rem 1.5rem;
+  border-top: 1px solid var(--rp-c-divider-light);
+}
+
+.footer-container {
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.footer-text {
+  font-size: 0.8125rem;
+  color: var(--rp-c-text-3);
+  margin: 0;
+}
+

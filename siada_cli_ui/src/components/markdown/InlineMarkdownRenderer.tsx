@@ -7,6 +7,7 @@
 import React from 'react';
 import { Text } from '@jrichman/ink';
 import { theme } from './theme.js';
+import { useThemeVersion } from '../../themes/index.js';
 import stringWidth from 'string-width';
 import { HighlightedText } from '../common/HighlightedText.js';
 
@@ -27,6 +28,7 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
   text,
   defaultColor,
 }) => {
+  useThemeVersion(); // repaint on theme change (memo blocks prop-driven re-renders)
   const baseColor = defaultColor ?? theme.text.primary;
   
   // Early return for plain text without markdown or URLs

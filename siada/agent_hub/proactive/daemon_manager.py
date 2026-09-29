@@ -27,10 +27,10 @@ class DaemonManager:
 
     def _find_daemon_process(self) -> Optional[int]:
         """
-        通过进程命令行查找守护进程。
+        Find the daemon process via its command line.
 
         Returns:
-            守护进程PID，如果不存在则返回None
+            The daemon PID, or None if it does not exist.
         """
         import psutil
 

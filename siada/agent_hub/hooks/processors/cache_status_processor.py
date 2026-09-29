@@ -33,14 +33,15 @@ from agents import (
 )
 
 from siada.foundation.code_agent_context import CodeAgentContext
+from siada.models.model_base_config import PROMPT_CACHE_TTL_SECONDS
 from siada.models.model_pricing import calculate_token_cost_breakdown
 
 logger = logging.getLogger(__name__)
 
-# Anthropic prompt-cache default TTL is 5 minutes; OpenAI/DeepSeek implicit
-# caches also typically expire on the order of minutes. We use 5min as the
-# universal heuristic threshold for "ttl_expired" classification.
-TTL_SECONDS = 4 * 60 + 30
+# Universal heuristic threshold for "ttl_expired" classification; the
+# canonical definition lives in model_base_config (shared with the
+# per-request context-window resolution).
+TTL_SECONDS = PROMPT_CACHE_TTL_SECONDS
 
 
 class CacheStatusProcessor(AgentHooks):
@@ -116,16 +117,6 @@ class CacheStatusProcessor(AgentHooks):
             except Exception:
                 pass
 
-            # Convert model name to li provider format for pricing lookup.
-            li_model_name = model_name
-            try:
-                from siada.provider.li.coverter import covert_to_li_model_name
-                converted = covert_to_li_model_name(model_name)
-                if converted:
-                    li_model_name = converted
-            except Exception:
-                pass  # Keep using original model_name; cost calculation will return 0.0
-
             data = self._extract_token_data(response.usage)
             now = time.time()
 
@@ -180,6 +171,8 @@ class CacheStatusProcessor(AgentHooks):
             try:
                 from siada.models.model_pricing import get_model_pricing
                 _pricing = get_model_pricing(model_name, li_model_name)
+                if _pricing:
+                    _pricing = _pricing.select_tier(data["input"] + data["cache_write"])
                 logger.info(
                     "[CacheStatus][DEBUG] cfg_model_name=%r li_model_name=%r "
                     "pricing_matched_model=%r input_price=%s output_price=%s "
@@ -250,6 +243,11 @@ class CacheStatusProcessor(AgentHooks):
             # Update per-session state for the next round.
             state["last_request_at"] = now
             state["last_model"] = model_name
+            # Stamp the turn this request belonged to, so the per-request
+            # context-window resolution (ApiMessageTransferFilter) can tell
+            # "same turn" (never downgrades mid-turn) from "first request
+            # of a new turn" (TTL/model checks apply).
+            state["last_request_turn_id"] = state.get("turn_id", 0)
             session.state.cache_status_state = state
 
             # Push to ACP frontend (best-effort; never break the LLM round).
@@ -331,6 +329,12 @@ class CacheStatusProcessor(AgentHooks):
                 state["turn_accumulated_input"] = 0
                 state["turn_accumulated_output"] = 0
                 state["turn_accumulated_cache_write"] = 0
+
+                # NOTE: context_window resolution no longer happens here at
+                # the turn boundary. It is re-resolved per request inside
+                # ApiMessageTransferFilter (before the compaction check), so
+                # that requests 2..N of a cold-started turn already enjoy the
+                # extended window. See model_base_config.resolve_effective_context_window.
 
                 session.state.cache_status_state = state
                 logger.debug(

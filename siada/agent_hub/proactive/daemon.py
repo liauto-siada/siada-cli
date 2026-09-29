@@ -60,13 +60,14 @@ class SiadaDaemon:
 
     def _find_existing_daemon(self) -> Optional[int]:
         """
-        通过进程命令行查找已存在的守护进程。
+        Find an existing daemon process via its command line.
 
-        使用 psutil 扫描所有进程，匹配命令行包含 'siada.agent_hub.proactive' 的进程。
-        对僵尸/死掉的残留进程会主动杀死并清理。
+        Uses psutil to scan all processes, matching commands containing
+        'siada.agent_hub.proactive'. Zombie/stale leftover processes are
+        proactively killed and cleaned up.
 
         Returns:
-            已存在的守护进程PID，如果不存在则返回None
+            The PID of the existing daemon, or None if it does not exist.
         """
         import psutil
         import datetime

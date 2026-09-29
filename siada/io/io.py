@@ -10,72 +10,27 @@ from typing import Optional
 
 from siada.foundation.logging import logger
 
-from prompt_toolkit.completion import Completer, ThreadedCompleter
-from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
-from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.lexers import Lexer
-from prompt_toolkit.output.vt100 import is_dumb_terminal
-from prompt_toolkit.shortcuts import CompleteStyle
-from prompt_toolkit.styles import Style
-from rich.color import ColorParseError
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.style import Style as RichStyle
-from rich.text import Text
-
-from siada.io.components.mdstream import MarkdownRender
-from siada.io.console_printer import ConsolePrinter
 from siada.io.notification_command import NotificationCommandUtil
-from siada.io.custom_prompt_session import CustomPromptSession
 from .color_settings import ColorSettings, RunningConfigColorSettings
-from .key_bindings import KeyBindingsFactory
 
 # from .editor import pipe_editor
 
 # Constants
 NOTIFICATION_MESSAGE = "Siada is waiting for your input"
 
+# Sentinel returned by get_input() when the wait was interrupted by a
+# background sub-agent completion (see subagent_async.register_session_wakeup)
+# rather than by real user input. NUL-prefixed so it can never collide with
+# anything a user or the frontend could type.
+BACKGROUND_WAKEUP_SENTINEL = "\x00siada-bg-wakeup"
+
 
 from siada.io.color_utils import ColorUtils
 
 
-class AtFileReferenceLexer(Lexer):
-    """Custom lexer for highlighting @ file references"""
-    
-    def __init__(self):
-        self.at_pattern = re.compile(r'@[^\s]+')
-    
-    def lex_document(self, document):
-        def get_line(lineno):
-            if lineno >= len(document.lines):
-                return []
-            
-            line = document.lines[lineno]
-            result = []
-            last_end = 0
-            
-            # Find all @ commands in the line
-            for match in self.at_pattern.finditer(line):
-                start_pos = match.start()
-                end_pos = match.end()
-                
-                # Add text before @ command with default style
-                if start_pos > last_end:
-                    result.append(('', line[last_end:start_pos]))
-                
-                # Add @ command with special style
-                at_command = match.group()
-                result.append(('class:at-file-reference', at_command))
-                
-                last_end = end_pos
-            
-            # Add remaining text after last @ command
-            if last_end < len(line):
-                result.append(('', line[last_end:]))
-            
-            return result
-        
-        return get_line
+def _is_dumb_terminal() -> bool:
+    """Inline equivalent of is_dumb_terminal() (avoids importing prompt_toolkit just for it)."""
+    return os.environ.get("TERM", "").lower() in ("dumb", "unknown")
 
 
 @dataclass
@@ -132,7 +87,7 @@ class InputOutput:
         running_color_settings: "RunningConfigColorSettings" = None,
         encoding="utf-8",
         line_endings="platform",
-        editingmode=EditingMode.EMACS,
+        editingmode="EMACS",
         fancy_input=True,
         multiline_mode=False,
         notifications=False,
@@ -189,7 +144,7 @@ class InputOutput:
         )
 
         self.prompt_session = None
-        self.is_dumb_terminal = is_dumb_terminal()
+        self.is_dumb_terminal = _is_dumb_terminal()
 
         # Initialize ACP attributes early so they are always defined,
         # even if prompt_toolkit initialization below raises an exception
@@ -197,15 +152,27 @@ class InputOutput:
         self.acp_enabled = acp_enabled
         self.acp_adapter = None
 
-        if self.is_dumb_terminal:
+        if self.is_dumb_terminal or acp_enabled:
             self.pretty = False
             fancy_input = False
 
+        # Console/printer are created lazily on first access (see the
+        # `console` / `printer` properties). In ACP mode the Node UI does
+        # all rendering, so rich is not imported at startup.
+        self._console = None
+        self._printer = None
+        self._pretty_console = bool(fancy_input)
+
         if fancy_input:
+            from prompt_toolkit.enums import EditingMode
+            from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
+            from prompt_toolkit.styles import Style
+            from siada.io.custom_prompt_session import CustomPromptSession
+
             style = Style.from_dict({
                 'frame.border': '#6BA5E7',  # Blue
                 # 'prompt': '#00aaff bold',  # blue prompt
-                'placeholder': '#888888',  # 灰色占位符
+                'placeholder': '#888888',  # gray placeholder
             })
             session_kwargs = {
                 "input": self.input,
@@ -214,24 +181,21 @@ class InputOutput:
                 "lexer": None,
                 "editing_mode": self.editingmode,
                 "style": style,
-                "show_frame": True,  # 启用边框
+                "show_frame": True,  # enable frame
                 "complete_while_typing": True,
-                "wrap_lines": True,  # 启用自动换行
+                "wrap_lines": True,  # enable line wrapping
                 "placeholder": [('class:placeholder', 'Type a message, /command, or @path/to/file ...')]
             }
+            if isinstance(self.editingmode, str):
+                self.editingmode = EditingMode[self.editingmode]
             if self.editingmode == EditingMode.VI:
                 session_kwargs["cursor"] = ModalCursorShapeConfig()
             try:
                 self.prompt_session = CustomPromptSession(**session_kwargs)
-                self.console = Console()  # pretty console
-                self._initialize_printer()
             except Exception as err:
-                self.console = Console(force_terminal=False, no_color=True)
-                self._initialize_printer()
+                self._pretty_console = False
                 self.print_error(f"Can't initialize prompt toolkit: {err}")  # non-pretty
         else:
-            self.console = Console(force_terminal=False, no_color=True)  # non-pretty
-            self._initialize_printer()
             if self.is_dumb_terminal:
                 self.print_info("Detected dumb terminal, disabling fancy input and pretty output.")
         
@@ -259,20 +223,36 @@ class InputOutput:
                 raise
             self.acp_enabled = False
 
-    def _initialize_printer(self):
-        """Initialize the console printer."""
-        printer_colors = {
-            "error": self.running_color_settings.tool_error_color,
-            "warning": self.running_color_settings.tool_warning_color,
-            "output": self.running_color_settings.tool_output_color,
-            "result": self.running_color_settings.tool_result_color,
-            "call": self.running_color_settings.tool_call_color,
-        }
-        self.printer = ConsolePrinter(self.console, self.pretty, colors=printer_colors)
+    @property
+    def console(self):
+        """Lazily created rich Console (rich imported on first use)."""
+        if self._console is None:
+            from rich.console import Console
+            if self._pretty_console:
+                self._console = Console()
+            else:
+                self._console = Console(force_terminal=False, no_color=True)
+        return self._console
+
+    @property
+    def printer(self):
+        """Lazily created ConsolePrinter."""
+        if self._printer is None:
+            from siada.io.console_printer import ConsolePrinter
+            printer_colors = {
+                "error": self.running_color_settings.tool_error_color,
+                "warning": self.running_color_settings.tool_warning_color,
+                "output": self.running_color_settings.tool_output_color,
+                "result": self.running_color_settings.tool_result_color,
+                "call": self.running_color_settings.tool_call_color,
+            }
+            self._printer = ConsolePrinter(self.console, self.pretty, colors=printer_colors)
+        return self._printer
 
     def _get_style(self, input_color=None):
         style_dict = {}
         if not self.pretty:
+            from prompt_toolkit.styles import Style
             return Style.from_dict(style_dict)
 
         # Add frame border style
@@ -312,6 +292,7 @@ class InputOutput:
         if self.running_color_settings.at_file_reference_color:
             style_dict["at-file-reference"] = self.running_color_settings.at_file_reference_color
 
+        from prompt_toolkit.styles import Style
         return Style.from_dict(style_dict)
 
     def rule(self, color=None):
@@ -338,10 +319,19 @@ class InputOutput:
 
     def get_input(
         self,
-        completer: Optional[Completer] = None,
+        completer=None,
         display_rule: bool = True,
         color: str = None,
+        wakeup_event=None,
     ):
+        """Block until the user submits input and return it.
+
+        When ``wakeup_event`` (a ``threading.Event``) is provided, the wait
+        also ends early — returning ``BACKGROUND_WAKEUP_SENTINEL`` — as soon
+        as the event is set (e.g. a background sub-agent task completed while
+        the session was idle). The caller must recognize the sentinel and
+        treat it as "no user input; check staged background results".
+        """
         if display_rule:
             self.rule(color=color)
 
@@ -361,11 +351,18 @@ class InputOutput:
         inp = ""
         multiline_input = False
 
-        style = self._get_style(input_color=color)
-        completer_instance = ThreadedCompleter(completer=completer) if completer else None
+        style = None
+        completer_instance = None
+        kb = None
+        if self.prompt_session:
+            from prompt_toolkit.completion import ThreadedCompleter
+            from .key_bindings import KeyBindingsFactory
 
-        kb_factory = KeyBindingsFactory(self)
-        kb = kb_factory.create_key_bindings()
+            style = self._get_style(input_color=color)
+            completer_instance = ThreadedCompleter(completer=completer) if completer else None
+
+            kb_factory = KeyBindingsFactory(self)
+            kb = kb_factory.create_key_bindings()
 
         while True:
             if multiline_input:
@@ -392,6 +389,8 @@ class InputOutput:
                         # return self.prompt_prefix
 
                     # Build prompt parameters, explicitly set completer (including None case)
+                    from siada.io.custom_prompt_session import AtFileReferenceLexer
+
                     prompt_kwargs = {
                         "default": default,
                         "style": style,
@@ -404,19 +403,26 @@ class InputOutput:
 
                     # Only add completion-related extra configurations when completer exists
                     if completer:
+                        from prompt_toolkit.shortcuts import CompleteStyle
+
                         prompt_kwargs.update({
                             "reserve_space_for_menu": 8,
                             "complete_style": CompleteStyle.COLUMN,
                         })
 
                     line = self.prompt_session.prompt(show, **prompt_kwargs)
+                    # The prompt can also end via app.exit(result=SENTINEL)
+                    # from the background-wakeup callback on another thread.
+                    if line == BACKGROUND_WAKEUP_SENTINEL:
+                        return line
                 else:
                     # In non-fancy mode (ACP/programmatic input), use sys.stdin directly
                     # This allows us to handle EOF gracefully
                     import sys
                     # Only print prompt on first attempt (not on retries after EOF)
                     if not hasattr(self, '_waiting_for_input') or not self._waiting_for_input:
-                        print(show, end='', flush=True)
+                        if not self.acp_enabled:
+                            print(show, end='', flush=True)
                         self._waiting_for_input = True
                     
                     # Choose stdin reader: use StdinInterruptMonitor when active
@@ -533,6 +539,14 @@ class InputOutput:
                 # In ACP mode (programmatic input), EOF is expected when no data is available yet
                 # Wait a bit and continue the loop to retry
                 if self.acp_enabled or not self.fancy_input:
+                    # This poll loop doubles as the wakeup check: a background
+                    # sub-agent completing sets the event (via the registered
+                    # session wakeup callback) and we return the sentinel so
+                    # the controller can inject the staged result immediately
+                    # instead of waiting for the user's next message.
+                    if wakeup_event is not None and wakeup_event.is_set():
+                        self._waiting_for_input = False
+                        return BACKGROUND_WAKEUP_SENTINEL
                     import time
                     time.sleep(0.1)  # Wait 100ms for stdin to have data
                     continue  # Retry reading input
@@ -594,8 +608,8 @@ class InputOutput:
                 inp = line
                 break
 
-        print()
-        # self.display_user_input(inp)
+        if not self.acp_enabled:
+            print()
         return inp
 
     def display_user_input(self, inp):
@@ -603,6 +617,8 @@ class InputOutput:
             style = dict(style=self.running_color_settings.user_input_color)
         else:
             style = dict()
+
+        from rich.text import Text
 
         self.console.print(Text(inp), **style)
 
@@ -1031,6 +1047,8 @@ class InputOutput:
         self.printer.output(*messages, bold=bold)
 
     def get_assistant_mdstream(self):
+        from siada.io.components.mdstream import MarkdownRender
+
         mdargs = dict(
             style=self.running_color_settings.assistant_output_color,
             code_theme=self.running_color_settings.code_theme,
@@ -1056,10 +1074,14 @@ class InputOutput:
             pretty = self.pretty
 
         if pretty:
+            from rich.markdown import Markdown
+
             show_resp = Markdown(
                 message, style=self.running_color_settings.assistant_output_color, code_theme=self.running_color_settings.code_theme
             )
         else:
+            from rich.text import Text
+
             show_resp = Text(message or "(empty response)")
 
         self.console.print(show_resp)
@@ -1080,8 +1102,10 @@ class InputOutput:
         if self.bell_on_next_input and self.notifications:
             if self.notifications_command:
                 try:
+                    from siada.foundation.shell_env import make_user_shell_env
                     result = subprocess.run(
-                        self.notifications_command, shell=True, capture_output=True
+                        self.notifications_command, shell=True, capture_output=True,
+                        env=make_user_shell_env(),
                     )
                     if result.returncode != 0 and result.stderr:
                         error_msg = result.stderr.decode("utf-8", errors="replace")

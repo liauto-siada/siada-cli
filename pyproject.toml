@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "siada-cli"
-version = "1.7.21"
+version = "1.7.31"
 description = "Siada CLI is a Ai Pair Programming Tool in terminal"
 packages = [{include = "siada"}, {include = "siada_cli_ui"}, {include = "agent_config.yaml"}]
 include = [
@@ -26,18 +26,24 @@ classifiers = [
 [tool.poetry.scripts]
 siada-cli = "siada.entrypoint.launch_ui_with_acp:main"
 siada-acp = "siada.acp_server.main:main"
+siada-browser = "siada.browser_addon.cli:main"
 [tool.poetry.dependencies]
 # litellm (a core dependency, also pulled transitively via google-adk[extensions])
 # requires Python <3.14, so cap the project's supported range accordingly.
 python = ">=3.12,<3.14"
 fastapi = ">=0.110.0,<1.0.0"
 uvicorn = ">=0.27.0,<1.0.0"
-# Align with openai-agents-python reference project versions
-pydantic = "2.12.3"
+# Align with openai-agents-python reference project versions.
+# Pins track the v0.22.3 release's uv.lock: openai-agents 0.22.3 requires
+# openai>=3.0.0,<4, and its lock pins openai 3.0.0 / litellm 1.83.0 (the
+# litellm extra requires >=1.83.0). pydantic tracks the >=2.12.5 floor that
+# google-adk 2.9.1's google-genai dependency imposes (the SDK's own lock pins
+# 2.12.3; the floor is a superset of the SDK's >=2.12.2 requirement).
+pydantic = ">=2.12.5,<3.0.0"
 pydantic-settings = ">=2.2.0,<3.0.0"
-openai-agents = "0.17.7"
-openai = "2.44.0"
-litellm = "1.91.0"
+openai-agents = "0.22.3"
+openai = "3.0.0"
+litellm = "1.83.0"
 openhands-aci = "0.3.3"
 termcolor = ">=3.1.0,<4.0.0"
 psutil = ">=7.0.0,<8.0.0"
@@ -61,13 +67,15 @@ pathspec = ">=0.12.0,<1.0.0"
 mcp = "1.26.0"
 aiohttp = ">=3.8.0,<4.0.0"
 drawille = ">=0.1.0,<1.0.0"
-google-adk = {version = "1.26.0", extras = ["a2a", "extensions"]}
-# Pin to stable releases only: google-adk 1.26.0 requires
-# opentelemetry-resourcedetector-gcp>=1.9.0a0,<2.0.0. The first stable release
-# (1.13.0) was yanked upstream ("breaks imports"); 1.14.0 is the first usable
-# stable. A prerelease pin (e.g. 1.12.0a0) cannot be used here because plain
-# `uvx siada-cli` (used by the ACP registry CI) rejects prerelease-only pins.
-opentelemetry-resourcedetector-gcp = ">=1.14.0,<2.0.0"
+# google-adk's "extensions" extra pins openai<3, which is incompatible with
+# openai-agents >=0.22.3 (requires openai>=3.0.0) and its "a2a" extra is all
+# siada imports; the one extension-provided package siada used directly
+# (docker, in the compile_agent tool) is declared explicitly below.
+google-adk = {version = "2.9.1", extras = ["a2a"]}
+# Required by siada's compile_agent Docker-build tool
+# (siada/agent_hub/a2a/a2a_agents/compile_agent/tools/docker_build.py), which
+# used to receive it transitively from google-adk's "extensions" extra.
+docker = ">=7.0.0,<8.0.0"
 
 concurrent-log-handler = ">=0.9.25,<1.0.0"
 toml = "^0.10.2"

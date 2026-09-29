@@ -62,10 +62,6 @@ def resolve_provider_from_context(context) -> Optional[str]:
         return raw_provider
 
 
-# Providers whose web tools are enabled by default in "auto" mode.
-_WEB_AUTO_ON_PROVIDERS = frozenset({"li"})
-
-
 def resolve_web_tools_enabled(provider: Optional[str], explicit: Optional[bool]) -> bool:
 
     """Resolve whether web tools should be enabled for the given provider.
@@ -73,7 +69,7 @@ def resolve_web_tools_enabled(provider: Optional[str], explicit: Optional[bool])
     Args:
         provider: The active provider name (e.g. ``"li"``, ``"default"``).
         explicit: The user-configured tri-state value:
-            - ``None``  ("auto"): default ON for ``li``, OFF otherwise.
+            - ``None``  ("auto", default): web tools are ON.
             - ``True``:  always enable.
             - ``False``: always disable.
 
@@ -82,5 +78,5 @@ def resolve_web_tools_enabled(provider: Optional[str], explicit: Optional[bool])
     """
     if explicit is not None:
         return explicit
-    return provider in _WEB_AUTO_ON_PROVIDERS
+    return True
 

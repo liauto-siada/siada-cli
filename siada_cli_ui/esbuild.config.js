@@ -32,7 +32,7 @@ const baseConfig = {
   ],
   loader: { '.node': 'file' },
   write: true,
-  minify: false, // 保持可读性，便于调试
+  minify: true, // 减小 bundle 体积（3.7MB→1.5MB），node 启动解析快 ~150ms
   sourcemap: true,
 };
 

@@ -15,6 +15,10 @@ class UserModelConfig:
     context_window: int
     max_tokens: Optional[int] = None
     supports_images: bool = False
+    # Bridged vision (modlens-style): the model itself is text-only — attached
+    # images are transcribed by a vision engine and fed in as text evidence
+    # (see siada/services/vision_bridge.py).
+    supports_vision_bridge: bool = False
     supports_prompt_cache: bool = False
     supports_extra_params: Optional[List[str]] = None
     parallel_tool_calls: Optional[bool] = None
@@ -41,6 +45,7 @@ class UserModelConfig:
             context_window=data['context_window'],
             max_tokens=data.get('max_tokens'),
             supports_images=data.get('supports_images', False),
+            supports_vision_bridge=data.get('supports_vision_bridge', False),
             supports_prompt_cache=data.get('supports_prompt_cache', False),
             supports_extra_params=data.get('supports_extra_params'),
             parallel_tool_calls=data.get('parallel_tool_calls'),
@@ -59,6 +64,7 @@ class UserModelConfig:
             'context_window': self.context_window,
             'max_tokens': self.max_tokens,
             'supports_images': self.supports_images,
+            'supports_vision_bridge': self.supports_vision_bridge,
             'supports_prompt_cache': self.supports_prompt_cache,
             'supports_extra_params': self.supports_extra_params
         }
@@ -177,6 +183,7 @@ def create_example_model_config(config_path: Optional[Path] = None) -> None:
                 "context_window": 16385,
                 "max_tokens": 4096,
                 "supports_images": False,
+                "supports_vision_bridge": True,
                 "supports_prompt_cache": False,
                 "supports_extra_params": []
             },

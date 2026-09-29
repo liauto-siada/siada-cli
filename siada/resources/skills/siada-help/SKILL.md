@@ -36,8 +36,8 @@ This skill handles three types of requests:
 - **CLI** — `siada-cli` command for interactive sessions
 
 **Key files:**
-- `~/.siada-cli/conf.yaml` — main configuration (LLM, proactive agent, checkpoints)
-- `~/.siada-cli/user_preference.yaml` — UI preferences (theme, pre_plan)
+- `~/.siada-cli/conf.yaml` — main configuration (LLM, proactive agent, checkpoints, sub-agents, theme)
+- `~/.siada-cli/model_config.json` — per-model overrides (context window, pricing, vision engine)
 - `~/.siada-cli/mcp_config.json` — MCP server configuration
 - `~/.siada-cli/workspace/cron_tasks.json` — scheduled cron tasks
 - `~/.siada-cli/workspace/memory/` — agent memory files
@@ -116,7 +116,11 @@ python {skill_dir}/scripts/config_manager.py validate
 | `llm_config.base_url` | string |
 | `llm_config.api_key` | string |
 | `llm_config.thinking` | bool |
+| `llm_config.enable_thinking` | bool |
+| `llm_config.reasoning_effort` | string |
 | `llm_config.parallel_tool_calls` | bool |
+| `llm_config.vision_model` | string |
+| `llm_config.vision_provider` | string |
 | `checkpoint_config.enable` | bool |
 | `checkpoint_config.max_checkpoint_files` | int |
 | `proactive.enabled` | bool |
@@ -140,9 +144,17 @@ python {skill_dir}/scripts/config_manager.py validate
 | `memory.holographic.hrr_dim` | int |
 | `memory.holographic.prefetch_limit` | int |
 | `memory.holographic.temporal_decay_half_life` | int |
+| `sub_agent.enabled` | bool |
+| `sub_agent.allow_recursive_subagents` | bool |
 | `web.enabled` | bool |
 | `compaction_strategy` | string |
 | `command_timeout` | int |
+| `pre_plan` | bool |
+| `preferred_language` | string |
+| `enable_notification` | bool |
+| `im.verbose.p2p` | bool |
+| `im.verbose.group` | bool |
+| `ui.theme` | string |
 
 Some sections (`lark.*`, `sub_agent.llm_config`, `proactive.llm_config`) are objects, not simple scalars — `config_manager.py set` can't target them directly. For those, tell the user to edit `~/.siada-cli/conf.yaml` directly; see `references/configuration.md` for the full shape and examples.
 

@@ -91,6 +91,7 @@ export class SlashCommandService {
       { name: 'editor', description: 'Open an editor to write a prompt', requiresSession: false },
       { name: 'edit', description: 'Alias for /editor', requiresSession: false },
       { name: 'statusbar', description: 'Toggle status bar items visibility', requiresSession: false },
+      { name: 'export', description: 'Export the conversation to a .txt file', requiresSession: true, argumentHint: '[<filename>]' },
       { name: 'init', description: 'Analyze the project and create a tailored SIADA.md file', requiresSession: true },
       { name: 'context-file-refresh', description: 'Refresh SIADA.md and AGENTS.md context files and show content overview', requiresSession: true },
       { name: 'rule-init', description: 'Create an empty siada_rule.md file', requiresSession: true },

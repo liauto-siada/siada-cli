@@ -144,6 +144,21 @@ Do not mark the goal complete yourself. The runtime will run a completion verifi
 </system-reminder>"""
 
 
+def build_goal_cleared_reminder_text(objective: Optional[str] = None) -> str:
+    """Return a one-shot reminder that a user-cleared goal must not resume."""
+    objective_block = ""
+    if objective:
+        objective_block = f"\n<untrusted_objective>\n{objective}\n</untrusted_objective>\n"
+    return (
+        "<system-reminder>\n"
+        "The user has cleared the standing session goal. Stop pursuing the "
+        "previous goal and do not resume it unless the user explicitly sets "
+        "a new goal.\n"
+        f"{objective_block}"
+        "</system-reminder>"
+    )
+
+
 def merge_goal_reminder_into_input(
     user_input: Union[str, List["TResponseInputItem"]],
     goal: "Goal",

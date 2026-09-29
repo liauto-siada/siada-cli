@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 from siada.services.goal.prompts import (
     append_goal_reminder_to_messages,
+    build_goal_cleared_reminder_text,
     build_goal_reminder_text,
     merge_goal_reminder_into_input,
 )
@@ -11,6 +12,16 @@ def _make_goal(objective="Ship the feature"):
     goal = MagicMock()
     goal.objective = objective
     return goal
+
+
+def test_goal_cleared_reminder_is_hidden_and_explicit():
+    reminder = build_goal_cleared_reminder_text("old objective")
+
+    assert reminder.startswith("<system-reminder>")
+    assert reminder.endswith("</system-reminder>")
+    assert "cleared the standing session goal" in reminder
+    assert "do not resume it unless the user explicitly sets a new goal" in reminder
+    assert "<untrusted_objective>\nold objective\n</untrusted_objective>" in reminder
 
 
 # ---------------------------------------------------------------------------

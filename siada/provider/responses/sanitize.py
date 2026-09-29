@@ -7,8 +7,10 @@ transport (Li proxy / plain OpenAI endpoint) the request goes through.
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from agents.models.fake_id import FAKE_RESPONSES_ID
 from openai.types.responses.response_reasoning_item import Summary as ReasoningSummary
 
 
@@ -16,22 +18,51 @@ _PLACEHOLDER_SUMMARY = [{"type": "summary_text", "text": " "}]
 
 
 # Server-generated fields that the Responses API uses as pointers into its own
-# response ``store``. Any of these on an *input* item — including fields our
-# session layer faithfully round-trips from a previous ``response.completed``
-# event — causes the server to go looking for the original response and
-# return 400 / 404 when it is not found (common on a multi-node proxy cluster
-# or on a different route). Strip them all so every input item is fully
-# self-contained, exactly like ``convertToOpenAIResponsesInput`` does in
-# siada-plugin.
+# response ``store``.  They are replayed **verbatim** by default: an item's
+# ``id`` is the documented way for the server to resolve the stored response,
+# and on ``reasoning`` items ``encrypted_content`` is the only carrier of the
+# model's reasoning state in stateless (``store: false`` / ZDR) mode.
 #
-# NOTE: ``call_id`` is intentionally **kept** on ``function_call`` and
-# ``function_call_output`` because it is how the two sides are paired, not a
-# store lookup id.
+# Escape hatch: ``SIADA_RESPONSES_STRIP_ITEM_IDS=1`` restores the historical
+# "self-contained payload" behaviour (strip ``id`` / ``status`` /
+# ``encrypted_content``).  It is opt-in on purpose — stripping the ids also
+# dropped ``encrypted_content``, which silently broke reasoning continuity
+# instead of surfacing the gateway incompatibility.
+#
+# ``call_id`` is never stripped: it pairs ``function_call`` with
+# ``function_call_output`` (and ``apply_patch_call`` with its output) and is not
+# a store lookup id.
 _SERVER_GENERATED_FIELDS: frozenset[str] = frozenset({
     "id",
     "encrypted_content",
     "status",
 })
+
+
+# Placeholder ``id`` values minted by the SDK's Chat Completions converters.
+# ``agents.models.fake_id.FAKE_RESPONSES_ID`` (``__fake_id__``) fills the ``id``
+# field of every item built from a Chat Completions response
+# (``chatcmpl_converter`` / ``chatcmpl_stream_handler``) — i.e. every GLM /
+# DeepSeek / Qwen turn on the li gateway.  It is NOT a store pointer: the
+# Responses API validates the id prefix against the item type and rejects the
+# whole request, e.g.
+#   Invalid 'input[1].id': '__fake_id__'. Expected an ID that begins with 'rs'.
+# A model switch mid-session (Chat Completions -> Responses protocol) replays
+# exactly those items, so the field is dropped here.  Mirrors the SDK's own
+# ``agents.models.openai_responses._clean_item_for_openai``, which deletes the
+# same id before sending.  Kept as a set so future SDK placeholders can be
+# added without touching the loop below.
+_PLACEHOLDER_ITEM_IDS: frozenset[str] = frozenset({FAKE_RESPONSES_ID})
+
+
+def _strip_server_item_ids() -> bool:
+    """Return True when the store-id stripping escape hatch is enabled."""
+    return os.environ.get("SIADA_RESPONSES_STRIP_ITEM_IDS", "").strip().lower() not in (
+        "",
+        "0",
+        "false",
+        "no",
+    )
 
 # Fields that are provider-specific (e.g. LiteLLM's ``provider_data``) and
 # must be stripped from **every** input item when calling the OpenAI Responses
@@ -65,40 +96,80 @@ def sanitize_input_reasoning_items(
     reasoning item is missing from the payload (it usually is present), it
     means the server resolved ``msg_*`` via store lookup, found the stored
     message linked to a stored reasoning id, and that stored reasoning id
-    does not match the one we sent. The fix is not to pair them differently
-    but to stop sending the store ids altogether.
+    does not match the one we sent.  Such failures are surfaced as-is instead
+    of being masked by stripping the ids (see the escape hatch above): the
+    ids are what lets the server resolve the stored response, and
+    ``encrypted_content`` is what carries the reasoning state.
 
     So this function:
 
-    * Removes every ``_SERVER_GENERATED_FIELDS`` key from dict items that
-      look like they came from ``response.output``:
-      ``message`` / ``function_call`` / ``function_call_output`` /
-      ``reasoning``.  ``call_id`` is preserved because it is how
-      function_call and function_call_output are linked — it is not a store
-      id.
-    * For ``reasoning`` items, additionally fills an empty ``summary`` with
+    * Replays items that came from ``response.output`` verbatim — ``message`` /
+      ``function_call`` / ``function_call_output`` / ``reasoning`` and the
+      native tool-call items — keeping ``id``, ``status`` and
+      ``encrypted_content``.  ``call_id`` is obviously preserved: it is how a
+      call and its output are paired.  The one exception is a placeholder
+      ``id`` (see below), which is not a store pointer.
+    * Drops ``provider_data`` from every dict item — it is a LiteLLM-only field
+      that the OpenAI spec rejects with a 400 ``Unknown parameter``.
+    * Drops placeholder ``id`` values (``__fake_id__``, minted by the SDK's
+      Chat Completions converters) from every dict item.  They are never store
+      pointers, and the Responses API validates the id prefix against the item
+      type, so replaying one fails with
+      ``Invalid 'input[1].id': '__fake_id__'. Expected an ID that begins with
+      'rs'.`` — exactly what happened when a session started on a Chat
+      Completions model (glm-5.3 via the li gateway) and then switched to a
+      Responses model (gpt-5.6-luna).
+    * For ``reasoning`` items, drops a stray ``content`` array (the Responses
+      schema allows ``max_items: 0`` there) and fills an empty ``summary`` with
       a whitespace placeholder so the server does not reject the item and
-      the following assistant message does not get orphaned.
+      orphan the following assistant message.
     * Leaves plain user messages (``{"role": "user", "content": ...}``)
       and any non-dict items untouched.
 
-    See ``siada-plugin/src/core/api/transform/openai-response-format.ts::
-    convertToOpenAIResponsesInput`` for the mirror implementation used by
-    the VSCode plugin — it builds its input items from scratch and never
-    carries server store ids forward, which is the behavior we emulate here.
+    Setting ``SIADA_RESPONSES_STRIP_ITEM_IDS=1`` switches back to the old
+    "every item must be self-contained" behaviour for emergencies; it is
+    deliberately manual, because a silent fallback would hide gateway
+    incompatibilities instead of surfacing them.
     """
     if isinstance(input, str):
         return input
 
     sanitized: list[Any] = []
 
-    # Types that originate from ``response.output`` and therefore carry
-    # server store ids we need to strip.
+    # Types that originate from ``response.output`` and are therefore replayed
+    # as-is (keeping their store ``id`` and, for ``reasoning`` items, the
+    # ``encrypted_content`` that carries the model's reasoning state).  The set
+    # only decides which items get the ``reasoning`` normalisation below and, if
+    # the escape hatch is on, the legacy store-id stripping.
+    #
+    # ``call_id`` keeps the call/output pairing intact (it is not a store id),
+    # and it is never touched.
     output_origin_types = {
         "reasoning",
         "message",
         "function_call",
         "function_call_output",
+        # apply_patch (native patch tool)
+        "apply_patch_call",
+        "apply_patch_call_output",
+        # shell / computer / code-interpreter / image-generation
+        "shell_call",
+        "shell_call_output",
+        "local_shell_call",
+        "local_shell_call_output",
+        "computer_call",
+        "computer_call_output",
+        "code_interpreter_call",
+        "image_generation_call",
+        # MCP + hosted tools
+        "mcp_call",
+        "mcp_list_tools",
+        "mcp_approval_request",
+        "mcp_approval_response",
+        "web_search_call",
+        "file_search_call",
+        "custom_tool_call",
+        "custom_tool_call_output",
     }
 
     for item in input:
@@ -116,17 +187,29 @@ def sanitize_input_reasoning_items(
         if _PROVIDER_SPECIFIC_FIELDS.intersection(item):
             item = {k: v for k, v in item.items() if k not in _PROVIDER_SPECIFIC_FIELDS}
 
+        # Placeholder ids (see _PLACEHOLDER_ITEM_IDS) are never store pointers,
+        # so they are dropped from every dict item regardless of its type: a
+        # Chat Completions turn persisted with ``__fake_id__`` is rejected the
+        # moment the session switches to a Responses model.
+        if item.get("id") in _PLACEHOLDER_ITEM_IDS:
+            item = {k: v for k, v in item.items() if k != "id"}
+
         # User-written messages are already self-contained ``{role, content}``
         # shapes — no server store ids to strip.
         if item_type not in output_origin_types:
             sanitized.append(item)
             continue
 
-        cleaned = {
-            k: v
-            for k, v in item.items()
-            if k not in _SERVER_GENERATED_FIELDS
-        }
+        # Verbatim replay is the default.  The escape hatch rebuilds the item
+        # without the server-generated store fields for emergencies.
+        if _strip_server_item_ids():
+            cleaned = {
+                k: v
+                for k, v in item.items()
+                if k not in _SERVER_GENERATED_FIELDS
+            }
+        else:
+            cleaned = dict(item)
 
         if item_type == "reasoning":
             # Reasoning items in the Responses API schema do NOT have a

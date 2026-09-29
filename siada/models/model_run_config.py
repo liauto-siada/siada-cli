@@ -1,7 +1,7 @@
 from dataclasses import dataclass, fields
 from typing import Optional
 
-from siada.models.model_base_config import ModelBaseConfig, get_model_config, get_model_settings
+from siada.models.model_base_config import DEFAULT_MODEL_NAME, ModelBaseConfig, get_model_config, get_model_settings
 
 
 import os
@@ -13,7 +13,12 @@ import yaml
 class ModelRunConfig(ModelBaseConfig):
     
     reasoning_effort : Optional[str] = None
+    # The user's effort intent BEFORE cross-model mapping (e.g. "xhigh" set
+    # on Claude, carried to GLM-5.3 as "max"). Kept across model switches so
+    # the original level survives chained switches without mapping drift.
+    user_reasoning_effort : Optional[str] = None
     thinking_tokens : Optional[int] = None
+    enable_thinking : Optional[bool] = None  # Explicit enable/disable thinking (None = not configured)
     temperature : Optional[float] = None
     extra_params : Optional[dict] = None
     provider: Optional[str] = None
@@ -35,8 +40,8 @@ class ModelRunConfig(ModelBaseConfig):
         model_config = get_model_config(model)
         if not model_config:
             logger = logging.getLogger(__name__)
-            logger.warning(f"Model {model} not found in model settings, falling back to claude-sonnet-4.6")
-            model_config = get_model_config("claude-sonnet-4.6")
+            logger.warning(f"Model {model} not found in model settings, falling back to {DEFAULT_MODEL_NAME}")
+            model_config = get_model_config(DEFAULT_MODEL_NAME)
 
         if model_config:
             self._copy_fields(model_config)
@@ -56,7 +61,61 @@ class ModelRunConfig(ModelBaseConfig):
         
 
     def set_reasoning_effort(self, reasoning_effort):
+        # Explicitly setting an effort also records the user intent, so it can
+        # be re-mapped (not lost) when switching models in-session.
         self.reasoning_effort = reasoning_effort
+        self.user_reasoning_effort = reasoning_effort
+
+    def carry_over_reasoning_settings(self, old_config) -> Optional[tuple]:
+        """Carry the user's /thinking and /effort settings from the previous
+        model's config onto this one (the new model), mapping the effort onto
+        a level the new model accepts.
+
+        Called by /model so session-level reasoning settings survive model
+        switches. Only USER-set values are carried — model defaults are not
+        (every model keeps its own).
+
+        Returns ``(original_effort, mapped_effort)`` when a user-set effort
+        was carried over, otherwise ``None``.
+        """
+        if old_config is None:
+            return None
+
+        # /thinking: a boolean on/off switch, meaningful for every model.
+        old_thinking = getattr(old_config, "enable_thinking", None)
+        if old_thinking is not None:
+            self.enable_thinking = old_thinking
+            if old_thinking is False:
+                # Mirror the startup behaviour: disabling clears any token budget.
+                self.thinking_tokens = None
+
+        # /effort: only the user's explicit intent is carried. When the
+        # user_reasoning_effort marker is missing (config built without it),
+        # fall back to "differs from the previous model's default" as the
+        # signal that the user set it manually.
+        user_effort = getattr(old_config, "user_reasoning_effort", None)
+        if user_effort is None:
+            old_effort = getattr(old_config, "reasoning_effort", None)
+            old_default = getattr(old_config, "default_reasoning_effort", None)
+            if old_effort is not None and old_effort != old_default:
+                user_effort = old_effort
+        if user_effort is None:
+            return None
+
+        # Keep the original intent even when the new model cannot express it
+        # (e.g. GLM-5.2 takes no reasoning_effort param at all), so a later
+        # switch to a supporting model restores it.
+        self.user_reasoning_effort = user_effort
+        supports = self.supports_extra_params or []
+        if "reasoning_effort" not in supports:
+            return None
+
+        from siada.models.model_base_config import coerce_reasoning_effort
+        mapped = coerce_reasoning_effort(
+            self.model_name, user_effort, self.default_reasoning_effort
+        )
+        self.reasoning_effort = mapped
+        return (user_effort, mapped)
 
 
     def get_raw_thinking_tokens(self):
@@ -159,7 +218,7 @@ class ModelRunConfig(ModelBaseConfig):
             model_config = ModelRunConfig(model_name)
         except ValueError:
             # agent_config.yaml holds a framework default model (e.g.
-            # claude-sonnet-4.6) that may not exist in the currently active model
+            # kivy-kimi-k3) that may not exist in the currently active model
             # settings — this happens when a 'default' provider's model list has
             # replaced the built-in MODEL_SETTING (e.g. on the feishu daemon's
             # 2nd+ message). This baseline is only a seed: callers either override

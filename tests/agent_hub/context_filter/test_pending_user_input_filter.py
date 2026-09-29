@@ -67,7 +67,9 @@ class TestPendingUserInputInjector:
 
         assert len(model_data.input) == 2
         injected = model_data.input[-1]
-        assert injected == {"role": "user", "content": "hello agent"}
+        # Raw user text is wrapped in <user_input> tags at injection time
+        # (see marker.wrap_user_input) — stripped again for display.
+        assert injected == {"role": "user", "content": "<user_input>hello agent</user_input>"}
 
     @pytest.mark.asyncio
     async def test_image_paths_produce_multimodal_content(self, tmp_path):
@@ -88,7 +90,7 @@ class TestPendingUserInputInjector:
         injected = model_data.input[-1]
         assert injected["role"] == "user"
         assert isinstance(injected["content"], list)
-        assert injected["content"][0] == {"type": "input_text", "text": "describe this"}
+        assert injected["content"][0] == {"type": "input_text", "text": "<user_input>describe this</user_input>"}
         # Images are encoded as base64 data URLs (same format as non-queued flow).
         assert injected["content"][1]["type"] == "input_image"
         assert injected["content"][1]["image_url"].startswith("data:image/png;base64,")
@@ -109,7 +111,7 @@ class TestPendingUserInputInjector:
 
         # Falls back to a plain text user message (no multimodal content list).
         assert len(model_data.input) == 1
-        assert model_data.input[0] == {"role": "user", "content": "look here"}
+        assert model_data.input[0] == {"role": "user", "content": "<user_input>look here</user_input>"}
 
     @pytest.mark.asyncio
     async def test_empty_content_is_skipped(self):
@@ -124,7 +126,7 @@ class TestPendingUserInputInjector:
 
         # "" is falsy → skipped; "   " is truthy → included
         assert len(model_data.input) == 1
-        assert model_data.input[0]["content"] == "   "
+        assert model_data.input[0]["content"] == "<user_input>   </user_input>"
 
     @pytest.mark.asyncio
     async def test_add_items_called_with_new_items_only(self):
@@ -140,8 +142,8 @@ class TestPendingUserInputInjector:
         file_session.add_items.assert_called_once()
         called_items = file_session.add_items.call_args[0][0]
         assert called_items == [
-            {"role": "user", "content": "msg1"},
-            {"role": "user", "content": "msg2"},
+            {"role": "user", "content": "<user_input>msg1</user_input>"},
+            {"role": "user", "content": "<user_input>msg2</user_input>"},
         ]
 
     @pytest.mark.asyncio
@@ -157,7 +159,7 @@ class TestPendingUserInputInjector:
         await injector.filter(model_data, agent=None, context=ctx)
 
         # model_data.input was still updated before the error
-        assert model_data.input[-1] == {"role": "user", "content": "msg"}
+        assert model_data.input[-1] == {"role": "user", "content": "<user_input>msg</user_input>"}
 
     @pytest.mark.asyncio
     async def test_context_none_no_add_items_call(self):
@@ -168,7 +170,7 @@ class TestPendingUserInputInjector:
         # Should not raise even with context=None
         await injector.filter(model_data, agent=None, context=None)
 
-        assert model_data.input[-1] == {"role": "user", "content": "msg"}
+        assert model_data.input[-1] == {"role": "user", "content": "<user_input>msg</user_input>"}
 
     @pytest.mark.asyncio
     async def test_pending_deque_is_drained_after_filter(self):
@@ -193,7 +195,11 @@ class TestPendingUserInputInjector:
         await injector.filter(model_data, agent=None, context=ctx)
 
         contents = [item["content"] for item in model_data.input]
-        assert contents == ["first", "second", "third"]
+        assert contents == [
+            "<user_input>first</user_input>",
+            "<user_input>second</user_input>",
+            "<user_input>third</user_input>",
+        ]
 
     @pytest.mark.asyncio
     async def test_filter_sends_queue_item_consumed_notification(self):

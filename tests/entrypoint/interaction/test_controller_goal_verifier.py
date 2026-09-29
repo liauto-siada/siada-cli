@@ -1,5 +1,5 @@
 """
-Tests for Controller._maybe_run_goal_verifier and _push_goal_state_via_acp.
+Tests for TurnPolicy._maybe_run_goal_verifier and _push_goal_state_via_acp.
 """
 import tempfile
 from pathlib import Path
@@ -8,27 +8,34 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from siada.entrypoint.interaction.controller import Controller
+# Import turn_policy first: it pulls in siada.session before turn.models
+# touches siada.support.slash_commands, avoiding a circular import
+# (checkpoint_tracker <-> session_manager) that the old controller import
+# used to mask.
+from siada.entrypoint.interaction.turn_policy import TurnPolicy
 from siada.entrypoint.interaction.turn.models import TurnOutput, TurnType
 from siada.services.goal.models import (
     Goal,
     GoalVerdict,
-    GOAL_MAX_CONSECUTIVE_FAILURES,
     GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS,
+    GOAL_MAX_TURNS,
 )
 from siada.services.goal import goal_storage
 
 
 def _make_controller():
-    ctrl = Controller.__new__(Controller)
-    ctrl.config = SimpleNamespace(acp_mode=False, io=SimpleNamespace(acp_adapter=None))
-    ctrl._acp_notifications = []
+    notifications = []
 
     def fake_send(method, params):
-        ctrl._acp_notifications.append((method, params))
+        notifications.append((method, params))
 
-    ctrl._send_acp_notification = fake_send
-    return ctrl
+    policy = TurnPolicy(
+        config=SimpleNamespace(acp_mode=False, io=SimpleNamespace(acp_adapter=None)),
+        slash_commands=SimpleNamespace(),
+        send_notification=fake_send,
+    )
+    policy._acp_notifications = notifications
+    return policy
 
 
 def _make_turn(turn_type=TurnType.CONVERSATION):
@@ -43,8 +50,10 @@ def _make_session(workspace="/ws"):
     )
 
 
-def _context_cache_with(workspace, goal):
+def _context_cache_with(workspace, goal, goal_max_turns=None):
     context = SimpleNamespace(goal=goal)
+    if goal_max_turns is not None:
+        context.goal_max_turns = goal_max_turns
     return {("agent", workspace): context}, context
 
 
@@ -139,7 +148,13 @@ class TestMaybeRunGoalVerifier:
 
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
                 "siada.services.goal.verifier.run_goal_verification",
-                new=AsyncMock(return_value=GoalVerdict(passed=False, reason="tests not run")),
+                new=AsyncMock(
+                    return_value=GoalVerdict(
+                        passed=False,
+                        reason="tests not run",
+                        nextAction="run the tests",
+                    )
+                ),
             ):
                 out = ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
 
@@ -197,7 +212,11 @@ class TestMaybeRunGoalVerifier:
 
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
                 "siada.services.goal.verifier.run_goal_verification",
-                new=AsyncMock(return_value=GoalVerdict(passed=False, reason="not yet")),
+                new=AsyncMock(
+                    return_value=GoalVerdict(
+                        passed=False, reason="not yet", nextAction="continue implementation"
+                    )
+                ),
             ):
                 ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
                 ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
@@ -205,28 +224,84 @@ class TestMaybeRunGoalVerifier:
             assert goal.turns == 2
             assert goal.consecutive_failures == 2
 
-    def test_consecutive_failures_trip_to_blocked(self, base_result):
+    def test_max_consecutive_failures_trip_to_blocked(self, base_result):
         ctrl = _make_controller()
         turn = _make_turn()
         with tempfile.TemporaryDirectory() as d:
             session_dir = Path(d)
             session = _make_session()
             goal = Goal.create("ambiguous goal")
-            goal.consecutive_failures = GOAL_MAX_CONSECUTIVE_FAILURES - 1
-            fake_cache, _ = _context_cache_with("/ws", goal)
+            goal.consecutive_failures = GOAL_MAX_TURNS - 1
+            fake_cache, _ = _context_cache_with("/ws", goal, goal_max_turns=GOAL_MAX_TURNS)
 
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
                 "siada.services.goal.verifier.run_goal_verification",
-                new=AsyncMock(return_value=GoalVerdict(passed=False, reason="still unclear")),
+                new=AsyncMock(
+                    return_value=GoalVerdict(
+                        passed=False,
+                        reason="still unclear",
+                        nextAction="inspect the failing evidence",
+                    )
+                ),
             ):
                 out = ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
 
             assert goal.status == "blocked"
-            assert goal.consecutive_failures == GOAL_MAX_CONSECUTIVE_FAILURES
+            assert goal.turns == 1
+            assert goal.consecutive_failures == GOAL_MAX_TURNS
             # Once blocked, the turn output passes through unchanged — no forced retry.
             assert out is base_result
             persisted = goal_storage.load_goal(session_dir)
             assert persisted.status == "blocked"
+
+    def test_configured_max_consecutive_failures_override_default(self, base_result):
+        ctrl = _make_controller()
+        turn = _make_turn()
+        with tempfile.TemporaryDirectory() as d:
+            session_dir = Path(d)
+            session = _make_session()
+            goal = Goal.create("bounded goal")
+            goal.consecutive_failures = 1
+            fake_cache, _ = _context_cache_with("/ws", goal, goal_max_turns=2)
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
+                "siada.services.goal.verifier.run_goal_verification",
+                new=AsyncMock(
+                    return_value=GoalVerdict(
+                        passed=False, reason="not yet", nextAction="make one more change"
+                    )
+                ),
+            ):
+                out = ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
+
+            assert goal.status == "blocked"
+            assert goal.consecutive_failures == 2
+            assert out is base_result
+
+    @pytest.mark.parametrize("next_action", ["", " \n\t "])
+    def test_empty_next_action_stops_automatic_continuation(self, base_result, next_action):
+        ctrl = _make_controller()
+        turn = _make_turn()
+        with tempfile.TemporaryDirectory() as d:
+            session_dir = Path(d)
+            session = _make_session()
+            goal = Goal.create("no actionable follow-up")
+            fake_cache, _ = _context_cache_with("/ws", goal)
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
+                "siada.services.goal.verifier.run_goal_verification",
+                new=AsyncMock(return_value=GoalVerdict(
+                    passed=False, reason="nothing remains", nextAction=next_action,
+                )),
+            ):
+                out = ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
+
+            assert goal.status == "blocked"
+            assert goal.turns == 1
+            assert out is base_result
+            persisted = goal_storage.load_goal(session_dir)
+            assert persisted.status == "blocked"
+            assert ctrl._acp_notifications[-1][1]["result"]["nextAction"] == ""
 
     def test_verifier_exception_does_not_crash_turn(self, base_result):
         ctrl = _make_controller()
@@ -254,8 +329,8 @@ class TestMaybeRunGoalVerifier:
             assert goal.consecutive_system_errors == 1
 
     def test_repeated_verifier_exceptions_trip_to_blocked_quickly(self, base_result):
-        """Unlike genuine 'not yet achieved' judgments (which get a generous
-        GOAL_MAX_CONSECUTIVE_FAILURES budget), a run of verifier CRASHES
+        """Unlike genuine 'not yet achieved' judgments (which use the configured
+        maximum-turn budget), a run of verifier CRASHES
         (never even producing a verdict) must trip 'blocked' after the much
         smaller GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS threshold."""
         ctrl = _make_controller()
@@ -284,7 +359,7 @@ class TestMaybeRunGoalVerifier:
         """A GoalVerdict.systemError=True verdict (returned by verifier.py's
         exception handlers -- see verifier.py) is a mechanical fail-safe, not
         a genuine judgment about the objective. It must not consume the
-        generous GOAL_MAX_CONSECUTIVE_FAILURES budget."""
+        configured maximum-turn budget."""
         from siada.support.slash_commands import SwitchEvent
 
         ctrl = _make_controller()
@@ -309,6 +384,33 @@ class TestMaybeRunGoalVerifier:
             assert goal.consecutive_system_errors == 1
             assert goal.consecutive_failures == 0
             assert isinstance(out.output, SwitchEvent)
+
+    def test_system_error_breaker_is_independent_of_one_turn_limit(self, base_result):
+        ctrl = _make_controller()
+        turn = _make_turn()
+        with tempfile.TemporaryDirectory() as d:
+            session_dir = Path(d)
+            session = _make_session()
+            goal = Goal.create("ship it")
+            fake_cache, _ = _context_cache_with("/ws", goal, goal_max_turns=1)
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
+                "siada.services.goal.verifier.run_goal_verification",
+                new=AsyncMock(return_value=GoalVerdict(
+                    passed=False, reason="verifier unavailable", systemError=True,
+                )),
+            ):
+                first = ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
+                assert goal.status == "active"
+                second = ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
+
+            from siada.support.slash_commands import SwitchEvent
+
+            assert isinstance(first.output, SwitchEvent)
+            assert second is base_result
+            assert goal.status == "blocked"
+            assert goal.consecutive_failures == 0
+            assert goal.consecutive_system_errors == GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS
 
     def test_consecutive_system_errors_trip_to_blocked_much_faster_than_failures(self, base_result):
         ctrl = _make_controller()
@@ -353,7 +455,11 @@ class TestMaybeRunGoalVerifier:
 
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
                 "siada.services.goal.verifier.run_goal_verification",
-                new=AsyncMock(return_value=GoalVerdict(passed=False, reason="not yet")),
+                new=AsyncMock(
+                    return_value=GoalVerdict(
+                        passed=False, reason="not yet", nextAction="continue implementation"
+                    )
+                ),
             ):
                 ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
 
@@ -381,7 +487,7 @@ class TestMaybeRunGoalVerifier:
 
 
 class TestMaybeResetGoalOnNewTurn:
-    """Tests for Controller._maybe_reset_goal_on_new_turn.
+    """Tests for TurnPolicy._maybe_reset_goal_on_new_turn.
 
     A fresh conversation turn should normalize a stale goal left over from a
     previous turn: "complete" goals are dropped entirely, "blocked" goals are
@@ -472,7 +578,7 @@ class TestMaybeResetGoalOnNewTurn:
             session = _make_session()
             goal = Goal.create("ship it")
             goal.status = "blocked"
-            goal.consecutive_failures = GOAL_MAX_CONSECUTIVE_FAILURES
+            goal.consecutive_failures = GOAL_MAX_TURNS
             fake_cache, context = _context_cache_with("/ws", goal)
 
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
@@ -501,7 +607,7 @@ class TestMaybeResetGoalOnNewTurn:
             session = _make_session()
             goal = Goal.create("ship it")
             goal.status = "blocked"
-            goal.consecutive_failures = GOAL_MAX_CONSECUTIVE_FAILURES
+            goal.consecutive_failures = GOAL_MAX_TURNS
             goal.reminder_injected = True  # was already reminded before blocking
             fake_cache, context = _context_cache_with("/ws", goal)
 
@@ -511,5 +617,30 @@ class TestMaybeResetGoalOnNewTurn:
             assert goal.reminder_injected is False
             persisted = goal_storage.load_goal(session_dir)
             assert persisted.reminder_injected is False
+
+    def test_blocked_goal_stays_blocked_on_internal_continuation(self):
+        ctrl = _make_controller()
+        turn = _make_turn()
+        with tempfile.TemporaryDirectory() as d:
+            session_dir = Path(d)
+            session = _make_session()
+            goal = Goal.create("stop automatically retrying")
+            goal.status = "blocked"
+            goal.consecutive_failures = GOAL_MAX_TURNS
+            goal.reminder_injected = True
+            goal_storage.save_goal(session_dir, goal)
+            fake_cache, context = _context_cache_with("/ws", goal)
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
+                ctrl._maybe_reset_goal_on_new_turn(
+                    turn, session, session_dir, user_initiated=False,
+                )
+
+            assert context.goal is goal
+            assert goal.status == "blocked"
+            assert goal.consecutive_failures == GOAL_MAX_TURNS
+            assert goal.reminder_injected is True
+            assert goal_storage.load_goal(session_dir).status == "blocked"
+            assert ctrl._acp_notifications == []
 
 

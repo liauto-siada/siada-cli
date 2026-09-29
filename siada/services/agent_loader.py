@@ -96,7 +96,7 @@ def import_agent_class(class_path: str) -> Type[Agent]:
     Dynamically import Agent class
 
     Args:
-        class_path: Complete import path of Agent class, e.g. 'siada.agent_hub.coder.bug_fix_agent.BugFixAgent'
+        class_path: Complete import path of Agent class, e.g. 'siada.agent_hub.coder.code_gen_agent.CodeGenAgent'
 
     Returns:
         Type[Agent]: Agent class

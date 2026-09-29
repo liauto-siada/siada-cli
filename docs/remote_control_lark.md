@@ -154,8 +154,8 @@ lark:
   # Context injection (optional)
   context:
     # Whether to inject conversation metadata (sender_name, sender_user_id, etc.) into user messages
-    # When enabled, Agent can identify senders — useful for multi-user shared bot scenarios
-    # sender_name requires contact:contact.base:readonly
+    # Enabled by default; Agent can identify senders — useful for multi-user shared bot scenarios
+    # Set to false to disable. sender_name requires contact:contact.base:readonly
     # user_id requires contact:user.employee_id:readonly
     # include_conversation_info: true
 
@@ -227,7 +227,7 @@ lark:
 | `lark.direct.domain` | ❌ | `lark` | `feishu` (China Feishu) or `lark` (international Lark), or custom domain |
 | `lark.direct.http_timeout_ms` | ❌ | `30000` | HTTP API request timeout (ms) |
 | `lark.direct.resolve_sender_names` | ❌ | `true` | Whether to resolve sender names via API |
-| `lark.context.include_conversation_info` | ❌ | `false` | Inject conversation metadata (sender_name, sender_user_id, etc.) into user messages for multi-user bot scenarios |
+| `lark.context.include_conversation_info` | ❌ | `true` | Inject conversation metadata (sender_name, sender_user_id, etc.) into user messages for multi-user bot scenarios |
 | `lark.access.dm_policy` | ❌ | `allowlist` | DM access policy: `open` or `allowlist` |
 | `lark.access.allow_from` | ❌ | `[]` | DM allowlisted user IDs (open_id format) |
 | `lark.access.group_policy` | ❌ | `allowlist` | Group chat access policy: `open`, `allowlist`, or `disabled` |

@@ -1,0 +1,25 @@
+{
+  "structure": {
+    "tree": "user-agents/",
+    "file_count": 0,
+    "directory_count": 351,
+    "total_size": 0,
+    "total_size_formatted": "0.0 B",
+    "languages": {}
+  },
+  "readme": {
+    "content": "# Siada CLI\n\n**[简体中文](./docs/zh-CN/README_zh.md) | English**\n\n![Siada CLI Screenshot](./docs/assets/siada-cli-screenshot.png)\n\nThis repository contains Siada CLI, a command-line AI workflow tool that provides specialized intelligent agents for code development, debugging, and automation tasks.\n\nWith Siada CLI you can:\n\n- Fix bugs in large codebases through intelligent analysis and automated solutions.\n- Generate new applications and components using specialized frontend and backend agents.\n- Automate development workflows through intelligent code generation and testing.\n- Execute system commands and interact with development environments.\n- Seamlessly support multiple programming languages and frameworks.\n\n## Installation/Update\n\n### System Requirements\n- MAC, Linux\n- GCC 11+\n- uv\n\n### Installation\n\n1. Install uv\n   ```bash\n   curl -LsSf https://astral.sh/uv/install.sh | sh\n   ```\n2. Install siada-cli\n   ```bash\n   uv tool install --force --python python3.12 --compile --with pip siada-cli@latest\n   ```\n   If the siada-cli directory is not present on the PATH, run the follow command to update the shell\n   ```bash\n   uv tool update-shell\n   ```\n### Update\n   ```bash\n   uv tool upgrade siada-cli\n   ```\n### Uninstall\n   ```bash\n   uv tool uninstall siada-cli\n   ```\n\n## Installation (Developer Mode)\n\n1. **Prerequisites:** Ensure you have [Python 3.12](https://www.python.org/downloads/) or higher and [Poetry](https://python-poetry.org/docs/#installation) installed.\n\n2. **Clone and Install:**\n   ```bash\n   git clone https://github.com/your-org/siada-agenthub.git\n   cd siada-agenthub\n   poetry install\n   ```\n\n3. **Run CLI:**\n   ```bash\n   # Method 1: Run with Poetry\n   poetry run siada-cli\n   \n   # Method 2: Activate virtual environment then use (recommended)\n   source $(poetry env info --path)/bin/activate\n   siada-cli\n   ```\n\n## User Guide\n\nFor detailed usage instructions and advanced features, please refer to our [User Manual](docs/USERMANUAL.md), which includes:\n\n- Detailed configuration instructions\n- Usage modes and command-line options\n- Slash command usage guide\n- Agent type explanations\n- Practical usage examples\n- Troubleshooting guide\n\n\n\n## Contributing\n\nWe welcome contributions to Siada CLI! Whether you want to fix bugs, add new features, improve documentation, or suggest enhancements, your contributions are greatly appreciated.\n\nTo get started with contributing, please read our [Contributing Guide](./docs/CONTRIBUTING.md) which includes:\n\n- Our project vision and development goals\n- Project directory structure and development guidelines\n- Pull request guidelines and best practices\n- Code organization principles\n\nBefore submitting any changes, please make sure to check our issue tracker and follow the contribution workflow outlined in the guide.\n\n## Acknowledgements\n\nSiada CLI is built upon the foundation of numerous open source projects, and we extend our deepest respect and gratitude to their contributors.\n\nSpecial thanks to the [OpenAI Agent SDK](https://github.com/openai/openai-agent-sdk) for providing the foundational framework that powers our intelligent agent capabilities.\n\nFor a complete list of open source projects and licenses used in Siada CLI, please see our [CREDITS.md](./docs/CREDITS.md) file.\n\n## License\n\nDistributed under the MIT License. See [`LICENSE`](LICENSE) for more information.\n\n## DISCLAIMERS\nSee [disclaimers.md](./disclaimers.md)\n\n----\n<div align=\"center\">\nBuilt with ❤️ by Li Auto Code Intelligence Team and the open source community\n</div>\n",
+    "path": "/Users/caoxin/mycli/projects/siada-agenthub/.worktrees/user-agents/README.md",
+    "encoding": "utf-8"
+  },
+  "metadata": {
+    "repo_path": "/Users/caoxin/mycli/projects/siada-agenthub/.worktrees/user-agents",
+    "has_readme": true,
+    "budget_used": true,
+    "total_size": 4080,
+    "total_size_formatted": "4.0 KB",
+    "structure_truncated": false,
+    "structure_depth_used": 10,
+    "readme_truncated": false
+  }
+}

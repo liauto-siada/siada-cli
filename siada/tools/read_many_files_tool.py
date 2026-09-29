@@ -128,8 +128,10 @@ class ReadManyFilesTool:
             
             # 9. Add tree structure to content if files were found
             if tree_structure and content_parts != None:
-                # Prepend tree structure to the content
-                tree_content = f"=== File Structure ===\n{tree_structure}\n\n=== File Contents ===\n"
+                # Prepend tree structure to the content. No "=== File Contents ==="
+                # header: process_files_without_read_content deliberately reads no
+                # contents, so the header would always sit above an empty section.
+                tree_content = f"=== File Structure ===\n{tree_structure}\n"
                 content_parts.insert(0, tree_content)
             
             # 9. Update processing time

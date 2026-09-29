@@ -19,17 +19,11 @@ agents:
 
 ## Currently Supported Agents
 
-### BugFixAgent
-- **Name**: `bugfix`
-- **Class Path**: `siada.agent_hub.coder.bug_fix_agent.BugFixAgent`
-- **Description**: Specialized agent for code bug fixing
-- **Status**: Enabled
-
-### CoderAgent (Planned)
+### CodeGenAgent
 - **Name**: `coder`
-- **Class Path**: Not implemented yet
-- **Description**: General-purpose code development agent
-- **Status**: Disabled
+- **Class Path**: `siada.agent_hub.coder.code_gen_agent.CodeGenAgent`
+- **Description**: General-purpose code development agent (bug fixing, feature development, frontend tasks, etc.)
+- **Status**: Enabled
 
 ## Usage
 
@@ -38,13 +32,13 @@ agents:
 ```python
 from siada.services.siada_runner import SiadaRunner
 
-# Get BugFixAgent instance
-agent = await SiadaRunner.get_agent("bugfix")
+# Get CodeGenAgent instance
+agent = await SiadaRunner.get_agent("coder")
 
 # Supports multiple name formats
-agent = await SiadaRunner.get_agent("BugFix")    # Uppercase
-agent = await SiadaRunner.get_agent("bug_fix")   # Underscore
-agent = await SiadaRunner.get_agent("bug-fix")   # Hyphen
+agent = await SiadaRunner.get_agent("Coder")    # Uppercase
+agent = await SiadaRunner.get_agent("co_der")   # Underscore
+agent = await SiadaRunner.get_agent("co-der")   # Hyphen
 ```
 
 ### Error Handling
@@ -82,9 +76,9 @@ class NewAgent(Agent):
 2. Update `agent_config.yaml`:
 ```yaml
 agents:
-  bugfix:
-    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
-    description: "Specialized agent for code bug fixing"
+  coder:
+    class: "siada.agent_hub.coder.code_gen_agent.CodeGenAgent"
+    description: "General-purpose code development agent"
     enabled: true
   
   # New agent

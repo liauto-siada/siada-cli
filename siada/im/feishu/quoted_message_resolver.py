@@ -231,23 +231,23 @@ def parse_message_content(msg_type: str, content_json: str) -> str:
         return _parse_interactive_content(content)
 
     if msg_type == "image":
-        return "[图片]"
+        return "[Image]"
 
     if msg_type in ("file", "media"):
         file_name = content.get("file_name", "")
-        return f"[文件: {file_name}]" if file_name else "[文件]"
+        return f"[File: {file_name}]" if file_name else "[File]"
 
     if msg_type == "audio":
-        return "[语音消息]"
+        return "[Voice message]"
 
     if msg_type == "video":
-        return "[视频]"
+        return "[Video]"
 
     if msg_type == "sticker":
-        return "[表情包]"
+        return "[Sticker]"
 
     if msg_type in ("share_chat", "share_user"):
-        return "[分享卡片]"
+        return "[Share card]"
 
     if msg_type in ("system", "merge_forward"):
         return ""
@@ -303,13 +303,13 @@ def _parse_post_content(content: dict) -> str:
                 href = element.get("href", "")
                 line_parts.append(f"{text}({href})" if href else text)
             elif tag == "at":
-                line_parts.append(f"@{element.get('user_name', '用户')}")
+                line_parts.append(f"@{element.get('user_name', 'User')}")
             elif tag == "img":
-                line_parts.append("[图片]")
+                line_parts.append("[Image]")
             elif tag == "media":
-                line_parts.append("[媒体]")
+                line_parts.append("[Media]")
             elif tag == "emotion":
-                line_parts.append(f"[{element.get('emoji_type', '表情')}]")
+                line_parts.append(f"[{element.get('emoji_type', 'Emoji')}]")
         if line_parts:
             parts.append("".join(line_parts))
 
@@ -401,13 +401,13 @@ def _parse_interactive_content(content: dict) -> str:
     body_text = "\n".join(body_parts)
 
     if title and body_text:
-        result = f"[卡片: {title}] {body_text}"
+        result = f"[Card: {title}] {body_text}"
     elif title:
-        result = f"[卡片: {title}]"
+        result = f"[Card: {title}]"
     elif body_text:
-        result = f"[卡片] {body_text}"
+        result = f"[Card] {body_text}"
     else:
-        result = "[互动卡片]"
+        result = "[Interactive card]"
 
     # Temporary log for parsed result
     logger.info("Parsed interactive card content result: %s", result)

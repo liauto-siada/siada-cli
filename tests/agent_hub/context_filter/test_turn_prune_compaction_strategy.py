@@ -262,6 +262,24 @@ class TestTruncateToolResults:
 # ── Test: _extract_tool_use_ids / _extract_tool_result_ids ──────────
 
 class TestExtractIds:
+    def test_native_apply_patch_call_and_output_are_compaction_tool_pair(self):
+        patch_call = {
+            "type": "apply_patch_call",
+            "call_id": "patch_native_1",
+            "operation": {"type": "create_file", "path": "new.py", "diff": "+x\n"},
+        }
+        patch_output = {
+            "type": "apply_patch_call_output",
+            "call_id": "patch_native_1",
+            "status": "completed",
+            "output": "Created new.py",
+        }
+
+        assert TurnPruneSummaryCompaction.is_assistant_message(patch_call)
+        assert TurnPruneSummaryCompaction.is_function_response(patch_output)
+        assert TurnPruneSummaryCompaction._extract_tool_use_ids(patch_call) == {"patch_native_1"}
+        assert TurnPruneSummaryCompaction._extract_tool_result_ids(patch_output) == {"patch_native_1"}
+
     def test_extract_tool_use_ids_dict_function_call(self):
         """function_call item is a top-level message with call_id."""
         msg = {"type": "function_call", "call_id": "abc", "name": "test"}
@@ -390,6 +408,53 @@ class TestSplitRecentTurns:
         assert len(recent) > 0
         # to_summarize should end with a tool_result (complete pair)
         assert to_summarize[-1]["_type"] == "tool_result"
+
+    def test_parallel_tool_calls_are_kept_as_one_boundary_group(self, strategy):
+        """A split must not land between outputs from one parallel tool batch."""
+        messages = [
+            _user_msg("task"),
+            _output_msg("ack"),
+        ]
+        for index in range(5):
+            call_id = f"earlier_{index}"
+            messages.extend([
+                _assistant_msg([call_id]),
+                _tool_result_msg(call_id),
+            ])
+
+        messages.extend([
+            _assistant_msg(["parallel_a"]),
+            _assistant_msg(["parallel_b"]),
+            _assistant_msg(["parallel_c"]),
+            _assistant_msg(["parallel_d"]),
+            _tool_result_msg("parallel_a"),
+            _tool_result_msg("parallel_b"),
+            _tool_result_msg("parallel_c"),
+            _tool_result_msg("parallel_d"),
+        ])
+        for index in range(5):
+            call_id = f"later_{index}"
+            messages.extend([
+                _assistant_msg([call_id]),
+                _tool_result_msg(call_id),
+            ])
+
+        recent, to_summarize = strategy._split_recent_turns(messages)
+
+        for segment in (recent, to_summarize):
+            call_ids = {
+                message.get("call_id")
+                for message in segment
+                if message.get("type") == "function_call"
+            }
+            result_ids = {
+                message.get("call_id")
+                for message in segment
+                if message.get("_type") == "tool_result"
+            }
+            assert call_ids == result_ids
+
+        assert recent[0].get("call_id") == "parallel_a"
 
     def test_splits_at_user_boundary(self, strategy):
         """With enough user turns + tool pairs, split can land on a user boundary."""

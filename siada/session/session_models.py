@@ -62,6 +62,20 @@ class SessionState:
     # Actual type is Optional[Goal]; typed as Any to avoid circular imports.
     pending_goal: Optional[Any] = field(default=None)
 
+    # Skill names staged by a slash command and consumed by the next agent run.
+    pending_skill_names: List[str] = field(default_factory=list)
+
+    # Staged by ResumeService.restore_to_running_session after scanning
+    # <session>/subagents/index.json for entries still "running" (i.e. the
+    # main agent process ended abnormally mid-run and never got a chance to
+    # mark them completed/failed). Consumed once by
+    # SiadaRunner._prepare_context_for_run into
+    # context.hook_pending_contexts, so the note surfaces as a system
+    # message before the next real LLM call — only relevant when
+    # sub_agent.allow_recursive_subagents is enabled (subagent_persistence
+    # writes index.json only in that mode).
+    pending_subagent_resume_note: Optional[str] = field(default=None)
+
     usage: Optional[Any] = None  # runtime type: agents.usage.Usage; Any avoids heavy import at module level
     
     # UI components (injected dependencies)  

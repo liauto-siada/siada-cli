@@ -14,6 +14,7 @@ Used by:
 """
 from __future__ import annotations
 
+import re
 from typing import Any, AsyncIterator
 
 from agents import AgentOutputSchemaBase
@@ -39,17 +40,26 @@ from siada.provider.responses.sanitize import (
 from siada.provider.responses.transport import ResponsesTransport
 
 
+_GPT_MAIN_VERSION_PATTERN = re.compile(r"gpt-?(\d+)")
+
+
+def _gpt_main_version(model_name: str | None) -> int | None:
+    """The GPT main generation number (``gpt-5.1`` -> 5, ``gpt-6`` -> 6), or None."""
+    if not model_name:
+        return None
+    match = _GPT_MAIN_VERSION_PATTERN.search(str(model_name).lower())
+    return int(match.group(1)) if match else None
+
+
 def is_responses_only_model(model_name: str | None) -> bool:
     """Whether the model must go through the native Responses API.
 
-    Currently the GPT-5 family (gpt-5, gpt-5.1, gpt-5.4, gpt-5-codex, ...).
-    Providers use this to route between their Chat Completions path and
-    ``ResponsesModel``.
+    GPT-5 and every newer GPT generation (gpt-5, gpt-5.1, gpt-6,
+    gpt-6-codex, ...) speak the Responses API only. Providers use this to
+    route between their Chat Completions path and ``ResponsesModel``.
     """
-    if not model_name:
-        return False
-    name = str(model_name).lower()
-    return "gpt-5" in name or "gpt5" in name
+    version = _gpt_main_version(model_name)
+    return version is not None and version >= 5
 
 
 def _normalize_reasoning(
@@ -77,7 +87,11 @@ def _normalize_reasoning(
             normalized["summary"] = normalized.pop("generate_summary")
         if normalized.get("effort") is None and reasoning_effort is not None:
             normalized["effort"] = reasoning_effort
-        if normalized.get("effort") is not None and "summary" not in normalized:
+        if normalized.get("effort") == "none":
+            # effort="none" fully disables reasoning; requesting a reasoning
+            # summary alongside it is rejected by the Responses API.
+            normalized.pop("summary", None)
+        elif normalized.get("effort") is not None and "summary" not in normalized:
             normalized["summary"] = "auto"
         return normalized or None
 
@@ -87,7 +101,9 @@ def _normalize_reasoning(
     normalized: dict[str, Any] = {}
     if effort is not None:
         normalized["effort"] = effort
-        normalized["summary"] = "auto"
+        if effort != "none":
+            # No summary alongside effort="none" (reasoning is fully off).
+            normalized["summary"] = "auto"
     if max_tokens is not None:
         normalized["max_tokens"] = max_tokens
 
@@ -109,6 +125,11 @@ class ResponsesModel(Model):
     Environment concerns (auth, base URL routing, tracing headers) are
     delegated to the injected ``transport``.
     """
+
+    # Marker read by ``ModelWrapper`` (siada/services/model_wrapper.py): the
+    # native Responses protocol carries ``apply_patch_call`` items as-is, so
+    # input normalization to chat-completions proxies must be skipped here.
+    supports_native_responses_items: bool = True
 
     def __init__(self, model: str, transport: ResponsesTransport):
         super().__init__()
@@ -135,8 +156,9 @@ class ResponsesModel(Model):
         if not model_name:
             return False
         name = model_name.lower()
-        # GPT-5 family (gpt-5, gpt-5.1, gpt-5.2, gpt-5.4, gpt-5-codex, ...)
-        if "gpt-5" in name:
+        # GPT-5 and every newer GPT generation
+        version = _gpt_main_version(name)
+        if version is not None and version >= 5:
             return True
         # o-series reasoning models (o1, o3, o4-mini, ...)
         if name.startswith("o1") or name.startswith("o3") or name.startswith("o4"):
@@ -169,8 +191,28 @@ class ResponsesModel(Model):
 
         if converted:
             request_params["tools"] = sanitize_responses_tools_for_openai(converted.tools)
-            if converted.includes:
-                request_params["include"] = converted.includes
+
+        # Ask for the opaque encrypted reasoning tokens.  They are what carries
+        # the model's reasoning state across turns, and
+        # ``sanitize_input_reasoning_items`` replays them verbatim on the next
+        # request.  Gate it on the same reasoning-capable families that govern
+        # the ``reasoning`` parameter: sending reasoning-specific fields to a
+        # non-reasoning model errors out.  Tool-derived includes are merged
+        # rather than overwritten.
+        #
+        # This is the single assembly point for the Responses protocol, so both
+        # provider channels pick it up: the default provider
+        # (``default_provider.py`` -> ``DefaultResponsesTransport``) and the li
+        # provider (``li_provider.py`` -> ``LiProxyResponsesTransport``) only
+        # differ in the transport that sends the finished params.  Chat
+        # completions wires never reach this method and stay untouched.
+        include_set: set[str] = (
+            set(converted.includes) if converted and converted.includes else set()
+        )
+        if self._should_default_reasoning(self.model) or model_settings.reasoning is not None:
+            include_set.add("reasoning.encrypted_content")
+        if include_set:
+            request_params["include"] = sorted(include_set)
 
         text_config = OpenAIResponsesConverter.get_response_format(output_schema)
         if text_config is not omit:
@@ -696,15 +738,24 @@ class ResponsesModel(Model):
 
         # Extract cached tokens if available
         cached_tokens = 0
+        cache_write_tokens = 0
         if hasattr(usage_data, "input_tokens_details"):
             details = usage_data.input_tokens_details
             if hasattr(details, "cached_tokens"):
                 cached_tokens = details.cached_tokens or 0
+            # ``cache_write_tokens`` is a required field on
+            # ``InputTokensDetails`` (openai>=3); not every Responses route
+            # reports it, so default to 0 when absent.
+            if hasattr(details, "cache_write_tokens"):
+                cache_write_tokens = details.cache_write_tokens or 0
 
         return Usage(
             requests=1,
             input_tokens=usage_data.input_tokens - cached_tokens,
             output_tokens=usage_data.output_tokens,
             total_tokens=usage_data.total_tokens,
-            input_tokens_details=InputTokensDetails(cached_tokens=cached_tokens),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=cached_tokens,
+                cache_write_tokens=cache_write_tokens,
+            ),
         )

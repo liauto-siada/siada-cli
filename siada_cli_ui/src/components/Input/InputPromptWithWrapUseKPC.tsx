@@ -31,11 +31,13 @@
  *
  * Commands:
  *   /editor, /edit Open editor-selection dialog
+ *   /export, /export <filename> Export conversation to a .txt file
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Box, Text, useStdout } from '@jrichman/ink';
 import { githubTheme } from './theme.js';
+import { useThemeVersion } from '../../themes/index.js';
 import chalk from 'chalk';
 import { useCommandCompletion } from '../../hooks/useCommandCompletion.js';
 import { SuggestionsDisplay } from '../AutoComplete/SuggestionsDisplay.js';
@@ -58,10 +60,11 @@ import { logger } from '../../utils/logger.js';
 import { Message } from '../../types/index.js';
 import { useKeypress, type Key } from '../../hooks/useKeypress.js';
 import { cpLen, cpSlice } from './textUtils.js';
-import { INFORMATIVE_TIPS } from '../../constants/phrases.js';
 import { getImageFromClipboard, getTextFromClipboard, copyTextToClipboard } from '../../utils/clipboard.js';
 import { promptQueueStore } from '../../store/promptQueueStore.js';
+import { inputRestoreStore } from '../../store/inputRestoreStore.js';
 import { TodoDisplay } from '../Todo/TodoDisplay.js';
+import { SubAgentDisplay } from '../SubAgent/SubAgentDisplay.js';
 import { slashCommandService } from '../../services/slashCommandService.js';
 
 /** Matches a fully-typed slash command name with no argument yet, e.g.
@@ -115,6 +118,8 @@ export interface InputPromptWithWrapUseKPCProps {
   onSubmit: (value: string, imagePaths?: string[]) => void;
   onAddMessage?: (message: Message) => void;
   onUpdateMessage?: (id: string, updates: Partial<Message>) => void;
+  /** Export the current conversation to a .txt file (/export command). */
+  onExport?: (filename: string) => void;
   placeholder?: string;
   disabled?: boolean;
   /**
@@ -150,9 +155,13 @@ export interface InputPromptWithWrapUseKPCProps {
     message: string;
   };
   model?: string; // Current model name
+  reasoningEffort?: string; // Current reasoning effort level, shown next to model
+  thinkingEnabled?: boolean | null; // Whether thinking is explicitly OFF via /thinking off
   quotaUsage?: string | null;
   todoItems?: import('../../hooks/useAcp/types.js').TodoItem[];
   onTodoSelect?: (content: string) => void;
+  subAgentItems?: import('../../hooks/useAcp/types.js').SubAgentItem[];
+  onSubAgentSelect?: (id: string) => void;
   cacheStatus?: import('../../hooks/useAcp/types.js').CacheStatusData | null;
   workingDir?: string;
 }
@@ -161,6 +170,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   onSubmit,
   onAddMessage,
   onUpdateMessage,
+  onExport,
   placeholder = 'Type your message, /command, or @path/to/file ...',
   disabled = false,
   disabledMessage = 'Waiting for response...',
@@ -176,12 +186,17 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   tokenUsage,
 
   model,
+  reasoningEffort,
+  thinkingEnabled,
   quotaUsage = null,
   todoItems = [],
   onTodoSelect,
+  subAgentItems = [],
+  onSubAgentSelect,
   cacheStatus = null,
   workingDir,
 }) => {
+  useThemeVersion(); // repaint on theme change (memo blocks prop-driven re-renders)
   const CursorAwareText = Text as React.FC<React.ComponentProps<typeof Text> & {
     terminalCursorFocus?: boolean;
     terminalCursorPosition?: number;
@@ -189,23 +204,18 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   const { stdout } = useStdout();
   const terminalWidth = width ?? stdout?.columns ?? 80;
 
-  const randomTip = useMemo(
-    () => INFORMATIVE_TIPS[Math.floor(Math.random() * INFORMATIVE_TIPS.length)],
-    [],
-  );
-
   const editorDialog = useEditorDialog();
   const statusBarDialog = useStatusBarDialog();
 
-  // ---- 状态栏辅助函数 ----
+  // ---- Status bar helpers ----
 
-  // 格式化成本金额
+  // Format a cost amount
   const formatCost = (cny: number): string => `¥${cny.toFixed(4)}`;
 
-  // 格式化 token 数量（千分位）
+  // Format a token count (thousands separators)
   const formatTokenCount = (count: number): string => count.toLocaleString('en-US');
 
-  // 格式化耗时
+  // Format a duration
   const formatDuration = (seconds: number): string => {
     if (seconds < 60) return `${seconds.toFixed(1)}s`;
     const m = Math.floor(seconds / 60);
@@ -213,13 +223,13 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     return `${m}m${s}s`;
   };
 
-  // 缩写 workspace 路径（用 ~ 替换 home）
+  // Abbreviate a workspace path (~ replaces home)
   const formatWorkspace = (dir: string): string => {
     const home = homedir();
     return dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir;
   };
 
-  // 获取 git 分支
+  // Get the git branch
   const getGitBranch = (dir: string): string | null => {
     try {
       const result = execSync('git branch --show-current', {
@@ -233,20 +243,19 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     }
   };
 
-  // git branch 用 useMemo 缓存
+  // Cache the git branch with useMemo
   const gitBranch = useMemo(() => {
     if (!workingDir) return null;
     return getGitBranch(workingDir);
   }, [workingDir]);
 
-  // 构建可见的状态栏项列表——保持原本白色单色，按逻辑分组用 │ 分割线区分，
-  // 组内仍用双空格连接。分组：① model/balance ② 5 项成本 ③ hit_rate/cost_time ④ git/workspace
+  // Build the visible status-bar item list — monochrome, logical groups divided by
+  // │ and items joined by two spaces. Groups: ① model/balance ② 5 cost items ③ hit_rate/cost_time ④ git/workspace
   //
-  // 3 档自适应伸缩：宽度不够时按优先级逐组丢弃（① ④ 优先保留）：
-  //   档1（完整）：全部分组
-  //   档2：丢弃 ② 5 项成本明细 (in/out/cw/cr/cost)
-  //   档3：再丢弃 ③ hit_rate/cost_time
-  const STATUS_BAR_COLOR = 'white';
+  // 3-tier adaptive shrink: on overflow drop whole groups by priority (① ④ kept first):
+  //   Tier 1 (full): all groups
+  //   Tier 2: drop ②'s 5 cost details (in/out/cw/cr/cost)
+  //   Tier 3: also drop ③ hit_rate/cost_time
   const GROUP_SEPARATOR = '  │  ';
   const ITEM_SEPARATOR = '  ';
 
@@ -273,7 +282,16 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       }
     };
 
-    addIfVisible('model', model ? `${model}` : null, 1);
+    // Status-bar model segment reflects the thinking state:
+    //   - thinking explicitly OFF (/thinking off) → "model(thinking off)"
+    //   - thinking on → the effort level when the model exposes one, e.g.
+    //     "baidu-deepseek-v4-flash-0731(low)"; otherwise just the model name.
+    const modelText = model
+      ? (thinkingEnabled === false
+          ? `${model}(thinking off)`
+          : (reasoningEffort ? `${model}(${reasoningEffort})` : model))
+      : null;
+    addIfVisible('model', modelText, 1);
     addIfVisible('balance', (quotaUsage !== null && quotaUsage !== undefined) ? `Balance: ${quotaUsage}` : null, 1);
     addIfVisible('input_cost', cs ? `in:${formatCost(cs.accumulated_input_cost)}(${formatTokenCount(cs.accumulated_input)})` : null, 2);
     addIfVisible('output_cost', cs ? `out:${formatCost(cs.accumulated_output_cost)}(${formatTokenCount(cs.accumulated_output)})` : null, 2);
@@ -285,24 +303,24 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     addIfVisible('git_branch', gitBranch ? `⎇ ${gitBranch}` : null, 4);
     addIfVisible('workspace', workingDir ? formatWorkspace(workingDir) : null, 4);
 
-    // token_usage 单独处理（放在右侧）
+    // token_usage is handled separately (rendered on the right)
     const rightText = visibleKeys.includes('token_usage') && tu?.message ? tu.message : null;
 
-    // 可用宽度：终端宽度减去左右 padding(各1) 和右侧文本占位
+    // Available width: terminal width minus padding (1 per side) and right text
     const available = Math.max(terminalWidth - 2 - (rightText ? rightText.length + 2 : 0), 0);
 
     let segments = parts;
     if (measureWidth(segments) > available) {
-      // 档2：丢弃 4 项成本明细 (in/out/cw/cr)，保留 cost 汇总
+      // Tier 2: drop the 4 cost details (in/out/cw/cr), keep the cost total
       segments = segments.filter((seg) => seg.group !== 2 || seg.key === 'total_cost');
     }
     if (measureWidth(segments) > available) {
-      // 档3：再丢弃 hit_rate/cost_time (group 3)
+      // Tier 3: also drop hit_rate/cost_time (group 3)
       segments = segments.filter((seg) => seg.group !== 3);
     }
 
     return { segments, right: rightText };
-  }, [model, quotaUsage, cacheStatus, tokenUsage, gitBranch, workingDir, statusBarDialog.visibleItems, terminalWidth]);
+  }, [model, reasoningEffort, thinkingEnabled, quotaUsage, cacheStatus, tokenUsage, gitBranch, workingDir, statusBarDialog.visibleItems, terminalWidth]);
 
   const FRAME_PADDING_AND_BORDER = 4;
   const PROMPT_PREFIX_WIDTH = 2;
@@ -319,7 +337,21 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     width: viewportWidth,
     height: maxLines,
   });
-  
+
+  // Restore text handed back by the backend (reason 'restore_input') into the
+  // input box — user input interrupted by Ctrl+C before being persisted would
+  // otherwise be lost. One-shot: consume() clears the store once applied.
+  useEffect(() => {
+    const apply = () => {
+      const text = inputRestoreStore.consume();
+      if (text) {
+        buffer.setText(text);
+      }
+    };
+    apply(); // drain anything requested before this component mounted
+    return inputRestoreStore.subscribe(apply);
+  }, [buffer]);
+
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [tempInput, setTempInput] = useState('');
   const historyRef = useRef<string[]>([]);
@@ -334,6 +366,8 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   // Todo panel state
   const [todoFocused, setTodoFocused] = useState(false);
   const [todoActiveIndex, setTodoActiveIndex] = useState(0);
+  const [subAgentFocused, setSubAgentFocused] = useState(false);
+  const [subAgentActiveIndex, setSubAgentActiveIndex] = useState(0);
 
   const appState = useAppState();
   const dispatch = useAppDispatch();
@@ -518,6 +552,13 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       return;
     }
 
+    if (trimmed === '/export' || trimmed.startsWith('/export ')) {
+      const filename = trimmed.slice('/export'.length).trim();
+      buffer.clear();
+      onExport?.(filename);
+      return;
+    }
+
     const currentShellMode = shellModeRef.current;
     const isOneTimeCommand = trimmed.startsWith('!');
     const isShellCommand = currentShellMode || isOneTimeCommand;
@@ -630,6 +671,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     addToShellHistory,
     dispatch,
     onSubmit,
+    onExport,
     resetShellHistoryIndex,
     editorDialog.openDialog,
     statusBarDialog.openDialog,
@@ -643,11 +685,20 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     if (editorDialog.isOpen || statusBarDialog.isOpen) return;
     if (disabled || !focus) return;
 
-    // Todo panel keyboard routing
-    if (todoItems.length > 0) {
-      // Tab with empty input: toggle todo focus
+    // Todo / SubAgent panel keyboard routing.
+    // Tab (empty input, no suggestions) cycles focus: input → todos → subAgents → input.
+    if (todoItems.length > 0 || subAgentItems.length > 0) {
       if (key.name === 'tab' && buffer.text.trim() === '' && !showSuggestions) {
-        setTodoFocused(f => !f);
+        if (todoFocused) {
+          setTodoFocused(false);
+          if (subAgentItems.length > 0) setSubAgentFocused(true);
+        } else if (subAgentFocused) {
+          setSubAgentFocused(false);
+        } else if (todoItems.length > 0) {
+          setTodoFocused(true);
+        } else {
+          setSubAgentFocused(true);
+        }
         return;
       }
       if (todoFocused) {
@@ -669,6 +720,28 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
         }
         if (key.name === 'escape') {
           setTodoFocused(false);
+          return;
+        }
+      }
+      if (subAgentFocused) {
+        if (key.name === 'up') {
+          setSubAgentActiveIndex(i => Math.max(0, i - 1));
+          return;
+        }
+        if (key.name === 'down') {
+          setSubAgentActiveIndex(i => Math.min(subAgentItems.length - 1, i + 1));
+          return;
+        }
+        if (key.name === 'return' || key.name === 'enter') {
+          const item = subAgentItems[subAgentActiveIndex];
+          if (item) {
+            setSubAgentFocused(false);
+            onSubAgentSelect?.(item.id);
+          }
+          return;
+        }
+        if (key.name === 'escape') {
+          setSubAgentFocused(false);
           return;
         }
       }
@@ -898,7 +971,8 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
             return;
           }
           // No image — fall back to reading text from clipboard
-          const text = await getTextFromClipboard();
+          // Normalize line endings so multi-line clipboard text keeps its structure
+          const text = (await getTextFromClipboard())?.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
           logger.info('[InputPromptWithWrapUseKPC] getTextFromClipboard result', { length: text?.length ?? 0 });
           if (text) {
             const numLines = text.split('\n').length;
@@ -1036,7 +1110,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
           <Box marginTop={0} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between">
             <Text>
               {statusBarParts.segments.map((seg, idx) => (
-                <Text key={seg.key} color={STATUS_BAR_COLOR}>
+                <Text key={seg.key}>
                   {idx > 0 && (seg.group !== statusBarParts.segments[idx - 1].group ? '  │  ' : '  ')}
                   {seg.text}
                 </Text>
@@ -1062,6 +1136,17 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
                 if (item) { setTodoFocused(false); onTodoSelect?.(item.content); }
               }}
               onClose={() => setTodoFocused(false)}
+            />
+          </Box>
+        )}
+
+        {/* Sub agent display — shown below todo display when sub agents exist */}
+        {!editorDialog.isOpen && subAgentItems.length > 0 && (
+          <Box marginTop={0}>
+            <SubAgentDisplay
+              items={subAgentItems}
+              activeIndex={subAgentFocused ? subAgentActiveIndex : -1}
+              width={terminalWidth}
             />
           </Box>
         )}
@@ -1209,7 +1294,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
         <Box marginTop={0} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between">
           <Text>
             {statusBarParts.segments.map((seg, idx) => (
-              <Text key={seg.key} color={STATUS_BAR_COLOR}>
+              <Text key={seg.key}>
                 {idx > 0 && (seg.group !== statusBarParts.segments[idx - 1].group ? '  │  ' : '  ')}
                 {seg.text}
               </Text>
@@ -1235,6 +1320,17 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
               if (item) { setTodoFocused(false); onTodoSelect?.(item.content); }
             }}
             onClose={() => setTodoFocused(false)}
+          />
+        </Box>
+      )}
+
+      {/* Sub agent display */}
+      {!editorDialog.isOpen && subAgentItems.length > 0 && (
+        <Box marginTop={0}>
+          <SubAgentDisplay
+            items={subAgentItems}
+            activeIndex={subAgentFocused ? subAgentActiveIndex : -1}
+            width={terminalWidth}
           />
         </Box>
       )}

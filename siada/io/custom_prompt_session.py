@@ -1,7 +1,9 @@
 """
-自定义 PromptSession，只在输入区域添加边框
+Custom PromptSession that adds a border around the input area only
 """
+import re
 from functools import partial
+from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.shortcuts.prompt import CompleteStyle
 from prompt_toolkit.layout import Layout, HSplit, Window, Float, FloatContainer
@@ -48,9 +50,47 @@ from prompt_toolkit.layout.screen import Screen, Point
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 
 
+class AtFileReferenceLexer(Lexer):
+    """Custom lexer for highlighting @ file references (moved here from io.py)."""
+
+    def __init__(self):
+        self.at_pattern = re.compile(r'@[^\s]+')
+
+    def lex_document(self, document):
+        def get_line(lineno):
+            if lineno >= len(document.lines):
+                return []
+
+            line = document.lines[lineno]
+            result = []
+            last_end = 0
+
+            # Find all @ commands in the line
+            for match in self.at_pattern.finditer(line):
+                start_pos = match.start()
+                end_pos = match.end()
+
+                # Add text before @ command with default style
+                if start_pos > last_end:
+                    result.append(('', line[last_end:start_pos]))
+
+                # Add @ command with special style
+                at_command = match.group()
+                result.append(('class:at-file-reference', at_command))
+
+                last_end = end_pos
+            # Add remaining text after last @ command
+            if last_end < len(line):
+                result.append(('', line[last_end:]))
+
+            return result
+
+        return get_line
+
+
 def _split_multiline_prompt(get_prompt_text):
     """
-    从原始 prompt.py 复制的辅助函数
+    Helper functions copied from the original prompt.py
     """
     from prompt_toolkit.layout.utils import explode_text_fragments
     
@@ -83,7 +123,7 @@ def _split_multiline_prompt(get_prompt_text):
 
 
 class _RPrompt(Window):
-    """右侧提示符"""
+    """Right-side prompt."""
     def __init__(self, text):
         super().__init__(
             FormattedTextControl(text=text),
@@ -94,12 +134,12 @@ class _RPrompt(Window):
 
 class CustomFloatContainer(FloatContainer):
     """
-    自定义 FloatContainer，确保浮动层（如补全菜单）的最小高度
+    Custom FloatContainer that enforces a minimum height for floats (e.g. the completion menu)
     """
     
     def __init__(self, content, floats, min_float_height=3, **kwargs):
         """
-        :param min_float_height: 浮动层的最小高度（行数）
+        :param min_float_height: Minimum height of a float, in lines
         """
         self.min_float_height = min_float_height
         super().__init__(content, floats, **kwargs)
@@ -115,7 +155,7 @@ class CustomFloatContainer(FloatContainer):
         z_index: int | None,
     ) -> None:
         """
-        重写 _draw_float 方法，确保浮动层的最小高度
+        Override _draw_float to enforce the minimum float height
         """
         from prompt_toolkit.application.current import get_app
         
@@ -240,7 +280,7 @@ class CustomFloatContainer(FloatContainer):
 
 
 class CustomCompletionsMenu(CompletionsMenu):
-    """自定义补全菜单,支持最小高度"""
+    """Custom completion menu that supports a minimum height."""
     
     def __init__(self, min_height=4, **kwargs):
         self._min_height = min_height
@@ -248,7 +288,7 @@ class CustomCompletionsMenu(CompletionsMenu):
         super().__init__(**kwargs)
     
     def __pt_container__(self):
-        """返回容器,并在首次调用时修改高度"""
+        """Return the container, patching its height on the first call."""
         container = super().__pt_container__()
         
         # Modify only once
@@ -290,7 +330,7 @@ class CustomCompletionsMenu(CompletionsMenu):
 
 
 class RoundedBorder(Border):
-    """圆角边框"""
+    """Rounded border."""
     TOP_LEFT = "╭"
     TOP_RIGHT = "╮"
     BOTTOM_LEFT = "╰"
@@ -301,9 +341,9 @@ class RoundedBorder(Border):
 
 class RoundedFrame:
     """
-    带圆角边框的 Frame
+    Frame with rounded corners
     
-    这是 Frame 类的修改版本，使用圆角边框字符
+    Modified version of the Frame class that uses rounded border characters
     """
     def __init__(
         self,
@@ -396,9 +436,9 @@ class RoundedFrame:
 
 class CustomPromptSession(PromptSession):
     """
-    自定义 PromptSession，只在输入区域添加边框
+    Custom PromptSession that adds a border around the input area only
     
-    使用方法：
+    Usage:
         session = CustomPromptSession(message='> ')
         result = session.prompt()
     """
@@ -612,9 +652,9 @@ if __name__ == "__main__":
     
     # Create custom style
     style = Style.from_dict({
-        'frame.border': 'cyan',  # 青色边框
+        'frame.border': 'cyan',  # cyan border
         # 'prompt': '#00aaff bold',   # blue prompt
-        'placeholder': '#888888',  # 灰色占位符
+        'placeholder': '#888888',  # gray placeholder
     })
     
     # Create completer
@@ -635,19 +675,19 @@ if __name__ == "__main__":
         wrap_lines= True,
     )
     
-    print("自定义 PromptSession 示例")
-    print("输入 'exit' 退出")
-    print("边框只包围输入区域\n")
+    print("Custom PromptSession example")
+    print("Type 'exit' to quit")
+    print("The border wraps only the input area\n")
     
     while True:
         try:
             result = session.prompt()
             if result.lower() == 'exit':
                 break
-            print(f'你输入了: {result}')
+            print(f'You typed: {result}')
         except KeyboardInterrupt:
-            print('\n用户按了 Ctrl+C')
+            print('\nUser pressed Ctrl+C')
             break
         except EOFError:
-            print('\n用户按了 Ctrl-D')
+            print('\nUser pressed Ctrl-D')
             break

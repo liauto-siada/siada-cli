@@ -1,7 +1,8 @@
 """
-File Search - 高性能文件搜索工具
+File Search - a high-performance file search tool.
 
-基于 ripgrep 的 Python 文件搜索模块，提供快速、准确的代码搜索功能。
+A Python file search module based on ripgrep, providing fast and accurate
+code search.
 """
 
 from .search import RipgrepSearcher, SearchResult, regex_search_files

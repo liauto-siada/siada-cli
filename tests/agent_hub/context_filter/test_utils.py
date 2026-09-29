@@ -201,6 +201,39 @@ class TestNormalizeToResponsesItems:
         ]
         Converter.items_to_messages(items=normalized)
 
+    def test_native_apply_patch_items_are_proxy_converted_for_token_counting(self):
+        """ChatCompletions' converter has no native apply_patch item support."""
+        items = [
+            {
+                "type": "apply_patch_call",
+                "call_id": "patch_1",
+                "operation": {
+                    "type": "update_file",
+                    "path": "src/service.py",
+                    "diff": "@@\n-old\n+new\n",
+                },
+            },
+            {
+                "type": "apply_patch_call_output",
+                "call_id": "patch_1",
+                "status": "completed",
+                "output": "Updated src/service.py",
+            },
+        ]
+
+        normalized = _normalize_to_responses_items(items)
+
+        assert normalized[0]["type"] == "function_call"
+        assert normalized[0]["name"] == "apply_patch"
+        assert normalized[0]["call_id"] == "patch_1"
+        assert json.loads(normalized[0]["arguments"])["operation"]["path"] == "src/service.py"
+        assert normalized[1] == {
+            "type": "function_call_output",
+            "call_id": "patch_1",
+            "output": "Updated src/service.py",
+        }
+        Converter.items_to_messages(items=normalized)
+
     def test_tool_message_with_list_content_is_stringified(self):
         items = [
             {
@@ -257,6 +290,11 @@ class TestNormalizeToResponsesItems:
                 "output": "ok",
             },
             {
+                # Real Responses output messages always carry a server-minted
+                # ``id``; the SDK's ``maybe_response_output_message`` requires
+                # it, so an id-less fixture would be parsed as an
+                # EasyInputMessage and rejected (its output_text parts).
+                "id": "msg_fixture_1",
                 "type": "message",
                 "role": "assistant",
                 "content": [{"type": "output_text", "text": "done"}],
@@ -306,4 +344,3 @@ class TestNormalizeToResponsesItems:
         snapshot = json.loads(json.dumps(original))
         _normalize_to_responses_items(original)
         assert original == snapshot
-

@@ -3,13 +3,15 @@ from agents import Agent, ModelResponse, AgentHooks, TContext, TResponseInputIte
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.agent_hub.hooks.agent_processors.context_track_processor import ContextTrackProcessor
 from siada.agent_hub.hooks.processors.agent_name_processor import AgentNameProcessor
+from siada.agent_hub.hooks.processors.herdr_state_processor import HerdrStateProcessor
 from siada.agent_hub.hooks.processors.llm_spinner_processor import LLMSpinnerProcessor
 from siada.agent_hub.hooks.processors.token_usage_reporter_processor import TokenUsageReporterProcessor
 from siada.agent_hub.hooks.processors.cache_status_processor import CacheStatusProcessor
 from siada.agent_hub.hooks.processors.todo_reminder_processor import TodoReminderProcessor
-from siada.agent_hub.hooks.processors.model_hallucination_suppression_processor import ModelHallucinationSuppressionProcessor
 
-
+from siada.agent_hub.hooks.processors.model_hallucination_suppression_processor import (
+    ModelHallucinationSuppressionProcessor,
+)
 
 
 class SiadaAgentHooks(AgentHooks):
@@ -40,7 +42,7 @@ class SiadaAgentHooks(AgentHooks):
                 # asyncio task after the agent returns.
                 AgentNameProcessor(),
                 # Nudge models prone to looping on an unchanged tool call
-                # (currently only kivy-deepseek-v4-flash) to change course.
+                # (currently the deepseek-v4-flash family) to change course.
                 ModelHallucinationSuppressionProcessor(),
                 # Injects the hidden todo reminder into the real per-call
                 # input on_llm_start, then persists it into
@@ -48,6 +50,11 @@ class SiadaAgentHooks(AgentHooks):
                 # so it's both part of the live call and survives in
                 # api_history.json for future turns / session resume.
                 TodoReminderProcessor(),
+                # Mirror turn state into the hosting Herdr pane when siada-cli
+                # runs inside one (no-op everywhere else). Registered here
+                # because every top-level agent uses this hook chain on both
+                # the ACP server and the TUI backend paths.
+                HerdrStateProcessor(),
                 # Add more processors here as needed
             ]
 

@@ -23,6 +23,7 @@ const TOOL_PATTERNS = {
   fact_store: /^Fact memory(?:\s+(.+))?/,
   fact_feedback: /^Fact feedback(?:\s+(.+))?/,
   sub_agent: /^Sub-agent task:\s*(.+)/,
+  apply_patch: /^Apply patch: (\d+) files? changed/,
 
   lark: /^Send Lark/,
   todo_write: /^(?:Clearing todo list|[○◐✓?]\s+.+)/,
@@ -37,6 +38,10 @@ export interface ParsedToolCall {
   details?: string;
   lineStart?: number;
   lineEnd?: number;
+  fileCount?: number;
+  query?: string;
+  filePattern?: string;
+  cwd?: string;
 }
 
 /**
@@ -75,6 +80,7 @@ function createParsedResult(
         details: match[1],
         lineStart: match[2] ? parseInt(match[2], 10) : undefined,
         lineEnd: match[3] ? parseInt(match[3], 10) : undefined,
+        cwd: fullContent.match(/(?:^|\n)cwd:\s*`([^`]+)`(?:\s|$)/)?.[1],
       };
 
     case 'view_dir':
@@ -129,12 +135,21 @@ function createParsedResult(
         details: psCommand,
       };
 
-    case 'search':
+    case 'search': {
+      // Older history may lack the trailing cwd. Keep the original broad
+      // search recognition and only split out the tree fields when available.
+      const args = fullContent.match(/^Search for: ([\s\S]*?) in ([\s\S]*?) with file pattern ([\s\S]*?) in ([\s\S]*)$/);
+      const legacy = !args && fullContent.match(/^Search for: (.+?) in (.+?) with file pattern (.*)$/);
       return {
         type,
         summary: 'Search',
         details: `${match[1]} in ${match[2]}`,
+        query: args?.[1] ?? match[1],
+        path: args?.[2] ?? match[2],
+        filePattern: args?.[3] ?? legacy?.[3],
+        cwd: args?.[4],
       };
+    }
 
     case 'analyze':
       return {
@@ -194,6 +209,14 @@ function createParsedResult(
         details: match[1],
       };
 
+    case 'apply_patch':
+      return {
+        type,
+        summary: `Patch(${match[1]} ${match[1] === '1' ? 'file' : 'files'})`,
+        details: `${match[1]} files changed`,
+        fileCount: parseInt(match[1]!, 10),
+      };
+
     case 'lark':
       return {
         type,
@@ -220,6 +243,20 @@ function createParsedResult(
         details: fullContent,
       };
   }
+}
+
+/**
+ * Check whether a todo_write tool call content is the final snapshot where
+ * every item is completed (e.g. "[3/3 completed]"). Intermediate updates are
+ * mirrored live by the TodoStatusBar below the input, so only the final
+ * all-completed snapshot is kept in the chat history.
+ */
+export function isTodoWriteAllCompleted(content: string): boolean {
+  const match = content.match(/\[(\d+)\/(\d+) completed\]/);
+  if (!match) return false;
+  const done = parseInt(match[1], 10);
+  const total = parseInt(match[2], 10);
+  return total > 0 && done === total;
 }
 
 /**
@@ -296,6 +333,9 @@ export function formatCompactSummary(groups: Map<ToolType, ParsedToolCall[]>): s
       case 'sub_agent':
 
         parts.push(count === 1 ? '1 sub-agent task' : `${count} sub-agent tasks`);
+        break;
+      case 'apply_patch':
+        parts.push(count === 1 ? 'Patch 1 file set' : `${count} patch sets`);
         break;
       case 'lark':
         parts.push(count === 1 ? '1 Lark notification' : `${count} Lark notifications`);

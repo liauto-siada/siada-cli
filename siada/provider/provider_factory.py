@@ -7,38 +7,24 @@ PROVIDER_DIR = os.path.dirname(__file__)
 provider_map: Dict = {}
 _providers_discovered = False
 
-# Legacy provider keys that no longer ship their own provider implementation.
-# Old sessions/configs may still carry these names; alias them to their
-# successor so they keep working.
-_LEGACY_PROVIDER_ALIASES = {"openai_agents": "li"}
-
-
-def _normalize_provider_key(p_type: Optional[str]) -> Optional[str]:
-    """Map legacy provider keys to their current equivalent."""
-    if p_type in _LEGACY_PROVIDER_ALIASES:
-        return _LEGACY_PROVIDER_ALIASES[p_type]
-    return p_type
-
 
 def resolve_provider_by_model(model_name: Optional[str], default_provider: Optional[str] = None) -> Optional[str]:
     """
     Resolve the provider name for a given model.
 
     Protocol routing (e.g. GPT-5.x models going through the native OpenAI
-    Responses API) is handled inside each provider itself — both ``li`` and
-    ``default`` route Responses-only models to ``ResponsesModel`` with their
-    own transport. This hook remains for provider-level overrides; currently
-    no special rules apply and ``default_provider`` is always returned
-    (after legacy-key normalization).
+    Responses API) is handled inside each provider itself. This hook remains
+    for provider-level overrides; currently no special rules apply and
+    ``default_provider`` is always returned.
 
     Args:
         model_name: The name of the model (e.g. ``"gpt-5.4"``, ``"claude-sonnet-4.6"``).
         default_provider: The provider the caller would otherwise use.
 
     Returns:
-        ``default_provider`` with legacy keys aliased to their successor.
+        ``default_provider`` unchanged.
     """
-    return _normalize_provider_key(default_provider)
+    return default_provider
 
 def _discover_providers():
     """
@@ -76,7 +62,7 @@ def get_provider(p_type: provider_type | None = None):
     Retrieves the model provider instance based on the provider name.
 
     Args:
-        p_type (provider_type | None): The name of the provider, e.g., 'li'. 
+        p_type (provider_type | None): The name of the provider, e.g., 'default'.
                                            If None, defaults to the first available provider.
 
     Returns:
@@ -86,7 +72,6 @@ def get_provider(p_type: provider_type | None = None):
         ValueError: If the provider name is not supported.
     """
     _discover_providers()  # lazy init — first call imports agents SDK
-    p_type = _normalize_provider_key(p_type)
     if p_type and p_type in provider_map:
         return provider_map[p_type]
 

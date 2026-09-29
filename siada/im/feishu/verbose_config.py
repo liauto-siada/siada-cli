@@ -60,24 +60,13 @@ class VerboseConfig:
         """Load per chat-type verbose overrides from ``conf.yaml``."""
         try:
             # Reload conf.yaml directly to pick up external edits.
-            import yaml
-            from siada.config.config_loader import _get_default_config_path
+            from siada.config.conf_store import get_conf_section
 
-            config_path = _get_default_config_path()
-            if not config_path.exists():
-                self._overrides = {}
-                return
-
-            with open(config_path, "r", encoding="utf-8") as f:
-                data: Dict[str, Any] = yaml.safe_load(f) or {}
-
-            im_section = data.get("im") or {}
-            verbose_section = im_section.get("verbose") or {}
+            verbose_section = get_conf_section("im.verbose")
             overrides: Dict[str, bool] = {}
-            if isinstance(verbose_section, dict):
-                for k in ("p2p", "group"):
-                    if k in verbose_section and verbose_section[k] is not None:
-                        overrides[k] = bool(verbose_section[k])
+            for k in ("p2p", "group"):
+                if k in verbose_section and verbose_section[k] is not None:
+                    overrides[k] = bool(verbose_section[k])
             self._overrides = overrides
             logger.debug(
                 "Loaded verbose config from conf.yaml: %s", self._overrides,

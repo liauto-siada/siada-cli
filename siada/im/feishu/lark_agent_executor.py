@@ -69,8 +69,10 @@ class LarkAgentExecutor:
     def __init__(self, ctrl: "LarkController") -> None:
         self._ctrl = ctrl
         lark_cfg = ctrl._config.get("lark", {})
+        # Enabled by default; users can opt out via
+        # lark.context.include_conversation_info: false in the config.
         self._include_conversation_info: bool = (
-            (lark_cfg.get("context") or {}).get("include_conversation_info", False)
+            (lark_cfg.get("context") or {}).get("include_conversation_info", True)
         )
 
     # ── Task cancellation & interrupt ────────────────────────────────
@@ -179,46 +181,82 @@ class LarkAgentExecutor:
 
     # ── User input building ───────────────────────────────────────────
 
-    def _build_user_input(self, msg: "IMMessage") -> str:
-        """Build final user input with quoted reply context and optional suffix.
+    def _build_user_input(self, msg: "IMMessage") -> list:
+        """Build final user input as a Responses-API content-parts list.
 
-        Injection order:
-          1. Quoted message block (always-on when resolved, no switch)
-          2. User's actual message content
-          3. Context suffix (conversation info, mention hints — switch-controlled)
+        Unlike the old single-string version (which spliced everything
+        together with ``"\\n\\n".join(...)``), each logical block gets its
+        own content item — the same shape ``/goal`` uses for its
+        continuation input (see
+        ``Controller._build_pending_input_for_ai_analysis``) and that
+        ``build_multimodal_input_with_media`` already produces for
+        image/document attachments:
 
-        Both injection blocks are wrapped with IM-context sentinel markers
+          [{"type": "input_text", "text": ...}, {"type": "input_text", "text": ...}, ...]
+
+        Item order:
+          1. The user's actual message content — always first, so the
+             model (and anyone inspecting just the first item) sees the
+             real message up front instead of injected IM metadata.
+          2. Quoted message block (its own item, always-on when resolved)
+          3. Context suffix — conversation info, mention hints — (its own
+             item, switch-controlled)
+
+        Both injection items are wrapped with IM-context sentinel markers
         (see ``siada.services.memory.holographic.marker``) so downstream
         consumers — frontend renderer, MemoryReviewAgent — can strip them
         out and never confuse them with user-authored text. The LLM still
-        sees the full block; the markers are just inert HTML comments.
-        """
-        from siada.services.memory.holographic.marker import wrap_im_context_block
+        sees the full content; the markers are just inert HTML comments.
 
-        parts: list[str] = []
+        Returns:
+            A list of Responses-API content parts — NOT yet wrapped in
+            ``{"role": "user", "content": [...]}}``. Callers
+            (``run_agent_for_message``) finalize that wrap via
+            ``build_multimodal_input_with_media`` once any vision-bridge
+            evidence / media attachments have also been merged in.
+        """
+        from siada.services.memory.holographic.marker import (
+            wrap_im_context_block,
+            wrap_user_input,
+        )
+
+        # The user's actual message text — wrapped so downstream consumers
+        # can tell it apart from the IM context blocks that follow it
+        # (which are untrusted metadata *we* injected, not authored by the
+        # user). Always the first block.
+        blocks: list[str] = [wrap_user_input(msg.content)]
 
         # Quoted message context — always injected when available (no switch)
         quoted_block = build_quoted_message_block(msg)
         if quoted_block:
-            parts.append(wrap_im_context_block(quoted_block).rstrip("\n"))
-
-        parts.append(msg.content)
+            blocks.append(wrap_im_context_block(quoted_block).rstrip("\n"))
 
         # Optional context suffix (switch-controlled)
         suffix = build_inbound_user_context_suffix(
             msg, include_conversation_info=self._include_conversation_info,
         )
         if suffix:
-            parts.append(wrap_im_context_block(suffix).rstrip("\n"))
+            blocks.append(wrap_im_context_block(suffix).rstrip("\n"))
 
-        user_input = "\n\n".join(parts)
+        # Each block becomes its own content item. A blank-line separator
+        # is baked into every item except the last one: consumers that
+        # concatenate multiple text content parts — the LLM-facing API
+        # payload as well as the history-display formatter — join them
+        # with no separator of their own, so the spacing has to live
+        # inside the text itself to avoid blocks running together.
+        last = len(blocks) - 1
+        content = [
+            {"type": "input_text", "text": block if i == last else f"{block}\n\n"}
+            for i, block in enumerate(blocks)
+        ]
+
         if quoted_block or suffix:
             logger.debug(
                 "[_build_user_input] context injected (quoted=%s, suffix=%s), "
-                "total input_len=%d",
-                bool(quoted_block), bool(suffix), len(user_input),
+                "content_items=%d",
+                bool(quoted_block), bool(suffix), len(content),
             )
-        return user_input
+        return content
 
     # ── Quoted message resolution ─────────────────────────────────────
 
@@ -349,6 +387,75 @@ class LarkAgentExecutor:
                 exc_info=True,
             )
             return True
+
+    @staticmethod
+    def _model_supports_vision_bridge(session: "RunningSession") -> bool:
+        """Whether the bound model uses bridged vision (text-only + engine).
+
+        Mirrors ``_model_supports_images``; defaults to ``False`` on any
+        access error so a misconfigured model keeps the legacy strip/reject
+        behavior.
+        """
+        try:
+            from siada.services import vision_bridge
+
+            return vision_bridge.supports_vision_bridge(
+                session.siada_config.llm_config
+            )
+        except Exception:
+            logger.error(
+                "Failed to read supports_vision_bridge from session config; "
+                "defaulting to False",
+                exc_info=True,
+            )
+            return False
+
+    async def _bridge_images_to_text(
+        self, user_input: list, downloaded_media: list
+    ) -> "tuple[list, list]":
+        """Transcribe image media into text evidence for bridge models.
+
+        ``user_input`` is the Responses-API content-parts list produced by
+        ``_build_user_input`` (see its docstring for the shape). On success
+        returns ``(user_input + [evidence_item], media without images)`` —
+        the evidence is appended as its own content item rather than
+        string-concatenated. On any failure returns the inputs unchanged so
+        the legacy strip/reject filter below handles the images.
+        """
+        from siada.services import vision_bridge
+
+        image_media = [m for m in downloaded_media if m.is_image]
+        if not image_media:
+            return user_input, downloaded_media
+
+        # Reconstruct a plain-text hint for the vision engine from the
+        # content items (each item's text already carries its own
+        # trailing separator — see _build_user_input — so a plain
+        # concatenation reproduces the original spacing).
+        user_hint = "".join(
+            part.get("text", "")
+            for part in user_input
+            if isinstance(part, dict) and part.get("type") == "input_text"
+        )
+
+        transcriptions = await vision_bridge.transcribe_images(
+            [m.path for m in image_media], user_hint=user_hint
+        )
+        if not transcriptions:
+            logger.info(
+                "[run_agent_for_message] vision bridge unavailable/failed; "
+                "falling back to strip/reject"
+            )
+            return user_input, downloaded_media
+
+        logger.info(
+            "[run_agent_for_message] vision bridge transcribed %d/%d image(s)",
+            len(transcriptions), len(image_media),
+        )
+        evidence = vision_bridge.build_evidence_text(transcriptions)
+        bridged_input = user_input + [{"type": "input_text", "text": evidence}]
+        remaining = [m for m in downloaded_media if not m.is_image]
+        return bridged_input, remaining
 
     @staticmethod
     def _has_meaningful_text(msg: "IMMessage") -> bool:
@@ -492,6 +599,18 @@ class LarkAgentExecutor:
             # Download all in-scope media attachments for this turn
             downloaded_media = await self._collect_media(msg, quoted_msg, session_dir)
 
+            # modlens-style vision bridge: text-only models (deepseek-v4
+            # family) receive transcribed image evidence instead of native
+            # image parts.
+            if (
+                downloaded_media
+                and not self._model_supports_images(session)
+                and self._model_supports_vision_bridge(session)
+            ):
+                user_input, downloaded_media = await self._bridge_images_to_text(
+                    user_input, downloaded_media
+                )
+
             # Guard: filter media based on model image support.
             filtered = await self._filter_media_for_image_support(
                 msg, session, downloaded_media
@@ -500,9 +619,14 @@ class LarkAgentExecutor:
                 return
             downloaded_media = filtered
 
+            # Finalize user_input into the Responses-API shape SiadaRunner
+            # expects: [{"role": "user", "content": [...]}]. Always goes
+            # through build_multimodal_input_with_media — even with no
+            # media attachments — so there is a single place that wraps
+            # the content-parts list produced by _build_user_input /
+            # _bridge_images_to_text with the "role" envelope.
+            from siada.im.feishu.media import build_multimodal_input_with_media
             if downloaded_media:
-                from siada.im.feishu.media import build_multimodal_input_with_media
-                user_input = build_multimodal_input_with_media(user_input, downloaded_media)
                 logger.info(
                     "[run_agent_for_message] multimodal input: "
                     "%d items (images=%d, docs=%d, cached=%d)",
@@ -511,6 +635,7 @@ class LarkAgentExecutor:
                     sum(1 for m in downloaded_media if m.is_document),
                     sum(1 for m in downloaded_media if m.cached),
                 )
+            user_input = build_multimodal_input_with_media(user_input, downloaded_media)
 
             logger.info(
                 "[run_agent_for_message] SiadaRunner.run_agent: agent=%s, "
@@ -530,7 +655,7 @@ class LarkAgentExecutor:
                 entry.result = result
 
             # Build outbound mention targets:
-            # 1. Non-bot mention targets from inbound message (e.g. @周鑫每)
+            # 1. Non-bot mention targets from inbound message (e.g. @Alice)
             # 2. Sender @back target (group chat auto @sender notification)
             # Reference: OpenClaw bot.ts -> parseFeishuMessageEvent + reply-dispatcher
             outbound_mentions: list[MentionTarget] = []

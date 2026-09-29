@@ -17,8 +17,6 @@ const initialState: SessionBrowserState = {
   sortReverse: false,
   loading: true,
   error: null,
-  scrollOffset: 0,
-  terminalHeight: 20,
   scope: 'current',
   isRenameMode: false,
   renameInput: '',
@@ -107,18 +105,6 @@ const sessionBrowserReducer: Reducer<SessionBrowserState, SessionAction> = (
         ...state,
         error: action.payload,
         loading: false,
-      };
-
-    case 'SET_SCROLL_OFFSET':
-      return {
-        ...state,
-        scrollOffset: action.payload,
-      };
-
-    case 'SET_TERMINAL_HEIGHT':
-      return {
-        ...state,
-        terminalHeight: action.payload,
       };
 
     case 'TOGGLE_SCOPE':

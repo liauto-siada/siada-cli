@@ -14,9 +14,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from siada.entrypoint.interaction.controller import Controller
+from siada.entrypoint.interaction.turn_policy import TurnPolicy
 from siada.entrypoint.interaction.turn.models import TurnOutput, TurnType
-from siada.services.goal.models import Goal, GoalVerdict, GOAL_MAX_CONSECUTIVE_FAILURES
+from siada.services.goal.models import Goal, GoalVerdict, GOAL_MAX_TURNS
 from siada.services.goal.turn_hooks import (
     _NOTIFICATION_OBJECTIVE_MAX_LEN,
     _truncate_for_notification,
@@ -48,8 +48,10 @@ class TestTruncateForNotification:
 
 
 def _make_controller():
-    ctrl = Controller.__new__(Controller)
-    ctrl.config = SimpleNamespace(acp_mode=False, io=SimpleNamespace(acp_adapter=None))
+    ctrl = TurnPolicy(
+        SimpleNamespace(acp_mode=False, io=SimpleNamespace(acp_adapter=None)),
+        SimpleNamespace(), lambda method, params: None,
+    )
     ctrl._acp_notifications = []
     ctrl.config.enable_notification = True
 
@@ -114,12 +116,18 @@ class TestNotificationMessageTruncatesLongObjective:
             session_dir = Path(d)
             session = _make_session()
             goal = Goal.create(long_objective)
-            goal.consecutive_failures = GOAL_MAX_CONSECUTIVE_FAILURES - 1
+            goal.consecutive_failures = GOAL_MAX_TURNS - 1
             fake_cache, _ = _context_cache_with("/ws", goal)
 
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
                 "siada.services.goal.verifier.run_goal_verification",
-                new=AsyncMock(return_value=GoalVerdict(passed=False, reason="still unclear")),
+                new=AsyncMock(
+                    return_value=GoalVerdict(
+                        passed=False,
+                        reason="still unclear",
+                        nextAction="inspect the remaining requirements",
+                    )
+                ),
             ), patch("siada.notifications.show_completion_notification") as mock_notify:
                 ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
 

@@ -66,6 +66,7 @@ class PendingUserInputInjector:
         # turn flow so injected messages share an identical image-encoding
         # format (base64 data URL), avoiding any inconsistency.
         from siada.entrypoint.interaction.turn.conversation_turn import _build_multimodal_input
+        from siada.services.memory.holographic.marker import wrap_user_input
 
         for item_id, content, image_paths in pending:   # unpack 3-tuple
             # Defensive normalization: image_paths must be a list. A malformed
@@ -86,6 +87,7 @@ class PendingUserInputInjector:
             # agent still receives the text content.
             if image_paths:
                 supports_images = True
+                vision_bridge_cfg = None
                 try:
                     siada_config = getattr(
                         getattr(context, "session", None), "siada_config", None
@@ -94,8 +96,33 @@ class PendingUserInputInjector:
                         supports_images = bool(
                             getattr(siada_config.llm_config, "supports_images", True)
                         )
+                        vision_bridge_cfg = siada_config.llm_config
                 except Exception:
                     pass
+
+                # modlens-style vision bridge: transcribe images into text
+                # evidence for text-only models (deepseek-v4 family) instead
+                # of stripping them.
+                if not supports_images and vision_bridge_cfg is not None:
+                    from siada.services import vision_bridge
+
+                    if vision_bridge.supports_vision_bridge(vision_bridge_cfg):
+                        transcriptions = vision_bridge.transcribe_images_sync(
+                            image_paths, user_hint=content or ""
+                        )
+                        if transcriptions:
+                            evidence = vision_bridge.build_evidence_text(transcriptions)
+                            wrapped_content = wrap_user_input(content) if content else content
+                            bridged = f"{wrapped_content}\n\n{evidence}" if wrapped_content else evidence
+                            new_items.append({"role": "user", "content": bridged})
+                            if item_id:
+                                consumed_items.append((item_id, content))
+                            continue
+                        logger.info(
+                            "[PendingUserInputInjector] vision bridge "
+                            "unavailable/failed; falling back to strip/reject"
+                        )
+
                 if not supports_images:
                     # The frontend sends placeholder text like "[Image #1]"
                     # when the user pastes only images. Strip these and check
@@ -124,9 +151,13 @@ class PendingUserInputInjector:
             if not content and not image_paths:
                 continue
             if image_paths:
-                new_items.extend(_build_multimodal_input(content, image_paths))
+                new_items.extend(
+                    _build_multimodal_input(
+                        wrap_user_input(content) if content else content, image_paths
+                    )
+                )
             else:
-                new_items.append({"role": "user", "content": content})
+                new_items.append({"role": "user", "content": wrap_user_input(content)})
 
 
             if item_id:

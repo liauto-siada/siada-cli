@@ -8,9 +8,11 @@ synthesized content to the user-role message before handing it to the LLM:
 * ``CodeGenAgent._inject_holographic_prefetch`` — relevant facts pulled from
   the holographic memory store, prepended as a markdown block.
 * ``LarkAgentExecutor._build_user_input`` — Feishu/Lark IM context blocks:
-  the quoted/replied-message body (head) and conversation metadata + mention
-  hints (tail). Both are "untrusted metadata" injected so the LLM understands
-  the IM context, not authored by the user.
+  the quoted/replied-message body and conversation metadata + mention hints,
+  each emitted as its own Responses-API content item following the user's
+  actual message (which is always the first item). Both are "untrusted
+  metadata" injected so the LLM understands the IM context, not authored
+  by the user.
 
 All of these end up persisted inline as part of the user message in
 ``api_history.json``, where downstream consumers want to *distinguish* the
@@ -212,3 +214,48 @@ def strip_benchmark_hint_block(text: str) -> str:
     LLM still reads it.
     """
     return strip_block_between(text, BENCHMARK_HINT_BEGIN, BENCHMARK_HINT_END)
+
+
+# ── User-input tag ─────────────────────────────────────────────────────
+# Wraps the human's literal, raw input — TUI keystrokes and Feishu/Lark
+# message text — in a plain ``<user_input>...</user_input>`` tag. The
+# point is the opposite of the injection markers above: those wrap
+# synthesized context that should be *discarded* when recovering the
+# user's real text; this wraps the user's real text itself, sitting
+# alongside injected context (IM context blocks, holographic prefetch,
+# goal reminders, ...) in the same user-role message. Downstream
+# consumers that need "exactly what the human typed" can look for this
+# tag instead of guessing where synthesized context ends.
+#
+# Stripping therefore KEEPS the body and only removes the two literal
+# tag strings — including anything *outside* the tags (e.g. IM context
+# blocks appended before/after by ``LarkAgentExecutor._build_user_input``)
+# stays untouched. This is a plain string replace, not a regex-captured
+# block strip like ``strip_block_between``.
+USER_INPUT_BEGIN = "<user_input>"
+USER_INPUT_END = "</user_input>"
+
+
+def wrap_user_input(text: str) -> str:
+    """Wrap raw, literal user-typed text in a ``<user_input>`` tag.
+
+    No-op for non-str / empty input. Also a no-op if ``text`` is already
+    wrapped, guarding against double-wrapping if a value is threaded
+    through more than one entry point.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    if text.startswith(USER_INPUT_BEGIN) and text.endswith(USER_INPUT_END):
+        return text
+    return f"{USER_INPUT_BEGIN}{text}{USER_INPUT_END}"
+
+
+def strip_user_input(text: str) -> str:
+    """Remove ``<user_input>``/``</user_input>`` tags, keeping the body.
+
+    Used by frontend/history-display consumers to recover exactly what
+    the user typed, without discarding whatever sits outside the tags.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    return text.replace(USER_INPUT_BEGIN, "").replace(USER_INPUT_END, "")

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Box, Text } from '@jrichman/ink';
 import type { PromptQueueItem } from '../../types/index.js';
+import { colors } from '../../utils/colors.js';
+import { useThemeVersion } from '../../themes/index.js';
 
 interface PromptQueuePreviewProps {
   queue: PromptQueueItem[];
@@ -14,22 +16,23 @@ function truncate(text: string): string {
 }
 
 export const PromptQueuePreview: React.FC<PromptQueuePreviewProps> = React.memo(({ queue }) => {
+  useThemeVersion(); // repaint on theme change
   if (queue.length === 0) return null;
 
   return (
     <Box flexDirection="column" paddingLeft={1} paddingBottom={1}>
       {queue.map((item, i) => (
         <Box key={item.id} flexDirection="row" gap={1}>
-          {/* Index stays dim; the prompt text itself is brighter so pending
+          {/* Index stays subordinate; the prompt text itself is brighter so pending
               items are clearly readable (not the darkest gray). */}
-          <Text color="gray" dimColor>
+          <Text color={colors.content.tertiary}>
             {`[${i + 1}]`}
           </Text>
-          <Text color="white">
+          <Text>
             {truncate(item.content)}
           </Text>
           {item.imagePaths && item.imagePaths.length > 0 && (
-            <Text color="gray" dimColor>
+            <Text>
               {`+${item.imagePaths.length} img`}
             </Text>
           )}

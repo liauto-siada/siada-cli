@@ -31,6 +31,12 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   return (
     <Box flexDirection="column" paddingX={1}>
+      {/* Scroll indicators */}
+      {startIndex > 0 && (
+        <Box paddingX={1}>
+          <Text color="gray" dimColor>↑ More above...</Text>
+        </Box>
+      )}
       {visibleSessions.map((session, idx) => {
         const globalIndex = startIndex + idx;
         return (
@@ -43,13 +49,6 @@ export const SessionList: React.FC<SessionListProps> = ({
           />
         );
       })}
-      
-      {/* Scroll indicators */}
-      {startIndex > 0 && (
-        <Box paddingX={1}>
-          <Text color="gray" dimColor>↑ More above...</Text>
-        </Box>
-      )}
       {endIndex < sessions.length && (
         <Box paddingX={1}>
           <Text color="gray" dimColor>↓ More below...</Text>

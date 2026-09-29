@@ -19,6 +19,7 @@ from openai.types.responses.response_prompt_param import ResponsePromptParam
 from siada.models.agent import Tool
 from siada.models.model_base_config import is_claude_model
 from siada.foundation.logging import logger
+from siada.support.chat_compat_items import to_chat_compatible_items
 
 
 class ModelWrapper(Model):
@@ -95,8 +96,10 @@ class ModelWrapper(Model):
         Process the input using the configured input_processor.
         
         This method first sanitizes the input by filtering out malformed items
-        (e.g. reasoning items without encrypted_content), then applies the
-        configured input_processor if present.
+        (e.g. reasoning items without encrypted_content) and by rewriting
+        Responses-only apply_patch items into chat-completions proxies for
+        non-Responses models, then applies the configured input_processor if
+        present.
         
         Args:
             input: The original input (string or list of items)
@@ -113,7 +116,21 @@ class ModelWrapper(Model):
         model_name = getattr(self.wrapped_model, "model", None)
         if model_name and is_claude_model(model_name):
             sanitized = self._filter_malformed_reasoning_items(input)
-        
+
+        # Native Responses apply_patch items cannot cross a ChatCompletions
+        # wire format: its converter raises ``UserError("Unhandled item type
+        # or structure")`` as soon as replayed history contains
+        # ``apply_patch_call`` / ``apply_patch_call_output``.  Rewrite them
+        # into lossless function-call-shaped proxies whenever the wrapped
+        # model does not speak the native Responses protocol; native models
+        # (``ResponsesModel``) opt out via ``supports_native_responses_items``
+        # and stay byte-for-byte identical.  This is a built-in step (not the
+        # configurable ``input_processor``) on purpose: a raising processor is
+        # swallowed below, which would let the raw items explode later, deep
+        # inside the SDK conversion.
+        if not getattr(self.wrapped_model, "supports_native_responses_items", False):
+            sanitized = to_chat_compatible_items(sanitized)
+
         # If no processor is configured, return sanitized input
         if self.input_processor is None:
             return sanitized

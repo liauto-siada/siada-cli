@@ -88,7 +88,7 @@ def _show_linux(title: str, message: str) -> None:
 # Public API
 # ---------------------------------------------------------------------------
 
-def show_completion_notification(title: str = "Siada", message: str = "任务已完成") -> None:
+def show_completion_notification(title: str = "Siada", message: str = "Task completed") -> None:
     """Show a system notification. Non-blocking, never raises."""
     try:
         system = platform.system()

@@ -2,7 +2,7 @@
 测试用例：验证 litellm.num_retries=3 对 Anthropic provider 的 RateLimitError (429) 是否生效。
 
 背景：
-- siada_client.py 调用 litellm.acompletion() 时 custom_llm_provider="anthropic"
+- 对 anthropic 协议调用 litellm.acompletion() 时 custom_llm_provider="anthropic"
 - 上游代理返回 429 QPS 限流错误
 - litellm.num_retries=3 在 entrypoint/__init__.py 中设置
 - 期望：litellm 的 @client wrapper (utils.py) 应该通过 acompletion_with_retries 触发重试
@@ -200,7 +200,7 @@ class TestLitellmRetryOnRateLimit:
     @pytest.mark.asyncio
     async def test_siada_client_429_no_retry(self):
         """
-        场景复现：模拟 SiadaClient._acompletion 的完整调用链
+        场景复现：模拟「外层重试循环 + litellm 内部重试」的完整调用链
         验证 _max_retries=0 时遇到 429 的行为
         """
         import litellm
@@ -214,7 +214,7 @@ class TestLitellmRetryOnRateLimit:
             original_num_retries = litellm.num_retries
             litellm.num_retries = 3
 
-            # 模拟 SiadaClient 的逻辑（_max_retries=0）
+            # 模拟外层重试循环的逻辑（_max_retries=0）
             _max_retries = 0
             _base_delay = 10.0
             _t0 = time.perf_counter()

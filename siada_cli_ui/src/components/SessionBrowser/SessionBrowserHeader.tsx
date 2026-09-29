@@ -31,15 +31,18 @@ export const SessionBrowserHeader: React.FC<SessionBrowserHeaderProps> = ({
       ? `Current Project: ${projectName}` 
       : 'Current Project';
 
+  // wrap="truncate" keeps the header at exactly 6 rows (border 3 + info 2 +
+  // margin 1) even on narrow terminals — the SessionBrowser row budget relies
+  // on this.
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box borderStyle="single" borderColor="cyan" paddingX={1}>
-        <Text bold color="cyan">
+        <Text bold color="cyan" wrap="truncate">
           Resume Session ({scopeLabel})
         </Text>
       </Box>
       <Box paddingX={1} marginTop={1}>
-        <Text color="gray" dimColor>
+        <Text color="gray" dimColor wrap="truncate">
           Showing {filteredCount} of {totalCount} sessions · Page {currentPage}/{totalPages} · Sort: {sortLabel} {sortIcon}
         </Text>
       </Box>

@@ -14,7 +14,9 @@ import { SessionBrowserFooter } from './SessionBrowserFooter.js';
 import { SearchBox } from './SearchBox.js';
 import { RenameBox } from './RenameBox.js';
 import { SessionList } from './SessionList.js';
-import { calculateVisibleRange } from '../../utils/sessionUtils.js';
+import { calculateVisibleRange, calculateVisibleSessionCount } from '../../utils/sessionUtils.js';
+import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { useClearScreenOnMount } from '../../hooks/useClearScreenOnMount.js';
 
 export const SessionBrowser: React.FC<SessionBrowserProps> = ({
   projectRoot,
@@ -41,6 +43,10 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
     onResume,
   });
 
+  // Fullscreen view: clear the screen on mount and paint the first frame
+  // from row 1 instead of mid-screen (where it would scroll its top off).
+  const cleared = useClearScreenOnMount();
+
   // Handle keyboard input
   useSessionBrowserInput({
     state,
@@ -59,14 +65,23 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
   });
 
   // Calculate visible range for pagination (must be before conditional returns)
+  // Use the real terminal height so the list never overflows the window —
+  // otherwise Ink clears the screen and redraws the frame bottom-aligned,
+  // pushing the top of the list (and the selected item) out of view.
+  const { rows: terminalRows } = useTerminalSize();
   const { startIndex, endIndex } = useMemo(() => {
-    const visibleCount = Math.max(5, state.terminalHeight - 10); // Reserve space for header/footer
+    const visibleCount = calculateVisibleSessionCount(terminalRows, {
+      searchVisible: state.isSearchMode || !!state.searchQuery,
+      renameVisible: state.isRenameMode,
+      redirectVisible: !!state.redirectCmd,
+    });
     return calculateVisibleRange(
       state.filteredSessions.length,
       state.activeIndex,
       visibleCount
     );
-  }, [state.filteredSessions.length, state.activeIndex, state.terminalHeight]);
+  }, [state.filteredSessions.length, state.activeIndex, terminalRows,
+      state.isSearchMode, state.searchQuery, state.isRenameMode, state.redirectCmd]);
 
   // Derive project name from first session or projectRoot
   // Must be before conditional returns to maintain hook order
@@ -82,6 +97,9 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
   const visibleCount = endIndex - startIndex;
   const currentPage = Math.floor(state.activeIndex / visibleCount) + 1;
   const totalPages = Math.ceil(state.filteredSessions.length / visibleCount);
+
+  // Wait for the mount clear so the first real frame paints from row 1.
+  if (!cleared) return null;
 
   // Loading state
   if (state.loading) {

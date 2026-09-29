@@ -3,7 +3,7 @@
  * Based on GitHub Dark (dimmed) color scheme
  */
 
-export const githubTheme = {
+const githubDarkTheme = {
   // Text colors
   text: {
     primary: '#c9d1d9',     // Main text color
@@ -69,9 +69,79 @@ export const githubTheme = {
   textSettings: {
     useDimColor: true,  // Global switch for dimColor
   },
-} as const;
+};
 
-export type GithubTheme = typeof githubTheme;
+export type GithubTheme = typeof githubDarkTheme;
+
+/**
+ * GitHub Light color scheme for Input components
+ */
+const githubLightTheme: GithubTheme = {
+  text: {
+    primary: '#1f2328',
+    secondary: '#59636e',
+    muted: '#81898f',
+    inverse: '#ffffff',
+  },
+  ui: {
+    background: '#ffffff',
+    surface: '#f6f8fa',
+    border: '#d1d9e0',
+    borderActive: '#0969da',
+  },
+  border: {
+    default: '#d1d9e0',
+    focused: '#0969da',
+    disabled: '#81898f',
+  },
+  primary: '#0969da',
+  success: '#1a7f37',
+  warning: '#9a6700',
+  danger: '#d1242f',
+  accent: '#bf3989',
+  purple: '#8250df',
+  input: {
+    prompt: '#0969da',
+    cursor: '#1f2328',
+    placeholder: '#81898f',
+    text: '#1f2328',
+    selection: '#b6d0f5',
+    multilineIndent: '#d1d9e0',
+  },
+  suggestions: {
+    background: '#f6f8fa',
+    border: '#d1d9e0',
+    activeBg: '#0969da',
+    activeText: '#ffffff',
+    text: '#1f2328',
+    secondaryText: '#59636e',
+    match: '#0969da',
+    icon: '#59636e',
+  },
+  status: {
+    info: '#0969da',
+    success: '#1a7f37',
+    warning: '#9a6700',
+    error: '#d1242f',
+  },
+  textSettings: {
+    useDimColor: true,
+  },
+};
+
+/**
+ * Live input theme. Starts as the dark theme; applyInputTheme() swaps its
+ * fields in place so components reading githubTheme.* at render time follow
+ * the active theme.
+ */
+export const githubTheme: GithubTheme = { ...githubDarkTheme };
+
+/**
+ * Apply a named input theme to the live `githubTheme` object (in place).
+ */
+export function applyInputTheme(theme: 'dark' | 'light'): void {
+  Object.assign(githubTheme, theme === 'light' ? githubLightTheme : githubDarkTheme);
+}
 
 // Convenience function to get color with fallback
 export const getThemeColor = (path: string, fallback: string = '#c9d1d9'): string => {

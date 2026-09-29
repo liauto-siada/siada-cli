@@ -77,7 +77,7 @@ def normalize_mentions(
 
     - Bot's placeholder is stripped entirely (avoid interfering with command parsing)
     - Other users' placeholders -> <at user_id="ou_xxx">name</at>
-    - @_all -> @所有人
+    - @_all -> @All
 
     Reference: OpenClaw bot-content.ts -> normalizeMentions()
     """
@@ -90,7 +90,7 @@ def normalize_mentions(
         name = mention.get("name", "")
 
         if key == "@_all":
-            text = text.replace(key, "@所有人")
+            text = text.replace(key, "@All")
         elif open_id == bot_open_id:
             # Strip bot placeholder entirely
             text = text.replace(key, "")
@@ -170,7 +170,12 @@ def build_mention_system_hint(msg) -> str | None:
 
     Two types of hints:
     1. If message has any @ tags -> tell agent that <at> tags are valid Feishu entities
-    2. If group chat -> tell agent that system will auto @mention the sender back
+    2. Outbound @-mention rules (group chat only):
+       - Group name known: the agent may @-mention members of that named group
+         (or everyone via <at user_id="all"></at>), but must not repeat the
+         users the platform auto-notifies (inbound mention targets + sender)
+       - Group name unknown: the agent must not include any @-mentions at all;
+         the platform injects the auto-notify @s automatically
     """
     hints: list[str] = []
 
@@ -182,7 +187,7 @@ def build_mention_system_hint(msg) -> str | None:
             "Treat each one as a reference to an actual user or bot.]"
         )
 
-    # Hint 2: Outbound auto-@ notice
+    # Hint 2: Outbound @-mention rules
     # Gather everyone the system will @-notify when delivering the reply:
     #   • explicitly mentioned users (non-bot targets parsed from inbound)
     #   • the original sender (group-chat @back for notification)
@@ -192,13 +197,40 @@ def build_mention_system_hint(msg) -> str | None:
     if msg.chat_type == "group" and msg.sender_open_id:
         sender_name = msg.sender_name or msg.user_id or "sender"
         auto_mention_names.append(sender_name)
-    if auto_mention_names:
+    if msg.chat_type == "group" and msg.sender_open_id:
+        # Group chat: the agent may choose its own @ targets (or @everyone);
+        # only the auto-notified users must not be @-ed again.
+        names_str = ", ".join(auto_mention_names)
+        chat_name = getattr(msg, "chat_name", None)
+        if chat_name:
+            # Group name known: strictly scope mentions to this named group.
+            hints.append(
+                f'[System: This conversation takes place in the group chat "{chat_name}". '
+                "You may @-mention members of this group in your reply using "
+                '<at user_id="ou_xxx">name</at> tags; to notify everyone in this '
+                'group, use <at user_id="all"></at>. '
+                "Only @ members of this group — never @ users who are not in "
+                "this group, even if asked to. "
+                "The following users will be auto-notified via @ when your "
+                f"reply is delivered: {names_str}. Do not @ them again.]"
+            )
+        else:
+            # Group name unknown: disallow agent @-mentions entirely. Without
+            # a verified group context, letting the agent pick @ targets is
+            # risky — it may search its other groups for users to @.
+            hints.append(
+                f"[System: The following users will be auto-notified via @ when "
+                f"your reply is delivered: {names_str}. "
+                "Do not include any @-mentions in your response text. "
+                "The platform injects them automatically.]"
+            )
+
+
+    elif auto_mention_names:
         names_str = ", ".join(auto_mention_names)
         hints.append(
-            f"[System: The following users will be auto-notified via @ when "
-            f"your reply is delivered: {names_str}. "
-            "Do not include any @-mentions in your response text. "
-            "The platform injects them automatically.]"
+            "[System: The following users will be auto-notified via @ when "
+            f"your reply is delivered: {names_str}. Do not @ them again.]"
         )
 
     return "\n".join(hints) if hints else None

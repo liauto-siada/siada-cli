@@ -9,12 +9,11 @@
 
 import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { Box, Text, Static, useStdout } from '@jrichman/ink';
-import ansiEscapes from 'ansi-escapes';
 import { Message } from './Message.js';
 import { ProcessBox } from './ProcessBox.js';
 import { AgentMessage } from './AgentMessage.js';
 import { Message as MessageType } from '../../types/index.js';
-import { getIcons } from '../../constants/icons.js';
+import { ToolHeading } from './ToolHeading.js';
 import { logger } from '../../utils/logger.js';
 import { AppHeader } from '../layouts/AppHeader.js';
 import { MarkdownText } from '../common/MarkdownText.js';
@@ -28,8 +27,13 @@ import {
   MIN_PENDING_CONTENT_LINES,
 } from '../../constants/limits.js';
 import { Banner } from '../Banner/Banner.js';
-import { parseToolCall, type ParsedToolCall } from '../../utils/toolCallParser.js';
+import { parseToolCall, isTodoWriteAllCompleted, type ParsedToolCall } from '../../utils/toolCallParser.js';
 import { recordFlicker } from '../../utils/flickerMonitor.js';
+import { beginSyncOutput, endSyncOutput } from '../../utils/stdio.js';
+import { extractCleanContent } from '../../utils/contentCleaner.js';
+import { isRenderableToolDiff } from '../../utils/diff.js';
+import { colors } from '../../utils/colors.js';
+import { useThemeVersion } from '../../themes/index.js';
 
 // Virtual Scrolling: Only render recent messages to prevent Terminal.app crashes
 // Terminal.app's NSMutableAttributedString has severe memory corruption issues
@@ -66,65 +70,12 @@ interface MessageGroup {
   aggregatedTools?: ParsedToolCall[];  // List of aggregated tool calls
 }
 
-/**
- * Extract clean content from agent message
- * Removes box-drawing characters, headers, token counters, and ANSI codes
- */
-function extractCleanContent(content: string): string {
-  // Remove ANSI escape sequences (colors, formatting, etc.)
-  // This regex matches ANSI escape codes like \x1b[39m, \x1b[1m, etc.
-  let cleaned = content.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
-  
-  // Also remove alternative ANSI format [39m, [1m, etc.
-  cleaned = cleaned.replace(/\[[0-9;]*m/g, '');
-  
-  // Remove box-drawing characters (╭, ╮, ╰, ╯, │, ─)
-  cleaned = cleaned.replace(/[╭╮╰╯│─]/g, '');
-  
-  // Remove arrow and **TYPE** headers
-  cleaned = cleaned.replace(/[▶►]\s*\*\*[A-Z\s]+\*\*/g, '');
-  
-  // Remove token counter lines - split into lines first to handle each line
-  const lines = cleaned.split('\n');
-  const filteredLines = lines.filter(line => {
-    // Remove lines that are ONLY whitespace and token counts
-    // Pattern: any amount of whitespace + "X,XXX / XXX,XXX tokens"
-    const tokenPattern = /^\s*[\d,]+\s*\/\s*[\d,]+\s+tokens?\s*$/i;
-    if (tokenPattern.test(line)) {
-      return false; // Remove this line
-    }
-    
-    // Remove lines that are only separators
-    const separatorPattern = /^[\s─\-]+$/;
-    if (separatorPattern.test(line)) {
-      return false;
-    }
-    
-    // Keep all lines including empty ones to preserve newline structure
-    return true;
-  });
-  
-  // Join lines back together
-  let result = filteredLines.join('\n');
-  
-  // Collapse 3+ consecutive newlines into 2 (one blank line) throughout the content
-  // This handles cases where removing markers (like ▶ **ANSWER**) leaves extra blank lines
-  result = result.replace(/\n{3,}/g, '\n\n');
-  
-  // Strip leading newlines
-  result = result.replace(/^\n+/, '');
-  
-  // Strip trailing newlines (keep at most 1)
-  result = result.replace(/\n{2,}$/, '\n');
-  
-  return result;
-}
-
-  // 🔥 Use React.memo to prevent unnecessary re-renders when messages haven't changed
+// 🔥 Use React.memo to prevent unnecessary re-renders when messages haven't changed
 export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, headerProps, terminalWidth, isCollapsed = false, noStatic = false }) => {
   const scrollRef = useRef<any>(null);
-  const icons = getIcons();
   const [historyRemountKey, setHistoryRemountKey] = useState(0);
+  const themeVersion = useThemeVersion();
+  const previousThemeVersionRef = useRef(themeVersion);
   const isInitialMount = useRef(true);
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prevModelRef = useRef<string | undefined>(undefined);
@@ -145,25 +96,25 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
   }, [messages]);
 
   const refreshStatic = useCallback(() => {
-    // Detect if we're in alternate buffer mode
-    // Ink typically runs in normal mode (not alternate buffer)
-    // Alternate buffer is used by full-screen apps like vim, less, etc.
-    const isAlternateBuffer = false; // Ink doesn't use alternate buffer by default
-    
-    // Only clear terminal in normal mode to avoid disrupting alternate buffer apps
-    if (!isAlternateBuffer && stdout) {
-      logger.info('Clearing terminal before redraw', {
+    // Keep synchronized output active while Ink replaces the Static node and
+    // atomically clears and redraws the old history. The 150ms window covers
+    // React scheduling and Ink's render throttle.
+    beginSyncOutput();
+
+    // Ink owns the physical clear when the Static node is replaced. Clearing
+    // here as well would clear the terminal twice on every resize/toggle.
+    if (stdout) {
+      logger.info('Scheduling static history replacement', {
         component: 'MessageList',
-        operation: 'clear_terminal',
+        operation: 'replace_static_history',
         reason: 'terminal_resize',
       });
-      recordFlicker('refreshStatic', 'clearTerminal + Static remount', {
+      recordFlicker('refreshStatic', 'Static remount and Ink-managed redraw', {
         messageCount: staticMessages.length,
         remountKey: historyRemountKey,
       });
-      stdout.write(ansiEscapes.clearTerminal);
     }
-    
+
     // Remount Static component to force re-layout with new terminal dimensions
     setHistoryRemountKey((prev) => {
       logger.info('Remounting static content after terminal resize', {
@@ -174,8 +125,17 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       });
       return prev + 1;
     });
+
+    setTimeout(endSyncOutput, 150);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stdout]);
+
+  useEffect(() => {
+    if (previousThemeVersionRef.current !== themeVersion) {
+      previousThemeVersionRef.current = themeVersion;
+      refreshStatic();
+    }
+  }, [themeVersion, refreshStatic]);
 
   // When model changes in headerProps, remount Static to update the banner
   useEffect(() => {
@@ -296,7 +256,22 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       if (collapsed && isToolUse) {
         const cleanContent = (msg.content || '').replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
         const parsed = parseToolCall(cleanContent);
-        
+
+        if (parsed?.type === 'todo_write') {
+          // TodoStatusBar already mirrors intermediate states. Keep the final
+          // snapshot (or explicit clear) as a single independent history cell,
+          // rather than merging it into subsequent tool aggregation.
+          if (isTodoWriteAllCompleted(cleanContent) || cleanContent === 'Clearing todo list') {
+            groups.push({ type: msg.type, message: msg });
+          }
+          continue;
+        }
+
+        if (parsed?.type === 'apply_patch' || parsed?.type === 'update_file') {
+          groups.push({ type: msg.type, message: msg });
+          continue;
+        }
+
         if (parsed) {
           // Check if previous group is also an aggregated tool call group
           const lastGroup = groups[groups.length - 1];
@@ -306,7 +281,7 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
             (sum, t) => sum + ((t.path || t.details || t.summary).split('\n').length),
             0
           );
-          const maxGroupLines = Math.max((process.stdout.rows || 13) - 12, 1);
+          const maxGroupLines = Math.max((process.stdout.rows || 23) - 22, 1);
 
           if (lastGroup && lastGroup.isAggregated && lastGroup.aggregatedTools &&
               groupLines < maxGroupLines) {
@@ -407,6 +382,33 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
     // Determine whether to keep as pending based on content length
     const estimatedLines = estimateRenderedLines(lastGroup.message.content || '') + 2;
 
+    // A last group that is still streaming (answer/thinking/tool_use without
+    // streamEnd) must NEVER be committed to <Static>, no matter how tall it
+    // gets: Static items are append-only and never re-render, so a still-
+    // growing group would freeze at whatever content it had when committed —
+    // and since remount detection below intentionally ignores the last
+    // group's signature, the frozen tail (including the final content
+    // arriving at streamEnd) would never render at all. Keep it in the
+    // dynamic pending area instead (Message truncates the view to a bounded
+    // tail); when the stream ends, the group enters Static as a brand-new
+    // item and renders in full — no remount/clear needed.
+    const lastGroupDone = !!lastGroup.message?.metadata?.streamEnd;
+    const lastGroupSubtype = lastGroup.message?.metadata?.subtype;
+    const lastGroupStreaming =
+      !lastGroupDone &&
+      (lastGroupSubtype === 'answer' ||
+        lastGroupSubtype === 'thinking' ||
+        lastGroupSubtype === 'tool_use');
+
+    // One-shot diffs and completed plan summaries can leave the dynamic area
+    // immediately, without flickering as pending tool boxes. Other tool boxes
+    // retain their existing height-based placement.
+    const lastToolContent = (lastGroup.message.content || '').replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
+    const lastGroupIsCompletedTool = !lastGroup.isAggregated && lastGroupDone && lastGroupSubtype === 'tool_use' &&
+      (isRenderableToolDiff(lastToolContent) ||
+        (parseToolCall(lastToolContent)?.type === 'todo_write' &&
+          (isTodoWriteAllCompleted(lastToolContent) || lastToolContent === 'Clearing todo list')));
+
     const duration = Date.now() - startTime;
     if (duration > 50) {
       logger.debug('Messages grouped and split', {
@@ -439,10 +441,10 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       // SideQuestionPanel, the input box), even though it hasn't finished and
       // should keep rendering in the dynamic (pending) area until it is done.
       // Only fold the last group into Static on this remount if it is itself
-      // already done, or too tall to stay pending — exactly the same rule
-      // used in the non-remount path below.
-      const lastGroupDone = !!lastGroup.message?.metadata?.streamEnd;
-      if (!lastGroupDone && estimatedLines <= halfHeight) {
+      // already done — exactly the same rule used in the non-remount path
+      // below (a still-streaming group stays pending even when too tall).
+      if (!lastGroupIsCompletedTool &&
+          (lastGroupStreaming || (!lastGroupDone && estimatedLines <= halfHeight))) {
         lastStaticGroupSignaturesRef.current = currentSignatures.slice(0, -1);
         return {
           staticGroups: allGroups.slice(0, -1),
@@ -458,8 +460,12 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
     }
 
 
-    // If last group is small enough, keep it as pending (dynamic render)
-    if (estimatedLines <= halfHeight) {
+    // If last group is small enough — or still streaming (see above) — keep
+    // it as pending (dynamic render). While pending, Message truncates the
+    // rendered view to a bounded tail, so an over-tall streaming group (e.g.
+    // a very long thinking block) stays visible and keeps updating instead
+    // of freezing inside Static.
+    if (!lastGroupIsCompletedTool && (estimatedLines <= halfHeight || lastGroupStreaming)) {
       lastStaticGroupSignaturesRef.current = currentSignatures.slice(0, -1);
       return {
         staticGroups: allGroups.slice(0, -1),
@@ -467,7 +473,9 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       };
     }
 
-    // Otherwise, put everything in static
+    // Otherwise, put everything in static. A completed (streamEnd) over-tall
+    // group entering Static here was pending until now, so Static sees it as
+    // a brand-new item and renders its full final content in one shot.
     lastStaticGroupSignaturesRef.current = currentSignatures;
     return {
       staticGroups: allGroups,
@@ -483,7 +491,6 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
 
       // Aggregated tool call group: render as count summary
       if (group.isAggregated && group.aggregatedTools && group.aggregatedTools.length > 0) {
-        const icons = getIcons();
         const tools = group.aggregatedTools;
         
         // Count by tool type
@@ -519,16 +526,16 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
               parts.push(count === 1 ? 'Run 1 PowerShell command' : `Run ${count} PowerShell commands`);
               break;
             case 'search':
-              parts.push(count === 1 ? '1 search' : `${count} searches`);
+              parts.push(count === 1 ? 'Search 1 query' : `Search ${count} queries`);
               break;
             case 'analyze':
               parts.push(count === 1 ? 'Analyze 1 file' : `Analyze ${count} files`);
               break;
             case 'web':
-              parts.push(count === 1 ? '1 web request' : `${count} web requests`);
+              parts.push(count === 1 ? 'Web 1 request' : `Web ${count} requests`);
               break;
             case 'browser':
-              parts.push(count === 1 ? '1 browser action' : `${count} browser actions`);
+              parts.push(count === 1 ? 'Browse 1 action' : `Browse ${count} actions`);
               break;
             case 'memory_search':
               parts.push(count === 1 ? 'Search memory' : `${count} memory searches`);
@@ -543,19 +550,13 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
               parts.push(count === 1 ? 'Fact feedback' : `${count} fact feedbacks`);
               break;
             case 'sub_agent':
-
-              parts.push(count === 1 ? '1 sub-agent task' : `${count} sub-agent tasks`);
+              parts.push(count === 1 ? 'Delegate 1 sub-agent task' : `Delegate ${count} sub-agent tasks`);
               break;
             case 'lark':
               parts.push(count === 1 ? '1 Lark notification' : `${count} Lark notifications`);
               break;
-            case 'todo_write':
-              parts.push('Todo List');
-              break;
           }
         }
-        
-        const summary = parts.join(', ');
         
         // Group by type and build tree preview
         const MAX_PREVIEW_PER_TYPE = 20;
@@ -563,32 +564,6 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
         
         tools.forEach(tool => {
           let items = groupedByType.get(tool.type) || [];
-
-          // Special case: todo_write - split into individual windowed lines
-          if (tool.type === 'todo_write' && tool.details) {
-            const allLines = tool.details.split('\n')
-              .map((l: string) => l.trimEnd())
-              .filter((l: string) => l.trim() && !l.match(/^\[\d+\/\d+ completed\]$/));
-
-            // Find center: last in_progress (◐), else first pending (○), else last item
-            let centerIdx = -1;
-            for (let i = allLines.length - 1; i >= 0; i--) {
-              if (allLines[i].startsWith('◐')) { centerIdx = i; break; }
-            }
-            if (centerIdx === -1) centerIdx = allLines.findIndex((l: string) => l.startsWith('○'));
-            if (centerIdx === -1) centerIdx = allLines.length - 1;
-
-            const start = Math.max(0, centerIdx - 2);
-            const end = Math.min(allLines.length - 1, centerIdx + 2);
-            const windowLines: string[] = [];
-            if (start > 0) windowLines.push('…');
-            for (let i = start; i <= end; i++) windowLines.push(allLines[i]);
-            if (end < allLines.length - 1) windowLines.push('…');
-
-            for (const line of windowLines) items.push(line);
-            groupedByType.set(tool.type, items);
-            return; // skip generic logic
-          }
 
           // Extract display text
           let displayItem = '';
@@ -619,9 +594,7 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
         
         return (
           <Box key={`aggregated-${idx}`} flexDirection="column" marginBottom={1}>
-            <Text>
-              <Text color="cyan">●</Text> <Text>{summary}</Text> <Text color="gray"> (ctrl+o to expand)</Text>
-            </Text>
+            <ToolHeading parts={parts} hint="ctrl+o to expand" />
 
             <Box flexDirection="column" paddingLeft={2}>
               {Array.from(groupedByType.entries()).map(([type, items], typeIndex) => {
@@ -633,28 +606,20 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
                 return (
                   <Box key={type} flexDirection="column">
                     {previewItems.map((item, itemIndex) => {
-                      // todo_write: no tree prefix, just indent
-                      if (type === 'todo_write') {
-                        return (
-                          <Box key={itemIndex}>
-                            <Text color="gray">{item}</Text>
-                          </Box>
-                        );
-                      }
                       const isLastInGroup = itemIndex === previewItems.length - 1 && hiddenCount === 0;
                       const prefix = isLastInGroup && isLastType ? '└─ ' : '├─ ';
                       return (
                         <Box key={itemIndex}>
-                          <Text color="gray">
+                          <Text color={colors.content.secondary}>
                             {prefix}{item}
                           </Text>
                         </Box>
                       );
                     })}
 
-                    {hiddenCount > 0 && type !== 'todo_write' && (
+                    {hiddenCount > 0 && (
                       <Box>
-                        <Text color="gray">
+                        <Text color={colors.content.secondary}>
                           {isLastType ? '└─ ' : '└─ '}… +{hiddenCount} more
                         </Text>
                       </Box>

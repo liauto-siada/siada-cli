@@ -13,6 +13,7 @@ import pexpect
 import psutil
 
 from siada.foundation.logging import logger
+from siada.foundation.shell_env import make_user_shell_env
 
 
 def _load_command_timeout(default: int = 60) -> int:
@@ -41,6 +42,37 @@ COMMAND_TIMEOUT = _load_command_timeout(60)
 
 # Maximum output length to prevent memory issues (in characters)
 MAX_OUTPUT_LENGTH = 20000
+
+# After the direct child exits, keep draining its (possibly still in-flight)
+# stdout for at most this long before returning.  A background grandchild
+# (e.g. `nohup server &`) may hold the pipe write end open forever; waiting
+# for EOF would hang the agent.  Mirrors IO_DRAIN_TIMEOUT_MS.
+IO_DRAIN_TIMEOUT = 2.0
+
+
+def _kill_command_tree(process):
+    """Kill the command's whole process tree on timeout.
+
+    POSIX: the child was spawned with start_new_session, so its pgid == pid.
+    killpg() the group — atomic and race-free.  A daemon that explicitly
+    detached (setsid / new session) is NOT in the group and survives, which
+    is the intended escape hatch for intentional background processes.
+    Windows: no process groups; fall back to the psutil ppid-tree kill
+    (uses a Job Object with TerminateJobObject for the same effect).
+    """
+    if os.name == "posix":
+        import signal
+
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+            return
+        except (ProcessLookupError, PermissionError, AttributeError):
+            pass
+    try:
+        kill_process_tree(process.pid)
+    except Exception as e:
+        logger.debug(f"[run_cmd] error killing process tree: {e}")
+
 
 # Global cancellation event for cross-thread interrupt signaling.
 # When Ctrl+C is caught by the main thread (in conversation_turn.py),
@@ -150,23 +182,22 @@ def kill_process_tree(pid):
         logger.debug(f"Process {pid} already terminated or access denied: {e}")
 
 
-def _make_no_pager_env():
-    """Return a copy of the current environment with terminal pagers disabled.
+def _shield_from_hangup(command):
+    """Prefix the command with a SIGHUP ignore trap.
 
-    Prevents tools like git/less from invoking interactive pagers that would
-    block command execution inside a Siada session.
+    pexpect spawns the shell as the leader of a new PTY session. When the
+    shell exits and the PTY master is closed, the kernel delivers SIGHUP to
+    the session's foreground process group, killing background jobs started
+    with `cmd &` — often before their own protection (e.g. nohup) has been
+    installed by exec(). Ignoring SIGHUP in the shell makes the disposition
+    inherited across fork/exec, so the whole process tree survives.
     """
-    env = os.environ.copy()
-    env['GIT_PAGER'] = 'cat'
-    env['SYSTEMD_PAGER'] = 'cat'
-    env['PAGER'] = 'cat'
-    env['LESS'] = '-FRX'
-    return env
+    return "trap '' HUP; " + command
 
 
 def _validate_cwd(cwd):
     """Validate working directory exists and is a directory.
-    
+
     Returns error message string if invalid, None if valid.
     """
     if cwd is None:
@@ -309,6 +340,15 @@ def _run_subprocess_core(
     run_powershell_impl (shell=False, argv list).
     """
     try:
+        # Start the child in its own session/process group (POSIX only).
+        # Like  set_process_group() + detach_from_tty(): the child gets
+        # its own pgid, so on timeout we can killpg() exactly this command's
+        # group (atomic, race-free) instead of walking a ppid tree, and a
+        # background daemon that explicitly detached (setsid/nohup+new
+        # session) survives the kill — the opt-out escape hatch.
+        _popen_kwargs = {}
+        if os.name == "posix":
+            _popen_kwargs["start_new_session"] = True
         process = subprocess.Popen(
             popen_args,
             stdin=subprocess.DEVNULL,  # Close stdin so non-interactive tools (e.g. python -c on Windows) receive EOF immediately instead of blocking
@@ -324,7 +364,8 @@ def _run_subprocess_core(
             shell=shell,
             bufsize=-1,  # default BufferedReader — required for read1()
             cwd=cwd,
-            env=_make_no_pager_env(),
+            env=make_user_shell_env(),
+            **_popen_kwargs,
         )
 
         import codecs as _codecs
@@ -362,28 +403,60 @@ def _run_subprocess_core(
         reader_thread.start()
 
         start_time = time.time()
+        process_exited_at = None
 
         try:
             while True:
-                # Check for timeout
-                if time.time() - start_time > effective_timeout:
-                    try:
-                        from siada.io.io import InputOutput
-                        io = InputOutput.get_instance()
-                        if io:
-                            io.print_error("_run_subprocess_core timed out, killing process...")
-                    except Exception:
-                        pass
-                    process.kill()
-                    process.wait()
-                    try:
-                        from siada.io.io import InputOutput
-                        io = InputOutput.get_instance()
-                        if io:
-                            io.print_error("_run_subprocess_core timed out, killing process success.")
-                    except Exception:
-                        pass
-                    return 1, f"Command timed out after {effective_timeout} seconds"
+                # Check for timeout — only while the process itself is still
+                # alive.  Completion is signaled by process exit (below), not
+                # by pipe EOF: a background grandchild (`nohup x &`) may hold
+                # the pipe write end open forever.
+                if process_exited_at is None:
+                    if time.time() - start_time > effective_timeout:
+                        try:
+                            from siada.io.io import InputOutput
+                            io = InputOutput.get_instance()
+                            if io:
+                                io.print_error("_run_subprocess_core timed out, killing process...")
+                        except Exception:
+                            pass
+                        # Kill the whole process tree, not just the direct child.
+                        # Grandchildren (e.g. where.exe/node.exe spawned by the
+                        # shell) inherit the stdout pipe write handle; if they
+                        # survive, the reader thread stays blocked in a pending
+                        # ReadFile and process.stdout.close() in the finally block
+                        # blocks the CLI until they exit (forever for daemons).
+                        logger.warning(
+                            f"[run_cmd] timed out after {effective_timeout}s, killing process tree (pid={process.pid})"
+                        )
+                        _kill_command_tree(process)
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            pass
+                        # With every pipe write end closed the reader observes EOF
+                        # and exits (fast in the common case).  If an intentional
+                        # background process holds the pipe, the reader never
+                        # exits — don't wait for it; the finally-block guard
+                        # skips the pipe close in that case.
+                        reader_thread.join(timeout=1)
+                        try:
+                            from siada.io.io import InputOutput
+                            io = InputOutput.get_instance()
+                            if io:
+                                io.print_error("_run_subprocess_core timed out, killing process success.")
+                        except Exception:
+                            pass
+                        return 1, f"Command timed out after {effective_timeout} seconds"
+
+                    if process.poll() is not None:
+                        # Child exited.  Output may still be in flight, so keep
+                        # draining for a bounded window instead of waiting for
+                        # EOF (mirrors IO_DRAIN_TIMEOUT: grandchildren
+                        # holding the pipe must not hang the agent).
+                        process_exited_at = time.time()
+                elif time.time() - process_exited_at > IO_DRAIN_TIMEOUT:
+                    break
 
                 try:
                     chunk = stdout_queue.get(timeout=0.5)
@@ -397,17 +470,25 @@ def _run_subprocess_core(
                 if should_add:
                     output.append(chunk)
 
-            reader_thread.join(timeout=2)
+            # All queued output is already collected (the EOF sentinel is the
+            # last queue item); joining is only for thread cleanup, so a short
+            # timeout suffices even when a background writer holds the pipe.
+            reader_thread.join(timeout=0.5)
             process.wait()
             return process.returncode, "".join(output)
         finally:
             # Ensure the process and its streams are properly closed
             try:
-                if process.stdout:
+                # Never close the pipe while the reader thread may still be
+                # blocked in a pending read on it — close() would block too.
+                if process.stdout and not reader_thread.is_alive():
                     process.stdout.close()
                 if process.poll() is None:
                     process.terminate()
-                    process.wait()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
             except Exception:
                 pass
     except Exception as e:
@@ -711,9 +792,9 @@ def run_cmd_pexpect_acp(command, verbose=False, cwd=None, timeout=None):
             logger.debug(f"With shell: {shell}")
 
         # Spawn the command
-        no_pager_env = _make_no_pager_env()
+        no_pager_env = make_user_shell_env()
         if os.path.exists(shell):
-            child = pexpect.spawn(shell, args=["-c", command], encoding="utf-8", cwd=cwd, timeout=1, env=no_pager_env)
+            child = pexpect.spawn(shell, args=["-c", _shield_from_hangup(command)], encoding="utf-8", cwd=cwd, timeout=1, env=no_pager_env)
         else:
             child = pexpect.spawn(command, encoding="utf-8", cwd=cwd, timeout=1, env=no_pager_env)
         
@@ -1048,18 +1129,18 @@ def run_cmd_pexpect(command, verbose=False, cwd=None, timeout=None):
             needs_interactive = True
         elif first_word and first_word not in standard_commands:
             needs_interactive = True
-        no_pager_env = _make_no_pager_env()
+        no_pager_env = make_user_shell_env()
         if os.path.exists(shell):
             # Use the shell from SHELL environment variable
             if needs_interactive:
                 # Use -i for aliases, functions, and version managers (slower but necessary)
                 if verbose:
                     print("Running pexpect.spawn with interactive shell (-i):", shell)
-                child = pexpect.spawn(shell, args=["-i", "-c", command], encoding="utf-8", cwd=cwd, env=no_pager_env)
+                child = pexpect.spawn(shell, args=["-i", "-c", _shield_from_hangup(command)], encoding="utf-8", cwd=cwd, env=no_pager_env)
             else:
                 if verbose:
                     print("Running pexpect.spawn with non-interactive shell (-c):", shell)
-                child = pexpect.spawn(shell, args=["-c", command], encoding="utf-8", cwd=cwd, env=no_pager_env)
+                child = pexpect.spawn(shell, args=["-c", _shield_from_hangup(command)], encoding="utf-8", cwd=cwd, env=no_pager_env)
         else:
             # Fall back to spawning the command directly
             if verbose:

@@ -426,36 +426,42 @@ def _get_suffix_for_mime(content_type: str) -> str:
 
 
 def build_multimodal_input_with_media(
-    text: str,
+    content: "str | list",
     downloaded_media: List[DownloadedMedia],
 ) -> list:
-    """Build a multimodal TResponseInputItem list from text + downloaded media.
+    """Merge downloaded media into a Responses-API content-parts list.
+
+    ``content`` is normally the content-parts list already built by a
+    caller such as ``LarkAgentExecutor._build_user_input`` /
+    ``_bridge_images_to_text`` (each item ``{"type": "input_text", "text":
+    ...}``) — this function is the single place that finalizes it into the
+    ``{"role": "user", ...}`` envelope ``SiadaRunner.run_agent`` expects.
+    A plain string is also accepted for backward compatibility / simpler
+    callers and is wrapped as a single ``input_text`` item.
 
     Encoding strategy:
     - Images    → base64 data URL encoded as input_image content parts
                   (file is read from the cached/temp path and encoded at call time)
-    - Documents → file path appended to text as a hint (agent can read the file)
+    - Documents → appended as an extra input_text hint (agent can read the file)
     - Videos    → should already be filtered out before calling this function
 
     Returns:
         A list in the format expected by SiadaRunner.run_agent(user_input=...)
         i.e. [{"role": "user", "content": [...]}]
     """
-    content = []
-    doc_hints: list = []
+    if isinstance(content, str):
+        content = [{"type": "input_text", "text": content}] if content else []
+    else:
+        content = list(content)
 
-    # Collect document path hints
-    for media in downloaded_media:
-        if media.is_document:
-            doc_hints.append(f"[Attached file: {media.path}]")
-
-    # Build text part (including document hints)
-    full_text = text
+    # Collect document path hints as their own trailing content item
+    doc_hints = [
+        f"[Attached file: {media.path}]"
+        for media in downloaded_media
+        if media.is_document
+    ]
     if doc_hints:
-        full_text = full_text.rstrip() + "\n\n" + "\n".join(doc_hints)
-
-    if full_text:
-        content.append({"type": "input_text", "text": full_text})
+        content.append({"type": "input_text", "text": "\n".join(doc_hints)})
 
     # Append base64-encoded image content parts (read from disk at this point)
     for media in downloaded_media:

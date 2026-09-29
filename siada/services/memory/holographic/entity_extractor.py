@@ -82,12 +82,12 @@ def _extract_by_pattern(content: str) -> List[Tuple[str, str]]:
 # would flood the entity table with noise like 'the', 'is', 'for'. We rescue
 # real tech terms via the tech-dict membership check below instead.
 _POS_TO_TYPE = {
-    "nr": "person",   # 人名 (person name)
+    "nr": "person",   # person name
     "nrt": "person",  # transliterated person
     "nrfg": "person", # other person
-    "ns": "place",    # 地名 (place name)
-    "nt": "org",      # 机构团体 (org / institution)
-    "nz": "project",  # 其他专名 (other proper noun — often project / product)
+    "ns": "place",    # place name
+    "nt": "org",      # org / institution
+    "nz": "project",  # other proper noun — often project / product
 }
 
 # Default tech-term dictionary — tokens commonly missed by stock jieba POS.

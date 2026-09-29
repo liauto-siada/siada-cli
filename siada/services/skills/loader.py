@@ -1,10 +1,12 @@
 """
 siada/services/skills/loader.py
 Skill loader - responsible for directory discovery, file parsing, and field validation
+
 """
 
 import re
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional, Generator
 
@@ -26,6 +28,23 @@ from .config import (
 
 
 logger = logging.getLogger(__name__)
+
+MAX_CONCURRENT_ROOT_SCANS = 8
+MAX_CONCURRENT_SKILL_LOADS = 64
+READ_CHUNK_SIZE = 8192
+
+_EXECUTOR: Optional[ThreadPoolExecutor] = None
+
+
+def _get_executor() -> ThreadPoolExecutor:
+    global _EXECUTOR
+    if _EXECUTOR is None:
+        _EXECUTOR = ThreadPoolExecutor(
+            max_workers=MAX_CONCURRENT_SKILL_LOADS,
+            thread_name_prefix="skill-load",
+        )
+    return _EXECUTOR
+
 
 # YAML frontmatter regex pattern
 FRONTMATTER_PATTERN = re.compile(
@@ -132,41 +151,53 @@ def parse_skill_file(
 ) -> SkillMetadata:
     """
     Parse SKILL.md file from skill directory
-    
+
+    only resolove header frontmatter
+
     Args:
         skill_dir: Skill directory path
         scope: Scope it belongs to
-    
+
     Returns:
         Parsed SkillMetadata
-    
+
     Raises:
         SkillParseError: Parse or validation failed
     """
     skill_file = skill_dir / SKILL_FILENAME
-    
-    if not skill_file.exists():
-        raise SkillParseError(skill_file, "SKILL.md file not found")
-    
+
     try:
-        content = skill_file.read_text(encoding="utf-8")
+        with open(skill_file, encoding="utf-8") as f:
+            content = f.read(READ_CHUNK_SIZE)
+            # Only re-read in full when the chunk boundary may have cut the
+            # frontmatter open (no closing "---" within the chunk)
+            if len(content) == READ_CHUNK_SIZE and "\n---" not in content:
+                content = skill_file.read_text(encoding="utf-8")
     except Exception as e:
         raise SkillParseError(skill_file, f"Failed to read file: {e}")
-    
+
     frontmatter = parse_frontmatter(content)
     if frontmatter is None:
         raise SkillParseError(
             skill_file,
             "Missing or invalid YAML frontmatter (must start with '---')"
         )
-    
+
     name, description = validate_skill_metadata(frontmatter, skill_file)
-    
+    metadata = frontmatter.get("metadata")
+    short_description = (
+        metadata.get("short-description")
+        if isinstance(metadata, dict)
+        and isinstance(metadata.get("short-description"), str)
+        else None
+    )
+
     return SkillMetadata(
         name=name,
         description=description,
         path=skill_file.resolve(),
         scope=scope,
+        short_description=short_description,
     )
 
 
@@ -176,20 +207,26 @@ def load_skills_from_root(
 ) -> SkillLoadOutcome:
     """
     Load all skills from a single root directory
-    
+
     Args:
         root: Skill root directory
         scope: Scope
-    
+
     Returns:
         Loading result
     """
+    skill_dirs = list(discover_skill_dirs(root))
     skills: list[SkillMetadata] = []
     errors: list[SkillError] = []
-    
-    for skill_dir in discover_skill_dirs(root):
+
+    if not skill_dirs:
+        return SkillLoadOutcome(skills=skills, errors=errors)
+
+    executor = _get_executor()
+    futures = [executor.submit(parse_skill_file, d, scope) for d in skill_dirs]
+    for skill_dir, future in zip(skill_dirs, futures):
         try:
-            skill = parse_skill_file(skill_dir, scope)
+            skill = future.result()
             skills.append(skill)
             logger.debug(f"Loaded skill: {skill.name} from {skill.path}")
         except SkillParseError as e:
@@ -199,7 +236,7 @@ def load_skills_from_root(
                 scope=scope,
             ))
             logger.warning(f"Failed to load skill: {e}")
-    
+
     return SkillLoadOutcome(skills=skills, errors=errors)
 
 
@@ -238,23 +275,42 @@ def load_skills_from_roots(
     all_skills: dict[str, SkillMetadata] = {}
     all_errors: list[SkillError] = []
 
-    # Pre-load every (scope, root) into intermediate buckets so the resolver
-    # can re-tag scopes BEFORE we apply cross-scope dedup. This way a skill
-    # reclassified from USER → SYSTEM still loses to a same-named REPO skill
-    # (REPO=1 < SYSTEM=2 in priority value).
-    flat_skills: list[SkillMetadata] = []
+    root_tasks: list[tuple[SkillScope, Path]] = []
     for scope in sorted(roots.keys()):
         scope_paths = roots[scope]
         if isinstance(scope_paths, (list, tuple)):
             ordered_paths = list(scope_paths)
         else:
             ordered_paths = [scope_paths]
+        for root in ordered_paths:
+            root_tasks.append((scope, root))
 
+    root_outcomes: list[tuple[SkillScope, Path, SkillLoadOutcome]] = []
+    if len(root_tasks) <= 1:
+        for scope, root in root_tasks:
+            root_outcomes.append((scope, root, load_skills_from_root(root, scope)))
+    else:
+        from concurrent.futures import ThreadPoolExecutor as _TP
+        with _TP(max_workers=MAX_CONCURRENT_ROOT_SCANS, thread_name_prefix="skill-root") as root_pool:
+            futures = [
+                (scope, root, root_pool.submit(load_skills_from_root, root, scope))
+                for scope, root in root_tasks
+            ]
+            for scope, root, future in futures:
+                root_outcomes.append((scope, root, future.result()))
+
+    # Pre-load every (scope, root) into intermediate buckets so the resolver
+    # can re-tag scopes BEFORE we apply cross-scope dedup. This way a skill
+    # reclassified from USER → SYSTEM still loses to a same-named REPO skill
+    # (REPO=1 < SYSTEM=2 in priority value).
+    flat_skills: list[SkillMetadata] = []
+    for scope in sorted(roots.keys()):
         # Per-scope view: later entries within the same scope override earlier ones
         # so the canonical layout (loaded last) shadows the compatibility layout.
         scope_skills: dict[str, SkillMetadata] = {}
-        for root in ordered_paths:
-            outcome = load_skills_from_root(root, scope)
+        for task_scope, root, outcome in root_outcomes:
+            if task_scope != scope:
+                continue
             for skill in outcome.skills:
                 if skill.name in scope_skills:
                     logger.debug(
@@ -291,4 +347,3 @@ def load_skills_from_roots(
         skills=list(all_skills.values()),
         errors=all_errors,
     )
-

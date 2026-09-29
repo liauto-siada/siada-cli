@@ -5,7 +5,7 @@
  *
  * - Uses <Box overflowY="scroll" scrollTop={...}> to render a scrollable viewport.
  * - Uses measure APIs (getInnerHeight/getScrollHeight) to keep scrollTop in bounds.
- * - Supports keyboard scrolling via Shift+Up/Down by default.
+ * - Supports keyboard scrolling via ↑↓ (line) and PageUp/PageDown (page).
  * - Optional auto-stick-to-bottom behavior when new children are added.
  */
 
@@ -108,13 +108,34 @@ export const Scrollable: React.FC<ScrollableProps> = ({
 
   useKeypress(
     (key: Key) => {
-      // Shift+Up/Down scrolls the history pane.
-      if (key.shift && key.name === 'up') {
+      // Plain ↑↓ scroll line-by-line. NOTE: macOS Terminal.app captures
+      // Shift+↑↓ for its own scrollback and never forwards them to the app,
+      // so plain arrows are the reliable binding (Shift+↑↓ kept for terminals
+      // that do deliver them).
+      if (key.name === 'up') {
         scrollBy(-1);
         return;
       }
-      if (key.shift && key.name === 'down') {
+      if (key.name === 'down') {
         scrollBy(1);
+        return;
+      }
+      if (key.name === 'pageup') {
+        scrollBy(-Math.max(1, sizeRef.current.innerHeight - 1));
+        return;
+      }
+      if (key.name === 'pagedown') {
+        scrollBy(Math.max(1, sizeRef.current.innerHeight - 1));
+        return;
+      }
+      // SGR mouse wheel (only delivered while mouse reporting is enabled,
+      // e.g. SubAgentDetailView enables it on mount).
+      if (key.name === 'wheelup') {
+        scrollBy(-3);
+        return;
+      }
+      if (key.name === 'wheeldown') {
+        scrollBy(3);
       }
     },
     { isActive: hasFocus },

@@ -725,6 +725,62 @@ export class SiadaACPAdapter extends EventEmitter {
           return true;
         }
 
+        // Handle ui/reasoningEffortChanged notifications (/effort <level>)
+        if (json.method === 'ui/reasoningEffortChanged') {
+          logger.info('Received ui/reasoningEffortChanged notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            effort: json.params?.effort,
+          });
+          this.emit('ui:reasoningEffortChanged', json.params);
+          return true;
+        }
+
+        // Handle ui/thinkingChanged notifications (/thinking on|off)
+        if (json.method === 'ui/thinkingChanged') {
+          logger.info('Received ui/thinkingChanged notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            thinking: json.params?.thinking,
+          });
+          this.emit('ui:thinkingChanged', json.params);
+          return true;
+        }
+
+        // Handle ui/themeChanged notifications (/theme dark|light)
+        if (json.method === 'ui/themeChanged') {
+          logger.info('Received ui/themeChanged notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            theme: json.params?.theme,
+          });
+          this.emit('ui:themeChanged', json.params);
+          return true;
+        }
+
+        // Handle ui/showThemeSelector notifications (/theme — open theme picker)
+        if (json.method === 'ui/showThemeSelector') {
+          logger.info('Received ui/showThemeSelector notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            current: json.params?.current,
+          });
+          this.emit('ui:showThemeSelector', json.params);
+          return true;
+        }
+
+        // Handle ui/showEffortSelector notifications (/effort — open scale-bar picker)
+        if (json.method === 'ui/showEffortSelector') {
+          logger.info('Received ui/showEffortSelector notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            model: json.params?.model,
+            efforts: json.params?.efforts,
+          });
+          this.emit('ui:showEffortSelector', json.params);
+          return true;
+        }
+
         if (json.method === 'ui/pluginInstallProgress') {
           this.emit('ui:pluginInstallProgress', json.params);
           return true;
@@ -825,6 +881,29 @@ export class SiadaACPAdapter extends EventEmitter {
             verifying: json.params?.verifying,
           });
           this.emit('context:goalState', json.params);
+          return true;
+        }
+
+        // Handle context/subAgentState notifications (sub-agent item list snapshot)
+        if (json.method === 'context/subAgentState') {
+          logger.info('Received context/subAgentState notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            itemCount: json.params?.items?.length || 0,
+          });
+          this.emit('context:subAgentState', json.params);
+          return true;
+        }
+
+        // Handle context/subAgentMessage notifications (incremental sub-agent content)
+        if (json.method === 'context/subAgentMessage') {
+          logger.info('Received context/subAgentMessage notification', {
+            component: 'Adapter',
+            operation: 'tryParseACPJson',
+            subAgentId: json.params?.id,
+            kind: json.params?.entry?.kind,
+          });
+          this.emit('context:subAgentMessage', json.params);
           return true;
         }
 
@@ -986,9 +1065,18 @@ export class SiadaACPAdapter extends EventEmitter {
               component: 'Adapter',
               commandCount: bannerData.slash_commands.length,
             });
-            
+
             // Emit slash commands update event
             this.emit('slashCommands:update', bannerData.slash_commands);
+          }
+
+          // Initial UI color theme (from conf.yaml via the backend)
+          if (typeof bannerData.theme === 'string') {
+            logger.info('🎨 Received theme from backend', {
+              component: 'Adapter',
+              theme: bannerData.theme,
+            });
+            this.emit('ui:themeChanged', { theme: bannerData.theme });
           }
           
           // Handle checkpoints list
@@ -1045,8 +1133,8 @@ export class SiadaACPAdapter extends EventEmitter {
         
         this.emit('message', bannerEvent);
 
-        // banner_info is the last thing Python sends before entering the input loop —
-        // treat it as the definitive "backend ready" signal.
+        // banner_info means initial setup is complete. A cold --resume can
+        // send ui/loadHistory immediately afterwards, before connect() settles.
         if (!this.isReady && this.readyResolver) {
           logger.info('[Adapter] [waitForReady] siada-cli ready signal received (banner_info)', {
             component: 'Adapter',
@@ -1154,6 +1242,18 @@ export class SiadaACPAdapter extends EventEmitter {
           queueId: metadata.id,
         });
         this.emit('queue:itemConsumed', { id: metadata.id, content: metadata.content });
+        break;
+
+      case 'restore_input':
+        // The user interrupted (Ctrl+C) before their input was persisted to
+        // the session — hand the text back so the input box can be refilled
+        // instead of losing the message.
+        logger.info('↩️ Restore input received', {
+          component: 'Adapter',
+          operation: 'handleACPSessionUpdate',
+          contentLength: content.length,
+        });
+        this.emit('input:restore', { content });
         break;
         
       default:
@@ -1332,7 +1432,7 @@ export class SiadaACPAdapter extends EventEmitter {
       }, timeout);
 
       // Primary signal: readyResolver is called by handleACPSessionUpdate when
-      // banner_info arrives (the last thing Python sends before the input loop).
+      // banner_info arrives (history notifications may follow on --resume).
       this.readyResolver = () => {
         logger.info('siada-cli ready signal received', {
           component: 'Adapter',
@@ -1605,6 +1705,16 @@ export class SiadaACPAdapter extends EventEmitter {
         break;
       case 'content_delta':
         this.handleContentDelta(params);
+        break;
+      case 'stream_aborted':
+        // Backend detected a bad stream (repetition loop) and is retrying —
+        // forward so the UI can discard this stream's rendered content.
+        // NB: the payload field is `abort_reason` — `reason` is the ACP
+        // routing field and would collide with reason='lifecycle_event'.
+        this.emit('stream:aborted', {
+          streamStartId: params.stream_start_id,
+          reason: params.abort_reason,
+        });
         break;
       case 'tool_use':
         // Handle tool_use lifecycle event (tool call delta)

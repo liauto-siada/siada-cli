@@ -14,7 +14,17 @@ _project_root = os.path.dirname(os.path.dirname(_script_dir))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from prompt_toolkit.completion import Completer  # noqa: E402
+# ---------------------------------------------------------------------------
+# Agents-SDK import gate — keep before any other siada import: importing
+# ``siada.foundation.sdk_patches`` installs a meta-path finder that serializes
+# the SDK's *first* import from whichever thread needs it, so no import site has
+# to remember calling ``ensure_agents_imported()``. The SDK is therefore no
+# longer imported on this startup path (holding the ``agents`` module lock while
+# the package initializes delayed the banner by ~0.5-0.6s). See
+# ``_AgentsImportGate`` for details.
+# ---------------------------------------------------------------------------
+import siada.foundation.sdk_patches  # noqa: E402,F401  # installs the import gate
+
 from siada.config.config_loader import Config, load_conf  # noqa: E402
 from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.entrypoint.interaction.controller import Controller
@@ -23,6 +33,7 @@ from siada.entrypoint.helpers.daemon_commands import (
     ensure_daemon_running, handle_stop_daemon, handle_restart_daemon, handle_daemon_status, handle_task_list,
 )
 from siada.entrypoint.helpers.model_setup import get_config, get_api_key_provider_models
+from siada.foundation import herdr_reporter
 from siada.foundation.logging import redirect_agents_logger, redirect_aiohttp_asyncio_logger, redirect_openhands_aci_logger, toggle_console_output, logger, get_log_directory, cleanup_old_logs
 from siada.io.color_settings import RunningConfigColorSettings
 from siada.session.session_manager import RunningSessionManager
@@ -30,12 +41,6 @@ from siada.support.envprocessor import load_dotenv_files
 from siada.support.repo import get_git_root
 from siada.utils import SettingsUtils
 from siada.io.io import InputOutput
-from prompt_toolkit.enums import EditingMode
-
-try:
-    import git
-except ImportError:
-    git = None
 
 
 
@@ -69,6 +74,25 @@ def _suppress_third_party_warnings():
     redirect_openhands_aci_logger()
 
 
+def _option_typo_hints(unknown, parser) -> list:
+    """'did you mean' hints for unrecognized options (e.g. --browserr-host).
+
+    Without them a typo'd flag only produces the error line plus a full help
+    dump, which buries the actual mistake.
+    """
+    import difflib
+
+    known = sorted({opt for action in parser._actions for opt in action.option_strings})
+    hints = []
+    for token in unknown:
+        if not token.startswith("-"):
+            continue
+        match = difflib.get_close_matches(token, known, n=1, cutoff=0.8)
+        if match:
+            hints.append(f"did you mean: {token} -> {match[0]}")
+    return hints
+
+
 def _parse_args_and_setup_environment(argv):
     """Parse CLI arguments, detect git root, load dotenv files.
 
@@ -82,7 +106,7 @@ def _parse_args_and_setup_environment(argv):
     temp_parser.add_argument("--workspace", default=None)
     temp_args, _ = temp_parser.parse_known_args(argv)
 
-    git_root = get_git_root(temp_args.workspace) if git is not None else None
+    git_root = get_git_root(temp_args.workspace)
 
     from siada.entrypoint.args_parser.args import get_parser, SiadaArgs
     parser = get_parser(git_root=git_root, default_config_files=[])
@@ -90,6 +114,8 @@ def _parse_args_and_setup_environment(argv):
         _raw_args, unknown = parser.parse_known_args(argv)
         if unknown:
             print(f"error: unrecognized arguments: {' '.join(unknown)}", file=sys.stderr)
+            for hint in _option_typo_hints(unknown, parser):
+                print(hint, file=sys.stderr)
             parser.print_help(sys.stderr)
             sys.exit(2)
     except AttributeError as e:
@@ -125,7 +151,7 @@ def get_io(args, pretty=None):
     running_color_settings = RunningConfigColorSettings(color_settings=color_settings, pretty=args.pretty)
     color_settings.apply_to_args(args)
 
-    editing_mode = EditingMode.VI if args.vim else EditingMode.EMACS
+    editing_mode = "VI" if args.vim else "EMACS"
     if acp_enabled:
         # In ACP mode, stdin is a pipe (not a TTY).  The Node.js frontend
         # writes \x03 (ETX) to the pipe as the primary interrupt mechanism
@@ -357,6 +383,38 @@ def _handle_pre_init_commands() -> Optional[int]:
     return None
 
 
+def _handle_browser_commands(args) -> Optional[int]:
+    """Dispatch --browser-* flags to the browser-addon CLI implementation.
+
+    The flags map 1:1 onto the ``siada-browser`` subcommands and reuse the
+    same code path (``siada.browser_addon.cli``), so both entries stay in
+    sync. Returns None when no browser flag was passed.
+    """
+    if args.browser_setup is not None:
+        argv = ["setup"]
+        if args.browser_setup:
+            argv.append(args.browser_setup)
+        if args.browser_port is not None:
+            argv += ["--port", str(args.browser_port)]
+        if args.browser_host is not None:
+            argv += ["--host", args.browser_host]
+        if args.browser_base_url:
+            argv += ["--base-url", args.browser_base_url]
+    elif args.browser_start:
+        argv = ["start"]
+    elif args.browser_stop:
+        argv = ["stop"]
+    elif args.browser_restart:
+        argv = ["restart"]
+    elif args.browser_status:
+        argv = ["status"]
+    else:
+        return None
+
+    from siada.browser_addon.cli import main as browser_main
+    return browser_main(argv)
+
+
 def handle_special_commands(args, conf: Config, io) -> Optional[int]:
     """Handle special commands that don't need full initialization.
 
@@ -371,6 +429,10 @@ def handle_special_commands(args, conf: Config, io) -> Optional[int]:
         return handle_daemon_status()
     if args.task_list:
         return handle_task_list()
+
+    # Browser proxy (chrome-acp) management
+    if (exit_code := _handle_browser_commands(args)) is not None:
+        return exit_code
 
     # Model list
     if args.list_models:
@@ -388,22 +450,6 @@ def handle_special_commands(args, conf: Config, io) -> Optional[int]:
     if args.upgrade:
         from siada.services.version_checker import version_checker
         return 0 if version_checker.install_upgrade(io) else 1
-
-    # Terminal Auth (ACP): run the interactive sign-in flow and exit.
-    if args.login:
-        from siada.entrypoint.login.login_prompt import ensure_logged_in
-        try:
-            user_id = ensure_logged_in(io, acp_mode=False)
-        except SystemExit:
-            raise
-        except Exception as exc:
-            io.print_error(f"Login error: {exc}")
-            return 1
-        if not user_id:
-            io.print_error("Login was not completed.")
-            return 1
-        io.print_info("Login complete. You can now use Siada from your ACP client.")
-        return 0
 
     # Logout
     if args.logout:
@@ -523,13 +569,15 @@ def _build_session(args, conf, io, running_color_settings, model, workspace, int
     session_id = generate_session_id()
     logger.info(f"Session ID: {session_id}")
 
-    from siada.support.completer import AutoCompleter
-    completer: Completer = AutoCompleter(
-        root=workspace,
-        commands=commands,
-        encoding=args.encoding,
-        session_id=session_id,
-    )
+    completer = None
+    if io.prompt_session is not None:
+        from siada.support.completer import AutoCompleter
+        completer = AutoCompleter(
+            root=workspace,
+            commands=commands,
+            encoding=args.encoding,
+            session_id=session_id,
+        )
     logger.log_timing("init_commands_and_completer")
 
     checkpointing_config = get_checkpointing_config(args, conf, interactive_mode)
@@ -559,7 +607,8 @@ def _build_session(args, conf, io, running_color_settings, model, workspace, int
     logger.log_timing("create_running_config")
 
     session = RunningSessionManager.create_session(siada_config=running_config, session_id=session_id)
-    completer.append_custom_command(session=session)
+    if completer is not None:
+        completer.append_custom_command(session=session)
     logger.log_timing("create_session")
 
     validate_agent_compatibility(args.agent, interactive_mode, io, args.verbose)
@@ -648,14 +697,18 @@ def _run_noninteractive(args, session, running_config, io, model) -> int:
 
 
 def _run_interactive(args, session, running_config, commands, io, model) -> Optional[int]:
-    """Run interactive mode. Returns exit code on error, None on clean exit."""
+    """Run the ACP terminal controller and return its exit code."""
+    if not running_config.acp_mode:
+        io.print_error("The legacy Python interactive UI is no longer supported. "
+                       "Launch siada-cli without --no-ui, or use --prompt.")
+        return 1
     controller = Controller(config=running_config, slash_commands=commands, session=session)
     logger.log_timing("create_controller")
 
     commands._controller = controller
 
     # ACP fast-path: if stored credentials exist, defer login verification to a
-    # background thread so banner_info is sent immediately (~800ms saved).
+    # background thread so fresh sessions send banner_info immediately (~800ms saved).
     # Falls back to synchronous login when no credentials exist at all (new user /
     # logged-out) — must block before banner to avoid showing the main view then
     # flashing a login overlay on top.
@@ -664,15 +717,20 @@ def _run_interactive(args, session, running_config, commands, io, model) -> Opti
     else:
         login_err = _apply_login(io, args, model, controller)
         if login_err is not None:
+            controller.ui.close()
             return login_err
 
+    # On --resume, the newly created session is only a placeholder. Restore its
+    # original session_id before sending the first banner_info: otherwise the
+    # UI paints the placeholder's banner, then remounts Static to paint the
+    # resumed session's banner a second time a few hundred milliseconds later.
+    # Without --resume this check returns immediately, preserving fast startup.
+    outcome = _try_restore_session(args, session, io)
     controller.show_announcements()
     logger.log_timing("ui_ready")
 
-    outcome = _try_restore_session(args, session, io)
     if outcome is not None and outcome[0]:
         _, session_data = outcome
-        controller.show_announcements()
         if args.acp:
             commands._send_history_to_ui(session_data.items)
             # Re-push the resumed session's goal state (if any) so the
@@ -692,14 +750,14 @@ def _run_interactive(args, session, running_config, commands, io, model) -> Opti
     # this is typically a no-op (0 ms wait).
     login_err = _ensure_login_ready()
     if login_err is not None:
+        controller.ui.close()
         return login_err
 
     # FileSession lazily imports agents.memory.session on first access.
     # Join the agents-init thread now so the import lock is free.
     _ensure_agents_ready()
     logger.info("Entering main interaction loop")
-    controller.run()
-    io.print_info(f"To continue this session, run: siada-cli --resume {session.session_id}")
+    return controller.run()
 
 
 _litellm_init_thread = None
@@ -759,6 +817,24 @@ def _start_agents_init_async():
     import threading
 
     def _warmup_agents_then_providers():
+        # Publish readiness for other siada threads (agent-class preload) even
+        # if one of the steps below fails.
+        from siada.foundation.sdk_patches import mark_agents_ready
+        try:
+            _warmup_agents_then_providers_inner()
+        finally:
+            mark_agents_ready()
+
+    def _warmup_agents_then_providers_inner():
+        # Serialize the SDK's first import against the other siada background
+        # threads (agent-class preload, patch application): importing a
+        # submodule while another thread is still initializing the ``agents``
+        # package surfaces as "partially initialized module 'agents.items'".
+        try:
+            from siada.foundation.sdk_patches import ensure_agents_imported
+            ensure_agents_imported()
+        except Exception:
+            pass
         try:
             from agents import ModelProvider  # noqa: F401
             from agents.memory.session import SessionABC  # noqa: F401
@@ -784,6 +860,11 @@ def _start_agents_init_async():
             pass
 
     global _agents_init_thread
+    try:
+        from siada.foundation.sdk_patches import begin_agents_warmup
+        begin_agents_warmup()
+    except Exception:
+        pass
     _agents_init_thread = threading.Thread(
         target=_warmup_agents_then_providers,
         daemon=True,
@@ -855,6 +936,13 @@ def _ensure_agents_ready():
     if _agents_init_thread.is_alive():
         _agents_init_thread.join(timeout=15)
     _agents_init_thread = None  # mark consumed
+    # Publishing readiness here too: if the warmup thread exited early (or the
+    # join timed out), threads waiting on the handshake must not block further.
+    try:
+        from siada.foundation.sdk_patches import mark_agents_ready
+        mark_agents_ready()
+    except Exception:
+        pass
 
 
 def _start_login_init_async(io, args, model, controller):
@@ -908,22 +996,18 @@ def _has_stored_credentials() -> bool:
     Reads conf.yaml directly without importing any heavy IDaaS modules.
     Used to decide whether login can be deferred to a background thread.
     """
-    try:
-        import yaml
-        conf_path = __import__('pathlib').Path.home() / ".siada-cli" / "conf.yaml"
-        if not conf_path.exists():
-            return False
-        with open(conf_path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        # LiId login path
-        if data.get("user_id", "").strip():
-            return True
-        # API-key login path
-        if data.get("provider", "") == "default" and data.get("api_key", ""):
-            return True
+    from siada.config.conf_store import read_conf_dict
+
+    data = read_conf_dict()
+    if not data:
         return False
-    except Exception:
-        return False
+    # LiId login path
+    if isinstance(data.get("user_id"), str) and data.get("user_id", "").strip():
+        return True
+    # API-key login path
+    if data.get("provider", "") == "default" and data.get("api_key", ""):
+        return True
+    return False
 
 
 def _preload_c_extensions_on_main_thread():
@@ -1021,6 +1105,12 @@ def _setup_and_build_session(args, conf, io, running_color_settings, git_root, w
         args, conf, io, running_color_settings, model, workspace, interactive_mode
     )
     logger.log_timing("build_session")
+
+    # Make the agent visible to a hosting Herdr pane before the first turn, so
+    # the pane reads as siada/idle instead of an unknown terminal process.
+    herdr_reporter.report_state(
+        herdr_reporter.STATE_IDLE, session_id=getattr(session, "session_id", None)
+    )
 
     return None, session, running_config, commands, model
 
@@ -1326,7 +1416,16 @@ def main():
 
     # 5. Special commands
     if (exit_code := handle_special_commands(args, conf, io)) is not None:
-        return exit_code
+        # One-shot commands return while background daemon threads may still
+        # hold locks the interpreter finalizer needs: in ACP mode the stdin
+        # interrupt monitor keeps reading stdin (fatal `_enter_buffered_busy`
+        # at shutdown → SIGABRT), and the litellm/agents warmup threads may
+        # still be importing. Flush and hard-exit to skip finalization.
+        import logging
+        logging.shutdown()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(exit_code if isinstance(exit_code, int) else 0)
 
     # If headroom is desired, signal the daemon (spawned just below, which
     # inherits this process's env) to start the proxy. The daemon owns the

@@ -39,6 +39,7 @@ def _make_msg(
     chat_type: str = "group",
     sender_open_id: str | None = None,
     sender_name: str | None = None,
+    chat_name: str | None = None,
 ) -> IMMessage:
     """Helper to build a minimal IMMessage."""
     return IMMessage(
@@ -50,11 +51,13 @@ def _make_msg(
         content_type="text",
         content=content,
         timestamp=0.0,
+        chat_name=chat_name,
         mentions=mentions or [],
         has_any_mention=has_any_mention,
         sender_open_id=sender_open_id,
         sender_name=sender_name,
     )
+
 
 
 # ──────────────── check_bot_mentioned ────────────────
@@ -136,7 +139,8 @@ class TestNormalizeMentions:
         text = "@_all hello everyone"
         mentions = [{"key": "@_all", "id": {"open_id": ""}, "name": "所有人"}]
         result = normalize_mentions(text, mentions, BOT_OPEN_ID)
-        assert "@所有人" in result
+        # @_all renders as the literal "@All" marker, not the mention's name
+        assert "@All" in result
         assert "@_all" not in result
 
     def test_bot_placeholder_stripped(self):
@@ -224,9 +228,9 @@ class TestBuildMentionSystemHint:
         hint = build_mention_system_hint(msg)
         assert hint is not None
         assert "<at" in hint
-        assert "Feishu entity" in hint
+        assert "Feishu @-mention tags" in hint
 
-    def test_group_chat_with_sender_shows_auto_inject(self):
+    def test_group_chat_with_sender_shows_mention_rules(self):
         msg = _make_msg(
             has_any_mention=True, chat_type="group",
             sender_open_id="ou_alice", sender_name="Alice",
@@ -234,24 +238,59 @@ class TestBuildMentionSystemHint:
         hint = build_mention_system_hint(msg)
         assert hint is not None
         assert "Alice" in hint
-        assert "auto-inject" in hint
-        assert "sender" in hint
+        assert "auto-notified" in hint
+        # Without a group name, agent @-mentions are disallowed entirely —
+        # the platform injects the auto-notify @s itself
+        assert "Do not include any @-mentions in your response text" in hint
 
-    def test_p2p_chat_no_auto_inject(self):
+
+    def test_group_hint_includes_chat_name_when_available(self):
+        msg = _make_msg(
+            has_any_mention=True, chat_type="group",
+            sender_open_id="ou_alice", sender_name="Alice",
+            chat_name="SDK 开发群",
+        )
+        hint = build_mention_system_hint(msg)
+        assert hint is not None
+        assert 'the group chat "SDK 开发群"' in hint
+        assert "Only @ members of this group" in hint
+
+    def test_group_hint_falls_back_when_chat_name_missing(self):
+        msg = _make_msg(
+            has_any_mention=True, chat_type="group",
+            sender_open_id="ou_alice", sender_name="Alice",
+            chat_name=None,
+        )
+        hint = build_mention_system_hint(msg)
+        assert hint is not None
+        # Falls back to the conservative hint: agent @-mentions are fully
+        # disallowed when the group name cannot be verified, so the agent
+        # cannot go searching its other groups for @ targets.
+        assert "Alice" in hint
+        assert "auto-notified" in hint
+        assert "Do not include any @-mentions in your response text" in hint
+        assert "The platform injects them automatically" in hint
+        assert "You may @-mention group members" not in hint
+        assert "the current group chat" not in hint
+        assert "Only @ members of this group" not in hint
+
+
+
+    def test_p2p_chat_no_mention_rules(self):
         msg = _make_msg(
             has_any_mention=True, chat_type="p2p",
             sender_open_id="ou_alice", sender_name="Alice",
         )
         hint = build_mention_system_hint(msg)
-        # Should have <at> tag hint but NOT auto-inject hint
+        # Should have <at> tag hint but NOT the outbound mention rules
         assert hint is not None
-        assert "Feishu entity" in hint
-        assert "auto-inject" not in hint
+        assert "Feishu @-mention tags" in hint
+        assert "auto-notified" not in hint
 
-    def test_group_no_sender_id_no_auto_inject(self):
+    def test_group_no_sender_id_no_mention_rules(self):
         msg = _make_msg(
             has_any_mention=True, chat_type="group",
             sender_open_id=None,
         )
         hint = build_mention_system_hint(msg)
-        assert "auto-inject" not in hint
+        assert "auto-notified" not in hint

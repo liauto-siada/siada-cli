@@ -6,9 +6,9 @@
 import chalk from 'chalk';
 
 /**
- * Color palette
+ * Dark color palette (default)
  */
-export const colors = {
+const darkColors = {
   // Primary colors
   primary: '#3B82F6',      // Blue
   secondary: '#8B5CF6',    // Purple
@@ -49,30 +49,128 @@ export const colors = {
     class: '#FFB86C',
     variable: '#F8F8F2',
   },
+
+  // Message bodies (tool values, commands, answers) inherit the terminal's own
+  // foreground, exactly like the plain text of a "Run N commands" heading. The
+  // two tones below add the hierarchy back on top of it: `secondary` is a
+  // clearly readable step down (reasoning text, hints, diff context) rather
+  // than a washed-out gray, and `tertiary` is for structure (line numbers,
+  // separators). Every value is checked against Solarized, Gruvbox, Nord and
+  // friends instead of assuming a pure black or pure white canvas.
+  content: {
+    secondary: '#b9c2cc', // Reasoning text, hints, connectors, diff context
+    tertiary: '#8f97a1',  // Line numbers, separators, tertiary metadata
+    border: '#4b5563',    // Frames around thinking and tool blocks
+    surface: '#262a30',   // Subtle background behind expanded commands
+  },
+
+  // Diff bands: the band tints the background and the code keeps the terminal
+  // foreground, so a band must stay far enough from that foreground's pole.
+  // Only the +/- signs and the word-level highlight carry their own color.
+  diff: {
+    addedBg: '#1a4a1a',
+    addedSign: '#4ade80',
+    addedWordBg: '#1f5f27',
+    removedBg: '#4a1a1a',
+    removedSign: '#f87171',
+    removedWordBg: '#6b2626',
+  },
 };
 
 /**
- * Theme type
+ * Light color palette (GitHub Light style, tuned for light terminal backgrounds)
  */
-export type Theme = 'light' | 'dark' | 'auto';
+const lightColors: typeof darkColors = {
+  // Primary colors
+  primary: '#0969da',
+  secondary: '#8250df',
+  success: '#1a7f37',
+  warning: '#9a6700',
+  error: '#d1242f',
+  info: '#0550ae',
+
+  // Grayscale
+  white: '#FFFFFF',
+  black: '#000000',
+  gray: {
+    50: '#F9FAFB',
+    100: '#F3F4F6',
+    200: '#E5E7EB',
+    300: '#D1D5DB',
+    400: '#9CA3AF',
+    500: '#6B7280',
+    600: '#4B5563',
+    700: '#374151',
+    800: '#1F2937',
+    900: '#111827',
+  },
+
+  // Message types
+  user: '#1a7f37',
+  agent: '#0969da',
+  system: '#9a6700',
+  tool: '#8250df',
+
+  // Syntax highlighting (GitHub Light)
+  syntax: {
+    keyword: '#cf222e',
+    string: '#0a3069',
+    number: '#0550ae',
+    comment: '#6e7781',
+    function: '#8250df',
+    class: '#953800',
+    variable: '#1f2328',
+  },
+
+  // Message bodies (thinking, tool output, diffs) — see darkColors.content.
+  content: {
+    secondary: '#4b5563',
+    tertiary: '#6e7781',
+    border: '#c8d1da',
+    surface: '#f0f1f3',
+  },
+
+  diff: {
+    addedBg: '#d3f2dc',
+    addedSign: '#14752f',
+    addedWordBg: '#8fe0a4',
+    removedBg: '#ffdfdd',
+    removedSign: '#b81f2a',
+    removedWordBg: '#ffb8b3',
+  },
+};
 
 /**
- * Current theme (default: dark for terminal)
+ * Live color palette. Starts as the dark theme; applyColorsTheme() mutates
+ * it in place so helpers that read colors.* at call time follow the active
+ * theme.
  */
-let currentTheme: Theme = 'dark';
+export const colors: typeof darkColors = {
+  ...darkColors,
+  gray: { ...darkColors.gray },
+  syntax: { ...darkColors.syntax },
+  content: { ...darkColors.content },
+  diff: { ...darkColors.diff },
+};
 
 /**
- * Set current theme
+ * Apply a named palette to the live `colors` object (in place).
  */
-export function setTheme(theme: Theme): void {
-  currentTheme = theme;
-}
-
-/**
- * Get current theme
- */
-export function getTheme(): Theme {
-  return currentTheme;
+export function applyColorsTheme(theme: 'dark' | 'light'): void {
+  const source = theme === 'light' ? lightColors : darkColors;
+  colors.primary = source.primary;
+  colors.secondary = source.secondary;
+  colors.success = source.success;
+  colors.warning = source.warning;
+  colors.error = source.error;
+  colors.info = source.info;
+  colors.user = source.user;
+  colors.agent = source.agent;
+  colors.system = source.system;
+  colors.tool = source.tool;
+  Object.assign(colors.syntax, source.syntax);
+  Object.assign(colors.content, source.content);
+  Object.assign(colors.diff, source.diff);
 }
 
 /**

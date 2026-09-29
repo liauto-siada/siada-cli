@@ -1,0 +1,59 @@
+{
+  "name": "@chrome-acp/proxy-server",
+  "version": "1.0.45",
+  "description": "Proxy server that connects ACP agents to Chrome extension, exposing browser tools via MCP",
+  "author": "Areo Joe <zengjoe@foxmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Areo-Joe/chrome-acp.git",
+    "directory": "packages/proxy-server"
+  },
+  "homepage": "https://github.com/Areo-Joe/chrome-acp#readme",
+  "bugs": "https://github.com/Areo-Joe/chrome-acp/issues",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "bin": {
+    "acp-proxy": "dist/cli/bin.js"
+  },
+  "files": [
+    "dist",
+    "public"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/qrcode": "^1.5.6",
+    "@types/selfsigned": "^2.1.0",
+    "@types/ws": "^8.18.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^0.14.1",
+    "@hono/node-server": "^1.13.8",
+    "@hono/node-ws": "^1.0.5",
+    "@stricli/auto-complete": "^1.2.4",
+    "@stricli/core": "^1.2.4",
+    "hono": "^4.7.0",
+    "pino": "^10.3.0",
+    "@parcel/watcher": "^2.5.6",
+    "qrcode": "^1.5.4",
+    "selfsigned": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "acp",
+    "mcp",
+    "agent",
+    "browser",
+    "chrome"
+  ],
+  "license": "MIT"
+}

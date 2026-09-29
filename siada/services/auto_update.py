@@ -3,6 +3,15 @@
 The daemon uses this module to check for newer releases in the background,
 install them silently, and persist state so the next CLI launch can pick up
 any applied update without interrupting the current session.
+
+Note on install modes: ``InternalUpdateStrategy`` (proprietary tarball-based
+install infrastructure) lives in ``siada.internal.services.auto_update`` and
+is intentionally excluded from the open-source distribution.  Open-source /
+externally-installed (``pip install siada-cli``) builds only ever use
+``ExternalUpdateStrategy`` below.  ``build_update_strategy()`` lazily imports
+the internal strategy and gracefully falls back when it is unavailable, so
+open-source checkouts don't need (and can't reach) internal auto-update
+infrastructure — only internal builds do.
 """
 
 from __future__ import annotations
@@ -32,17 +41,11 @@ logger = logging.getLogger("siada.auto_update")
 _AUTO_UPDATE_STATE_FILE = SIADA_HOME / "auto_update" / "state.json"
 _AUTO_UPDATE_LOCK_FILE = SIADA_HOME / "locks" / "auto_update.lock"
 _AUTO_UPDATE_INSTALL_LOG = SIADA_HOME / "logs" / "auto_update_install.log"
-_INTERNAL_BASE_URL = "https://bj.bcebos.com/prod-cnhb01-siada/cli-install"
-_INTERNAL_SCRIPT_NAMES = {
-    "prod": "prod_install_from_tarball.sh",
-    "beta": "beta_install_from_tarball.sh",
-    "test": "test_install_from_tarball.sh",
-}
-_INTERNAL_SCRIPT_NAMES_WIN = {
-    "prod": "prod_install_from_tarball.ps1",
-    "beta": "beta_install_from_tarball.ps1",
-    "test": "test_install_from_tarball.ps1",
-}
+
+# Valid release channels.  The concrete script/URL naming for each channel is
+# internal-only (see siada.internal.services.auto_update) and not part of the
+# open-source distribution.
+_VALID_CHANNELS = {"prod", "beta", "test"}
 
 
 def _detect_platform() -> str:
@@ -286,109 +289,6 @@ class BaseUpdateStrategy:
 
     def get_manual_upgrade_hint(self) -> str:
         raise NotImplementedError
-
-
-class InternalUpdateStrategy(BaseUpdateStrategy):
-    """Auto-update via prebuilt venv tarball install script.
-
-    Spawns a detached helper process that downloads and runs
-    install_from_tarball.sh.  The install script kills the running
-    daemon, downloads base/app tarballs, extracts, fixes shebangs,
-    atomically swaps the venv symlink, and cleans up.  After the
-    install script finishes, the helper starts a new daemon from
-    the (now swapped) venv symlink path.
-    """
-
-    install_mode = "internal"
-
-    def get_latest_release(self) -> ReleaseInfo:
-        plat = _detect_platform()
-        base = f"{_INTERNAL_BASE_URL}/{self.channel}"
-        version_url = f"{base}/latest_version-{plat}"
-        resp = requests.get(version_url, timeout=10)
-        resp.raise_for_status()
-        version = resp.text.strip()
-        if not version:
-            raise RuntimeError(f"Empty version from {version_url}")
-        return ReleaseInfo(
-            version=version,
-            version_source=version_url,
-            install_mode=self.install_mode,
-            channel=self.channel,
-        )
-
-    def install_release(self, release: ReleaseInfo) -> tuple[bool, str]:
-        plat = _detect_platform()
-        if _is_windows():
-            script_name = _INTERNAL_SCRIPT_NAMES_WIN[self.channel]
-            script_url = f"{_INTERNAL_BASE_URL}/{self.channel}/{script_name}"
-            # Set SIADA_AUTO_UPDATE env var so the install script knows to
-            # restart the daemon after installation.  The script uses
-            # Start-Process to launch the daemon as an independent top-level
-            # process, avoiding parent-child relationship with the old daemon.
-            # -WindowStyle Hidden + CREATE_NO_WINDOW prevents any black console
-            # window from appearing.
-            ps_command = (
-                f"$env:SIADA_AUTO_UPDATE = '1'; "
-                f"irm '{script_url}' | iex 5>&1"
-            )
-            _AUTO_UPDATE_INSTALL_LOG.parent.mkdir(parents=True, exist_ok=True)
-            _log_fd = open(_AUTO_UPDATE_INSTALL_LOG, "a", encoding="utf-8")  # noqa: WPS515
-            subprocess.Popen(
-                [
-                    "powershell",
-                    "-WindowStyle", "Hidden",
-                    "-ExecutionPolicy", "Bypass",
-                    "-Command", ps_command,
-                ],
-                stdout=_log_fd,
-                stderr=_log_fd,
-                stdin=subprocess.DEVNULL,
-                # DETACHED_PROCESS disconnects the PSHost, causing Write-Host output to be
-                # silently discarded even when stdout is redirected to a file.
-                # CREATE_NO_WINDOW alone is sufficient: it hides any console window and
-                # the child process will survive when the install script kills this daemon
-                # (Windows does not tie child lifetime to parent unless a Job Object is used).
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            logger.info(
-                "Auto-update: spawned PowerShell install helper (script=%s, log=%s)",
-                script_url, _AUTO_UPDATE_INSTALL_LOG,
-            )
-            return True, "Install helper spawned; daemon will be restarted by helper"
-
-        script_name = _INTERNAL_SCRIPT_NAMES[self.channel]
-        script_url = f"{_INTERNAL_BASE_URL}/{self.channel}/{script_name}"
-        # Set SIADA_AUTO_UPDATE env var so the install script knows to restart
-        # the daemon after installation.  The script uses nohup to launch the
-        # daemon as an independent background process.
-        # start_new_session=True ensures the helper survives when the install
-        # script's kill_proactive_processes kills this daemon process.
-        helper_script = (
-            f"set -e\n"
-            f"export SIADA_AUTO_UPDATE=1\n"
-            f"curl -fsSL '{script_url}' | sh -s -- --no-modify-path\n"
-        )
-        _AUTO_UPDATE_INSTALL_LOG.parent.mkdir(parents=True, exist_ok=True)
-        _log_fd = open(_AUTO_UPDATE_INSTALL_LOG, "a")  # noqa: WPS515
-        subprocess.Popen(
-            ["sh", "-c", helper_script],
-            stdout=_log_fd,
-            stderr=_log_fd,
-            stdin=subprocess.DEVNULL,
-            close_fds=True,
-            start_new_session=True,
-        )
-        logger.info(
-            "Auto-update: spawned install helper (script=%s, log=%s)",
-            script_url, _AUTO_UPDATE_INSTALL_LOG,
-        )
-        return True, "Install helper spawned; daemon will be restarted by helper"
-
-    def get_manual_upgrade_hint(self) -> str:
-        script_name = _INTERNAL_SCRIPT_NAMES[self.channel]
-        script_url = f"{_INTERNAL_BASE_URL}/{self.channel}/{script_name}"
-        return f"curl {get_curl_install_flags()} {script_url} | sh"
 
 
 class ExternalUpdateStrategy(BaseUpdateStrategy):
@@ -709,12 +609,28 @@ def detect_install_mode() -> str:
     if any("siada_cli_venv_" in item or "siada_cli_versions" in item for item in normalized):
         return "internal"
     return "external"
-    # return "internal"
 
 
 def build_update_strategy(channel: str = "prod") -> BaseUpdateStrategy:
+    """Build the update strategy for the current install mode.
+
+    Internal-mode auto-update (proprietary tarball infrastructure) is
+    implemented in ``siada.internal.services.auto_update.InternalUpdateStrategy``,
+    which is not part of the open-source distribution.  Open-source checkouts
+    simply don't have that module, so this always falls back to
+    ``ExternalUpdateStrategy`` (PyPI-based) for them — i.e. open-source code
+    doesn't need (and can't use) internal auto-update; only internal builds do.
+    """
     if detect_install_mode() == "internal":
-        return InternalUpdateStrategy(channel=channel)
+        try:
+            from siada.internal.services.auto_update import InternalUpdateStrategy
+
+            return InternalUpdateStrategy(channel=channel)
+        except ImportError:
+            logger.debug(
+                "Internal auto-update module unavailable; falling back to "
+                "ExternalUpdateStrategy"
+            )
     return ExternalUpdateStrategy(channel=channel)
 
 
@@ -872,7 +788,7 @@ def _is_newer_version(candidate: str, current: str) -> bool:
 
 def _normalize_channel(channel: Optional[str]) -> str:
     normalized = (channel or "prod").strip().lower()
-    if normalized in _INTERNAL_SCRIPT_NAMES:
+    if normalized in _VALID_CHANNELS:
         return normalized
     return "prod"
 
@@ -888,7 +804,6 @@ __all__ = [
     "CrossProcessFileLock",
     "DaemonAutoUpdater",
     "ExternalUpdateStrategy",
-    "InternalUpdateStrategy",
     "ReleaseInfo",
     "build_update_strategy",
     "detect_install_mode",

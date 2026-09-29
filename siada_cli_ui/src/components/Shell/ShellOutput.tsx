@@ -99,7 +99,7 @@ export const ShellOutput: React.FC<ShellOutputProps> = ({
       {stdout && (
         <Box flexDirection="column" marginBottom={1}>
           {stdoutResult.hiddenLines > 0 && (
-            <Text color={githubTheme.warning} dimColor>
+            <Text color={githubTheme.warning}>
               ... {stdoutResult.hiddenLines} lines hidden ...
             </Text>
           )}
@@ -111,7 +111,7 @@ export const ShellOutput: React.FC<ShellOutputProps> = ({
       {stderr && (
         <Box flexDirection="column" marginBottom={1}>
           {stderrResult.hiddenLines > 0 && (
-            <Text color={githubTheme.warning} dimColor>
+            <Text color={githubTheme.warning}>
               ... {stderrResult.hiddenLines} lines hidden ...
             </Text>
           )}

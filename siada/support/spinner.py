@@ -30,9 +30,6 @@ import sys
 import threading
 import time
 
-from rich.console import Console
-from rich.text import Text
-
 
 class Spinner:
     """
@@ -54,6 +51,8 @@ class Spinner:
         self.last_update = 0.0
         self.visible = False
         self.is_tty = sys.stdout.isatty()
+        from rich.console import Console
+
         self.console = Console()
         self.use_colors = self._supports_colors()
 
@@ -167,6 +166,8 @@ class Spinner:
         # Create the spinner line with consistent formatting
         if self.use_colors and self.colors:
             # For colored output, use rich text formatting
+            from rich.text import Text
+
             current_color = self._get_current_color()
             text_content = Text()
             text_content.append(frame_str, style=f"bold {current_color}")

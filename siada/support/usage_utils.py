@@ -28,7 +28,10 @@ def serialize_usage(usage) -> Optional[dict]:
             'output_tokens': usage.output_tokens,
             'total_tokens': usage.total_tokens,
             'input_tokens_details': {
-                'cached_tokens': usage.input_tokens_details.cached_tokens
+                'cached_tokens': usage.input_tokens_details.cached_tokens,
+                # Required on ``InputTokensDetails`` since openai>=3; keep it
+                # symmetric so deserialize_usage does not lose the value.
+                'cache_write_tokens': usage.input_tokens_details.cache_write_tokens,
             } if usage.input_tokens_details else None,
             'output_tokens_details': {
                 'reasoning_tokens': usage.output_tokens_details.reasoning_tokens
@@ -62,8 +65,11 @@ def deserialize_usage(usage_data: dict):
             output_tokens=usage_data.get('output_tokens', 0),
             total_tokens=usage_data.get('total_tokens', 0),
             input_tokens_details=InputTokensDetails(
-                cached_tokens=usage_data.get('input_tokens_details', {}).get('cached_tokens', 0)
-            ) if usage_data.get('input_tokens_details') else InputTokensDetails(cached_tokens=0),
+                cached_tokens=usage_data.get('input_tokens_details', {}).get('cached_tokens', 0),
+                cache_write_tokens=usage_data.get('input_tokens_details', {}).get('cache_write_tokens', 0),
+            ) if usage_data.get('input_tokens_details') else InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(
                 reasoning_tokens=usage_data.get('output_tokens_details', {}).get('reasoning_tokens', 0)
             ) if usage_data.get('output_tokens_details') else OutputTokensDetails(reasoning_tokens=0)

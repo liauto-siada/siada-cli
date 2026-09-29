@@ -13,6 +13,7 @@ from typing import List, Optional, Dict, Any, Tuple
 
 from agents import (
     RawResponsesStreamEvent,
+    ReasoningItem,
     RunItemStreamEvent,
     RunResultStreaming,
     ToolCallOutputItem,
@@ -25,6 +26,7 @@ from agents.exceptions import (
 )
 
 from siada.io.stream_utils import render_tool_call_output
+from siada.tools.coder.apply_patch_presentation import render_apply_patch_display
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 # BrowserOperateResult is lazy-imported inside _display_browser_operate_result()
 # to avoid pulling in gymnasium/numpy at module load time (very slow on Windows).
@@ -69,8 +71,19 @@ def _build_multimodal_input(text: str, image_paths: list) -> list:
 from ..running_config import RunningConfig
 
 # Import models and interface from the same directory
-from .models import TurnType, TurnInput, TurnOutput
+from .models import (
+    TurnType,
+    TurnInput,
+    TurnOutput,
+    RETRY_REASON_METADATA_KEY,
+    RETRY_REASON_REPETITIVE_STREAM,
+)
 from .interface import RunTurn, ImageNotSupportedError
+from .stream_repetition import (
+    RepetitiveStreamError,
+    StreamRepetitionDetector,
+    is_repetition_guard_model,
+)
 
 
 # Standard tag identifier
@@ -194,6 +207,9 @@ class ConversationTurn(RunTurn):
         self._message_counter = 0
         self._current_message_id = None
         self._stream_start_id = None  # Track the start ID of current stream
+        # Repetition guard (whitelisted models only, see stream_repetition.py)
+        self._repetition_detector: Optional[StreamRepetitionDetector] = None
+        self._stream_retry_reason: Optional[str] = None
     
     def _generate_message_id(self) -> str:
         """Generate unique message ID"""
@@ -358,6 +374,43 @@ class ConversationTurn(RunTurn):
             return True
         return not self.slash_commands.is_command(user_input)
 
+    def _is_truncated_reasoning_only_completion(self, result: RunResultStreaming) -> bool:
+        """Detect a Chat Completions/LiteLLM "fake completion".
+
+        On the Responses API path, a stream that gets cut off mid-turn
+        surfaces as an explicit incomplete/error status the agents SDK can
+        react to. On the Chat Completions/LiteLLM path there is no such
+        signal: a connection that drops right after the model's reasoning
+        delta -- but before any message or tool-call delta ever arrives --
+        produces a ``RunResultStreaming`` that looks *identical* to "the
+        model genuinely decided to say nothing": ``final_output`` is empty
+        and the only generated item is a bare ``ReasoningItem``.
+
+        Only the LAST item in ``new_items`` is checked here, not "no
+        MessageOutputItem/ToolCallItem exists at all" -- a normal, healthy
+        turn can legitimately contain a ``ReasoningItem`` followed by a
+        ``MessageOutputItem``/``ToolCallItem``. It's specifically a turn
+        that *ends* on a bare reasoning step with nothing after it that
+        indicates the stream was truncated.
+
+        Returns:
+            bool: True if this looks like a truncated fake completion that
+                should be retried, rather than a genuine (if unhelpful)
+                empty response from the model.
+        """
+        final_output = result.final_output
+        is_empty_output = final_output is None or (
+            isinstance(final_output, str) and final_output.strip() == ""
+        )
+        if not is_empty_output:
+            return False
+
+        new_items = getattr(result, "new_items", None)
+        if not new_items:
+            return False
+
+        return isinstance(new_items[-1], ReasoningItem)
+
     # ============================================================================
     # Lifecycle Event Methods (Agent Lifecycle Integration)
     # ============================================================================
@@ -417,20 +470,65 @@ class ConversationTurn(RunTurn):
     # End of Lifecycle Event Methods
     # ============================================================================
 
+    def _feed_repetition_guard(self, delta_text: str) -> None:
+        """Feed a text delta into the repetition guard (guarded models only).
+
+        No-op unless the detector was armed on ResponseCreatedEvent. On
+        detection: notify the UI to drop the stream (``stream_aborted``
+        lifecycle event), cancel the underlying request, and raise
+        ``RepetitiveStreamError`` -- caught in ``_async_execute`` which flags
+        the turn for an automatic retry via RETRY_REASON_REPETITIVE_STREAM.
+        """
+        detector = self._repetition_detector
+        if detector is None or detector.fired:
+            return
+        hit = detector.feed(delta_text)
+        if not hit:
+            return
+        unit, repeats = hit
+        unit_preview = unit[:80].replace("\n", "\\n")
+        logger.warning(
+            f"[ConversationTurn] Repetitive stream detected "
+            f"(kind={detector.kind}, unit_length={len(unit)}, repeats={repeats}, "
+            f"unit={unit_preview!r}) -- aborting request for retry"
+        )
+        # Tell the UI this stream is confirmed bad so it can discard whatever
+        # it held back (or already rendered) for it.
+        # NOTE: metadata is merged into ACP params by build_session_update --
+        # a "reason" key here would overwrite the message's own
+        # reason="lifecycle_event" routing field, so use "abort_reason".
+        self._send_lifecycle_event({
+            "type": "stream_aborted",
+            "abort_reason": "repetition",
+            "stream_start_id": self._stream_start_id or "",
+            "timestamp": time.time(),
+        })
+        self._stream_start_id = None
+        self._stream_retry_reason = RETRY_REASON_REPETITIVE_STREAM
+        # Stop the underlying HTTP stream so the model doesn't keep burning
+        # tokens on the loop.
+        try:
+            if self.current_result is not None and not self.current_result.is_complete:
+                self.current_result.cancel()
+        except Exception as e:
+            logger.debug(f"[ConversationTurn] cancel() after repetition failed: {e}")
+        raise RepetitiveStreamError(unit_preview, repeats, len(unit))
+
     async def output_stream_content(self, result: RunResultStreaming) -> None:
         """Process stream events and handle real-time output"""
-        from openai.types.responses import (
-            ResponseTextDeltaEvent,
-            ResponseReasoningSummaryTextDeltaEvent,
-            ResponseFunctionCallArgumentsDeltaEvent,
-            ResponseContentPartAddedEvent,
-            ResponseOutputItemAddedEvent,
-            ResponseCompletedEvent,
-            ResponseCreatedEvent,
-            ResponseReasoningSummaryPartAddedEvent,
-            ResponseFunctionToolCall,
-            ResponseOutputItemDoneEvent,
-            ResponseContentPartDoneEvent,
+        from siada.entrypoint.runtime.turn_event import (
+            RESPONSE_CREATED,
+            REASONING_PART_ADDED,
+            REASONING_DELTA,
+            CONTENT_PART_ADDED,
+            TEXT_DELTA,
+            CONTENT_PART_DONE,
+            TOOL_CALL_START,
+            TOOL_ARGS_DELTA,
+            TOOL_CALL_DONE,
+            RESPONSE_COMPLETED,
+            TOOL_OUTPUT,
+            classify_stream_event,
         )
 
         stream_iterator = None
@@ -440,298 +538,338 @@ class ConversationTurn(RunTurn):
                 if isinstance(event, RawResponsesStreamEvent):
                     self._stop_waiting_spinner()
 
-                    # Handle the raw response stream event
-                    stream_data = event.data
+                te = classify_stream_event(event)
+                if te is None:
+                    continue
 
-                    # Handle different types of stream events
-                    if isinstance(stream_data, ResponseCreatedEvent):
-                        # Response started
-                        self.response_content = ""
-                        self.tool_calls = {}
-                        self.tool_call_mdstreams = {}
-                        self.got_content_part = False
-                        self.got_reasoning_part = False
-                        self.current_active_call_id = None
-                        self.got_tool_result_part = False
-                        self.got_function_call_part = False
+                if te.kind == RESPONSE_CREATED:
+                    # Response started
+                    self.response_content = ""
+                    self.tool_calls = {}
+                    self.tool_call_mdstreams = {}
+                    self.got_content_part = False
+                    self.got_reasoning_part = False
+                    self.current_active_call_id = None
+                    self.got_tool_result_part = False
+                    self.got_function_call_part = False
+                    # Arm the repetition guard only for whitelisted
+                    # models; every other model skips it entirely.
+                    model_name = getattr(
+                        getattr(self.config, "llm_config", None), "model_name", ""
+                    )
+                    self._repetition_detector = (
+                        StreamRepetitionDetector()
+                        if is_repetition_guard_model(model_name)
+                        else None
+                    )
 
-                    elif isinstance(
-                        stream_data, ResponseReasoningSummaryPartAddedEvent
-                    ):
-                        if self.mdstream is None:
-                            self.mdstream = (
-                                self.get_response_mdstream()
-                                if self.config.io.pretty
-                                else None
-                            )
-                        continue
-
-                    elif isinstance(
-                        stream_data, ResponseReasoningSummaryTextDeltaEvent
-                    ):
-                        if not self.got_reasoning_part and stream_data.delta:
-                            self.got_reasoning_part = True
-                            # Emit message start marker for thinking
-                            self._emit_message_start("thinking")
-                            # self.print_split_line()
-                            delta_text = f"\n{REASONING_START}: {stream_data.delta}"
-                            self.response_content += delta_text
-                        else:
-                            delta_text = stream_data.delta
-                            self.response_content += delta_text
-                        self._live_incremental_response(
-                            delta_text, self.response_content
+                elif te.kind == REASONING_PART_ADDED:
+                    if self.mdstream is None:
+                        self.mdstream = (
+                            self.get_response_mdstream()
+                            if self.config.io.pretty
+                            else None
                         )
+                    continue
 
-                    elif isinstance(stream_data, ResponseContentPartAddedEvent):
-                        if self.mdstream is None:
-                            self.mdstream = (
-                                self.get_response_mdstream()
-                                if self.config.io.pretty
-                                else None
-                            )
-                        continue
+                elif te.kind == REASONING_DELTA:
+                    self._feed_repetition_guard(te.delta)
+                    if not self.got_reasoning_part and te.delta:
+                        self.got_reasoning_part = True
+                        # Emit message start marker for thinking
+                        self._emit_message_start("thinking")
+                        # self.print_split_line()
+                        delta_text = f"\n{REASONING_START}: {te.delta}"
+                        self.response_content += delta_text
+                    else:
+                        delta_text = te.delta
+                        self.response_content += delta_text
+                    self._live_incremental_response(
+                        delta_text, self.response_content
+                    )
 
-                    elif isinstance(stream_data, ResponseTextDeltaEvent):
-                        if not self.got_content_part and stream_data.delta:
-                            self.got_content_part = True
-                            # End thinking message if it was started
-                            if self.got_reasoning_part:
-                                self._emit_message_end("thinking")
-                            # Start answer message
-                            self._emit_message_start("answer")
-                            # if not self.got_reasoning_part:
-                            #     self.print_split_line()
-                            delta_text = f"\n\n{REASONING_END}\n\n{stream_data.delta}"
-                            self.response_content += delta_text
-                        else:
-                            delta_text = stream_data.delta
-                            self.response_content += delta_text
-                        self._live_incremental_response(
-                            delta_text, self.response_content
+                elif te.kind == CONTENT_PART_ADDED:
+                    if self.mdstream is None:
+                        self.mdstream = (
+                            self.get_response_mdstream()
+                            if self.config.io.pretty
+                            else None
                         )
+                    continue
 
-                    elif isinstance(stream_data, ResponseContentPartDoneEvent):
-                        if not self.got_function_call_part:
-                            # if not got function call part, flush the response content
-                            # Mark stream_end=True to indicate this is the last chunk of the answer stream
+                elif te.kind == TEXT_DELTA:
+                    self._feed_repetition_guard(te.delta)
+                    if not self.got_content_part and te.delta:
+                        self.got_content_part = True
+                        # End thinking message if it was started
+                        if self.got_reasoning_part:
+                            self._emit_message_end("thinking")
+                        # Start answer message
+                        self._emit_message_start("answer")
+                        # if not self.got_reasoning_part:
+                        #     self.print_split_line()
+                        delta_text = f"\n\n{REASONING_END}\n\n{te.delta}"
+                        self.response_content += delta_text
+                    else:
+                        delta_text = te.delta
+                        self.response_content += delta_text
+                    self._live_incremental_response(
+                        delta_text, self.response_content
+                    )
+
+                elif te.kind == CONTENT_PART_DONE:
+                    if not self.got_function_call_part:
+                        # if not got function call part, flush the response content
+                        # Mark stream_end=True to indicate this is the last chunk of the answer stream
+                        self._live_incremental_response(
+                            "\n", self.response_content, final=True, stream_end=True
+                        )
+                        self.mdstream = None
+                        # End answer message
+                        if self.got_content_part:
+                            self._emit_message_end("answer")
+                        # Reset stream_start_id after stream ends
+                        self._stream_start_id = None
+
+                elif te.kind == TOOL_CALL_START:
+                    # Flush answer content before tool call only if not already flushed.
+                    # ResponseContentPartDoneEvent fires before this event and sets
+                    # mdstream=None; if it already flushed, skip to avoid double output.
+                    if not self.got_function_call_part:
+                        self.got_function_call_part = True
+                        if self.mdstream is not None:
+                            # flush the response content
                             self._live_incremental_response(
-                                "\n", self.response_content, final=True, stream_end=True
+                                "\n", self.response_content, final=True
                             )
                             self.mdstream = None
-                            # End answer message
+                            # End answer message if it was started
                             if self.got_content_part:
                                 self._emit_message_end("answer")
-                            # Reset stream_start_id after stream ends
-                            self._stream_start_id = None
 
-                    elif isinstance(stream_data, ResponseOutputItemAddedEvent):
-                        if isinstance(stream_data.item, ResponseFunctionToolCall):
-                            # Flush answer content before tool call only if not already flushed.
-                            # ResponseContentPartDoneEvent fires before this event and sets
-                            # mdstream=None; if it already flushed, skip to avoid double output.
-                            if not self.got_function_call_part:
-                                self.got_function_call_part = True
-                                if self.mdstream is not None:
-                                    # flush the response content
-                                    self._live_incremental_response(
-                                        "\n", self.response_content, final=True
-                                    )
-                                    self.mdstream = None
-                                    # End answer message if it was started
-                                    if self.got_content_part:
-                                        self._emit_message_end("answer")
+                    call_id = te.call_id
+                    tool_name = te.name
+                    if te.is_apply_patch:
+                        # Native Responses apply_patch calls are not function
+                        # calls: they contain an ``operation`` instead of JSON
+                        # ``arguments``.  Keep the raw call for result
+                        # correlation, but defer rendering until the local
+                        # editor has captured actual file before/after text on
+                        # the tool output event.
+                        self.tool_calls[call_id] = {
+                            "name": "apply_patch",
+                            "native_apply_patch": True,
+                            "raw_item": te.raw_item,
+                        }
+                        continue
 
-                            call_id = stream_data.item.call_id
-                            tool_name = stream_data.item.name
-                            self.tool_calls[call_id] = {
-                                "name": tool_name,
-                                "arguments": "",
-                                "arguments_render": "",
-                            }
+                    self.tool_calls[call_id] = {
+                        "name": tool_name,
+                        "arguments": "",
+                        "arguments_render": "",
+                    }
 
-                            tool_call_formatter = (
-                                ToolCallFormatterFactory.get_formatter(tool_name)
-                            )
+                    tool_call_formatter = (
+                        ToolCallFormatterFactory.get_formatter(tool_name)
+                    )
 
-                            if (
-                                self.config.io.pretty
-                                and tool_call_formatter.supports_streaming()
-                            ):
-                                self.tool_call_mdstreams[call_id] = (
-                                    self.get_response_mdstream()
-                                )
-
-                            # process the previous tool call stream, stop the live
-                            if (
-                                self.current_active_call_id
-                                and self.current_active_call_id
-                                in self.tool_call_mdstreams
-                            ):
-                                self.tool_call_mdstreams[
-                                    self.current_active_call_id
-                                ].update(
-                                    tool_call_formatter.format_input(
-                                        self.current_active_call_id,
-                                        self.tool_calls[self.current_active_call_id][
-                                            "name"
-                                        ],
-                                        self.tool_calls[self.current_active_call_id][
-                                            "arguments"
-                                        ],
-                                    )[0],
-                                    final=True,
-                                )
-                                if (
-                                    self.current_active_call_id
-                                    in self.tool_call_mdstreams
-                                ):
-                                    del self.tool_call_mdstreams[
-                                        self.current_active_call_id
-                                    ]
-
-                            self.current_active_call_id = call_id
-                            # self.print_split_line()
-                            
-                            # Start tool_call message
-                            self._emit_message_start("tool_call")
-                            
-                            # Stage 1: Print tool name (use append=False to avoid accumulating the header)
-                            # self.config.io.print_tool_call_all_stages(
-                            #     f"Siada wants to use the tool: {tool_name}.\n",
-                            #     final=False,
-                            #     append=True
-                            # )
-                            
-                            # Original method (commented out for reference)
-                            # self.config.io.print_tool_call(
-                            #     f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}\n"
-                            # )
-
-                    elif isinstance(
-                        stream_data, ResponseFunctionCallArgumentsDeltaEvent
+                    if (
+                        self.config.io.pretty
+                        and tool_call_formatter.supports_streaming()
                     ):
-                        delta = stream_data.delta
-                        if self.current_active_call_id:
-                            self.tool_calls[self.current_active_call_id][
-                                "arguments"
-                            ] += delta
-
-                        tool_call_formatter = ToolCallFormatterFactory.get_formatter(
-                            self.tool_calls[self.current_active_call_id]["name"]
+                        self.tool_call_mdstreams[call_id] = (
+                            self.get_response_mdstream()
                         )
 
-                        # if supports streaming, update the tool call mdstream
+                    # process the previous tool call stream, stop the live
+                    if (
+                        self.current_active_call_id
+                        and self.current_active_call_id
+                        in self.tool_call_mdstreams
+                    ):
+                        self.tool_call_mdstreams[
+                            self.current_active_call_id
+                        ].update(
+                            tool_call_formatter.format_input(
+                                self.current_active_call_id,
+                                self.tool_calls[self.current_active_call_id][
+                                    "name"
+                                ],
+                                self.tool_calls[self.current_active_call_id][
+                                    "arguments"
+                                ],
+                            )[0],
+                            final=True,
+                        )
+                        if (
+                            self.current_active_call_id
+                            in self.tool_call_mdstreams
+                        ):
+                            del self.tool_call_mdstreams[
+                                self.current_active_call_id
+                            ]
+
+                    self.current_active_call_id = call_id
+                    # self.print_split_line()
+                    
+                    # Start tool_call message
+                    self._emit_message_start("tool_call")
+                    
+                    # Stage 1: Print tool name (use append=False to avoid accumulating the header)
+                    # self.config.io.print_tool_call_all_stages(
+                    #     f"Siada wants to use the tool: {tool_name}.\n",
+                    #     final=False,
+                    #     append=True
+                    # )
+                    
+                    # Original method (commented out for reference)
+                    # self.config.io.print_tool_call(
+                    #     f"{TOOL_CALL_START}\n\nSiada wants to use the tool: {tool_name}\n"
+                    # )
+
+                elif te.kind == TOOL_ARGS_DELTA:
+                    delta = te.delta
+                    if self.current_active_call_id:
+                        self.tool_calls[self.current_active_call_id][
+                            "arguments"
+                        ] += delta
+
+                    tool_call_formatter = ToolCallFormatterFactory.get_formatter(
+                        self.tool_calls[self.current_active_call_id]["name"]
+                    )
+
+                    # if supports streaming, update the tool call mdstream
+                    # if tool_call_formatter.supports_streaming():
+                    #     content, is_complete = tool_call_formatter.format_input(
+                    #         self.current_active_call_id,
+                    #         self.tool_calls[self.current_active_call_id]["name"],
+                    #         self.tool_calls[self.current_active_call_id][
+                    #             "arguments"
+                    #         ],
+                    #     )
+
+                    #     # compute the content_delta
+                    #     arguments_delta = content[
+                    #         len(
+                    #             self.tool_calls[self.current_active_call_id][
+                    #                 "arguments_render"
+                    #             ]
+                    #         ) :
+                    #     ]
+                    #     self.tool_calls[self.current_active_call_id][
+                    #         "arguments_render"
+                    #     ] = content
+
+                    #     if self.current_active_call_id in self.tool_call_mdstreams:
+                    #         self.tool_call_mdstreams[
+                    #             self.current_active_call_id
+                    #         ].update(content, final=False)
+                    #     else:
+                    #         self.config.io.console.print(
+                    #             arguments_delta, sep="", end=""
+                    #         )
+
+                elif te.kind == TOOL_CALL_DONE:
+                    call_id = te.call_id
+                    if te.is_apply_patch:
+                        # A native patch call has no JSON arguments to format:
+                        # keep the completed item, whose operation is the
+                        # authoritative fallback for the render, and emit the
+                        # patch once on its output event.
+                        if call_id in self.tool_calls:
+                            self.tool_calls[call_id]["raw_item"] = te.raw_item
+                    elif call_id in self.tool_calls:
+                        tool_name = self.tool_calls[call_id]["name"]
+                        full_arguments = self.tool_calls[call_id]["arguments"]
+
+                        tool_call_formatter = (
+                            ToolCallFormatterFactory.get_formatter(tool_name)
+                        )
+                        content, _ = tool_call_formatter.format_input(
+                            call_id, tool_name, full_arguments
+                        )
+                        style = tool_call_formatter.get_style()
+                        
+                        # Stage 2: Print tool description/parameters
+                        self.config.io.advance_tool_call_stage()
+                        self.config.io.print_tool_call_all_stages(
+                            content,
+                            final=True
+                        )
+                        
+                        # End tool_call message
+                        self._emit_message_end("tool_call")
+                        
+                        # Original streaming/non-streaming handling (commented out)
+                        # if not streaming, only create the mdstream and update the final content
                         # if tool_call_formatter.supports_streaming():
-                        #     content, is_complete = tool_call_formatter.format_input(
-                        #         self.current_active_call_id,
-                        #         self.tool_calls[self.current_active_call_id]["name"],
-                        #         self.tool_calls[self.current_active_call_id][
-                        #             "arguments"
-                        #         ],
-                        #     )
-
-                        #     # compute the content_delta
-                        #     arguments_delta = content[
-                        #         len(
-                        #             self.tool_calls[self.current_active_call_id][
-                        #                 "arguments_render"
-                        #             ]
-                        #         ) :
-                        #     ]
-                        #     self.tool_calls[self.current_active_call_id][
-                        #         "arguments_render"
-                        #     ] = content
-
-                        #     if self.current_active_call_id in self.tool_call_mdstreams:
-                        #         self.tool_call_mdstreams[
-                        #             self.current_active_call_id
-                        #         ].update(content, final=False)
-                        #     else:
-                        #         self.config.io.console.print(
-                        #             arguments_delta, sep="", end=""
+                        #     # process the last tool call stream, stop the live
+                        #     if call_id in self.tool_call_mdstreams:
+                        #         self.tool_call_mdstreams[call_id].update(
+                        #             content,
+                        #             final=True,
                         #         )
+                        #     if call_id in self.tool_call_mdstreams:
+                        #         del self.tool_call_mdstreams[call_id]
+                        # else:
+                        #     if style == "markdown" and self.config.io.pretty:
+                        #         self.tool_call_mdstreams[call_id] = (
+                        #             self.get_response_mdstream()
+                        #         )
+                        #         self.tool_call_mdstreams[call_id].update(
+                        #             content, final=True
+                        #         )
+                        #         if call_id in self.tool_call_mdstreams:
+                        #             del self.tool_call_mdstreams[call_id]
+                        #     else:
+                        #         self.config.io.print_tool_call(content)
 
-                    elif isinstance(stream_data, ResponseOutputItemDoneEvent):
-                        if isinstance(stream_data.item, ResponseFunctionToolCall):
-                            call_id = stream_data.item.call_id
-                            if call_id in self.tool_calls:
-                                tool_name = self.tool_calls[call_id]["name"]
-                                full_arguments = self.tool_calls[call_id]["arguments"]
+                elif te.kind == RESPONSE_COMPLETED:
+                    # Stage 3: Close the Live+Panel display without adding token info
+                    usage = te.usage
+                    
+                    # Close the Live+Panel display (don't add token info to panel)
+                    # if hasattr(self.config.io, '_tool_call_stages') and self.config.io._tool_call_stages:
+                    #     # Just close the panel without adding token info
+                    #     self.config.io.print_tool_call_all_stages("", final=True, append=False)
+                    
+                    # Print context usage using original method (outside the panel)
+                    self._print_context_usage(usage=usage)
 
-                                tool_call_formatter = (
-                                    ToolCallFormatterFactory.get_formatter(tool_name)
-                                )
-                                content, _ = tool_call_formatter.format_input(
-                                    call_id, tool_name, full_arguments
-                                )
-                                style = tool_call_formatter.get_style()
-                                
-                                # Stage 2: Print tool description/parameters
-                                self.config.io.advance_tool_call_stage()
-                                self.config.io.print_tool_call_all_stages(
-                                    content,
-                                    final=True
-                                )
-                                
-                                # End tool_call message
-                                self._emit_message_end("tool_call")
-                                
-                                # Original streaming/non-streaming handling (commented out)
-                                # if not streaming, only create the mdstream and update the final content
-                                # if tool_call_formatter.supports_streaming():
-                                #     # process the last tool call stream, stop the live
-                                #     if call_id in self.tool_call_mdstreams:
-                                #         self.tool_call_mdstreams[call_id].update(
-                                #             content,
-                                #             final=True,
-                                #         )
-                                #     if call_id in self.tool_call_mdstreams:
-                                #         del self.tool_call_mdstreams[call_id]
-                                # else:
-                                #     if style == "markdown" and self.config.io.pretty:
-                                #         self.tool_call_mdstreams[call_id] = (
-                                #             self.get_response_mdstream()
-                                #         )
-                                #         self.tool_call_mdstreams[call_id].update(
-                                #             content, final=True
-                                #         )
-                                #         if call_id in self.tool_call_mdstreams:
-                                #             del self.tool_call_mdstreams[call_id]
-                                #     else:
-                                #         self.config.io.print_tool_call(content)
-
-                    elif isinstance(stream_data, ResponseCompletedEvent):
-                        # Stage 3: Close the Live+Panel display without adding token info
-                        usage = stream_data.response.usage if hasattr(stream_data, 'response') and stream_data.response else None
-                        
-                        # Close the Live+Panel display (don't add token info to panel)
-                        # if hasattr(self.config.io, '_tool_call_stages') and self.config.io._tool_call_stages:
-                        #     # Just close the panel without adding token info
-                        #     self.config.io.print_tool_call_all_stages("", final=True, append=False)
-                        
-                        # Print context usage using original method (outside the panel)
-                        self._print_context_usage(usage=usage)
-
-                elif isinstance(event, RunItemStreamEvent):
-                    stream_data = event.item
-                    if isinstance(stream_data, ToolCallOutputItem):
-                        call_id = stream_data.raw_item.get("call_id", None)
-                        if call_id:
-                            if call_id in self.tool_calls:
-                                tool_name = self.tool_calls[call_id]["name"]
-                                # self.print_split_line()
-                                
-                                # Start tool_result message
-                                self._emit_message_start("tool_result")
-                                
-                                output = stream_data.output
-                                if isinstance(output, list) and tool_name == "browser_operate":
-                                    # Special handling for browser_operate to show concise UI display
-                                    self._display_browser_operate_result(output)
-                                else:
-                                    render_tool_call_output(self.config.io, output, tool_name)
-                                self._emit_message_end("tool_result")
+                elif te.kind == TOOL_OUTPUT:
+                    if te.call_id:
+                        if te.is_apply_patch:
+                            call = self.tool_calls.get(te.call_id, {})
+                            content = render_apply_patch_display(
+                                custom_data=te.custom_data,
+                                raw_call=call.get("raw_item"),
+                                output=te.output,
+                            )
+                            # The existing ACP lifecycle path transports this
+                            # text as one final ``tool_use`` message.  No ACP
+                            # schema/storage change is necessary; the UI
+                            # recognises the stable sentinels and turns the
+                            # block into a multi-file diff view.
+                            self._emit_message_start("tool_call")
+                            self.config.io.advance_tool_call_stage()
+                            self.config.io.print_tool_call_all_stages(
+                                content, final=True
+                            )
+                            self._emit_message_end("tool_call")
+                        elif te.call_id in self.tool_calls:
+                            tool_name = self.tool_calls[te.call_id]["name"]
+                            # self.print_split_line()
+                            
+                            # Start tool_result message
+                            self._emit_message_start("tool_result")
+                            
+                            output = te.output
+                            if isinstance(output, list) and tool_name == "browser_operate":
+                                # Special handling for browser_operate to show concise UI display
+                                self._display_browser_operate_result(output)
+                            else:
+                                render_tool_call_output(self.config.io, output, tool_name)
+                            self._emit_message_end("tool_result")
         finally:
             # Clean up MarkdownStream if it exists on stream error
             if hasattr(self, "mdstream") and self.mdstream is not None:
@@ -817,6 +955,9 @@ class ConversationTurn(RunTurn):
         """Resolve user input with pending image paths, applying image-support guard.
 
         When the bound model cannot process images:
+        - Vision-bridge models (deepseek-v4 family) have the images
+          transcribed by a vision engine and receive the text evidence
+          instead; falls back to strip/reject when transcription fails.
         - Image-only messages (no text) raise ImageNotSupportedError after
           printing an error to the frontend.
         - Text+image messages have their images stripped; returns the text only.
@@ -829,6 +970,7 @@ class ConversationTurn(RunTurn):
 
         Returns:
             - The original user_input (str) if images were stripped.
+            - user_input + transcribed image evidence (str) for bridge models.
             - A multimodal input list if images were attached.
 
         Raises:
@@ -840,6 +982,27 @@ class ConversationTurn(RunTurn):
 
         supports_images = getattr(self.config.llm_config, "supports_images", True)
         if not supports_images:
+            # modlens-style vision bridge: text-only models (deepseek-v4
+            # family) get image content as transcribed text evidence instead
+            # of native image parts (the gateway silently drops those).
+            from siada.services import vision_bridge
+
+            if vision_bridge.supports_vision_bridge(self.config.llm_config):
+                transcriptions = vision_bridge.transcribe_images_sync(
+                    pending_images, user_hint=user_input
+                )
+                if transcriptions:
+                    logger.info(
+                        "[ConversationTurn] vision bridge transcribed %d/%d image(s)",
+                        len(transcriptions), len(pending_images),
+                    )
+                    evidence = vision_bridge.build_evidence_text(transcriptions)
+                    return f"{user_input}\n\n{evidence}" if user_input else evidence
+                logger.info(
+                    "[ConversationTurn] vision bridge unavailable/failed; "
+                    "falling back to strip/reject"
+                )
+
             # The frontend sends placeholder text like "[Image #1]" when
             # the user pastes only images. Strip these placeholders and
             # check if any real text remains.
@@ -892,6 +1055,8 @@ class ConversationTurn(RunTurn):
         # Reset event flags at the beginning of each execution
         self._cleanup_done.clear()
         self._result_ready.clear()
+        self._stream_retry_reason = None
+        self._repetition_detector = None
 
         try:
             # Import here to avoid circular imports
@@ -986,6 +1151,22 @@ class ConversationTurn(RunTurn):
 
                     user_input = turn_input.use_input
 
+                    # Wrap raw, literal user-typed text in a <user_input> tag
+                    # so downstream consumers (frontend history display,
+                    # memory review) can unambiguously recover exactly what
+                    # the human typed, distinct from synthesized context
+                    # injected alongside it (goal reminders, IM context
+                    # blocks, holographic prefetch, ...). See
+                    # ``siada.services.memory.holographic.marker`` for the
+                    # full rationale. List-shaped inputs (multimodal / /goal
+                    # payloads) are left untouched here.
+                    if isinstance(user_input, str):
+                        from siada.services.memory.holographic.marker import (
+                            wrap_user_input,
+                        )
+
+                        user_input = wrap_user_input(user_input)
+
                     # If there are pending image paths from the IO layer, build
                     # a multimodal input (with image-support guard).
                     io = getattr(self.config, "io", None)
@@ -1016,6 +1197,17 @@ class ConversationTurn(RunTurn):
                     logger.debug(f"[PERF][turn] output_stream_content start")
                     try:
                         await self.output_stream_content(result)
+                    except RepetitiveStreamError as rep_exc:
+                        # Repetition-loop guard fired (deepseek-v4-flash family
+                        # only). The request was already cancelled and the UI
+                        # notified via `stream_aborted`. Fall through with the
+                        # partial result -- execute() flags the turn with
+                        # RETRY_REASON_REPETITIVE_STREAM and Controller
+                        # transparently retries it.
+                        logger.warning(
+                            f"[ConversationTurn] Stream aborted due to repetition, "
+                            f"will retry: {rep_exc}"
+                        )
                     except (
                         ToolInputGuardrailTripwireTriggered,
                         ToolOutputGuardrailTripwireTriggered,
@@ -1050,7 +1242,7 @@ class ConversationTurn(RunTurn):
                                 # title so the user can tell which window just finished.
                                 session_title = self.session.state.session_title
                                 show_completion_notification(
-                                    title="Siada 已完成任务",
+                                    title="Siada task completed",
                                     message=session_title or "Siada"
                                 )
                     except Exception:
@@ -1085,7 +1277,7 @@ class ConversationTurn(RunTurn):
                                 from siada.notifications import show_completion_notification
                                 session_title = self.session.state.session_title
                                 show_completion_notification(
-                                    title="Siada 任务异常中止",
+                                    title="Siada task terminated unexpectedly",
                                     message=session_title or "Siada",
                                 )
                     except Exception:
@@ -1130,7 +1322,40 @@ class ConversationTurn(RunTurn):
                     cancel_current_command()
                 except Exception as e:
                     logger.error(f"[ConversationTurn] Error calling cancel_current_command: {e}")
-                
+
+                # run_subtask(async=True) background sub-agent tasks are scheduled
+                # via asyncio.create_task() on this same dedicated loop, as siblings
+                # of the parent turn's coroutine tree -- NOT descendants of it. So
+                # cancelling `self.current_result` / `future` above never reaches
+                # them, and without this call a background sub-agent would keep
+                # running (and keep streaming tool-call UI updates) after the user
+                # interrupted the parent turn. Request their cancellation too;
+                # thread-safe because this handler runs on the main thread while the
+                # tasks live on the dedicated loop's thread.
+                try:
+                    from siada.tools.agent.subagent_async import cancel_session_background_subtasks
+                    cancel_session_background_subtasks(self.session.session_id)
+                except Exception as e:
+                    logger.error(f"[ConversationTurn] Error cancelling background sub-agent tasks: {e}")
+
+                # Restore the unsubmitted input to the frontend input box as
+                # EARLY as possible. The check only reads the session file
+                # (guarded by FileSession's own lock), so it does NOT depend on
+                # the dedicated loop — it stays fast even when that loop is
+                # frozen by a blocked tool call and the cleanup wait below
+                # would burn its full 2s timeout before the user sees the
+                # input box refilled.
+                input_restored: "bool | None" = None
+                try:
+                    history = asyncio.run(
+                        self.session.openai_session.get_items()
+                    )
+                    input_restored = self._restore_unpersisted_input(history)
+                except Exception as e:
+                    logger.debug(
+                        "[ConversationTurn] Early restore check failed: %s", e
+                    )
+
                 # Use thread-safe event mechanism to check and cancel result
                 if self._result_ready.wait(timeout=0.1):  # Non-blocking check with 100ms timeout
                     if self.current_result and not self.current_result.is_complete:
@@ -1153,17 +1378,34 @@ class ConversationTurn(RunTurn):
                 else:
                     pass
 
-                asyncio.run(self.handle_interrupt())
+                asyncio.run(self.handle_interrupt(input_restored=input_restored))
                 raise
 
             self.end_time = self._get_timestamp()
 
+            # Chat Completions/LiteLLM truncated-stream guard: just flag a
+            # truncated fake completion here (see
+            # _is_truncated_reasoning_only_completion) via the generic
+            # RETRY_REASON_METADATA_KEY -- the retry decision/execution
+            # belongs to Controller._maybe_retry_turn, so this method's
+            # contract stays simple (always return one TurnOutput, never
+            # decide whether/how many times to retry).
+            metadata = {
+                "agent_used": self.config.agent_name,
+                "execution_time": self.end_time - self.start_time,
+            }
+            if self._is_truncated_reasoning_only_completion(result):
+                from .models import RETRY_REASON_TRUNCATED_REASONING_ONLY
+                metadata[RETRY_REASON_METADATA_KEY] = RETRY_REASON_TRUNCATED_REASONING_ONLY
+            # Repetition guard takes precedence: the stream was aborted
+            # mid-flight, so the truncated check above may also match on the
+            # partial result -- the retry reason must stay "repetitive_stream".
+            if self._stream_retry_reason is not None:
+                metadata[RETRY_REASON_METADATA_KEY] = self._stream_retry_reason
+
             output = TurnOutput(
                 output=result.final_output,
-                metadata={
-                    "agent_used": self.config.agent_name,
-                    "execution_time": self.end_time - self.start_time,
-                },
+                metadata=metadata,
                 next_action=None,
             )
 
@@ -1171,9 +1413,12 @@ class ConversationTurn(RunTurn):
             return output
 
         except KeyboardInterrupt as e:
-            from rich.console import Console
+            # Restore cursor in TTY mode only — in ACP mode stdout carries
+            # JSON-RPC and ANSI escape codes would corrupt the protocol stream.
+            if not self.config.acp_mode:
+                from rich.console import Console
 
-            Console().show_cursor(True)
+                Console().show_cursor(True)
             
             # Send ACP message to stop all animations after interrupt
             # if self.config.acp_mode:
@@ -1347,10 +1592,16 @@ class ConversationTurn(RunTurn):
             usage: Optional usage object from the response. If not provided, will use session state.
         """
         # Try to get usage from parameter first, then fall back to session state
-        if usage and hasattr(usage, 'total_tokens'):
-            context_size = usage.total_tokens if usage.total_tokens else 0
+        usage_obj = usage if usage and hasattr(usage, 'input_tokens') else self.session.state.usage
+        
+        if usage_obj and hasattr(usage_obj, 'input_tokens'):
+            # Context window usage = input tokens (including cached) only, not output tokens
+            cached_tokens = 0
+            if hasattr(usage_obj, 'input_tokens_details') and usage_obj.input_tokens_details:
+                cached_tokens = getattr(usage_obj.input_tokens_details, 'cached_tokens', 0) or 0
+            context_size = usage_obj.input_tokens + cached_tokens
         else:
-            context_size = self.session.state.usage.total_tokens if self.session.state.usage and self.session.state.usage.total_tokens else 0
+            context_size = 0
         
         context_max = self.config.llm_config.context_window
         message = f"{context_size:,} / {context_max:,} tokens"
@@ -1375,9 +1626,32 @@ class ConversationTurn(RunTurn):
 
             self.config.io.console.print(aligned_text)
 
-    async def handle_interrupt(self):
-        """Handle user interruption by adding appropriate interrupt marker to session."""
+    async def handle_interrupt(self, input_restored: "bool | None" = None):
+        """Handle user interruption by adding appropriate interrupt marker to session.
+
+        Args:
+            input_restored: Outcome of the early restore check run by
+                execute()'s KeyboardInterrupt handler BEFORE the dedicated-loop
+                cleanup wait:
+                - True: the input was already handed back to the input box —
+                  nothing left to do (no note: the turn left no trace).
+                - False: persistence was already confirmed — skip the restore
+                  check and go straight to the interrupt-note logic.
+                - None: early check never ran (error path) — run the full
+                  restore check here.
+        """
         history = await self.session.openai_session.get_items()
+
+        # If the current user input never made it into the session (Ctrl+C
+        # landed before the SDK persisted it), hand it back to the frontend
+        # input box instead of losing it. No interrupt note is added in this
+        # case: the turn left no trace in history, so there is nothing to
+        # mark as interrupted.
+        if input_restored is True:
+            return
+        if input_restored is None and self._restore_unpersisted_input(history):
+            return
+
         if not history:
             return
 
@@ -1403,3 +1677,89 @@ class ConversationTurn(RunTurn):
 
         # Note: Assistant messages don't need interrupt notes
         # They are handled by checking maybe_response_output_message
+
+    def _restore_unpersisted_input(self, history: list) -> bool:
+        """Hand the current user input back to the ACP input box if it was
+        never persisted to the session.
+
+        The SDK persists the turn input (``save_result_to_session``) right
+        before the first LLM call. A Ctrl+C landing earlier than that — agent
+        loading, context/checkpoint preparation, guardrails — leaves no trace
+        of the input in ``api_history.json``, so without this the text would
+        be lost.
+
+        Returns True when the input was handed back (caller must skip the
+        interrupt note), False otherwise.
+        """
+        if not getattr(self.config, "acp_mode", False):
+            return False
+
+        user_input = None
+        if self.input_data is not None:
+            user_input = getattr(self.input_data, "use_input", None)
+        if not isinstance(user_input, str) or not user_input.strip():
+            return False
+
+        if self._input_persisted_in_history(user_input, history):
+            return False
+
+        self._send_restore_input_notification(user_input)
+        return True
+
+    def _input_persisted_in_history(
+        self, user_input: str, history: list
+    ) -> bool:
+        """Whether the raw user input already appears in the session history.
+
+        A goal reminder may be merged into the persisted turn input
+        (``_maybe_merge_goal_reminder``), so a persisted user item whose text
+        merely *contains* the raw input still counts as persisted.
+        """
+        needle = user_input.strip()
+        for item in reversed(history):
+            if not isinstance(item, dict) or item.get("role") != "user":
+                continue
+            haystack = self._extract_user_item_text(item).strip()
+            if haystack and (needle == haystack or needle in haystack):
+                return True
+        return False
+
+    @staticmethod
+    def _extract_user_item_text(item: dict) -> str:
+        """Extract text from a persisted user message (plain or multimodal)."""
+        content = item.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "input_text":
+                    text = part.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+            return "\n".join(parts)
+        return ""
+
+    def _send_restore_input_notification(self, text: str) -> None:
+        """Notify the ACP frontend to put ``text`` back into the input box."""
+        try:
+            from siada.io.acp.message_builder import ACPMessageBuilder
+
+            adapter = getattr(self.config.io, "acp_adapter", None)
+            if adapter is None:
+                return
+            builder = ACPMessageBuilder()
+            msg = builder.build_session_update(
+                reason="restore_input", content=text, metadata={}
+            )
+            # Use the robust sender: the turn's event loop may already be
+            # torn down by the time the interrupt is handled.
+            adapter._send_if_acp_robust(lambda: msg)
+            logger.info(
+                "[ConversationTurn] Restored unpersisted user input to input box"
+            )
+        except Exception as e:
+            logger.debug(
+                "[ConversationTurn] Failed to send restore_input notification: %s",
+                e,
+            )

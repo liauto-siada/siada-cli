@@ -10,10 +10,12 @@ export function setTerminalTitle(title: string): void {
   const clean = title.replace(/[\x00-\x1f\x7f]/g, '').trim();
   if (!clean) return;
 
+  const prefixed = `siada-${clean}`;
+
   if (process.platform === 'win32') {
-    process.title = clean;
+    process.title = prefixed;
     return;
   }
 
-  process.stdout.write(`\x1b]0;${clean}\x07`);
+  process.stdout.write(`\x1b]0;${prefixed}\x07`);
 }

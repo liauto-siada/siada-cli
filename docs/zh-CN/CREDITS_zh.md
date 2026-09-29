@@ -18,7 +18,8 @@ Siada CLI 包含并改编了以下开源项目。我们对它们对开源社区�
 
 ### [Codex](https://github.com/openai/codex)
 - **开源协议**: Apache 2.0
-- **贡献&修改内容**: 参考了其 skills 模块的实现，并将其适配到我们自己的 skills 系统中。
+- **贡献&修改内容**: 参考了其 skills 模块的实现，并适配到我们自己的 skills 系统中，包括字段长度限制、提示词文案以及技能列表渲染的预算与降级设计。
+- **归属声明（来自 Codex NOTICE 文件）**: OpenAI Codex, Copyright 2025 OpenAI。
 
 
 ## 开源许可证

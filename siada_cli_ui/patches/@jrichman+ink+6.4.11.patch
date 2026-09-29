@@ -1,0 +1,317 @@
+diff --git a/node_modules/@jrichman/ink/build/dom.js b/node_modules/@jrichman/ink/build/dom.js
+index 8f46689..115a772 100644
+--- a/node_modules/@jrichman/ink/build/dom.js
++++ b/node_modules/@jrichman/ink/build/dom.js
+@@ -67,6 +67,31 @@ export const removeChildNode = (node, removeNode) => {
+         markNodeAsDirty(node);
+     }
+ };
++const nullifyYogaNodes = (node) => {
++    node.yogaNode = undefined;
++    if (node.nodeName !== '#text') {
++        for (const childNode of node.childNodes) {
++            nullifyYogaNodes(childNode);
++        }
++    }
++};
++/**
++ * Free the Yoga (WASM) memory of a removed subtree, then drop the `yogaNode`
++ * reference on every DOM node within it.
++ *
++ * `freeRecursive()` releases the WASM memory but leaves each JS wrapper object
++ * truthy, so every `?.yogaNode` guard in the codebase would still pass and then
++ * trap on a use-after-free when the wrapper is dereferenced (see
++ * QwenLM/qwen-code#6820). Nulling the references makes those guards effective
++ * and turns any lingering access into a safe no-op.
++ *
++ * Ported from upstream ink PR #979.
++ */
++export const freeYogaSubtree = (removeNode) => {
++    removeNode.yogaNode?.unsetMeasureFunc();
++    removeNode.yogaNode?.freeRecursive();
++    nullifyYogaNodes(removeNode);
++};
+ export const setAttribute = (node, key, value) => {
+     if (key === 'internal_accessibility') {
+         node.internal_accessibility = value;
+diff --git a/node_modules/@jrichman/ink/build/ink.js b/node_modules/@jrichman/ink/build/ink.js
+index e0c68cc..7c3ef47 100644
+--- a/node_modules/@jrichman/ink/build/ink.js
++++ b/node_modules/@jrichman/ink/build/ink.js
+@@ -13,6 +13,7 @@ import reconciler from './reconciler.js';
+ import render from './renderer.js';
+ import * as dom from './dom.js';
+ import logUpdate, { positionImeCursor } from './log-update.js';
++import { inkCharacterWidth } from './measure-text.js';
+ import instances from './instances.js';
+ import App from './components/App.js';
+ import { accessibilityContext as AccessibilityContext } from './components/AccessibilityContext.js';
+@@ -20,6 +21,69 @@ import { calculateScroll } from './scroll.js';
+ // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+ import { ResizeObserverEntry } from './resize-observer.js';
+ import { Selection } from './selection.js';
++
++// --- siada patch: terminal-width consistency guards -------------------------
++// The main-buffer renderer computes its erase band from the logical line count
++// of the previous frame. If the frame is physically taller than ink assumes
++// (a line wider than the terminal gets wrapped by the terminal itself), the
++// erase band drifts one row per render and leaks one copy of the first frame
++// line per frame (stacking artifacts, most visible on Windows conhost).
++//
++// Two guards:
++//  1. `refreshTerminalSize()` — layout must always use the *current* console
++//     size. The tty 'resize' event can lag behind the real window size by
++//     several frames, so query it synchronously when the runtime allows it.
++//     `_refreshSize()` also re-emits 'resize' when the size changed, hence
++//     the re-entrancy guard below.
++//  2. `wrapOverwideLines()` — hard-wrap any line wider than the terminal so a
++//     frame can never be physically taller than its logical line count.
++const streamsRefreshingSize = new WeakSet();
++const refreshTerminalSize = (stdout) => {
++    if (!stdout?.isTTY || typeof stdout._refreshSize !== 'function') {
++        return;
++    }
++    if (streamsRefreshingSize.has(stdout)) {
++        return;
++    }
++    streamsRefreshingSize.add(stdout);
++    try {
++        stdout._refreshSize();
++    }
++    finally {
++        streamsRefreshingSize.delete(stdout);
++    }
++};
++const wrapOverwideLines = (output, columns, cursorPosition) => {
++    const lines = output.split('\n');
++    const lineHeights = new Array(lines.length);
++    const wrappedLines = [];
++    let needsWrap = false;
++    for (let index = 0; index < lines.length; index++) {
++        const line = lines[index];
++        let lineToWrite = line;
++        let height = 1;
++        if (inkCharacterWidth(line) > columns) {
++            needsWrap = true;
++            lineToWrite = wrapAnsi(line, columns, { trim: false, hard: true });
++            height = lineToWrite === '' ? 1 : lineToWrite.split('\n').length;
++        }
++        lineHeights[index] = height;
++        wrappedLines.push(lineToWrite);
++    }
++    if (!needsWrap) {
++        return { output, cursorPosition };
++    }
++    let newCursorPosition = cursorPosition;
++    if (cursorPosition && cursorPosition.row < lineHeights.length) {
++        let row = 0;
++        for (let index = 0; index < cursorPosition.row; index++) {
++            row += lineHeights[index];
++        }
++        newCursorPosition = { row, col: cursorPosition.col };
++    }
++    return { output: wrappedLines.join('\n'), cursorPosition: newCursorPosition };
++};
++// --- end siada patch --------------------------------------------------------
+ const noop = () => { };
+ const rainbowColors = [
+     'red',
+@@ -54,6 +118,7 @@ export default class Ink {
+     // This variable is used only in debug mode to store full static output
+     // so that it's rerendered every time, not just new static parts, like in non-debug mode
+     fullStaticOutput;
++    lastStaticNode;
+     exitPromise;
+     restoreConsole;
+     unsubscribeResize;
+@@ -115,6 +180,7 @@ export default class Ink {
+         // This variable is used only in debug mode to store full static output
+         // so that it's rerendered every time, not just new static parts, like in non-debug mode
+         this.fullStaticOutput = '';
++        this.lastStaticNode = undefined;
+         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+         this.container = reconciler.createContainer(this.rootNode, LegacyRoot, null, false, null, 'id', () => { }, () => { }, () => { }, () => { }, null);
+         // Unmount when process exits
+@@ -149,6 +215,7 @@ export default class Ink {
+     rejectExitPromise = () => { };
+     unsubscribeExit = () => { };
+     calculateLayout = () => {
++        refreshTerminalSize(this.options.stdout);
+         // The 'columns' property can be undefined or 0 when not using a TTY.
+         // In that case we fall back to 80.
+         const terminalWidth = this.options.stdout.columns || 80;
+@@ -207,6 +274,12 @@ export default class Ink {
+             this.frameIndex++;
+         }
+         const { output, outputHeight, staticOutput, styledOutput, cursorPosition } = render(this.rootNode, this.isScreenReaderEnabled, this.selection, this.options.selectionStyle);
++        const replacedRenderedStatic = this.rootNode.staticNode !== this.lastStaticNode &&
++            this.lastStaticNode !== undefined && this.fullStaticOutput !== '';
++        if (this.rootNode.staticNode !== this.lastStaticNode) {
++            this.fullStaticOutput = '';
++            this.lastStaticNode = this.rootNode.staticNode;
++        }
+         // If <Static> output isn't empty, it means new children have been added to it
+         const hasStaticOutput = staticOutput && staticOutput !== '\n';
+         if (this.options.debug) {
+@@ -273,20 +346,32 @@ export default class Ink {
+         if (hasStaticOutput) {
+             this.fullStaticOutput += staticOutput;
+         }
+-        if (this.lastOutputHeight >= this.options.stdout.rows) {
++        // siada patch: hard-wrap over-wide lines so the physical frame height
++        // always matches the logical line count (see wrapOverwideLines above).
++        // Only the main-buffer path needs this; the alternate-buffer path caps
++        // by rows and the screen-reader path already hard-wraps.
++        const frameColumns = this.options.stdout.columns || 80;
++        const wrappedFrame = wrapOverwideLines(output, frameColumns, cursorPosition);
++        const frameOutput = wrappedFrame.output;
++        const frameCursorPosition = wrappedFrame.cursorPosition;
++        const frameOutputHeight =
++            frameOutput === '' ? 0 : frameOutput.split('\n').length;
++        // A new <Static> replaces the old history, not appends to it. Clear
++        // the already-painted history before writing the replacement frame.
++        if (replacedRenderedStatic || this.lastOutputHeight >= this.options.stdout.rows) {
+             // Build a single buffer for all operations
+             let buffer = '';
+-            buffer += ansiEscapes.clearTerminal + this.fullStaticOutput + output;
++            buffer += ansiEscapes.clearTerminal + this.fullStaticOutput + frameOutput;
+             // Position cursor after screen clear if requested by a component
+-            if (cursorPosition) {
+-                const lineCount = output.split('\n').length;
+-                buffer += positionImeCursor(lineCount, cursorPosition);
++            if (frameCursorPosition) {
++                const lineCount = frameOutput.split('\n').length;
++                buffer += positionImeCursor(lineCount, frameCursorPosition);
+             }
+             this.options.stdout.write(buffer);
+-            this.lastOutput = output;
+-            this.lastOutputHeight = outputHeight;
+-            this.lastCursorPosition = cursorPosition;
+-            this.log.sync(output, cursorPosition);
++            this.lastOutput = frameOutput;
++            this.lastOutputHeight = frameOutputHeight;
++            this.lastCursorPosition = frameCursorPosition;
++            this.log.sync(frameOutput, frameCursorPosition);
+             this.callOnRender(startTime, output, staticOutput);
+             return;
+         }
+@@ -294,20 +379,20 @@ export default class Ink {
+         if (hasStaticOutput) {
+             this.log.clear();
+             this.options.stdout.write(staticOutput);
+-            this.log(output, styledOutput, debugRainbowColor, cursorPosition);
++            this.log(frameOutput, styledOutput, debugRainbowColor, frameCursorPosition);
+         }
+-        const outputChanged = output !== this.lastOutput;
+-        const cursorChanged = cursorPosition !== this.lastCursorPosition &&
+-            (!cursorPosition ||
++        const outputChanged = frameOutput !== this.lastOutput;
++        const cursorChanged = frameCursorPosition !== this.lastCursorPosition &&
++            (!frameCursorPosition ||
+                 !this.lastCursorPosition ||
+-                cursorPosition.row !== this.lastCursorPosition.row ||
+-                cursorPosition.col !== this.lastCursorPosition.col);
++                frameCursorPosition.row !== this.lastCursorPosition.row ||
++                frameCursorPosition.col !== this.lastCursorPosition.col);
+         if (!hasStaticOutput && (outputChanged || cursorChanged)) {
+-            this.throttledLog(output, styledOutput, debugRainbowColor, cursorPosition);
++            this.throttledLog(frameOutput, styledOutput, debugRainbowColor, frameCursorPosition);
+         }
+-        this.lastOutput = output;
+-        this.lastOutputHeight = outputHeight;
+-        this.lastCursorPosition = cursorPosition;
++        this.lastOutput = frameOutput;
++        this.lastOutputHeight = frameOutputHeight;
++        this.lastCursorPosition = frameCursorPosition;
+         this.callOnRender(startTime, output, staticOutput);
+     };
+     recalculateLayout() {
+diff --git a/node_modules/@jrichman/ink/build/reconciler.js b/node_modules/@jrichman/ink/build/reconciler.js
+index ab14aaf..eee4801 100644
+--- a/node_modules/@jrichman/ink/build/reconciler.js
++++ b/node_modules/@jrichman/ink/build/reconciler.js
+@@ -3,7 +3,7 @@ import createReconciler from 'react-reconciler';
+ import { DefaultEventPriority, NoEventPriority, } from 'react-reconciler/constants.js';
+ import Yoga from 'yoga-layout';
+ import { createContext } from 'react';
+-import { createTextNode, appendChildNode, insertBeforeNode, removeChildNode, setStyle, setTextNodeValue, createNode, setAttribute, } from './dom.js';
++import { createTextNode, appendChildNode, insertBeforeNode, removeChildNode, freeYogaSubtree, setStyle, setTextNodeValue, createNode, setAttribute, } from './dom.js';
+ import applyStyles from './styles.js';
+ // We need to conditionally perform devtools connection to avoid
+ // accidentally breaking other third-party code.
+@@ -55,9 +55,47 @@ const diff = (before, after) => {
+     }
+     return isChanged ? changed : undefined;
+ };
+-const cleanupYogaNode = (node) => {
+-    node?.unsetMeasureFunc();
+-    node?.freeRecursive();
++const findRootNode = (node) => {
++    let current = node;
++    while (current) {
++        if (current.nodeName === 'ink-root') {
++            return current;
++        }
++        current = current.parentNode;
++    }
++    return undefined;
++};
++/**
++ * Clear the root's cached `staticNode` when the node it points at is being
++ * removed as part of a larger subtree.
++ *
++ * Without this, when an *ancestor* of `<Static>` is removed, `removeChild`
++ * receives the ancestor (whose `internal_static` is false) and
++ * `freeRecursive()` frees the static node's Yoga WASM memory while
++ * `staticNode` survives as a dangling reference. The next render then traps
++ * with `RuntimeError: memory access out of bounds` (QwenLM/qwen-code#6820).
++ *
++ * The owning root is derived from the host parent passed to the removal hook,
++ * not a module-level global, so instances with separate stdout streams don't
++ * clobber each other's pointers.
++ *
++ * Ported from upstream ink PR #979.
++ */
++const clearStaticNodeIfContained = (rootNode, removeNode) => {
++    if (!rootNode?.staticNode) {
++        return;
++    }
++    // Walk up from staticNode to see if removeNode is an ancestor.
++    let current = rootNode.staticNode;
++    while (current) {
++        if (current === removeNode) {
++            // Ink observes the static node identity during rendering and
++            // clears the old static output when this node is replaced.
++            rootNode.staticNode = undefined;
++            return;
++        }
++        current = current.parentNode;
++    }
+ };
+ let currentUpdatePriority = NoEventPriority;
+ let currentRootNode;
+@@ -193,8 +231,11 @@ export default createReconciler({
+     appendChildToContainer: appendChildNode,
+     insertInContainerBefore: insertBeforeNode,
+     removeChildFromContainer(node, removeNode) {
++        // `node` is the container, i.e. the root itself. Clear before
++        // removeChildNode breaks the parent chain.
++        clearStaticNodeIfContained(findRootNode(node), removeNode);
+         removeChildNode(node, removeNode);
+-        cleanupYogaNode(removeNode.yogaNode);
++        freeYogaSubtree(removeNode);
+     },
+     commitUpdate(node, _type, oldProps, newProps) {
+         if (currentRootNode && node.internal_static) {
+@@ -250,8 +291,10 @@ export default createReconciler({
+         setTextNodeValue(node, newText);
+     },
+     removeChild(node, removeNode) {
++        // Clear before removeChildNode breaks the parent chain.
++        clearStaticNodeIfContained(findRootNode(node), removeNode);
+         removeChildNode(node, removeNode);
+-        cleanupYogaNode(removeNode.yogaNode);
++        freeYogaSubtree(removeNode);
+     },
+     setCurrentUpdatePriority(newPriority) {
+         currentUpdatePriority = newPriority;

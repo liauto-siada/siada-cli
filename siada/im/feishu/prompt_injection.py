@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 def build_inbound_user_context_suffix(
     msg: "IMMessage",
     *,
-    include_conversation_info: bool = False,
+    include_conversation_info: bool = True,
 ) -> Optional[str]:
     """Build the context suffix to append after the user-role message content.
 
@@ -48,7 +48,7 @@ def _build_conversation_info(msg: "IMMessage") -> dict:
     """Build conversation info dict from IMMessage fields.
 
     DM vs group field differences per design §3.2:
-    - chat_id and is_group_chat are group-only
+    - chat_id, chat_name and is_group_chat are group-only
     - reply_to_id and was_mentioned are emitted only when present/true
     """
     is_group = msg.chat_type == "group"
@@ -56,6 +56,11 @@ def _build_conversation_info(msg: "IMMessage") -> dict:
 
     if is_group and msg.chat_id:
         data["chat_id"] = msg.chat_id
+
+    # Group display name (resolved via chat API by the adapter; may be None
+    # when resolution is unavailable/disabled)
+    if is_group and getattr(msg, "chat_name", None):
+        data["chat_name"] = msg.chat_name
 
     if msg.sender_open_id:
         data["sender_open_id"] = msg.sender_open_id

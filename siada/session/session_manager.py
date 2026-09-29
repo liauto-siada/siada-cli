@@ -8,6 +8,7 @@ from siada.entrypoint.interaction.running_config import RunningConfig
 from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
 from siada.support.checkpoint_tracker import create_checkpoint_tracker
+from siada.support.message_classifier import get_role_and_type_from_item
 from siada.support.spinner import WaitingSpinner
 from siada.foundation.telemetry import telemetry
 
@@ -250,12 +251,19 @@ class RunningSessionManager:
                         "content": formatted_content
                     })
             else:
-                # No role: determine role based on type field
-                # function_call is classified as assistant, others as user
-                if msg_type == "function_call" or msg_type == "reasoning":
-                    role = "assistant"
-                else:
-                    role = "user"
+                # No role: determine role based on type field.  Native
+                # Responses items (``apply_patch_call``, ``shell_call``,
+                # ``local_shell_call``, ``custom_tool_call``, ``reasoning`` ...)
+                # carry no ``role`` at all, so classify them with the shared
+                # classifier instead of defaulting every unknown type to a user
+                # message — that used to file model-generated patch calls under
+                # ``role: "user"`` in the telemetry payload.
+                #
+                # Only the assistant verdict is adopted here: this telemetry
+                # schema distinguishes just user/assistant, so tool outputs
+                # (``*_call_output``) deliberately stay ``user``.
+                classified_role, _ = get_role_and_type_from_item(msg)
+                role = "assistant" if classified_role == "assistant" else "user"
 
                 # Use the entire message object as content, keep the real
                 # message type (e.g. "reasoning", "function_call",

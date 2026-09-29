@@ -14,10 +14,11 @@ goal_history.jsonl first (see goal_storage.append_goal_history), so nothing
 is silently lost even though goal.json itself only ever holds the current
 goal.
 """
+import asyncio
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # Pre-import to break circular-import chain:
 # slash_commands -> checkpoint_tracker -> session.task_message_state
@@ -27,6 +28,9 @@ import siada.support.checkpoint_tracker  # noqa: F401
 from siada.support.slash_commands import SlashCommands, SwitchEvent
 from siada.services.goal import goal_storage
 from siada.services.goal.models import Goal
+from siada.services.file_session import FileSession
+from siada.services.siada_runner import SiadaRunner
+from siada.support.message_classifier import format_native_items_for_display
 
 
 def _make_slash_commands() -> SlashCommands:
@@ -237,6 +241,155 @@ class TestCmdGoalLifecycle:
             from siada.services.siada_runner import SiadaRunner
             result = SiadaRunner._maybe_merge_goal_reminder(context, "next message")
             assert result == "next message"
+
+    def test_clear_persists_hidden_reminder_and_drops_staged_goal(self):
+        sc = _make_slash_commands()
+        with tempfile.TemporaryDirectory() as d:
+            file_session = FileSession(session_id="goal-clear", sessions_dir=Path(d))
+            session_dir = file_session.session_folder
+            session = _make_session(session_dir)
+            session.state.openai_session = file_session
+            old_goal = Goal.create("finish the old task")
+            goal_storage.save_goal(session_dir, old_goal)
+            session.state.pending_goal = old_goal
+            context = MagicMock()
+            context.goal = old_goal
+
+            with patch(
+                "siada.services.siada_runner.SiadaRunner._context_cache",
+                {("agent", "/tmp/ws"): context},
+            ):
+                sc.cmd_goal(session, "clear")
+
+            persisted_items = asyncio.run(file_session.get_items())
+            assert len(persisted_items) == 1
+            reminder = persisted_items[0]["content"][0]["text"]
+            assert "<system-reminder>" in reminder
+            assert "cleared the standing session goal" in reminder
+            assert "finish the old task" in reminder
+            assert format_native_items_for_display(persisted_items) == []
+
+            assert context.goal is None
+            assert session.state.pending_goal is None
+            assert goal_storage.load_goal(session_dir) is None
+
+            # A fresh FileSession reads the same durable reminder from disk;
+            # no in-memory Goal object is needed to deliver it on the next run.
+            reopened = FileSession.from_file(file_session.session_file)
+            reloaded_items = asyncio.run(reopened.get_items())
+            assert reloaded_items == persisted_items
+
+            # The next model-facing read includes the reminder, but history
+            # replay shows only the user's subsequent real message.
+            file_session.add_items_sync([{"role": "user", "content": "start a different task"}])
+            effective_items = asyncio.run(file_session.get_effective_messages())
+            assert effective_items[0] == persisted_items[0]
+            assert format_native_items_for_display(effective_items) == [
+                {"role": "user", "content": "start a different task"}
+            ]
+
+            context.todos = []
+            session.state.pending_skill_names = []
+            session.state.pending_todos = None
+            session.state.pending_subagent_resume_note = None
+            with patch(
+                "siada.services.siada_runner.SiadaRunner._prepare_checkpoint_with_timeout",
+                new=AsyncMock(),
+            ):
+                asyncio.run(SiadaRunner._prepare_context_for_run(context, session))
+            assert context.goal is None
+
+    def test_clear_without_goal_leaves_new_session_empty(self):
+        sc = _make_slash_commands()
+        with tempfile.TemporaryDirectory() as d:
+            earlier = FileSession(session_id="earlier", sessions_dir=Path(d))
+            earlier.add_items_sync([{"role": "user", "content": "previous conversation"}])
+            file_session = FileSession(session_id="empty-clear", sessions_dir=Path(d))
+            session = _make_session(file_session.session_folder)
+            session.state.openai_session = file_session
+            session.state.pending_goal = None
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", {}):
+                sc.cmd_goal(session, "clear")
+
+            assert asyncio.run(file_session.get_items()) == []
+            assert json.loads(file_session.metadata_file.read_text())["message_count"] == 0
+            from siada.services.session_management import SessionManager
+
+            manager = SessionManager(str(Path(d)))
+            manager.sessions_dir = Path(d)
+            assert manager.find_session("latest").session_id == earlier.session_id
+
+    def test_clear_reminder_survives_existing_model_snapshot(self):
+        sc = _make_slash_commands()
+        with tempfile.TemporaryDirectory() as d:
+            file_session = FileSession(session_id="compacted-clear", sessions_dir=Path(d))
+            prior_input = {"role": "user", "content": "old request"}
+            prior_reply = {"role": "assistant", "content": "working on it"}
+            file_session.add_items_sync([prior_input, prior_reply])
+            (file_session.session_folder / "api_messages.json").write_text(
+                json.dumps({"api_messages": [prior_input], "last_index": 0}),
+                encoding="utf-8",
+            )
+            session = _make_session(file_session.session_folder)
+            session.state.openai_session = file_session
+            goal = Goal.create("obsolete task")
+            goal_storage.save_goal(file_session.session_folder, goal)
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", {}):
+                sc.cmd_goal(session, "clear")
+
+            reopened = FileSession.from_file(file_session.session_file)
+            items = asyncio.run(reopened.get_effective_messages())
+            assert items[:2] == [prior_input, prior_reply]
+            assert "obsolete task" in items[2]["content"][0]["text"]
+            assert format_native_items_for_display(items) == [
+                {"role": "user", "content": "old request"},
+                {"role": "assistant", "content": "working on it"},
+            ]
+
+    def test_clear_staged_only_goal_still_persists_reminder(self):
+        sc = _make_slash_commands()
+        with tempfile.TemporaryDirectory() as d:
+            file_session = FileSession(session_id="staged-only", sessions_dir=Path(d))
+            session = _make_session(file_session.session_folder)
+            session.state.openai_session = file_session
+            session.state.pending_goal = Goal.create("abandon staged work")
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", {}):
+                sc.cmd_goal(session, "clear")
+
+            items = asyncio.run(file_session.get_items())
+            assert len(items) == 1
+            assert "abandon staged work" in items[0]["content"][0]["text"]
+            assert format_native_items_for_display(items) == []
+            assert session.state.pending_goal is None
+
+    def test_clear_still_cancels_goal_if_history_write_fails(self):
+        sc = _make_slash_commands()
+        with tempfile.TemporaryDirectory() as d:
+            file_session = FileSession(session_id="clear-write-failure", sessions_dir=Path(d))
+            session = _make_session(file_session.session_folder)
+            session.state.openai_session = file_session
+            goal = Goal.create("stop this work")
+            goal_storage.save_goal(file_session.session_folder, goal)
+            session.state.pending_goal = goal
+            context = MagicMock(goal=goal)
+
+            with patch(
+                "siada.services.siada_runner.SiadaRunner._context_cache",
+                {("agent", "/tmp/ws"): context},
+            ), patch.object(file_session, "_write_session_data", side_effect=OSError("disk full")):
+                sc.cmd_goal(session, "clear")
+
+            assert context.goal is None
+            assert session.state.pending_goal is None
+            assert goal_storage.load_goal(file_session.session_folder) is None
+            sc.io.print_warning.assert_called_once()
+            assert asyncio.run(file_session.get_items()) == []
+            assert [item["objective"] for item in goal_storage.load_goal_history(file_session.session_folder)] == [
+                "stop this work"
+            ]
 
     def test_multiple_overwrites_accumulate_history_in_order(self):
 

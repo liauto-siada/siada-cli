@@ -63,7 +63,7 @@ def merge_streaming_text(previous: str, next_text: str) -> str:
     if previous in next_text:
         return next_text
 
-    # Merge partial overlaps, e.g. "这" + "这是" => "这是"
+    # Merge partial overlaps, e.g. "Hello wor" + "world" => "Hello world"
     max_overlap = min(len(previous), len(next_text))
     for overlap in range(max_overlap, 0, -1):
         if previous[-overlap:] == next_text[:overlap]:
@@ -148,7 +148,7 @@ class LarkStreamingCard:
             "schema": "2.0",
             "config": {
                 "streaming_mode": True,
-                "summary": {"content": "[生成中...]"},
+                "summary": {"content": "[Generating...]"},
                 "streaming_config": {
                     "print_frequency_ms": {"default": 50},
                     "print_step": {"default": 1},

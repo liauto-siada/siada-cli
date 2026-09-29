@@ -364,7 +364,7 @@ class LoggerTracingProcessor(TracingProcessor):
             del self.trace_states[trace.trace_id]
 
     def on_span_start(self, span) -> None:
-        """Span 开始时的回调"""
+        """Callback when a Span starts."""
         span_type = span.span_data.type
         trace_id = span.trace_id
         state = self.trace_states.get(trace_id)
@@ -387,7 +387,7 @@ class LoggerTracingProcessor(TracingProcessor):
                 self._print_incremental_messages(span.trace_id, data.input)
 
     def on_span_end(self, span) -> None:
-        """Span 结束时的回调"""
+        """Callback when a Span ends."""
         span_type = span.span_data.type
         trace_id = span.trace_id
 
@@ -432,7 +432,7 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"{self.colors['model']}==================={self.colors['reset']}", output_file)
 
     def _handle_function_span(self, span, state: Optional[TraceState]) -> None:
-        """处理函数调用 Span"""
+        """Handle a function-call Span."""
         data = span.span_data
         output_file = state.output_file if state else None
 

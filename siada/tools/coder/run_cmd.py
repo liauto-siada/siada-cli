@@ -7,7 +7,7 @@ from typing import List, Optional
 from agents import function_tool, RunContextWrapper
 
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.tools.coder.cmd_runner import run_cmd_impl
+from siada.tools.coder.cmd_runner import MAX_OUTPUT_LENGTH, run_cmd_impl
 from siada.tools.coder.observation.observation import FunctionCallResult
 from siada.utils import DirectoryUtils
 from siada.foundation.context import get_context_var
@@ -17,19 +17,32 @@ from siada.tools.resolve_cwd import resolve_cwd
 DEFAULT_TIMEOUT_S = 60   # 1 minute
 MAX_TIMEOUT_S = 600      # 10 minutes
 
-RUN_CMD_DOCS = f"""Execute a shell command using the most appropriate method for the current environment.
+# Model-facing tool description, concatenated from the two parts below:
+# - _RUN_CMD_BEHAVIOR_DOCS: behavior guidance (when to parallelize, what to do
+#   with truncated output, how to handle long commands).
+# - _RUN_CMD_ARGS_DOCS: parameter docs.
+# Parameter docs deliberately live in the description instead of the function
+# docstring: the SDK's docstring-style sniffing (griffe) breaks silently — e.g.
+# when "Args:" is not preceded by a blank line — while the description is sent
+# to the model verbatim. The f-string keeps the timeout values in sync with
+# the constants above.
+_RUN_CMD_BEHAVIOR_DOCS = f"""Execute a shell command from the workspace root — for listing files, checking git status, running builds, executing tests, etc.
 
-    This function automatically selects between pexpect (for interactive terminals on Unix-like
-    systems) and subprocess (for Windows or non-interactive environments) to execute shell
-    commands. It provides real-time output streaming and proper error handling.
-
-    Args:
-        command (str): The shell command to execute as a string.
-        cwd (str, optional): Working directory for command execution.
-            If not provided, defaults to the current workspace directory.
-        timeout (int, optional): Timeout in seconds (max {MAX_TIMEOUT_S}s / {MAX_TIMEOUT_S // 60} minutes).
-            If not specified, commands will timeout after {DEFAULT_TIMEOUT_S}s ({DEFAULT_TIMEOUT_S // 60} minute).
+- Commands must be non-interactive: a command that waits for follow-up input (confirmation prompt, editor, interactive console) will block until it times out. Use non-interactive forms instead, e.g. `git --no-pager log`, `apt-get -y`; pipe or redirect input the command would otherwise prompt for. (Pagers are already disabled via environment variables, so plain `git log` is safe.)
+- When you need several independent commands, emit multiple `run_cmd` calls in the same response so they run in parallel instead of serializing them across turns; when independent reads, searches, or edits are also needed, emit those tool calls in the same response too.
+- Output is capped at {MAX_OUTPUT_LENGTH:,} characters and cut off with a truncation notice; pipe through grep/head/tail, or redirect to a file and read the parts you need, when dealing with large output.
+- For long-running commands, run them in the background and redirect output to a tmp file that you can read from later (e.g. `nohup ... > /tmp/x.log 2>&1 &`) instead of waiting on a long `timeout`.
+- A multi-line construct (heredoc, loop, if-statement) must be sent as one `command` string — embedded newlines are fine, but splitting it across multiple calls runs each piece in a separate shell and fails.
 """
+
+_RUN_CMD_ARGS_DOCS = f"""
+Args:
+    command: The shell command to execute.
+    cwd: Working directory for command execution. If not provided, defaults to the current workspace directory.
+    timeout: Timeout in seconds. If not specified, the command times out after {DEFAULT_TIMEOUT_S}s; values are capped at {MAX_TIMEOUT_S}s ({MAX_TIMEOUT_S // 60} minutes).
+"""
+
+RUN_CMD_DOCS = _RUN_CMD_BEHAVIOR_DOCS + _RUN_CMD_ARGS_DOCS
 
 
 class RunCmdResult(FunctionCallResult):

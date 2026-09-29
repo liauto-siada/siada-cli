@@ -1044,3 +1044,33 @@ class SystemThemeDetector:
         
         # Default case
         return 'default'
+
+
+# Cached 'auto' resolution for the process lifetime. The detector shells out
+# to AppleScript/gsettings (~80-120ms on macOS), so it must run at most once
+# per process, on the startup path or the first /theme auto.
+_cached_auto_theme: Optional[str] = None
+
+
+def resolve_theme_for_ui(theme: Optional[str]) -> str:
+    """Resolve a configured UI theme to the concrete 'dark' or 'light' value.
+
+    Args:
+        theme: Configured theme ('auto', 'dark', 'light', or anything else).
+
+    Returns:
+        'dark' or 'light'. 'auto' (and unknown values) resolve through
+        SystemThemeDetector.detect_theme(), cached per process; detection
+        failure falls back to 'dark'.
+    """
+    global _cached_auto_theme
+    if theme in ('dark', 'light'):
+        return theme
+    if _cached_auto_theme is None:
+        try:
+            detected = SystemThemeDetector.detect_theme()
+        except Exception:
+            logger.error("Theme detection failed, falling back to 'dark'", exc_info=True)
+            detected = 'unknown'
+        _cached_auto_theme = detected if detected in ('dark', 'light') else 'dark'
+    return _cached_auto_theme

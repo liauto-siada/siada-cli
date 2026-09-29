@@ -9,6 +9,7 @@ import shtab
 import yaml
 import siada
 from siada import __version__
+from siada.browser_addon import paths
 
 
 
@@ -53,7 +54,7 @@ def get_parser(default_config_files, git_root):
     except Exception as e:
         # Fallback to default if config loading fails
         agent_configs = {}
-        agent_choices = ['bugfix', 'coder', 'fegen', 'bugreproduce']
+        agent_choices = ['coder']
         print(f"Warning: Failed to load agent config, using defaults: {e}")
         # Add IO to print errors for sending ACP messages
         try:
@@ -215,17 +216,10 @@ def get_parser(default_config_files, git_root):
         "--ui",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Launch terminal UI (TUI) interface (default: True). Use --no-ui to use classic Python REPL mode",
+        help="Launch terminal UI (TUI) interface (default: True). The legacy Python REPL is no longer supported",
     )
 
     group = parser.add_argument_group("Authentication")
-    group.add_argument(
-        "--login",
-        action="store_true",
-        help="Run the interactive sign-in flow in the terminal and exit "
-             "(used by ACP clients for Terminal Auth)",
-        default=False,
-    )
     group.add_argument(
         "--logout",
         action="store_true",
@@ -365,6 +359,72 @@ def get_parser(default_config_files, git_root):
             "not have background jobs mutating ~/.siada-cli/workspace/memory)"
         ),
         default=False,
+    )
+
+    ##########
+    group = parser.add_argument_group("Browser proxy (chrome-acp)")
+
+    group.add_argument(
+        "--browser-setup",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="REPO",
+        help="Install the chrome-acp browser proxy + Chrome extension and start the proxy. "
+             "Optional value: chrome-acp repo path (already built); omit to download the "
+             "prebuilt artifacts from BOS. Same as `siada-browser setup [repo]`.",
+    )
+
+    group.add_argument(
+        "--browser-start",
+        action="store_true",
+        help="Start the browser proxy (idempotent)",
+        default=False,
+    )
+
+    group.add_argument(
+        "--browser-stop",
+        action="store_true",
+        help="Stop the browser proxy",
+        default=False,
+    )
+
+    group.add_argument(
+        "--browser-restart",
+        action="store_true",
+        help="Restart the browser proxy (stop then start)",
+        default=False,
+    )
+
+    group.add_argument(
+        "--browser-status",
+        action="store_true",
+        help="Show browser proxy status (JSON from /status)",
+        default=False,
+    )
+
+    group.add_argument(
+        "--browser-port",
+        type=int,
+        metavar="PORT",
+        help=f"Browser proxy port, used by --browser-setup (default: {paths.DEFAULT_PORT})",
+        default=None,
+    )
+
+    group.add_argument(
+        "--browser-host",
+        metavar="HOST",
+        help="Browser proxy bind host, used by --browser-setup. Set to 0.0.0.0 to "
+             "allow remote connections from other devices on the LAN (automatically "
+             "enables wss/https with a self-signed certificate). Default: 127.0.0.1",
+        default=None,
+    )
+
+    group.add_argument(
+        "--browser-base-url",
+        metavar="URL",
+        help="Override the BOS base URL used by --browser-setup when downloading artifacts",
+        default=None,
     )
 
     ##########
@@ -611,3 +671,36 @@ class SiadaArgs:
     @property
     def headroom_budget(self):
         return self._get('headroom_budget', None)
+
+    # Browser proxy (chrome-acp)
+    @property
+    def browser_setup(self):
+        return self._get('browser_setup', None)
+
+    @property
+    def browser_start(self) -> bool:
+        return self._get('browser_start', False) or False
+
+    @property
+    def browser_stop(self) -> bool:
+        return self._get('browser_stop', False) or False
+
+    @property
+    def browser_restart(self) -> bool:
+        return self._get('browser_restart', False) or False
+
+    @property
+    def browser_status(self) -> bool:
+        return self._get('browser_status', False) or False
+
+    @property
+    def browser_port(self):
+        return self._get('browser_port', None)
+
+    @property
+    def browser_host(self):
+        return self._get('browser_host', None)
+
+    @property
+    def browser_base_url(self):
+        return self._get('browser_base_url', None)

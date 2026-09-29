@@ -30,9 +30,14 @@ class GitInfo:
     def repo_id(self) -> str:
         """Return the ``group/repo`` portion of the remote URL.
 
-        Handles the two most common URL shapes:
+        Handles the most common URL shapes:
           - SSH  : ``git@host:group/repo.git``    → ``group/repo``
           - HTTPS: ``https://host/group/repo.git`` → ``group/repo``
+          - Gerrit over HTTP(S): ``https://gerrit.host/a/group/repo.git``
+            → ``group/repo``. The literal ``/a/`` segment is Gerrit's
+            authenticated-access prefix, not part of the project path, and
+            is stripped so a project cloned via Gerrit HTTP reports the
+            same id as the same project cloned via GitLab or SSH.
         Returns an empty string when ``repo_url`` is empty or unparseable.
         """
         return _parse_repo_id(self.repo_url)
@@ -50,13 +55,40 @@ def _parse_repo_id(url: str) -> str:
         # e.g. https://gitlab.com/group/repo.git  or  ssh://git@gitlab.com/group/repo.git
         try:
             from urllib.parse import urlparse
-            path = urlparse(url).path.lstrip("/")
+            parsed = urlparse(url)
+            path = parsed.path.lstrip("/")
+            # Gerrit serves authenticated HTTP(S) clones under a literal
+            # ``/a/`` prefix (``https://gerrit.host/a/group/repo.git``).
+            # Strip it so the same project reports one id regardless of
+            # clone transport. Only for Gerrit hosts over HTTP(S): on any
+            # other host (or transport) a leading ``a/`` is a real group
+            # name and must be preserved. A Gerrit project whose path
+            # itself starts with ``a/`` yields ``/a/a/...`` — exactly one
+            # prefix segment is removed, keeping the project path intact.
+            if (
+                parsed.scheme in ("http", "https")
+                and _is_gerrit_host(parsed.hostname or "")
+                and path.startswith("a/")
+            ):
+                path = path[2:]
         except Exception:
             return ""
     # Strip trailing .git
     if path.endswith(".git"):
         path = path[:-4]
     return path
+
+
+def _is_gerrit_host(host: str) -> bool:
+    """Whether *host* names a Gerrit instance.
+
+    Gerrit hosts are conventionally named ``gerrit`` or ``gerrit-*`` (e.g.
+    ``gerrit.example.com``, ``gerrit-review.example.com``). This is a
+    naming heuristic: it can only ever *enable* the ``/a/`` prefix strip,
+    and it fails safe — an unrecognized Gerrit host keeps the prefix
+    verbatim (same as today) instead of mis-stripping a real ``a/`` group.
+    """
+    return "gerrit" in host.lower()
 
 
 def get_workspace_git_info(path: Optional[str]) -> GitInfo:

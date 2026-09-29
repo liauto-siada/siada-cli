@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING
 from agents import Model, ModelProvider
 
 from siada.provider.default.coverter import covert_to_litellm_model_name
+from siada.provider.default.kimi_tool_ordering import (
+    get_kimi_tool_ordering_litellm_model_cls,
+)
 from siada.provider.llm_client import LLMClient
 from siada.provider.reasoning_replay import should_replay_reasoning_content
 
@@ -58,6 +61,24 @@ class DefaultProvider(ModelProvider):
         if "moonshot/" in effective_model_name or effective_model_name.startswith("kimi-"):
             os.environ["MOONSHOT_API_KEY"] = self.api_key
 
+    def _ensure_openrouter_prefix(self, model_name: str) -> str:
+        """Route model ids through litellm's openrouter provider when BASE_URL is OpenRouter.
+
+        OpenRouter catalog ids look like ``vendor/model`` (e.g.
+        ``anthropic/claude-3.7-sonnet``) — exactly the shape litellm uses for
+        provider routing, so a bare id would be routed as a DIRECT call to
+        that vendor with the wrong protocol/URL (e.g. ``anthropic/...`` lands
+        on ``/v1/v1/messages``, ``google/...`` needs GEMINI credentials).
+        Prefixing with ``openrouter/`` makes litellm use its openrouter
+        provider instead: openai-protocol ``/chat/completions`` against the
+        configured BASE_URL, with the model id passed through verbatim.
+        """
+        if "openrouter.ai" not in (self.base_url or ""):
+            return model_name
+        if model_name.startswith("openrouter/"):
+            return model_name
+        return f"openrouter/{model_name}"
+
     def get_model(self, model_name: str | None) -> Model:
         """Get a model by name.
 
@@ -79,7 +100,12 @@ class DefaultProvider(ModelProvider):
 
         # Use provided model_name or fall back to configured model_name
         effective_model_name = covert_to_litellm_model_name(model_name)
-        self._apply_provider_specific_env(effective_model_name)
+        effective_model_name = self._ensure_openrouter_prefix(effective_model_name)
+        if not effective_model_name.startswith("openrouter/"):
+            # Direct vendor routing — set up any provider-specific env vars.
+            # (OpenRouter routing needs none; skip it so the OpenRouter key
+            # does not leak into DEEPSEEK/MOONSHOT env vars.)
+            self._apply_provider_specific_env(effective_model_name)
 
         from siada.entrypoint import _configure_litellm
         _configure_litellm()
@@ -87,8 +113,11 @@ class DefaultProvider(ModelProvider):
         # Register custom aws-claude-* models so litellm recognizes their capabilities
         _register_custom_claude_model(effective_model_name)
 
-        from agents.extensions.models.litellm_model import LitellmModel
-        return LitellmModel(
+        # LitellmModel subclass that re-pairs function_call outputs with their
+        # calls for kimi/moonshot models, mirroring the fix the li provider
+        # applies inside its own _fetch_response (li_provider.py:387-391).
+        # See siada/provider/default/kimi_tool_ordering.py for the full rationale.
+        return get_kimi_tool_ordering_litellm_model_cls()(
             model=effective_model_name,
             base_url=self.base_url,
             api_key=self.api_key,

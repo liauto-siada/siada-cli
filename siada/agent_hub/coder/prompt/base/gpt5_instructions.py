@@ -2,15 +2,21 @@
 GPT-5 series specific prompt instructions.
 this module provides:
 - GPT-5 tailored personality variants (pragmatic / friendly)
-- GPT-5 specific editing constraints (apply_patch priority, git safety)
+- GPT-5 specific editing constraints (comment style, edit_file preference)
 - Frontend task guidance (anti "AI slop")
-- Autonomy & persistence directives
-- Code review behavior
-- Intermediary update behavior (commentary channel)
+- Output formatting rules
 
 These sections are activated only when the model is a GPT-5 series model.
+
+Behavioural policy (autonomy, persistence, completion discipline, verification
+standards) deliberately does NOT live here: it is shared with the default branch
+via rules.py. This module used to carry its own wording for all of it, which made
+the GPT-5 prompt a parallel copy of the same policy, free to drift away from the
+default branch — exactly what happened to the Git Safety bullets before they were
+consolidated.
 """
 
+import re
 from typing import Optional
 
 
@@ -18,22 +24,65 @@ from typing import Optional
 # Model detection
 # ---------------------------------------------------------------------------
 
-def is_gpt5_model(model_name: str) -> bool:
-    """Check if the model is a GPT-5 series model."""
+_GPT_MAIN_VERSION_PATTERN = re.compile(r"(?:^|[^a-z0-9])gpt[-_]?([0-9]+)(?:[^0-9]|$)")
+
+
+def _gpt_main_version(model_name: str) -> int | None:
+    """Extract the numbered GPT generation from a provider-qualified name."""
     if not model_name:
-        return False
-    name = model_name.lower()
-    return "gpt-5" in name or "gpt5" in name
+        return None
+    match = _GPT_MAIN_VERSION_PATTERN.search(model_name.lower())
+    return int(match.group(1)) if match else None
+
+
+def is_gpt5_model(model_name: str) -> bool:
+    """Check if the model is specifically a GPT-5 series model."""
+    return _gpt_main_version(model_name) == 5
+
+
+def is_gpt5_or_newer_model(model_name: str | None) -> bool:
+    """Whether a model is GPT-5 or any later numbered GPT generation.
+
+    This is intentionally separate from :func:`is_gpt5_model`: tool protocol
+    selection applies to every modern GPT generation, while GPT-5's persona
+    and extra prompt template remain 5.x-specific.
+    """
+    version = _gpt_main_version(model_name or "")
+    return version is not None and version >= 5
+
+
+def uses_native_patch_file_tools(model_name: str | None) -> bool:
+    """Whether the model uses the read-file/native-apply-patch protocol.
+
+    GPT-6 has an explicit Codex-style native-patch contract even when the
+    provider registers Astra under its short alias, which has no numbered GPT
+    token. All numbered GPT-5-or-newer models share that tool protocol. Keep
+    this feature predicate separate from ``is_gpt5_model()``: GPT-5-only
+    personality and formatting sections must not leak into later generations.
+    """
+    from .skill_usage_profiles import is_gpt6_model
+
+    return is_gpt6_model(model_name) or is_gpt5_or_newer_model(model_name)
 
 
 # ---------------------------------------------------------------------------
-# Personality variants (inspired by Codex {{ personality }} template)
+# Personality variants
+#
+# Adapted from Codex's personality templates:
+#   codex-rs/core/templates/personalities/gpt-5.2-codex_pragmatic.md
+#   codex-rs/core/templates/personalities/gpt-5.2-codex_friendly.md
+# Codex's own "Interaction Style" section is deliberately not carried over —
+# the shared Concise Communication section in rules.py already owns brevity.
+#
+# These blocks carry tone and values ONLY, never behavioural policy. Personality
+# is chosen independently of pre_plan, so an autonomy-style directive written
+# here can never be swapped out when pre_plan flips the plan-first rule.
 # ---------------------------------------------------------------------------
 
 PERSONALITY_PRAGMATIC = """\
 # Personality
 
-You are  a deeply pragmatic, effective software engineer. You take engineering quality \
+You are a deeply pragmatic, effective software engineer. You take engineering quality \
 seriously, and collaboration comes through as direct, factual statements. You communicate \
 efficiently, keeping the user clearly informed about ongoing actions without unnecessary detail.
 
@@ -47,6 +96,14 @@ surface gaps or weak assumptions politely with emphasis on creating clarity and 
 the task forward.
 """
 
+# The paragraph "You never make the user work for you. Ask clarifying questions
+# only when they are substantial. Make reasonable assumptions..." used to sit in
+# the Tone section below. It restated rules.py's autonomy_rule and Core
+# Principles in weaker wording, and since personality does not participate in
+# the pre_plan branch it would have contradicted the plan-first directive
+# outright whenever pre_plan was on. The honesty-over-sycophancy line is kept:
+# nothing in the shared rules covers it, and a friendly persona needs that
+# counterweight to keep warmth from turning into deference.
 PERSONALITY_FRIENDLY = """\
 # Personality
 
@@ -70,9 +127,6 @@ Your voice is warm, encouraging, and conversational. You use teamwork-oriented l
 such as "we" and "let's"; affirm progress, and replace judgment with curiosity. \
 Truthfulness and honesty are more important than deference and sycophancy — when you \
 think something is wrong, you find ways to point that out kindly without hiding your feedback.
-
-You never make the user work for you. Ask clarifying questions only when they are \
-substantial. Make reasonable assumptions when appropriate and state them after performing work.
 
 ## Escalation
 You escalate gently and deliberately when decisions have non-obvious consequences or \
@@ -100,82 +154,46 @@ You are Siada, a coding agent based on GPT.
 {personality_block}"""
 
 
-def get_gpt5_general_section() -> str:
-    """GPT-5 specific general working instructions."""
-    return """\
-# General
-
-"""
-
-
 def get_gpt5_editing_constraints() -> str:
-    """GPT-5 specific editing constraints (inspired by Codex GPT-5.4)."""
+    """GPT-5 editing constraints for the native read/patch file protocol."""
+    # NOTE: the Git Safety bullets formerly here were ~90% identical to the
+    # Git Safety section in rules.py. They now live ONLY in rules.py
+    # (_GIT_SAFETY_SECTION), shared by the GPT-5 and default branches.
     return """\
 ## Editing Constraints
 
 - Add succinct code comments only when code is not self-explanatory. Do not add \
 comments like "Assigns the value to the variable", but a brief comment might be useful \
 ahead of a complex code block. Usage of these comments should be rare.
-- Prefer using `replace_in_file` for targeted code edits. Do not use Python or shell \
-scripts to read/write files when `replace_in_file` or `write_to_file` would suffice.
-- You may be in a dirty git worktree:
-  * **NEVER** revert existing changes you did not make unless explicitly requested, \
-since these changes were made by the user.
-  * If asked to make a commit or code edits and there are unrelated changes to your \
-work or changes that you didn't make in those files, don't revert those changes.
-  * If the changes are in files you've touched recently, read carefully and understand \
-how you can work with the changes rather than reverting them.
-  * If the changes are in unrelated files, just ignore them and don't revert them.
-- Do not amend a commit unless explicitly requested to do so.
-- **NEVER** use destructive commands like `git reset --hard` or `git checkout --` \
-unless specifically requested or approved by the user.
-- Prefer non-interactive git commands. Avoid git interactive console.
+- Use `read_file` to inspect source before changing it, and use `apply_patch` for every text-file creation, update, deletion, or move. \
+Do not create or edit files with `cat` or other shell write tricks. Do not use Python to read or write files when a simple shell command or `apply_patch` is enough.
 """
 
 
-def get_gpt5_autonomy_section() -> str:
-    """GPT-5 autonomy and persistence directives."""
-    return """\
-## Completion Discipline
-
-Before concluding success, verify the exact task acceptance condition from \
-files, tests, or verifier artifacts when available. Do not stop at "seems \
-configured", "should work", or partial smoke tests if the repository or task \
-contains a concrete checker, expected output file, or test script.
-
-Never claim a task is complete if:
-- A required service has not been exercised from the expected interface.
-- A required output file has not been checked against the exact expected format.
-- A build or install task has not been validated by the task's own tests or \
-verifier-facing checks.
-- You are aware of an unresolved incompatibility, TODO, background process, \
-or blocked dependency.
-In such cases, continue working or state the blocker explicitly.
-
-Starting a background script, leaving instructions for the user, or saying \
-"once X finishes it should work" does not count as completion unless the task \
-explicitly asks for deferred setup.
-"""
-
-
-def get_gpt5_review_section() -> str:
-    """GPT-5 verification and failure-loop behavior."""
-    return """\
-## Verification Standards
-
-Prefer symbolic or programmatic verification over visual or manual inference \
-whenever possible. If a problem can be converted into a structured representation \
-and validated by code, do that before finalizing.
-
-If a test or command fails, treat the failure output as the primary source of \
-truth. Patch the specific failing condition, rerun the relevant check, and repeat \
-until the acceptance condition passes or a hard blocker is proven.
-
-"""
+# NOTE: get_gpt5_autonomy_section() and get_gpt5_review_section() used to sit here.
+# Together they were a second, independently worded copy of the completion/verification
+# policy that rules.py already states for every model. They have been replaced by:
+#   - rules._COMPLETION_DISCIPLINE_SECTION        — the shared policy (default branch)
+#   - rules._GPT5_COMPLETION_DISCIPLINE_SECTION   — the GPT-5 variant: the shared
+#     bullets merged with the stricter verification standards in ONE section
+#     (the two used to be emitted as adjacent sections whose "what counts as
+#     done" bullets overlapped)
 
 
 def get_gpt5_frontend_section() -> str:
-    """GPT-5 frontend task guidance (anti "AI slop")."""
+    """
+    GPT-5 frontend task guidance (anti "AI slop").
+
+    Adapted from the long form of Codex's "Frontend tasks" block — the one in
+    codex-rs/models-manager/models.json (model_messages.instructions_template),
+    which carries the React bullet; the copy in core/gpt-5.2-codex_prompt.md
+    does not have it.
+
+    Keep the "if used by the team" qualifier on that React bullet. Without it
+    the rule flips from "prefer these when the codebase already uses them" to
+    "prefer these unconditionally", which pushes new React APIs into repos that
+    have not adopted them.
+    """
     return """\
 ## Frontend Tasks
 
@@ -192,8 +210,9 @@ of generic micro-motions.
 or subtle patterns to build atmosphere.
 - Ensure the page loads properly on both desktop and mobile.
 - For React code, prefer modern patterns including `useEffectEvent`, `startTransition`, \
-and `useDeferredValue` when appropriate. Do not add `useMemo`/`useCallback` by default \
-unless already used; follow the repo's React Compiler guidance.
+and `useDeferredValue` when appropriate if used by the team. Do not add \
+`useMemo`/`useCallback` by default unless already used; follow the repo's React Compiler \
+guidance.
 - Overall: Avoid boilerplate layouts and interchangeable UI patterns. Vary themes, \
 type families, and visual languages across outputs.
 
@@ -203,13 +222,17 @@ established patterns, structure, and visual language.
 
 
 def get_gpt5_formatting_section() -> str:
-    """GPT-5 output formatting rules."""
+    """
+    GPT-5 output formatting rules.
+
+    Layout mechanics only. The "Markdown is allowed" permission, the emoji ban and
+    the "match answer length to task complexity" rule belong to the shared Concise
+    Communication section in rules.py; they were restated here too until the same
+    three rules existed in two places with two different wordings.
+    """
     return """\
 ## Formatting Rules
 
-- You may format with GitHub-flavored Markdown.
-- Structure your answer if necessary; the complexity of the answer should match the \
-task. If the task is simple, your answer should be a one-liner.
 - Never use nested bullets. Keep lists flat (single level). If you need hierarchy, \
 split into separate lists or sections.
 - For numbered lists, only use the `1. 2. 3.` style markers (with a period), never `1)`.
@@ -218,7 +241,7 @@ use them, use short Title Case (1-3 words) wrapped in **…**.
 - Use inline code for commands, paths, env vars, and code identifiers.
 - Code samples or multi-line snippets should be wrapped in fenced code blocks with \
 an info string.
-- Don't use emojis or em dashes unless explicitly instructed.
+- Don't use em dashes unless explicitly instructed.
 """
 
 
@@ -226,23 +249,20 @@ an info string.
 # Master GPT-5 prompt assembly
 # ---------------------------------------------------------------------------
 
-def get_gpt5_extra_sections(personality: str = "pragmatic") -> str:
+def get_gpt5_extra_sections() -> str:
     """
     Assemble all GPT-5 specific sections into one block.
-    
+
     This is appended to the system prompt when a GPT-5 series model is detected.
-    
-    Args:
-        personality: One of "pragmatic", "friendly", or "default".
-    
+    Personality is not a parameter here: it belongs to the intro section and is
+    applied by get_gpt5_intro. The `personality` argument this function used to
+    declare was never read and never passed by the caller.
+
     Returns:
         str: The combined GPT-5 specific instructions.
     """
     sections = [
-        get_gpt5_general_section(),
         get_gpt5_editing_constraints(),
-        get_gpt5_autonomy_section(),
-        get_gpt5_review_section(),
         get_gpt5_frontend_section(),
         get_gpt5_formatting_section(),
     ]

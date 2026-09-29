@@ -135,13 +135,13 @@ An array of model configurations, each model contains the following fields:
 
 #### default_thinking_tokens (Optional)
 - **Type**: Integer
-- **Description**: Default thinking token budget for the model. When set, the model will automatically enable thinking/reasoning mode on startup without requiring command-line arguments
+- **Description**: Enables thinking/reasoning mode on startup without requiring command-line arguments. The value itself is NOT sent as a token budget — reasoning depth is controlled solely by `reasoning_effort` (see below); this setting only signals "thinking on"
 - **Default**: `null` (thinking not enabled)
 - **Special Values**:
   - `-1`: Adaptive thinking mode, suitable for Claude 4.6+ and other models supporting adaptive reasoning
-  - Positive integer (e.g., `1024`): Budget thinking mode, suitable for Claude 4.5 and similar models
+  - Positive integer (e.g., `1024`): Thinking enabled with the model/gateway's default reasoning depth
 - **Prerequisite**: `supports_extra_params` must include `"thinking_tokens"`
-- **Example**: `-1` (adaptive mode), `1024` (budget mode)
+- **Example**: `-1` (adaptive mode), `1024` (default-depth thinking)
 
 #### default_reasoning_effort (Optional)
 - **Type**: String

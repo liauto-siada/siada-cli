@@ -24,6 +24,7 @@ import { fileURLToPath } from 'url';
 import { printTerminalWarning, getTerminalInfoString } from './utils/terminalDetector.js';
 import { KeypressProvider } from './contexts/KeypressContext.js';
 import { createWorkingStdio } from './utils/stdio.js';
+import { setTerminalTitle } from './utils/terminalTitle.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -106,6 +107,11 @@ function buildConfig(workingDir: string, options: any) {
 function renderApp(config: any, options: any): void {
   const { stdout: inkStdout, stderr: inkStderr } = createWorkingStdio();
   let sessionIdOnExit: string | null = null;
+
+  // Brand the terminal tab immediately at startup. The backend's session
+  // title notification (which requires a successful model call) overwrites
+  // this later.
+  setTerminalTitle('cli');
 
   const AppWithProvider = React.createElement(
     KeypressProvider,

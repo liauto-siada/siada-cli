@@ -17,12 +17,13 @@ class NoInteractiveController:
         _ensure_agents_ready()
 
         from siada.services.siada_runner import SiadaRunner
+        from siada.services.memory.holographic.marker import wrap_user_input
 
         async def run_async():
             # Run the agent
             result = await SiadaRunner.run_agent(
                 agent_name=self.config.agent_name,
-                user_input=user_input,
+                user_input=wrap_user_input(user_input),
                 workspace=self.config.workspace,
                 session=self.session,
             )

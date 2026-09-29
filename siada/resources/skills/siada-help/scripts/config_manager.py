@@ -26,7 +26,11 @@ VALID_KEYS = {
     "llm_config.base_url": str,
     "llm_config.api_key": str,
     "llm_config.thinking": bool,
+    "llm_config.enable_thinking": bool,
     "llm_config.parallel_tool_calls": bool,
+    "llm_config.reasoning_effort": str,
+    "llm_config.vision_model": str,
+    "llm_config.vision_provider": str,
     "checkpoint_config.enable": bool,
     "checkpoint_config.max_checkpoint_files": int,
     "proactive.enabled": bool,
@@ -50,19 +54,25 @@ VALID_KEYS = {
     "memory.holographic.hrr_dim": int,
     "memory.holographic.prefetch_limit": int,
     "memory.holographic.temporal_decay_half_life": int,
+    "sub_agent.enabled": bool,
+    "sub_agent.allow_recursive_subagents": bool,
     "web.enabled": bool,
     "compaction_strategy": str,
     "command_timeout": int,
     "pre_plan": bool,
     "preferred_language": str,
     "enable_notification": bool,
+    "goal.max_turns": int,
+    "im.verbose.p2p": bool,
+    "im.verbose.group": bool,
+    "ui.theme": str,
 }
 
 # Top-level keys that are known-but-not-in-VALID_KEYS because their value is
 # an object/list rather than a simple scalar (so `set` can't target them
 # directly, but they're still legitimate sections in conf.yaml and shouldn't
 # be flagged as unknown by `validate`).
-KNOWN_OBJECT_TOP_KEYS = {"lark", "sub_agent"}
+KNOWN_OBJECT_TOP_KEYS = {"lark", "sub_agent", "memory", "im", "ui", "headroom", "llm_config", "checkpoint_config"}
 
 
 
@@ -169,12 +179,19 @@ def cmd_validate(_args) -> None:
 
     issues = []
 
-    # Check for unknown top-level keys
+    # Check for unknown top-level keys.
+    # Everything siada itself writes or reads must be listed here, otherwise a
+    # perfectly valid conf.yaml gets noisy "unknown key" warnings. This covers
+    # the tool-usable sections in VALID_KEYS plus:
+    #   - object/multi-key sections (lark, sub_agent, memory, headroom, im, ui)
+    #   - scalars handled elsewhere (enable_notification)
+    #   - login state written by the auth flow and cleared by /logout
     known_top = {
         "llm_config", "checkpoint_config", "proactive", "auto_update",
-        "code_agent", "sub_agent", "memory", "web", "lark",
-        "compaction_strategy", "command_timeout", "user_id", "pre_plan",
-        "preferred_language",
+        "code_agent", "goal", "sub_agent", "memory", "web", "lark", "im", "ui",
+        "headroom", "compaction_strategy", "command_timeout", "user_id",
+        "pre_plan", "preferred_language", "enable_notification",
+        "siada_api_key", "refresh_token", "user_email", "email_refresh_token",
     }
     unknown_top = set(data.keys()) - known_top
 

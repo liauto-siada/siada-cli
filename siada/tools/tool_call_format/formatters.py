@@ -21,6 +21,39 @@ class DefaultFormatter(ToolCallFormatter):
         return "default"
 
 
+class ReadFileFormatter(ToolCallFormatter):
+    """Format GPT-5+ ``read_file`` calls without exposing edit semantics."""
+
+    def format_input(
+        self, call_id: str, function_name: str, arguments: str
+    ) -> Tuple[str, bool]:
+        try:
+            args = loads(arguments)
+            complete = arguments == ensure_json(arguments)
+            path = args.get("path") if args else None
+            view_range = args.get("view_range") if args else None
+            if not path:
+                return "", False
+
+            content = f"Read the file `{path}`"
+            if (
+                isinstance(view_range, list)
+                and len(view_range) == 2
+                and all(isinstance(value, int) for value in view_range)
+            ):
+                content += f" from line {view_range[0]} to line {view_range[1]}"
+            content += "."
+            if args.get("cwd"):
+                content += f"\ncwd: `{args['cwd']}`"
+            return content, complete
+        except Exception:
+            return "", False
+
+    @property
+    def supported_function(self) -> str:
+        return "read_file"
+
+
 class FileEditFormatter(ToolCallFormatter):
     """
     File operation formatter
@@ -77,6 +110,8 @@ class FileEditFormatter(ToolCallFormatter):
                                 content += f" from line {view_range[0]} to line {view_range[1]}."
                             else:
                                 content += "."
+                            if cwd:
+                                content += f"\ncwd: `{cwd}`"
                         else:
                             content = f"View the directory `{path}`."
             elif command == "create":

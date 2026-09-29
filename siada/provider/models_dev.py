@@ -163,7 +163,29 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
     """Return a ModelBaseConfig list for the given provider from the cache.
     Matches by provider_id first, then by base_url. Falls back to a single-entry
     list using selected_model if no cache data is found."""
-    from siada.models.model_base_config import ModelBaseConfig
+    from siada.models.model_base_config import ModelBaseConfig, MODEL_SETTING
+    builtin_by_name = {m.model_name: m for m in MODEL_SETTING}
+
+    def _build(model_name: str, context_window: int, max_tokens: int) -> ModelBaseConfig:
+        # Capability fields (supports_extra_params, default_reasoning_effort,
+        # thinking, images, etc.) are not present in the models.dev cache, so
+        # inherit them from the built-in MODEL_SETTING when the model is known.
+        # Otherwise a provider-fetched model would lose e.g. reasoning_effort
+        # support and /effort would reject every level.
+        builtin = builtin_by_name.get(model_name)
+        return ModelBaseConfig(
+            model_name=model_name,
+            context_window=context_window,
+            max_tokens=max_tokens,
+            parallel_tool_calls=True,
+            supports_images=builtin.supports_images if builtin else False,
+            supports_vision_bridge=builtin.supports_vision_bridge if builtin else False,
+            supports_prompt_cache=builtin.supports_prompt_cache if builtin else False,
+            supports_extra_params=builtin.supports_extra_params if builtin else None,
+            default_thinking_tokens=builtin.default_thinking_tokens if builtin else None,
+            default_reasoning_effort=builtin.default_reasoning_effort if builtin else None,
+        )
+
     providers = get_providers_for_ui()
     matched = None
     for p in providers:
@@ -180,19 +202,9 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
         models = matched.get('models', [])
         if models:
             return [
-                ModelBaseConfig(
-                    model_name=m['id'],
-                    context_window=m.get('context', 128) * 1000,
-                    max_tokens=8192,
-                    parallel_tool_calls=True,
-                )
+                _build(m['id'], m.get('context', 128) * 1000, 8192)
                 for m in models
             ]
     if selected_model:
-        return [ModelBaseConfig(
-            model_name=selected_model,
-            context_window=128_000,
-            max_tokens=8192,
-            parallel_tool_calls=True,
-        )]
+        return [_build(selected_model, 128_000, 8192)]
     return []

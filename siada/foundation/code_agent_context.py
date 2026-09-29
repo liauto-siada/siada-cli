@@ -31,6 +31,9 @@ class CodeAgentContext(BaseModel):
     combined_memory: Optional[str] = None
     preferred_language: Optional[str] = None  # Preferred language for AI responses
 
+    # Skill names explicitly activated by a slash command for this run only.
+    activated_skill_names: set[str] = Field(default_factory=set)
+
     # MCP-related extensions
     mcp_service: Optional[Any] = None
     mcp_config: Optional[Any] = None
@@ -47,11 +50,17 @@ class CodeAgentContext(BaseModel):
     memory_tools_enabled: bool = True
 
     # Web tools (web_search / web_fetch) tri-state switch:
-    #   - None  ("auto", default): ON when provider == "li", OFF otherwise.
+    #   - None  ("auto", default): web tools are ON.
     #   - True:  always enable web tools.
     #   - False: always disable web tools.
     # Set by SiadaRunner based on web_config.enabled; may be toggled live by /web.
     web_tools_enabled: Optional[bool] = None
+
+    # Master switch for the sub-agent feature (`run_subtask`), from conf.yaml
+    # `sub_agent.enabled` (default True). When False, `run_subtask` is left out
+    # of the tool list and the sub-agent guidance is dropped from the system
+    # prompt, so every task is worked inline in the main agent's own context.
+    subagent_enabled: bool = True
 
     # Inline memory store (MEMORY.md / USER.md); None when memory disabled
     memory_store: Optional[Any] = None
@@ -63,6 +72,43 @@ class CodeAgentContext(BaseModel):
 
     # Maximum number of turns for the code agent (None means use default from settings)
     max_turns: Optional[int] = None
+
+    # True when this context belongs to a sub-agent run launched via
+    # run_subtask (fork or non-fork). Used by the recursion guard: tools on
+    # the "sub-agent unavailable" list check this flag at execution time and
+    # refuse to run instead of being structurally absent from the tool list
+    # (needed for fork=true, where the sub-agent's tool list is byte-for-byte
+    # identical to the parent's — including run_subtask itself — to preserve
+    # the parent's prompt cache prefix).
+    is_subagent: bool = False
+
+    # Nesting depth in the sub-agent tree: 0 = main agent, 1 = sub-agent,
+    # 2 = sub-sub-agent. Only meaningful when sub_agent.allow_recursive_subagents
+    # is enabled (see siada/tools/agent/subagent_recursion.py); when the
+    # feature is off, every sub-agent context still gets depth=1 for
+    # informational purposes but the depth is never consulted by any guard.
+    subagent_depth: int = 0
+
+    # The root (main-agent) session id this context's agent tree belongs to.
+    # Sub-agent contexts don't carry a live `session` (kept minimal to match
+    # pre-existing non-fork behaviour), so this is threaded through
+    # explicitly at spawn time — it is the tracking key used by the
+    # per-tree concurrency counter and by the on-disk persistence layout
+    # (<sessions_dir>/<root_session_id>/subagents/...).
+    root_session_id: Optional[str] = None
+
+    # Mirrors conf.yaml's sub_agent.allow_recursive_subagents (SiadaRunner
+    # copies it here for the main agent's context; run_subtask propagates it
+    # unchanged to every sub-agent/sub-sub-agent context it spawns). Default
+    # False preserves the exact pre-existing "sub-agents can never nest"
+    # behaviour. See siada/tools/agent/subagent_recursion.py.
+    allow_recursive_subagents: bool = False
+
+    # This context's OWN sub-agent id (as pushed via sub_agent_notifier /
+    # subagent_persistence), or None for the main agent. Used as the
+    # "parent_id" when THIS agent itself spawns a nested child, so the
+    # on-disk persistence index can reconstruct the sub-agent tree shape.
+    subagent_self_id: Optional[str] = None
 
     # Hook control state — populated by PluginHookGuardrails during tool execution.
     # hook_pending_contexts: texts to inject as system messages on next LLM call.
@@ -78,6 +124,10 @@ class CodeAgentContext(BaseModel):
     # Todo list state (V1: in-memory, not persisted to disk).
     # Actual item type is List[TodoItem]; typed as Any to avoid circular imports.
     todos: List[Any] = Field(default_factory=list)
+    # Sub-agent display state (in-memory; item type is
+    # siada.tools.agent.sub_agent_notifier.SubAgentItem; typed as Any to avoid
+    # circular imports). Consumed by sub_agent_notifier ACP push.
+    sub_agent_items: List[Any] = Field(default_factory=list)
     # Assistant turns elapsed since the last todo_write call (maintained by TodoReminderProcessor).
     todo_turns_since_write: int = 0
     # Assistant turns elapsed since the last reminder was injected (maintained by TodoReminderProcessor).
@@ -118,6 +168,9 @@ class CodeAgentContext(BaseModel):
     # Goal state (persisted to <session_dir>/goal.json via goal_storage).
     # Actual type is Optional[Goal]; typed as Any to avoid circular imports.
     goal: Optional[Any] = None
+    # Maximum consecutive failed verifier turns before automatic continuation
+    # is blocked; populated from conf.yaml's goal.max_turns.
+    goal_max_turns: int = 6
 
     @property
     def task_message_state(self):

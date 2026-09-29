@@ -11,12 +11,15 @@ from siada.foundation.code_agent_context import CodeAgentContext, RuntimeSource
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
+from siada.tools.coder.native_file_tools import (
+    create_native_apply_patch_tool,
+    read_file,
+)
 from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
 from siada.foundation.setting import settings
 from siada.agent_hub.coder.prompt import code_gen_prompt
-from siada.agent_hub.coder.prompt.base.tool_use import should_enable_parallel_tool_calls_in_prompt
 from siada.services.handle_at_command import handle_at_command
 import logging
 from siada.foundation.logging import logger as siada_logger
@@ -68,8 +71,35 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             **kwargs
         )
 
-    def _get_base_tools(self) -> list:
-        base_tools = [edit, regex_search_files, run_cmd, list_code_definition_names, run_subtask, todo_write]
+    def _get_base_tools(self, model_name: str | None = None, include_run_subtask: bool = True) -> list:
+        """Build the model-family-specific core tool surface.
+
+        GPT-5-or-newer models and the Astra alias get a read-only wrapper plus
+        the native Responses apply-patch tool. Other model families keep the
+        established composite ``edit_file`` tool unchanged.
+
+        ``include_run_subtask`` mirrors the ``sub_agent.enabled`` master switch
+        (see ``configure_tools_for_context``): when False, the sub-agent tool is
+        left out of the surface entirely.
+        """
+        from siada.agent_hub.coder.prompt.base.gpt5_instructions import (
+            uses_native_patch_file_tools,
+        )
+
+        file_tools = (
+            [read_file, create_native_apply_patch_tool()]
+            if uses_native_patch_file_tools(model_name)
+            else [edit]
+        )
+        base_tools = [
+            *file_tools,
+            regex_search_files,
+            run_cmd,
+            list_code_definition_names,
+        ]
+        if include_run_subtask:
+            base_tools.append(run_subtask)
+        base_tools.append(todo_write)
 
         pwsh = get_run_powershell_tool_if_available()
         if pwsh is not None:
@@ -78,12 +108,24 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         return base_tools
 
     def configure_tools_for_context(self, context: CodeAgentContext) -> None:
-        tools = self._get_base_tools()
+        model_name = None
+        try:
+            model_name = context.model_run_config.model_name
+        except (AttributeError, TypeError):
+            pass
+        # Sub-agent master switch (context.subagent_enabled, set from conf.yaml
+        # `sub_agent.enabled`): when off, run_subtask is not exposed and the
+        # matching prompt guidance is dropped in get_system_prompt, so the
+        # model is never told about a capability it doesn't have.
+        subagent_enabled = bool(getattr(context, "subagent_enabled", True))
+        tools = self._get_base_tools(
+            model_name=model_name, include_run_subtask=subagent_enabled
+        )
 
         # Web tools (web_search / web_fetch) are gated by a tri-state switch:
-        # explicit conf.yaml setting (or live /web toggle) wins; otherwise the
-        # provider-based default applies (ON for "li", OFF for others). Only
-        # add tools that the optional internal package actually exposes.
+        # explicit conf.yaml setting (or live /web toggle) wins; otherwise
+        # they default to OFF. Only add tools that the optional internal
+        # package actually exposes.
         # Prefer the resolved provider name written by _build_run_config
         # (context.provider) — the actual provider used for model calls — and
         # fall back to the raw llm_config value with model-based routing applied.
@@ -127,8 +169,6 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         agent_name = run_context.context.session.siada_config.agent_name
         # Get pre_plan setting from context
         pre_plan = run_context.context.pre_plan
-        
-        enable_parallel = should_enable_parallel_tool_calls_in_prompt(run_context)
 
         # Get model name for GPT-5 specific prompt optimizations
         model_name = None
@@ -141,8 +181,9 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             root_dir, run_context.context.interactive_mode,
             combined_memory, preferred_language, agent_name,
             pre_plan,
-            enable_parallel_tool_calls=enable_parallel,
             model_name=model_name,
+            activated_skill_names=run_context.context.activated_skill_names,
+            subagent_enabled=getattr(run_context.context, "subagent_enabled", True),
         )
         return system_prompt
 
@@ -156,23 +197,99 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         )
         return context
 
-    async def process_at_commands(self, user_input: str| List[TResponseInputItem], context: CodeAgentContext) -> str:
+    @staticmethod
+    def _flatten_input_text(user_input: str | List[TResponseInputItem]) -> str:
+        """Concatenate every ``input_text``/text content part into one string.
+
+        ``AtCommandParser`` only understands plain strings, but
+        ``user_input`` may now be the Responses-API list shape (e.g.
+        ``[{"role": "user", "content": [{"type": "input_text", ...}, ...]}]``
+        — the same list ``LarkAgentExecutor._build_user_input`` /
+        ``build_multimodal_input_with_media`` produce). This flattens
+        either shape down to the text an @ command could plausibly be
+        typed in, mirroring what the old single-string design already
+        concatenated (user text + any IM context blocks) before handing
+        it to ``handle_at_command``.
+        """
+        if isinstance(user_input, str):
+            return user_input
+        if not isinstance(user_input, list):
+            return ""
+        parts: List[str] = []
+        for message in user_input:
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                parts.append(content)
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "input_text":
+                        parts.append(part.get("text", ""))
+        return "".join(parts)
+
+    @staticmethod
+    def _replace_input_text(
+        user_input: List[TResponseInputItem], processed_text: str,
+    ) -> List[TResponseInputItem]:
+        """Swap the flattened text back into the list shape after @-expansion.
+
+        Only the ``input_text`` content parts of the first message are
+        collapsed into a single item holding ``processed_text``; every
+        non-text part (images, etc.) and any further message dicts are
+        left untouched, since @ commands are only ever authored in the
+        user's own text.
+        """
+        rebuilt: List[TResponseInputItem] = []
+        replaced = False
+        for message in user_input:
+            if replaced or not isinstance(message, dict):
+                rebuilt.append(message)
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                rebuilt.append({**message, "content": processed_text})
+                replaced = True
+            elif isinstance(content, list):
+                other_parts = [
+                    part for part in content
+                    if not (isinstance(part, dict) and part.get("type") == "input_text")
+                ]
+                new_content = [{"type": "input_text", "text": processed_text}] + other_parts
+                rebuilt.append({**message, "content": new_content})
+                replaced = True
+            else:
+                rebuilt.append(message)
+        return rebuilt
+
+    async def process_at_commands(
+        self, user_input: str | List[TResponseInputItem], context: CodeAgentContext,
+    ) -> str | List[TResponseInputItem]:
         """
         Process @ commands in user input and return processed input
-        
+
         Args:
-            user_input: Original user input that may contain @ commands
+            user_input: Original user input that may contain @ commands.
+                Either a plain string, or the Responses-API list shape
+                (see ``_flatten_input_text``) — @ detection/expansion runs
+                on the flattened text either way, and the result is handed
+                back in the SAME shape as the input (any non-text content
+                parts such as images are preserved untouched).
             context: Code agent context
             
         Returns:
-            Processed user input with @ command content injected
+            Processed user input with @ command content injected, in the
+            same shape (str or list) it was given in.
         """
         try:
+            is_list_input = isinstance(user_input, list)
+            flat_query = self._flatten_input_text(user_input)
+
             # Check if input contains @ commands
-            if '@' not in user_input:
+            if '@' not in flat_query:
                 return user_input
             
-            logging.info(f"[process_at_commands] Input contains '@', processing at-commands (input_len={len(user_input)})")
+            logging.info(f"[process_at_commands] Input contains '@', processing at-commands (input_len={len(flat_query)})")
 
             # Create configuration object for at command processing
             class AtCommandConfig:
@@ -203,7 +320,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
             # Process at commands
             result = await handle_at_command(
-                query=user_input,
+                query=flat_query,
                 config=config,
                 add_item=add_item,
                 on_debug_message=on_debug_message,
@@ -217,10 +334,17 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
                     if isinstance(part, dict) and 'text' in part:
                         processed_text += part['text']
 
-                return processed_text.strip() if processed_text else user_input
+                processed_text = processed_text.strip() if processed_text else flat_query
             else:
                 # If processing failed, return original input
                 return user_input
+
+            # Hand the @-expanded text back in the same shape we received:
+            # plain string unchanged, or spliced back into the list's
+            # content parts (preserving any non-text parts like images).
+            if not is_list_input:
+                return processed_text
+            return self._replace_input_text(user_input, processed_text)
 
         except Exception as e:
             # If any error occurs, log it and return original input

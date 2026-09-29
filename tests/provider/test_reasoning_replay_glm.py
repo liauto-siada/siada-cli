@@ -1,4 +1,4 @@
-"""Tests for GLM reasoning-content replay in the LiModel provider.
+"""Tests for GLM reasoning-content replay in the provider layer.
 
 Verifies that ``_should_replay_reasoning_content`` correctly replays reasoning
 items for GLM models (glm-5.1, glm-5.2) while preserving the default DeepSeek
@@ -83,6 +83,36 @@ class TestShouldReplayForGLM:
         assert should_replay_reasoning_content(ctx) is True
 
 
+class TestShouldReplayForQwen:
+    """Qwen models should replay reasoning content (preserve_thinking).
+
+    The converter sends extra_body={"enable_thinking": True,
+    "preserve_thinking": True} for Qwen, so their responses carry reasoning
+    content that must be replayed on subsequent turns.
+    """
+
+    def test_qwen_with_matching_origin(self):
+        item = _make_reasoning_item(provider_data={"model": "qwen-3.8-max"})
+        ctx = _make_context("qwen-3.8-max", item)
+        assert should_replay_reasoning_content(ctx) is True
+
+    def test_kivy_qwen_with_matching_origin(self):
+        item = _make_reasoning_item(provider_data={"model": "kivy-qwen-3.8-max"})
+        ctx = _make_context("kivy-qwen-3.8-max", item)
+        assert should_replay_reasoning_content(ctx) is True
+
+    def test_kivy_qwen_37_with_matching_origin(self):
+        item = _make_reasoning_item(provider_data={"model": "kivy-qwen-3.7-plus"})
+        ctx = _make_context("kivy-qwen-3.7-plus", item)
+        assert should_replay_reasoning_content(ctx) is True
+
+    def test_qwen_with_empty_provider_data_backward_compat(self):
+        """Reasoning items without provider_data (old non-streaming path)."""
+        item = _make_reasoning_item(provider_data={})
+        ctx = _make_context("kivy-qwen-3.8-max", item)
+        assert should_replay_reasoning_content(ctx) is True
+
+
 class TestNoCrossModelContamination:
     """Reasoning from a different model family should NOT be replayed."""
 
@@ -99,6 +129,21 @@ class TestNoCrossModelContamination:
     def test_glm_reasoning_not_replayed_to_claude(self):
         item = _make_reasoning_item(provider_data={"model": "glm-5.1"})
         ctx = _make_context("claude-sonnet-4-6", item)
+        assert should_replay_reasoning_content(ctx) is False
+
+    def test_qwen_reasoning_not_replayed_to_deepseek(self):
+        item = _make_reasoning_item(provider_data={"model": "kivy-qwen-3.8-max"})
+        ctx = _make_context("deepseek-v4-pro", item)
+        assert should_replay_reasoning_content(ctx) is False
+
+    def test_qwen_reasoning_not_replayed_to_glm(self):
+        item = _make_reasoning_item(provider_data={"model": "kivy-qwen-3.8-max"})
+        ctx = _make_context("glm-5.2", item)
+        assert should_replay_reasoning_content(ctx) is False
+
+    def test_glm_reasoning_not_replayed_to_qwen(self):
+        item = _make_reasoning_item(provider_data={"model": "glm-5.2"})
+        ctx = _make_context("kivy-qwen-3.8-max", item)
         assert should_replay_reasoning_content(ctx) is False
 
 
@@ -130,8 +175,13 @@ class TestItemsToMessagesReplay:
             provider_data={"model": "glm-5.1"},
         )
         # In real flows the reasoning item is followed by an assistant output
+        # The fixture mirrors the real Responses output-message shape: agents
+        # 0.22.3 only routes this item through the assistant-output branch (the
+        # one that honours the reasoning-replay callback) when an id is present,
+        # and raises ``UserError`` for id-less variants.
         # message (the model's text response), then a user turn.
         assistant_output = {
+            "id": "msg_fixture_1",
             "type": "message",
             "role": "assistant",
             "content": [{"type": "output_text", "text": "The answer is 2."}],
@@ -160,6 +210,7 @@ class TestItemsToMessagesReplay:
             provider_data={"model": "deepseek-v4-pro"},
         )
         assistant_output = {
+            "id": "msg_fixture_2",
             "type": "message",
             "role": "assistant",
             "content": [{"type": "output_text", "text": "The answer is 2."}],
@@ -179,5 +230,58 @@ class TestItemsToMessagesReplay:
             m for m in messages if m.get("role") == "assistant"
         ]
         # No assistant message should carry reasoning_content.
+        for m in assistant_msgs:
+            assert "reasoning_content" not in m
+
+    def test_qwen_reasoning_replayed_into_assistant_message(self):
+        """Qwen preserve_thinking: reasoning content must be replayed."""
+        reasoning_item = _make_reasoning_item(
+            "Thinking about the equation.",
+            provider_data={"model": "kivy-qwen-3.8-max"},
+        )
+        assistant_output = {
+            "id": "msg_fixture_3",
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "The answer is 5."}],
+            "status": "completed",
+        }
+        items = [
+            reasoning_item,
+            assistant_output,
+            {"role": "user", "content": "What is 2x + 1?"},
+        ]
+        messages = Converter.items_to_messages(
+            items,
+            model="kivy-qwen-3.8-max",
+            should_replay_reasoning_content=should_replay_reasoning_content,
+        )
+        assistant_msgs = [m for m in messages if m.get("role") == "assistant"]
+        assert len(assistant_msgs) >= 1
+        assert assistant_msgs[0].get("reasoning_content") == "Thinking about the equation."
+
+    def test_qwen_reasoning_not_replayed_when_origin_mismatch(self):
+        reasoning_item = _make_reasoning_item(
+            "DeepSeek thinking.",
+            provider_data={"model": "deepseek-v4-pro"},
+        )
+        assistant_output = {
+            "id": "msg_fixture_4",
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "The answer is 2."}],
+            "status": "completed",
+        }
+        items = [
+            reasoning_item,
+            assistant_output,
+            {"role": "user", "content": "What is 1+1?"},
+        ]
+        messages = Converter.items_to_messages(
+            items,
+            model="kivy-qwen-3.8-max",
+            should_replay_reasoning_content=should_replay_reasoning_content,
+        )
+        assistant_msgs = [m for m in messages if m.get("role") == "assistant"]
         for m in assistant_msgs:
             assert "reasoning_content" not in m

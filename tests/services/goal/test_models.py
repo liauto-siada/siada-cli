@@ -3,8 +3,8 @@ from datetime import datetime
 from siada.services.goal.models import (
     Goal,
     GoalVerdict,
-    GOAL_MAX_CONSECUTIVE_FAILURES,
     GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS,
+    GOAL_MAX_TURNS,
 )
 
 
@@ -53,8 +53,8 @@ def test_goal_verdict_system_error_can_be_set_explicitly():
     assert verdict.systemError is True
 
 
-def test_goal_max_consecutive_failures_is_positive():
-    assert GOAL_MAX_CONSECUTIVE_FAILURES > 0
+def test_goal_max_turns_is_positive():
+    assert GOAL_MAX_TURNS > 0
 
 
 def test_goal_max_consecutive_system_errors_is_positive_and_much_smaller():
@@ -64,7 +64,7 @@ def test_goal_max_consecutive_system_errors_is_positive_and_much_smaller():
     broken verifier call would silently retry just as many times as a
     legitimately multi-round task."""
     assert GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS > 0
-    assert GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS < GOAL_MAX_CONSECUTIVE_FAILURES
+    assert GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS < GOAL_MAX_TURNS
 
 
 def test_goal_consecutive_system_errors_survives_serialization_round_trip():

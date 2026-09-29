@@ -475,18 +475,16 @@ async def verify_goal_with_context(
         run_config = build_sub_agent_run_config(fork_ctx)
         run_hooks = RunHooks()
 
-        # should_enable_parallel_tool_calls_in_prompt() (tool_use.py), which
-        # decides whether the rendered TOOL USE section uses parallel-call or
-        # sequential ("one tool per message") wording, reads the LLM_CONFIG
-        # contextvar directly rather than run_context.context — it ignores
-        # fork_ctx entirely. Contextvars set by a parent asyncio Task are not
-        # guaranteed visible here (same pitfall documented on
+        # Provider/client code (e.g. provider/client_factory.py) reads the
+        # LLM_CONFIG contextvar directly rather than run_context.context — it
+        # ignores fork_ctx entirely. Contextvars set by a parent asyncio Task
+        # are not guaranteed visible here (same pitfall documented on
         # set_context_var_inplace / side_question.run_side_question's "must
         # re-set in the fork thread" comment), so without re-seeding it the
-        # forked agent can render a DIFFERENT TOOL USE/RULES branch than the
-        # main turn just did — busting the exact cache prefix this module
-        # exists to preserve. context_var_scope restores the prior value on
-        # exit so nothing leaks into unrelated work on this task/thread.
+        # forked agent can issue a DIFFERENT request than the main turn just
+        # did — busting the exact cache prefix this module exists to
+        # preserve. context_var_scope restores the prior value on exit so
+        # nothing leaks into unrelated work on this task/thread.
         from siada.foundation.context import context_var_scope, LLM_CONFIG
 
         llm_config = getattr(real_session.siada_config, "llm_config", None)

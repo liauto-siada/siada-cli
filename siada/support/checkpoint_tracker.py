@@ -12,8 +12,10 @@ from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from agents import TResponseInputItem  # heavy: triggers agents SDK import
+    # Runtime import would be circular: siada.session.session_manager imports
+    # this module, and TaskMessageState is only used in type annotations.
+    from siada.session.task_message_state import TaskMessageState
 from siada.services.git_service import GitService
-from siada.session.task_message_state import TaskMessageState
 from siada.foundation.logging import logger
 from siada.utils import DirectoryUtils
 from siada.support.usage_utils import serialize_usage
@@ -88,8 +90,15 @@ class CheckPointTracker:
             Path(DirectoryUtils.get_project_checkpoint_dir(self.cwd)) / self.session_id
         )
 
+        # NOTE: GitService construction is cheap (just stores paths), but
+        # GitService.initialize() forks 3-4 real `git` subprocesses (version
+        # check, opening/creating the shadow repo, reading HEAD / initial
+        # commit). That work is deferred to start() below, which is only
+        # invoked lazily the first time a checkpoint-worthy tool
+        # (edit_file/run_cmd) actually runs. Sessions that never touch those
+        # tools never pay this cost, and create_session() stays fast.
         self.git_service = GitService(cwd, self.shadow_repo_dir)
-        self.git_service.initialize()
+
 
     def _get_tool_placeholder(self, function_tool_name: str, arguments: str) -> Optional[str]:
         """

@@ -1,0 +1,147 @@
+# Pack proxy-server as a self-contained tarball for the siada browser addon
+# (dist + public + package.json + production node_modules).
+# IMPORTANT: node_modules must be installed with npm from a clean staging dir —
+# bun's workspace layout symlinks into the repo-root .bun store, so copying
+# the workspace's node_modules drops transitive deps (e.g. pino-std-serializers).
+# Per-platform because of @parcel/watcher's native optional dependencies.
+pack-proxy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VERSION=$(node -p "require('./packages/proxy-server/package.json').version")
+    STAGE="release/chrome-acp-proxy-${VERSION}"
+    rm -rf release
+    mkdir -p "${STAGE}"
+    just build-proxy
+    cp -R packages/proxy-server/dist packages/proxy-server/public packages/proxy-server/package.json "${STAGE}/"
+    (cd "${STAGE}" && npm install --omit=dev --no-audit --no-fund --loglevel=error)
+    tar -czf "release/chrome-acp-proxy-${VERSION}.tar.gz" -C release "chrome-acp-proxy-${VERSION}"
+    shasum -a 256 "release/chrome-acp-proxy-${VERSION}.tar.gz" > "release/chrome-acp-proxy-${VERSION}.tar.gz.sha256"
+    echo "✅ release/chrome-acp-proxy-${VERSION}.tar.gz (+ .sha256)"
+
+# Pack the Chrome extension as a zip (same layout as the GitHub release zip)
+pack-extension:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VERSION=$(node -p "require('./packages/chrome-extension/manifest.json')['version']")
+    mkdir -p release
+    just build
+    (cd packages/chrome-extension && zip -qr "${OLDPWD}/release/chrome-acp-extension-${VERSION}.zip" manifest.json icons rules dist)
+    shasum -a 256 "release/chrome-acp-extension-${VERSION}.zip" > "release/chrome-acp-extension-${VERSION}.zip.sha256"
+    echo "✅ release/chrome-acp-extension-${VERSION}.zip (+ .sha256)"
+
+# Pack everything (proxy tarball + extension zip)
+pack: pack-proxy pack-extension
+    @ls -lh release/
+
+
+# Build the Chrome extension
+build:
+    bun run build:extension
+
+# Build proxy server
+build-proxy:
+    bun run build:proxy
+
+# Build web client (PWA)
+build-web:
+    bun run build:web
+
+# Build all
+build-all:
+    bun run build
+
+# Release a new version
+# Usage: just release 1.2.3
+release version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    VERSION="{{version}}"
+
+    # Validate version format
+    if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "❌ Invalid version format. Use: X.Y.Z (e.g., 1.2.3)"
+        exit 1
+    fi
+
+    echo "🚀 Releasing version $VERSION"
+
+    # Cross-platform sed in-place function
+    sed_inplace() {
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "$@"
+        else
+            sed -i "$@"
+        fi
+    }
+
+    # Update manifest.json
+    echo "📝 Updating packages/chrome-extension/manifest.json..."
+    sed_inplace 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' packages/chrome-extension/manifest.json
+
+    # Update proxy-server/package.json
+    echo "📝 Updating packages/proxy-server/package.json..."
+    sed_inplace 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' packages/proxy-server/package.json
+
+    # Commit changes
+    echo "📦 Committing version bump..."
+    git add packages/chrome-extension/manifest.json packages/proxy-server/package.json
+    git commit -m "chore: bump version to $VERSION"
+
+    # Create and push tag
+    echo "🏷️  Creating tag v$VERSION..."
+    git tag "v$VERSION"
+
+    echo "⬆️  Pushing to GitHub..."
+    git push
+    git push --tags
+
+    echo "✅ Done! GitHub Actions will handle the rest."
+    echo "   Watch: https://github.com/Areo-Joe/chrome-acp/actions"
+
+# Release a beta version
+# Usage: just release-beta 1.2.3-beta.1
+release-beta version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    VERSION="{{version}}"
+
+    # Validate version format (must contain hyphen for prerelease)
+    if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z0-9.]+$ ]]; then
+        echo "❌ Invalid beta version format. Use: X.Y.Z-tag (e.g., 1.2.3-beta.1)"
+        exit 1
+    fi
+
+    echo "🧪 Releasing beta version $VERSION"
+
+    # Cross-platform sed in-place function
+    sed_inplace() {
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "$@"
+        else
+            sed -i "$@"
+        fi
+    }
+
+    # Update proxy-server/package.json only (no extension update for beta)
+    echo "📝 Updating packages/proxy-server/package.json..."
+    sed_inplace 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' packages/proxy-server/package.json
+
+    # Commit changes
+    echo "📦 Committing version bump..."
+    git add packages/proxy-server/package.json
+    git commit -m "chore: bump version to $VERSION"
+
+    # Create and push tag
+    echo "🏷️  Creating tag v$VERSION..."
+    git tag "v$VERSION"
+
+    echo "⬆️  Pushing to GitHub..."
+    git push
+    git push --tags
+
+    echo "✅ Done! GitHub Actions will handle the rest."
+    echo "   Install with: npm install -g @chrome-acp/proxy-server@$VERSION"
+    echo "   Watch: https://github.com/Areo-Joe/chrome-acp/actions"
+

@@ -332,7 +332,8 @@ def _extract_date_from_path(path: str) -> str:
 
 
 def _group_session_hits(hits, current_session_path=None):
-    """去重并保留 FTS ORDER BY rank 的原始顺序，排除当前 session，最多 5 个。"""
+    """Deduplicate while preserving the original FTS ORDER BY rank order,
+    excluding the current session, up to 5 items."""
     seen = set()
     ordered = []
     for hit in hits:
@@ -345,7 +346,8 @@ def _group_session_hits(hits, current_session_path=None):
 
 
 def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) -> str:
-    """截断到 max_chars，优先保留 query 关键词命中密集区域。用 jieba 分词支持中文。"""
+    """Truncate to max_chars, preferring regions dense with query keyword hits.
+    Uses jieba tokenization to support Chinese."""
     if len(content) <= max_chars:
         return content
 
@@ -354,7 +356,7 @@ def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) 
     if not tokens:
         return content[:max_chars]
 
-    # 收集所有命中位置
+    # Collect all hit positions.
     positions = []
     for token in tokens:
         start = 0
@@ -370,7 +372,7 @@ def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) 
 
     positions.sort()
 
-    # 滑动窗口找命中最密集的区域
+    # Sliding window to find the region with the densest hits.
     best_start = 0
     best_count = 0
     left = 0
@@ -380,7 +382,8 @@ def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) 
         count = right - left + 1
         if count > best_count:
             best_count = count
-            # bias 前 25%：让窗口稍早开始，保留更多后续上下文
+            # Bias forward by 25%: start the window a bit earlier, keeping
+            # more of the following context.
             bias = max_chars // 4
             best_start = max(0, positions[left] - bias)
 
@@ -391,7 +394,8 @@ def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) 
 
 
 async def _summarize_session(content: str, query: str, path: str, detail_level: str) -> str:
-    """调用 fast_completion 对单个 session 生成摘要，失败时降级为原文前 500 字。"""
+    """Summarize a single session via fast_completion; on failure, fall back to
+    the first 500 characters of the original text."""
     from siada.provider.fast_llm import fast_completion
 
     date_str = _extract_date_from_path(path)
@@ -427,7 +431,7 @@ async def _summarize_sessions_parallel(
     detail_level: str,
     max_concurrency: int = 3,
 ) -> list:
-    """并行摘要多个 session，返回 List[(path, summary_text)]"""
+    """Summarize multiple sessions in parallel, returning List[(path, summary_text)]"""
     semaphore = asyncio.Semaphore(max_concurrency)
 
     async def _bounded(path: str, content: str):
@@ -443,7 +447,8 @@ async def _summarize_sessions_parallel(
 
 
 def _get_recent_sessions(limit: int = 10) -> str:
-    """列出 session/ 目录最近 N 个文件，返回格式化字符串（零 LLM 调用）。"""
+    """List the N most recent files in the session/ directory, returning a
+    formatted string (zero LLM calls)."""
     session_dir = Path.home() / ".siada-cli" / "workspace" / "memory" / "session"
     if not session_dir.exists():
         return "No session history found."
@@ -460,23 +465,24 @@ def _get_recent_sessions(limit: int = 10) -> str:
         except Exception:
             preview = "(unreadable)"
         lines.append(f"{i}. **{date_str}** session/{f.name}")
-        lines.append(f"   预览：{preview}\n")
+        lines.append(f"   Preview: {preview}\n")
 
     return "\n".join(lines)
 
 
 async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
-    """新版 search_memory 主实现：FTS → session 分组 → 并行 LLM 摘要。"""
+    """New search_memory main implementation: FTS → session grouping →
+    parallel LLM summarization."""
     start = time.time()
     logger.info(f"[SearchMemory] START query={query!r} detail_level={detail_level}")
 
-    # recent 模式：query 为空时列出最近 session
+    # Recent mode: list recent sessions when the query is empty.
     if not query or not query.strip():
         result = _get_recent_sessions()
         logger.debug(f"[SearchMemory] DONE (recent mode) elapsed={time.time()-start:.1f}s")
         return result
 
-    # 获取当前 session 相对路径，用于排除自身
+    # Get the current session's relative path, used to exclude itself.
     memory_dir = Path.home() / ".siada-cli" / "workspace" / "memory"
     abs_path = get_global_cache(LAST_MEMORY_NAME)
     current_session_rel = None
@@ -486,7 +492,7 @@ async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
         except ValueError:
             pass
 
-    # FTS 检索
+    # FTS retrieval.
     memory_search = None
     try:
         memory_search = MemorySearch()
@@ -500,12 +506,12 @@ async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
     if not results:
         return f"No results found for query: {query}"
 
-    # session 分组，保留 FTS 相关度顺序
+    # Group by session, preserving the FTS relevance order.
     session_paths = _group_session_hits(results, current_session_path=current_session_rel)
     if not session_paths:
         return f"No results found for query: {query}"
 
-    # 加载文件内容并截断
+    # Load file contents and truncate.
     tasks = []
     for rel_path in session_paths:
         full_path = memory_dir / rel_path
@@ -520,10 +526,10 @@ async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
     if not tasks:
         return f"No results found for query: {query}"
 
-    # 并行 LLM 摘要
+    # Parallel LLM summarization.
     summaries = await _summarize_sessions_parallel(tasks, query, detail_level)
 
-    # 格式化输出
+    # Format the output.
     lines = [f"# Memory Search Results\n", f"**Query:** {query}\n", "## Session History\n"]
     for path, summary in summaries:
         date_str = _extract_date_from_path(path)

@@ -472,11 +472,16 @@ class SessionManager:
             logger.warning(f"Failed to save project metadata to {metadata_file}: {e}")
     
     def _strip_task_tags(self, text: str) -> str:
-        """Strip the <task>...</task> wrapper added by the agent."""
+        """Strip the <task>...</task> wrapper added by the agent, as well as
+        the <user_input>...</user_input> tag added at every user input entry
+        point (TUI, Feishu) — see
+        ``siada.services.memory.holographic.marker.wrap_user_input``.
+        """
         import re
+        from siada.services.memory.holographic.marker import strip_user_input
         text = re.sub(r'^\s*<task>\s*', '', text)
         text = re.sub(r'\s*</task>.*$', '', text, flags=re.DOTALL)
-        return text.strip()
+        return strip_user_input(text.strip()).strip()
 
     def _extract_metadata_from_history(self, session_id: str, items: List[dict]) -> dict:
         """Extract metadata from session history items."""

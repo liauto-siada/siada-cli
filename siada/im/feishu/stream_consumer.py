@@ -12,10 +12,7 @@ import logging
 from typing import Optional
 
 from agents import (
-    RawResponsesStreamEvent,
-    RunItemStreamEvent,
     RunResultStreaming,
-    ToolCallOutputItem,
     ToolOutputImage,
     ToolOutputText,
 )
@@ -56,18 +53,23 @@ class LarkStreamConsumer:
         - ResponseCompletedEvent: full response complete
         - RunItemStreamEvent (ToolCallOutputItem): tool execution result
         """
-        from openai.types.responses import (
-            ResponseTextDeltaEvent,
-            ResponseReasoningSummaryTextDeltaEvent,
-            ResponseFunctionCallArgumentsDeltaEvent,
-            ResponseContentPartAddedEvent,
-            ResponseOutputItemAddedEvent,
-            ResponseCompletedEvent,
-            ResponseCreatedEvent,
-            ResponseReasoningSummaryPartAddedEvent,
-            ResponseFunctionToolCall,
-            ResponseOutputItemDoneEvent,
-            ResponseContentPartDoneEvent,
+        from siada.entrypoint.runtime.turn_event import (
+            RESPONSE_CREATED,
+            REASONING_PART_ADDED,
+            REASONING_DELTA,
+            CONTENT_PART_ADDED,
+            TEXT_DELTA,
+            CONTENT_PART_DONE,
+            TOOL_CALL_START,
+            TOOL_ARGS_DELTA,
+            TOOL_CALL_DONE,
+            RESPONSE_COMPLETED,
+            TOOL_OUTPUT,
+            classify_stream_event,
+        )
+        from siada.tools.coder.apply_patch_presentation import (
+            render_apply_patch_call_summary,
+            render_apply_patch_display,
         )
         from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
         from siada.tools.tool_call_format.tool_call_batcher import (
@@ -173,174 +175,201 @@ class LarkStreamConsumer:
 
         try:
             async for event in result.stream_events():
-                if isinstance(event, RawResponsesStreamEvent):
-                    data = event.data
+                te = classify_stream_event(event)
+                if te is None:
+                    continue
+                if te.kind == RESPONSE_CREATED:
+                    reasoning_text = ""
+                    answer_text = ""
+                    tool_calls = {}
+                    got_reasoning = False
+                    got_content = False
 
-                    if isinstance(data, ResponseCreatedEvent):
-                        reasoning_text = ""
-                        answer_text = ""
-                        tool_calls = {}
-                        got_reasoning = False
-                        got_content = False
+                    # Reset card lifecycle for new LLM turn
+                    # (previous turn's cards may have been closed after tool calls)
+                    if thinking_card_closed:
+                        thinking_card = cs.create_streaming_card(chat_id)
+                        thinking_card_started = False
+                        thinking_card_closed = False
+                    if answer_card_closed:
+                        answer_card = cs.create_streaming_card(chat_id)
+                        answer_card_started = False
+                        answer_card_closed = False
 
-                        # Reset card lifecycle for new LLM turn
-                        # (previous turn's cards may have been closed after tool calls)
-                        if thinking_card_closed:
-                            thinking_card = cs.create_streaming_card(chat_id)
-                            thinking_card_started = False
-                            thinking_card_closed = False
-                        if answer_card_closed:
-                            answer_card = cs.create_streaming_card(chat_id)
-                            answer_card_started = False
-                            answer_card_closed = False
+                elif te.kind == REASONING_PART_ADDED:
+                    continue
 
-                    elif isinstance(data, ResponseReasoningSummaryPartAddedEvent):
-                        continue
-
-                    elif isinstance(data, ResponseReasoningSummaryTextDeltaEvent):
-                        if data.delta:
-                            # Close previous tool card group when reasoning appears
-                            if not got_reasoning and batcher.has_pending:
-                                if verbose:
-                                    await _close_tool_card()
-                                batcher = ToolCallBatcher(default_workspace=default_workspace)
-                                tool_card_msg_id = None
-                            got_reasoning = True
-                            reasoning_text += data.delta
-                            if verbose and thinking_card:
-                                await _ensure_thinking_card_started()
-                                if thinking_card_started:
-                                    await thinking_card.update(reasoning_text)
-
-                    elif isinstance(data, ResponseContentPartAddedEvent):
-                        continue
-
-                    elif isinstance(data, ResponseTextDeltaEvent):
-                        if data.delta:
-                            if not got_content and got_reasoning and reasoning_text:
-                                if verbose:
-                                    # Parallelize: close thinking card and start answer card concurrently.
-                                    # They operate on independent card_ids so no shared state conflict.
-                                    _parallel_tasks = [_close_thinking_card()]
-                                    if answer_card and not answer_card_started and not answer_card_closed:
-                                        _parallel_tasks.append(_ensure_answer_card_started())
-                                    await asyncio.gather(*_parallel_tasks, return_exceptions=True)
-                                    if not thinking_card:
-                                        await cs.send_card_message(
-                                            chat_id, title="💭 Thinking",
-                                            content=reasoning_text, header_template="purple", icon="",
-                                        )
-                            if not got_content and batcher.has_pending:
-                                if verbose:
-                                    await _close_tool_card()
-                                batcher = ToolCallBatcher(default_workspace=default_workspace)
-                                tool_card_msg_id = None
-                            got_content = True
-                            answer_text += data.delta
-                            if answer_card:
-                                if not answer_card_started:
-                                    await _ensure_answer_card_started()
-                                if answer_card_started:
-                                    await answer_card.update(answer_text)
-
-                    elif isinstance(data, ResponseContentPartDoneEvent):
-                        pass
-
-                    elif isinstance(data, ResponseOutputItemAddedEvent):
-                        if isinstance(data.item, ResponseFunctionToolCall):
+                elif te.kind == REASONING_DELTA:
+                    if te.delta:
+                        # Close previous tool card group when reasoning appears
+                        if not got_reasoning and batcher.has_pending:
                             if verbose:
-                                await _close_thinking_card()
-                                if answer_card_started:
-                                    await _close_answer_card()
-                                    answer_text = ""
-                                elif answer_text:
-                                    await cs.send_im(
-                                        request_id, chat_id, answer_text,
-                                        content_type="markdown", is_streaming=False,
+                                await _close_tool_card()
+                            batcher = ToolCallBatcher(default_workspace=default_workspace)
+                            tool_card_msg_id = None
+                        got_reasoning = True
+                        reasoning_text += te.delta
+                        if verbose and thinking_card:
+                            await _ensure_thinking_card_started()
+                            if thinking_card_started:
+                                await thinking_card.update(reasoning_text)
+
+                elif te.kind == CONTENT_PART_ADDED:
+                    continue
+
+                elif te.kind == TEXT_DELTA:
+                    if te.delta:
+                        if not got_content and got_reasoning and reasoning_text:
+                            if verbose:
+                                # Parallelize: close thinking card and start answer card concurrently.
+                                # They operate on independent card_ids so no shared state conflict.
+                                _parallel_tasks = [_close_thinking_card()]
+                                if answer_card and not answer_card_started and not answer_card_closed:
+                                    _parallel_tasks.append(_ensure_answer_card_started())
+                                await asyncio.gather(*_parallel_tasks, return_exceptions=True)
+                                if not thinking_card:
+                                    await cs.send_card_message(
+                                        chat_id, title="💭 Thinking",
+                                        content=reasoning_text, header_template="purple", icon="",
                                     )
-                                    answer_text = ""
+                        if not got_content and batcher.has_pending:
+                            if verbose:
+                                await _close_tool_card()
+                            batcher = ToolCallBatcher(default_workspace=default_workspace)
+                            tool_card_msg_id = None
+                        got_content = True
+                        answer_text += te.delta
+                        if answer_card:
+                            if not answer_card_started:
+                                await _ensure_answer_card_started()
+                            if answer_card_started:
+                                await answer_card.update(answer_text)
 
-                            call_id = data.item.call_id
-                            item_id = data.item.id
-                            tool_name = data.item.name
-                            tool_calls[call_id] = {
-                                "name": tool_name,
-                                "arguments": "",
-                            }
-                            if item_id:
-                                item_id_to_call_id[item_id] = call_id
+                elif te.kind == CONTENT_PART_DONE:
+                    pass
 
-                    elif isinstance(data, ResponseFunctionCallArgumentsDeltaEvent):
-                        target_call_id = item_id_to_call_id.get(data.item_id)
-                        if target_call_id and target_call_id in tool_calls:
-                            tool_calls[target_call_id]["arguments"] += data.delta
+                elif te.kind == TOOL_CALL_START:
+                    if verbose:
+                        await _close_thinking_card()
+                        if answer_card_started:
+                            await _close_answer_card()
+                            answer_text = ""
+                        elif answer_text:
+                            await cs.send_im(
+                                request_id, chat_id, answer_text,
+                                content_type="markdown", is_streaming=False,
+                            )
+                            answer_text = ""
 
-                    elif isinstance(data, ResponseOutputItemDoneEvent):
-                        if isinstance(data.item, ResponseFunctionToolCall):
-                            call_id = data.item.call_id
-                            if call_id in tool_calls:
-                                tc = tool_calls[call_id]
-                                tc["_done"] = True
-                                tool_name = tc["name"]
-                                full_args = tc["arguments"]
+                    call_id = te.call_id
+                    item_id = te.item_id
+                    is_native_patch = te.is_apply_patch
+                    tool_name = "apply_patch" if is_native_patch else te.name
+                    tool_calls[call_id] = {
+                        "name": tool_name,
+                        "arguments": "",
+                        "raw_item": te.raw_item if is_native_patch else None,
+                    }
+                    if item_id:
+                        item_id_to_call_id[item_id] = call_id
 
-                                tool_cwd = ""
-                                try:
-                                    import json as _json
-                                    _parsed = _json.loads(full_args) if full_args else {}
-                                    tool_cwd = _parsed.get("cwd", "")
-                                except Exception:
-                                    pass
+                elif te.kind == TOOL_ARGS_DELTA:
+                    target_call_id = item_id_to_call_id.get(te.item_id)
+                    if target_call_id and target_call_id in tool_calls:
+                        tool_calls[target_call_id]["arguments"] += te.delta
 
-                                try:
-                                    formatter = ToolCallFormatterFactory.get_formatter(tool_name)
-                                    formatted, _ = formatter.format_input_im(
-                                        call_id, tool_name, full_args,
-                                        default_workspace=default_workspace,
-                                    )
-                                except Exception as fmt_err:
-                                    logger.error(f"[ToolCall] Formatter error for {tool_name}: {fmt_err}", exc_info=True)
-                                    formatted = f"**{tool_name}**\n```json\n{full_args[:500]}\n```"
+                elif te.kind == TOOL_CALL_DONE:
+                    call_id = te.call_id
+                    if te.is_apply_patch:
+                        # A native patch call has no JSON arguments: show the
+                        # operation summary now and the applied text on the
+                        # result event.
+                        if call_id in tool_calls:
+                            tc = tool_calls[call_id]
+                            tc["_done"] = True
+                            tc["raw_item"] = te.raw_item
+                            formatted = render_apply_patch_call_summary(te.raw_item)
+                            entry = ToolCallEntry(
+                                call_id=call_id,
+                                tool_name="apply_patch",
+                                formatted_input=formatted,
+                                category=classify_tool("apply_patch", "{}"),
+                                workspace=default_workspace,
+                            )
+                            batcher.add_call(entry)
+                            if verbose:
+                                await _ensure_tool_card_started()
+                                await _update_tool_card()
+                    elif call_id in tool_calls:
+                        tc = tool_calls[call_id]
+                        tc["_done"] = True
+                        tool_name = tc["name"]
+                        full_args = tc["arguments"]
 
-                                logger.info(
-                                    f"[ToolCall] tool_name={tool_name}, "
-                                    f"formatted_len={len(formatted)}, "
-                                    f"formatted_preview={formatted[:200]!r}"
-                                )
+                        tool_cwd = ""
+                        try:
+                            import json as _json
+                            _parsed = _json.loads(full_args) if full_args else {}
+                            tool_cwd = _parsed.get("cwd", "")
+                        except Exception:
+                            pass
 
-                                entry = ToolCallEntry(
-                                    call_id=call_id,
-                                    tool_name=tool_name,
-                                    formatted_input=formatted,
-                                    category=classify_tool(tool_name, full_args),
-                                    workspace=tool_cwd or default_workspace,
-                                )
-                                batcher.add_call(entry)
+                        try:
+                            formatter = ToolCallFormatterFactory.get_formatter(tool_name)
+                            formatted, _ = formatter.format_input_im(
+                                call_id, tool_name, full_args,
+                                default_workspace=default_workspace,
+                            )
+                        except Exception as fmt_err:
+                            logger.error(f"[ToolCall] Formatter error for {tool_name}: {fmt_err}", exc_info=True)
+                            formatted = f"**{tool_name}**\n```json\n{full_args[:500]}\n```"
 
-                                if verbose:
-                                    await _ensure_tool_card_started()
-                                    await _update_tool_card()
+                        logger.info(
+                            f"[ToolCall] tool_name={tool_name}, "
+                            f"formatted_len={len(formatted)}, "
+                            f"formatted_preview={formatted[:200]!r}"
+                        )
 
-                    elif isinstance(data, ResponseCompletedEvent):
-                        if verbose and got_reasoning and reasoning_text and not got_content:
-                            if not thinking_card_started:
-                                await cs.send_card_message(
-                                    chat_id, title="💭 Thinking",
-                                    content=reasoning_text, header_template="purple", icon="",
-                                )
+                        entry = ToolCallEntry(
+                            call_id=call_id,
+                            tool_name=tool_name,
+                            formatted_input=formatted,
+                            category=classify_tool(tool_name, full_args),
+                            workspace=tool_cwd or default_workspace,
+                        )
+                        batcher.add_call(entry)
 
-                elif isinstance(event, RunItemStreamEvent):
-                    data = event.item
-                    if isinstance(data, ToolCallOutputItem):
-                        call_id = data.raw_item.get("call_id", "")
-                        tool_name = tool_calls.get(call_id, {}).get("name", "unknown")
-
-                        output = data.output
-                        result_text = format_tool_output(output, tool_name)
-
-                        batcher.add_result(call_id, result_text or "")
                         if verbose:
+                            await _ensure_tool_card_started()
                             await _update_tool_card()
+
+                elif te.kind == RESPONSE_COMPLETED:
+                    if verbose and got_reasoning and reasoning_text and not got_content:
+                        if not thinking_card_started:
+                            await cs.send_card_message(
+                                chat_id, title="💭 Thinking",
+                                content=reasoning_text, header_template="purple", icon="",
+                            )
+
+                elif te.kind == TOOL_OUTPUT:
+                    call_id = te.call_id
+                    tool_name = tool_calls.get(call_id, {}).get("name", "unknown")
+
+                    if te.is_apply_patch:
+                        # Render the text the local editor actually applied;
+                        # the call's operation is the fallback for replays that
+                        # carry no SDK-collected payload.
+                        result_text = render_apply_patch_display(
+                            custom_data=te.custom_data,
+                            raw_call=tool_calls.get(call_id, {}).get("raw_item"),
+                            output=te.output,
+                        )
+                    else:
+                        result_text = format_tool_output(te.output, tool_name)
+
+                    batcher.add_result(call_id, result_text or "")
+                    if verbose:
+                        await _update_tool_card()
 
             # Final: close tool card if still open
             if verbose:

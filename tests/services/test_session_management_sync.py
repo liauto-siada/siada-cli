@@ -271,5 +271,40 @@ class TestManageSessionAndRestoreRollback(unittest.TestCase):
         )
 
 
+# ----- SessionManager._strip_task_tags ---------------------------------------------
+
+
+class TestSessionManagerStripTaskTags(unittest.TestCase):
+    """`_strip_task_tags` feeds the session-list "first user message"
+    preview: it must recover the human's literal text, discarding both the
+    agent-added <task>...</task> wrapper (and everything after it) and the
+    <user_input>...</user_input> tag added at every entry point (TUI,
+    Feishu) — see marker.wrap_user_input."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.manager = SessionManager(project_root=self.tmp)
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_strips_user_input_tag(self) -> None:
+        self.assertEqual(
+            self.manager._strip_task_tags("<user_input>please fix the bug</user_input>"),
+            "please fix the bug",
+        )
+
+    def test_strips_task_wrapper_and_inner_user_input_tag(self) -> None:
+        text = (
+            "<task><user_input>please fix the bug</user_input></task>"
+            "\nSome goal context appended after </task>"
+        )
+        self.assertEqual(self.manager._strip_task_tags(text), "please fix the bug")
+
+    def test_plain_text_unaffected(self) -> None:
+        self.assertEqual(self.manager._strip_task_tags("hi there"), "hi there")
+
+
 if __name__ == "__main__":
     unittest.main()

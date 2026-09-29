@@ -5,21 +5,39 @@ This service provides git-based checkpointing capabilities for tracking file cha
 and creating/restoring snapshots during agent execution.
 """
 
-import subprocess
+import shutil
 from pathlib import Path
-from typing import Optional
-
-try:
-    from git import Repo, InvalidGitRepositoryError, GitCommandError
-    from git.exc import NoSuchPathError, BadName
-    GIT_AVAILABLE = True
-except ImportError:
-    GIT_AVAILABLE = False
+from typing import ClassVar, Optional
 
 from siada.foundation.logging import logger
 
+
+GIT_AVAILABLE = None  #
+
+
+def _load_git() -> bool:
+    """Import GitPython on first use, binding its symbols to module globals."""
+    global Repo, InvalidGitRepositoryError, GitCommandError
+    global NoSuchPathError, BadName, GIT_AVAILABLE
+    if GIT_AVAILABLE is not None:
+        return GIT_AVAILABLE
+    try:
+        from git import Repo, InvalidGitRepositoryError, GitCommandError
+        from git.exc import NoSuchPathError, BadName
+        GIT_AVAILABLE = True
+    except ImportError:
+        GIT_AVAILABLE = False
+    return GIT_AVAILABLE
+
 class GitService:
     """Git service for managing project checkpoints using a shadow git repository."""
+
+    # Process-wide cache for the (expensive) "is git usable" check. `git
+    # --version` is a real fork/exec; since the git executable on PATH
+    # cannot change during the lifetime of a process, we only need to
+    # determine availability once per process and reuse the result for
+    # every GitService instance / session created afterwards.
+    _git_available_cache: ClassVar[Optional[bool]] = None
 
     def __init__(self, project_root: str, shadow_repo_dir: str):
         """
@@ -32,14 +50,35 @@ class GitService:
         self.project_root = Path(project_root).resolve()
         self.shadow_repo_dir = Path(shadow_repo_dir).resolve()
         self._repo: Optional[Repo] = None
+        # Tracks whether initialize() has already run. For a brand-new
+        # shadow repository, GitService.initialize() still forks real `git`
+        # subprocesses (`git init`, the initial empty commit), so we keep it
+        # idempotent and lazy: it is only actually executed on first real use
+        # (see _ensure_initialized / shadow_git_repository), not eagerly at
+        # construction time. This keeps CheckPointTracker/GitService
+        # construction (and therefore create_session()) cheap for sessions
+        # that never end up needing a checkpoint.
+        #
+        # Note: the git-availability check (previously a `git --version`
+        # fork/exec) and the "open existing shadow repo + read HEAD" step
+        # (previously a forced `repo.head.commit` resolution) have both been
+        # optimized away below (see verify_git_availability and
+        # setup_shadow_git_repository) so that even when initialize() does
+        # run, it no longer pays for those extra subprocess forks.
+        self._initialized = False
 
     def initialize(self) -> None:
         """
         Initialize the git service by verifying git availability and setting up shadow repository.
-        
+
+        Idempotent: calling this multiple times only does the actual work once.
+
         Raises:
             RuntimeError: If git is not available or initialization fails
         """
+        if self._initialized:
+            return
+
         git_available = self.verify_git_availability()
         if not git_available:
             raise RuntimeError(
@@ -47,35 +86,57 @@ class GitService:
                 "Please install GitPython or disable checkpointing to continue."
             )
         self.setup_shadow_git_repository()
+        self._initialized = True
+
+    def _ensure_initialized(self) -> None:
+        """Lazily run initialize() on first real use of the shadow repository."""
+        if not self._initialized:
+            self.initialize()
+
 
     def verify_git_availability(self) -> bool:
         """
         Check if both GitPython and git executable are available on the system.
-        
+
+        Performance note: the previous implementation forked a real `git`
+        subprocess (`git --version`) on every call. That fork/exec is one of
+        the 3-4 real git subprocess calls that used to happen inside
+        create_session()/initialize(). Since the git executable resolved
+        from PATH cannot change during the lifetime of the current process,
+        we now:
+          1. Resolve availability via `shutil.which("git")`, which is a pure
+             Python PATH lookup and never forks a subprocess.
+          2. Cache the result at the class level so it is computed at most
+             once per process, regardless of how many GitService instances
+             / sessions are created afterwards.
+
         Returns:
             True if both GitPython and git executable are available, False otherwise
         """
-        if not GIT_AVAILABLE:
+        if not _load_git():
             return False
 
-        try:
-            result = subprocess.run(
-                ["git", "--version"], 
-                capture_output=True, 
-                text=True, 
-                timeout=10
-            )
-            return result.returncode == 0
-        except (subprocess.SubprocessError, FileNotFoundError):
-            return False
+        if GitService._git_available_cache is not None:
+            return GitService._git_available_cache
+
+        available = shutil.which("git") is not None
+        GitService._git_available_cache = available
+        return available
+
 
     def setup_shadow_git_repository(self) -> None:
         """
         Create a shadow git repository for checkpointing.
-        
+
         This creates a separate git repository that tracks the project files
         without interfering with the user's existing git repository.
         """
+        if not _load_git():
+            raise RuntimeError(
+                "GitPython is not installed. "
+                "Please install GitPython or disable checkpointing to continue."
+            )
+
         # Create history directory
         self.shadow_repo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -90,13 +151,23 @@ class GitService:
         )
         git_config_path.write_text(git_config_content)
 
-        # Check if repo already exists using proper repo detection
+        # Check if repo already exists using proper repo detection.
+        #
+        # Performance note: we intentionally avoid forcing resolution of
+        # `repo.head.commit` here. The `Repo()` constructor already
+        # validates that `shadow_repo_dir` contains a well-formed `.git`
+        # directory (raising InvalidGitRepositoryError/NoSuchPathError
+        # otherwise), which is enough to safely reuse the existing shadow
+        # repository. Eagerly walking HEAD -> ref -> commit object on every
+        # single session/checkpoint init was one of the extra git
+        # operations contributing to create_session() latency, and it adds
+        # no real safety here: any genuinely corrupted repository will
+        # still surface a clear GitCommandError/BadName on first actual use
+        # (e.g. create_snapshot / get_current_commit_hash), which is
+        # already handled by those call sites.
         try:
             # Try to open existing repository
-            test_repo = Repo(str(self.shadow_repo_dir))
-            # Verify it's a valid repo by checking if it has a HEAD
-            test_repo.head.commit
-            self._repo = test_repo
+            self._repo = Repo(str(self.shadow_repo_dir))
             logger.info(f"Using existing shadow repository at {self.shadow_repo_dir}")
         except (InvalidGitRepositoryError, BadName, NoSuchPathError):
             # Initialize new repository
@@ -141,8 +212,10 @@ class GitService:
         Returns:
             Configured Repo instance or None if not initialized
         """
+        self._ensure_initialized()
         if not self._repo:
             return None
+
 
         try:
             # Create a new repo instance with environment isolation
@@ -161,6 +234,8 @@ class GitService:
 
     def _is_git_repository(self, path: str) -> bool:
         """Check if the given path is a git repository."""
+        if not _load_git():
+            return False
         try:
             Repo(path)
             return True
@@ -247,8 +322,10 @@ class GitService:
         Returns:
             List of snapshot information dictionaries
         """
+        self._ensure_initialized()
         if not self._repo:
             raise RuntimeError("Repository not initialized")
+
 
         try:
             snapshots = []
@@ -303,8 +380,10 @@ class GitService:
         Returns:
             True if snapshot exists, False otherwise
         """
+        self._ensure_initialized()
         if not self._repo:
             raise RuntimeError("Repository not initialized")
+
 
         try:
             self._repo.commit(commit_hash)

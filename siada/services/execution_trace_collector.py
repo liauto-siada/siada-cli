@@ -10,7 +10,7 @@ from openai.types.responses import ResponseFunctionToolCall
 
 @dataclass
 class ModelCall:
-    """模型调用记录"""
+    """Model call record."""
     call_id: int
     model: str
     input_messages: List[Dict[str, Any]]
@@ -22,7 +22,7 @@ class ModelCall:
 
 @dataclass
 class ToolCall:
-    """工具调用记录"""
+    """Tool call record."""
     call_id: int
     tool_name: str
     input_args: Any

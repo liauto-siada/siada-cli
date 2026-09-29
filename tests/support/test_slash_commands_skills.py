@@ -3,6 +3,7 @@ Tests for skill-derived slash commands in SlashCommands.
 """
 import pytest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 # Pre-import to break circular-import chain:
@@ -17,6 +18,7 @@ from siada.services.skills.models import SkillMetadata, SkillScope, SkillLoadOut
 def _make_session(workspace: str = "/tmp/ws") -> MagicMock:
     session = MagicMock()
     session.siada_config.workspace = workspace
+    session.state = SimpleNamespace(pending_skill_names=[])
     return session
 
 
@@ -135,6 +137,7 @@ class TestDoRunSkillExecution:
             result = sc.do_run(session, "brainstorming", "design a login feature")
 
         assert isinstance(result, SwitchEvent)
+        assert session.state.pending_skill_names == ["brainstorming"]
         prompt = result.kwargs["ai_analysis_prompt"]
         assert "brainstorming" in prompt
         assert "design a login feature" in prompt

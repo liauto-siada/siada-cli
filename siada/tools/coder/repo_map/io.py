@@ -1,10 +1,10 @@
 """
-IO类 - 提供标准的输入输出接口
+IO class - provides a standard input/output interface.
 
-该模块提供了RepoMap使用的标准IO接口，包括：
-- 不同级别的日志输出（info, warning, error）
-- 文件读取功能
-- 可配置的输出选项
+This module provides the standard IO interface used by RepoMap, including:
+- Log output at different levels (info, warning, error)
+- File reading
+- Configurable output options
 """
 
 import os
@@ -15,13 +15,13 @@ from pathlib import Path
 
 class IO:
     """
-    标准IO类，提供文件读取和日志输出功能
+    Standard IO class that provides file reading and log output.
     
-    该类为RepoMap提供统一的IO接口，支持：
-    - 多级别日志输出
-    - 文件内容读取
-    - 可配置的输出目标
-    - 详细模式控制
+    This class provides a unified IO interface for RepoMap, supporting:
+    - Multi-level log output
+    - File content reading
+    - Configurable output targets
+    - Verbose mode control
     """
     
     def __init__(
@@ -31,12 +31,12 @@ class IO:
         error_stream: Optional[TextIO] = None
     ):
         """
-        初始化IO实例
+        Initialize an IO instance.
         
         Args:
-            verbose (bool): 是否启用详细输出模式
-            output_stream (TextIO, optional): 标准输出流，默认为sys.stdout
-            error_stream (TextIO, optional): 错误输出流，默认为sys.stderr
+            verbose (bool): Whether to enable verbose output mode.
+            output_stream (TextIO, optional): Standard output stream, defaults to sys.stdout.
+            error_stream (TextIO, optional): Error output stream, defaults to sys.stderr.
         """
         self.verbose = verbose
         self.output_stream = output_stream or sys.stdout
@@ -49,10 +49,10 @@ class IO:
     
     def tool_output(self, message: str) -> None:
         """
-        输出信息消息
+        Output an info message.
         
         Args:
-            message (str): 要输出的消息
+            message (str): The message to output.
         """
         self.outputs.append(message)
         if self.verbose:
@@ -60,33 +60,33 @@ class IO:
     
     def tool_warning(self, message: str) -> None:
         """
-        输出警告消息
+        Output a warning message.
         
         Args:
-            message (str): 要输出的警告消息
+            message (str): The warning message to output.
         """
         self.warnings.append(message)
         print(f"[WARNING] {message}", file=self.error_stream)
     
     def tool_error(self, message: str) -> None:
         """
-        输出错误消息
+        Output an error message.
         
         Args:
-            message (str): 要输出的错误消息
+            message (str): The error message to output.
         """
         self.errors.append(message)
         print(f"[ERROR] {message}", file=self.error_stream)
     
     def read_text(self, filepath: str) -> str:
         """
-        读取文件内容
+        Read the content of a file.
         
         Args:
-            filepath (str): 文件路径
+            filepath (str): The file path.
             
         Returns:
-            str: 文件内容，如果读取失败则返回空字符串
+            str: The file content, or an empty string if reading fails.
         """
         try:
             # Ensure the path is absolute or relative to the current working directory
@@ -108,35 +108,35 @@ class IO:
                 content = f.read()
             
             if self.verbose:
-                self.tool_warning(f"文件 {filepath} 使用fallback编码读取")
+                self.tool_warning(f"File {filepath} read with fallback encoding")
             
             return content
             
         except FileNotFoundError:
-            self.tool_error(f"文件不存在: {filepath}")
+            self.tool_error(f"File not found: {filepath}")
             return ""
         except PermissionError:
-            self.tool_error(f"没有权限读取文件: {filepath}")
+            self.tool_error(f"Permission denied reading file: {filepath}")
             return ""
         except IsADirectoryError:
-            self.tool_error(f"路径是目录而不是文件: {filepath}")
+            self.tool_error(f"Path is a directory, not a file: {filepath}")
             return ""
         except Exception as e:
-            self.tool_error(f"读取文件失败 {filepath}: {str(e)}")
+            self.tool_error(f"Failed to read file {filepath}: {str(e)}")
             return ""
     
     def clear_stats(self) -> None:
-        """清除统计信息"""
+        """Clear statistics."""
         self.outputs.clear()
         self.warnings.clear()
         self.errors.clear()
     
     def get_stats(self) -> dict:
         """
-        获取统计信息
+        Get statistics.
         
         Returns:
-            dict: 包含输出、警告、错误数量的字典
+            dict: A dictionary with output, warning, and error counts.
         """
         return {
             'outputs': len(self.outputs),
@@ -146,43 +146,43 @@ class IO:
     
     def set_verbose(self, verbose: bool) -> None:
         """
-        设置详细模式
+        Set verbose mode.
         
         Args:
-            verbose (bool): 是否启用详细输出
+            verbose (bool): Whether to enable verbose output.
         """
         self.verbose = verbose
 
 
 class SilentIO(IO):
     """
-    静默IO类，不输出任何信息到控制台
+    Silent IO class that outputs nothing to the console.
     
-    适用于测试或需要静默运行的场景
+    Suitable for tests or scenarios requiring silent operation.
     """
     
     def __init__(self):
-        """初始化静默IO实例"""
+        """Initialize a silent IO instance."""
         super().__init__(verbose=False)
     
     def tool_output(self, message: str) -> None:
-        """静默记录输出消息"""
+        """Silently record an output message."""
         self.outputs.append(message)
     
     def tool_warning(self, message: str) -> None:
-        """静默记录警告消息"""
+        """Silently record a warning message."""
         self.warnings.append(message)
     
     def tool_error(self, message: str) -> None:
-        """静默记录错误消息"""
+        """Silently record an error message."""
         self.errors.append(message)
 
 
 class FileIO(IO):
     """
-    文件IO类，将输出重定向到文件
+    File IO class that redirects output to a file.
     
-    适用于需要将日志保存到文件的场景
+    Suitable for scenarios where logs need to be saved to a file.
     """
     
     def __init__(
@@ -192,12 +192,12 @@ class FileIO(IO):
         append: bool = True
     ):
         """
-        初始化文件IO实例
+        Initialize a file IO instance.
         
         Args:
-            log_file (str): 日志文件路径
-            verbose (bool): 是否启用详细输出
-            append (bool): 是否追加到现有文件
+            log_file (str): The log file path.
+            verbose (bool): Whether to enable verbose output.
+            append (bool): Whether to append to an existing file.
         """
         self.log_file = Path(log_file)
         self.append = append
@@ -216,11 +216,11 @@ class FileIO(IO):
         )
     
     def __del__(self):
-        """析构函数，确保文件被正确关闭"""
+        """Destructor that ensures the log file is closed properly."""
         if hasattr(self, 'log_stream') and not self.log_stream.closed:
             self.log_stream.close()
     
     def close(self):
-        """手动关闭日志文件"""
+        """Manually close the log file."""
         if hasattr(self, 'log_stream') and not self.log_stream.closed:
             self.log_stream.close()

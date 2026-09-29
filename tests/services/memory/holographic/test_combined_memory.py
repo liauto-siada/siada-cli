@@ -164,7 +164,41 @@ def test_memory_store_blocks_are_included_in_order():
     assert -1 < pos_memory < pos_user < pos_guidance
 
 
+def test_workspace_memory_wrapped_in_titled_section(tmp_path):
+    # SIADA.md content used to be concatenated with no boundary marker at
+    # all — the only block in combined_memory without provenance. It must
+    # now ship inside a titled ==== section, with each file body prefixed
+    # by its own "# <path>" heading.
+    (tmp_path / "SIADA.md").write_text("prefer poetry for runs", encoding="utf-8")
+    out = build_combined_memory(str(tmp_path), None, None)
+    assert out is not None
+    # The raw file body must ship inside the titled ==== section. (A
+    # global ~/.siada-cli/siada_rule.md may legitimately precede it, so
+    # assert the wrapped block as a substring rather than the whole
+    # output.)
+    expected = (
+        "====\nWorkspace Memory (SIADA.md / AGENTS.md / CLAUDE.md)"
+        "\n\n# SIADA.md\n\nprefer poetry for runs\n===="
+    )
+    assert expected in out
+
+
+
+def test_workspace_memory_precedes_stored_memory_layers(tmp_path):
+    # Order contract: explicit workspace directives (AGENTS.md here) come
+    # before the "Memory Layers — Common Rules" block that governs the
+    # stored-memory layers below it.
+    (tmp_path / "AGENTS.md").write_text("workspace directive", encoding="utf-8")
+    store = _StubMemoryStore(memory_block="MEMORY-BLOCK")
+    out = build_combined_memory(str(tmp_path), store, None)
+    assert out is not None
+    pos_ws = out.find("Workspace Memory")
+    pos_rules = out.find("Memory Layers — Common Rules")
+    assert -1 < pos_ws < pos_rules
+
+
 def test_full_stack_assembly_shape():
+
     # End-to-end shape with all three layers active.
     store = _StubMemoryStore(
         memory_block="MEMORY-BLOCK", user_block="USER-BLOCK",

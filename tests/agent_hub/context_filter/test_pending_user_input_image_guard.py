@@ -96,7 +96,7 @@ class TestImageNotSupportedGuard:
         # Text was injected as a plain user message (no image content)
         assert len(model_data.input) == 1
         assert model_data.input[0]["role"] == "user"
-        assert model_data.input[0]["content"] == "hello world"
+        assert model_data.input[0]["content"] == "<user_input>hello world</user_input>"
 
     @pytest.mark.asyncio
     async def test_whitespace_only_text_with_images_rejected(self):
@@ -167,7 +167,7 @@ class TestImageNotSupportedGuard:
         # Text was injected as a plain user message (no image content)
         assert len(model_data.input) == 1
         assert model_data.input[0]["role"] == "user"
-        assert model_data.input[0]["content"] == "What is this? [Image #1]"
+        assert model_data.input[0]["content"] == "<user_input>What is this? [Image #1]</user_input>"
 
 
 # ── Tests: model DOES support images ─────────────────────────────────
@@ -201,7 +201,7 @@ class TestImageSupported:
         # Error was NOT printed
         mock_print_err.assert_not_called()
         # Multimodal builder was called
-        mock_build.assert_called_once_with("describe this", ["/tmp/img1.png"])
+        mock_build.assert_called_once_with("<user_input>describe this</user_input>", ["/tmp/img1.png"])
         # Injected
         assert len(model_data.input) == 1
 

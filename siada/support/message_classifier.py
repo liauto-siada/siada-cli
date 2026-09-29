@@ -121,10 +121,16 @@ def get_role_and_type_from_item(item: Any) -> Tuple[Optional[str], Optional[str]
         return "assistant", "image_generation_call"
     elif item_type == "local_shell_call":
         return "assistant", "local_shell_call"
+    elif item_type == "shell_call":
+        return "assistant", "shell_call"
+    elif item_type == "web_search_call":
+        return "assistant", "web_search_call"
     elif item_type == "mcp_call":
         return "assistant", "mcp_call"
     elif item_type == "custom_tool_call":
         return "assistant", "custom_tool_call"
+    elif item_type == "apply_patch_call":
+        return "assistant", "apply_patch_call"
     
     # 4. Check tool output types
     elif item_type == "function_call_output":
@@ -133,8 +139,12 @@ def get_role_and_type_from_item(item: Any) -> Tuple[Optional[str], Optional[str]
         return "tool", "computer_call_output"
     elif item_type == "local_shell_call_output":
         return "tool", "local_shell_call_output"
+    elif item_type == "shell_call_output":
+        return "tool", "shell_call_output"
     elif item_type == "custom_tool_call_output":
         return "tool", "custom_tool_call_output"
+    elif item_type == "apply_patch_call_output":
+        return "tool", "apply_patch_call_output"
     
     # 5. Reasoning content from assistant
     elif item_type == "reasoning":
@@ -170,7 +180,9 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
     Each returned dict has keys: role, content, and optionally subtype.
     - function_call items are formatted via ToolCallFormatterFactory
     - function_call_output items are skipped
-    - User messages have <task>...</task> wrappers stripped
+    - User messages have <task>...</task> wrappers stripped, as well as
+      the <user_input>...</user_input> tag added at every input entry
+      point (TUI, Feishu) — see ``marker.wrap_user_input``
     - Sentinel-wrapped injection blocks (holographic prefetch from
       ``CodeGenAgent`` and IM context blocks from ``LarkAgentExecutor``)
       are stripped from any role's text — these are internal LLM-priming
@@ -191,6 +203,7 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
       nudge.
     """
     from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
+    from siada.tools.coder.apply_patch_presentation import render_apply_patch_history_preview
     # Lazy-import the marker helpers so the holographic-memory module is
     # only pulled in when there's actually something to strip; cheap path
     # for plain conversations stays a single ``has_any_injection_block``
@@ -198,6 +211,7 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
     from siada.services.memory.holographic.marker import (
         has_any_injection_block,
         strip_all_injection_blocks,
+        strip_user_input,
     )
 
     messages: List[Dict[str, str]] = []
@@ -223,8 +237,18 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
                 pass
             continue
 
-        # function_call_output: skip (consistent with normal rendering flow)
-        if item_type == "function_call_output":
+        # Like edit_file, reconstruct a requested patch preview from the
+        # persisted tool input. The model-facing output remains skipped.
+        if item_type == "apply_patch_call":
+            messages.append({
+                "role": "assistant",
+                "content": render_apply_patch_history_preview(item),
+                "subtype": "tool_use",
+            })
+            continue
+
+        # Tool outputs are skipped consistently with normal live rendering.
+        if item_type in ("function_call_output", "apply_patch_call_output"):
             continue
 
         # Extract text content (supports str and list formats). A whole
@@ -255,12 +279,25 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
             text = re.sub(r"^\s*<task>\s*", "", text)
             text = re.sub(r"\s*</task>.*$", "", text, flags=re.DOTALL)
             text = text.strip()
+            # Strip the <user_input>...</user_input> tag added at every user
+            # input entry point (TUI, Feishu) — keeps the body, only removes
+            # the literal tag strings, so the chat bubble shows exactly what
+            # the human typed.
+            text = strip_user_input(text)
 
         # Strip sentinel-wrapped injection blocks (holographic prefetch +
         # IM context). Cheap early-return for plain text — only does the
         # full regex strip when at least one BEGIN/END pair is present.
         if isinstance(text, str) and text and has_any_injection_block(text):
             text = strip_all_injection_blocks(text)
+            # Content-list producers (e.g. LarkAgentExecutor._build_user_input)
+            # bake a blank-line separator into each item's own text so the
+            # blocks read correctly when parts are concatenated with no
+            # separator of their own. When a *trailing* block gets stripped
+            # here, that separator has nothing left to separate from and
+            # would otherwise leave a dangling blank line after the user's
+            # real text in the chat bubble.
+            text = text.strip()
 
         if not text:
             continue

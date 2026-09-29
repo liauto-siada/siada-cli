@@ -126,10 +126,10 @@ class StdioTransport(ACPTransport):
     
     def send_sync(self, message: ACPMessage) -> None:
         """
-        同步发送 ACP 消息到 stdout
+        Send an ACP message to stdout synchronously
 
-        使用直接的同步写入，避免 asyncio 事件循环问题。
-        这是线程安全的方法，可以从任何线程调用。
+        Uses a direct synchronous write, avoiding asyncio event loop issues.
+        This method is thread-safe and can be called from any thread.
 
         Args:
             message: ACPMessage to send
@@ -160,7 +160,7 @@ class StdioTransport(ACPTransport):
         """
         Send an ACP message to stdout
 
-        使用同步写入方式，避免 asyncio 事件循环跨线程问题。
+        Uses a synchronous write, avoiding asyncio event loop issues across threads.
 
         Args:
             message: ACPMessage to send

@@ -1,6 +1,7 @@
 import { MutableRefObject } from 'react';
 import { SiadaACPClient } from '../../acp/client.js';
 import { Message, ConnectionStatus } from '../../types/index.js';
+import type { ThinkingStep } from '../../constants/phrases.js';
 
 export interface BannerInfo {
   version: string;
@@ -11,6 +12,8 @@ export interface BannerInfo {
   prePlanMode: boolean;
   thinkingTokens?: string;
   reasoningEffort?: string;
+  /** Whether thinking is explicitly disabled via /thinking off; undefined/null = model default (on). */
+  thinkingEnabled?: boolean | null;
   parallelToolCalls?: boolean;
   quotaUsage?: string | null;
   memoryEnabled?: boolean;
@@ -59,6 +62,19 @@ export interface InteractiveInputRequest {
 export interface TodoItem {
   content: string;
   status: 'pending' | 'in_progress' | 'completed';
+}
+
+export interface SubAgentItem {
+  id: string;
+  title: string;
+  status: 'running' | 'completed' | 'failed';
+  summary?: string;
+}
+
+export interface SubAgentMessageEntry {
+  kind: 'thinking' | 'tool_call' | 'tool_output' | 'message';
+  text: string;
+  toolName?: string;
 }
 
 export interface TodoMessageRange {
@@ -119,6 +135,9 @@ export interface UseACPResult {
   messages: Message[];
   connectionStatus: ConnectionStatus;
   loading: boolean;
+  /** Current agent activity step while loading (reasoning / tool execution /
+   * system processing / compaction) — drives the thinking indicator label. */
+  activeStep: ThinkingStep | null;
   bannerInfo: BannerInfo | null;
   tokenUsage: TokenUsage | null;
   interactiveInput: InteractiveInputRequest | null;
@@ -130,10 +149,13 @@ export interface UseACPResult {
   cancelPendingQueue: () => void;
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
+  removeMessage: (id: string) => void;
   sessionId: string | null;
   clearMessages: () => void;
   todoItems: TodoItem[];
   todoMessageRanges: Map<string, TodoMessageRange>;
   cacheStatus: CacheStatusData | null;
   goalState: GoalState | null;
+  subAgentItems: SubAgentItem[];
+  subAgentMessages: Map<string, SubAgentMessageEntry[]>;
 }

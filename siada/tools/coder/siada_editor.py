@@ -175,8 +175,8 @@ class SiadaEditor(OHEditor):
                 next_range = f"[{next_start}, {next_end}]"
             suffix = (
                 f"\n\n(Showing lines {start}-{end} of {total_lines} total. "
-                f"Use `view_range={next_range}` with the same `edit_file view` "
-                f"call to continue reading from line {next_start}. "
+                f"Use `view_range={next_range}` with the file-reading tool "
+                f"to continue reading from line {next_start}. "
                 f"File has {total_lines} lines total.)"
             )
         else:

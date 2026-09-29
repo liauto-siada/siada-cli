@@ -34,6 +34,7 @@ class SessionUpdateReason(Enum):
     INTERACTIVE_INPUT_REQUEST = "interactive_input_request"  # Request user input for interactive command
     INTERACTIVE_INPUT_CANCEL = "interactive_input_cancel"    # Cancel/dismiss interactive input (e.g., timeout)
     QUEUE_ITEM_CONSUMED = "queue_item_consumed"               # Mid-turn injection consumed by PendingUserInputInjector
+    RESTORE_INPUT = "restore_input"                           # Restore unpersisted user input to the input box after Ctrl+C
 
 
 @dataclass

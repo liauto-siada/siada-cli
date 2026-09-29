@@ -16,6 +16,7 @@ from siada.tools.coder.repo_map.io import SilentIO
 
 from siada.foundation.logging import logger as logging
 from siada.agent_hub.hooks.siada_agent_hooks import SiadaAgentHooks
+from siada.models.model_base_config import DEFAULT_MODEL_NAME
 
 class SiadaAgent(Agent[Generic[TContext]], ABC):
 
@@ -86,7 +87,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         Get the model name used for repo map generation
         
         Returns:
-            str: Model name, defaults to claude-sonnet-4
+            str: Model name, defaults to DEFAULT_MODEL_NAME
         """
         try:
             # Read configuration file
@@ -95,12 +96,12 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = yaml.safe_load(f)
                     llm_config = config.get('llm_config', {})
-                    return llm_config.get('model_name', 'claude-sonnet-4')
+                    return llm_config.get('model_name', DEFAULT_MODEL_NAME)
         except Exception as e:
             logging.warning(f"Failed to read agent config file for repo map model name: {str(e)}")
 
         # If reading configuration fails, use default value
-        return 'claude-sonnet-4'
+        return DEFAULT_MODEL_NAME
 
     def get_repo_map_instance(self, root_dir: str):
         """
@@ -126,7 +127,7 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
                     logging.warning(f"Failed to read agent config file for repo map instance: {str(e)}")
 
             # Get configuration parameters
-            model_name = llm_config.get('model_name', 'claude-sonnet-4')
+            model_name = llm_config.get('model_name', DEFAULT_MODEL_NAME)
             repo_map_tokens = llm_config.get('repo_map_tokens', 8192)
             repo_map_mul_no_files = llm_config.get('repo_map_mul_no_files', 16)
             repo_verbose = llm_config.get('repo_verbose', True)
@@ -186,8 +187,8 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
 
         # NOTE: Do NOT use ``dataclasses.replace`` here.
         # ``dataclasses.replace`` reconstructs the object via ``obj.__class__(**changes)``.
-        # Several CodeGenAgent subclasses (e.g. GerritIssueFixAgent, BugFixAgent,
-        # FeGenAgent, ...) hardcode ``name=...`` and ``tools=[...]`` in their
+        # Several CodeGenAgent subclasses (e.g. GerritIssueFixAgent, ...)
+        # hardcode ``name=...`` and ``tools=[...]`` in their
         # ``super().__init__(...)`` call, which would then collide with the
         # ``tools`` (and ``name``) keys already present in ``changes``, raising
         # ``TypeError: __init__() got multiple values for keyword argument 'tools'``.

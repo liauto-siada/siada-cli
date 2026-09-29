@@ -7,6 +7,7 @@ from agents.models.chatcmpl_converter import Converter
 from agents.exceptions import UserError
 from agents.tool import FunctionTool, Tool
 from siada.foundation.logging import logger
+from siada.support.chat_compat_items import to_chat_compatible_item
 
 # Safety margin for char-based token estimation (20% buffer)
 _ESTIMATION_SAFETY_MARGIN = 1.2
@@ -49,6 +50,134 @@ _RESPONSES_ITEM_TYPES = frozenset(
 )
 
 _EASY_INPUT_ROLES = frozenset({"user", "assistant", "system", "developer"})
+
+# Placeholder content for a synthesized tool response when an assistant
+# tool_call has no matching tool message in the converted history.
+# (Same string the agents SDK uses for omitted tool outputs.)
+_OMITTED_TOOL_OUTPUT_PLACEHOLDER = "[tool output omitted]"
+
+
+def fix_tool_message_ordering(messages: List) -> List:
+    """
+    Repair Chat Completions tool_call/tool message ordering.
+
+    Background
+    ----------
+    Models like Kimi K3 may interleave an assistant text message between a
+    ``function_call`` and its ``function_call_output`` in the Responses-API
+    item stream, e.g.::
+
+        fc_A, assistant_text, fc_B, fco_A, fco_B
+
+    ``Converter.items_to_messages`` flushes the pending assistant message when
+    it hits the interleaved text, producing::
+
+        assistant(tool_calls=[A]), assistant(text, tool_calls=[B]), tool(A), tool(B)
+
+    The first assistant message is then NOT immediately followed by the tool
+    message responding to ``A`` — which strict Chat Completions providers
+    (Moonshot/Kimi) reject with::
+
+        an assistant message with 'tool_calls' must be followed by tool
+        messages responding to each 'tool_call_id'
+
+    The normal streaming path already applies this repair (see
+    ``siada/internal/provider/li/li_provider.py`` →
+    ``LitellmModel._fix_tool_message_ordering``); the compaction summarization
+    call needs it too.
+
+    Repairs performed
+    -----------------
+    1. Every assistant message carrying ``tool_calls`` is split into one
+       assistant message per tool call (text/reasoning kept only on the
+       first split to avoid duplication), and each is immediately followed
+       by its matching tool message, wherever that tool message originally
+       sat in the list.
+    2. A tool_call without any matching tool message gets a synthesized
+       ``[tool output omitted]`` placeholder, so strict providers never see
+       a dangling tool_call.
+    3. Orphan tool messages (``tool_call_id`` claimed by no assistant
+       message) are dropped — strict providers reject them too.
+
+    The input list is not mutated; a new list is returned.
+    """
+    if not messages:
+        return messages
+
+    # Pass 1: index tool result messages by tool_call_id (first occurrence
+    # wins, later duplicates are dropped) and collect every tool_call id
+    # claimed by an assistant message.
+    tool_results: dict = {}
+    claimed_ids: set = set()
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        if role == "tool":
+            tcid = m.get("tool_call_id")
+            if tcid and tcid not in tool_results:
+                tool_results[tcid] = m
+        elif role == "assistant":
+            for tc in m.get("tool_calls") or []:
+                if isinstance(tc, dict) and tc.get("id"):
+                    claimed_ids.add(tc["id"])
+
+    # Pass 2: rebuild the list so each assistant tool_call is immediately
+    # followed by its tool response.
+    fixed: List = []
+    orphans_dropped = 0
+    placeholders_added = 0
+    for m in messages:
+        if not isinstance(m, dict) or m.get("role") != "assistant" or not m.get("tool_calls"):
+            if isinstance(m, dict) and m.get("role") == "tool":
+                # Claimed tool messages are emitted alongside their assistant
+                # message via ``tool_results``; anything left over is an
+                # orphan and would be rejected by strict providers.
+                if m.get("tool_call_id") not in claimed_ids:
+                    orphans_dropped += 1
+                continue
+            fixed.append(m)
+            continue
+
+        tool_calls = [
+            tc for tc in m["tool_calls"] if isinstance(tc, dict) and tc.get("id")
+        ]
+        if not tool_calls:
+            # tool_calls present but unusable — strip it so the message is a
+            # plain assistant message.
+            stripped = dict(m)
+            stripped.pop("tool_calls", None)
+            fixed.append(stripped)
+            continue
+
+        for idx, tc in enumerate(tool_calls):
+            single = dict(m)
+            single["tool_calls"] = [tc]
+            if idx > 0:
+                # Keep shared fields only on the first split.
+                for shared_field in ("content", "reasoning_content", "thinking_blocks"):
+                    single.pop(shared_field, None)
+            fixed.append(single)
+            result_msg = tool_results.pop(tc["id"], None)
+            if result_msg is not None:
+                fixed.append(result_msg)
+            else:
+                placeholders_added += 1
+                fixed.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": _OMITTED_TOOL_OUTPUT_PLACEHOLDER,
+                    }
+                )
+
+    if orphans_dropped or placeholders_added or len(fixed) != len(messages):
+        logger.info(
+            "[fix_tool_message_ordering] messages %d -> %d "
+            "(orphan_tool_msgs_dropped=%d, placeholder_tool_msgs_added=%d)",
+            len(messages), len(fixed), orphans_dropped, placeholders_added,
+        )
+    return fixed
 
 
 def _normalize_to_responses_items(items: List) -> List:
@@ -99,6 +228,17 @@ def _normalize_to_responses_items(items: List) -> List:
     for item in items:
         if not isinstance(item, dict):
             out.append(item)
+            continue
+
+        # Responses-only item shapes that the ChatCompletions converter cannot
+        # parse (native apply_patch items, id-less assistant output messages)
+        # are rewritten into chat-safe proxies.  The rewrite rules live in
+        # ``siada.support.chat_compat_items`` so the wire-level replay paths
+        # apply exactly the same normalization; anything else falls through to
+        # the existing pass-through rules below.
+        rewritten = to_chat_compatible_item(item)
+        if rewritten is not item:
+            out.append(rewritten)
             continue
 
         # Already a Responses-API item — pass through.

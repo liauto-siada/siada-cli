@@ -20,7 +20,13 @@ def covert_to_litellm_model_name(model_name: str) -> str:
     elif model_name.startswith("gpt-"):
         temp_model_name = model_name.replace("gpt-", "openai/gpt-")
     elif model_name.startswith("gemini-"):
-        temp_model_name = model_name.replace("gemini-", "google/gemini-")
+        # litellm's Google AI Studio prefix is "gemini/" (verified against
+        # litellm 1.91: "google/gemini-*" is NOT a recognized provider prefix
+        # and fails with "LLM Provider NOT provided"; "gemini/gemini-*"
+        # routes to the native generateContent protocol, where a top-level
+        # reasoning_effort is mapped to generationConfig.thinkingConfig.
+        # thinkingLevel).
+        temp_model_name = model_name.replace("gemini-", "gemini/gemini-", 1)
     elif model_name.startswith("kimi-"):
         temp_model_name = model_name.replace("kimi-", "moonshot/kimi-")
     elif model_name.startswith("glm-"):

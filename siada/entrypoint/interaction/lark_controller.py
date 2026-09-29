@@ -472,7 +472,7 @@ class LarkController(ImController):
     # ── Config building ──────────────────────────────────────────────
 
     def _build_running_config(self) -> "RunningConfig":
-        from siada.entrypoint.interaction.running_config import RunningConfig
+        from siada.entrypoint.interaction.running_config import build_running_config_from_conf
         from siada.config.config_loader import load_conf
         from siada.entrypoint.helpers.model_setup import get_config_from_conf
 
@@ -480,12 +480,14 @@ class LarkController(ImController):
         model_config = get_config_from_conf(self._lark_io, conf)
         workspace = self._workspace or get_default_workspace()
 
-        return RunningConfig(
-            llm_config=model_config, io=self._lark_io, workspace=workspace,
-            agent_name=self._agent_name, interactive=True, console_output=False,
-            mcp_config=conf.mcp_config if conf else None,
-            compaction_strategy=conf.compaction_strategy if conf else None,
-            memory_enabled=conf.memory_config.enabled if conf else True,
+        return build_running_config_from_conf(
+            conf,
+            llm_config=model_config,
+            io=self._lark_io,
+            workspace=workspace,
+            agent_name=self._agent_name,
+            interactive=True,
+            console_output=False,
         )
 
     # ── Message handling ─────────────────────────────────────────────

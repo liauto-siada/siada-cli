@@ -37,7 +37,7 @@ CRITICAL REQUIREMENTS FOR USING THIS TOOL:
 
 3. REPLACEMENT: The `new_str` parameter should contain the edited lines that replace the `old_str`. Both strings must be different.
 
-Remember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each.
+Remember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each. If edits to different files or non-overlapping regions are already known, emit multiple edit calls in the same response instead of serializing them across turns.
 Note: When a parameter value is not provided, use null (in JSON) instead of an empty string “”.
 
 Args:

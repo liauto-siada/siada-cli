@@ -13,14 +13,10 @@ import platform
 import subprocess
 import tempfile
 
-from rich.console import Console
-
 
 DEFAULT_EDITOR_NIX = "vi"
 DEFAULT_EDITOR_OS_X = "vim"
 DEFAULT_EDITOR_WINDOWS = "notepad"
-
-console = Console()
 
 
 def print_status_message(success, message, style=None):
@@ -31,9 +27,11 @@ def print_status_message(success, message, style=None):
     :param message: The message to display
     :param style: Optional style override. If None, uses green for success and red for failure
     """
+    from rich.console import Console
+
     if style is None:
         style = "bold green" if success else "bold red"
-    console.print(message, style=style)
+    Console().print(message, style=style)
     print("")
 
 

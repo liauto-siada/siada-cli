@@ -26,7 +26,7 @@ class ColorSettings:
     # Predefined theme configurations
     THEMES: ClassVar[Dict[str, Dict[str, str]]] = {
         "default": {
-            "user_input_color": None,  # 使用默认颜色
+            "user_input_color": None,  # use default color
             "tool_output_color": None,
             "tool_error_color": "red", 
             "tool_warning_color": "#FFA500",
@@ -46,7 +46,7 @@ class ColorSettings:
             "placeholder_color": "#888888"
         },
         "dark": {
-            "user_input_color": None,  # 使用默认白色
+            "user_input_color": None,  # use default white
             "tool_output_color": None,
             "tool_error_color": "#FF3333",
             "tool_warning_color": "#FFFF00", 
@@ -66,7 +66,7 @@ class ColorSettings:
             "placeholder_color": "#888888"
         },
         "light": {
-            "user_input_color": None,  # 使用默认颜色
+            "user_input_color": None,  # use default color
             "tool_output_color": None,
             "tool_error_color": "red",
             "tool_warning_color": "#FFA500",

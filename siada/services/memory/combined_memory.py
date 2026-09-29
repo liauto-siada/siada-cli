@@ -11,7 +11,8 @@ The orchestrator's job is purely composition. The output layout (top to
 bottom) is::
 
     rule_memory                    (workspace siada_rule.md hierarchy)
-    siada.md                       (user-scoped workspace memory)
+    Workspace Memory               (SIADA.md / AGENTS.md / CLAUDE.md,
+                                    wrapped in a single ==== section)
     Memory Layers — Common Rules   (only when stored memory is active)
     Inline Memory                  (MEMORY/USER snapshot blocks + memory tool guidance,
                                     all wrapped in a single ==== section)
@@ -25,12 +26,16 @@ stitches them together. That keeps the per-layer guidance text one edit
 away from the layer it documents and lets the orchestrator stay layer-
 agnostic.
 
-Two small pieces of text **do** live here on purpose:
+Three small pieces of text **do** live here on purpose:
 
 * ``_MEMORY_LAYERS_COMMON_RULES`` — the "follow the user when stored
   memory conflicts" rule used to be duplicated across each layer's
   guidance. It applies to all stored-memory layers below, so it's
   factored out into one shared block introduced by this orchestrator.
+* The ``Workspace Memory`` heading + outer ``====`` markers around the
+  SIADA.md / AGENTS.md / CLAUDE.md bodies — these files used to be
+  concatenated bare (the only block without any boundary), leaving the
+  model to guess their provenance and authority.
 * The ``Inline Memory`` heading + outer ``====`` markers around the
   memory data blocks and ``MEMORY_GUIDANCE`` body — keeping the heading
   here means MEMORY/USER blocks (which are *data*) and the guidance
@@ -73,6 +78,14 @@ The blocks below are auxiliary context drawn from prior sessions and
 stored facts. When any of them conflicts with the user's current
 instruction, follow the user — they are the authoritative source.
 ===="""
+
+# Title for the workspace-memory section (SIADA.md / AGENTS.md /
+# CLAUDE.md). These files used to be concatenated bare — the only block
+# in ``combined_memory`` without any boundary marker — which left the
+# model guessing about the content's provenance and authority right after
+# the language instruction. The titled ``====`` wrapper makes the source
+# explicit, consistent with the stored-memory sections below.
+_WORKSPACE_MEMORY_TITLE = "Workspace Memory (SIADA.md / AGENTS.md / CLAUDE.md)"
 
 
 def _build_inline_memory_section(memory_store: object) -> Optional[str]:
@@ -160,12 +173,17 @@ def build_combined_memory(
         except Exception as exc:
             logger.warning("Failed to load rule_memory: %s", exc)
 
-        # 2. siada.md user-scoped memory
+        # 2. Workspace memory (SIADA.md / AGENTS.md / CLAUDE.md). Wrapped
+        #    in a titled ``====`` section so the raw file contents don't
+        #    bleed into neighbouring prompt sections without provenance.
+        #    Each file body already carries its own ``# <path>`` heading
+        #    from ``load_siada_memory``, so multi-file workspaces keep
+        #    visible boundaries inside the section.
         try:
             from siada.services.siada_memory import load_siada_memory
             user_mem = load_siada_memory(workspace_path)
             if user_mem:
-                parts.append(user_mem)
+                parts.append(f"====\n{_WORKSPACE_MEMORY_TITLE}\n\n{user_mem}\n====")
         except Exception as exc:
             logger.debug("Failed to load user memory: %s", exc)
 

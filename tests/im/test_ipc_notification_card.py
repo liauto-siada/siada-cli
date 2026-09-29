@@ -70,7 +70,12 @@ class TestBuildIpcNotificationCard:
         json_str = json.dumps(card, ensure_ascii=False)
         assert isinstance(json_str, str)
 
-    def test_card_uses_chinese_template_when_preferred_language_is_zh_cn(self) -> None:
+    def test_card_uses_zh_cn_template_when_preferred_language_is_zh_cn(self) -> None:
+        """The zh-CN variant is selected (its tips differ from the en variant).
+
+        The zh-CN copy is emitted in English — only the wording of the
+        switch/stay tips differs from the "en" variant.
+        """
         card = build_ipc_notification_card(
             "内容",
             "source_sess",
@@ -78,12 +83,18 @@ class TestBuildIpcNotificationCard:
             preferred_language="zh-CN",
         )
 
-        assert card["header"]["title"]["content"] == "📬 跨会话消息"
+        assert card["header"]["title"]["content"] == "📬 Cross-Session Message"
         footer = card["body"]["elements"][2]["content"]
-        assert "**回复这条消息或者直接发送新消息，都会切到来源session。**" in footer
-        assert "**若想留在当前session，请回复本session中更早的一条消息。**" in footer
-        assert "**来源:** `source_sess`" in footer
-        assert "**当前:** `current_sess`" in footer
+        assert (
+            "**Reply to this message, or send a new one, to switch to the source session.**"
+            in footer
+        )
+        assert (
+            "**To stay in the current session, reply to an earlier message in this session.**"
+            in footer
+        )
+        assert "**Source:** `source_sess`" in footer
+        assert "**Current:** `current_sess`" in footer
 
     def test_card_falls_back_to_english_for_unknown_language(self) -> None:
         card = build_ipc_notification_card(

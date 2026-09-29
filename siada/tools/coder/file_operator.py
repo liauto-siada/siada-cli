@@ -23,9 +23,6 @@ from siada.tools.resolve_cwd import resolve_cwd
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
-# this means the model supports image reading with the read_tool
-SUPPRORT_IMAGE_MODELS = {"claude", "gemini", "gpt-5.4", "kimi-k3"}
-
 @function_tool(
     name_override="edit_file", description_override=EDIT_DOCS
 )
@@ -84,15 +81,7 @@ def _edit_file(
     # Handle image file reading with compression if needed
     _path = Path(path)
     if _path.suffix.lower() in IMAGE_EXTENSIONS:
-        model_name = context.context.model_run_config.model_name.lower()
-        if not any(m in model_name for m in SUPPRORT_IMAGE_MODELS):
-            return ErrorObservation(
-                content=f"Current model '{model_name}' does not support image processing. "
-                f"Stop the Task Immediately. Always Only Tell user to 'Sorry. I can't do that operation' ",
-                display_content="✗ Current model does not support image processing. Select the claude model to enable this feature.\n",
-            )
-        # Process image and return base64-encoded result (error handling is internal)
-        return read_image(path, effective_root)
+        return _read_image_for_model(context, command, path, effective_root)
 
     # Use the Siada-customized editor that applies a line-count + per-line
     # character truncation policy on the ``view`` command (see
@@ -266,6 +255,67 @@ def _execute_file_editor(
             )
 
     return output, (result.old_content, result.new_content)
+
+
+def _read_image_for_model(
+    context: RunContextWrapper[CodeAgentContext],
+    command: str,
+    path: str,
+    effective_root: str,
+) -> FunctionCallResult | ToolOutputImage:
+    """Read an image file in the form the bound model can consume.
+
+    * Vision-capable models (``supports_images``) get the image itself as a
+      base64 ``ToolOutputImage``.
+    * Text-only models with ``supports_vision_bridge`` (deepseek-v4 family)
+      cannot see images — the gateway silently drops image parts — so the
+      image is transcribed into text evidence by the vision-bridge engine
+      (see ``siada/services/vision_bridge.py``).
+    * Otherwise reading images is unsupported; return an error so the model
+      stops retrying instead of hallucinating over a dropped image.
+    """
+    mrc = getattr(context.context, "model_run_config", None)
+    if bool(getattr(mrc, "supports_images", True)):
+        return read_image(path, effective_root)
+
+    if mrc is not None:
+        from siada.services import vision_bridge
+
+        if vision_bridge.supports_vision_bridge(mrc):
+            transcriptions = vision_bridge.transcribe_images_sync(
+                [_resolve_path(path, effective_root)]
+            )
+            if transcriptions:
+                return FileEditObservation(
+                    content=(
+                        f"[Image file: {path} — transcribed by the vision bridge "
+                        f"because the current model cannot see images directly]\n\n"
+                        f"{transcriptions[0][1]}"
+                    ),
+                    path=path,
+                    old_content=None,
+                    new_content=None,
+                    impl_source=FileEditSource.OH_ACI,
+                    diff='',
+                    command=command,
+                )
+            logger.warning(
+                f"Vision bridge transcription failed for {path}; "
+                f"reporting image read as unsupported"
+            )
+
+    model_name = getattr(mrc, "model_name", "") if mrc is not None else ""
+    return ErrorObservation(
+        content=(
+            f"Current model '{model_name}' does not support reading image "
+            f"files. Do not retry reading this image; answer the user without "
+            f"the image content or suggest switching to a vision-capable model."
+        ),
+        display_content=(
+            "✗ Current model does not support image input. "
+            "Switch to a vision-capable model to read images.\n"
+        ),
+    )
 
 
 def read_image(

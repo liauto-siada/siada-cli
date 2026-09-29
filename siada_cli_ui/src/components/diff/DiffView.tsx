@@ -2,16 +2,19 @@ import { diffWordsWithSpace, type StructuredPatchHunk } from 'diff';
 import * as React from 'react';
 import { Box, Text } from '@jrichman/ink';
 import path from 'node:path';
+import stringWidth from 'string-width';
+import { colors } from '../../utils/colors.js';
+import { useThemeVersion } from '../../themes/index.js';
 
-// Colors for diff display
-const COLORS = {
-  added: '#1a4a1a',
-  removed: '#4a1a1a',
-  addedWord: '#2d7a2d',
-  removedWord: '#7a2d2d',
-  lineNum: '#666666',
-  filePath: '#8888cc',
-};
+/**
+ * Diff rows paint a tinted background band and leave the code in the
+ * terminal's own foreground — the same color as every other body text — so a
+ * hunk reads as the user's file rather than as decoration. Only the +/- signs
+ * and the word-level highlight carry color, and each band is chosen so that
+ * foreground still contrasts with it (light bands light text, dark bands
+ * light-on-dark) instead of the old dark-on-dark rows.
+ */
+type DiffPalette = typeof colors.diff;
 
 interface DiffLine {
   code: string;
@@ -29,10 +32,13 @@ interface DiffPart {
 }
 
 const CHANGE_THRESHOLD = 0.4;
+const graphemeSegmenter = new Intl.Segmenter();
 
 function transformLines(lines: string[]): DiffLine[] {
   return lines.map(raw => {
-    const code = raw.slice(1);
+    // Ink expands tabs to four columns when painting text. Expand them here
+    // too so the wrapping and background padding use the same width.
+    const code = raw.slice(1).replaceAll('\t', '    ');
     if (raw.startsWith('+')) return { code, type: 'add', lineNum: 0, originalCode: code };
     if (raw.startsWith('-')) return { code, type: 'remove', lineNum: 0, originalCode: code };
     return { code, type: 'nochange', lineNum: 0, originalCode: code };
@@ -106,14 +112,26 @@ function numberLines(lines: DiffLine[], startLine: number): DiffLine[] {
   return result;
 }
 
-// Simple character-level wrap (no dependency on ink's wrapText)
+// Ink measures terminal columns, not JS string length (CJK and emoji can
+// occupy two columns). Wrap before painting the background so neither Yoga nor
+// the terminal has to wrap a colored row after its padding has been computed.
 function wrapCode(code: string, maxWidth: number): string[] {
   if (maxWidth <= 0) return [code];
-  if (code.length <= maxWidth) return [code];
+  if (stringWidth(code) <= maxWidth) return [code];
   const result: string[] = [];
-  for (let i = 0; i < code.length; i += maxWidth) {
-    result.push(code.slice(i, i + maxWidth));
+  let line = '';
+  let usedWidth = 0;
+  for (const { segment } of graphemeSegmenter.segment(code)) {
+    const width = stringWidth(segment);
+    if (usedWidth + width > maxWidth && line) {
+      result.push(line);
+      line = '';
+      usedWidth = 0;
+    }
+    line += segment;
+    usedWidth += width;
   }
+  if (line) result.push(line);
   return result;
 }
 
@@ -121,6 +139,8 @@ type RenderedLine = {
   lineNumStr: string;
   sigil: string;
   bgColor: string | undefined;
+  signColor: string | undefined;
+  codeColor: string | undefined;
   content: React.ReactNode;
   padding: number;
 };
@@ -130,31 +150,33 @@ function renderStandardLine(
   maxWidth: number,
   totalWidth: number,
   lineIndex: number,
+  line: string,
+  palette: DiffPalette,
 ): RenderedLine {
-  const { type, code, lineNum } = item;
-  const gutterWidth = maxWidth + 1; // linenum + space
-  const diffPrefixWidth = 1;
-  const availWidth = Math.max(1, totalWidth - gutterWidth - diffPrefixWidth);
-  const wrappedLines = wrapCode(code, availWidth);
-  const line = wrappedLines[lineIndex] ?? '';
+  const { type, lineNum } = item;
 
   const lineNumStr =
     lineIndex === 0
       ? lineNum.toString().padStart(maxWidth) + ' '
       : ' '.repeat(maxWidth) + ' ';
-  const sigil = type === 'add' ? '+' : type === 'remove' ? '-' : ' ';
-  const contentWidth = lineNumStr.length + 1 + line.length;
+  const sigil = lineIndex > 0 ? ' ' : type === 'add' ? '+' : type === 'remove' ? '-' : ' ';
+  const contentWidth = stringWidth(lineNumStr) + 1 + stringWidth(line);
   const padding = Math.max(0, totalWidth - contentWidth);
-  const bgColor =
-    type === 'add' ? COLORS.added : type === 'remove' ? COLORS.removed : undefined;
+  const bgColor = type === 'add' ? palette.addedBg : type === 'remove' ? palette.removedBg : undefined;
+  // Unchanged context steps down one tone; the banded rows keep the terminal
+  // foreground and let the band carry the emphasis.
+  const codeColor = bgColor ? undefined : colors.content.secondary;
+  const signColor = lineIndex > 0 ? undefined
+    : type === 'add' ? palette.addedSign : type === 'remove' ? palette.removedSign : undefined;
 
-  return { lineNumStr, sigil, bgColor, content: line, padding };
+  return { lineNumStr, sigil, bgColor, signColor, codeColor, content: line, padding };
 }
 
 function renderWordDiffLine(
   item: DiffLine,
   maxWidth: number,
   totalWidth: number,
+  palette: DiffPalette,
 ): React.ReactNode[] | null {
   const { type, lineNum, wordDiff, matchedLine, originalCode } = item;
   if (!wordDiff || !matchedLine) return null;
@@ -172,7 +194,8 @@ function renderWordDiffLine(
   const gutterWidth = maxWidth + 1;
   const diffPrefixWidth = 1;
   const availWidth = Math.max(1, totalWidth - gutterWidth - diffPrefixWidth);
-  const bgColor = type === 'add' ? COLORS.added : COLORS.removed;
+  const bgColor = type === 'add' ? palette.addedBg : palette.removedBg;
+  const wordBgColor = type === 'add' ? palette.addedWordBg : palette.removedWordBg;
   const sigil = type === 'add' ? '+' : '-';
   const lineNumStr = lineNum.toString().padStart(maxWidth) + ' ';
 
@@ -192,14 +215,16 @@ function renderWordDiffLine(
   }
 
   const fullText = visibleParts.map(p => p.text).join('');
-  // Render as a single row with word-level highlights
-  const contentWidth = lineNumStr.length + 1 + fullText.length;
+  // Word-level spans are rendered in a single Ink row. Long lines must use
+  // the standard wrapped renderer instead, or the colored spans overflow.
+  if (stringWidth(fullText) > availWidth) return null;
+  const contentWidth = stringWidth(lineNumStr) + 1 + stringWidth(fullText);
   const padding = Math.max(0, totalWidth - contentWidth);
 
   const contentNodes: React.ReactNode[] = visibleParts.map((p, i) => (
     <Text
       key={i}
-      backgroundColor={p.wordHighlight ? (type === 'add' ? COLORS.addedWord : COLORS.removedWord) : bgColor}
+      backgroundColor={p.wordHighlight ? wordBgColor : bgColor}
     >
       {p.text}
     </Text>
@@ -208,10 +233,8 @@ function renderWordDiffLine(
 
   return [
     <Box key={`${type}-${lineNum}`} flexDirection="row">
-      <Text backgroundColor={bgColor} dimColor={false}>
-        {lineNumStr}
-        {sigil}
-      </Text>
+      <Text backgroundColor={bgColor} color={colors.content.tertiary}>{lineNumStr}</Text>
+      <Text backgroundColor={bgColor} color={type === 'add' ? palette.addedSign : palette.removedSign} bold>{sigil}</Text>
       <Text backgroundColor={bgColor}>
         {contentNodes}
       </Text>
@@ -219,7 +242,7 @@ function renderWordDiffLine(
   ];
 }
 
-function renderHunk(hunk: StructuredPatchHunk, totalWidth: number): React.ReactNode[] {
+function renderHunk(hunk: StructuredPatchHunk, totalWidth: number, palette: DiffPalette): React.ReactNode[] {
   const lineObjs = transformLines(hunk.lines);
   const paired = pairAdjacentLines(lineObjs);
   const numbered = numberLines(paired, hunk.oldStart);
@@ -231,7 +254,7 @@ function renderHunk(hunk: StructuredPatchHunk, totalWidth: number): React.ReactN
   for (const item of numbered) {
     // Try word-level diff for paired add/remove lines
     if (item.wordDiff && item.matchedLine) {
-      const wordNodes = renderWordDiffLine(item, maxWidth, totalWidth);
+      const wordNodes = renderWordDiffLine(item, maxWidth, totalWidth, palette);
       if (wordNodes) {
         nodes.push(...wordNodes);
         continue;
@@ -246,15 +269,15 @@ function renderHunk(hunk: StructuredPatchHunk, totalWidth: number): React.ReactN
     const lineCount = Math.max(1, wrappedLines.length);
 
     for (let li = 0; li < lineCount; li++) {
-      const rendered = renderStandardLine(item, maxWidth, totalWidth, li);
-      const { lineNumStr, sigil, bgColor, content, padding } = rendered;
+      const rendered = renderStandardLine(item, maxWidth, totalWidth, li, wrappedLines[li] ?? '', palette);
+      const { lineNumStr, sigil, bgColor, signColor, codeColor, content, padding } = rendered;
       nodes.push(
         <Box key={`${item.type}-${item.lineNum}-${li}`} flexDirection="row">
-          <Text backgroundColor={bgColor} dimColor={item.type === 'nochange'}>
+          <Text backgroundColor={bgColor} color={colors.content.tertiary}>
             {lineNumStr}
-            {sigil}
           </Text>
-          <Text backgroundColor={bgColor} dimColor={item.type === 'nochange'}>
+          <Text backgroundColor={bgColor} color={signColor} bold={!!signColor}>{sigil}</Text>
+          <Text backgroundColor={bgColor} color={codeColor}>
             {content as string}
             {' '.repeat(padding)}
           </Text>
@@ -269,31 +292,34 @@ interface DiffViewProps {
   filePath: string;
   hunks: StructuredPatchHunk[];
   width?: number;
+  showFrame?: boolean;
 }
 
-export const DiffView: React.FC<DiffViewProps> = ({ filePath, hunks, width }) => {
+export const DiffView: React.FC<DiffViewProps> = ({ filePath, hunks, width, showFrame = true }) => {
+  useThemeVersion(); // repaint on theme change (React.memo blocks prop-driven re-renders)
   const totalWidth = width ?? (process.stdout.columns || 80);
   const displayPath = path.basename(filePath);
+  const palette = colors.diff;
 
   return (
     <Box flexDirection="column">
       {/* File path header */}
-      <Text color={COLORS.filePath}>{displayPath}</Text>
+      {showFrame && <Text>{displayPath}</Text>}
       {/* Dashed top border */}
-      <Text dimColor>{'─'.repeat(totalWidth)}</Text>
+      {showFrame && <Text color={colors.content.tertiary}>{'─'.repeat(totalWidth)}</Text>}
       {/* Hunks */}
       {hunks.map((hunk, hunkIdx) => (
         <Box key={hunkIdx} flexDirection="column">
           {hunkIdx > 0 && (
-            <Text dimColor>{'...'}</Text>
+            <Text color={colors.content.tertiary}>{'...'}</Text>
           )}
-          {renderHunk(hunk, totalWidth).map((node, i) => (
+          {renderHunk(hunk, totalWidth, palette).map((node, i) => (
             <Box key={i}>{node}</Box>
           ))}
         </Box>
       ))}
       {/* Dashed bottom border */}
-      <Text dimColor>{'─'.repeat(totalWidth)}</Text>
+      {showFrame && <Text color={colors.content.tertiary}>{'─'.repeat(totalWidth)}</Text>}
     </Box>
   );
 };

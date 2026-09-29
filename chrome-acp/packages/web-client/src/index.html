@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="Siada - Browser companion for Siada CLI">
+  <link rel="manifest" href="/app/manifest.json">
+  <link rel="icon" href="/app/icon-192.png" type="image/png">
+  <title>Siada</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./frontend.tsx"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/app/sw.js');
+    }
+  </script>
+</body>
+</html>
+

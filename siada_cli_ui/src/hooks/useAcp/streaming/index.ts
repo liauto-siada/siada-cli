@@ -8,51 +8,17 @@ import {
   countLines,
   findEnclosingCodeBlockStart,
 } from '../../../utils/markdownUtilities.js';
+import {
+  StreamRepetitionDetector,
+  isRepetitionGuardModel,
+} from '../../../utils/streamRepetition.js';
+import { COMPACTION_CONTENT_PATTERN, ThinkingStep } from '../../../constants/phrases.js';
+import { isRenderableToolDiff } from '../../../utils/diff.js';
+import { parseTodoWriteContent } from '../../../utils/todoWrite.js';
 
 // Throttle interval for streaming message flushes.
 // 50-120ms is the sweet spot: lower causes too-frequent redraws, higher hurts the "typing" feel.
 const STREAM_FLUSH_MS = 80;
-
-// Status icon → status string mapping (matches formatters.py _TODO_STATUS_ICONS)
-const ICON_TO_STATUS: Record<string, TodoItem['status']> = {
-  '○': 'pending',
-  '◐': 'in_progress',
-  '✓': 'completed',
-  '?': 'pending',
-};
-
-/** Parse todo_write tool call content into TodoItem[].
- *  Returns null when content doesn't look like a todo_write output. */
-function parseTodoWriteContent(content: string): TodoItem[] | null {
-  const trimmed = content.trim();
-  if (!trimmed) return null;
-
-  // "Clearing todo list" → empty list
-  if (trimmed === 'Clearing todo list') return [];
-
-  // Each line is either "ICON  content text" or "[N/M completed]" or empty
-  const lines = trimmed.split('\n');
-  const todos: TodoItem[] = [];
-  let foundAny = false;
-
-  for (const line of lines) {
-    const stripped = line.trim();
-    if (!stripped || stripped.match(/^\[\d+\/\d+ completed\]$/)) continue;
-
-    const match = stripped.match(/^([○◐✓?])\s{1,3}(.+)$/);
-    if (!match) {
-      // If we already parsed some lines this is probably valid but has extra text; skip
-      if (foundAny) continue;
-      // If we haven't found any yet, this isn't a todo_write message
-      return null;
-    }
-    foundAny = true;
-    const status = ICON_TO_STATUS[match[1]] ?? 'pending';
-    todos.push({ content: match[2].trimEnd(), status });
-  }
-
-  return foundAny ? todos : null;
-}
 
 interface StreamingDeps {
   setMessages: Dispatch<SetStateAction<Message[]>>;
@@ -64,9 +30,35 @@ interface StreamingDeps {
   messagesRef: MutableRefObject<Message[]>;
   setTodoItems: Dispatch<SetStateAction<TodoItem[]>>;
   setTodoMessageRanges: Dispatch<SetStateAction<Map<string, TodoMessageRange>>>;
+  setActiveStep?: Dispatch<SetStateAction<ThinkingStep | null>>;
 }
 
-export function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, model, pullHistoryTimeoutRef, messagesRef, setTodoItems, setTodoMessageRanges }: StreamingDeps) {
+
+/**
+ * Classify an agent message into the current agent activity step, used to
+ * label the thinking indicator / thinking content:
+ *   - thinking / answer streams → model reasoning
+ *   - tool_use streams         → tool execution
+ *   - non-streaming notices mentioning compaction (e.g. the backend's
+ *     "Compacting context..." from /compact) → context compaction
+ *   - anything else (process/system notices)  → system processing
+ *
+ * NOTE on ordering: the backend maps most one-shot notices (info, warning,
+ * tool results) to subtype 'tool_use' for rendering (see adapter
+ * handleWarning/handleToolResult), so compaction content matching must run
+ * BEFORE the tool_use check and only for non-streaming messages — otherwise
+ * a "Compacting context..." notice would be misclassified as tool execution.
+ */
+function classifyAgentStep(message: Message): ThinkingStep {
+  const subtype = message.metadata?.subtype;
+  if (subtype === 'thinking' || subtype === 'answer') return 'reasoning';
+  const isStreaming = message.metadata?.isStreaming !== false;
+  if (!isStreaming && COMPACTION_CONTENT_PATTERN.test(message.content || '')) return 'compaction';
+  if (subtype === 'tool_use') return 'tool_execution';
+  return 'system_processing';
+}
+
+export function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, model, pullHistoryTimeoutRef, messagesRef, setTodoItems, setTodoMessageRanges, setActiveStep }: StreamingDeps) {
   const toolMessageIdCounterRef = useRef(0);
   const currentStreamingMessageRef = useRef<{
     id: string;
@@ -82,6 +74,16 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
   const streamPendingAppendRef = useRef<string>('');
   const streamTargetSubtypeRef = useRef<'answer' | 'thinking' | 'tool_use' | null>(null);
 
+  // ------------------------------
+  // Repetition guard (deepseek-v4-flash family only):
+  // while a stream looks repetitive we HOLD rendering (stop flushing) and wait
+  // for the backend's verdict — a `stream_aborted` lifecycle event means the
+  // backend caught the same loop and is retrying, so the held/rendered content
+  // is dropped. A normal streamEnd means false positive → flush as usual.
+  // ------------------------------
+  const repetitionDetectorRef = useRef<StreamRepetitionDetector | null>(null);
+  const streamHeldRef = useRef<boolean>(false);
+
   const flushStreamingNow = useCallback(() => {
     if (streamFlushTimerRef.current) {
       clearTimeout(streamFlushTimerRef.current);
@@ -91,6 +93,11 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
     const subtype = streamTargetSubtypeRef.current;
 
     if (subtype === 'answer') {
+      // Repetition guard hold: don't flush suspicious content to the screen.
+      if (streamHeldRef.current) {
+        streamPendingAppendRef.current = '';
+        return;
+      }
       const fullContent = accumulatedContentRef.current;
       streamPendingAppendRef.current = '';
       if (!fullContent) return;
@@ -182,6 +189,8 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
     currentStreamingMessageRef.current = null;
     accumulatedContentRef.current = '';
     splitCounterRef.current = 0;
+    repetitionDetectorRef.current = null;
+    streamHeldRef.current = false;
   }, []);
 
   const handleAgentMessage = useCallback((message: Message) => {
@@ -207,6 +216,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           prePlanMode: info.pre_plan || false,
           thinkingTokens: info.thinking_tokens,
           reasoningEffort: info.reasoning_effort,
+          thinkingEnabled: info.thinking_enabled ?? undefined,
           parallelToolCalls: info.parallel_tool_calls,
           quotaUsage: info.quota_usage ?? null,
           memoryEnabled: info.memory_enabled ?? true,
@@ -222,6 +232,10 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
     const isStreamingChunk = subtype === 'answer' || subtype === 'thinking' || subtype === 'tool_use';
     const streamEnd = message.metadata?.streamEnd || false;
 
+    // Track the current agent activity step (reasoning / tool execution /
+    // system processing / compaction) for the thinking indicator's label.
+    if (setActiveStep) setActiveStep(classifyAgentStep(message));
+
     if (isStreamingChunk) {
       const shouldStartNewStream = !currentStreamingMessageRef.current ||
                                    currentStreamingMessageRef.current.type !== subtype ||
@@ -233,6 +247,33 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
 
         if (subtype === 'answer') {
           accumulatedContentRef.current += message.content;
+
+          // Repetition guard (whitelisted models: deepseek-v4-flash family,
+          // lpai-glm-5.3): once the tail of this stream is a repeating loop,
+          // stop flushing to the screen and wait for the backend verdict
+          // (stream_aborted vs normal streamEnd).
+          if (isRepetitionGuardModel(model)) {
+            if (streamHeldRef.current) {
+              // Already holding — keep buffering, render nothing more.
+              return;
+            }
+            if (!repetitionDetectorRef.current) {
+              repetitionDetectorRef.current = new StreamRepetitionDetector();
+            }
+            const hit = repetitionDetectorRef.current.feed(message.content);
+            if (hit) {
+              streamHeldRef.current = true;
+              logger.warn('Repetition suspected in answer stream — holding render until backend verdict', {
+                component: 'Streaming',
+                operation: 'repetition_hold',
+                kind: repetitionDetectorRef.current.kind,
+                unitLength: hit.unit.length,
+                repeats: hit.repeats,
+                unitPreview: hit.unit.slice(0, 80),
+              });
+              return;
+            }
+          }
 
           // If inside an unfinished code block, only render the stable content before it
           const enclosingCodeBlockStart = findEnclosingCodeBlockStart(
@@ -342,6 +383,10 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           });
           currentStreamingMessageRef.current = null;
           accumulatedContentRef.current = '';
+          // Stream ended normally — any repetition hold was a false positive;
+          // the final flush above already wrote the full accumulated content.
+          repetitionDetectorRef.current = null;
+          streamHeldRef.current = false;
         } else {
           currentStreamingMessageRef.current = {
             id: message.id,
@@ -352,6 +397,9 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           if (subtype === 'answer') {
             accumulatedContentRef.current = message.content;
             splitCounterRef.current = 0;
+            // New answer stream — re-arm the repetition detector.
+            repetitionDetectorRef.current = null;
+            streamHeldRef.current = false;
           }
         }
       }
@@ -363,12 +411,67 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       accumulatedContentRef.current = '';
       setMessages(prev => [...prev, message]);
     }
-  }, [setMessages, setBannerInfo, stdout, workingDir, model, flushStreamingNow, scheduleStreamingFlush]);
+  }, [setMessages, setBannerInfo, stdout, workingDir, model, flushStreamingNow, scheduleStreamingFlush, setActiveStep]);
+
+  /**
+   * Backend confirmed the current stream was bad (repetition loop) and is
+   * retrying the request. Discard everything this stream produced: drop the
+   * pending/held buffers and remove any already-rendered messages carrying
+   * this streamStartId. The retried request arrives as a brand-new stream.
+   */
+  const handleStreamAborted = useCallback((data: { streamStartId?: string; reason?: string }) => {
+    const { streamStartId, reason } = data;
+    logger.warn('Stream aborted by backend — discarding rendered content', {
+      component: 'Streaming',
+      operation: 'stream_aborted',
+      streamStartId,
+      reason,
+      wasHeld: streamHeldRef.current,
+    });
+
+    if (streamFlushTimerRef.current) {
+      clearTimeout(streamFlushTimerRef.current);
+      streamFlushTimerRef.current = null;
+    }
+    streamPendingAppendRef.current = '';
+    streamTargetSubtypeRef.current = null;
+    currentStreamingMessageRef.current = null;
+    accumulatedContentRef.current = '';
+    repetitionDetectorRef.current = null;
+    streamHeldRef.current = false;
+
+    if (streamStartId) {
+      setMessages(prev => {
+        const kept = prev.filter(m => m.metadata?.streamStartId !== streamStartId);
+        if (kept.length !== prev.length) {
+          logger.warn('Dropped aborted stream messages', {
+            component: 'Streaming',
+            operation: 'stream_aborted_drop',
+            streamStartId,
+            droppedCount: prev.length - kept.length,
+          });
+        }
+        return kept;
+      });
+    }
+  }, [setMessages]);
 
   const handleToolUse = useCallback((toolData: any) => {
     const chunkIndex = toolData.metadata?.chunkIndex ?? 0;
     const isFinal = toolData.metadata.streamEnd;
     const content = toolData.content || '';
+
+    // Tool call streaming — the agent is currently executing a tool.
+    // Exception: one-shot notices (the backend maps print_info/warning to
+    // tool_use events, e.g. "Compacting context..." from auto-compaction)
+    // are classified as context compaction instead.
+    if (setActiveStep) {
+      setActiveStep(
+        isFinal && COMPACTION_CONTENT_PATTERN.test(content)
+          ? 'compaction'
+          : 'tool_execution',
+      );
+    }
 
     if (chunkIndex === 0) {
       flushStreamingNow();
@@ -383,7 +486,13 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
         content,
         timestamp: new Date().toISOString(),
         author: 'Siada',
-        metadata: { subtype: 'tool_use', chunkIndex },
+        // Only complete one-shot diff boxes bypass the dynamic area. Leave
+        // all other tool messages and the chunked tool path unchanged.
+        metadata: {
+          subtype: 'tool_use',
+          chunkIndex,
+          ...(isFinal && isRenderableToolDiff(content) ? { streamEnd: true } : {}),
+        },
       };
       currentStreamingMessageRef.current = { id: newMessage.id, type: 'tool_use' };
       setMessages(prev => [...prev, newMessage]);
@@ -445,7 +554,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
         return prev; // messages state unchanged, we only read it
       });
     }
-  }, [setMessages, flushStreamingNow, setTodoItems, setTodoMessageRanges]);
+  }, [setMessages, flushStreamingNow, setTodoItems, setTodoMessageRanges, setActiveStep]);
 
-  return { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse };
+  return { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse, handleStreamAborted };
 }

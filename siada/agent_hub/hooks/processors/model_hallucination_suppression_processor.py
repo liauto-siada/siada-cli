@@ -6,9 +6,10 @@ turn after turn without adapting to new information. This processor
 periodically injects a lightweight reminder into the LLM input nudging the
 model to vary its approach instead of repeating itself unchanged.
 
-Currently scoped to `kivy-deepseek-v4-flash` only — this is the sole model
-observed to exhibit this behaviour in practice. Other models are left
-untouched to avoid polluting their context with an irrelevant reminder.
+Currently scoped to the deepseek-v4-flash family (kivy / baidu gateways) —
+these are the sole models observed to exhibit this behaviour in practice.
+Other models are left untouched to avoid polluting their context with an
+irrelevant reminder.
 """
 
 from typing import Any, Optional
@@ -31,11 +32,15 @@ from siada.foundation.logging import logger
 
 # Models this processor is scoped to. Keep as a set so more models can be
 # added later without changing the trigger logic.
-_TARGET_MODELS = {"kivy-deepseek-v4-flash"}
+_TARGET_MODELS = {
+    "kivy-deepseek-v4-flash",
+    "kivy-deepseek-v4-flash-0731",
+    "baidu-deepseek-v4-flash-0731",
+}
 
 # Remind every N LLM calls, starting from the very first one (call #1, #21,
 # #41, ...).
-_REMINDER_INTERVAL = 20
+_REMINDER_INTERVAL = 10
 
 _REMINDER_TEXT = (
     "Do not repeat the same action unchanged. Vary the tool arguments or "

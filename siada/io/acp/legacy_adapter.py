@@ -20,6 +20,7 @@ import sys
 from typing import Optional, Any
 from contextlib import contextmanager
 
+from siada.foundation import herdr_reporter
 from siada.io.acp.message_builder import ACPMessageBuilder
 from siada.io.acp.stream_manager import ACPStreamManager
 from siada.io.acp.transport.stdio import StdioTransport
@@ -114,14 +115,14 @@ class LegacyACPAdapter:
     
     def _ensure_healthy_event_loop(self):
         """
-        确保 self._event_loop 是一个健康的、未关闭的事件循环。
+        Ensure self._event_loop is a healthy, non-closed event loop.
         
-        在 asyncio.run() 被调用后（例如 _send_if_acp_robust），
-        之前缓存的事件循环可能已经被关闭或处于不可用状态。
-        此方法检测这种情况并自动重建事件循环。
+        After asyncio.run() has been called (e.g. by _send_if_acp_robust),
+        the previously cached event loop may already be closed or unusable.
+        This method detects that case and rebuilds the event loop.
         
         Returns:
-            asyncio.AbstractEventLoop: 一个健康的事件循环
+            asyncio.AbstractEventLoop: A healthy event loop
         """
         if self._event_loop is not None and not self._event_loop.is_closed():
             return self._event_loop
@@ -168,8 +169,8 @@ class LegacyACPAdapter:
     def _send_if_acp(self, message_func, *args, **kwargs):
         """Helper to send ACP message or fallback to console
         
-        直接使用 transport.send_sync() 同步发送，
-        完全不依赖 asyncio 事件循环，避免事件循环状态问题。
+        Sends synchronously through transport.send_sync(),
+        with no dependency on the asyncio event loop, avoiding event loop state issues.
         """
         if not self.acp_enabled:
             return None
@@ -195,28 +196,28 @@ class LegacyACPAdapter:
         """
         Robust version of _send_if_acp for cleanup scenarios
         
-        专门用于 finally 块等清理场景,确保消息送达。
-        直接使用 transport.send_sync() 同步发送,完全不依赖 asyncio 事件循环。
+        Intended for cleanup paths such as finally blocks, ensuring the message is delivered.
+        Sends synchronously through transport.send_sync(), with no dependency on the asyncio event loop.
         
-        与 _send_if_acp 的区别:
-        1. 更详细的日志记录,便于排查清理场景的问题
-        2. 显式 flush stdout,确保消息被发送到 OS
-        3. 更完善的异常处理和 fallback 机制
+        Differences from _send_if_acp:
+        1. More detailed logging, to help diagnose problems in cleanup paths
+        2. Explicitly flushes stdout, ensuring the message reaches the OS
+        3. More thorough exception handling and fallback behavior
         
-        适用场景:
-        - finally 块中发送 stop animation 消息
-        - 进程即将退出时的清理消息
-        - 任何需要确保消息送达的关键场景
+        Use cases:
+        - Sending a stop animation message from a finally block
+        - Cleanup messages as the process is about to exit
+        - Any critical path that must guarantee delivery
         
         Args:
-            message_func: 消息构造函数 (通常是 lambda)
-            *args, **kwargs: 传递给 message_func 的参数
+            message_func: Message factory function (usually a lambda)
+            *args, **kwargs: Arguments passed to message_func
         
         Returns:
-            ACPMessage 对象,表示消息已发送; None 表示发送失败或 ACP 未启用
+            ACPMessage object, meaning the message was sent; None means sending failed or ACP is disabled
         
         Example:
-            # 在 finally 块中使用
+            # Use inside a finally block
             adapter._send_if_acp_robust(
                 lambda: builder.build_session_update(
                     reason="input_ready",
@@ -328,6 +329,10 @@ class LegacyACPAdapter:
             input_type: Type of input expected ("text", "password", "confirmation")
             is_password: Whether the input should be masked (for passwords)
         """
+        # The agent is now waiting on the human, which is what Herdr surfaces
+        # as a blocked pane. Reported for both transports: in non-ACP mode the
+        # same wait happens on the terminal itself.
+        herdr_reporter.report_state(herdr_reporter.STATE_BLOCKED, message=prompt)
         self._send_if_acp(
             self.builder.build_interactive_input_request,
             prompt=prompt,
@@ -346,6 +351,9 @@ class LegacyACPAdapter:
         Args:
             reason: Reason for cancellation ("timeout", "cancelled", "error")
         """
+        # The wait is over (input received, timed out, or cancelled); the
+        # turn is back in flight until the agent run reports otherwise.
+        herdr_reporter.report_state(herdr_reporter.STATE_WORKING)
         self._send_if_acp(
             self.builder.build_interactive_input_cancel,
             reason=reason

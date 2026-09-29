@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     Deepseek_V3_0324: str = "deepseek-v3-0324"
     Deepseek_R1_0528: str = "deepseek-r1-0528"
     O1_MINI: str = "o1-mini"
-    MAX_TURNS: int = 200
+    MAX_TURNS: int = 1000
     DEFAULT_MODEL: str = Claude_4_0_SONNET
     
     # Memory search configuration
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
-        extra = "ignore"  # 忽略未知的环境变量，避免升级后旧配置导致启动失败
+        extra = "ignore"  # ignore unknown env vars, so stale configs cannot break startup after upgrade
 
     class Constants:
         # Agent name

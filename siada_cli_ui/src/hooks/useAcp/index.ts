@@ -19,7 +19,7 @@ export function useACP(config: ClientConfig): UseACPResult {
     state.messagesRef.current = state.messages;
   }, [state.messages]);
 
-  const { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse } = useStreamingMessages({
+  const { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse, handleStreamAborted } = useStreamingMessages({
     setMessages: state.setMessages,
     setBannerInfo: state.setBannerInfo,
     stdout,
@@ -29,12 +29,14 @@ export function useACP(config: ClientConfig): UseACPResult {
     messagesRef: state.messagesRef,
     setTodoItems: state.setTodoItems,
     setTodoMessageRanges: state.setTodoMessageRanges,
+    setActiveStep: state.setActiveStep,
   });
 
   useClientEvents(config, {
     setClient: state.setClient,
     setConnectionStatus: state.setConnectionStatus,
     setLoading: state.setLoading,
+    setActiveStep: state.setActiveStep,
     setTokenUsage: state.setTokenUsage,
     setInteractiveInput: state.setInteractiveInput,
     setLoginState: state.setLoginState,
@@ -42,6 +44,8 @@ export function useACP(config: ClientConfig): UseACPResult {
     setTodoItems: state.setTodoItems,
     setTodoMessageRanges: state.setTodoMessageRanges,
     setGoalState: state.setGoalState,
+    setSubAgentItems: state.setSubAgentItems,
+    setSubAgentMessages: state.setSubAgentMessages,
     messagesRef: state.messagesRef,
     clientRef: state.clientRef,
     currentSessionIdRef: state.currentSessionIdRef,
@@ -53,6 +57,7 @@ export function useACP(config: ClientConfig): UseACPResult {
     setCacheStatus: state.setCacheStatus,
     handleAgentMessage,
     handleToolUse,
+    handleStreamAborted,
     flushStreamingNow,
     resetStreaming,
   });
@@ -208,6 +213,16 @@ export function useACP(config: ClientConfig): UseACPResult {
     state.setMessages(prev => prev.map(msg => msg.id === id ? { ...msg, ...updates } : msg));
   }, []);
 
+  const removeMessage = useCallback((id: string) => {
+    // If the removed message is the deferred-rendering anchor, drop the
+    // anchor as well so a late pullHistory flush appends at the end instead
+    // of hunting for a message that no longer exists.
+    if (state.pendingUserMessageIdRef.current === id) {
+      state.pendingUserMessageIdRef.current = null;
+    }
+    state.setMessages(prev => prev.filter(msg => msg.id !== id));
+  }, []);
+
   const sendInteractiveInput = useCallback(async (input: string) => {
     if (!state.client || !state.client.isConnected()) return;
     try {
@@ -231,6 +246,7 @@ export function useACP(config: ClientConfig): UseACPResult {
     messages: state.messages,
     connectionStatus: state.connectionStatus,
     loading: state.loading,
+    activeStep: state.activeStep,
     bannerInfo: state.bannerInfo,
     tokenUsage: state.tokenUsage,
     interactiveInput: state.interactiveInput,
@@ -241,11 +257,14 @@ export function useACP(config: ClientConfig): UseACPResult {
     cancelPendingQueue,
     addMessage,
     updateMessage,
+    removeMessage,
     clearMessages,
     sessionId: state.currentSessionIdRef.current,
     cacheStatus: state.cacheStatus,
     todoItems: state.todoItems,
     todoMessageRanges: state.todoMessageRanges,
     goalState: state.goalState,
+    subAgentItems: state.subAgentItems,
+    subAgentMessages: state.subAgentMessages,
   };
 }

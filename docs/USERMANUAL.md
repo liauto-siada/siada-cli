@@ -16,7 +16,7 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
 
 **Method 1: Default Configuration**
    - The system reads default configuration from `agent_config.yaml` file
-   - Current defaults: model `claude-sonnet-4.5`, provider `openrouter`
+   - Current defaults: model `claude-sonnet-4.5`, provider `li`
 
    **Method 2: Customize via Configuration File**
    - Regular Users
@@ -30,13 +30,13 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
          # 2. Configuration file content example
          llm_config:
             model: "claude-sonnet-4.5"          # Change to your desired model
-            provider: "openrouter"
+            provider: "li"
          ```
    - Developer Mode
       - Edit the `llm_config` section in `agent_config.yaml` file:
          ```yaml
          llm_config:
-            provider: "openrouter"
+            provider: "li"
             model_name: "claude-sonnet-4.5"     # Change to your desired model
          ```
 
@@ -46,10 +46,7 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
    export SIADA_MODEL="claude-sonnet-4.5"
    
    # Set provider
-   export SIADA_PROVIDER="openrouter"
-
-   # Required when using OpenRouter provider
-   export OPENROUTER_API_KEY="your_openrouter_key"
+   export SIADA_PROVIDER="li"
    ```
 
    **Method 4: Via Command Line Parameters (Highest Priority)**
@@ -58,15 +55,33 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
    siada-cli --model claude-sonnet-4
    
    # Change both model and provider
-   siada-cli --model gpt-4.1 --provider openrouter
+   siada-cli --model gpt-4.1 --provider li
    
    # Only change provider (keep model unchanged)
-   siada-cli --provider openrouter
+   siada-cli --provider li
    ```
 
    > **Important Notes:**
    > - **Complete Priority**: `Command line parameters` > `Environment variables (SIADA_ prefix)` > `Configuration file (agent_config.yaml)`
-   > - **Provider Requirements**: When using `openrouter`, must set `OPENROUTER_API_KEY` environment variable
+
+### Goal Verification Limit
+
+The `/goal` verifier stops automatic continuation when it has no actionable
+`nextAction`, or when the maximum number of consecutive failed verifier turns
+is reached. Configure the limit in `~/.siada-cli/conf.yaml`:
+
+```yaml
+goal:
+  max_turns: 6
+```
+
+The default is `6`. Two consecutive verifier system errors remain a separate,
+faster safety breaker. Internal follow-up turns, including background task
+results, do not reactivate a blocked goal; a new user message does. When there
+is a goal to clear, `/goal clear` persists a hidden reminder in the session
+history so the model knows not to resume it. If the history write fails, the
+goal is still cleared and a warning is shown; the model may not receive the
+reminder on its next turn.
 
 ### External Model Configuration
 
@@ -82,13 +97,13 @@ Edit `agent_config.yaml` to customize agent behavior:
 
 ```yaml
 agents:
-  bugfix:
-    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
-    description: "Specialized agent for code bug fixing"
+  coder:
+    class: "siada.agent_hub.coder.code_gen_agent.CodeGenAgent"
+    description: "General-purpose code development agent"
     enabled: true
 
 llm_config:
-  provider: "openrouter"
+  provider: "li"
   model_name: "claude-sonnet-4.5"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
@@ -101,12 +116,9 @@ Set environment variables to configure behavior:
 
 ```bash
 # Siada-specific settings (use SIADA_ prefix)
-export SIADA_AGENT="bugfix"
+export SIADA_AGENT="coder"
 export SIADA_MODEL="claude-sonnet-4.5"
 export SIADA_THEME="dark"
-
-# Required when using OpenRouter provider
-export OPENROUTER_API_KEY="your_openrouter_key"
 
 # Unset environment variables in current terminal session
 unset SIADA_MODEL
@@ -244,6 +256,10 @@ Siada CLI integrates MCP (Model Context Protocol) service to provide extended to
 
 Siada CLI supports two usage modes to meet different usage scenarios:
 
+Interactive sessions use the Node.js terminal UI launched by `siada-cli`, with
+an ACP-connected Python backend. The legacy Rich/prompt_toolkit interactive UI
+is no longer supported. Non-interactive `--prompt` execution is unchanged.
+
 ### Non-Interactive Mode
 
 **Features:**
@@ -254,7 +270,7 @@ Siada CLI supports two usage modes to meet different usage scenarios:
 **Usage:**
 ```bash
 # Use --prompt parameter to trigger non-interactive mode
-siada-cli --agent bugfix --prompt "Fix login errors in auth.py"
+siada-cli --agent coder --prompt "Fix login errors in auth.py"
 
 # Combine with other parameters
 siada-cli --agent coder --model claude-sonnet-4.5 --prompt "Create a REST API endpoint"
@@ -326,9 +342,6 @@ siada-cli -p "Fix authentication errors in login.py"
 
 # Use a different model
 siada-cli --model claude-sonnet-4.5
-
-# Use OpenRouter provider (requires API key setup)
-siada-cli --provider openrouter
 
 # Set color theme
 siada-cli --theme dark
@@ -424,16 +437,11 @@ Differences between the two methods:
 
 ## Agent Types
 
-### Bug Fix Agent (`--agent bugfix` / `-a bugfix` / `--bugfix`) 
-> **Only supports non-interactive mode!**
-
-Specialized for identifying, analyzing, and fixing bugs in codebases. Provides detailed analysis and automated fix suggestions.
-
 ### Code Generation Agent (`--agent coder` / `-a coder` / `--coder`)
-General-purpose code development agent for creating new features, refactoring code, and implementing functionality in various programming languages.
+General-purpose code development agent for creating new features, fixing bugs, refactoring code, and implementing functionality (including frontend tasks) in various programming languages.
 
-### Frontend Generation Agent (`--agent fegen` / `-a fegen` / `--fegen`)
-Focused on frontend development tasks, including React components, CSS styling, and user interface implementation.
+### Custom Agents (`.agents/agents/`)
+In addition to the built-in agent types, you can define your own named sub-agents in Markdown files under `.agents/agents/` (or `~/.siada-cli/agents/`). Each definition carries its own system prompt plus `tools`, `skills`, `mcpServers`, `background` and `effort` settings, and the main agent delegates to it through `run_subtask`. See the [Custom Agents Guide](./USER_AGENTS.md) for the file format, field reference, priority rules and examples.
 
 ## Examples
 
@@ -477,8 +485,8 @@ siada-cli --agent coder
 siada-cli --prompt "Create a user registration API"
 
 # Specify a specific agent to execute tasks
-siada-cli --agent bugfix --prompt "Fix authentication errors in login.py"
-siada-cli --agent fegen --prompt "Create a responsive navigation bar component using React and Tailwind CSS"
+siada-cli --agent coder --prompt "Fix authentication errors in login.py"
+siada-cli --agent coder --prompt "Create a responsive navigation bar component using React and Tailwind CSS"
 ```
 
 **Exit Virtual Environment (Developer Mode Only):**
@@ -531,8 +539,6 @@ If running `siada-cli` directly shows command not found:
 
 **Model API errors:**
 - Check your internet connection
-- If using OpenRouter provider, ensure API key is set correctly
-- If using OpenRouter provider, verify your account has sufficient credits
 
 **Installation issues:**
 - Ensure you have Python 3.12+ installed

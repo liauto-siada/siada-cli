@@ -8,7 +8,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 
@@ -297,11 +297,14 @@ class TestCrontabTaskExecution:
             signal_file=signal_file,
             workspace=str(tmp_path),
         )
+        # ``_run_cron_task`` delegates to ``_run_agent``, which applies the
+        # username gate and then forwards to ``_run_agent_with_config`` (the
+        # SiadaRunner path that fires telemetry hooks).
         s._run_agent = AsyncMock(return_value=None)
 
         asyncio.run(s._run_cron_task(task.id, task.instruction))
 
-        s._run_agent.assert_called_once_with("coder", task.instruction)
+        s._run_agent.assert_called_once_with("coder", task.instruction, ANY)
 
     def test_run_cron_task_persists_last_run_to_disk(
         self, default_config, cron_storage, signal_file, tmp_path

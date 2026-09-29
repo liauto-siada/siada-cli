@@ -20,7 +20,7 @@ export const RenameBox: React.FC<RenameBoxProps> = ({ value, isActive }) => {
       marginBottom={1}
     >
       <Text color="yellow">✎ Rename: </Text>
-      <Text color="white">{value}</Text>
+      <Text color="white" wrap="truncate">{value}</Text>
       <Text color="yellow">█</Text>
       <Text color="gray" dimColor>  Enter to confirm · Esc to cancel</Text>
     </Box>

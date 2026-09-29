@@ -5,6 +5,7 @@ import subprocess
 from collections import defaultdict
 from siada.foundation.logging import logger
 from siada.services.plugins.types import HookEntry, HookResponse, LoadedPlugin
+from siada.foundation.shell_env import make_user_shell_env
 
 _HOOK_TIMEOUT_SECONDS = 5
 
@@ -108,8 +109,7 @@ class HookRunner:
     @staticmethod
     def _make_env(plugin_path: str) -> dict:
         """Build env dict with CLAUDE_PLUGIN_ROOT set for the given plugin."""
-        import os
-        env = os.environ.copy()
+        env = make_user_shell_env()
         env["CLAUDE_PLUGIN_ROOT"] = plugin_path
         return env
 

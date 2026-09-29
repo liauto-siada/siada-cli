@@ -25,6 +25,7 @@ import { Text, Box } from '@jrichman/ink';
 import { theme } from './theme.js';
 import { getPlainTextLength } from './InlineMarkdownRenderer.js';
 import { colors } from '../../utils/colors.js';
+import { useThemeVersion } from '../../themes/index.js';
 
 interface TableRendererProps {
   headers: string[];
@@ -167,6 +168,7 @@ export const TableRenderer: React.FC<TableRendererProps> = ({
   rows,
   terminalWidth,
 }) => {
+  useThemeVersion(); // repaint on theme change (memoized parent blocks re-renders)
   const numCols = headers.length;
 
   // Step 1: per-column min and ideal widths.

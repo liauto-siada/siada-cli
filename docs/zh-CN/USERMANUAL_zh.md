@@ -15,7 +15,7 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
 
 **方法1：默认配置**
    - 系统从 `agent_config.yaml` 文件读取默认配置
-   - 当前默认：模型 `claude-sonnet-4.5`，供应商 `openrouter`
+   - 当前默认：模型 `claude-sonnet-4.5`，供应商 `li`
 
    **方法2：通过配置文件自定义**
    - 普通用户
@@ -29,13 +29,13 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
          # 2. 配置文件内容示例
          llm_config:
          model: "claude-sonnet-4.5"          # 更改为您想要的模型
-         provider: "openrouter"
+         provider: "li"
          ```
    - 开发者模式
       - 编辑 `agent_config.yaml` 文件中的 `llm_config` 部分：
          ```yaml
          llm_config:
-         provider: "openrouter"
+         provider: "li"
          model_name: "claude-sonnet-4.5"     # 更改为您想要的模型
          ```
 
@@ -45,10 +45,7 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
    export SIADA_MODEL="claude-sonnet-4.5"
    
    # 设置供应商
-   export SIADA_PROVIDER="openrouter"
-
-   # 在使用 OpenRouter 提供商时需要
-   export OPENROUTER_API_KEY="your_openrouter_key"
+   export SIADA_PROVIDER="li"
    ```
 
    **方法4：通过命令行参数（最高优先级）**
@@ -57,15 +54,29 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
    siada-cli --model claude-sonnet-4.5
    
    # 同时更改模型和供应商
-   siada-cli --model gpt-4.1 --provider openrouter
+   siada-cli --model gpt-4.1 --provider li
    
    # 仅更改供应商（保持模型不变）
-   siada-cli --provider openrouter
+   siada-cli --provider li
    ```
 
    > **重要提醒：**
    > - **完整优先级**：`命令行参数` > `环境变量(SIADA_前缀)` > `配置文件(agent_config.yaml)`
-   > - **供应商要求**：使用 `openrouter` 时必须设置 `OPENROUTER_API_KEY` 环境变量
+
+### `/goal` 验证轮次上限
+
+如果验证器没有给出可执行的 `nextAction`，或连续验证失败次数已达到上限，
+`/goal` 会停止自动续跑。可在 `~/.siada-cli/conf.yaml` 中配置轮次上限：
+
+```yaml
+goal:
+  max_turns: 6
+```
+
+默认值为 `6`。连续两次验证系统错误仍会触发独立且更快的熔断。
+后台任务结果等内部续跑不会重新激活已阻断的 Goal；用户发送新消息时才会恢复。
+清除现有 Goal 时，`/goal clear` 会将隐藏提醒写入会话历史，告知模型不要继续旧目标。
+如果历史写入失败，Goal 仍会清除并显示警告，但模型下一轮可能读不到该提醒。
 
 ### 外部模型配置
 
@@ -81,13 +92,13 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
 
 ```yaml
 agents:
-  bugfix:
-    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
-    description: "专门用于代码错误修复的代理"
+  coder:
+    class: "siada.agent_hub.coder.code_gen_agent.CodeGenAgent"
+    description: "通用代码开发代理"
     enabled: true
 
 llm_config:
-  provider: "openrouter"
+  provider: "li"
   model_name: "claude-sonnet-4.5"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
@@ -100,12 +111,9 @@ llm_config:
 
 ```bash
 # Siada 特定设置（使用 SIADA_ 前缀）
-export SIADA_AGENT="bugfix"
+export SIADA_AGENT="coder"
 export SIADA_MODEL="claude-sonnet-4.5"
 export SIADA_THEME="dark"
-
-# 在使用 OpenRouter 提供商时需要
-export OPENROUTER_API_KEY="your_openrouter_key"
 
 # 在当前终端会话中取消环境变量
 unset SIADA_MODEL
@@ -243,6 +251,9 @@ Siada CLI 集成了 MCP（Model Context Protocol）服务，为 AI 代理提供�
 
 Siada CLI 支持两种使用模式，满足不同的使用场景：
 
+交互会话使用 `siada-cli` 启动的 Node.js 终端 UI，通过 ACP 连接 Python 后端。
+不再支持旧的 Rich/prompt_toolkit 交互 UI；`--prompt` 非交互执行方式保持不变。
+
 ### 非交互模式
 
 **特点：**
@@ -253,7 +264,7 @@ Siada CLI 支持两种使用模式，满足不同的使用场景：
 **使用方法：**
 ```bash
 # 使用 --prompt 参数触发非交互模式
-siada-cli --agent bugfix --prompt "修复 auth.py 中的登录错误"
+siada-cli --agent coder --prompt "修复 auth.py 中的登录错误"
 
 # 组合其他参数
 siada-cli --agent coder --model claude-sonnet-4.5 --prompt "创建一个 REST API 端点"
@@ -325,9 +336,6 @@ siada-cli -p "修复 login.py 中的认证错误"
 
 # 使用不同模型
 siada-cli --model claude-sonnet-4
-
-# 明确使用 OpenRouter 供应商（需要设置 API 密钥）
-siada-cli --provider openrouter
 
 # 设置颜色主题
 siada-cli --theme dark
@@ -424,16 +432,11 @@ exit
 
 ## 代理类型
 
-### 错误修复代理 (`--agent bugfix` / `-a bugfix` / `--bugfix`) 
-> **仅支持在非交互模式下使用！**
-
-专门用于识别、分析和修复代码库中的错误。提供详细分析和自动修复建议。
-
 ### 代码生成代理 (`--agent coder` / `-a coder` / `--coder`)
-通用代码开发代理，用于创建新功能、重构代码以及在各种编程语言中实现功能。
+通用代码开发代理，用于创建新功能、修复缺陷、重构代码以及在各种编程语言中实现功能（包括前端开发任务）。
 
-### 前端生成代理 (`--agent fegen` / `-a fegen` / `--fegen`)
-专注于前端开发任务，包括 React 组件、CSS 样式和用户界面实现。
+### 自定义代理（`.agents/agents/`）
+除内置代理类型外，你还可以在 `.agents/agents/`（或 `~/.siada-cli/agents/`）下用 Markdown 文件定义自己的命名子代理。每个定义自带系统提示词，并支持 `tools`、`skills`、`mcpServers`、`background`、`effort` 配置，主代理通过 `run_subtask` 把任务派给它。文件格式、字段说明、优先级规则与示例见 [自定义代理指南](./USER_AGENTS_zh.md)。
 
 ## 示例
 
@@ -477,8 +480,8 @@ siada-cli --agent coder
 siada-cli --prompt "创建一个用户注册 API"
 
 # 指定特定代理执行任务
-siada-cli --agent bugfix --prompt "修复 login.py 中的认证错误"
-siada-cli --agent fegen --prompt "使用 React 和 Tailwind CSS 创建一个响应式导航栏组件"
+siada-cli --agent coder --prompt "修复 login.py 中的认证错误"
+siada-cli --agent coder --prompt "使用 React 和 Tailwind CSS 创建一个响应式导航栏组件"
 ```
 
 **退出虚拟环境（仅开发者模式需要）：**
@@ -531,8 +534,6 @@ deactivate
 
 **模型 API 错误：**
 - 检查您的网络连接
-- 如果使用 OpenRouter 提供商，确保 API 密钥设置正确
-- 如果使用 OpenRouter 提供商，验证您的账户有足够的积分
 
 **安装问题：**
 - 确保您安装了 Python 3.12+

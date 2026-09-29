@@ -18,6 +18,14 @@ from .parser import AtCommandParser
 from .resolver import PathResolver
 from .exceptions import AtCommandError
 
+# The ``<user_input>`` tag literals every entry point wraps the human's text
+# in — split off before @-parsing, restored afterwards. See
+# ``siada.services.memory.holographic.marker`` for the full rationale.
+from siada.services.memory.holographic.marker import (
+    USER_INPUT_BEGIN,
+    USER_INPUT_END,
+)
+
 # Import ReadManyFiles tool
 from siada.tools.read_many_files_tool import ReadManyFilesTool
 from siada.tools.read_many_files.models import ReadManyFilesParams
@@ -48,11 +56,23 @@ class AtCommandProcessor:
         """
         start_time = time.time()
         spinner = None
-        
+
         try:
             # 1. Parse user input
+            # Every user-input entry point wraps the human's literal text in a
+            # ``<user_input>`` tag BEFORE the agent runs @-expansion (see
+            # conversation_turn.py / nointeractive_controller.py / runtime.py /
+            # lark_agent_executor.py). The parser must never see those tag
+            # literals: ``_find_path_end`` only stops at whitespace, so a
+            # trailing ``@foo.py</user_input>`` would be read as one path and
+            # then rejected by ``validate_at_path`` (it contains '<' / '>'),
+            # silently skipping expansion for any @ reference at the end of
+            # the user's message. So split the tag off first and parse only
+            # the human-authored text inside it.
+            head, inner_query, tail = self._split_user_input_wrapper(params.query)
+
             # Use the variant that excludes invalid @ segments (diff hunks, hex ids, etc.)
-            command_parts = self.parser.parse_all_at_commands_exclude_invalids(params.query)
+            command_parts = self.parser.parse_all_at_commands_exclude_invalids(inner_query)
             at_path_parts = [part for part in command_parts if part.type == 'atPath']
             
             self.stats.total_at_commands = len(at_path_parts)
@@ -103,7 +123,13 @@ class AtCommandProcessor:
             if not paths_to_read:
                 params.on_debug_message('No valid file paths found in @ commands to read.')
                 initial_query = self._rebuild_initial_query(command_parts, at_path_to_resolved_map)
-                return HandleAtCommandResult([{'text': initial_query or params.query}], True)
+                if not initial_query:
+                    # Nothing was rewritten — hand the original query back
+                    # verbatim, tag included.
+                    return HandleAtCommandResult([{'text': params.query}], True)
+                return HandleAtCommandResult(
+                    [{'text': self._rewrap_user_input(initial_query, head, tail)}], True
+                )
             
             # 6. Read files using ReadManyFilesTool
             try:
@@ -118,9 +144,11 @@ class AtCommandProcessor:
                 
                 # 7. Build processed query
                 processed_query = self._build_processed_query(
-                    command_parts, 
-                    at_path_to_resolved_map, 
-                    file_contents
+                    command_parts,
+                    at_path_to_resolved_map,
+                    file_contents,
+                    head=head,
+                    tail=tail,
                 )
                 
                 # 8. Record success
@@ -223,7 +251,46 @@ class AtCommandProcessor:
         
         return []
     
-    def _rebuild_initial_query(self, command_parts: List[AtCommandPart], 
+    def _split_user_input_wrapper(self, query: str) -> Tuple[str, str, str]:
+        """Split a ``<user_input>``-wrapped query into ``(head, inner, tail)``.
+
+        Entry points wrap the human's literal text as
+        ``<user_input>TEXT</user_input>`` and may append their own injected
+        context *after* the closing tag (e.g. the Feishu IM context blocks
+        built by ``LarkAgentExecutor._build_user_input``, or the ACP
+        browser-playbook suffix). ``head`` / ``tail`` capture everything
+        outside the tag so it can be restored byte-for-byte, while ``inner``
+        is the only part @-parsing should ever look at.
+
+        Returns ``('', query, '')`` when no complete tag pair is present, so
+        unwrapped callers keep the previous behavior exactly.
+        """
+        if not isinstance(query, str) or not query:
+            return '', query, ''
+
+        begin_index = query.find(USER_INPUT_BEGIN)
+        if begin_index == -1:
+            return '', query, ''
+        # Match the LAST closing tag so a literal "</user_input>" typed inside
+        # the user's own text can't truncate the body.
+        end_index = query.rfind(USER_INPUT_END)
+        if end_index == -1 or end_index < begin_index:
+            return '', query, ''
+
+        head = query[:begin_index + len(USER_INPUT_BEGIN)]
+        inner = query[begin_index + len(USER_INPUT_BEGIN):end_index]
+        tail = query[end_index:]
+        return head, inner, tail
+
+    @staticmethod
+    def _rewrap_user_input(inner: str, head: str, tail: str) -> str:
+        """Put the ``<user_input>`` tag (and anything outside it) back on.
+
+        No-op when the query was not tagged (``head``/``tail`` empty).
+        """
+        return f'{head}{inner}{tail}'
+
+    def _rebuild_initial_query(self, command_parts: List[AtCommandPart],
                               at_path_to_resolved_map: Dict[str, str]) -> str:
         """
         Rebuild the initial query text with resolved paths
@@ -256,29 +323,46 @@ class AtCommandProcessor:
         
         return initial_query_text.strip()
     
-    def _build_processed_query(self, command_parts: List[AtCommandPart], 
+    def _build_processed_query(self, command_parts: List[AtCommandPart],
                               at_path_to_resolved_map: Dict[str, str],
-                              file_contents: List[Any]) -> List[Dict]:
+                              file_contents: List[Any],
+                              head: str = '',
+                              tail: str = '') -> List[Dict]:
         """
         Build the processed query with file contents injected
-        
+
         Args:
             command_parts: Parsed command parts
             at_path_to_resolved_map: Mapping of @ paths to resolved paths
             file_contents: File contents from ReadManyFilesTool
-            
+            head: Text preceding the user's literal input, including the
+                ``<user_input>`` opening tag when one was present.
+            tail: The ``</user_input>`` closing tag plus any context the
+                caller injected after it.
+
         Returns:
-            List of processed query parts
+            List of processed query parts. Text file contents are merged into a
+            single text part together with the user query, while non-text parts
+            (e.g. image/PDF Part objects) are kept as separate parts.
+
+            The referenced-file block is placed INSIDE the ``<user_input>``
+            tag, immediately after the user's text and before the closing
+            tag, so the @-expanded content the user asked for is covered by
+            the tag rather than dangling outside it. Anything the caller
+            injected after the closing tag (Feishu IM context blocks, ACP
+            playbook suffix) stays outside, untouched.
         """
-        # 1. Rebuild initial query text
+        # 1. Rebuild initial query text (the human's own text, tag stripped).
         initial_query_text = self._rebuild_initial_query(command_parts, at_path_to_resolved_map)
-        
-        # 2. Start with the initial query
-        processed_parts = [{'text': initial_query_text}]
+
+        # 2. Accumulate the user's text plus the referenced-file block; both
+        #    go inside the <user_input> tag, which is re-applied in step 4.
+        text_parts = [initial_query_text]
+        non_text_parts: List[Any] = []
         
         # 3. Add file contents if any
         if file_contents:
-            processed_parts.append({'text': '\n--- Content from referenced files ---'})
+            text_parts.append('\n--- Content from referenced files ---')
             
             for file_content_part in file_contents:
                 if isinstance(file_content_part, str):
@@ -286,16 +370,25 @@ class AtCommandProcessor:
                     file_path, content = self.parser.extract_file_content_info(file_content_part)
                     
                     if file_path:
-                        processed_parts.append({'text': f'\nContent from @{file_path}:\n'})
-                        processed_parts.append({'text': content})
+                        text_parts.append(f'\nContent from @{file_path}:\n')
+                        text_parts.append(content)
                     else:
-                        processed_parts.append({'text': file_content_part})
+                        # Unrecognized shape (e.g. the file-tree block) — emit as
+                        # is, on its own line so it doesn't run into the header.
+                        text_parts.append(f'\n{file_content_part}')
                 else:
-                    # Non-string content (e.g., image Part objects)
-                    processed_parts.append(file_content_part)
-            
-            processed_parts.append({'text': '\n--- End of content ---'})
-        
+                    # Non-string content (e.g., image Part objects) cannot be
+                    # concatenated into text; keep it as a separate part.
+                    non_text_parts.append(file_content_part)
+
+            text_parts.append('\n--- End of content ---')
+
+        # 4. Wrap the user text + file block back in the <user_input> tag, then
+        #    append any non-text parts (images/PDFs can't be concatenated).
+        merged_text = self._rewrap_user_input(''.join(text_parts), head, tail)
+        processed_parts = [{'text': merged_text}]
+        processed_parts.extend(non_text_parts)
+
         return processed_parts
     
     def _record_tool_success(self, content_labels: List[str], add_item: callable, message_id: int):

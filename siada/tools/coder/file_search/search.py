@@ -22,61 +22,31 @@ from siada.tools.resolve_cwd import resolve_cwd
 from siada.utils import DirectoryUtils
 from siada.foundation.context import get_context_var
 
-SEARCH_DOCS="""
-    Perform high-performance regex search across files using ripgrep.
-    
-    This function provides a convenient interface to search for patterns in files
-    within a specified directory. It uses ripgrep for fast searching and returns
-    formatted results with context lines for better readability.
-    
-    Args:
-        cwd (str): Current working directory used as the base for calculating
-                  relative file paths in the output. This helps make the results
-                  more readable by showing paths relative to the project root.
-        directory_path (str): The target directory to search in. Can be an absolute
-                             or relative path. All files matching the file_pattern
-                             within this directory (and subdirectories) will be searched.
-        regex (str): Regular expression pattern to search for. Uses Rust regex syntax
-                    which is similar to PCRE. Supports advanced features like lookahead,
-                    lookbehind, and Unicode character classes.
-        file_pattern (str, optional): Glob pattern to filter which files to search.
-                                     Defaults to "*" (all files). Examples:
-                                     - "*.py" for Python files only
-                                     - "*.{js,ts}" for JavaScript and TypeScript files
-                                     - "test_*.py" for Python test files
-        
-    Returns:
-        str: Formatted search results containing:
-             - Summary line with total number of matches found
-             - For each file with matches:
-               - Relative file path
-               - Each match with surrounding context lines
-               - Line numbers and column positions
-             - Results are limited to MAX_RESULTS (300) for performance
-             - Returns "No results found" if no matches are discovered
-        
-    Raises:
-        RuntimeError: If the ripgrep binary cannot be found or executed.
-                     This can happen if ripgrep is not installed or the binary
-                     path is not properly configured.
-        
-    Example:
-        >>> results = regex_search_files(
-        ...     cwd="/project/root",
-        ...     directory_path="siada",
-        ...     regex=r"def\\s+(\\w+)",
-        ...     file_pattern="*.py"
-        ... )
-        >>> print(results)
-        Found 15 results.
-        
-        siada/main.py
-        │----
-        │class MyClass:
-        │    def my_function(self):
-        │        pass
-        │----
-    """
+# Model-facing tool description, concatenated from the two parts below:
+# - _SEARCH_BEHAVIOR_DOCS: behavior guidance (when to parallelize, how to
+#   scope searches, how to read truncated output).
+# - _SEARCH_ARGS_DOCS: parameter docs.
+# Parameter docs deliberately live in the description instead of the function
+# docstring: the SDK's docstring-style sniffing (griffe) breaks silently — e.g.
+# when "Args:" is not preceded by a blank line — while the description is sent
+# to the model verbatim.
+_SEARCH_BEHAVIOR_DOCS = """Perform high-performance regex search across files using ripgrep (Rust regex syntax).
+
+- Results include surrounding context lines for each match. Narrow patterns beat broad ones — output beyond the size limit is middle-truncated, with the full output saved to a file you can read later.
+- To search for several independent patterns, emit one call per pattern in the same response (or combine them into a single regex with `|` alternation); when independent reads, commands, or edits are also needed, emit those tool calls in the same response too.
+- Use `file_pattern` (e.g. "*.py", "*.{js,ts}") to scope the search and keep results focused.
+- Use the available file-reading tool to inspect the full context of interesting matches before making changes.
+"""
+
+_SEARCH_ARGS_DOCS = """
+Args:
+    cwd: Current working directory used as the base for calculating relative file paths in the output.
+    directory_path: The target directory to search in (absolute or relative path; searched recursively).
+    regex: Regular expression pattern to search for (Rust regex syntax, similar to PCRE).
+    file_pattern: Glob pattern to filter which files to search, e.g. "*.py" or "*.{js,ts}". Defaults to "*" (all files).
+"""
+
+SEARCH_DOCS = _SEARCH_BEHAVIOR_DOCS + _SEARCH_ARGS_DOCS
 
 
 # Try to import importlib.resources for packaged environments
@@ -610,11 +580,11 @@ def _truncate_tool_output_if_needed(content: str, call_id: str, cwd: str) -> str
     return (
         "Tool output was too large and has been truncated.\n"
         + file_hint
-        + "To read the complete output, use the edit_file tool with command=\"view\" and the absolute file path above.\n"
-        + "For large files, you can use the view_range parameter to read specific line ranges:\n"
-        + "- edit_file with command=\"view\", view_range=[1, 100] to see lines 1-100\n"
-        + "- edit_file with command=\"view\", view_range=[N, M] to read lines N through M\n"
-        + "- edit_file with command=\"view\", view_range=[N, -1] to read from line N to the end of the file\n"
+        + "To read the complete output, use the available file-reading tool with the absolute file path above.\n"
+        + "For large files, use its view-range parameter to read specific line ranges:\n"
+        + "- view_range=[1, 100] to see lines 1-100\n"
+        + "- view_range=[N, M] to read lines N through M\n"
+        + "- view_range=[N, -1] to read from line N to the end of the file\n"
         + "You may also use regex_search_files or run_cmd (e.g. grep/head/tail) to locate specific content within the saved file.\n\n"
         + "The truncated output below shows the beginning and end of the content.\n"
         + "The marker '... [CONTENT TRUNCATED] ...' indicates where content was removed.\n\n"
@@ -633,7 +603,6 @@ def regex_search_files(
     regex: str,
     file_pattern: str = "*"
 ) -> FunctionCallResult:
-
     effective_cwd = resolve_cwd(context, cwd)
     searcher = RipgrepSearcher()
     return searcher.search_in_files(directory_path, regex, file_pattern, effective_cwd)

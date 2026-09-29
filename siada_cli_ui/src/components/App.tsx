@@ -9,8 +9,11 @@ import { LoginSelector, LoginWaiting } from './Login/index.js';
 import type { LoginChoice } from './Login/index.js';
 import { TaskSelector, TaskItem } from './TaskSelector/index.js';
 import { ModelSelector } from './ModelSelector/ModelSelector.js';
+import { EffortSelector } from './EffortSelector/EffortSelector.js';
+import { ThemeSelector } from './ThemeSelector/index.js';
 import type { SideQuestionItem } from './SideQuestion/index.js';
 import { useACP } from '../hooks/useACP.js';
+import { useThemeVersion } from '../themes/index.js';
 import { ClientConfig, Message } from '../types/index.js';
 import { getIcons } from '../constants/icons.js';
 import { logger } from '../utils/logger.js';
@@ -21,6 +24,7 @@ import { useKeypress } from '../hooks/useKeypress.js';
 import { AppProvider } from '../store/context.js';
 import { Banner } from './Banner/Banner.js';
 import { promptQueueStore } from '../store/promptQueueStore.js';
+import { inputRestoreStore } from '../store/inputRestoreStore.js';
 import { usePromptDrain } from '../hooks/usePromptDrain.js';
 import { usePromptQueueSnapshot } from '../hooks/usePromptQueueSnapshot.js';
 import { recordFlicker } from '../utils/flickerMonitor.js';
@@ -54,10 +58,13 @@ export interface AppProps {
 
 export const App: React.FC<AppProps> = ({ config, onExit }) => {
   const { exit } = useApp();
+  useThemeVersion(); // repaint the whole tree when the theme changes
   const [isCollapsed, setIsCollapsed] = useState(true); // default compact mode
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
   const [showSessionBrowser, setShowSessionBrowser] = useState(false); // Session browser state
-  const [modelSelectorData, setModelSelectorData] = useState<{ models: string[]; currentModel: string } | null>(null);
+  const [modelSelectorData, setModelSelectorData] = useState<{ models: string[]; currentModel: string; modelNotes?: Record<string, string> } | null>(null);
+  const [effortSelectorData, setEffortSelectorData] = useState<import('../hooks/useAdapterEvents.js').EffortSelectorData | null>(null);
+  const [themeSelectorData, setThemeSelectorData] = useState<import('../hooks/useAdapterEvents.js').ThemeSelectorData | null>(null);
   const [pluginManagerData, setPluginManagerData] = useState<PluginManagerData | null>(null); // Plugin manager state
   const [installProgress, setInstallProgress] = useState<{ skillName: string; phase: string; percent: number } | null>(null);
   const [taskSelectorTasks, setTaskSelectorTasks] = useState<TaskItem[] | null>(null); // Task selector state
@@ -137,6 +144,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     messages,
     connectionStatus,
     loading,
+    activeStep,
     bannerInfo,
     tokenUsage,
     interactiveInput,
@@ -147,7 +155,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     cancelPendingQueue,
     addMessage,
     updateMessage,
-    clearMessages,
+    removeMessage,
     client,
     clientRef,
     sessionId,
@@ -155,6 +163,8 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     todoMessageRanges,
     cacheStatus,
     goalState,
+    subAgentItems,
+    subAgentMessages,
   } = useACP(config);
 
   // Backend pushed a one-shot notice (goal set / verification pass-fail) on
@@ -235,9 +245,10 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
 
   useAdapterEvents(client, {
     setShowSessionBrowser,
-    clearMessages,
     addMessage,
     setModelSelectorData,
+    setEffortSelectorData,
+    setThemeSelectorData,
     setTaskSelectorTasks,
     setInstallProgress,
     setPluginManagerData,
@@ -309,6 +320,26 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
       if (client) await client.sendMessage(`/model ${modelName}`);
     } catch (error) {
       logger.error('Failed to switch model', { component: 'App', operation: 'select_model_error', error });
+    }
+  }, [client]);
+
+  const handleSelectEffort = useCallback(async (level: string) => {
+    setEffortSelectorData(null);
+    logger.info('Selecting effort', { component: 'App', operation: 'select_effort', level });
+    try {
+      if (client) await client.sendMessage(`/effort ${level}`);
+    } catch (error) {
+      logger.error('Failed to set effort', { component: 'App', operation: 'select_effort_error', error });
+    }
+  }, [client]);
+
+  const handleSelectTheme = useCallback(async (themeName: string) => {
+    setThemeSelectorData(null);
+    logger.info('Selecting theme', { component: 'App', operation: 'select_theme', themeName });
+    try {
+      if (client) await client.sendMessage(`/theme ${themeName}`);
+    } catch (error) {
+      logger.error('Failed to set theme', { component: 'App', operation: 'select_theme_error', error });
     }
   }, [client]);
 
@@ -415,14 +446,26 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
 
   const ctrlCCountRef = useRef(0);
   const ctrlCTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined;
 
   const handleKeypress = useCallback((key: any) => {
     if (key.ctrl && key.name === 'c') {
       ctrlCCountRef.current += 1;
       if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current);
       if (ctrlCCountRef.current === 1) {
+        // If the user's input hasn't been answered yet (their bubble is the
+        // last rendered message), cancel that bubble and push the text back
+        // into the input box so it can be edited and resent instead of being
+        // lost. The backend's restore_input notification for the same
+        // interrupt is deduped in inputRestoreStore.
+        const restoreUnansweredInput = lastMessage?.type === 'user';
+        if (restoreUnansweredInput) {
+          removeMessage(lastMessage.id);
+          inputRestoreStore.request(lastMessage.content);
+        }
         recordFlicker('ctrl_c_interrupt', 'Ctrl+C: stopExecution + system message + queue clear', {
           messageCount: messages.length,
+          metadata: { restoreUnansweredInput },
         });
         stableStopExecution();
         ctrlCTimerRef.current = setTimeout(() => { ctrlCCountRef.current = 0; }, 2000);
@@ -435,6 +478,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
         // Ink's final render pass.
         setPluginManagerData(null);
         setModelSelectorData(null);
+        setEffortSelectorData(null);
         setTaskSelectorTasks(null);
         setShowSessionBrowser(false);
         onExit?.(sessionId);
@@ -454,7 +498,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
         return !prev;
       });
     }
-  }, [stableStopExecution, onExit, sessionId, exit, messages.length]);
+  }, [stableStopExecution, removeMessage, onExit, sessionId, exit, messages.length, lastMessage]);
 
   useKeypress(handleKeypress);
 
@@ -465,7 +509,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
   type ViewState =
     | 'connecting' | 'initializing' | 'connection_error' | 'startup_error'
     | 'login_selecting' | 'login_waiting' | 'loading_config'
-    | 'plugin_manager' | 'task_selector' | 'model_selector' | 'session_browser' | 'main';
+    | 'plugin_manager' | 'task_selector' | 'model_selector' | 'effort_selector' | 'theme_selector' | 'session_browser' | 'main';
 
   const viewState: ViewState = (() => {
     // Login checks come first: the backend sends ui/showLoginSelector before
@@ -482,6 +526,8 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     if (pluginManagerData)                                    return 'plugin_manager';
     if (taskSelectorTasks !== null)                           return 'task_selector';
     if (modelSelectorData !== null)                           return 'model_selector';
+    if (effortSelectorData !== null)                          return 'effort_selector';
+    if (themeSelectorData !== null)                           return 'theme_selector';
     if (showSessionBrowser)                                   return 'session_browser';
     return 'main';
   })();
@@ -590,8 +636,30 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
         <ModelSelector
           models={modelSelectorData!.models}
           currentModel={modelSelectorData!.currentModel}
+          modelNotes={modelSelectorData!.modelNotes}
           onSelect={handleSelectModel}
           onExit={() => setModelSelectorData(null)}
+        />
+      );
+
+    case 'effort_selector':
+      return (
+        <EffortSelector
+          model={effortSelectorData!.model}
+          efforts={effortSelectorData!.efforts}
+          current={effortSelectorData!.current}
+          onSelect={handleSelectEffort}
+          onExit={() => setEffortSelectorData(null)}
+        />
+      );
+
+    case 'theme_selector':
+      return (
+        <ThemeSelector
+          themes={themeSelectorData!.themes}
+          current={themeSelectorData!.current}
+          onSelect={handleSelectTheme}
+          onExit={() => setThemeSelectorData(null)}
         />
       );
 
@@ -615,9 +683,12 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               agent={bannerInfo?.agent || "coder"}
               provider={bannerInfo?.provider || "default"}
               model={bannerInfo?.model || config.model}
+              reasoningEffort={bannerInfo?.reasoningEffort}
+              thinkingEnabled={bannerInfo?.thinkingEnabled}
               prePlanMode={bannerInfo?.prePlanMode || false}
               messages={messages}
               loading={loading}
+              activeStep={activeStep}
               isReady={connectionStatus.ready}
               tokenUsage={tokenUsage}
               onSendMessage={stableSendMessage}
@@ -647,6 +718,8 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               promptQueue={promptQueue}
               todoItems={todoItems}
               todoMessageRanges={todoMessageRanges}
+              subAgentItems={subAgentItems}
+              subAgentMessages={subAgentMessages}
               cacheStatus={cacheStatus}
             />
           </Box>

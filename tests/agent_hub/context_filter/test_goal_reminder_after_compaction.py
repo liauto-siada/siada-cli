@@ -35,6 +35,108 @@ def _make_context(goal=None):
 
 
 # ---------------------------------------------------------------------------
+# Orphan function-call output repair
+# ---------------------------------------------------------------------------
+
+def test_drop_orphan_function_call_output_from_restored_compaction():
+    messages = [
+        {"role": "user", "content": "continue"},
+        {
+            "type": "function_call_output",
+            "call_id": "summarized_call",
+            "output": "stale output",
+        },
+        {
+            "type": "function_call",
+            "call_id": "kept_call",
+            "name": "run_cmd",
+            "arguments": "{}",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "kept_call",
+            "output": "ok",
+        },
+        {
+            "type": "apply_patch_call",
+            "call_id": "kept_patch",
+            "id": "apc_1",
+        },
+        {
+            "type": "apply_patch_call_output",
+            "call_id": "kept_patch",
+            "output": "patched",
+        },
+    ]
+
+    repaired, removed = ApiMessageTransferFilter._drop_orphan_function_call_outputs(
+        messages
+    )
+
+    assert removed == 1
+    assert repaired is not messages
+    assert [
+        item["call_id"]
+        for item in repaired
+        if item.get("type") == "function_call_output"
+    ] == ["kept_call"]
+    assert any(item.get("type") == "apply_patch_call_output" for item in repaired)
+    assert messages[1]["call_id"] == "summarized_call"
+
+
+@pytest.mark.asyncio
+async def test_filter_repairs_orphan_output_before_assigning_model_input():
+    messages = [
+        {"role": "user", "content": "continue"},
+        {
+            "type": "function_call_output",
+            "call_id": "summarized_call",
+            "output": "stale output",
+        },
+        {
+            "type": "function_call",
+            "call_id": "kept_call",
+            "name": "run_cmd",
+            "arguments": "{}",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "kept_call",
+            "output": "ok",
+        },
+    ]
+    model_data = MagicMock()
+    model_data.input = messages
+    model_data.instructions = "instructions"
+    context = MagicMock()
+    context.auto_compact = True
+    context.session_id = "session-test"
+    context.task_message_state.set_real_messages = MagicMock()
+    filter_ = ApiMessageTransferFilter()
+
+    with patch.object(
+        filter_,
+        "_build_real_message_state",
+        AsyncMock(return_value=(messages, 100, 3, "signature")),
+    ), patch(
+        "siada.services.memory.memory_update.get_memory_scheduler",
+        return_value=None,
+    ), patch.object(
+        filter_,
+        "_try_compact_real_api_messages",
+        AsyncMock(side_effect=lambda **kwargs: kwargs["real_api_messages"]),
+    ), patch.object(filter_, "_sync_api_message_to_file"):
+        await filter_.filter(model_data, MagicMock(tools=None), context)
+
+    assert [
+        item["call_id"]
+        for item in model_data.input
+        if item.get("type") == "function_call_output"
+    ] == ["kept_call"]
+    context.task_message_state.set_real_messages.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # _maybe_reinject_goal_reminder
 # ---------------------------------------------------------------------------
 

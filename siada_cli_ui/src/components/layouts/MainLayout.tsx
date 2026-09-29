@@ -16,7 +16,7 @@
  * - MessageList: Remaining space (constrained with overflow)
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { Box, Static, Text } from '@jrichman/ink';
 import { AppHeader } from './AppHeader.js';
 import { MessageList } from '../Chat/MessageList.js';
@@ -28,12 +28,15 @@ import { SideQuestionPanel } from '../SideQuestion/index.js';
 import type { SideQuestionItem } from '../SideQuestion/index.js';
 import { PromptQueuePreview } from '../Queue/PromptQueuePreview.js';
 import { TodoDetailView } from '../Todo/TodoDetailView.js';
+import { SubAgentDetailView } from '../SubAgent/SubAgentDetailView.js';
 import { GoalStatusBar } from '../Goal/GoalStatusBar.js';
 import { Message, PromptQueueItem } from '../../types/index.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { getMaxSafeHeight } from '../../utils/terminalHeight.js';
 import { InteractiveInputRequest } from '../../hooks/useACP.js';
-import type { TodoItem, TodoMessageRange } from '../../hooks/useAcp/types.js';
+import type { TodoItem, TodoMessageRange, SubAgentItem, SubAgentMessageEntry } from '../../hooks/useAcp/types.js';
+import type { ThinkingStep } from '../../constants/phrases.js';
+import { exportConversation, type ExportBannerInfo } from '../../utils/conversationExport.js';
 
 export interface MainLayoutProps {
   // Header props
@@ -43,10 +46,16 @@ export interface MainLayoutProps {
   provider?: string;
   model?: string;
   prePlanMode?: boolean;
-  
+  /** Current reasoning effort level (e.g. "low"); rendered next to the model in the status bar. */
+  reasoningEffort?: string;
+  /** Whether thinking is explicitly disabled via /thinking off; rendered as "model(thinking off)". */
+  thinkingEnabled?: boolean | null;
+
   // Content props
   messages: Message[];
   loading?: boolean;
+  /** Current agent activity step while loading — labels the thinking indicator */
+  activeStep?: ThinkingStep | null;
   isReady?: boolean;
   tokenUsage?: {
     contextSize: number;
@@ -107,6 +116,8 @@ export interface MainLayoutProps {
   // Todo tracking
   todoItems?: TodoItem[];
   todoMessageRanges?: Map<string, TodoMessageRange>;
+  subAgentItems?: SubAgentItem[];
+  subAgentMessages?: Map<string, SubAgentMessageEntry[]>;
   // Cache status data
   cacheStatus?: import('../../hooks/useAcp/types.js').CacheStatusData | null;
   // /goal standing goal + live verification state
@@ -135,9 +146,12 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
   agent = 'coder',
   provider = 'default',
   model,
+  reasoningEffort,
+  thinkingEnabled,
   prePlanMode = true,
   messages,
   loading = false,
+  activeStep = null,
   isReady = true,
   tokenUsage = null,
   onSendMessage,
@@ -163,11 +177,14 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
   promptQueue = [],
   todoItems = [],
   todoMessageRanges,
+  subAgentItems = [],
+  subAgentMessages,
   goalState = null,
   goalNotice = null,
   cacheStatus = null,
 }) => {
   const [todoDetailTodo, setTodoDetailTodo] = useState<string | null>(null);
+  const [subAgentDetailId, setSubAgentDetailId] = useState<string | null>(null);
   // Note: alt-screen entry/exit is handled inside TodoDetailView via
   // useInsertionEffect (must run before Ink's first onRender). Don't add
   // a redundant useEffect here — it would fire during layout phase and
@@ -180,6 +197,37 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
 
   // Use reactive terminal size hook that updates on resize events
   const { columns, rows } = useTerminalSize();
+
+  // /export handler: reads the LATEST messages/workingDir/onAddMessage through
+  // refs so the callback identity stays stable and the memoized InputPrompt
+  // does not re-render on every message update.
+  const exportStateRef = useRef<{
+    messages: Message[];
+    workingDir: string;
+    onAddMessage?: (message: Message) => void;
+    banner: ExportBannerInfo;
+    columns: number;
+  }>({ messages, workingDir, onAddMessage, banner: { workingDir }, columns: 80 });
+  exportStateRef.current = {
+    messages,
+    workingDir,
+    onAddMessage,
+    banner: { version, workingDir, agent, provider, model, prePlanMode, isCollapsed },
+    columns,
+  };
+
+  const handleExport = useCallback((filename: string) => {
+    const { messages: currentMessages, workingDir: currentWorkingDir, onAddMessage: addMessage, banner, columns } =
+      exportStateRef.current;
+    const result = exportConversation(currentMessages, currentWorkingDir, filename, banner, columns);
+    addMessage?.({
+      id: `export-${Date.now()}`,
+      type: result.success ? 'system' : 'error',
+      content: result.message,
+      timestamp: new Date().toISOString(),
+      author: 'System',
+    });
+  }, []);
 
   // Memoize placeholder text to avoid recalculating
   const placeholder = useMemo(() => {
@@ -206,8 +254,15 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
       <Box flexDirection="column"
           flexGrow={0}
     flexShrink={0}>
-        {/* Second buffer: TodoDetailView replaces everything when a todo is selected */}
-        {todoDetailTodo ? (
+        {/* Second buffer: SubAgentDetailView / TodoDetailView replaces everything when selected */}
+        {subAgentDetailId ? (
+          <SubAgentDetailView
+            item={subAgentItems.find(i => i.id === subAgentDetailId) ?? { id: subAgentDetailId, title: subAgentDetailId, status: 'running' }}
+            entries={subAgentMessages?.get(subAgentDetailId) ?? []}
+            terminalWidth={columns}
+            onClose={() => setSubAgentDetailId(null)}
+          />
+        ) : todoDetailTodo ? (
           <TodoDetailView
             todo={todoItems.find(t => t.content === todoDetailTodo) ?? { content: todoDetailTodo, status: 'pending' }}
             messages={messages}
@@ -226,10 +281,12 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
               isCollapsed={isCollapsed}
             />
 
-            {/* Thinking indicator - shown while loading or while there are queued prompts */}
+            {/* Thinking indicator - shown while loading or while there are queued prompts.
+                activeStep (Model Reasoning / Tool Execution / System Processing /
+                Context Compaction) tells the user which phase the agent is in. */}
             {(loading || promptQueue.length > 0) && isReady && !interactiveInput && (
               <Box paddingLeft={1} paddingBottom={1}>
-                <ThinkingIndicator active={loading || promptQueue.length > 0} showTime={true} />
+                <ThinkingIndicator active={loading || promptQueue.length > 0} showTime={true} step={loading ? activeStep : null} />
               </Box>
             )}
 
@@ -260,7 +317,9 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
                   <Text color="yellow" bold>Interactive Input Required</Text>
                 </Box>
                 <Box>
-                  <Text color="white">{interactiveInput.prompt}</Text>
+                  {/* The prompt is body text: leave the color to the terminal's
+                      own foreground so any palette keeps it readable. */}
+                  <Text>{interactiveInput.prompt}</Text>
                 </Box>
               </Box>
             )}
@@ -310,6 +369,7 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
                 onSubmit={interactiveInput && onSendInteractiveInput
                   ? (value: string) => { onSendInteractiveInput(value); }
                   : onSendMessage}
+                onExport={handleExport}
                 onAddMessage={onAddMessage}
                 onUpdateMessage={onUpdateMessage}
                 onStopExecution={onStopExecution}
@@ -330,11 +390,15 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
                 cwd={workingDir}
                 tokenUsage={interactiveInput ? null : tokenUsage}
                 model={model}
+                reasoningEffort={reasoningEffort}
+                thinkingEnabled={thinkingEnabled}
                 quotaUsage={quotaUsage}
                 cacheStatus={cacheStatus}
                 workingDir={workingDir}
                 todoItems={todoItems}
                 onTodoSelect={(content) => setTodoDetailTodo(content)}
+                subAgentItems={subAgentItems}
+                onSubAgentSelect={(id) => setSubAgentDetailId(id)}
               />
             </Box>
           </>

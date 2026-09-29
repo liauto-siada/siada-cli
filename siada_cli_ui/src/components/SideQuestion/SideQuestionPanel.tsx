@@ -4,6 +4,8 @@ import Spinner from 'ink-spinner';
 import { spawn } from 'node:child_process';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { MarkdownText } from '../common/MarkdownText.js';
+import { colors } from '../../utils/colors.js';
+import { useThemeVersion } from '../../themes/index.js';
 
 export interface SideQuestionItem {
   id:       string;
@@ -137,8 +139,8 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
           // Collapsed history row — title only, dimmed.
           return (
             <Box key={item.id}>
-              <Text color="gray" bold>/btw </Text>
-              <Text color="gray">{item.question}</Text>
+              <Text color={colors.content.secondary} bold>/btw </Text>
+              <Text color={colors.content.secondary}>{item.question}</Text>
             </Box>
           );
         }
@@ -153,16 +155,16 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
           <Box key={item.id} flexDirection="column" marginTop={index > 0 ? 1 : 0}>
             {/* Header: /btw question (highlighted) */}
             <Box>
-              <Text color="#c5a3ff" bold>/btw </Text>
-              <Text color="white">{item.question}</Text>
+              <Text color={colors.secondary} bold>/btw </Text>
+              <Text>{item.question}</Text>
             </Box>
 
             {/* Body: answering spinner or markdown answer */}
             <Box marginTop={1} marginLeft={2} flexDirection="column">
               {isAnsweringItem ? (
                 <Box>
-                  <Text color="#c5a3ff"><Spinner type="dots" /></Text>
-                  <Text color="#c5a3ff"> Answering...</Text>
+                  <Text color={colors.secondary}><Spinner type="dots" /></Text>
+                  <Text color={colors.secondary}> Answering...</Text>
                 </Box>
               ) : (
                 <MarkdownText content={itemVisibleAnswer} />
@@ -177,11 +179,11 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
           shortcut hint for a green "Copied to clipboard" badge for 3s. */}
       <Box marginTop={1}>
         {copiedFlash ? (
-          <Text dimColor>
-            ↑/↓ to scroll · <Text color="green">Copied to clipboard</Text> · x to clear history · Esc to close
+          <Text color={colors.content.secondary}>
+            ↑/↓ to scroll · <Text color={colors.success}>Copied to clipboard</Text> · x to clear history · Esc to close
           </Text>
         ) : (
-          <Text dimColor>
+          <Text color={colors.content.secondary}>
             {isAnswering
               ? 'x to clear history · Esc to close'
               : '↑/↓ scroll · c copy · x clear history · Esc close'}

@@ -35,7 +35,10 @@ def test_module_entrypoint_serves_official_initialize_and_exits_on_eof():
             "id": 1,
             "result": {
                 "protocolVersion": 1,
-                "agentCapabilities": {"sessionCapabilities": {"list": {}}},
+                "agentCapabilities": {
+                    "loadSession": True,
+                    "sessionCapabilities": {"list": {}, "resume": {}},
+                },
                 "agentInfo": {"name": "siada", "title": "Siada", "version": "1.7.17"},
             },
         }

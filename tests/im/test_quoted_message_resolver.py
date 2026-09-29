@@ -32,31 +32,31 @@ class TestParseMessageContent:
 
     def test_image_message(self):
         content = json.dumps({"image_key": "img_xxx"})
-        assert parse_message_content("image", content) == "[图片]"
+        assert parse_message_content("image", content) == "[Image]"
 
     def test_file_message_with_name(self):
         content = json.dumps({"file_key": "file_xxx", "file_name": "report.pdf"})
-        assert parse_message_content("file", content) == "[文件: report.pdf]"
+        assert parse_message_content("file", content) == "[File: report.pdf]"
 
     def test_file_message_without_name(self):
         content = json.dumps({"file_key": "file_xxx"})
-        assert parse_message_content("file", content) == "[文件]"
+        assert parse_message_content("file", content) == "[File]"
 
     def test_audio_message(self):
         content = json.dumps({"file_key": "audio_xxx"})
-        assert parse_message_content("audio", content) == "[语音消息]"
+        assert parse_message_content("audio", content) == "[Voice message]"
 
     def test_video_message(self):
         content = json.dumps({"file_key": "video_xxx"})
-        assert parse_message_content("video", content) == "[视频]"
+        assert parse_message_content("video", content) == "[Video]"
 
     def test_sticker_message(self):
         content = json.dumps({"file_key": "sticker_xxx"})
-        assert parse_message_content("sticker", content) == "[表情包]"
+        assert parse_message_content("sticker", content) == "[Sticker]"
 
     def test_share_chat_message(self):
         content = json.dumps({"chat_id": "oc_xxx"})
-        assert parse_message_content("share_chat", content) == "[分享卡片]"
+        assert parse_message_content("share_chat", content) == "[Share card]"
 
     def test_system_message_returns_empty(self):
         content = json.dumps({"type": "add_member"})
@@ -120,7 +120,7 @@ class TestParsePostContent:
             }
         }
         result = _parse_post_content(content)
-        assert "[图片]" in result
+        assert "[Image]" in result
 
     def test_post_with_emotion(self):
         content = {
@@ -151,7 +151,7 @@ class TestParseInteractiveContent:
             },
         }
         result = _parse_interactive_content(content)
-        assert "[卡片: Card Title]" in result
+        assert "[Card: Card Title]" in result
         assert "Some **bold** text" in result
 
     def test_card_header_only(self):
@@ -160,7 +160,7 @@ class TestParseInteractiveContent:
             "body": {"elements": []},
         }
         result = _parse_interactive_content(content)
-        assert result == "[卡片: Header Only]"
+        assert result == "[Card: Header Only]"
 
     def test_card_body_only(self):
         content = {
@@ -169,12 +169,12 @@ class TestParseInteractiveContent:
             },
         }
         result = _parse_interactive_content(content)
-        assert "[卡片] Body text" in result
+        assert "[Card] Body text" in result
 
     def test_card_no_content(self):
         content = {}
         result = _parse_interactive_content(content)
-        assert result == "[互动卡片]"
+        assert result == "[Interactive card]"
 
     def test_card_nested_elements_and_top_level_title(self):
         content = {
@@ -188,7 +188,7 @@ class TestParseInteractiveContent:
             ],
         }
         result = _parse_interactive_content(content)
-        assert result == "[卡片: 💬 Answer] 请升级至最新版本客户端，以查看内容"
+        assert result == "[Card: 💬 Answer] 请升级至最新版本客户端，以查看内容"
 
 
 # ─── _sanitize_and_truncate tests ────────────────────────────────────────

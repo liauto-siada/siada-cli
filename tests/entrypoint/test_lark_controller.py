@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
@@ -162,7 +163,7 @@ class _ConcreteImController(ImController):
 
     @property
     def owner_type(self) -> SessionOwner:
-        return SessionOwner.IM
+        return SessionOwner.LARK
 
     @property
     def workspace(self) -> Optional[str]:
@@ -199,6 +200,48 @@ def _make_routing_entry(session_id: str, is_single_chat: bool = False) -> dict[s
     return {"session_id": session_id, "is_single_chat": is_single_chat}
 
 
+@contextmanager
+def _isolated_state_files(tmp_path: Path, ctrl: ImController):
+    """Point all IM state-file I/O at the pytest tmp_path.
+
+    Production defaults to SIADA_HOME/im/{platform}/{app_id}/ (under the
+    user's home directory), so tests must redirect P2P routing, group
+    routing and last-activity persistence to tmp_path whenever they trigger
+    a load/persist.
+    """
+    routing_file = tmp_path / "routing.json"
+    group_routing_file = tmp_path / "group_routing.json"
+    last_activity_file = tmp_path / "last_activity.json"
+    with patch.object(
+        ctrl, "_get_routing_file_path", return_value=routing_file
+    ), patch.object(
+        ctrl, "_get_group_routing_file_path", return_value=group_routing_file
+    ), patch.object(
+        ctrl, "_get_last_activity_file_path", return_value=last_activity_file
+    ):
+        yield routing_file, group_routing_file, last_activity_file
+
+
+def _isolate_session_source(tmp_path: Path, ctrl: ImController):
+    """Redirect session-source metadata.json writes under tmp_path.
+
+    resolve_session/create_new_session call ImController._mark_session_source,
+    whose default session dir comes from
+    DirectoryUtils.get_global_sessions_dir(workspace) — i.e. the user's
+    ~/.siada-cli tree. Patching the method keeps the metadata write inside
+    tmp_path/sessions/<session_id>/.
+    """
+    def _mark_session_source_under_tmp(session_id: str, workspace: str) -> None:
+        from siada.session.ownership import SessionOwner, SessionOwnershipManager
+
+        owner = ctrl.owner_type
+        session_dir = tmp_path / "sessions" / session_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+        SessionOwnershipManager.set_session_source(session_dir, owner)
+
+    return patch.object(ctrl, "_mark_session_source", _mark_session_source_under_tmp)
+
+
 class TestImControllerRouting:
     """Tests for ImController session routing infrastructure."""
 
@@ -212,8 +255,8 @@ class TestImControllerRouting:
         with patch(
             "siada.session.session_manager.RunningSessionManager.create_session",
             return_value=mock_session,
-        ) as mock_create, patch.object(
-            ctrl, "_get_routing_file_path", return_value=tmp_path / "im_routing.json"
+        ) as mock_create, _isolated_state_files(tmp_path, ctrl), _isolate_session_source(
+            tmp_path, ctrl
         ):
             session = ctrl.resolve_session("chat_abc", config)
 
@@ -246,9 +289,7 @@ class TestImControllerRouting:
         with patch(
             "siada.session.session_manager.RunningSessionManager.create_session",
             side_effect=_create_side_effect,
-        ), patch.object(
-            ctrl, "_get_routing_file_path", return_value=tmp_path / "im_routing.json"
-        ):
+        ), _isolated_state_files(tmp_path, ctrl), _isolate_session_source(tmp_path, ctrl):
             session1 = ctrl.resolve_session("chat_abc", config)
             session2 = ctrl.resolve_session("chat_abc", config)
 
@@ -261,11 +302,8 @@ class TestImControllerRouting:
     def test_set_session_for_chat(self, tmp_path: Path) -> None:
         """set_session_for_chat should update routing and evict old cache entry."""
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
-        routing_file = tmp_path / "im_routing.json"
 
-        with patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ):
+        with _isolated_state_files(tmp_path, ctrl):
             # Set up initial routing and cache
             ctrl._routing.chats["chat_abc"] = _make_routing_entry(
                 "old_session_123", is_single_chat=True
@@ -284,16 +322,13 @@ class TestImControllerRouting:
         """create_new_session should generate a new session_id and bind to chat."""
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
         config = _make_mock_running_config()
-        routing_file = tmp_path / "im_routing.json"
 
         mock_session = _make_mock_session("9999999999999", config)
 
         with patch(
             "siada.session.session_manager.RunningSessionManager.create_session",
             return_value=mock_session,
-        ), patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ):
+        ), _isolated_state_files(tmp_path, ctrl), _isolate_session_source(tmp_path, ctrl):
             # Set up old routing
             ctrl._routing.chats["chat_abc"] = _make_routing_entry(
                 "old_session", is_single_chat=True
@@ -315,11 +350,8 @@ class TestImControllerRouting:
     def test_clear_session(self, tmp_path: Path) -> None:
         """clear_session should remove routing entry and cache."""
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
-        routing_file = tmp_path / "im_routing.json"
 
-        with patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ):
+        with _isolated_state_files(tmp_path, ctrl):
             ctrl._routing.chats["chat_abc"] = _make_routing_entry("session_123")
             ctrl._session_cache["session_123"] = MagicMock()
 
@@ -331,23 +363,24 @@ class TestImControllerRouting:
     def test_clear_session_noop_for_unknown_chat(self, tmp_path: Path) -> None:
         """clear_session should not raise for unknown chat_id."""
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
-        routing_file = tmp_path / "im_routing.json"
 
-        with patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ):
+        with _isolated_state_files(tmp_path, ctrl):
             ctrl.clear_session("nonexistent_chat")
 
         assert "nonexistent_chat" not in ctrl._routing.chats
 
     def test_routing_persistence_save_and_load(self, tmp_path: Path) -> None:
-        """Routing table should persist to disk and reload correctly."""
-        routing_file = tmp_path / "im_routing.json"
+        """Routing tables should persist to disk and reload correctly.
 
+        _load_routing migrates non-single-chat entries from the P2P table
+        (_routing) into the group table (_group_routing), so after reload
+        chat_b lives in _group_routing.chats / group_routing.json while the
+        single-chat chat_a stays in _routing / routing.json.
+        """
         # First controller: save routing
         ctrl1 = _ConcreteImController(workspace_path=str(tmp_path))
-        with patch.object(
-            ctrl1, "_get_routing_file_path", return_value=routing_file
+        with _isolated_state_files(tmp_path, ctrl1) as (
+            routing_file1, _group_file1, _last_activity_file1,
         ):
             ctrl1._routing.chats = {
                 "chat_a": _make_routing_entry("session_1", is_single_chat=True),
@@ -355,8 +388,8 @@ class TestImControllerRouting:
             }
             ctrl1._persist_routing()
 
-        assert routing_file.exists()
-        data = json.loads(routing_file.read_text(encoding="utf-8"))
+        assert routing_file1.exists()
+        data = json.loads(routing_file1.read_text(encoding="utf-8"))
         assert data == {
             "chats": {
                 "chat_a": _make_routing_entry("session_1", is_single_chat=True),
@@ -365,61 +398,77 @@ class TestImControllerRouting:
             "open_ids": {},
         }
 
-        # Second controller: load routing
+        # Second controller: load routing — chat_b (is_single_chat=False) is
+        # migrated into _group_routing, chat_a stays in _routing.
         ctrl2 = _ConcreteImController(workspace_path=str(tmp_path))
-        with patch.object(
-            ctrl2, "_get_routing_file_path", return_value=routing_file
+        with _isolated_state_files(tmp_path, ctrl2) as (
+            routing_file2, group_routing_file2, _last_activity_file2,
         ):
             ctrl2._load_routing()
 
         assert ctrl2._routing.chats == {
             "chat_a": _make_routing_entry("session_1", is_single_chat=True),
+        }
+        assert ctrl2._group_routing.chats == {
+            "chat_b": _make_routing_entry("session_2", is_single_chat=False),
+        }
+        # The migration persists both tables back to disk under tmp_path
+        assert json.loads(routing_file2.read_text(encoding="utf-8"))["chats"] == {
+            "chat_a": _make_routing_entry("session_1", is_single_chat=True),
+        }
+        assert json.loads(group_routing_file2.read_text(encoding="utf-8"))["chats"] == {
             "chat_b": _make_routing_entry("session_2", is_single_chat=False),
         }
 
     def test_load_routing_supports_legacy_string_format(self, tmp_path: Path) -> None:
-        """_load_routing should normalize legacy chat_id -> session_id payloads."""
-        routing_file = tmp_path / "im_routing.json"
+        """_load_routing should normalize legacy chat_id -> session_id payloads.
+
+        Legacy entries are normalized with is_single_chat=False, i.e. treated
+        as group chats, so _load_routing migrates them into _group_routing.
+        """
+        routing_file = tmp_path / "routing.json"
         routing_file.write_text(
             json.dumps({"chat_legacy": "session_legacy"}),
             encoding="utf-8",
         )
 
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
-        with patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
+        with _isolated_state_files(tmp_path, ctrl) as (
+            _routing_file, group_routing_file, _last_activity_file,
         ):
             ctrl._load_routing()
 
-        assert ctrl._routing.chats == {
+        assert ctrl._routing.chats == {}
+        assert ctrl._group_routing.chats == {
+            "chat_legacy": _make_routing_entry("session_legacy", is_single_chat=False)
+        }
+        # Migration persisted the legacy entry into group_routing.json
+        assert json.loads(group_routing_file.read_text(encoding="utf-8"))["chats"] == {
             "chat_legacy": _make_routing_entry("session_legacy", is_single_chat=False)
         }
 
     def test_load_routing_tolerates_missing_file(self, tmp_path: Path) -> None:
         """_load_routing should silently skip if file doesn't exist."""
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
-        routing_file = tmp_path / "nonexistent" / "im_routing.json"
 
-        with patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ):
+        with _isolated_state_files(tmp_path, ctrl):
             ctrl._load_routing()
 
         assert ctrl._routing.chats == {}
+        assert ctrl._group_routing.chats == {}
 
     def test_load_routing_tolerates_corrupt_file(self, tmp_path: Path) -> None:
         """_load_routing should handle malformed JSON gracefully."""
-        routing_file = tmp_path / "im_routing.json"
+        routing_file = tmp_path / "routing.json"
         routing_file.write_text("not valid json {{{", encoding="utf-8")
 
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
-        with patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ):
+        with _isolated_state_files(tmp_path, ctrl):
             ctrl._load_routing()
 
         # Should not crash; routing stays empty
         assert ctrl._routing.chats == {}
+        assert ctrl._group_routing.chats == {}
 
     def test_legacy_migration(self, tmp_path: Path) -> None:
         """_migrate_legacy_sessions should pick up lark_* directories."""
@@ -433,13 +482,9 @@ class TestImControllerRouting:
         # Non-directory file should be ignored
         (sessions_dir / "lark_direct_ou_ghi_oc_chat003").touch()  # file, not dir
 
-        routing_file = tmp_path / "im_routing.json"
-
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
 
-        with patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ), patch(
+        with _isolated_state_files(tmp_path, ctrl), patch(
             "siada.utils.DirectoryUtils.get_global_sessions_dir",
             return_value=str(sessions_dir),
         ):
@@ -464,17 +509,13 @@ class TestImControllerRouting:
         sessions_dir.mkdir()
         (sessions_dir / "lark_direct_ou_abc_oc_chat001").mkdir()
 
-        routing_file = tmp_path / "im_routing.json"
-
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
         # Pre-populate routing for this chat (parts[3] from split("_", 3))
         ctrl._routing.chats["abc_oc_chat001"] = _make_routing_entry(
             "existing_session_id", is_single_chat=False
         )
 
-        with patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ), patch(
+        with _isolated_state_files(tmp_path, ctrl), patch(
             "siada.utils.DirectoryUtils.get_global_sessions_dir",
             return_value=str(sessions_dir),
         ):
@@ -486,24 +527,23 @@ class TestImControllerRouting:
         )
 
     def test_resolve_session_generates_timestamp_id(self, tmp_path: Path) -> None:
-        """New session IDs should be timestamp-based (all digits, 13 chars)."""
+        """New session IDs contain a millisecond timestamp and collision suffix."""
         ctrl = _ConcreteImController(workspace_path=str(tmp_path))
         config = _make_mock_running_config()
-        routing_file = tmp_path / "im_routing.json"
 
         mock_session = _make_mock_session("dummy", config)
 
         with patch(
             "siada.session.session_manager.RunningSessionManager.create_session",
             return_value=mock_session,
-        ), patch.object(
-            ctrl, "_get_routing_file_path", return_value=routing_file
-        ):
+        ), _isolated_state_files(tmp_path, ctrl), _isolate_session_source(tmp_path, ctrl):
             ctrl.resolve_session("chat_new", config)
 
         session_id = ctrl._routing.chats["chat_new"]["session_id"]
-        assert session_id.isdigit()
-        assert len(session_id) == 13
+        timestamp, suffix = session_id.split("-")
+        assert timestamp.isdigit() and len(timestamp) == 13
+        assert len(suffix) == 8
+        assert all(char in "0123456789abcdef" for char in suffix)
 
 
 def test_resolve_drain_chat_id_prefers_single_chat_routes() -> None:

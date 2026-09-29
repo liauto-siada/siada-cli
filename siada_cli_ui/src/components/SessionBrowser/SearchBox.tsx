@@ -19,7 +19,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({ query, isActive }) => {
       paddingX={1}
       marginBottom={1}
     >
-      <Text color={isActive ? 'cyan' : 'gray'}>
+      <Text color={isActive ? 'cyan' : 'gray'} wrap="truncate">
         ⌕ {query}
         {isActive && <Text color="cyan">█</Text>}
       </Text>

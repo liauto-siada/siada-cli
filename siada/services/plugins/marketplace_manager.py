@@ -26,9 +26,7 @@ from siada.foundation.constants import SIADA_HOME
 from siada.foundation.logging import logger
 
 
-# No built-in marketplaces in the open-source build; users add their own
-# via the plugin config (plugin_config.json).
-_DEFAULT_MARKETPLACES = []
+_DEFAULT_MARKETPLACES: list = []
 
 _CONFIG_FILENAME = "plugin_config.json"
 
@@ -124,7 +122,7 @@ class MarketplaceManager:
         1. ``git clone --depth=1`` the repo into ``~/.siada-cli/marketplaces/<name>``
            and read ``.claude-plugin/marketplace.json`` from the working tree.
            This naturally reuses the user's git credentials so private repos
-           on enterprise GitLab/GitHub instances work.
+           on enterprise GitLab/GitHub hosts work.
         2. Fallback to anonymous HTTP/REST API (raw.githubusercontent.com /
            GitLab API v4) — only useful for fully public repos but kept for
            machines without a working ``git`` binary.

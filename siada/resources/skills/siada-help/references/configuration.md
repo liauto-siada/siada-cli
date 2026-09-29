@@ -21,6 +21,10 @@ Controls which LLM model siada uses.
 | `llm_config.base_url` | string | (provider default) | API endpoint base URL |
 | `llm_config.api_key` | string | (env var) | API key for authentication |
 | `llm_config.thinking` | bool | `true` | Enable extended thinking for models that support it |
+| `llm_config.enable_thinking` | bool | (model default) | Hard on/off switch for thinking/reasoning, persisted by `/thinking`. `false` wins over any effort level or thinking-token budget |
+| `llm_config.reasoning_effort` | string | (model default) | Default reasoning effort level, persisted by `/effort`. Accepted levels depend on the model |
+| `llm_config.vision_model` | string | (none) | Image-capable model used as a "vision bridge" when the main model cannot read images: attachments are transcribed into text evidence by this model before the main model sees them |
+| `llm_config.vision_provider` | string | (`llm_config.provider`) | Provider for `llm_config.vision_model` |
 | `llm_config.parallel_tool_calls` | bool | `true` | Allow parallel tool calls |
 
 **Example:**
@@ -30,6 +34,26 @@ llm_config:
   provider: anthropic
   api_key: sk-ant-...
 ```
+
+---
+
+## goal
+
+Controls the automatic retry budget for the session's `/goal` verifier.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `goal.max_turns` | int | `6` | Maximum number of consecutive failed verifier turns before a goal is blocked and automatic continuation stops. Values below 1 are treated as 1. |
+
+**Example:**
+```yaml
+goal:
+  max_turns: 8
+```
+
+Two consecutive verifier system errors still block a goal independently of this
+limit. A failed verdict with an empty `nextAction` also stops automatic
+continuation immediately.
 
 ---
 
@@ -107,23 +131,39 @@ Controls behavior of the code generation agent.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `code_agent.max_turns` | int | `200` | Maximum number of turns (LLM round-trips) for a single code agent run |
+| `code_agent.max_turns` | int | `1000` | Maximum number of turns (LLM round-trips) for a single code agent run |
 
 **Example:**
 ```yaml
 code_agent:
-  max_turns: 200
+  max_turns: 1000
 ```
 
 ---
 
 ## sub_agent
 
-Controls sub-agents spawned via the parallel task-dispatch mechanism (`run_subtask`).
+Controls the sub-agent feature — the parallel task-dispatch mechanism (`run_subtask`) that lets the main agent hand self-contained work to a helper agent running in a clean context window.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| `sub_agent.enabled` | bool | `true` | Master switch for the whole feature. `false` removes `run_subtask` from the agent's tool list and drops its prompt guidance, so every task is worked inline in the main agent's own context. |
+| `sub_agent.allow_recursive_subagents` | bool | `false` | Allow a sub-agent to launch its own sub-sub-agent (nesting hard-capped at 2 levels; at most 12 live agents per agent tree). Only effective while `sub_agent.enabled: true`. |
 | `sub_agent.llm_config` | object | (none) | Override the default model specifically for sub-agents (same shape as top-level `llm_config`) |
+
+**Notes:**
+- Disabling `sub_agent.enabled` also disables recursive nesting, since it is an extension of the same feature.
+- Some bundled skills (e.g. `design-doc-writer`) are built around `run_subtask`; with the feature disabled the agent simply does that work inline instead of delegating it.
+- Changes take effect after a daemon restart (see the top of this page).
+
+**Example:**
+```yaml
+sub_agent:
+  enabled: true
+  allow_recursive_subagents: false
+  llm_config:
+    model: claude-sonnet-4.6
+```
 
 ---
 
@@ -183,7 +223,7 @@ Tri-state master switch for the web tools (`web_search` / `web_fetch`) exposed t
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `web.enabled` | bool or null | `null` (auto) | `null`/unset = auto (ON when the active provider is `li`, OFF otherwise); `true` = always on; `false` = always off |
+| `web.enabled` | bool or null | `null` (on) | `null`/unset = on (default); `true` = always on; `false` = always off |
 
 **Example:**
 ```yaml
@@ -270,6 +310,73 @@ lark:
 
 ---
 
+## ui
+
+Terminal UI preferences (terminal and front-end themes). Written by slash commands, so you normally don't need to edit this section by hand.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `ui.theme` | string | `"auto"` | UI color theme: `"auto"` (follows the system/terminal background), `"dark"`, or `"light"`. Persisted by `/theme` |
+
+**Example:**
+```yaml
+ui:
+  theme: dark
+```
+
+---
+
+## im
+
+Settings for the Lark/Feishu IM client (see the `lark` section for enabling remote control).
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `im.verbose.p2p` | bool | `true` | Stream detail level in direct (1:1) chats: `true` shows thinking + tool calls + answer, `false` shows only the answer |
+| `im.verbose.group` | bool | `false` | Same switch for group chats |
+
+**Example:**
+```yaml
+im:
+  verbose:
+    p2p: true
+    group: false
+```
+
+---
+
+## headroom
+
+Optional integration with a local `headroom` proxy that routes LLM traffic and tracks a spend budget. Only effective when enabled; upstream endpoints are not configurable.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `headroom.enabled` | bool | `false` | Start the local headroom proxy and route LLM traffic through it |
+| `headroom.host` | string | `"127.0.0.1"` | Proxy bind host |
+| `headroom.port` | int | `8787` | Proxy port |
+| `headroom.budget` | float or null | `null` | Spend limit in USD (no limit when unset) |
+| `headroom.budget_period` | string | `"daily"` | Budget window: `hourly`, `daily`, or `monthly` |
+| `headroom.telemetry` | bool | `false` | Send proxy telemetry |
+| `headroom.startup_timeout` | float | `30.0` | Seconds to wait for the proxy to become healthy at startup |
+
+Related CLI flags: `--headroom` (one-click enable), `--no-headroom` (force off, overrides `conf.yaml`), `--headroom-port <port>`, `--headroom-budget <usd>`.
+
+---
+
+## user_id and credentials
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `user_id` | string | (set at login) | Identifier written automatically when you sign in |
+| `siada_api_key` | string | (set at login) | Access token for the configured provider |
+| `refresh_token` | string | (set at login) | Token used to silently renew `siada_api_key` |
+| `user_email` | string | (set at login) | Email of the signed-in account |
+| `email_refresh_token` | string | (set at login) | Refresh token for the email identity |
+
+These keys are written by the login flow (`/configure`) and removed by `/logout`. There is normally no reason to edit them by hand.
+
+---
+
 ## Full example conf.yaml
 
 ```yaml
@@ -295,7 +402,7 @@ auto_update:
   channel: "prod"
 
 code_agent:
-  max_turns: 200
+  max_turns: 1000
 
 memory:
   enabled: true
@@ -309,6 +416,18 @@ memory:
 
 web:
   enabled: null
+
+sub_agent:
+  enabled: true
+  allow_recursive_subagents: false
+
+ui:
+  theme: auto
+
+im:
+  verbose:
+    p2p: true
+    group: false
 
 # lark:
 #   mode: relay
@@ -330,6 +449,5 @@ These are configured in their own files, not `~/.siada-cli/conf.yaml`:
 |------|------|
 | Per-model overrides (context window, pricing, thinking budget, etc.) | `~/.siada-cli/model_config.json` — see `docs/external_model_configuration.md` |
 | MCP servers | `~/.siada-cli/mcp_config.json` |
-| UI preferences (theme, pre_plan mirror) | `~/.siada-cli/user_preference.yaml` |
 | Cron tasks | `~/.siada-cli/workspace/cron_tasks.json` (managed via the **manage-cron-task** skill) |
 | Custom slash commands | `~/.siada-cli/commands/**/*.toml` |

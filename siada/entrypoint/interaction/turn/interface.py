@@ -136,7 +136,7 @@ class RunTurn(ABC):
         # Handle rate limit errors (e.g. Moonshot 429): only tell the user
         # the model is rate limited, don't show the raw provider error.
         elif "RateLimitError" in error_type:
-            self.config.io.print_error("Model rate limited, please wait a moment and try again\n")
+            self.config.io.print_error("Model rate limited, please try again later\n")
         # Identify BadGatewayError (litellm)
         elif "BadGatewayError" in error_type or "BadGatewayError" in error_str:
             self.config.io.print_error(
@@ -163,7 +163,7 @@ class RunTurn(ABC):
             )
         # Handle transient upstream model errors (litellm mid-stream fallback /
         # provider InternalServerError, e.g. Vertex AI Gemini connection drop)
-        elif "MidStreamFallbackError" in error_type or "InternalServerError" in error_type:
+        elif "MidStreamFallbackError" in error_type:
             structured_message = _extract_structured_message(error_str)
             self.config.io.print_error(
                 "Model Service Temporary Error\n\n"

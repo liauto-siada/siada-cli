@@ -1,0 +1,43 @@
+# dependencies (bun install)
+node_modules
+
+# output
+out
+dist
+*.tgz
+packages/proxy-server/public/
+
+# Chrome extension metadata (auto-generated)
+_metadata
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store
+chrome-acp.zip
+release/
+
+# vendored pdf.js viewer (downloaded at build time by scripts/vendor-pdf-viewer.ts)
+packages/chrome-extension/vendor/

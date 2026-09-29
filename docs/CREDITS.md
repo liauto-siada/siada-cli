@@ -18,7 +18,8 @@ Siada CLI incorporates and adapts from the following open source projects. We ar
 
 ### [Codex](https://github.com/openai/codex)
 - **License**: Apache 2.0
-- **Contribution & Modifications**: Referenced its skills module implementation and adapted it to our own skills system.
+- **Contribution & Modifications**: Referenced its skills module implementation and adapted it to our own skills system, including the field limits, prompt wording, and the skills list rendering budget and degradation design.
+- **Attribution (from the Codex NOTICE file)**: OpenAI Codex, Copyright 2025 OpenAI.
 
 
 ## Open Source licenses

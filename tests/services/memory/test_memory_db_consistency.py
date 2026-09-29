@@ -18,7 +18,7 @@ import pytest
 
 from siada.services.memory.memory_service import MemoryService
 from siada.services.memory.memory_db import MemoryDatabase
-from siada.foundation.context import get_context_var, remove_context_var, LAST_MEMORY_NAME
+from siada.foundation.global_cache import LAST_MEMORY_NAME, remove_global_cache
 
 
 class MockFileSession:
@@ -58,9 +58,9 @@ def memory_db(temp_memory_dir):
 @pytest.fixture(autouse=True)
 def clear_context():
     """Clear context before and after each test"""
-    remove_context_var(LAST_MEMORY_NAME)
+    remove_global_cache(LAST_MEMORY_NAME)
     yield
-    remove_context_var(LAST_MEMORY_NAME)
+    remove_global_cache(LAST_MEMORY_NAME)
 
 
 def get_file_hash(file_path: Path) -> str:
@@ -305,7 +305,7 @@ async def test_multiple_files_database_consistency(memory_service, memory_db, te
     file_1 = Path(result_1)
     
     # Clear context to start new session
-    remove_context_var(LAST_MEMORY_NAME)
+    remove_global_cache(LAST_MEMORY_NAME)
     
     # Create second session
     messages_2 = [

@@ -267,8 +267,62 @@ class _LarkAdapterBase(IMAdapter):
             self._sender_cache[open_id] = (None, None, now)
             return None, None
 
+    # ── Chat (group) name resolution (shared by relay & direct) ───────
+
+    async def _resolve_chat_name(self, chat_id: str) -> Optional[str]:
+        """Resolve a group chat's display name via lark-oapi SDK with TTL cache.
+
+        Uses client.im.v1.chat.get(). Requires subclass to initialize
+        _chat_name_cache and _chat_name_cache_ttl.
+
+        Negative caching: on failure, stores (None, timestamp) so that the
+        same chat_id won't be retried until TTL expires.
+
+        Returns:
+            The group name, or None when unavailable.
+        """
+        if not chat_id:
+            return None
+
+        logger.info(f"Resolving chat name for {chat_id} ...")
+
+        # Check cache: stored as (name, timestamp); negative entries have name=None
+        import time
+        now = time.time()
+        cached = self._chat_name_cache.get(chat_id)
+        if cached and len(cached) >= 2 and now - cached[1] < self._chat_name_cache_ttl:
+            return cached[0]
+
+        try:
+            from lark_oapi.api.im.v1 import GetChatRequest
+
+            client = self._get_lark_client()
+            request = GetChatRequest.builder().chat_id(chat_id).build()
+            response = await asyncio.to_thread(client.im.v1.chat.get, request)
+
+            if response.success() and response.data:
+                name = getattr(response.data, "name", None) or None
+                logger.info(f"Lark im/v1/chat resolved for {chat_id}: name={name}")
+                self._chat_name_cache[chat_id] = (name, now)
+                return name
+            else:
+                logger.info(
+                    f"Lark im/v1/chat for {chat_id}: "
+                    f"code={response.code}, msg={response.msg}"
+                )
+                # Negative cache: avoid retrying within TTL
+                self._chat_name_cache[chat_id] = (None, now)
+                return None
+
+        except Exception as e:
+            logger.info(f"Failed to resolve chat name for {chat_id}: {e}")
+            # Negative cache: avoid retrying within TTL
+            self._chat_name_cache[chat_id] = (None, now)
+            return None
+
 
 # ── Relay adapter ─────────────────────────────────────────────────────────────
+
 
 
 class LarkRelayAdapter(_LarkAdapterBase):
@@ -299,8 +353,12 @@ class LarkRelayAdapter(_LarkAdapterBase):
         # Sender name cache: {open_id: (name, en_name, timestamp)}
         self._sender_cache: dict[str, tuple[str, str, float]] = {}
         self._sender_cache_ttl: float = 600  # 10 min
+        # Chat (group) name cache: {chat_id: (name, timestamp)}
+        self._chat_name_cache: dict[str, tuple[Optional[str], float]] = {}
+        self._chat_name_cache_ttl: float = 600  # 10 min
         # Lazy-initialized lark SDK client
         self._lark_client = None
+
 
     def set_bot_open_id(self, bot_open_id: str) -> None:
         """Set bot open_id after Gateway auth returns credentials.
@@ -396,6 +454,12 @@ class LarkRelayAdapter(_LarkAdapterBase):
         if self._resolve_sender_names and sender_open_id:
             sender_name, sender_en_name = await self._resolve_sender_name(sender_open_id)
 
+        # Resolve group chat name (best-effort, TTL-cached; same on/off switch
+        # as sender name resolution since both call Lark APIs)
+        chat_name = None
+        if self._resolve_sender_names and message.get("chat_type") != "p2p":
+            chat_name = await self._resolve_chat_name(message.get("chat_id", ""))
+
         # Extract media keys for image/file/post messages (video/audio are skipped)
         feishu_media_keys = self._extract_feishu_media_keys(raw_content, msg_type)
 
@@ -405,6 +469,7 @@ class LarkRelayAdapter(_LarkAdapterBase):
             user_id=sender.get("user_id", ""),
             chat_id=message.get("chat_id", ""),
             chat_type="p2p" if message.get("chat_type") == "p2p" else "group",
+            chat_name=chat_name,
             content_type=msg_type,
             content=content,
             timestamp=float(message.get("create_time", 0)) / 1000,
@@ -450,8 +515,12 @@ class LarkDirectAdapter(_LarkAdapterBase):
         # Sender name cache: {open_id: (name, en_name, timestamp)}
         self._sender_cache: dict[str, tuple[str, str, float]] = {}
         self._sender_cache_ttl: float = 600  # 10 min
+        # Chat (group) name cache: {chat_id: (name, timestamp)}
+        self._chat_name_cache: dict[str, tuple[Optional[str], float]] = {}
+        self._chat_name_cache_ttl: float = 600  # 10 min
         # Lazy-initialized lark SDK client
         self._lark_client = None
+
 
     def _get_lark_client(self):
         """Get or create a cached lark-oapi Client instance.
@@ -528,6 +597,12 @@ class LarkDirectAdapter(_LarkAdapterBase):
         if self._config.resolve_sender_names and sender_open_id:
             sender_name, sender_en_name = await self._resolve_sender_name(sender_open_id)
 
+        # Resolve group chat name (best-effort, TTL-cached; same on/off switch
+        # as sender name resolution since both call Lark APIs)
+        chat_name = None
+        if self._config.resolve_sender_names and message.get("chat_type") != "p2p":
+            chat_name = await self._resolve_chat_name(message.get("chat_id", ""))
+
         # Extract media keys for image/file/post messages (video/audio are skipped)
         feishu_media_keys = self._extract_feishu_media_keys(raw_content, msg_type)
 
@@ -537,6 +612,7 @@ class LarkDirectAdapter(_LarkAdapterBase):
             user_id=sender.get("user_id", ""),
             chat_id=message.get("chat_id", ""),
             chat_type="p2p" if message.get("chat_type") == "p2p" else "group",
+            chat_name=chat_name,
             content_type=msg_type,
             content=content,
             timestamp=float(message.get("create_time", 0)) / 1000,

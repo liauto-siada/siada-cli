@@ -658,7 +658,6 @@ class ImController(abc.ABC):
         Returns the restored RunningSession on success, or None if the resume
         failed (caller should fall back to resolve_session).
         """
-        from siada.session.session_manager import RunningSessionManager
         from siada.support.resume_service import ResumeService
 
         # Fast path: if the target session is already in memory cache,
@@ -709,14 +708,15 @@ class ImController(abc.ABC):
             import dataclasses
             target_config = dataclasses.replace(running_config, workspace=target_workspace)
 
-            # Create a fresh RunningSession as the restore target
-            session = RunningSessionManager.create_session(
+            # Create a fresh RunningSession and restore session_data into it
+            # (shared tail of all disk-resume paths).
+            from siada.support.session_restore import restore_into_fresh_session
+            session = restore_into_fresh_session(
+                session_data,
+                target_workspace=target_workspace,
                 siada_config=target_config,
                 session_id=target_session_id,
             )
-
-            # Full restore: message_history, api_messages, token count, etc.
-            resume_svc.restore_to_running_session(session_data, session)
 
             # Update routing and cache
             self.set_session_for_chat(

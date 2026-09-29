@@ -133,7 +133,42 @@ const KEY_INFO_MAP: Record<
   '[13u': { name: 'return' },
   '[27u': { name: 'escape' },
   '[127u': { name: 'backspace' },
-  '[57414u': { name: 'return' },
+  // Numeric keypad (Kitty protocol CSI u codes)
+  // Terminals that support the Kitty keyboard protocol (iTerm2, WezTerm,
+  // Ghostty, ...) send these functional codes once CSI >1u is pushed, e.g.
+  // ESC[57400u for Numpad 1. Codes per kitty key_encoding.py:
+  // 57399-57408 = KP_0-9, 57409-57413 = decimal/divide/multiply/subtract/add,
+  // 57414 = enter, 57415/57416 = equal/separator, 57417-57426 = navigation,
+  // 57427 = begin.
+  '[57399u': { name: '0', insertable: true, char: '0' },  // Numpad 0
+  '[57400u': { name: '1', insertable: true, char: '1' },  // Numpad 1
+  '[57401u': { name: '2', insertable: true, char: '2' },  // Numpad 2
+  '[57402u': { name: '3', insertable: true, char: '3' },  // Numpad 3
+  '[57403u': { name: '4', insertable: true, char: '4' },  // Numpad 4
+  '[57404u': { name: '5', insertable: true, char: '5' },  // Numpad 5
+  '[57405u': { name: '6', insertable: true, char: '6' },  // Numpad 6
+  '[57406u': { name: '7', insertable: true, char: '7' },  // Numpad 7
+  '[57407u': { name: '8', insertable: true, char: '8' },  // Numpad 8
+  '[57408u': { name: '9', insertable: true, char: '9' },  // Numpad 9
+  '[57409u': { name: '.', insertable: true, char: '.' },  // Numpad .
+  '[57410u': { name: '/', insertable: true, char: '/' },  // Numpad /
+  '[57411u': { name: '*', insertable: true, char: '*' },  // Numpad *
+  '[57412u': { name: '-', insertable: true, char: '-' },  // Numpad -
+  '[57413u': { name: '+', insertable: true, char: '+' },  // Numpad +
+  '[57414u': { name: 'return' },                           // Numpad Enter
+  '[57415u': { name: '=', insertable: true, char: '=' },  // Numpad =
+  '[57416u': { name: ',', insertable: true, char: ',' },  // Numpad ,
+  '[57417u': { name: 'left' },     // Numpad Left (NumLock off)
+  '[57418u': { name: 'right' },    // Numpad Right
+  '[57419u': { name: 'up' },       // Numpad Up
+  '[57420u': { name: 'down' },     // Numpad Down
+  '[57421u': { name: 'pageup' },   // Numpad Page Up
+  '[57422u': { name: 'pagedown' }, // Numpad Page Down
+  '[57423u': { name: 'home' },     // Numpad Home
+  '[57424u': { name: 'end' },      // Numpad End
+  '[57425u': { name: 'insert' },   // Numpad Insert
+  '[57426u': { name: 'delete' },   // Numpad Delete
+  '[57427u': { name: 'clear' },    // Numpad Begin (5 with NumLock off)
   // CSI u mode with modifiers (for Shift+Enter and Alt+Enter support)
   '[13;2u': { name: 'return', shift: true },  // Shift+Enter
   '[13;3u': { name: 'return', alt: true },    // Alt+Enter (Option+Enter on Mac)
@@ -238,12 +273,27 @@ function parseMouseEvent(sequence: string): boolean {
 }
 
 /**
- * Filter out non-keyboard events (mouse and focus events)
+ * Filter out non-keyboard events (mouse and focus events).
+ * Exception: SGR mouse wheel events (button 64 = wheel up, 65 = wheel down)
+ * are converted to wheelup/wheeldown key events instead of being dropped —
+ * views that enable mouse reporting (e.g. SubAgentDetailView) rely on them
+ * for wheel scrolling, mirroring claude-code's parse-keypress behavior.
  */
 function nonKeyboardEventFilter(
   keypressHandler: KeypressHandler,
 ): KeypressHandler {
   return (key: Key) => {
+    const mouseMatch = SGR_MOUSE_REGEX.exec(key.sequence);
+    if (mouseMatch) {
+      const button = parseInt(mouseMatch[1], 10);
+      if (button === 64) {
+        keypressHandler({ ...key, name: 'wheelup' });
+      } else if (button === 65) {
+        keypressHandler({ ...key, name: 'wheeldown' });
+      }
+      // All other mouse events are still filtered out.
+      return;
+    }
     if (
       !parseMouseEvent(key.sequence) &&
       key.sequence !== FOCUS_IN &&
@@ -284,8 +334,10 @@ function bufferFastReturn(keypressHandler: KeypressHandler): KeypressHandler {
 
 /**
  * Core ANSI parser generator
+ *
+ * Exported for unit tests (tests/numpad-keypress.test.ts).
  */
-function* emitKeys(
+export function* emitKeys(
   keypressHandler: KeypressHandler,
 ): Generator<void, void, string> {
   while (true) {
@@ -351,7 +403,7 @@ function* emitKeys(
               ctrl: false,
               cmd: false,
               insertable: true,
-              sequence: decoded,
+              sequence: decoded.replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
             });
           } catch (_e) {
             logger.warn('Failed to decode OSC 52 clipboard data', {
@@ -609,8 +661,13 @@ function bufferPaste(keypressHandler: KeypressHandler): KeypressHandler {
         buffer += key.sequence;
       }
 
-      // Remove trailing newlines to prevent accidental submission
-      const cleanedBuffer = buffer.replace(/[\r\n]+$/, '');
+      // Remove trailing newlines to prevent accidental submission.
+      // Terminals deliver pasted newlines as '\r' in bracketed paste mode;
+      // normalize to '\n' so multi-line pastes keep their line structure.
+      const cleanedBuffer = buffer
+        .replace(/[\r\n]+$/, '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n');
 
       logger.info('[KeypressContext] bufferPaste done', {
         rawBufferLength: buffer.length,

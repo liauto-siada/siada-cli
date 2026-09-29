@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useStdout } from 'ink';
+import { useStdout } from '@jrichman/ink';
 import { logger } from '../utils/logger.js';
 
 export interface TerminalSize {

@@ -14,7 +14,9 @@ import { useKeypress } from '../../hooks/useKeypress.js';
 import { MarkdownDisplay } from '../markdown/MarkdownDisplay.js';
 import { ShellOutput } from '../Shell/ShellOutput.js';
 import { DiffView } from '../diff/DiffView.js';
-import { parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
+import { FileChangeSetView } from '../diff/FileChangeSetView.js';
+import { parseApplyPatchContent, parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
+import { colors } from '../../utils/colors.js';
 
 /**
  * Calculate total wrapped lines considering terminal width
@@ -226,7 +228,8 @@ export const ProcessBox: React.FC<ProcessBoxProps> = React.memo(({
       // Truncate messages that wrap beyond terminal height, replacing excess with ...
       let processedMsg = msg;
       
-      if (!isExpanded) {
+      const isNativeApplyPatch = msg.content.includes('<!-- siada-apply-patch:start -->');
+      if (!isExpanded && !isNativeApplyPatch) {
         const actualLines = calculateWrappedLines(msg.content);
         
         if (actualLines > maxDisplayLines) {
@@ -252,6 +255,7 @@ export const ProcessBox: React.FC<ProcessBoxProps> = React.memo(({
     const result: Array<
       | { type: 'answer' | 'process'; content: string }
       | { type: 'diff'; filePath: string; hunks: ReturnType<typeof getSimplePatch> }
+      | { type: 'patch'; patch: NonNullable<ReturnType<typeof parseApplyPatchContent>> }
     > = [];
     
     otherMessages.forEach(msg => {
@@ -264,6 +268,11 @@ export const ProcessBox: React.FC<ProcessBoxProps> = React.memo(({
 
       // Detect completed file-edit tool calls and render as diff
       if (subtype === 'tool_use' || msg.metadata?.streamEnd === true) {
+        const patchInfo = parseApplyPatchContent(cleaned);
+        if (patchInfo) {
+          result.push({ type: 'patch', patch: patchInfo });
+          return;
+        }
         const editInfo = parseFileEditContent(cleaned);
         if (editInfo?.isComplete) {
           const hunks = getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString);
@@ -300,7 +309,7 @@ export const ProcessBox: React.FC<ProcessBoxProps> = React.memo(({
     <Box 
       flexDirection="column" 
       borderStyle="round" 
-      borderColor="gray"
+      borderColor={colors.content.border}
       paddingX={1}
       marginBottom={1}
     >
@@ -334,6 +343,12 @@ export const ProcessBox: React.FC<ProcessBoxProps> = React.memo(({
               <DiffView
                 filePath={section.filePath}
                 hunks={section.hunks}
+                width={Math.max(terminalWidth - 4, 40)}
+              />
+            ) : section.type === 'patch' ? (
+              <FileChangeSetView
+                changes={section.patch.changes}
+                fileCount={section.patch.fileCount}
                 width={Math.max(terminalWidth - 4, 40)}
               />
             ) : (

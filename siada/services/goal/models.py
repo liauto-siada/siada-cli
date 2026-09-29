@@ -20,30 +20,20 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
-# After this many consecutive verifier failures, a goal auto-transitions to
-# "blocked" and the runtime stops forcing retries — a safety net against
-# infinite loops from a persistently-misjudged or ambiguous objective. Not
-# meant to distinguish "stuck" from "legitimately needs many rounds": the
-# verifier judgment itself isn't reliable enough for that distinction, and
-# a transient system/LLM error on the verifier call also counts as a
-# failure here (see verifier.py's fail-safe passed=False on exceptions) --
-# a normal, healthy round for a complex task is expected to just take
-# longer/do more per turn rather than needing many "not yet" checkpoints.
-# Lowered from the original 10 to 6 to cut wasted token/time spend on
-# goals that are stuck or genuinely unachievable, while still leaving
-# enough auto-retry budget for legitimately multi-round tasks before the
-# safety net kicks in.
-GOAL_MAX_CONSECUTIVE_FAILURES = 6
+# Default safety limit for consecutive failed verifier turns. The user may
+# override it with ``goal.max_turns`` in conf.yaml. System errors retain their
+# separate, smaller breaker below.
+GOAL_MAX_TURNS = 6
 
 
 # After this many consecutive verifier SYSTEM errors (not genuine "not yet
 # achieved" judgments -- see GoalVerdict.systemError / verifier.py's
 # exception handlers), a goal auto-transitions to "blocked" much faster
-# than GOAL_MAX_CONSECUTIVE_FAILURES above. A system/infra error (model
-# behavior error, tool-call-instead-of-verdict, unexpected exception) tells
-# us nothing about whether the objective was actually reached, so letting
-# it eat into the same 6-round budget as genuine judgments would both hide
-# real infra problems and burn through retries for no reason.
+# than the configured consecutive-failure limit above. A system/infra error
+# (model behavior error, tool-call-instead-of-verdict, unexpected exception)
+# tells us nothing about whether the objective was actually reached, so
+# letting it eat into the normal failed-verdict budget would both hide real
+# infra problems and burn through retries for no reason.
 # Kept small and distinct so a broken verifier call surfaces to the user
 # quickly instead of silently retrying many times.
 

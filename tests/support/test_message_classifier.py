@@ -185,6 +185,82 @@ def test_goal_command_with_pasted_reminder_keeps_real_part_drops_whole_reminder_
     assert "untrusted_objective" not in content
 
 
+def test_goal_kickoff_turn_resume_renders_exactly_what_the_human_typed():
+    """Regression test for the /goal <user_input>-wrap fix: after
+    Controller._build_pending_input_for_ai_analysis started wrapping the
+    "/goal <objective>" text in <user_input>...</user_input>, resuming /
+    re-rendering that session must still restore exactly the literal text
+    the human typed — tags stripped, /goal prefix kept, and the appended
+    goal-reminder part dropped entirely."""
+    objective = "使用worktree 为当前项目增加一个功能"
+    items = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": f"<user_input>/goal {objective}</user_input>",
+                },
+                {
+                    "type": "input_text",
+                    "text": (
+                        "<system-reminder>\n"
+                        "Continue working toward the active session goal.\n"
+                        "<untrusted_objective>\n"
+                        f"{objective}\n"
+                        "</untrusted_objective>\n"
+                        "Avoid repeating work that is already done.\n"
+                        "</system-reminder>"
+                    ),
+                },
+            ],
+        }
+    ]
+
+    result = format_native_items_for_display(items)
+
+    assert result == [{"role": "user", "content": f"/goal {objective}"}]
+
+
+def test_strips_user_input_tag_from_user_message():
+    """Every user turn is wrapped in <user_input>...</user_input> at the
+    entry point (TUI/Feishu, see marker.wrap_user_input); the display
+    layer must recover exactly what the human typed, tag-free."""
+    items = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": "<user_input>please fix the bug</user_input>",
+        }
+    ]
+
+    assert format_native_items_for_display(items) == [
+        {"role": "user", "content": "please fix the bug"}
+    ]
+
+
+def test_strips_both_task_and_user_input_wrappers():
+    """The <task>...</task> wrapper (added by the agent, discards the
+    tail) and the inner <user_input>...</user_input> tag (added at the
+    entry point, keeps the body) can both be present on the same turn —
+    both must be removed, leaving only the literal human text."""
+    items = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": (
+                "<task><user_input>please fix the bug</user_input></task>"
+                "\nSome goal context appended after </task>"
+            ),
+        }
+    ]
+
+    assert format_native_items_for_display(items) == [
+        {"role": "user", "content": "please fix the bug"}
+    ]
+
+
 def test_standalone_reminder_message_dropped_even_when_goal_command_is_a_separate_item():
     """First reported bug shape: TodoReminderFilter's standalone reminder
     (legacy underscore tag) is persisted as its own separate message item

@@ -19,10 +19,17 @@ interface SessionMetadata {
   custom_name?: string;
 }
 
-function stripTaskTags(text: string): string {
+// Strips the <task>...</task> wrapper added by the agent, as well as the
+// <user_input>...</user_input> tag added at every user input entry point
+// (TUI, Feishu) — see marker.wrap_user_input on the Python side. Both wrappers
+// remove a leading opening tag and discard everything from their respective
+// closing tag onward.
+export function stripTaskTags(text: string): string {
   return text
     .replace(/^\s*<task>\s*/s, '')
     .replace(/\s*<\/task>[\s\S]*$/s, '')
+    .replace(/^\s*<user_input>\s*/s, '')
+    .replace(/\s*<\/user_input>[\s\S]*$/s, '')
     .trim();
 }
 

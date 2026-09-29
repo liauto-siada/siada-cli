@@ -23,10 +23,12 @@ from siada.agent_hub.context_filter.utils import (
     calculate_tokens,
     estimate_tokens,
     _convert_tools_to_openai_params,
+    fix_tool_message_ordering,
 )
 from siada.provider.client_factory import get_client
 from siada.foundation.context import agent_name_scope
 from siada.foundation.logging import logger
+from siada.support.chat_compat_items import to_chat_compatible_items
 
 # Event-type marker used in the X-Siada-Event-Type header for compaction LLM calls.
 # Overrides AGENT_NAME for the duration of call_llm_to_compact() so server-side
@@ -264,12 +266,26 @@ class CompactionStrategy(ABC):
             or Converter.maybe_file_search_call(message)
             or Converter.maybe_reasoning_message(message)
             or Converter.maybe_response_output_message(message)
+            or CompactionStrategy._is_native_apply_patch_item(
+                message, "apply_patch_call"
+            )
         )
 
     @staticmethod
     def is_function_response(message) -> bool:
         """Check if a message is a function/tool call response."""
-        return Converter.maybe_function_tool_call_output(message)
+        return (
+            Converter.maybe_function_tool_call_output(message)
+            or CompactionStrategy._is_native_apply_patch_item(
+                message, "apply_patch_call_output"
+            )
+        )
+
+    @staticmethod
+    def _is_native_apply_patch_item(message, expected_type: str) -> bool:
+        if isinstance(message, dict):
+            return message.get("type") == expected_type
+        return getattr(message, "type", None) == expected_type
 
     # ── index helpers ───────────────────────────────────────────────
 
@@ -428,7 +444,27 @@ class CompactionStrategy(ABC):
                 model, main_model,
             )
 
-        compact_messages = Converter.items_to_messages(history_to_compact) + [
+        # Replayed history may contain native Responses apply_patch items,
+        # which the ChatCompletions converter rejects outright ("Unhandled
+        # item type or structure").  This summarization call always speaks
+        # chat completions (via ``get_client``), so rewrite those items into
+        # lossless function-call proxies first; the compacted result itself
+        # keeps the original native items.
+        converted_messages = Converter.items_to_messages(
+            to_chat_compatible_items(history_to_compact)
+        )
+        # Kimi K3 (and other models) may interleave an assistant text message
+        # between a function_call and its function_call_output in the
+        # Responses-API item stream. Converter.items_to_messages then flushes
+        # the pending assistant tool_calls message before the interleaved
+        # text, stranding the tool response behind another assistant message —
+        # which strict Chat Completions providers reject (Moonshot:
+        # "an assistant message with 'tool_calls' must be followed by tool
+        # messages responding to each 'tool_call_id'"). Repair the ordering
+        # before sending; the normal streaming path applies the same repair
+        # in siada/internal/provider/li/li_provider.py.
+        converted_messages = fix_tool_message_ordering(converted_messages)
+        compact_messages = converted_messages + [
             {"role": "user", "content": self._get_compaction_user_prompt()}
         ]
         compact_messages.insert(
@@ -510,13 +546,13 @@ class CompactionStrategy(ABC):
         """
         ids: set = set()
         if isinstance(msg, dict):
-            if msg.get("type") in ("tool_use", "function_call"):
+            if msg.get("type") in ("tool_use", "function_call", "apply_patch_call"):
                 tid = msg.get("call_id") or msg.get("id")
                 if tid:
                     ids.add(tid)
         else:
             msg_type = getattr(msg, "type", None)
-            if msg_type in ("tool_use", "function_call"):
+            if msg_type in ("tool_use", "function_call", "apply_patch_call"):
                 tid = getattr(msg, "call_id", None) or getattr(msg, "id", None)
                 if tid:
                     ids.add(tid)

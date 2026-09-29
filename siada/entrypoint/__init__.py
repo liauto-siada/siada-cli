@@ -1,5 +1,5 @@
 """
-Siada Hub 命令行工具入口点
+Siada Hub command line tool entry point
 """
 from siada.foundation.logging import logger
 
@@ -158,26 +158,9 @@ def _register_token_refresh_callback():
     import litellm
     from litellm.integrations.custom_logger import CustomLogger
 
-    # Resolve the internal IDaaS dependency once at registration time instead
-    # of importing on every call. It only exists in internal builds; in the
-    # open-source build the hook below degrades to the generic
-    # message-normalization only.
-    try:
-        from siada.internal.services.idaas.auth_store import (
-            ensure_valid_auth as _ensure_valid_auth,
-            generate_dedup_token as _generate_dedup_token,
-        )
-    except ImportError:
-        _ensure_valid_auth = None
-        _generate_dedup_token = None
-
     class _SiadaTokenRefreshCallback(CustomLogger):
         async def async_pre_call_deployment_hook(self, kwargs, call_type):
             _normalize_empty_assistant_content(kwargs.get("messages"))
-
-            # IDaaS token injection is internal-only.
-            if _ensure_valid_auth is None:
-                return kwargs
 
             from siada.entrypoint import _CURRENT_PROVIDER
             # Skip IDaaS auth when the active provider is 'default'.
@@ -190,7 +173,9 @@ def _register_token_refresh_callback():
             if _CURRENT_PROVIDER == "default" and kwargs.get("api_key") != "li":
                 return kwargs
 
-            _user_id, _access_token = await _ensure_valid_auth()
+            from siada.internal.services.idaas.auth_store import ensure_valid_auth, generate_dedup_token
+
+            _user_id, _access_token = await ensure_valid_auth()
 
             # Debug: log a safe token fingerprint so we can correlate retries
             # and determine whether the refresh actually rotated the token.
@@ -212,7 +197,7 @@ def _register_token_refresh_callback():
                 **(kwargs.get("extra_headers") or {}),
                 "X-Siada-User-ID": _user_id,
                 "X-Siada-Token": _access_token,
-                "X-Siada-Dedup": _generate_dedup_token(),
+                "X-Siada-Dedup": generate_dedup_token(),
             }
             # httpx rejects None header values with
             # "Header value must be str or bytes, not <class 'NoneType'>".
@@ -222,6 +207,38 @@ def _register_token_refresh_callback():
                 k: v for k, v in merged.items() if v is not None
             }
             return kwargs
+
+        async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
+            """On auth rejection (HTTP 401/403) mark the token for forced refresh.
+
+            The LLM proxy may reject a token that still looks unexpired per
+            local JWT checks (revoked server-side by a re-login elsewhere,
+            clock skew). litellm's own retries reuse the same request headers
+            and can never recover from this, so mark the token invalid here:
+            the next call's pre-call hook (or SiadaClient's auth retry) then
+            rotates it via the refresh token.
+            """
+            from siada.entrypoint import _CURRENT_PROVIDER
+            # Same gating as the pre-call hook: only manage IDaaS tokens for
+            # li-authed calls (li provider, or internal li-proxy calls with
+            # api_key="li"), never for user-configured 'default' credentials.
+            if _CURRENT_PROVIDER == "default" and kwargs.get("api_key") != "li":
+                return
+
+            exc = kwargs.get("exception")
+            status_code = getattr(exc, "status_code", None)
+            if status_code not in (401, 403):
+                return
+
+            from siada.internal.services.idaas.auth_store import invalidate_access_token
+
+            logger.warning(
+                "[token-hook] auth rejected (HTTP %s); marking token for forced"
+                " refresh | model=%s",
+                status_code,
+                kwargs.get("model"),
+            )
+            invalidate_access_token()
 
     if not any(
         type(cb).__name__ == "_SiadaTokenRefreshCallback"

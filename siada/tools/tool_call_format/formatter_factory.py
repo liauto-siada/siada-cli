@@ -6,8 +6,8 @@ from .tool_call_formatter import ToolCallFormatter
 
 class ToolCallFormatterFactory:
     """
-    Tool call formatter 工厂类
-    根据函数名创建相应的formatter实例
+    Factory class for tool call formatters.
+    Creates the corresponding formatter instance based on the function name.
     """
 
     _formatters: Dict[str, Type[ToolCallFormatter]] = {}
@@ -16,10 +16,10 @@ class ToolCallFormatterFactory:
     @classmethod
     def register_formatter(cls, formatter_class: Type[ToolCallFormatter]) -> None:
         """
-        注册一个formatter类
+        Register a formatter class.
         
         Args:
-            formatter_class: Formatter类
+            formatter_class: The Formatter class.
         """
         instance = formatter_class()
         cls._formatters[instance.supported_function] = formatter_class
@@ -27,13 +27,13 @@ class ToolCallFormatterFactory:
     @classmethod
     def get_formatter(cls, function_name: str) -> Optional[ToolCallFormatter]:
         """
-        根据函数名获取相应的formatter实例
+        Get the formatter instance for the given function name.
         
         Args:
-            function_name: 函数名称
+            function_name: The function name.
             
         Returns:
-            对应的formatter实例，如果不存在则返回None
+            The corresponding formatter instance, or None if it does not exist.
         """
         if function_name not in cls._formatters:
             return DefaultFormatter()
@@ -47,13 +47,13 @@ class ToolCallFormatterFactory:
     @classmethod
     def create_formatter(cls, function_name: str) -> Optional[ToolCallFormatter]:
         """
-        创建formatter实例（每次都创建新实例）
+        Create a formatter instance (a new instance each time).
         
         Args:
-            function_name: 函数名称
+            function_name: The function name.
             
         Returns:
-            新的formatter实例，如果不存在则返回None
+            A new formatter instance, or None if it does not exist.
         """
         if function_name not in cls._formatters:
             return None
@@ -64,17 +64,17 @@ class ToolCallFormatterFactory:
     @classmethod
     def list_supported_functions(cls) -> list[str]:
         """
-        列出所有支持的函数名
+        List all supported function names.
         
         Returns:
-            支持的函数名列表
+            The list of supported function names.
         """
         return list(cls._formatters.keys())
 
     @classmethod
     def clear_registry(cls) -> None:
         """
-        清空注册的formatter（主要用于测试）
+        Clear the registered formatters (mainly for testing).
         """
         cls._formatters.clear()
         cls._instances.clear() 

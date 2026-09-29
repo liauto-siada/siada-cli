@@ -2,9 +2,15 @@
 
 The SDK default (``default_should_replay_reasoning_content``) only replays
 reasoning content for DeepSeek models.  This module provides a project-wide
-hook that extends the replay to GLM models (e.g. glm-5.1, glm-5.2) as well,
-so that reasoning/thinking content is preserved across multi-turn tool-call
+hook that extends the replay to GLM models (e.g. glm-5.1, glm-5.2), Kimi
+(e.g. kimi-k3) and Qwen (e.g. kivy-qwen-3.8-max) as well, so that
+reasoning/thinking content is preserved across multi-turn tool-call
 conversations regardless of which provider is used.
+
+Qwen joins the list because the converter now sends
+``preserve_thinking: true`` for Qwen models (DashScope preserved thinking,
+the Qwen counterpart of GLM's ``clear_thinking: false``), so their responses
+carry reasoning content that must be replayed on subsequent turns.
 
 Usage:
     # In providers that call Converter.items_to_messages directly:
@@ -25,16 +31,16 @@ from agents.models.reasoning_content_replay import (
 
 # Model-family keywords that require reasoning-content replay in addition to
 # the SDK default (DeepSeek).
-_REASONING_REPLAY_MODEL_KEYWORDS: tuple[str, ...] = ("glm", "kimi")
+_REASONING_REPLAY_MODEL_KEYWORDS: tuple[str, ...] = ("glm", "kimi", "qwen")
 
 
 def should_replay_reasoning_content(context: ReasoningContentReplayContext) -> bool:
     """Decide whether to replay reasoning content into the next assistant message.
 
     Extends the SDK default (which only replays for DeepSeek) to also replay
-    for GLM (e.g. glm-5.1, glm-5.2) and Kimi (e.g. kimi-k3) models so that
-    reasoning/thinking content is preserved across multi-turn tool-call
-    conversations.
+    for GLM (e.g. glm-5.1, glm-5.2), Kimi (e.g. kimi-k3) and Qwen
+    (e.g. kivy-qwen-3.8-max) models so that reasoning/thinking content is
+    preserved across multi-turn tool-call conversations.
 
     The origin-model check prevents cross-model contamination: reasoning from
     a DeepSeek model will not be replayed into a GLM request, and vice versa.

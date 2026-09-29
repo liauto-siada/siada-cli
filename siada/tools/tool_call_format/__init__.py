@@ -1,11 +1,11 @@
 """
-Tool Call Formatter 模块
+Tool Call Formatter module.
 
-提供工具调用参数格式化功能，包括：
-- ToolCallFormatter 抽象基类接口
-- ToolCallFormatterFactory 工厂类
-- 各种具体的 formatter 实现
-- ParameterInterceptor 参数拦截装饰器
+Provides tool call argument formatting, including:
+- ToolCallFormatter abstract base class interface
+- ToolCallFormatterFactory factory class
+- Various concrete formatter implementations
+- ParameterInterceptor argument interception decorator
 """
 
 from .tool_call_formatter import ToolCallFormatter
@@ -19,6 +19,7 @@ from .formatters import (
     FixAttemptCompletionFormatter,
     ReproduceCompletionFormatter,
     FileEditFormatter,
+    ReadFileFormatter,
     AskFollowupQuestionFormatter,
     BrowserOperateFormatter,
     RunSubtaskFormatter,
@@ -37,7 +38,7 @@ from .formatters import (
 
 # Auto-register all formatters
 def _register_all_formatters():
-    """自动注册所有可用的formatter"""
+    """Automatically register all available formatters."""
     formatters = [
         DefaultFormatter,
         SearchFormatter,
@@ -46,6 +47,7 @@ def _register_all_formatters():
         FixAttemptCompletionFormatter,
         ReproduceCompletionFormatter,
         FileEditFormatter,
+        ReadFileFormatter,
         AskFollowupQuestionFormatter,
         ListCodeDefinitionNamesFormatter,
         BrowserOperateFormatter,
@@ -75,6 +77,7 @@ __all__ = [
     'ToolCallFormatterFactory',
     'DefaultFormatter',
     'FileReadFormatter',
+    'ReadFileFormatter',
     'SearchFormatter',
     'CommandFormatter',
     'PowerShellCommandFormatter',

@@ -154,8 +154,8 @@ lark:
   # 上下文注入（可选）
   context:
     # 是否将对话信息（sender_name、sender_user_id 等）注入到用户消息中
-    # 开启后 Agent 可感知发送者身份，适合多人共用机器人的场景
-    # sender_name 需要 contact:contact.base:readonly 权限
+    # 默认开启，Agent 可感知发送者身份，适合多人共用机器人的场景
+    # 设为 false 可关闭。sender_name 需要 contact:contact.base:readonly 权限
     # user_id 需要 contact:user.employee_id:readonly 权限
     # include_conversation_info: true
 
@@ -225,7 +225,7 @@ lark:
 | `lark.direct.domain` | ❌ | `lark` | `feishu`（国内飞书）或 `lark`（海外 Lark），也可填自定义域名 |
 | `lark.direct.http_timeout_ms` | ❌ | `30000` | HTTP API 请求超时（毫秒） |
 | `lark.direct.resolve_sender_names` | ❌ | `true` | 是否通过 API 解析发送者姓名 |
-| `lark.context.include_conversation_info` | ❌ | `false` | 是否将对话元信息（sender_name、sender_user_id 等）注入到用户消息中，适合多人共用机器人场景 |
+| `lark.context.include_conversation_info` | ❌ | `true` | 是否将对话元信息（sender_name、sender_user_id 等）注入到用户消息中，适合多人共用机器人场景 |
 | `lark.access.dm_policy` | ❌ | `allowlist` | DM 访问策略：`open` 或 `allowlist` |
 | `lark.access.allow_from` | ❌ | `[]` | DM 白名单用户 ID 列表（open_id 格式） |
 | `lark.access.group_policy` | ❌ | `allowlist` | 群聊访问策略：`open`、`allowlist` 或 `disabled` |

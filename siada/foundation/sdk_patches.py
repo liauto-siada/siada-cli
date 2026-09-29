@@ -25,12 +25,126 @@ to the original (unmodified) SDK behavior, so we never make startup worse.
 from __future__ import annotations
 
 import logging
+import sys
+import threading
 from typing import Any, List, Set
 
 logger = logging.getLogger(__name__)
 
 _PATCHED = False
 _LITELLM_PATCHED = False
+
+# Serializes the agents-SDK import/patch gate; see ensure_agents_imported().
+_AGENTS_IMPORT_LOCK = threading.Lock()
+_AGENTS_IMPORTED = False
+
+# Per-thread marker: True while this thread is inside the critical section of
+# ensure_agents_imported(). The ``_AgentsImportGate`` meta-path finder calls back
+# into ensure_agents_imported() for the very ``import agents`` performed there,
+# so without this the non-reentrant lock above would self-deadlock.
+_AGENTS_IMPORT_IN_PROGRESS = threading.local()
+_PATCH_LOCK = threading.Lock()
+
+# Warmup coordination: the "agents-init" thread does the SDK import, patching
+# and provider discovery; other siada threads wait for it (bounded) before
+# importing agent classes. Without that handshake two threads can drive the
+# SDK's first import concurrently, which surfaces either as partially
+# initialized modules ("cannot import name X from partially initialized module
+# 'agents.items'") or as an import deadlock detected by CPython's _ModuleLock.
+_AGENTS_WARMUP_STARTED = threading.Event()
+_AGENTS_READY = threading.Event()
+
+
+def begin_agents_warmup() -> None:
+    """Mark that the agents warmup thread has been started."""
+    _AGENTS_WARMUP_STARTED.set()
+
+
+def mark_agents_ready() -> None:
+    """Mark the warmup thread's SDK work (import + patches + providers) as done."""
+    _AGENTS_READY.set()
+
+
+def agents_warmup_active() -> bool:
+    """True while a started warmup has not finished yet."""
+    return _AGENTS_WARMUP_STARTED.is_set() and not _AGENTS_READY.is_set()
+
+
+def wait_agents_ready(timeout: float = 20.0) -> bool:
+    """Block (bounded) until the warmup thread finished its SDK work."""
+    return _AGENTS_READY.wait(timeout)
+
+
+def ensure_agents_imported() -> None:
+    """Import the ``agents`` package once, under a process-wide lock.
+
+    Importing a *submodule* first (``from agents.items import ...``) while
+    another thread is still executing ``agents/__init__.py`` fails with
+    "cannot import name X from partially initialized module 'agents.items'".
+    openai-agents 0.22.x widened that window: ``__init__`` now imports
+    ``sandbox`` -> ``run_config`` -> ``guardrail`` -> ``items`` -> ``tool``.
+
+    A package-level ``import agents`` blocks until a concurrent first import
+    has completed (CPython's per-module import lock), so calling this before
+    touching SDK submodules gives every siada thread one serialization point.
+    """
+    global _AGENTS_IMPORTED
+    if _AGENTS_IMPORTED:
+        return
+    if getattr(_AGENTS_IMPORT_IN_PROGRESS, "value", False):
+        # This thread is already driving the import: the gate re-entered here
+        # through the in-flight ``import agents`` below. There is nothing to
+        # wait for, and re-acquiring the (non-reentrant) lock would deadlock.
+        return
+    with _AGENTS_IMPORT_LOCK:
+        if _AGENTS_IMPORTED:
+            return
+        _AGENTS_IMPORT_IN_PROGRESS.value = True
+        try:
+            import agents  # noqa: F401  # blocks until a concurrent init finishes
+        finally:
+            _AGENTS_IMPORT_IN_PROGRESS.value = False
+        _AGENTS_IMPORTED = True
+
+
+class _AgentsImportGate:
+    """Meta-path finder that routes the SDK's first import through the lock.
+
+    Without it the serialization point only holds for code that remembers to
+    call ``ensure_agents_imported()`` first — entry modules and the two warmup
+    threads do, but any of the other siada modules that import ``agents`` (or a
+    submodule such as ``agents.models.*``) at module level can do so from any
+    thread. Those imports are the ones that observe partially initialized
+    modules or deadlock, so the gate is installed in the import machinery
+    itself: ``find_spec`` runs for every not-yet-imported name, and any
+    ``agents`` / ``agents.*`` import waits on the same lock before the real
+    loader runs. Once the package is in ``sys.modules`` the finder is not
+    consulted for it anymore, so the steady-state cost is a prefix check.
+
+    Reentrancy is handled inside ``ensure_agents_imported()`` (per-thread
+    in-progress marker), not here: the finder also fires for the
+    ``import agents`` that ``ensure_agents_imported()`` itself performs, and for
+    the same reason it must fire for callers that already entered the critical
+    section directly.
+    """
+
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname != "agents" and not fullname.startswith("agents."):
+            return None
+        ensure_agents_imported()
+        return None  # let the remaining finders perform the real import
+
+
+def _install_agents_import_gate() -> None:
+    """Install the gate once, at the front of ``sys.meta_path``."""
+    gate = _AgentsImportGate()
+    if not any(isinstance(finder, _AgentsImportGate) for finder in sys.meta_path):
+        sys.meta_path.insert(0, gate)
+
+
+# Install on import: every entry module imports this module before anything else
+# that could pull in the SDK.
+_install_agents_import_gate()
 
 
 def apply_sdk_patches() -> None:
@@ -41,15 +155,26 @@ def apply_sdk_patches() -> None:
     here — that can trigger a "partially initialized module 'litellm'" circular
     import. litellm-side patches live in ``apply_litellm_patches`` and must be
     applied only once litellm is fully loaded (see ``apply_litellm_patches``).
+
+    The same race applies to the agents SDK itself, so the patch waits for the
+    package import (``ensure_agents_imported``) and serializes on
+    ``_PATCH_LOCK``. Failures keep ``_PATCHED`` false so the next caller (e.g.
+    the ``siada_runner`` safety net) can retry.
     """
     global _PATCHED
     if _PATCHED:
         return
-    try:
-        _patch_unknown_tool_to_synthetic_stub()
-        _PATCHED = True
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Failed to apply agents SDK patches: %s", exc, exc_info=True)
+    with _PATCH_LOCK:
+        if _PATCHED:
+            return
+        try:
+            ensure_agents_imported()
+            _patch_unknown_tool_to_synthetic_stub()
+            _PATCHED = True
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "Failed to apply agents SDK patches: %s", exc, exc_info=True
+            )
 
 
 def apply_litellm_patches() -> None:
@@ -129,7 +254,10 @@ def _patch_disable_gemini_function_call_id_forwarding() -> None:
 
 
 def _patch_unknown_tool_to_synthetic_stub() -> None:
-    from agents import FunctionTool
+    # Import from the concrete submodule: ``from agents import FunctionTool``
+    # depends on the package ``__init__`` having populated its attributes, which
+    # is exactly the partially-initialized state this patch must tolerate.
+    from agents.tool import FunctionTool
     from agents._tool_identity import (
         build_function_tool_lookup_map,
         get_function_tool_lookup_key_for_call,

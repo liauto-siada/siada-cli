@@ -1,20 +1,7 @@
-"""
-Goal-related turn hooks for the interaction Controller.
+"""Goal turn hooks shared by entrypoint policies.
 
-Extracted out of ``siada/entrypoint/interaction/controller.py`` so the
-Controller class doesn't keep growing with goal-domain logic. Each function
-takes ``send_acp_notification`` as an explicit parameter (rather than
-relying on a bound method / stateful wrapper object), which keeps this
-module decoupled from Controller and lets Controller simply delegate:
-
-    def _push_goal_state_via_acp(self, goal, verifying=False, notice=None, result=None):
-        return turn_hooks.push_goal_state_via_acp(
-            self._send_acp_notification, goal, verifying, notice, result
-        )
-
-This also means existing tests that construct a bare
-``Controller.__new__(Controller)`` and monkeypatch ``_send_acp_notification``
-keep working unmodified.
+Notifications use an injected callback; goal state and verification remain
+independent of the transport and terminal presentation.
 """
 
 import asyncio
@@ -77,6 +64,8 @@ def maybe_reset_goal_on_new_turn(
     turn,
     session: RunningSession,
     session_dir,
+    *,
+    user_initiated: bool = True,
 ) -> None:
     """Normalize a stale goal right before a new conversation turn starts.
 
@@ -89,13 +78,12 @@ def maybe_reset_goal_on_new_turn(
       the goal and reset the failure counter instead of requiring an
       explicit ``/goal resume``.
 
-    Only applies to conversation turns — slash commands (including
-    ``/goal`` itself) don't represent the user "continuing" toward the
-    goal, so this must not fire for them (mirrors the same guard in
-    maybe_run_goal_verifier).
+    Only applies to user-initiated conversation turns — slash commands and
+    internal retry/background-feedback turns do not mean the user wants to
+    resume a blocked goal.
     """
     from siada.entrypoint.interaction.turn.models import TurnType
-    if turn.get_turn_type() != TurnType.CONVERSATION:
+    if not user_initiated or turn.get_turn_type() != TurnType.CONVERSATION:
         return
 
     from siada.services.siada_runner import SiadaRunner
@@ -235,8 +223,8 @@ def maybe_run_goal_verifier(
     )
     from siada.services.goal import goal_storage
     from siada.services.goal.models import (
-        GOAL_MAX_CONSECUTIVE_FAILURES,
         GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS,
+        GOAL_MAX_TURNS,
     )
     from siada.services.goal.prompts import build_goal_reminder_text
     from siada.support.slash_commands import SwitchEvent
@@ -248,6 +236,39 @@ def maybe_run_goal_verifier(
     # regardless of the outcome — surfaced to the frontend as "N turns"
     # in the Goal achieved/not-yet-achieved summary line.
     goal.turns += 1
+    try:
+        max_turns = max(1, int(getattr(context, "goal_max_turns", GOAL_MAX_TURNS)))
+    except (TypeError, ValueError):
+        max_turns = GOAL_MAX_TURNS
+
+    def block_goal(notice: str, verdict=None, next_action: str = ""):
+        goal.status = "blocked"
+        goal.touch()
+        goal_storage.save_goal(session_dir, goal)
+        result_payload = {
+            "achieved": False,
+            "elapsedSeconds": elapsed_seconds_since(goal.created_at),
+            "turns": goal.turns,
+            "tokensUsed": tokens_used_for(context),
+            "objective": goal.objective,
+        }
+        if verdict is not None:
+            result_payload.update({
+                "reason": verdict.reason,
+                "nextAction": next_action,
+            })
+        push_goal_state_via_acp(
+            send_acp_notification,
+            goal,
+            verifying=False,
+            notice=notice,
+            result=result_payload,
+        )
+        _maybe_show_completion_notification(
+            enable_notification,
+            f"Goal paused: {_truncate_for_notification(goal.objective)}",
+        )
+        return result
 
     try:
         verdict = asyncio.run(
@@ -320,6 +341,9 @@ def maybe_run_goal_verifier(
         return result
 
     if getattr(verdict, "systemError", False):
+        # A system-error verdict is not a genuine verification judgment and
+        # therefore has no model-generated nextAction to drive continuation.
+        # Let the dedicated system-error breaker below govern retries.
         goal.consecutive_system_errors += 1
         if goal.consecutive_system_errors >= GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS:
             goal.status = "blocked"
@@ -380,32 +404,24 @@ def maybe_run_goal_verifier(
     goal.consecutive_system_errors = 0
 
     goal.consecutive_failures += 1
-    if goal.consecutive_failures >= GOAL_MAX_CONSECUTIVE_FAILURES:
-        goal.status = "blocked"
-        goal.touch()
-        goal_storage.save_goal(session_dir, goal)
-        push_goal_state_via_acp(
-            send_acp_notification,
-            goal,
-            verifying=False,
-            notice=(
-                f"Goal check failed {GOAL_MAX_CONSECUTIVE_FAILURES} times in a row — "
-                "paused auto-retry. Review the goal or use /goal resume to try again."
-            ),
+    next_action = getattr(verdict, "nextAction", "") or ""
+    next_action = next_action.strip()
+    if not next_action:
+        return block_goal(
+            "Goal verifier returned no next action — paused automatic continuation.",
+            verdict=verdict,
         )
-        # Auto-retry has stopped and the agent is now waiting on the user
-        # (via /goal resume or a new message) -- also a terminal stopping
-        # point worth notifying about.
-        _maybe_show_completion_notification(
-            enable_notification,
-            f"Goal paused: {_truncate_for_notification(goal.objective)}",
+
+    if goal.consecutive_failures >= max_turns:
+        return block_goal(
+            f"Goal failed verification {max_turns} consecutive times — "
+            "paused auto-retry.",
+            verdict=verdict,
+            next_action=next_action,
         )
-        return result
 
     goal.touch()
     goal_storage.save_goal(session_dir, goal)
-
-    next_action = getattr(verdict, "nextAction", "") or ""
     # Reuses the same rich <system-reminder> shape the model already sees
     # on the ordinary once-per-activation / post-compaction reminders,
     # instead of the old bare "Goal check feedback:\n[objective]: reason"

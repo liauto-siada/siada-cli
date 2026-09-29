@@ -128,7 +128,7 @@ class GroupChatHandler:
         """Check if a group message is a pause command.
 
         Requires @mention + exact keyword (case-insensitive, stripped).
-        e.g. "@bot pause", "@bot 暂停"
+        e.g. "@bot pause"
         """
         if msg.chat_type != "group":
             return False
@@ -173,7 +173,7 @@ class GroupChatHandler:
         await self._card_sender.send_im(
             msg.request_id,
             msg.chat_id,
-            "⏸️ 任务已暂停。你可以重新 @bot 发送新的指令。",
+            "⏸️ Task paused. You can @bot me again with a new instruction.",
             content_type="text",
         )
         return True
@@ -200,8 +200,8 @@ class GroupChatHandler:
             await self._card_sender.send_im(
                 msg.request_id,
                 msg.chat_id,
-                "⏳ 当前任务正在运行中，请等待完成。\n"
-                f"💡 @我 并发送 {'/'.join(f'`{k}`' for k in sorted(GROUP_PAUSE_KEYWORDS))} 可以暂停当前任务。",
+                "⏳ A task is already running, please wait for it to finish.\n"
+                f"💡 @mention me with {'/'.join(f'`{k}`' for k in sorted(GROUP_PAUSE_KEYWORDS))} to pause the current task.",
                 content_type="text",
             )
             return True  # Intercepted
@@ -265,7 +265,7 @@ class GroupChatHandler:
             logger.info("Group /btw side question passes through gate: chat_id=%s", msg.chat_id)
             return msg
 
-        # Check pause command (@bot pause / @bot 暂停)
+        # Check pause command (@bot pause)
         if self.is_pause_command(msg):
             logger.info("Pause command detected: chat_id=%s", msg.chat_id)
             if await self.handle_pause(msg, cancel_task_fn):

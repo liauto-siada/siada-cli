@@ -1,4 +1,4 @@
-"""Lark OAuth 模块"""
+"""Lark OAuth module"""
 
 from .lark_oauth_manager import LarkOAuthManager, LARK_AUTH_EXPIRED_ERROR_MESSAGE, LARK_AUTH_EXPIRED_SUGGESTION
 from .lark_oauth_service import LarkOAuthService

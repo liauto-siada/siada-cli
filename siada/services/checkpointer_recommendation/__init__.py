@@ -1,5 +1,5 @@
 """
-Checkpointer Recommendation Service - 检查点推荐功能
+Checkpointer Recommendation Service - checkpoint recommendation feature
 
 This package provides intelligent checkpoint file discovery and recommendation for /restore commands.
 When users type /restore followed by text, the system provides real-time checkpoint file suggestions.

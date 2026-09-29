@@ -20,6 +20,11 @@ MAX_DESCRIPTION_LENGTH = 1024
 # Default directory names
 SKILLS_DIR_NAME = "skills"
 
+# Legacy repository layout from the first skills implementation.  Retain it
+# as a read-only discovery source so existing workspaces do not lose their
+# skills while the canonical directory remains ``.siada-cli/skills``.
+LEGACY_SIADA_DIR_NAME = ".siada"
+
 # Compatibility layout directory name (e.g. ~/.agents/skills, <project>/.agents/skills).
 # The .agents/skills layout is loaded as a compatibility source. When a same-named
 # skill exists under .siada-cli/skills at the same level, the siada-cli version wins
@@ -35,6 +40,11 @@ CLAUDE_DIR_NAME = ".claude"
 def get_repo_skills_root(cwd: Path) -> Path:
     """Get repository level siada-cli skill root directory: <cwd>/.siada-cli/skills/"""
     return cwd / SIADA_DIR_NAME / SKILLS_DIR_NAME
+
+
+def get_repo_legacy_skills_root(cwd: Path) -> Path:
+    """Get the legacy repository skill root: <cwd>/.siada/skills/."""
+    return cwd / LEGACY_SIADA_DIR_NAME / SKILLS_DIR_NAME
 
 
 def get_user_skills_root(siada_home: Path = SIADA_HOME) -> Path:
@@ -131,7 +141,8 @@ def get_skill_roots(
 
     Layout:
         USER   -> [~/.claude/skills, ~/.agents/skills, <siada_home>/skills]
-        REPO   -> [<cwd>/.claude/skills, <cwd>/.agents/skills, <cwd>/.siada-cli/skills]
+        REPO   -> [<cwd>/.claude/skills, <cwd>/.siada/skills,
+                   <cwd>/.agents/skills, <cwd>/.siada-cli/skills]
         SYSTEM -> [built-in]
 
     Paths within each scope are ordered lowest-to-highest priority so later
@@ -148,10 +159,12 @@ def get_skill_roots(
         Dict mapping scope to an ordered list of search paths
     """
     roots: dict[SkillScope, list[Path]] = {
-        # NOTE: order matters - .claude (lowest compat) → .agents → .siada-cli (canonical)
+        # NOTE: order matters - .claude (lowest compat) → .siada (legacy)
+        # → .agents → .siada-cli (canonical)
         # so the canonical layout wins on duplicate skill names within the same scope.
         SkillScope.REPO: [
             get_repo_claude_skills_root(cwd),
+            get_repo_legacy_skills_root(cwd),
             get_repo_agents_skills_root(cwd),
             get_repo_skills_root(cwd),
         ],

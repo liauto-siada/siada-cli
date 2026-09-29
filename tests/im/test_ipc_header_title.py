@@ -190,13 +190,14 @@ class TestIpcHeaderTitlePassthrough:
 
 
 class TestDailySummaryNotificationTemplate:
-    def test_chinese_default(self) -> None:
+    def test_default_language_is_english(self) -> None:
+        """No language argument → default template, which emits English copy."""
         from siada.im.feishu.notification_templates import (
             get_daily_summary_notification_template,
         )
 
         t = get_daily_summary_notification_template()
-        assert "每日总结" in t.header_title
+        assert "Daily Summary" in t.header_title
         # Date should NOT appear in header (it's in the summary body)
         assert "{date}" not in t.header_title
 
@@ -210,17 +211,18 @@ class TestDailySummaryNotificationTemplate:
         assert "{date}" not in t.header_title
 
     def test_zh_cn(self) -> None:
+        """zh-CN is still an accepted language; its copy is English too."""
         from siada.im.feishu.notification_templates import (
             get_daily_summary_notification_template,
         )
 
         t = get_daily_summary_notification_template("zh-CN")
-        assert "每日总结" in t.header_title
+        assert "Daily Summary" in t.header_title
 
-    def test_none_language_defaults_to_chinese(self) -> None:
+    def test_none_language_defaults_to_english(self) -> None:
         from siada.im.feishu.notification_templates import (
             get_daily_summary_notification_template,
         )
 
         t = get_daily_summary_notification_template(None)
-        assert "每日总结" in t.header_title
+        assert "Daily Summary" in t.header_title

@@ -75,7 +75,7 @@ class TestDMBasic:
 
     def test_has_sender_id(self):
         data = _parse_block(self.prefix, "Conversation info")
-        assert data["sender_id"] == "张三"
+        assert data["sender_user_id"] == "张三"
 
     def test_has_message_id(self):
         data = _parse_block(self.prefix, "Conversation info")
@@ -148,6 +148,22 @@ class TestGroupBasic:
     def test_no_sender_block(self):
         assert "Sender (untrusted metadata)" not in self.prefix
 
+    def test_no_chat_name_by_default(self):
+        data = _parse_block(self.prefix, "Conversation info")
+        assert "chat_name" not in data
+
+    def test_has_chat_name_when_available(self):
+        msg = _make_msg(chat_name="SDK 开发群")
+        prefix = build_inbound_user_context_suffix(msg, include_conversation_info=True)
+        data = _parse_block(prefix, "Conversation info")
+        assert data["chat_name"] == "SDK 开发群"
+
+    def test_no_chat_name_in_p2p_even_when_set(self):
+        msg = _make_msg(chat_type="p2p", chat_id="oc_dm_xxx", chat_name="不应出现")
+        prefix = build_inbound_user_context_suffix(msg, include_conversation_info=True)
+        data = _parse_block(prefix, "Conversation info")
+        assert "chat_name" not in data
+
 
 # ── Test 4: Group chat with @bot ──────────────────────────────────────
 
@@ -171,7 +187,7 @@ class TestGroupWithBotMention:
         assert "[System: This message includes Feishu @-mention tags" in self.prefix
 
     def test_auto_notify_hint_present(self):
-        assert "[System: The following users will be auto-notified" in self.prefix
+        assert "The following users will be auto-notified" in self.prefix
 
 
 # ── Test 5: Group chat with reply_to_id ───────────────────────────────
@@ -209,7 +225,7 @@ class TestGroupWithOtherMentions:
         )
         prefix = build_inbound_user_context_suffix(msg, include_conversation_info=True)
         assert "Alice" in prefix
-        assert "[System: The following users will be auto-notified" in prefix
+        assert "The following users will be auto-notified" in prefix
 
 
 # ── Test 7: Group chat with feature disabled ──────────────────────────

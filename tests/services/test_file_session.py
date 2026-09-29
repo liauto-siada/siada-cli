@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from siada.services.file_session import FileSession
 
@@ -311,7 +311,7 @@ class TestFileSessionInitPreCreation(unittest.TestCase):
         self.assertTrue(session.session_file.exists())
 
         # Clear should remove the file
-        asyncio.get_event_loop().run_until_complete(session.clear_session())
+        asyncio.run(session.clear_session())
         self.assertFalse(session.session_file.exists())
 
 
@@ -390,6 +390,22 @@ class TestFileSessionAsync(unittest.TestCase):
             self.assertEqual(all_items[-1], more_items[0])
         
         asyncio.run(run_test())
+
+    def test_sync_add_items_persists_without_async_callback(self):
+        """Command handlers can write immediately without awaiting telemetry."""
+        callback = AsyncMock()
+        self.session.on_items_added = callback
+        first = {"role": "user", "content": "synchronous item"}
+        second = {"role": "assistant", "content": "asynchronous item"}
+
+        self.session.add_items_sync([first])
+        self.assertEqual(self.session._read_session_data(), [first])
+        self.assertEqual(self.session.native_item_count, 1)
+        callback.assert_not_awaited()
+
+        asyncio.run(self.session.add_items([second]))
+        self.assertEqual(self.session._read_session_data(), [first, second])
+        callback.assert_awaited_once_with([second])
     
     def test_add_items_empty_list(self):
         """Test adding empty list of items"""

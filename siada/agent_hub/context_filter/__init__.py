@@ -22,7 +22,7 @@ __all__ = [
     # Filter implementations
     'MessageHistoryCaptureFilter',
     'ApiMessageTransferFilter',
-    
+
     # Utility functions
     'compute_message_signature',
 ]

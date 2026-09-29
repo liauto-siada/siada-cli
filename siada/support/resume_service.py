@@ -182,6 +182,31 @@ class ResumeService:
             except Exception as e:
                 logger.debug(f"[goal] Failed to recover goal on resume: {e}")
 
+            # Recover unfinished sub-agent / sub-sub-agent work (recursive
+            # sub-agent mode only — subagent_persistence.index.json is only
+            # ever written when sub_agent.allow_recursive_subagents is on).
+            # Same stage-then-consume pattern as pending_goal /
+            # pending_todos above: SiadaRunner drains this into
+            # context.hook_pending_contexts on the first run after resume,
+            # so the main agent sees it as a system message before its next
+            # real LLM call.
+            running_session.state.pending_subagent_resume_note = None
+            try:
+                if session_data.session_path:
+                    from siada.tools.agent import subagent_persistence
+                    unfinished = subagent_persistence.scan_unfinished_from_session_path(
+                        session_data.session_path
+                    )
+                    if unfinished:
+                        note = ResumeService._build_subagent_resume_note(unfinished)
+                        running_session.state.pending_subagent_resume_note = note
+                        logger.info(
+                            f"[subagent] Staged resume note for {len(unfinished)} "
+                            "unfinished sub-agent(s)"
+                        )
+            except Exception as e:
+                logger.debug(f"[subagent] Failed to scan unfinished sub-agents on resume: {e}")
+
 
             # Step 4: restore RealApiMessage from api_messages.json.
             # (see _align_last_index for how the tracking anchor is derived)
@@ -267,6 +292,31 @@ class ResumeService:
         except Exception as e:
             logger.error(f"Failed to restore session: {e}")
             raise
+
+    @staticmethod
+    def _build_subagent_resume_note(unfinished: list) -> str:
+        """Render unfinished sub-agent entries into a system-message note.
+
+        Consumed by SiadaRunner._prepare_context_for_run, which drains
+        ``pending_subagent_resume_note`` into ``context.hook_pending_contexts``
+        so it surfaces before the main agent's next real LLM call — the same
+        injection channel used for background ``run_subtask(async=True)``
+        completion notices.
+        """
+        lines = [
+            "[Sub-agent resume notice] The previous process ended before the "
+            f"following {len(unfinished)} sub-agent task(s) finished. Review "
+            "their progress below and decide whether to resume, redo, or "
+            "abandon each one:",
+        ]
+        for entry in unfinished:
+            lines.append(
+                f"- id={entry.get('id')} depth={entry.get('depth')} "
+                f"parent={entry.get('parent_id') or 'main-agent'} "
+                f"title=\"{entry.get('title', '')}\"\n"
+                f"  instruction: {entry.get('instruction', '')}"
+            )
+        return "\n".join(lines)
 
     @staticmethod
     def _align_last_index(items: list, api_messages: list) -> Optional[int]:

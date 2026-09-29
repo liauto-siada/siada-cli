@@ -22,6 +22,7 @@ from .types import (
     ConfirmationRequiredError,
 )
 from .injection_parser import extract_injections
+from siada.foundation.shell_env import make_user_shell_env
 
 
 class IPromptProcessor(ABC):
@@ -233,7 +234,8 @@ class ShellProcessor(IPromptProcessor):
                         capture_output=True,
                         text=True,
                         cwd=context.workspace,
-                        timeout=30
+                        timeout=30,
+                        env=make_user_shell_env(),
                     )
                     
                     # Inject command output

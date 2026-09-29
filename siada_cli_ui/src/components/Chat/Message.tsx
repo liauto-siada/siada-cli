@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from '@jrichman/ink';
+import stringWidth from 'string-width';
 import { Message as MessageType } from '../../types/index.js';
 import { MAX_TEXT_LENGTH } from '../../constants/limits.js';
 import { getIcons } from '../../constants/icons.js';
@@ -12,9 +13,16 @@ import { truncateByLines, truncateByJSONLines } from '../../utils/contentTruncat
 import { MarkdownText } from '../common/MarkdownText.js';
 import { ShellOutput } from '../Shell/ShellOutput.js';
 import { parseToolCall } from '../../utils/toolCallParser.js';
-import { DiffView } from '../diff/DiffView.js';
-import { parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
+import { FileChangeSetView } from '../diff/FileChangeSetView.js';
+import { ToolHeading } from './ToolHeading.js';
+import { CommandView, parseCommandContent } from './CommandView.js';
+import { ToolPromptView } from './ToolPromptView.js';
+import { TodoPlanView } from './TodoPlanView.js';
+import { parseTodoWriteContent } from '../../utils/todoWrite.js';
+import { parseApplyPatchContent, parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
 import { formatElapsedShort } from '../../utils/formatter.js';
+import { getActiveTheme, useThemeVersion } from '../../themes/index.js';
+import { colors } from '../../utils/colors.js';
 
 
 
@@ -22,26 +30,29 @@ export interface MessageProps {
   message: MessageType;
   isNewGroup?: boolean;        // Indicates whether this is a new group (group_key has changed)
   disableTruncation?: boolean; // When true, render full content without truncation (used for static history)
-  isCollapsed?: boolean;       // When true, show compact summary for tool calls
+  isCollapsed?: boolean;       // When true, compact non-edit tool calls
 }
 
 const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, disableTruncation = false, isCollapsed = false }) => {
+  useThemeVersion(); // repaint on theme change (React.memo blocks prop-driven re-renders)
   const icons = getIcons();
 
-  const getColor = (): string => {
+  const getColor = (): string | undefined => {
     switch (message.type) {
       case 'user':
         return 'gray';
       case 'agent':
-        return 'blue';
+        return colors.agent;
       case 'system':
-        return 'yellow';
+        return colors.warning;
       case 'error':
-        return 'red';
+        return colors.error;
       case 'tool':
-        return 'magenta';
+        return colors.tool;
       default:
-        return 'white';
+        // Unknown types fall back to the terminal's own foreground, which is
+        // guaranteed to contrast with whatever palette the user runs.
+        return undefined;
     }
   };
 
@@ -92,7 +103,13 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   // Note: process is a global Node.js object, available in runtime but needs type declaration
   const terminalHeight = (typeof globalThis.process !== 'undefined' && globalThis.process.stdout?.rows) || 24;
   const terminalWidth = (typeof globalThis.process !== 'undefined' && globalThis.process.stdout?.columns) || 80;
-  const dynamicMaxLines = Math.max(terminalHeight / 2, 5);
+  // Keep the pending (dynamic) message strictly shorter than the terminal so
+  // the whole dynamic area (message + spinner/queue/panels ~14 rows + input
+  // box) stays below stdout.rows. Once Ink's dynamic output height reaches
+  // the terminal row count, the kernel rewrites the ENTIRE screen
+  // (clearTerminal + full static history) on every frame — the worst flicker
+  // path, and not fixable by DEC 2026 on terminals that lack it (Terminal.app).
+  const dynamicMaxLines = Math.max(Math.min(Math.floor(terminalHeight / 2), terminalHeight - 14), 5);
 
   const originalContent = message.content ?? '';
   let safeContent = originalContent;
@@ -172,7 +189,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
       
       return (
         <Box marginBottom={1}>
-          <Text color="gray">
+          <Text color={colors.content.secondary}>
             ● {summary}... (ctrl+o to expand thinking)
           </Text>
         </Box>
@@ -187,20 +204,20 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
         marginLeft={2}
         marginRight={2}
         borderStyle="round"
-        borderColor="gray"
+        borderColor={colors.content.border}
       >
-        {/* <Box paddingLeft={2} paddingRight={2} paddingTop={0} paddingBottom={0}>
-          <Text color="gray" bold>Thinking:</Text>
-        </Box> */}
         {hiddenLinesCount > 0 && (
           <Box paddingLeft={2} paddingRight={2}>
-            <Text color="yellow" dimColor>
+            <Text color={colors.warning}>
               ... {hiddenLinesCount} lines hidden ...
             </Text>
           </Box>
         )}
         <Box paddingLeft={2} paddingRight={2} paddingY={0}>
-          <Text dimColor>{cleanContent}</Text>
+          {/* Reasoning steps back one level in tone instead of using
+              `dimColor`: dimming the terminal foreground on a Solarized-style
+              palette pushes it back into the background. */}
+          <Text color={colors.content.secondary}>{cleanContent}</Text>
         </Box>
       </Box>
     );
@@ -210,12 +227,40 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   if (isToolUse) {
     // Remove the arrow markers if present
     const cleanContent = safeContent.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
+    const fullContent = originalContent.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
+    const patchInfo = (!isCollapsed || fullContent.startsWith('Apply patch:'))
+      ? parseApplyPatchContent(fullContent)
+      : null;
+    const editInfo = (!isCollapsed || fullContent.startsWith('In the file '))
+      ? parseFileEditContent(fullContent)
+      : null;
+    const editHunks = editInfo?.isComplete
+      ? getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString)
+      : [];
+    // The broad todo_write prefix also matches ordinary "✓ ..." tool notices.
+    // Only a formatter snapshot with its progress footer (or an explicit
+    // clear) should become a plan cell; streaming partials use the old path.
+    const hasTodoSnapshot = fullContent === 'Clearing todo list' || /\[\d+\/\d+ completed\]\s*$/.test(fullContent);
+    const todoItems = hasTodoSnapshot && parseToolCall(fullContent)?.type === 'todo_write'
+      ? parseTodoWriteContent(fullContent) : null;
+
+    if (todoItems !== null) {
+      return (
+        <Box flexDirection="column" marginBottom={1}>
+          <TodoPlanView
+            items={todoItems}
+            collapsed={isCollapsed}
+            maxRows={disableTruncation || message.metadata?.streamEnd ? undefined : dynamicMaxLines}
+          />
+        </Box>
+      );
+    }
 
     // 🔥 Compact mode: show simplified summary
-    if (isCollapsed) {
+    if (isCollapsed && !patchInfo && !editInfo?.isComplete) {
       const parsed = parseToolCall(cleanContent);
       
-      if (parsed) {
+      if (parsed && parsed.type !== 'apply_patch' && parsed.type !== 'update_file') {
         // Format compact display based on tool type
         let compactDisplay = '';
         
@@ -232,9 +277,6 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
             break;
           case 'create_file':
             compactDisplay = `Create(${parsed.path})`;
-            break;
-          case 'update_file':
-            compactDisplay = `Update(${parsed.path})`;
             break;
           case 'undo_edit':
             compactDisplay = `Undo(${parsed.path})`;
@@ -271,7 +313,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
         return (
           <Box marginBottom={1}>
-            <Text color="gray" dimColor>
+            <Text color={colors.content.secondary}>
               {icons.tool} {compactDisplay}
             </Text>
           </Box>
@@ -279,42 +321,63 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
       }
     }
 
-    // 🔥 Expanded mode: show diff view for file edits, otherwise show full content
-    const editInfo = parseFileEditContent(cleanContent);
-    if (editInfo?.isComplete) {
-      const hunks = getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString);
-      if (hunks.length > 0) {
-        return (
-          <Box flexDirection="column" marginBottom={1} marginLeft={2} marginRight={2}>
-            <DiffView
-              filePath={editInfo.filePath}
-              hunks={hunks}
-              width={Math.max(terminalWidth - 6, 40)}
-            />
-          </Box>
-        );
-      }
+    if (patchInfo) {
+      return (
+        <Box flexDirection="column" marginBottom={1}>
+          <FileChangeSetView
+            changes={patchInfo.changes}
+            fileCount={patchInfo.fileCount}
+            width={Math.max(terminalWidth - 2, 8)}
+          />
+        </Box>
+      );
     }
 
+    if (editInfo?.isComplete && editHunks.length > 0) {
+      return (
+        <Box flexDirection="column" marginBottom={1}>
+          <FileChangeSetView
+            changes={[{ action: 'update', path: editInfo.filePath, hunks: editHunks }]}
+            fileCount={1}
+            width={Math.max(terminalWidth - 2, 8)}
+          />
+        </Box>
+      );
+    }
+
+    const parsed = parseToolCall(cleanContent);
+    const isCommand = !isCollapsed && (parsed?.type === 'run_command' || parsed?.type === 'run_powershell');
+    const commandDisplay = isCommand ? parseCommandContent(cleanContent) : null;
+    const isPromptTool = !isCollapsed && parsed && (
+      parsed.type === 'read_file' || parsed.type === 'search' ||
+      (parsed.type === 'web' && /^(?:Fetch URL:|Crawl the url:|Web search:)/.test(cleanContent))
+    );
+    if (isPromptTool) {
+      return (
+        <Box flexDirection="column" marginBottom={1}>
+          <ToolPromptView tool={parsed} content={cleanContent} maxRows={disableTruncation ? undefined : dynamicMaxLines} />
+        </Box>
+      );
+    }
     return (
-      <Box
-        flexDirection="column"
-        marginBottom={1}
-        marginLeft={2}
-        marginRight={2}
-        borderStyle="round"
-        borderColor="gray"
-      >
-        {hiddenLinesCount > 0 && (
-          <Box paddingLeft={2} paddingRight={2}>
-            <Text color="g" dimColor>
-              ... {hiddenLinesCount} lines hidden ...
-            </Text>
+      <Box flexDirection="column" marginBottom={1}>
+        {parsed && <ToolHeading parts={[parsed.summary]} hint={commandDisplay?.timeout ? `timeout:${commandDisplay.timeout}` : undefined} />}
+        {commandDisplay ? (
+          <CommandView content={commandDisplay.body} hiddenLinesCount={hiddenLinesCount} />
+        ) : (
+          <Box marginLeft={2} marginRight={2} flexDirection="column" borderStyle="round" borderColor={colors.content.border}>
+            {hiddenLinesCount > 0 && (
+              <Box paddingLeft={2} paddingRight={2}>
+                <Text color={colors.warning}>
+                  ... {hiddenLinesCount} lines hidden ...
+                </Text>
+              </Box>
+            )}
+            <Box paddingLeft={2} paddingRight={2} paddingY={0}>
+              <MarkdownText content={cleanContent} />
+            </Box>
           </Box>
         )}
-        <Box paddingLeft={2} paddingRight={2} paddingY={0}>
-          <MarkdownText content={cleanContent} />
-        </Box>
       </Box>
     );
   }
@@ -336,7 +399,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
         )}
         {hiddenLinesCount > 0 && (
           <Box paddingLeft={2}>
-            <Text color="yellow" dimColor>
+            <Text color={colors.warning}>
               ... {hiddenLinesCount} lines hidden ...
             </Text>
           </Box>
@@ -354,7 +417,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   if (isProcess) {
     return (
       <Box flexDirection="column" marginBottom={0} paddingLeft={2}>
-        <Text dimColor>{safeContent}</Text>
+        <Text color={colors.content.secondary}>{safeContent}</Text>
       </Box>
     );
   }
@@ -404,7 +467,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
         <Box marginTop={1} marginBottom={1}>
           <Text>
             {summaryLine}
-            <Text color="gray"> (ctrl+o to expand)</Text>
+            <Text color={colors.content.secondary}> (ctrl+o to expand)</Text>
           </Text>
         </Box>
       );
@@ -415,10 +478,10 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
         {summaryLine}
 
         <Box flexDirection="column" paddingLeft={2}>
-          <Text dimColor>Objective: {goalResult.objective}</Text>
-          <Text dimColor>Reason: {goalResult.reason}</Text>
+          <Text color={colors.content.secondary}>Objective: {goalResult.objective}</Text>
+          <Text color={colors.content.secondary}>Reason: {goalResult.reason}</Text>
           {goalResult.nextAction && (
-            <Text dimColor>Next action: {goalResult.nextAction}</Text>
+            <Text color={colors.content.secondary}>Next action: {goalResult.nextAction}</Text>
           )}
         </Box>
       </Box>
@@ -438,16 +501,45 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
       >
         {hiddenLinesCount > 0 && (
           <Box paddingLeft={2}>
-            <Text color="yellow" dimColor>
+            <Text color={colors.warning}>
               ... {hiddenLinesCount} lines hidden ...
             </Text>
           </Box>
         )}
         <Box paddingLeft={1} paddingY={0}>
-          <Text color="red" dimColor>
+          <Text color={colors.error}>
             {safeContent}
           </Text>
         </Box>
+      </Box>
+    );
+  }
+
+  // For user messages, render with a full-width background highlight
+  if (message.type === 'user') {
+    // Theme-aware colors: the dark bar needs an explicit light foreground —
+    // on the light theme the terminal's default foreground is dark and would
+    // be invisible on #333333.
+    const isLight = getActiveTheme() === 'light';
+    const USER_INPUT_BG = isLight ? '#e9edf2' : '#333333';
+    const USER_INPUT_FG = isLight ? '#1f2328' : '#e6e6e6';
+    const lines = (message.content ?? '').split('\n');
+    const width = Math.max(terminalWidth, 1);
+
+    return (
+      <Box flexDirection="column" marginTop={0.5} marginBottom={1}>
+        {lines.map((line, i) => {
+          const text = i === 0 ? `${getIcon()} ${line}` : `  ${line}`;
+          // Pad short lines so the background spans the full terminal width.
+          // Use display width (CJK chars occupy 2 columns), not string length.
+          const padCount = Math.max(width - stringWidth(text), 0);
+          const padded = text + ' '.repeat(padCount);
+          return (
+            <Text key={i} backgroundColor={USER_INPUT_BG} color={USER_INPUT_FG}>
+              {padded}
+            </Text>
+          );
+        })}
       </Box>
     );
   }
@@ -472,7 +564,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
       {message.toolCalls && message.toolCalls.length > 0 && (
         <Box paddingLeft={4} marginTop={1}>
-          <Text dimColor>
+          <Text color={colors.content.secondary}>
             {icons.tool} Tool calls: {message.toolCalls.length}
           </Text>
         </Box>
@@ -480,7 +572,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
       {message.fileEdits && message.fileEdits.length > 0 && (
         <Box paddingLeft={4}>
-          <Text dimColor>
+          <Text color={colors.content.secondary}>
             {icons.fileEdited} Files edited: {message.fileEdits.length}
           </Text>
         </Box>

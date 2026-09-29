@@ -1,0 +1,171 @@
+{
+  "gpt-6-luna|default": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "max",
+      "summary": "auto"
+    },
+    "tool_choice": "auto"
+  },
+  "gpt-6-luna|effort_low": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "low",
+      "summary": "auto"
+    },
+    "tool_choice": "auto"
+  },
+  "gpt-6-luna|effort_low_tokens": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "low",
+      "summary": "auto"
+    },
+    "tool_choice": "auto"
+  },
+  "gpt-6-luna|effort_max": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "max",
+      "summary": "auto"
+    },
+    "tool_choice": "auto"
+  },
+  "gpt-6-luna|no_reasoning": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "low",
+      "summary": "auto"
+    },
+    "tool_choice": "auto"
+  },
+  "gpt-6-luna|thinking_off": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "none"
+    },
+    "tool_choice": "auto"
+  },
+  "gpt-6-luna|thinking_off_tokens": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "none"
+    },
+    "tool_choice": "auto"
+  },
+  "gpt-6-luna|tokens_2048": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "low",
+      "summary": "auto"
+    },
+    "tool_choice": "auto"
+  },
+  "gpt-6-luna|tokens_neg1": {
+    "include": [
+      "reasoning.encrypted_content"
+    ],
+    "input": [
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "instructions": "You are a test",
+    "max_output_tokens": 65536,
+    "model": "gpt-6-luna",
+    "reasoning": {
+      "effort": "low",
+      "summary": "auto"
+    },
+    "tool_choice": "auto"
+  }
+}

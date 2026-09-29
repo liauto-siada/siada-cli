@@ -24,9 +24,9 @@ class FileSession(SessionABC):
     Each session is stored as a separate file in the specified directory.
     
     File structure:
-    - sessions_dir/<session_id>/api_history.json      # 完整对话历史
-    - sessions_dir/<session_id>/api_messages.json     # 压缩后的消息（由 ApiMessageTransferFilter 管理）
-    - sessions_dir/<session_id>/metadata.json         # 会话元数据
+    - sessions_dir/<session_id>/api_history.json      # full conversation history
+    - sessions_dir/<session_id>/api_messages.json     # compacted messages (managed by ApiMessageTransferFilter)
+    - sessions_dir/<session_id>/metadata.json         # session metadata
     """
 
     def __init__(
@@ -474,33 +474,6 @@ class FileSession(SessionABC):
 
         return await asyncio.to_thread(_get_all_items_sync)
 
-    @staticmethod
-    def _filter_invalid_tool_calls(items: list) -> list:
-        """Filter out the last function_call if its arguments are invalid JSON, along with its output."""
-        import json as _json
-        # Find the last function_call from the tail
-        for i in range(len(items) - 1, -1, -1):
-            item = items[i]
-            if not isinstance(item, dict) or item.get("type") != "function_call":
-                continue
-            # Found the last function_call - check if arguments are valid JSON
-            if not isinstance(item.get("arguments"), str):
-                break
-            try:
-                _json.loads(item["arguments"])
-            except (_json.JSONDecodeError, ValueError):
-                # Invalid - remove this function_call and any following function_call_output with same call_id
-                call_id = item.get("call_id")
-                return [
-                    x for x in items[:i]
-                    if not (isinstance(x, dict) and x.get("type") == "function_call_output" and x.get("call_id") == call_id)
-                ] + [
-                    x for x in items[i + 1:]
-                    if not (isinstance(x, dict) and x.get("type") == "function_call_output" and x.get("call_id") == call_id)
-                ]
-            break
-        return items
-
     def inject_items(
         self,
         items: list[TResponseInputItem],
@@ -679,50 +652,50 @@ class FileSession(SessionABC):
             self._clear_inject_info_unlocked()
 
 
-    async def add_items(self, items: list[TResponseInputItem]) -> None:
-        """Add new items to the conversation history.
-
-        Args:
-            items: List of input items to add to the history
-        """
+    def _add_items_sync(self, items: list[TResponseInputItem]) -> None:
         if not items:
             return
 
-        def _add_items_sync():
-            with self._lock:
-                _t_start = time.perf_counter()
-                current_items = self._read_session_data()
-                _t_read = time.perf_counter()
-                current_items.extend(items)
-                current_items = FileSession._filter_invalid_tool_calls(current_items)
-                _t_filter = time.perf_counter()
-                self._write_session_data(current_items)
-                _t_write = time.perf_counter()
-                # Update metadata
-                self._update_metadata(current_items)
-                _t_metadata = time.perf_counter()
-                # Keep inject_info in sync with the new tail. add_items from
-                # the agent system normally breaks the "tail is injected"
-                # invariant, but we still re-check in case the appended
-                # batch happens to end with an injected item.
-                self._sync_inject_info_with_last_unlocked(current_items)
-                _t_sync_inject = time.perf_counter()
-                logger.debug(
-                    "[PERF][file_session.add_items] items=%d total_items=%d "
-                    "read=%.1fms filter=%.1fms write=%.1fms metadata=%.1fms "
-                    "sync_inject=%.1fms total=%.1fms",
-                    len(items), len(current_items),
-                    (_t_read - _t_start) * 1000,
-                    (_t_filter - _t_read) * 1000,
-                    (_t_write - _t_filter) * 1000,
-                    (_t_metadata - _t_write) * 1000,
-                    (_t_sync_inject - _t_metadata) * 1000,
-                    (_t_sync_inject - _t_start) * 1000,
-                )
-                return current_items
+        with self._lock:
+            _t_start = time.perf_counter()
+            current_items = self._read_session_data()
+            _t_read = time.perf_counter()
+            current_items.extend(items)
+            _t_filter = time.perf_counter()
+            self._write_session_data(current_items)
+            _t_write = time.perf_counter()
+            self._update_metadata(current_items)
+            _t_metadata = time.perf_counter()
+            self._sync_inject_info_with_last_unlocked(current_items)
+            _t_sync_inject = time.perf_counter()
+            logger.debug(
+                "[PERF][file_session.add_items] items=%d total_items=%d "
+                "read=%.1fms filter=%.1fms write=%.1fms metadata=%.1fms "
+                "sync_inject=%.1fms total=%.1fms",
+                len(items), len(current_items),
+                (_t_read - _t_start) * 1000,
+                (_t_filter - _t_read) * 1000,
+                (_t_write - _t_filter) * 1000,
+                (_t_metadata - _t_write) * 1000,
+                (_t_sync_inject - _t_metadata) * 1000,
+                (_t_sync_inject - _t_start) * 1000,
+            )
 
-        updated_items = await asyncio.to_thread(_add_items_sync)
-        
+    def add_items_sync(self, items: list[TResponseInputItem]) -> None:
+        """Persist items immediately for synchronous command handlers.
+
+        This uses the same locked, atomic session write as ``add_items`` but
+        intentionally does not run the asynchronous telemetry callback.
+        """
+        self._add_items_sync(items)
+
+    async def add_items(self, items: list[TResponseInputItem]) -> None:
+        """Add new items to the conversation history."""
+        if not items:
+            return
+
+        await asyncio.to_thread(self._add_items_sync, items)
+
         # Call the hook after items are added
         if self.on_items_added:
             try:

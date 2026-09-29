@@ -95,6 +95,16 @@ export class SiadaACPClient extends EventEmitter {
       this.emit('animation:start');
     });
 
+    this.adapter.on('stream:aborted', (data: { streamStartId?: string; reason?: string }) => {
+      logger.warn('Stream aborted by backend', {
+        component: 'Client',
+        operation: 'stream_aborted',
+        streamStartId: data?.streamStartId,
+        reason: data?.reason,
+      });
+      this.emit('stream:aborted', data);
+    });
+
     // Slash commands update event
     this.adapter.on('slashCommands:update', (commands: Array<{name: string, description: string}>) => {
       logger.info('Slash commands update received', {

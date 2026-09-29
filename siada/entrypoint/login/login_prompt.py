@@ -36,56 +36,50 @@ def clear_api_key_config() -> bool:
     """Remove API-key provider config (provider=default) from conf.yaml.
 
     Returns True if a config was present and successfully cleared."""
-    try:
-        import yaml
-        from siada.foundation.constants import SIADA_HOME
-        conf_path = SIADA_HOME / 'conf.yaml'
-        if not conf_path.exists():
-            return False
-        with open(conf_path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f) or {}
-        llm_cfg = data.get('llm_config')
-        if not isinstance(llm_cfg, dict) or llm_cfg.get('provider') != 'default':
-            return False
+    from siada.config.conf_store import get_conf_section, update_conf
+
+    llm_cfg = get_conf_section("llm_config")
+    if llm_cfg.get('provider') != 'default':
+        return False
+
+    def _remove_provider_keys(data: dict) -> None:
+        section = data.get('llm_config')
+        if not isinstance(section, dict) or section.get('provider') != 'default':
+            return
         for key in ('provider', 'provider_id', 'base_url', 'api_key'):
-            llm_cfg.pop(key, None)
-        if llm_cfg:
-            data['llm_config'] = llm_cfg
+            section.pop(key, None)
+        if section:
+            data['llm_config'] = section
         else:
             data.pop('llm_config', None)
-        with open(conf_path, 'w', encoding='utf-8') as f:
-            yaml.safe_dump(data, f, default_flow_style=False, allow_unicode=True)
-        logger.info("[login] API key config cleared from conf.yaml")
-        return True
-    except Exception as exc:
-        logger.warning(f"[login] Failed to clear api key config: {exc}")
+
+    if not update_conf(_remove_provider_keys):
+        logger.warning("[login] Failed to clear api key config")
         return False
+    logger.info("[login] API key config cleared from conf.yaml")
+    return True
 
 
 def _save_provider_config(provider_id: str, api_key: str, base_url: str, model: str) -> None:
     """Persist provider API-key config to ~/.siada-cli/conf.yaml."""
-    try:
-        import yaml
-        from siada.foundation.constants import SIADA_HOME
-        conf_path = SIADA_HOME / 'conf.yaml'
-        SIADA_HOME.mkdir(parents=True, exist_ok=True)
-        data: dict = {}
-        if conf_path.exists():
-            with open(conf_path, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f) or {}
-        llm_cfg = dict(data.get('llm_config') or {})
+    from siada.config.conf_store import update_conf
+
+    def _set_provider_config(data: dict) -> None:
+        llm_cfg = data.get('llm_config')
+        if not isinstance(llm_cfg, dict):
+            llm_cfg = {}
+            data['llm_config'] = llm_cfg
         llm_cfg['provider'] = 'default'
         llm_cfg['provider_id'] = provider_id
         llm_cfg['base_url'] = base_url
         llm_cfg['api_key'] = api_key
         if model:
             llm_cfg['model'] = model
-        data['llm_config'] = llm_cfg
-        with open(conf_path, 'w', encoding='utf-8') as f:
-            yaml.safe_dump(data, f, default_flow_style=False, allow_unicode=True)
+
+    if update_conf(_set_provider_config):
         logger.info(f"[login] Provider config saved: provider_id={provider_id}, model={model}")
-    except Exception as exc:
-        logger.warning(f"[login] Failed to save provider config: {exc}")
+    else:
+        logger.warning("[login] Failed to save provider config")
 
 
 def _handle_provider_api_key_config(config_data: dict, io) -> Optional[str]:
@@ -127,14 +121,9 @@ def _check_stored_api_key_config() -> Optional[str]:
     """
     global _applied_api_key_config
     try:
-        import yaml
-        from siada.foundation.constants import SIADA_HOME
-        conf_path = SIADA_HOME / 'conf.yaml'
-        if not conf_path.exists():
-            return None
-        with open(conf_path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f) or {}
-        llm_cfg = data.get('llm_config') or {}
+        from siada.config.conf_store import get_conf_section
+
+        llm_cfg = get_conf_section("llm_config")
         if (llm_cfg.get('provider') == 'default'
                 and llm_cfg.get('base_url')
                 and llm_cfg.get('api_key')):

@@ -2,6 +2,7 @@
 """Launch UI as a Node.js subprocess and block until it exits."""
 
 import os
+import json
 import subprocess
 import sys
 import time as _time
@@ -15,12 +16,45 @@ warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
 
 _LAUNCH_START = _time.perf_counter()
 
+# ---------------------------------------------------------------------------
+# Agents-SDK bootstrap gate — only needed for in-process agent modes.
+#
+# ``--acp`` runs the agent in THIS process (see the preload below), so the
+# ``agents`` package must be initialized single-threaded before any other
+# siada import: openai-agents 0.22.x's ``__init__`` pulls
+# ``agents.models._openai_shared`` and, when that package import races with a
+# worker thread's submodule import, CPython can raise ``_DeadlockError``
+# (module-lock ABBA) or report partially initialized modules.
+#
+# The plain UI path does NOT import the SDK here — it launches the Node UI and
+# delegates to ``siada.entrypoint.siadahub`` / ``siada.acp_server.main``, which
+# carry the same gate in their own processes. Gating unconditionally would add
+# ~1 s to every ``siada-cli`` launch for nothing.
+# ---------------------------------------------------------------------------
+if "--acp" in sys.argv:
+    from siada.foundation.sdk_patches import (
+        ensure_agents_imported as _ensure_sdk,
+    )
+
+    _ensure_sdk()
+
+# ACP agents (spawned by the chrome-acp proxy as node -> cmd -> python with
+# piped stdio) deadlock when numpy's native extension is first loaded lazily
+# from the event-loop thread mid-turn (Windows loader lock). Preload the
+# holographic provider — which transitively imports numpy — up front while the
+# process is still single-threaded.
+if "--acp" in sys.argv:
+    try:
+        import siada.services.memory.holographic.provider as _holo_preload  # noqa: F401
+    except Exception:
+        pass
+
 
 from siada.foundation.logging import logger, remove_console_handler  # noqa: E402
 
 
 
-_NODE_VERSION = "20.11.0"
+_NODE_VERSION = "24.21.0"
 _NVM_VERSION = "0.39.7"
 _NVM_INSTALL_URL = f"https://gitee.com/mirrors/nvm/raw/v{_NVM_VERSION}/install.sh"
 _NODE_MIRROR = "https://npmmirror.com/mirrors/node"
@@ -170,6 +204,22 @@ class UILauncher:
         """Setup environment variables for Node.js execution."""
         env = os.environ.copy()
         venv_dir = Path(sys.executable).parent.parent
+
+        # Snapshot the user's original env *before* any siada-specific
+        # injection below, so agent-run shell commands (run_cmd) can restore
+        # a clean user environment at the execution boundary
+        # (see siada.foundation.shell_env.make_user_shell_env).  JSON null
+        # means "was unset", which the restore side turns into "delete the
+        # variable".
+        env["SIADA_USER_ENV"] = json.dumps(
+            {
+                "PATH": env.get("PATH"),
+                "PYTHONPATH": env.get("PYTHONPATH"),
+                "NVM_DIR": env.get("NVM_DIR"),
+                "PYTHONIOENCODING": env.get("PYTHONIOENCODING"),
+                "PYTHONUNBUFFERED": env.get("PYTHONUNBUFFERED"),
+            }
+        )
 
         if sys.platform == "win32":
             node_dir = venv_dir / "node"
@@ -550,9 +600,16 @@ _BACKEND_ONLY_ARGS = {
     "--restart-daemon",
     "--daemon-status",
     "--resume-list",
-    "--login",
     "--user-id",
     "--access-token",
+
+    # Browser proxy (chrome-acp) management — handled by the backend's
+    # handle_special_commands(); must not launch the Node UI.
+    "--browser-setup",
+    "--browser-start",
+    "--browser-stop",
+    "--browser-restart",
+    "--browser-status",
 }
 
 

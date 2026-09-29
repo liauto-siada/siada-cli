@@ -9,7 +9,7 @@ from typing import Optional
 
 from siada.foundation.constants import SIADA_HOME
 from siada.foundation.logging import logger
-from .models import SkillLoadOutcome, SkillMetadata
+from .models import SkillLoadOutcome, SkillMetadata, SkillScope, SkillUsageProfile
 from .loader import load_skills_from_roots
 from .config import get_skill_roots
 from .renderer import render_skills_section
@@ -54,6 +54,9 @@ class SkillsManager:
         self._initialized = True
         self._siada_home: Path = siada_home or SIADA_HOME
         self._cache: dict[Path, SkillLoadOutcome] = {}
+        # Roots used at load time, kept alongside the outcome so prompt
+        # rendering can alias skill paths without rescanning the filesystem
+        self._roots_cache: dict[Path, dict[SkillScope, list[Path]]] = {}
         self._cache_lock = threading.Lock()
 
         # Sync built-in (SYSTEM) skills into the user skills dir, but ONLY
@@ -120,6 +123,7 @@ class SkillsManager:
         # Update cache
         with self._cache_lock:
             self._cache[cwd] = outcome
+            self._roots_cache[cwd] = roots
         
         logger.info(
             f"Loaded {len(outcome.skills)} skills "
@@ -127,6 +131,17 @@ class SkillsManager:
         )
         
         return outcome
+
+    def skills_for_cwd(
+        self, cwd: Path, force_reload: bool = False
+    ) -> SkillLoadOutcome:
+        """Compatibility alias for the original public skills lookup API.
+
+        ``get_skills`` is the canonical method used by the new renderer, but
+        integrations that cache results per working directory still call this
+        older name.  Keep both paths on the same cache and loading semantics.
+        """
+        return self.get_skills(cwd, force_reload=force_reload)
     
     def invalidate_cache(self, cwd: Optional[Path] = None):
         """
@@ -140,9 +155,11 @@ class SkillsManager:
                 cwd = Path(cwd).resolve()
                 if cwd in self._cache:
                     del self._cache[cwd]
+                    self._roots_cache.pop(cwd, None)
                     logger.debug(f"Skill cache invalidated for cwd: {cwd}")
             else:
                 self._cache.clear()
+                self._roots_cache.clear()
                 logger.debug("All skill cache invalidated")
     
     def get_skill_by_name(self, cwd: Path, name: str) -> Optional[SkillMetadata]:
@@ -175,16 +192,37 @@ class SkillsManager:
         outcome = self.get_skills(cwd)
         return [skill.name for skill in outcome.skills]
     
-    def get_skills_section(self, cwd: Path, include_empty_hint: bool = False) -> Optional[str]:
+    def get_skills_section(
+        self,
+        cwd: Path,
+        include_empty_hint: bool = False,
+        context_window: Optional[int] = None,
+        activated_skill_names: Optional[set[str]] = None,
+        usage_profile: SkillUsageProfile = SkillUsageProfile.STRICT,
+    ) -> Optional[str]:
         """
         Get pre-rendered skills section for system prompt.
         
         Args:
             cwd: Current working directory
             include_empty_hint: Whether to include hint when no skills available
+            context_window: Model context window in tokens, used to size the
+                skill list budget (2% of the window). When None, a flat
+                fallback budget applies.
+            usage_profile: Instructions paired with the skills catalog.
         
         Returns:
             Rendered skills section string, or None if no skills
         """
+        cwd = Path(cwd).resolve()
         outcome = self.get_skills(cwd)
-        return render_skills_section(outcome.skills, include_empty_hint)
+        with self._cache_lock:
+            roots = self._roots_cache.get(cwd)
+        return render_skills_section(
+            outcome.skills,
+            include_empty_hint,
+            skill_roots=roots,
+            context_window=context_window,
+            activated_skill_names=activated_skill_names,
+            usage_profile=usage_profile,
+        )

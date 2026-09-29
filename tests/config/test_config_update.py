@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from siada.config.config_loader import _ensure_config_up_to_date, _backup_config_file, _DEFAULT_CONFIG_TEMPLATE
+from siada.config.config_loader import (
+    SubAgentConfig,
+    _ensure_config_up_to_date,
+    _backup_config_file,
+    _DEFAULT_CONFIG_TEMPLATE,
+)
 
 
 class TestEnsureConfigUpToDate:
@@ -209,3 +214,95 @@ class TestBackupConfigFile:
     def test_graceful_on_missing_source(self, tmp_path):
         """Does not raise if the source file does not exist."""
         _backup_config_file(tmp_path / 'nonexistent.yaml')
+
+
+class TestSubAgentTemplateSectionStability:
+    """Regression guard: the sub_agent template paragraph's prose must not
+    contain any stray ``word:`` pattern that ``_ensure_config_up_to_date``'s
+    key detector would mistake for a second top-level key -- that bug caused
+    the whole paragraph (including the real ``sub_agent:`` key) to be
+    appended twice on every load when the file already had one of the
+    "keys" from that false match but not the real ones."""
+
+    def _write(self, path: Path, content: str) -> None:
+        path.write_text(content, encoding='utf-8')
+
+    def _read(self, path: Path) -> str:
+        return path.read_text(encoding='utf-8')
+
+    def test_sub_agent_paragraph_has_exactly_one_top_level_key(self):
+        import re
+        top_key_re = re.compile(r'^(?:# )?([a-z][a-z0-9_]*):', re.MULTILINE)
+        paragraphs = re.split(r'\n{2,}', _DEFAULT_CONFIG_TEMPLATE.strip())
+        sub_agent_paragraphs = [
+            p for p in paragraphs if 'sub_agent' in top_key_re.findall(p)
+        ]
+        assert len(sub_agent_paragraphs) == 1
+        keys = top_key_re.findall(sub_agent_paragraphs[0])
+        assert keys == ['sub_agent']
+
+    def test_repeated_loads_do_not_duplicate_sub_agent_section(self, tmp_path):
+        config_file = tmp_path / 'conf.yaml'
+        self._write(config_file, "llm_config:\n  model: claude\n")
+
+        _ensure_config_up_to_date(config_file)
+        _ensure_config_up_to_date(config_file)
+        _ensure_config_up_to_date(config_file)
+
+        content = self._read(config_file)
+        assert content.count('Sub-Agent Configuration (run_subtask)') == 1
+        assert content.count('# sub_agent:') == 1
+
+
+class TestSubAgentConfigFromDict:
+    def test_defaults_to_false(self):
+        cfg = SubAgentConfig.from_dict({})
+        assert cfg.allow_recursive_subagents is False
+
+    def test_reads_true(self):
+        cfg = SubAgentConfig.from_dict({"allow_recursive_subagents": True})
+        assert cfg.allow_recursive_subagents is True
+
+    def test_reads_explicit_false(self):
+        cfg = SubAgentConfig.from_dict({"allow_recursive_subagents": False})
+        assert cfg.allow_recursive_subagents is False
+
+    def test_none_value_falls_back_to_default(self):
+        cfg = SubAgentConfig.from_dict({"allow_recursive_subagents": None})
+        assert cfg.allow_recursive_subagents is False
+
+    def test_master_switch_defaults_to_true(self):
+        cfg = SubAgentConfig.from_dict({})
+        assert cfg.enabled is True
+
+    def test_master_switch_reads_explicit_false(self):
+        cfg = SubAgentConfig.from_dict({"enabled": False})
+        assert cfg.enabled is False
+
+    def test_master_switch_none_value_falls_back_to_true(self):
+        cfg = SubAgentConfig.from_dict({"enabled": None})
+        assert cfg.enabled is True
+
+    def test_master_switch_off_forces_recursion_off(self):
+        """Recursive nesting is an extension of the feature it must not outlive."""
+        cfg = SubAgentConfig.from_dict(
+            {"enabled": False, "allow_recursive_subagents": True}
+        )
+        assert cfg.enabled is False
+        assert cfg.allow_recursive_subagents is False
+
+    def test_master_switch_on_keeps_recursion_flag(self):
+        cfg = SubAgentConfig.from_dict(
+            {"enabled": True, "allow_recursive_subagents": True}
+        )
+        assert cfg.enabled is True
+        assert cfg.allow_recursive_subagents is True
+
+
+class TestSubAgentTemplateMasterSwitch:
+    def test_template_example_documents_enabled(self):
+        import re
+        paragraphs = re.split(r'\n{2,}', _DEFAULT_CONFIG_TEMPLATE.strip())
+        sub_agent_paragraph = next(p for p in paragraphs if '# sub_agent:' in p)
+        assert '#   enabled: true' in sub_agent_paragraph
+        assert '#   allow_recursive_subagents: false' in sub_agent_paragraph

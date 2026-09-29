@@ -100,10 +100,10 @@ def _wrap_tools_with_deny(tools: list) -> list:
 
 class _BtwReadonlySession:
     """
-    主 session 的只读替身，仅暴露 siada_config 供 system_prompt 和 build_sub_agent_run_config 读取。
+    Read-only stand-in for the main session that exposes only siada_config, which system_prompt and build_sub_agent_run_config read.
 
-    故意不暴露：state、task_message_state、checkpoint_tracker、openai_session。
-    任何下游代码若尝试访问这些字段都会立即 AttributeError，而非静默损坏主 session。
+    Deliberately not exposed: state, task_message_state, checkpoint_tracker, openai_session.
+    Any downstream code touching them hits an immediate AttributeError instead of silently corrupting the main session.
     """
 
     def __init__(self, real_session):
@@ -300,14 +300,18 @@ async def _run_async(
     from siada.agent_hub.hooks.siada_basic_agent_hooks import SiadaBasicAgentHooks
     from siada.foundation.code_agent_context import CodeAgentContext
     from siada.services.siada_runner import SiadaRunner
-    from siada.services.sub_agent_run_config import build_sub_agent_run_config
+    from siada.services.sub_agent_run_config import (
+        adapt_fork_tools_for_effective_model,
+        build_sub_agent_run_config,
+        resolve_sub_agent_llm_config,
+    )
 
     t0 = time.perf_counter()
 
-    # 1. 取主 Agent 实例（命中 _agent_cache，已含 MCP tools）
+    # 1. Get the main Agent instance (hits _agent_cache and already includes MCP tools)
     agent = await SiadaRunner.get_agent(agent_name)
 
-    # 2. 取主 CodeAgentContext（命中 _context_cache，只读，复刻 system prompt 依赖字段）
+    # 2. Get the main CodeAgentContext (hits _context_cache, read-only, reproduces the fields system_prompt depends on)
     parent_ctx = await SiadaRunner.get_context(agent, stub_session, workspace)
 
     # 3. Build fork_ctx: copy read-only fields needed for system_prompt, block all
@@ -350,7 +354,7 @@ async def _run_async(
     #    is rejected BEFORE execution (zero side effects). This mirrors Claude
     #    Code's `canUseTool: deny` — DO NOT clear tools or set tool_choice="none",
     #    both mutate the Anthropic cache key and bust the cache.
-    #    不用 dataclasses.replace（见 siada_agent.py 注释，子类 __init__ 冲突）
+    #    Not using dataclasses.replace (see the comment in siada_agent.py: subclass __init__ conflict)
     from agents import RunContextWrapper
 
     forked_agent = copy.copy(agent)
@@ -402,6 +406,15 @@ async def _run_async(
     # must NOT try to (re)connect them from this loop, and get_all_tools at run
     # time returns exactly our pre-built list ([] mcp + our tools).
     forked_agent.mcp_servers = []
+    # Fork tool alignment is only valid when the sub-agent runs on the parent's
+    # model.  When conf.yaml routes sub-agents elsewhere (a chat-completions
+    # model), the inherited native Responses apply_patch tool would fail tool
+    # conversion outright ("Hosted tools are not supported with the
+    # ChatCompletions API"); swap it for the regular edit_file tool in that
+    # case only, leaving the byte-identical same-model path untouched.
+    sub_agent_model = resolve_sub_agent_llm_config(fork_ctx).model_name
+    all_tools = adapt_fork_tools_for_effective_model(all_tools, sub_agent_model)
+
     # Attach a deny guardrail to EVERY FunctionTool (local AND MCP — both are
     # FunctionTools after materialization). Keeps schemas byte-identical (cache
     # hit) AND hard-blocks execution of any tool, MCP included.
@@ -409,13 +422,13 @@ async def _run_async(
     forked_agent.tools = _wrap_tools_with_deny(all_tools)
 
 
-    # 5. 拼 fork input：裁剪后的历史前缀（prompt cache 关键）+ /btw user 消息
+    # 5. Assemble fork input: the trimmed history prefix (critical for prompt cache) + the /btw user message
     prefix = _prepare_btw_snapshot(snapshot_messages, fork_ctx)
     fork_input = list(prefix) + [
         {"role": "user", "content": _BTW_REMINDER + question}
     ]
 
-    # 6. RunConfig（build_sub_agent_run_config 不含 context_capture_filter）。
+    # 6. RunConfig (build_sub_agent_run_config does not include context_capture_filter).
     #    NOTE: do NOT override tool_choice. Keeping model_settings byte-identical
     #    to the main thread (tool_choice stays "auto") preserves the Anthropic
     #    prompt-cache key. Tool execution is blocked by the per-tool deny
@@ -439,7 +452,7 @@ async def _run_async(
             # response. A tool attempt cannot be recovered within the budget and
             # raises MaxTurnsExceeded — handled just below (see fork_ctx comment).
             max_turns=1,
-            session=None,   # ★ 不写 openai_session / FileSession
+            session=None,   # ★ do not write openai_session / FileSession
         )
 
         answer = (result.final_output or "").strip()
@@ -470,19 +483,19 @@ async def _run_async(
 
 def run_side_question(session, question: str) -> str:
     """
-    同步入口，在独立 thread + event loop 中运行副 Agent，返回回答字符串。
+    Synchronous entry point: runs the side agent in a separate thread + event loop and returns the answer string.
 
-    所有对主 session 可变字段的读取在主线程完成（快照），
-    fork 线程不再访问主 session，避免并发竞态。
+    All reads of mutable fields on the main session happen on the main thread (snapshot),
+    and the fork thread no longer touches the main session, avoiding concurrency races.
     """
-    # 主线程快照（避免从 fork 线程访问主 session 的可变字段）
+    # Main-thread snapshot (the fork thread must not read the main session's mutable fields)
     llm_config   = session.siada_config.llm_config
     workspace    = session.siada_config.workspace
     agent_name   = session.siada_config.agent_name
     stub_session = _BtwReadonlySession(session)
 
-    # _real_messages 优先（与上轮 LLM 调用 byte-for-byte 一致，最大化 cache 命中）
-    # fallback 到 _message_history（更细粒度的 capture，即使还未完成一次完整 LLM 往返）
+    # Prefer _real_messages (byte-for-byte identical to the previous LLM call, maximizing cache hits)
+    # Fall back to _message_history (finer-grained capture, works even before a full LLM round trip completes)
     snapshot = list(session.task_message_state.get_real_messages() or [])
     if not snapshot:
         snapshot = list(session.task_message_state.get_messages() or [])
@@ -496,7 +509,7 @@ def run_side_question(session, question: str) -> str:
 
         loop = asyncio.new_event_loop()
         try:
-            # contextvar 不跨线程继承，必须在 fork 线程重新 set
+            # contextvars are not inherited across threads, so they must be set again in the fork thread
             set_context_var(LLM_CONFIG, llm_config)
             set_session_id(stub_session.session_id)
 

@@ -128,7 +128,7 @@ def test_binary_detection():
 
 if __name__ == "__main__":
     """
-    运行测试用例需要先注释掉 search.py 中的 @function_tool注解
+    To run the test cases, first comment out the @function_tool decorator in search.py.
     """
     print("File Search - Test Script")
     print("=" * 40)

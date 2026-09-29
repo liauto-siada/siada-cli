@@ -45,7 +45,7 @@ def get_client(p_type: provider_type | None = None) -> LLMClient:
     Retrieves the LLM client instance based on the client name.
 
     Args:
-        p_type (provider_type | None): The name of the provider, e.g., 'li', 'openrouter'. 
+        p_type (provider_type | None): The name of the provider, e.g., 'li'. 
                                      If None, defaults to the first available client.
 
     Returns:

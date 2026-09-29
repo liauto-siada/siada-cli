@@ -600,6 +600,12 @@ class MemoryService:
         Both are content *we* wrote into the user message for LLM priming;
         memory extraction must never treat them as user-authored, otherwise
         the review agent learns "user preferences" from our own output.
+
+        The ``<user_input>`` tag (wrapping the human's literal text itself,
+        see ``marker.wrap_user_input``) is also stripped here so the review
+        agent works with exactly what the human typed, free of the tag
+        noise — this is the opposite operation: it keeps the body, only
+        discarding the wrapper.
         """
         if not text:
             return text
@@ -608,10 +614,11 @@ class MemoryService:
         from siada.services.memory.holographic.marker import (
             has_any_injection_block,
             strip_all_injection_blocks,
+            strip_user_input,
         )
-        if not has_any_injection_block(text):
-            return text
-        return strip_all_injection_blocks(text)
+        if has_any_injection_block(text):
+            text = strip_all_injection_blocks(text)
+        return strip_user_input(text)
     
     def _get_content_from_item(self, item: Any) -> Any:
         """

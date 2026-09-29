@@ -40,7 +40,11 @@ class IMMessage:
     timestamp: float
     raw: dict = field(default_factory=dict)
     # Optional extended fields
+    # Group chat display name (resolved via chat API with TTL cache by the
+    # adapter; None for p2p chats or when resolution is unavailable/disabled)
+    chat_name: Optional[str] = None
     message_id: Optional[str] = None
+
     sender_name: Optional[str] = None
     root_id: Optional[str] = None
     thread_id: Optional[str] = None

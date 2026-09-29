@@ -798,21 +798,21 @@ def log_model_error(
 
 def cleanup_old_logs(log_pattern: str, keep_days: int = 30, log_directory: str = None) -> int:
     """
-    清理超过指定天数的日志文件
+    Delete log files older than the specified number of days.
     
     Args:
-        log_pattern: 日志文件名模式，支持通配符，如 'a2a_log_*.log' 或 'a2a_server_*.log'
-        keep_days: 保留的天数，默认 30 天
-        log_directory: 日志目录路径，默认使用 get_log_directory()
+        log_pattern: Log file name pattern, supports wildcards, e.g. 'a2a_log_*.log' or 'a2a_server_*.log'
+        keep_days: Number of days to keep, defaults to 30
+        log_directory: Log directory path, defaults to get_log_directory()
         
     Returns:
-        int: 删除的文件数量
+        int: Number of deleted files
         
     Example:
-        # 清理 30 天前的 a2a_log 文件
+        # Delete a2a_log files older than 30 days
         cleanup_old_logs('a2a_log_*.log', keep_days=30)
         
-        # 清理 7 天前的 a2a_server 文件
+        # Delete a2a_server files older than 7 days
         cleanup_old_logs('a2a_server_*.log', keep_days=7)
     """
     from datetime import datetime, timedelta

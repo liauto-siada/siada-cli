@@ -56,6 +56,7 @@ from siada.agent_hub.proactive.utils.time_utils import parse_time_str
 from siada.config.config_loader import ProactiveConfig
 from siada.foundation.code_agent_context import RuntimeSource
 from siada.foundation.constants import SIADA_HOME
+from siada.services.browser_skill.pipeline import run_batch_distillation
 
 
 logger = logging.getLogger(__name__)
@@ -126,6 +127,7 @@ class ProactiveScheduler:
         self._discover_tasks_lock = Lock()
 
         # Job registry – populated by _setup_default_jobs(), extensible afterwards
+        self._custom_jobs: List[DailyJob] = []  # survive conf.yaml reloads
         self._daily_jobs: List[DailyJob] = []
         self._setup_default_jobs()
 
@@ -134,9 +136,15 @@ class ProactiveScheduler:
     # ------------------------------------------------------------------
 
     def _setup_default_jobs(self) -> None:
-        """Register the built-in daily jobs."""
+        """Register the built-in daily jobs.
+
+        Rebuilds the default portion of the job registry from the current
+        ``self.config`` while preserving any custom jobs added via
+        :meth:`add_daily_job`. Called at startup and again whenever the
+        config is reloaded from conf.yaml.
+        """
         # Part 1 – daily fixed (non-cancellable)
-        self._daily_jobs = [
+        defaults = [
             # Disabled: personal_style.md is deprecated; USER.md (managed by MemoryReviewAgent) is canonical now.
             # The handler `_update_personal_style` is preserved below for easy re-enabling if needed.
             # DailyJob(name="update_personal_style", handler=self._update_personal_style, cancellable=False, requires_llm=True),
@@ -151,7 +159,7 @@ class ProactiveScheduler:
         # daily_summary only runs when send_daily_summary_to_im is enabled;
         # without IM delivery the summary file serves no purpose.
         if self.config.send_daily_summary_to_im:
-            self._daily_jobs.insert(
+            defaults.insert(
                 0,
                 DailyJob(
                     name="daily_summary",
@@ -162,6 +170,7 @@ class ProactiveScheduler:
             )
         else:
             logger.info("ProactiveScheduler -- daily_summary skipped: send_daily_summary_to_im is disabled")
+        self._daily_jobs = defaults + self._custom_jobs
 
     # ------------------------------------------------------------------
     # Public extension API
@@ -169,8 +178,42 @@ class ProactiveScheduler:
 
     def add_daily_job(self, job: DailyJob) -> None:
         """Add a custom daily job to the registry."""
+        self._custom_jobs.append(job)
         self._daily_jobs.append(job)
         logger.info("ProactiveScheduler -- Added daily job: %s", job.name)
+
+    # ------------------------------------------------------------------
+    # Config reload (per execution, so conf.yaml edits take effect
+    # without restarting the daemon)
+    # ------------------------------------------------------------------
+
+    def _reload_config(self) -> None:
+        """Re-read conf.yaml and refresh the proactive config in place.
+
+        Called at the start of every scheduled execution so that runtime
+        edits to conf.yaml (e.g. ``send_daily_summary_to_im``,
+        ``daily_task_execution_time``, ``proactive.llm_config``) take
+        effect without a daemon restart. On failure the previous config
+        is kept.
+        """
+        try:
+            from siada.config.config_loader import load_conf
+            new_config = load_conf().proactive_config
+        except Exception as e:
+            logger.warning(
+                "ProactiveScheduler -- Failed to reload conf.yaml, keeping previous config: %s", e
+            )
+            return
+        if new_config == self.config:
+            return
+        logger.info(
+            "ProactiveScheduler -- conf.yaml changed; reloading proactive config "
+            "(enabled=%s, send_daily_summary_to_im=%s)",
+            new_config.enabled, new_config.send_daily_summary_to_im,
+        )
+        self.config = new_config
+        # Rebuild default jobs so toggles like send_daily_summary_to_im apply
+        self._setup_default_jobs()
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -189,6 +232,18 @@ class ProactiveScheduler:
                 id="analyze_recent_sessions",
                 max_instances=1,
             )
+            # Browser-skill batch distillation: incremental offline/online
+            # recovery entry, coalesced and single-instance so concurrent
+            # scheduler threads never race the SQLite queue. No-data passes
+            # make zero LLM calls (pipeline guarantees).
+            # self._scheduler.add_job(
+            #     self._run_browser_skill_learning,
+            #     "interval",
+            #     seconds=60,
+            #     id="browser_skill_learning",
+            #     max_instances=1,
+            #     coalesce=True,
+            # )
         else:
             logger.info("ProactiveScheduler -- Proactive mode disabled; skipping fixed-schedule jobs")
 
@@ -329,6 +384,7 @@ class ProactiveScheduler:
         The allow-list is driven by job *name*, not by ``requires_llm``,
         so the decision is explicit and new jobs don't slip in by accident.
         """
+        self._reload_config()
         has_events = self._has_recent_events(hours=36)
 
         if not has_events:
@@ -443,7 +499,8 @@ class ProactiveScheduler:
 
         Priority:
           1. conf.yaml proactive.llm_config.model
-          2. ModelRunConfig.get_default_config() (original behaviour)
+          2. conf.yaml llm_config.model (global model)
+          3. ModelRunConfig.get_default_config() (agent_config.yaml default)
         """
         from siada.config.config_loader import load_conf
         from siada.models.model_run_config import ModelRunConfig
@@ -451,11 +508,16 @@ class ProactiveScheduler:
 
         try:
             conf = load_conf()
-            proactive_llm = conf.proactive_config.llm_config
-            if proactive_llm and proactive_llm.model:
-                mrc = ModelRunConfig(proactive_llm.model)
-                mrc.provider = resolve_provider_by_model(proactive_llm.model, proactive_llm.provider)
-                return mrc
+            # conf.yaml may set only the model without a provider; fall back to
+            # the config-file default provider (agent_config.yaml), matching the
+            # interactive session pattern (see entrypoint/interaction/controller.py).
+            default_provider = ModelRunConfig.get_default_config().provider
+            for llm in (conf.proactive_config.llm_config, conf.llm_config):
+                if llm and llm.model:
+                    mrc = ModelRunConfig(llm.model)
+                    provider = llm.provider or default_provider
+                    mrc.provider = resolve_provider_by_model(llm.model, provider)
+                    return mrc
         except Exception as e:
             logger.warning("_resolve_cron_model -- failed to load conf: %s", e)
 
@@ -494,6 +556,7 @@ class ProactiveScheduler:
 
     def _execute_cron_task(self, task_id: str, instruction: str) -> None:
         """APScheduler callback: execute a user-defined crontab task."""
+        self._reload_config()
         self._run_async(self._run_cron_task(task_id, instruction))
 
     async def _run_cron_task(self, task_id: str, instruction: str) -> None:
@@ -517,7 +580,7 @@ class ProactiveScheduler:
                 model_provider=provider_wrapper,
                 model_settings=model_settings,
             )
-            await self._run_agent_with_config("coder", instruction, run_config)
+            await self._run_agent("coder", instruction, run_config)
         except Exception as e:
             logger.error("ProactiveScheduler -- Crontab task %s failed: %s", task_id, e, exc_info=True)
         finally:
@@ -1151,6 +1214,17 @@ class ProactiveScheduler:
             "ProactiveScheduler -- %s job sequence finished: total=%d, succeeded=%d, failed=%d, skipped=%d",
             label, len(jobs), succeeded, failed, skipped,
         )
+
+    def _run_browser_skill_learning(self) -> None:
+        """APScheduler callback: one browser-skill batch-distillation pass.
+
+        The pipeline is incremental and makes zero LLM calls when there is
+        nothing to ingest, so the 60s interval is cheap. Failure is NEVER
+        silently swallowed as "unavailable": ``_run_async`` logs the error
+        (visible for operators/tests) and APScheduler records the job
+        failure, so a broken pass is reported instead of pretending success.
+        """
+        self._run_async(run_batch_distillation())
 
     @staticmethod
     def _run_async(coro: Awaitable) -> None:

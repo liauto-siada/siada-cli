@@ -2,50 +2,13 @@
 # Defines the mapping from agent names to Agent classes
 
 agents:
-  # Bug Fix Agent
-  bugfix:
-    class: "siada.agent_hub.coder.bug_fix_agent.BugFixAgent"
-    description: "Specialized agent for code bug fixing"
-    enabled: false
-    supported_modes: "non_interactive"
-
-  # Code Development Agent (not implemented yet)
+  # Code Development Agent: general-purpose agent for all development tasks
+  # (the former bugfix / fegen / bugreproduce / test / deepresearch / browser /
+  # card specialized agents were removed; their tasks are handled by CodeGenAgent)
   coder:
     class: "siada.agent_hub.coder.code_gen_agent.CodeGenAgent"
     description: "General-purpose code development agent"
     enabled: true
-    supported_modes: "all"
-  
-  # Frontend Generation Agent
-  fegen:
-    class: "siada.agent_hub.coder.fe_gen_agent.FeGenAgent"
-    description: "Frontend code generation agent"
-    enabled: false
-    supported_modes: "interactive"
-
-  browser:
-    class: "siada.agent_hub.coder.browser_agent.BrowserAgent"
-    description: "Browser operate agent"
-    enabled: false
-    supported_modes: "interactive"
-
-  bugreproduce:
-    class: "siada.agent_hub.coder.bug_reproduce_agent.BugReproduceAgent"
-    description: "Bug reproduction agent"
-    enabled: false
-    supported_modes: "non_interactive"
-
-  test:
-    class: "siada.agent_hub.coder.test_agent.TestAgent"
-    description: "Test agent"
-    enabled: false
-    supported_modes: "non_interactive"
-
-  # Deep Research Agent
-  deepresearch:
-    class: "siada.agent_hub.coder.deep_research_agent.DeepResearchAgent"
-    description: "Web-based research and report generation agent"
-    enabled: false
     supported_modes: "all"
 
   # Proactive Agent - for background task discovery and daily summaries
@@ -58,7 +21,7 @@ agents:
 
 # LLM Configuration
 llm_config:
-  provider: "default"               # Optional: "openrouter", "default"
+  provider: "default"                 # Optional: "default" (bring your own API key) or "openrouter"
   model_name: "claude-sonnet-5"
   repo_map_tokens: 8192                     # repo map max token
   repo_map_mul_no_files: 16                 # Multiple without chat files

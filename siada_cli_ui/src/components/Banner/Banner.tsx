@@ -8,6 +8,7 @@
 import React from 'react';
 import { Box, Text } from '@jrichman/ink';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { BANNER_LINES } from '../../constants/banner.js';
 
 export interface BannerProps {
   version?: string;
@@ -36,15 +37,8 @@ export const Banner: React.FC<BannerProps> = ({
   const { columns } = useTerminalSize();
   // Reserve two columns for left/right borders so content fits snugly
   const contentWidth = Math.max(0, columns - 2);
-  // ASCII art lines - matching siada-cli output
-  const bannerLines = [
-    "  ▆▆▆▆▆▆▆╗▆▆╗ ▆▆▆▆▆╗ ▆▆▆▆▆▆╗  ▆▆▆▆▆╗      ▆▆▆▆▆▆╗▆▆╗     ▆▆╗",
-    "  ▆▆╔════╝▆▆║▆▆╔══▆▆╗▆▆╔══▆▆╗▆▆╔══▆▆╗    ▆▆╔════╝▆▆║     ▆▆║",
-    "  ▆▆▆▆▆▆▆╗▆▆║▆▆▆▆▆▆▆║▆▆║  ▆▆║▆▆▆▆▆▆▆║    ▆▆║     ▆▆║     ▆▆║",
-    "  ╚════▆▆║▆▆║▆▆╔══▆▆║▆▆║  ▆▆║▆▆╔══▆▆║    ▆▆║     ▆▆║     ▆▆║",
-    "  ▆▆▆▆▆▆▆║▆▆║▆▆║  ▆▆║▆▆▆▆▆▆╔╝▆▆║  ▆▆║    ╚▆▆▆▆▆▆╗▆▆▆▆▆▆▆╗▆▆║",
-    "  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝     ╚═════╝╚══════╝╚═╝",
-  ];
+  // ASCII art lines come from the shared constant (also used by conversation export)
+  const bannerLines = BANNER_LINES;
 
   // Gradient palette: 256-color indices mapped from terminal screenshot
   //   75, 111, 117, 116, 115, 121

@@ -9,6 +9,7 @@
 import React from 'react';
 import { Text, Box } from '@jrichman/ink';
 import { theme } from './theme.js';
+import { useThemeVersion } from '../../themes/index.js';
 import { colorizeCode } from './CodeColorizer.js';
 import { TableRenderer } from './TableRenderer.js';
 import { RenderInline } from './InlineMarkdownRenderer.js';
@@ -35,6 +36,7 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
   terminalWidth,
   renderMarkdown = true,
 }) => {
+  useThemeVersion(); // repaint on theme change (memo blocks prop-driven re-renders)
   const responseColor = theme.text.response ?? theme.text.primary;
   
   // Ensure terminal width is valid
@@ -392,6 +394,7 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
   availableTerminalHeight,
   terminalWidth,
 }) => {
+  useThemeVersion(); // repaint on theme change (memo blocks prop-driven re-renders)
   const MIN_LINES_FOR_MESSAGE = 1;
   const RESERVED_LINES = 2;
 
@@ -465,6 +468,7 @@ const RenderListItemInternal: React.FC<RenderListItemProps> = ({
   marker,
   leadingWhitespace = '',
 }) => {
+  useThemeVersion(); // repaint on theme change (memo blocks prop-driven re-renders)
   const prefix = type === 'ol' ? `${marker}. ` : `${marker} `;
   const prefixWidth = prefix.length;
   const indentation = leadingWhitespace.length;

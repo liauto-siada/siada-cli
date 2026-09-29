@@ -11,9 +11,6 @@ import json
 import time
 from typing import Any, Optional
 
-from prompt_toolkit.completion import Completion, PathCompleter
-from prompt_toolkit.document import Document
-
 import siada.io.io
 from siada.services.model_info_service import ModelInfoService
 from siada.support.editor import pipe_editor
@@ -86,6 +83,9 @@ ARGUMENT_HINTS: dict[str, str] = {
     "web": "[enable | disable]",
     "goal": "[<objective> | clear]",
     "model": "[<model_name>]",
+    "effort": "[low | medium | high | xhigh | max]",
+    "thinking": "[on | off]",
+    "theme": "[auto | dark | light]",
     "rule-global-add": "<text>",
     "compare": "<checkpoint_filename>",
     "undo": "<checkpoint_filename>",
@@ -93,13 +93,21 @@ ARGUMENT_HINTS: dict[str, str] = {
     "resume": "[<index> | <session_id> | latest | --all]",
     "lang": "<en | zh-CN>",
     "pre-plan-mode": "<true | false>",
+    "issue-fix": "<issue_id>",
     "plugin": "[install | remove | enable | disable | validate | marketplace] <args>",
+    "export": "[<filename>]",
 }
 
 
 def get_argument_hint(cmd_name: str) -> str:
     """Return a concise argument-format hint for a slash command, or "" if none."""
     return ARGUMENT_HINTS.get(cmd_name, "")
+
+
+# UI color themes accepted by /theme and persisted to conf.yaml (ui.theme).
+# 'auto' detects the terminal/system background once per process and is the
+# default when ui.theme is not configured.
+VALID_THEMES = ("auto", "dark", "light")
 
 
 class SlashCommands:
@@ -493,6 +501,46 @@ class SlashCommands:
         ]
         self.io.print_info("\n".join(status_lines))
 
+    def cmd_share(self, session, args):
+        """Share the current session as a web link via the browser-addon proxy PWA"""
+        try:
+            from siada.browser_addon import manager
+            from siada.browser_addon.cli import _copy_clipboard
+            from urllib.parse import quote
+
+            state = manager.load_state()
+            host = state.get("host") or "127.0.0.1"
+
+            if not manager.is_running():
+                self.io.print_info(
+                    "Browser-addon proxy 未运行。先执行 "
+                    "`siada-cli --browser-setup --browser-host 0.0.0.0`"
+                    "启动 proxy 后重试 /share。"
+                )
+                return
+            if host in {"", "localhost", "127.0.0.1", "::1"}:
+                self.io.print_info(
+                    "当前 proxy 只监听本机（" + host + "），无法远程分享。"
+                    "重新执行 `siada-cli --browser-setup --browser-host 0.0.0.0`"
+                    "后再试 /share。"
+                )
+                return
+
+            ip = manager.lan_ip() or host
+            url = (
+                f"https://{ip}:{state.get('port')}/app?token={state.get('token')}"
+                f"&session={session.session_id}&cwd={quote(session.siada_config.workspace)}"
+            )
+            _copy_clipboard(url)
+            self.io.print_info(url)
+            self.io.print_info(
+                "接收方首次打开需在证书告警页点「高级 → 继续访问」。\n"
+                "链接含 token（完整 agent 控制权），仅分享给信任的人。\n"
+                "快照语义：终端继续对话后，接收方刷新链接可见最新历史。"
+            )
+        except Exception as e:
+            self.io.print_error(f"/share failed: {e}")
+
     def cmd_memory(self, session, args: str):
         """Enable or disable the memory subsystem
 
@@ -602,11 +650,10 @@ class SlashCommands:
 
         Usage:
             /web          - Show current web tools status
-            /web enable   - Enable web tools (overrides provider default)
-            /web disable  - Disable web tools (overrides provider default)
+            /web enable   - Enable web tools
+            /web disable  - Disable web tools
 
-        When neither is set, web tools follow the provider default:
-        ON for "li", OFF for every other provider.
+        When neither is set, web tools are ON by default.
         """
         sub = args.strip().lower()
 
@@ -625,7 +672,7 @@ class SlashCommands:
                 context = ctx
                 break
 
-        # Current configured mode (None=auto/follow-provider-default, True=on, False=off)
+        # Current configured mode (None=auto/off-by-default, True=on, False=off)
         if context is not None:
             mode_val = getattr(context, 'web_tools_enabled', None)
         else:
@@ -708,7 +755,8 @@ class SlashCommands:
                                    channel as /init and /issue_fix) — /goal
                                    is not a silent no-op background flag flip,
                                    it actually starts work on the objective.
-            /goal clear         - Remove the current goal entirely
+            /goal clear         - Remove the current goal and persist a hidden
+                                   reminder so the model does not resume it
 
         Once set, an independent verifier checks after every turn whether the
         goal has been met. On failure it automatically forces another turn
@@ -748,20 +796,42 @@ class SlashCommands:
             current_goal = goal_storage.load_goal(session_dir)
 
         if sub_lower == 'clear':
+            goal_to_clear = current_goal or session.state.pending_goal
+            reminder_write_failed = False
+            if session_dir is not None and goal_to_clear is not None:
+                from siada.services.goal.prompts import build_goal_cleared_reminder_text
+
+                reminder = build_goal_cleared_reminder_text(goal_to_clear.objective)
+                # Persist before clearing in-memory or disk state. The next
+                # Runner call reads this item from FileSession, so no stale
+                # context/pending_goal snapshot can overwrite the reminder.
+                try:
+                    session.state.openai_session.add_items_sync([
+                        {
+                            "role": "user",
+                            "content": [{"type": "input_text", "text": reminder}],
+                        }
+                    ])
+                except Exception as e:
+                    # Cancellation must still work if session history cannot
+                    # be written (e.g. disk full). Surface the lost reminder.
+                    logger.warning(f"[goal] Failed to persist clear reminder: {e}")
+                    reminder_write_failed = True
+
             if current_goal is not None and session_dir is not None:
                 goal_storage.append_goal_history(session_dir, current_goal)
             if context is not None:
                 context.goal = None
-            else:
-                # No agent context has been built yet for this workspace (e.g.
-                # /goal clear is the very first command in a fresh session) --
-                # there's nothing live to clear, but drop any not-yet-consumed
-                # staged goal too (see the "set a new goal" branch below for
-                # why pending_goal exists) so it can't resurrect itself into
-                # whatever context the next turn builds.
-                session.state.pending_goal = None
+            # Clear staged state even when a live context exists; an unconsumed
+            # pending_goal would otherwise be applied over context.goal=None on
+            # the next run and resurrect the cleared objective.
+            session.state.pending_goal = None
             if session_dir is not None:
                 goal_storage.clear_goal(session_dir)
+            if reminder_write_failed:
+                self.io.print_warning(
+                    "Could not save the goal-clear reminder to session history."
+                )
 
             # In ACP mode the frontend already reflects this via the
             # goalState push below (status bar disappears + transient
@@ -882,13 +952,302 @@ class SlashCommands:
     def completions_model(self):
         return ModelInfoService.get_model_names()
 
-    # def cmd_models(self, args):
-    #     "Search the list of available models"
-    #     # Removed: /model already provides this functionality
-    #     args = args.strip()
-    #     models = ModelInfoService.get_model_names()
-    #     model_lines = [f"- {model}" for model in models]
-    #     self.io.print_info("\n".join(model_lines))
+    def completions_effort(self):
+        from siada.models.model_base_config import VALID_REASONING_EFFORTS
+        return list(VALID_REASONING_EFFORTS)
+
+    def completions_theme(self):
+        return list(VALID_THEMES)
+
+    def _push_reasoning_effort_to_ui(self, effort: Optional[str]) -> None:
+        """Push a reasoning-effort change to the ACP frontend (best-effort).
+
+        Mirrors _push_model_to_ui / _notify_memory_status patterns so the
+        status-bar effort label updates live after /effort.
+        """
+        if not (self.io.acp_adapter and self.io.acp_adapter.transport
+                and self.io.acp_adapter.transport.is_connected):
+            return
+        from siada.io.acp.message_builder import ACPMessageBuilder
+        try:
+            message = ACPMessageBuilder().build_custom_notification(
+                method="ui/reasoningEffortChanged",
+                params={"effort": effort},
+            )
+            self.io.acp_adapter.transport.send_sync(message)
+        except Exception:
+            # ACP push is best-effort; never break /effort execution in TTY mode
+            if self.verbose:
+                logger.error("[effort] Failed to push reasoning effort to UI",
+                             exc_info=True)
+
+    def _push_thinking_to_ui(self, enabled: Optional[bool]) -> None:
+        """Push a thinking on/off change to the ACP frontend (best-effort).
+
+        The status bar shows ``model(thinking off)`` when thinking is
+        disabled and the effort level when enabled, so /thinking and /model
+        must keep the frontend's banner state in sync.
+        """
+        if not (self.io.acp_adapter and self.io.acp_adapter.transport
+                and self.io.acp_adapter.transport.is_connected):
+            return
+        from siada.io.acp.message_builder import ACPMessageBuilder
+        try:
+            message = ACPMessageBuilder().build_custom_notification(
+                method="ui/thinkingChanged",
+                params={"thinking": enabled},
+            )
+            self.io.acp_adapter.transport.send_sync(message)
+        except Exception:
+            # ACP push is best-effort; never break /thinking execution in TTY mode
+            if self.verbose:
+                logger.error("[thinking] Failed to push thinking state to UI",
+                             exc_info=True)
+
+    def _push_theme_to_ui(self, theme: str) -> None:
+        """Push a theme change to the ACP frontend (best-effort).
+
+        Mirrors _push_thinking_to_ui: the terminal UI owns the color
+        palettes, so /theme must notify it to repaint immediately.
+        """
+        if not (self.io.acp_adapter and self.io.acp_adapter.transport
+                and self.io.acp_adapter.transport.is_connected):
+            return
+        from siada.io.acp.message_builder import ACPMessageBuilder
+        try:
+            message = ACPMessageBuilder().build_custom_notification(
+                method="ui/themeChanged",
+                params={"theme": theme},
+            )
+            self.io.acp_adapter.transport.send_sync(message)
+        except Exception:
+            # ACP push is best-effort; never break /theme execution in TTY mode
+            if self.verbose:
+                logger.error("[theme] Failed to push theme to UI",
+                             exc_info=True)
+
+    def cmd_effort(self, session, args: str):
+        """Show or set the reasoning effort level for the current model
+
+        Usage:
+            /effort                - Show current reasoning effort level
+            /effort <level>        - Set reasoning effort level
+                                     (valid levels depend on the model:
+                                     low/medium/high for most, Claude also
+                                     supports xhigh/max, GPT-5/GPT-6 also
+                                     support max, Kimi K3/GLM/DeepSeek use
+                                     low/high/max — GLM-5.2 has no low)
+
+        The change takes effect from the next turn and is persisted to
+        conf.yaml (llm_config.reasoning_effort).
+        """
+        from siada.models.model_base_config import get_valid_reasoning_efforts
+
+        llm_config = session.siada_config.llm_config
+        model_name = llm_config.model_name
+        current = llm_config.get_reasoning_effort()
+        default = getattr(llm_config, "default_reasoning_effort", None)
+
+        level = args.strip().lower()
+        if not level:
+            # In UI/ACP mode, open the effort selector (scale bar) in the frontend
+            # instead of printing a plain text line.
+            if self.io.acp_adapter and self.io.acp_adapter.transport \
+                    and self.io.acp_adapter.transport.is_connected:
+                from siada.io.acp.message_builder import ACPMessageBuilder
+                efforts = get_valid_reasoning_efforts(model_name, default)
+                try:
+                    message = ACPMessageBuilder().build_custom_notification(
+                        method="ui/showEffortSelector",
+                        params={
+                            "model": model_name,
+                            "efforts": efforts,
+                            "current": current,
+                        },
+                    )
+                    self.io.acp_adapter.transport.send_sync(message)
+                except Exception:
+                    if self.verbose:
+                        logger.error("[effort] Failed to push effort selector to UI",
+                                     exc_info=True)
+                return
+
+            default_str = default or "(none)"
+            if current:
+                current_str = current
+            else:
+                # No explicit reasoning_effort, but some models still reason
+                # because thinking is driven by a token budget (e.g. DeepSeek
+                # v4 models have default_thinking_tokens=1024). Reflect that
+                # so "(off)" doesn't mislead the user into thinking no
+                # reasoning is happening at all.
+                thinking = llm_config.get_thinking_tokens()
+                if thinking:
+                    current_str = f"off (thinking budget {thinking} ON)"
+                else:
+                    current_str = "off"
+            self.io.print_info(
+                f"Reasoning effort: {current_str} (model default: {default_str})"
+            )
+            return
+
+        supported = llm_config.supports_extra_params or []
+        if "reasoning_effort" not in supported:
+            self.io.print_error(
+                f"Model {model_name} does not support reasoning effort"
+            )
+            return
+
+        valid = get_valid_reasoning_efforts(model_name, default)
+        if level not in valid:
+            self.io.print_error(
+                f"Invalid effort level '{level}'. Valid values for {model_name}: "
+                + ", ".join(valid)
+            )
+            return
+
+        llm_config.set_reasoning_effort(level)
+
+        # Persist to conf.yaml so restarts also pick it up
+        from siada.config.config_loader import save_conf_field
+        if not save_conf_field('llm_config.reasoning_effort', level):
+            if self.verbose:
+                logger.error("[effort] Failed to persist llm_config.reasoning_effort to conf.yaml")
+
+        # In ACP mode, notify the frontend so the status-bar effort label (e.g.
+        # "claude-sonnet-5(low)") updates to the new level immediately.
+        self._push_reasoning_effort_to_ui(level)
+
+        self.io.print_info(f"Reasoning effort set to: {level}")
+        logger.info(f"[effort] set to {level} (persisted to conf.yaml)")
+
+    def cmd_thinking(self, session, args: str):
+        """Show, enable or disable thinking/reasoning for the current model
+
+        Usage:
+            /thinking              - Show current thinking state
+            /thinking on           - Enable thinking (model default reasoning)
+            /thinking off          - Disable thinking entirely
+
+        "on" keeps the model's default reasoning behaviour (effort level /
+        adaptive thinking per the model config); "off" is the absolute
+        off-switch and wins over any effort or thinking_tokens setting.
+
+        The change takes effect from the next turn and is persisted to
+        conf.yaml (llm_config.enable_thinking).
+        """
+        llm_config = session.siada_config.llm_config
+
+        arg = args.strip().lower()
+        if not arg:
+            current = getattr(llm_config, "enable_thinking", None)
+            if current is False:
+                status = "off (explicitly disabled)"
+            else:
+                # True or unset: the model's default reasoning behaviour
+                # applies (e.g. default_reasoning_effort, adaptive thinking
+                # on Claude 4.6+, or a default thinking budget).
+                status = "on (model default)" if current is True else "unset (model default)"
+            effort = llm_config.get_reasoning_effort()
+            effort_str = f", effort: {effort}" if effort else ""
+            self.io.print_info(f"Thinking: {status}{effort_str}")
+            return
+
+        if arg in ("on", "true", "enable", "enabled"):
+            value = True
+        elif arg in ("off", "false", "disable", "disabled"):
+            value = False
+        else:
+            self.io.print_error(
+                f"Invalid value '{arg}'. Usage: /thinking [on | off]"
+            )
+            return
+
+        llm_config.enable_thinking = value
+
+        # In ACP mode, notify the frontend so the status bar's model segment
+        # ("model(thinking off)" vs "model(effort)") updates immediately.
+        self._push_thinking_to_ui(value)
+
+        # Persist to conf.yaml so restarts also pick it up
+        from siada.config.config_loader import save_conf_field
+        if not save_conf_field('llm_config.enable_thinking', value):
+            if self.verbose:
+                logger.error("[thinking] Failed to persist llm_config.enable_thinking to conf.yaml")
+
+        if value:
+            self.io.print_info(
+                "Thinking enabled (model default reasoning applies from the next turn)"
+            )
+        else:
+            self.io.print_info(
+                "Thinking disabled from the next turn (overrides effort / thinking tokens)"
+            )
+        logger.info(f"[thinking] set to {value} (persisted to conf.yaml)")
+
+    def cmd_theme(self, session, args: str):
+        """Show or switch the UI color theme
+
+        Usage:
+            /theme              - Open theme selector (shows current theme in TTY mode)
+            /theme auto         - Follow the terminal/system background (default)
+            /theme dark         - Switch to the dark theme
+            /theme light        - Switch to the light theme
+
+        The choice is persisted to conf.yaml (ui.theme) and pushed to the
+        ACP frontend so the terminal UI repaints immediately. 'auto' is
+        resolved to dark/light via terminal background detection before the
+        push (the frontend only understands concrete themes).
+        """
+        from siada.config.conf_store import get_conf_value
+
+        arg = args.strip().lower()
+        if not arg:
+            current = get_conf_value("ui.theme", "auto")
+            # In UI/ACP mode, open the theme selector in the frontend instead
+            # of printing a plain text line (mirrors cmd_effort).
+            if self.io.acp_adapter and self.io.acp_adapter.transport \
+                    and self.io.acp_adapter.transport.is_connected:
+                from siada.io.acp.message_builder import ACPMessageBuilder
+                try:
+                    message = ACPMessageBuilder().build_custom_notification(
+                        method="ui/showThemeSelector",
+                        params={"themes": list(VALID_THEMES), "current": current},
+                    )
+                    self.io.acp_adapter.transport.send_sync(message)
+                except Exception:
+                    if self.verbose:
+                        logger.error("[theme] Failed to push theme selector to UI",
+                                     exc_info=True)
+                return
+
+            self.io.print_info(f"Theme: {current}\nUsage: /theme [auto | dark | light]")
+            return
+
+        if arg not in VALID_THEMES:
+            self.io.print_error(
+                f"Invalid theme '{arg}'. Usage: /theme [auto | dark | light]"
+            )
+            return
+
+        from siada.config.config_loader import save_conf_field
+        if not save_conf_field("ui.theme", arg):
+            self.io.print_error("Failed to persist theme to conf.yaml")
+            return
+
+        # Resolve 'auto' to a concrete theme; the frontend palettes only
+        # know dark|light (detection is cached per process).
+        from siada.io.system_theme_detector import resolve_theme_for_ui
+        resolved = resolve_theme_for_ui(arg)
+
+        # In ACP mode, notify the frontend so it repaints immediately.
+        self._push_theme_to_ui(resolved)
+
+        if arg == 'auto':
+            self.io.print_info(f"Theme switched to 'auto' (detected: {resolved})")
+        else:
+            self.io.print_info(f"Theme switched to '{arg}'")
+        logger.info(f"[theme] set to {arg} (persisted to conf.yaml)")
 
     def cmd_model(self, session, args: str):
         """Switch to a different model
@@ -912,6 +1271,7 @@ class SlashCommands:
                         params={
                             "models": models,
                             "currentModel": current_model,
+                            "modelNotes": ModelInfoService.get_model_notes(),
                         }
                     )
 
@@ -943,16 +1303,45 @@ class SlashCommands:
             from siada.models.model_run_config import ModelRunConfig
             from siada.provider.provider_factory import resolve_provider_by_model
             new_llm_config = ModelRunConfig(model_name)
-            # Use the config-file default provider as the fallback, NOT the current session's
-            # provider. This avoids inheriting a force-assigned provider (e.g. "openai_agents"
-            # was set because the session was running gpt-5.x) when switching to a model that
-            # belongs to a different provider family (e.g. claude-sonnet-4.6 -> "li").
+            # Provider resolution for the new model:
+            # - If the session currently runs on the user's own provider config
+            #   ("default": custom base_url + API key), KEEP it. User-defined
+            #   models (models.json) are defined for that endpoint, and
+            #   re-routing them to the internal "li" proxy breaks the next LLM
+            #   call with LiAuthError ("Not logged in") for users who never
+            #   signed in with Li ID.
+            # - Otherwise use the config-file default provider as the fallback,
+            #   NOT the current session's provider. This avoids inheriting a
+            #   force-assigned provider (e.g. "openai_agents" was set because
+            #   the session was running gpt-5.x) when switching to a model that
+            #   belongs to a different provider family (e.g. claude-sonnet-4.6 -> "li").
+            current_provider = session.siada_config.llm_config.provider
             default_provider = ModelRunConfig.get_default_config().provider
-            # Resolve the new model's provider (handles legacy keys like
-            # "openai_agents" -> "li"), so users don't need to juggle the
-            # provider concept when switching models.
-            new_llm_config.provider = resolve_provider_by_model(model_name, default_provider)
+            if current_provider == "default":
+                new_llm_config.provider = "default"
+            else:
+                # Resolve the new model's provider (handles legacy keys like
+                # "openai_agents" -> "li"), so users don't need to juggle the
+                # provider concept when switching models.
+                new_llm_config.provider = resolve_provider_by_model(model_name, default_provider)
+
+            # Carry over the user's session-level /effort and /thinking
+            # settings so they survive the model switch (the effort intent is
+            # mapped onto the levels the new model accepts).
+            carried = new_llm_config.carry_over_reasoning_settings(
+                session.siada_config.llm_config
+            )
             session.siada_config.llm_config = new_llm_config
+
+            # Keep the process-wide provider tracker in sync so the litellm
+            # token-refresh callback (siada.entrypoint) knows whether IDaaS
+            # auth applies to the new provider (skipped for "default",
+            # required for "li").
+            try:
+                from siada.entrypoint import set_current_provider
+                set_current_provider(new_llm_config.provider or "")
+            except Exception:
+                pass
 
             # Reset real API messages to force fresh context with new model
             # This avoids stale context issues when switching models
@@ -969,6 +1358,29 @@ class SlashCommands:
 
             # Persist the new model to ~/.siada-cli/conf.yaml
             self._persist_model_to_conf(model_name)
+
+            # Surface the carried-over reasoning settings so the user sees
+            # how /effort and /thinking apply on the new model.
+            if carried:
+                original_effort, mapped_effort = carried
+                if mapped_effort != original_effort:
+                    self.io.print_info(
+                        f"Reasoning effort carried over: {original_effort} → {mapped_effort} "
+                        f"(closest level for {model_name})"
+                    )
+                else:
+                    self.io.print_info(f"Reasoning effort carried over: {original_effort}")
+            if getattr(new_llm_config, "enable_thinking", None) is False:
+                self.io.print_info(
+                    "Thinking stays disabled (carried over from the previous model)"
+                )
+
+            # Keep the UI status-bar labels in sync with the new model's
+            # reasoning state: the effort may have been mapped (or reset to
+            # the new model's default when the user never set one), and the
+            # thinking switch may have been carried over.
+            self._push_reasoning_effort_to_ui(new_llm_config.reasoning_effort)
+            self._push_thinking_to_ui(new_llm_config.enable_thinking)
 
             # In ACP mode, send history to UI to refresh display with new model in banner
             if hasattr(self.io, 'acp_adapter') and self.io.acp_adapter is not None:
@@ -1100,9 +1512,10 @@ class SlashCommands:
         """Print available models list to output"""
         current_model = session.siada_config.llm_config.model_name
         models = ModelInfoService.get_model_names()
+        model_notes = ModelInfoService.get_model_notes()
         lines = [f"Available models (current: {current_model}):"]
         for m in models:
-            note = " (slowly)" if m == "lpai-glm-5.2" else ""
+            note = f" ({model_notes[m]})" if m in model_notes else ""
             lines.append(f"  {m}{note}")
         lines.append("\nUsage: /model <model_name>")
         self.io.print_info("\n".join(lines))
@@ -1320,6 +1733,14 @@ class SlashCommands:
                 manager = SkillsManager.get_instance()
                 skill = manager.get_skill_by_name(workspace, cmd_name)
                 if skill:
+                    if session is not None:
+                        state = getattr(session, "state", None)
+                        pending_skill_names = getattr(state, "pending_skill_names", None)
+                        if pending_skill_names is None and state is not None:
+                            pending_skill_names = []
+                            state.pending_skill_names = pending_skill_names
+                        if pending_skill_names is not None and skill.name not in pending_skill_names:
+                            pending_skill_names.append(skill.name)
                     prompt = (
                         f"Use the {skill.name} skill.\n\n{args}"
                         if args.strip()
@@ -1387,6 +1808,9 @@ class SlashCommands:
             self.io.print_error(f"Invalid command: {first_word}")
 
     def completions_raw_read_only(self, document, complete_event):
+        from prompt_toolkit.completion import Completion, PathCompleter
+        from prompt_toolkit.document import Document
+
         # Get the text before the cursor
         text = document.text_before_cursor
 
@@ -1593,6 +2017,12 @@ class SlashCommands:
 
     def cmd_statusbar(self):
         "Toggle status bar items visibility (handled by frontend UI)"
+        # This command is intercepted by the frontend (InputPromptWithWrapUseKPC)
+        # and never reaches the backend in ACP mode. The method exists only so
+        # that get_commands() includes it in the slash command autocomplete list.
+
+    def cmd_export(self, args=""):
+        "Export the conversation to a .txt file (handled by frontend UI)"
         # This command is intercepted by the frontend (InputPromptWithWrapUseKPC)
         # and never reaches the backend in ACP mode. The method exists only so
         # that get_commands() includes it in the slash command autocomplete list.

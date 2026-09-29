@@ -17,3 +17,9 @@ CHECKPOINT_INIT_TIMEOUT = 60  # timeout for checkpoint initialization (seconds)
 # up to 3 more times. Worst-case wall clock for a single chat_complete is
 # therefore ~ 4 × LLM_API_POST_TIMEOUT (1 original + 3 wrapper retries).
 LLM_API_POST_TIMEOUT = 600 * 2  # 20 minutes (single litellm attempt)
+
+# Marker set on the siada-cli process spawned by the chrome-acp browser
+# proxy. The agent stays "coder"; only the X-Siada-Event-Type analytics
+# header is remapped for the main coding agent (CodeGenAgent ->
+# BrowserCodeGenAgent) so server-side analytics can separate browser traffic.
+SIADA_BROWSER_LAUNCH_ENV = "SIADA_BROWSER_LAUNCH"

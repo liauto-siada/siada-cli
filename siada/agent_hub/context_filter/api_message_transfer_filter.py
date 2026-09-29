@@ -56,6 +56,16 @@ class ApiMessageTransferFilter:
             )
             _t_build_state = time.perf_counter() - _t0
 
+            real_api_messages, orphan_outputs_removed = (
+                self._drop_orphan_function_call_outputs(real_api_messages)
+            )
+            if orphan_outputs_removed:
+                logger.warning(
+                    "[ApiMessageTransferFilter] dropped %d orphan tool output item(s) "
+                    "from model input",
+                    orphan_outputs_removed,
+                )
+
             # 1.5 Pre-compaction memory update — capture a snapshot of
             # the unsummarized message stream BEFORE compaction mutates
             # ``real_api_messages``. The scheduler awaits its sync stage
@@ -108,6 +118,17 @@ class ApiMessageTransferFilter:
                 logger.warning(f"Compaction failed, using uncompacted messages: {ce}")
                 compacted_messages = real_api_messages
             _t_try_compact = time.perf_counter() - _t0
+            if compaction_occurred:
+                # Surface passive/automatic compaction to the UI so the
+                # frontend can show the "Context Compaction" step instead of
+                # silently blocking between turns. print_info routes to a
+                # one-shot lifecycle event in ACP mode (io.py) and failures
+                # inside it are swallowed there, so this can never break the
+                # LLM call.
+                try:
+                    context.session.siada_config.io.print_info("Compacting context...")
+                except Exception as e:
+                    logger.debug(f"Failed to notify UI about auto-compaction: {e}")
             # Update the model input data
             model_data.input = compacted_messages
             # After compaction: refresh MemoryStore snapshot so new inline memory
@@ -184,6 +205,42 @@ class ApiMessageTransferFilter:
             # # rollback the state to the original
             # model_data.input = origin_input
             # context.task_message_state.set_real_messages(RealApiMessage())
+
+    @staticmethod
+    def _drop_orphan_function_call_outputs(messages: List) -> tuple[List, int]:
+        """Remove outputs whose calls were summarized away from restored history.
+
+        The full session history is append-only, but compacted history is saved
+        separately. Older compacted snapshots can therefore be restored with
+        an output whose call has no item in the snapshot; Responses rejects
+        that request before the session can continue.
+        """
+        if not isinstance(messages, list) or not messages:
+            return messages, 0
+
+        call_types = {"function_call", "apply_patch_call"}
+        output_types = {"function_call_output", "apply_patch_call_output"}
+        seen_call_ids: set[str] = set()
+        filtered: List = []
+        removed = 0
+
+        for message in messages:
+            if isinstance(message, dict):
+                item_type = message.get("type")
+                call_id = message.get("call_id")
+            else:
+                item_type = getattr(message, "type", None)
+                call_id = getattr(message, "call_id", None)
+
+            if item_type in call_types and isinstance(call_id, str) and call_id:
+                seen_call_ids.add(call_id)
+            elif item_type in output_types and call_id not in seen_call_ids:
+                removed += 1
+                continue
+
+            filtered.append(message)
+
+        return (filtered, removed) if removed else (messages, 0)
 
     async def _try_compact_real_api_messages(
         self,

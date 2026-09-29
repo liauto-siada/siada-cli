@@ -185,6 +185,16 @@ class SiadaRunner:
         """
         context.session = running_session
         context.runtime_source = runtime_source
+        # Main agent's own context is the root of its sub-agent tree; used as
+        # the tracking key for the concurrency cap and the on-disk
+        # persistence layout (see siada/tools/agent/subagent_recursion.py /
+        # subagent_persistence.py). Sub-agent contexts have this set
+        # explicitly at spawn time instead (they have no live `session`).
+        context.root_session_id = running_session.session_id
+        context.activated_skill_names = set(
+            running_session.state.pending_skill_names
+        )
+        running_session.state.pending_skill_names.clear()
         await SiadaRunner._prepare_checkpoint_with_timeout(running_session)
 
         # Consume pending_todos staged by ResumeService after session restore
@@ -198,6 +208,20 @@ class SiadaRunner:
             context.goal = running_session.state.pending_goal
             running_session.state.pending_goal = None
             logging.debug("[goal] Applied recovered goal to context")
+
+        # Consume pending_subagent_resume_note staged by ResumeService after
+        # session restore (recursive sub-agent mode only — see
+        # subagent_persistence.py / ResumeService._build_subagent_resume_note).
+        # Injected via the same hook_pending_contexts channel used for
+        # background run_subtask(async=True) completion notices, so it
+        # surfaces as a system message before the main agent's next real
+        # LLM call.
+        if running_session.state.pending_subagent_resume_note is not None:
+            context.hook_pending_contexts.append(
+                running_session.state.pending_subagent_resume_note
+            )
+            running_session.state.pending_subagent_resume_note = None
+            logging.debug("[subagent] Applied recovered sub-agent resume note to context")
 
     @staticmethod
     async def _build_agent_context(
@@ -244,10 +268,20 @@ class SiadaRunner:
             agent_name = running_session.siada_config.agent_name if running_session else None
             context.preferred_language = _conf.preferred_language or get_agent_default_language(agent_name)
             context.max_turns = _conf.code_agent_config.max_turns
+            context.goal_max_turns = _conf.goal_config.max_turns
             # Web tools tri-state switch (None=auto, True=on, False=off). The
             # provider-based default is resolved at tool-config time using
             # context.provider, which is set per-run in _build_run_config.
             context.web_tools_enabled = _conf.web_config.enabled
+            # Opt-in recursive sub-agent nesting (default False — see
+            # siada/tools/agent/subagent_recursion.py). run_subtask propagates
+            # this flag unchanged to every sub-agent/sub-sub-agent it spawns.
+            context.allow_recursive_subagents = _conf.sub_agent_config.allow_recursive_subagents
+            # Sub-agent master switch (default True — conf.yaml
+            # `sub_agent.enabled`). When off, configure_tools_for_context drops
+            # run_subtask from the tool list and get_system_prompt drops the
+            # matching guidance, so the agent works inline in its own context.
+            context.subagent_enabled = _conf.sub_agent_config.enabled
 
             # Initialize MemoryStore and inject inline memory blocks.
             # memory_config.enabled acts as the master switch: when False, all
@@ -383,6 +417,7 @@ class SiadaRunner:
         *,
         stream: Literal[True],
         runtime_source: str = RuntimeSource.CLI,
+        extra_mcp_servers: Optional[list] = None,
     ) -> RunResultStreaming: ...
 
     @overload
@@ -395,6 +430,7 @@ class SiadaRunner:
         *,
         stream: Literal[False],
         runtime_source: str = RuntimeSource.CLI,
+        extra_mcp_servers: Optional[list] = None,
     ) -> RunResult: ...
 
     @staticmethod
@@ -406,6 +442,7 @@ class SiadaRunner:
         stream: bool = False,
         runtime_source: str = RuntimeSource.CLI,
         run_config: Optional["RunConfig"] = None,
+        extra_mcp_servers: Optional[list] = None,
     ) -> RunResult | RunResultStreaming:
         """
         Run the specified Agent.
@@ -447,6 +484,17 @@ class SiadaRunner:
         agent = await SiadaRunner.get_agent(agent_name)
         elapsed = time.time() - start_time
         logging.debug(f"[Runner] Agent loaded (took {elapsed:.3f}s)")
+
+        # Extra per-session MCP servers (e.g. chrome-acp's `browser` server
+        # injected via ACP `session/new`). Clone the shared cached agent so the
+        # merged server list never leaks into other sessions' runs, mirroring
+        # the fork-agent pattern used in side_question.py.
+        if extra_mcp_servers:
+            import copy
+            agent = copy.copy(agent)
+            agent.mcp_servers = list(getattr(agent, "mcp_servers", None) or []) + list(extra_mcp_servers)
+            agent.mcp_config = {"convert_schemas_to_strict": True}
+            logging.info("[Runner] Attached %d extra MCP server(s) for this run", len(extra_mcp_servers))
         
 
         # Build context (now returns context, run_config, and openai_session)
@@ -582,7 +630,7 @@ class SiadaRunner:
         
         Args:
             agent_name: Agent name, supports case-insensitive matching
-                       e.g.: 'bugfix', 'BugFix', 'bug_fix', etc.
+                       e.g.: 'coder', 'Coder', 'code_gen', etc.
 
         Returns:
             Agent: The corresponding Agent instance

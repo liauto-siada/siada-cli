@@ -5,6 +5,12 @@ Injects a hidden todo reminder into the LLM input when the model has gone
 too many assistant turns without calling todo_write, and durably persists
 that reminder into the real Session.
 
+The reminder only ever keeps an EXISTING todo list up to date: a model that
+has not called todo_write yet is never proactively nudged to start one,
+regardless of model family and regardless of whether an active /goal is set.
+The standing goal is carried by the goal reminder merged into the turn's
+input and enforced by the completion verifier, so it needs no todo list.
+
 This used to be split across two pieces: a ``TodoReminderFilter``
 ``call_model_input_filter`` (context_capture_filter.py) that injected the
 reminder, plus a separate persistence processor. It's not a
@@ -31,7 +37,7 @@ here as a single ``AgentHooks`` processor:
 
 import logging
 import time
-from typing import Any, List, Optional
+from typing import Any, List
 
 from agents import Agent, ModelResponse, AgentHooks, TContext, RunContextWrapper
 
@@ -116,18 +122,13 @@ def _count_assistant_turns_since_todo_write(input_items: List) -> int:
     return turns_since_write
 
 
-def _build_reminder_text(todos: List[Any], goal: Optional[Any] = None) -> str:
+def _build_reminder_text(todos: List[Any]) -> str:
     """Build the hidden reminder injected as a user message.
 
-    Two shapes:
-    - todos non-empty: remind about the existing (possibly stale) list, same
-      as before.
-    - todos empty but an active /goal is present: nudge the agent to actually
-      start using todo_write to break the goal down into trackable steps,
-      rather than staying silent just because there is nothing to show yet.
-      (See TodoReminderProcessor.on_llm_start — this branch is only reached
-      when the caller has already confirmed there is something worth
-      reminding about.)
+    Only ever called by ``TodoReminderProcessor.on_llm_start`` once a todo
+    list exists, so this describes the existing (possibly stale) list. The
+    empty-list fallback below is defensive only: the processor never asks a
+    model to create a list it has not started itself.
     """
     if todos:
         lines = [f"{i + 1}. [{t.status}] {t.content}" for i, t in enumerate(todos)]
@@ -144,23 +145,9 @@ def _build_reminder_text(todos: List[Any], goal: Optional[Any] = None) -> str:
             "</system-reminder>"
         )
 
-    if goal is not None:
-        objective = getattr(goal, "objective", "")
-        return (
-            "<system-reminder>\n"
-            "You have an active session goal but no todo list has been created for it yet. "
-            "If the goal involves multiple concrete steps, consider using the todo_write tool "
-            "to break it down and track progress — this keeps the work visible and easy to "
-            "resume if interrupted. Only use it if it's genuinely relevant to the current work. "
-            "This is just a gentle reminder — ignore if not applicable.\n"
-            "Make sure that you NEVER mention this reminder to the user.\n\n"
-            f"Active goal objective:\n{objective}\n"
-            "</system-reminder>"
-        )
-
     # Fallback for direct callers that bypass TodoReminderProcessor's guard —
     # on_llm_start itself never reaches this branch (it only calls this
-    # helper when todos is non-empty or an active goal is present).
+    # helper once a todo list exists).
     return (
         "<system-reminder>\n"
         "The todo_write tool hasn't been used recently. If you're working on tasks that "
@@ -170,14 +157,6 @@ def _build_reminder_text(todos: List[Any], goal: Optional[Any] = None) -> str:
         "Here are the existing contents of your todo list:\n\n(empty — no todos currently tracked)\n"
         "</system-reminder>"
     )
-
-
-def _get_active_goal(context: "CodeAgentContext") -> Optional[Any]:
-    """Return context.goal if it exists and its status is 'active', else None."""
-    goal = getattr(context, "goal", None)
-    if goal is not None and getattr(goal, "status", None) == "active":
-        return goal
-    return None
 
 
 class TodoReminderProcessor(AgentHooks):
@@ -196,6 +175,19 @@ class TodoReminderProcessor(AgentHooks):
         """Inject the hidden todo reminder directly into the real model input."""
         try:
             siada_context = context.context
+
+            # Guard: the reminder only keeps an EXISTING todo list up to
+            # date. A model that has not called todo_write yet is never
+            # proactively nudged to start one — regardless of model family,
+            # and not even while an active /goal is set: the standing goal is
+            # carried by the goal reminder merged into the turn's input and
+            # enforced by the completion verifier, so it needs no todo list.
+            if not siada_context.todos:
+                logger.debug(
+                    "[TodoReminderProcessor] skip: context.todos is empty — the "
+                    "reminder only keeps an existing todo list up to date"
+                )
+                return
 
             # Guard: only operate on non-empty list-format inputs
             if not isinstance(input_items, list) or not input_items:
@@ -231,14 +223,12 @@ class TodoReminderProcessor(AgentHooks):
             else:
                 siada_context.todo_turns_since_reminder = 0
 
-            active_goal = _get_active_goal(siada_context)
-
             logger.debug(
                 f"[TodoReminderProcessor] state: turns_since_write={turns_since_write} "
                 f"(threshold={TURNS_SINCE_WRITE_THRESHOLD}), "
                 f"todo_turns_since_reminder={siada_context.todo_turns_since_reminder} "
                 f"(threshold={TURNS_BETWEEN_REMINDERS_THRESHOLD}), "
-                f"todos_count={len(siada_context.todos)}, has_active_goal={active_goal is not None}, "
+                f"todos_count={len(siada_context.todos)}, "
                 f"input_len={len(input_items)}"
             )
 
@@ -258,25 +248,12 @@ class TodoReminderProcessor(AgentHooks):
                 )
                 return
 
-            # Normally there is nothing worth reminding about when the todo
-            # list is empty. Exception: an active /goal exists but no todo
-            # list has been created for it yet — in that case we still want
-            # to nudge the agent to start using todo_write, instead of
-            # staying silent forever just because there is nothing to show.
-            # See _build_reminder_text.
-            if not siada_context.todos and active_goal is None:
-                logger.debug(
-                    "[TodoReminderProcessor] skip: context.todos is empty and no active "
-                    "goal, nothing to remind about"
-                )
-                return
-
             # Inject reminder as a hidden user message at the end of the
             # real input -- this is the actual list about to be sent to the
             # model for this call, so the reminder is guaranteed to be seen.
             reminder_item = {
                 "role": "user",
-                "content": _build_reminder_text(siada_context.todos, goal=active_goal),
+                "content": _build_reminder_text(siada_context.todos),
             }
             input_items.append(reminder_item)
 
@@ -301,8 +278,7 @@ class TodoReminderProcessor(AgentHooks):
 
             logger.debug(
                 f"[TodoReminderProcessor] Injected todo reminder "
-                f"(turns_since_write={turns_since_write}, todos={len(siada_context.todos)}, "
-                f"active_goal_nudge={not siada_context.todos and active_goal is not None})"
+                f"(turns_since_write={turns_since_write}, todos={len(siada_context.todos)})"
             )
         except Exception as e:
             logger.debug(f"[TodoReminderProcessor] failed to inject reminder: {e}")

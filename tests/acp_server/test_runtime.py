@@ -40,9 +40,96 @@ def test_runtime_creates_isolated_session_and_uses_streaming_runner(monkeypatch,
 
     assert result == []
     assert calls[0]["agent_name"] == "test-agent"
-    assert calls[0]["user_input"] == "hello"
+    # Raw ACP client text is wrapped in <user_input> tags at the runtime
+    # entry point, mirroring the TUI entry points (see marker.wrap_user_input).
+    assert calls[0]["user_input"] == "<user_input>hello</user_input>"
     assert calls[0]["workspace"] == str(tmp_path)
     assert calls[0]["stream"] is True
+
+
+def _install_fake_slash_commands(runner, session_id, switch_event):
+    """Bind a fake SlashCommands whose run() always returns switch_event."""
+
+    class FakeSlashCommands:
+        def run(self, session, text):
+            return switch_event
+
+    runner._slash_commands[session_id] = FakeSlashCommands()
+
+
+def _collect_slash_updates(runner, session_id, text):
+    # NOTE: a different async ``_collect`` (for runner __call__) already
+    # exists further down this module — this helper must keep its own name
+    # or the later definition shadows it.
+    async def _run():
+        return [update async for update in runner.run_slash_command(session_id, text)]
+
+    return asyncio.run(_run())
+
+
+def test_goal_command_handoff_replays_full_goal_text_wrapped(monkeypatch, tmp_path):
+    """ACP /goal kickoff must persist the full "/goal <objective>" text wrapped
+    in <user_input> tags — mirroring the CLI loop's
+    Controller._build_pending_input_for_ai_analysis, so resumed/replayed
+    history shows exactly what the human invoked instead of a bare objective."""
+    from siada.support.slash_commands import SwitchEvent
+
+    runner = SiadaTurnRunner(agent_name="test-agent")
+    calls = []
+
+    class EmptyStreamResult:
+        async def stream_events(self):
+            if False:
+                yield None
+
+    async def fake_run_agent(**kwargs):
+        calls.append(kwargs)
+        return EmptyStreamResult()
+
+    monkeypatch.setattr("siada.services.siada_runner.SiadaRunner.run_agent", fake_run_agent)
+
+    runner.create_session("acp-goal", str(tmp_path))
+    _install_fake_slash_commands(
+        runner, "acp-goal",
+        SwitchEvent(ai_analysis_prompt="使用worktree 增加功能", goal_command=True),
+    )
+
+    updates = _collect_slash_updates(runner, "acp-goal", "/goal 使用worktree 增加功能")
+
+    assert updates == []
+    assert calls[0]["user_input"] == "<user_input>/goal 使用worktree 增加功能</user_input>"
+
+
+def test_non_goal_ai_analysis_handoff_stays_a_bare_wrapped_prompt(monkeypatch, tmp_path):
+    """/init-style SwitchEvent handoffs (no goal_command marker) must keep the
+    bare prompt unchanged — only the standard <user_input> wrap from
+    __call__ applies, matching the CLI loop's goal_command=False branch."""
+    from siada.support.slash_commands import SwitchEvent
+
+    runner = SiadaTurnRunner(agent_name="test-agent")
+    calls = []
+
+    class EmptyStreamResult:
+        async def stream_events(self):
+            if False:
+                yield None
+
+    async def fake_run_agent(**kwargs):
+        calls.append(kwargs)
+        return EmptyStreamResult()
+
+    monkeypatch.setattr("siada.services.siada_runner.SiadaRunner.run_agent", fake_run_agent)
+
+    runner.create_session("acp-init", str(tmp_path))
+    _install_fake_slash_commands(
+        runner, "acp-init",
+        SwitchEvent(ai_analysis_prompt="analyze this codebase"),
+    )
+
+    updates = _collect_slash_updates(runner, "acp-init", "/init")
+
+    assert updates == []
+    assert calls[0]["user_input"] == "<user_input>analyze this codebase</user_input>"
 
 
 def _make_stream_result(monkeypatch, events):
@@ -180,7 +267,7 @@ def test_list_available_models_returns_known_model_names():
 
     models = runner.list_available_models()
 
-    assert "claude-sonnet-4.6" in models
+    assert "claude-sonnet-4-6" in models
 
 
 def test_set_model_switches_the_session_llm_config(tmp_path):

@@ -8,7 +8,7 @@ This service acts as a centralized interface for model-related operations.
 from typing import List, Optional, Dict, Any
 from dataclasses import asdict
 
-from siada.models.model_base_config import ModelBaseConfig, MODEL_SETTING, get_model_config, get_model_settings
+from siada.models.model_base_config import ModelBaseConfig, get_model_config, get_model_settings
 from siada.models.model_run_config import ModelRunConfig
 
 
@@ -27,21 +27,31 @@ class ModelInfoService:
     def get_all_models() -> List[ModelBaseConfig]:
         """
         Get all available model configurations.
-        
+
         Returns:
             List[ModelBaseConfig]: List of all model configurations
         """
-        return MODEL_SETTING.copy()
+        return get_model_settings().copy()
 
     @staticmethod
     def get_model_names() -> List[str]:
         """
         Get a list of all available model names.
-        
+
         Returns:
             List[str]: List of model names
         """
         return [model.model_name for model in get_model_settings()]
+
+    @staticmethod
+    def get_model_notes() -> Dict[str, str]:
+        """
+        Get a mapping of model name to its remark (note) for models that have one.
+
+        Returns:
+            Dict[str, str]: {model_name: note} for models with a non-empty note
+        """
+        return {model.model_name: model.note for model in get_model_settings() if model.note}
 
     @staticmethod
     def get_model_info(model_name: str) -> Optional[ModelBaseConfig]:
@@ -77,7 +87,7 @@ class ModelInfoService:
         Returns:
             List[ModelBaseConfig]: List of models with image support
         """
-        return [model for model in MODEL_SETTING if model.supports_images]
+        return [model for model in get_model_settings() if model.supports_images]
 
     @staticmethod
     def search_models(query: str, case_sensitive: bool = False) -> List[ModelBaseConfig]:
@@ -95,9 +105,9 @@ class ModelInfoService:
             query = query.lower()
         
         results = []
-        for model in MODEL_SETTING:
+        for model in get_model_settings():
             model_name = model.model_name if case_sensitive else model.model_name.lower()
             if query in model_name:
                 results.append(model)
-        
+
         return results

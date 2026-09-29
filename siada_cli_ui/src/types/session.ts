@@ -29,8 +29,6 @@ export interface SessionBrowserState {
   sortReverse: boolean;
   loading: boolean;
   error: string | null;
-  scrollOffset: number;
-  terminalHeight: number;
   scope: 'current' | 'all';    // Session scope: current project or all
   isRenameMode: boolean;        // Whether rename mode is active
   renameInput: string;          // Rename input value
@@ -47,8 +45,6 @@ export type SessionAction =
   | { type: 'TOGGLE_SORT_REVERSE' }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'SET_SCROLL_OFFSET'; payload: number }
-  | { type: 'SET_TERMINAL_HEIGHT'; payload: number }
   | { type: 'TOGGLE_SCOPE' }
   | { type: 'SET_SCOPE'; payload: 'current' | 'all' }
   | { type: 'ENTER_RENAME_MODE'; payload: string }                  // Enter rename mode; payload is current name

@@ -9,6 +9,9 @@
 import React from 'react';
 import { Box, Text, useStdout } from '@jrichman/ink';
 import { logger } from '../../utils/logger.js';
+import { colors } from '../../utils/colors.js';
+import { theme } from '../markdown/theme.js';
+import { useThemeVersion } from '../../themes/index.js';
 import { RenderInline } from '../markdown/InlineMarkdownRenderer.js';
 import { colorizeCode } from '../markdown/CodeColorizer.js';
 import { TableRenderer } from '../markdown/TableRenderer.js';
@@ -33,10 +36,12 @@ function renderMarkdownLine(line: string, dimColor: boolean = false): React.Reac
   if (headingMatch) {
     const level = headingMatch[1].length;
     const text = headingMatch[2];
-    const color = level === 1 ? 'cyan' : level === 2 ? 'blue' : 'white';
+    // Theme-aware instead of literal 'cyan'/'blue'/'white': a light palette can
+    // map 'white' onto its own background, hiding tool headings entirely.
+    const color = level === 1 ? colors.info : level === 2 ? colors.primary : theme.text.primary;
     return (
-      <Text key={Math.random()} bold color={color as any}>
-        <RenderInline text={text} defaultColor={color as any} />
+      <Text key={Math.random()} bold color={color}>
+        <RenderInline text={text} defaultColor={color} />
       </Text>
     );
   }
@@ -44,7 +49,7 @@ function renderMarkdownLine(line: string, dimColor: boolean = false): React.Reac
   // Code block markers (```)
   if (line.trim().startsWith('```')) {
     return (
-      <Text key={Math.random()} dimColor color="gray">
+      <Text key={Math.random()} color={colors.content.tertiary}>
         {line}
       </Text>
     );
@@ -59,7 +64,7 @@ function renderMarkdownLine(line: string, dimColor: boolean = false): React.Reac
     return (
       <Text key={Math.random()} dimColor={dimColor}>
         {indent}
-        <Text color="yellow">{marker}</Text>
+        <Text color={colors.warning}>{marker}</Text>
         {' '}
         <RenderInline text={text} />
       </Text>
@@ -81,6 +86,7 @@ function renderMarkdownLine(line: string, dimColor: boolean = false): React.Reac
 export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = false }) => {
   const { stdout } = useStdout();
   const terminalWidth = stdout?.columns || 80;
+  useThemeVersion(); // repaint with the new palette after /theme
   
   logger.debug('MarkdownText: Rendering with custom markdown parser', {
     component: 'MarkdownText',

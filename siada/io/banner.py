@@ -47,7 +47,7 @@ class BannerDisplay:
     # Helper functions for drawille-based circle drawing
     @staticmethod
     def _draw_circle(canvas, cx, cy, radius, fill=False):
-        """绘制圆形"""
+        """Draw a circle."""
         if fill:
             # Fill circle
             for r in range(int(radius)):
@@ -67,7 +67,7 @@ class BannerDisplay:
 
     @staticmethod
     def _draw_filled_ellipse(canvas, cx, cy, rx, ry):
-        """绘制填充椭圆"""
+        """Draw a filled ellipse."""
         for y in range(-int(ry), int(ry) + 1):
             # Ellipse equation: x²/a² + y²/b² = 1
             # Solve x = a * sqrt(1 - y²/b²)

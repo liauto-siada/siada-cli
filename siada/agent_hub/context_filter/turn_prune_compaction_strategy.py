@@ -237,15 +237,26 @@ class TurnPruneSummaryCompaction(CompactionStrategy):
         Split messages into (recent_verbatim, to_summarize).
 
         Uses fine-grained boundary-based splitting. Boundaries are user
-        messages and the position right after function_call_output messages.
-        The last N such segment-start positions are kept verbatim.
+        messages and the position right after a complete tool-call group. A
+        parallel group is complete only after every function_call has its
+        matching function_call_output. The last N such segment-start
+        positions are kept verbatim.
         """
         split_candidates: set[int] = set()
+        open_tool_call_ids: set = set()
         for i, m in enumerate(messages):
-            if self.is_user_message(m):
+            if self.is_user_message(m) and not open_tool_call_ids:
                 split_candidates.add(i)
-            elif self.is_function_response(m) and i + 1 < len(messages):
-                split_candidates.add(i + 1)
+
+            if self.is_assistant_message(m):
+                open_tool_call_ids.update(self._extract_tool_use_ids(m))
+            elif self.is_function_response(m):
+                resolved_ids = open_tool_call_ids.intersection(
+                    self._extract_tool_result_ids(m)
+                )
+                open_tool_call_ids.difference_update(resolved_ids)
+                if resolved_ids and not open_tool_call_ids and i + 1 < len(messages):
+                    split_candidates.add(i + 1)
 
         sorted_candidates = sorted(split_candidates)
 

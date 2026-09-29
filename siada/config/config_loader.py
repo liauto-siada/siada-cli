@@ -2,7 +2,6 @@ import logging
 import os
 import re
 import shutil
-import yaml
 from datetime import datetime
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
@@ -12,6 +11,7 @@ from siada.config.mcp_config_loader import MCPConfigLoader
 from siada.config.model_config import ModelCollectionConfig, load_user_model_config
 from siada.foundation.constants import SIADA_HOME
 from siada.io.io import InputOutput
+from siada.services.goal.models import GOAL_MAX_TURNS
 
 logger = logging.getLogger("siada.config")
 
@@ -24,7 +24,11 @@ class LLMConfig:
     base_url: Optional[str] = None
     api_key: Optional[str] = None
     thinking: Optional[bool] = None  # Enable/disable thinking (default: True for models that support it)
+    enable_thinking: Optional[bool] = None  # Alias for thinking: controls the enable_thinking API param (v4 flash etc.)
     parallel_tool_calls: Optional[bool] = None  # Enable/disable parallel tool calls (default: True for models that support it)
+    reasoning_effort: Optional[str] = None  # Default reasoning effort level ("low"/"medium"/"high") for models that support it
+    vision_model: Optional[str] = None  # Dedicated vision engine for text-only main models (open-source vision bridge)
+    vision_provider: Optional[str] = None  # Provider for vision_model (defaults to provider when omitted)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'LLMConfig':
@@ -34,7 +38,11 @@ class LLMConfig:
             base_url=data.get('base_url'),
             api_key=data.get('api_key'),
             thinking=bool(data['thinking']) if 'thinking' in data and data['thinking'] is not None else None,
+            enable_thinking=bool(data['enable_thinking']) if 'enable_thinking' in data and data['enable_thinking'] is not None else None,
             parallel_tool_calls=bool(data['parallel_tool_calls']) if 'parallel_tool_calls' in data and data['parallel_tool_calls'] is not None else None,
+            reasoning_effort=data.get('reasoning_effort'),
+            vision_model=data.get('vision_model'),
+            vision_provider=data.get('vision_provider'),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -57,9 +65,6 @@ class CheckpointConfig:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
-
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -106,11 +111,41 @@ class SubAgentConfig:
     """Sub-agent (run_subtask) configuration class"""
     llm_config: Optional['LLMConfig'] = None  # Default model for sub-agents (overrides parent llm_config)
 
+    # Master switch for the sub-agent feature (run_subtask). Default ON:
+    # the main agent keeps the `run_subtask` tool plus the matching
+    # system-prompt guidance and may delegate self-contained work to a
+    # sub-agent. When False, the tool is left out of the tool list and the
+    # prompt guidance is dropped, so all work stays in the main agent's own
+    # context.
+    enabled: bool = True
+
+    # Master switch for recursive sub-agent nesting. Default OFF: the
+    # sub-agent system behaves exactly as before (a sub-agent can never spawn
+    # another sub-agent — see subagent_guard.py / SubTaskAgent tool trimming).
+    # When True, sub-agents (depth=1) are additionally allowed to call
+    # run_subtask themselves, spawning "sub-sub-agents" (depth=2), which are
+    # then blocked from spawning further nested agents (hard 2-level cap).
+    # See siada/tools/agent/subagent_recursion.py for the depth/concurrency
+    # policy this flag gates. Only meaningful while ``enabled`` is True.
+    allow_recursive_subagents: bool = False
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SubAgentConfig':
         llm_cfg_data = data.get('llm_config')
         llm_config = LLMConfig.from_dict(llm_cfg_data) if llm_cfg_data else None
-        return cls(llm_config=llm_config)
+        enabled_val = data.get('enabled', True)
+        enabled = bool(enabled_val) if enabled_val is not None else True
+        allow_val = data.get('allow_recursive_subagents', False)
+        allow_recursive_subagents = bool(allow_val) if allow_val is not None else False
+        # Recursion is an extension of the sub-agent feature itself, so it can
+        # never stay on while the master switch is off.
+        if not enabled:
+            allow_recursive_subagents = False
+        return cls(
+            llm_config=llm_config,
+            enabled=enabled,
+            allow_recursive_subagents=allow_recursive_subagents,
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -153,6 +188,27 @@ class CodeAgentConfig:
         return cls(
             max_turns=int(data['max_turns']) if data.get('max_turns') is not None else None,
         )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class GoalConfig:
+    """Automatic retry budget for standing goals."""
+    max_turns: int = GOAL_MAX_TURNS
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'GoalConfig':
+        try:
+            max_turns = (
+                int(data.get('max_turns', GOAL_MAX_TURNS))
+                if isinstance(data, dict)
+                else GOAL_MAX_TURNS
+            )
+        except (TypeError, ValueError):
+            max_turns = GOAL_MAX_TURNS
+        return cls(max_turns=max(1, max_turns))
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -238,8 +294,7 @@ class WebConfig:
     """Web tools (web_search / web_fetch) configuration.
 
     ``enabled`` is a tri-state master switch:
-      - None  (default / "auto"): web tools default ON when the active provider
-        is ``li`` and OFF for every other provider.
+      - None  (default / "auto"): web tools are ON.
       - True:  always enable web tools regardless of provider.
       - False: always disable web tools regardless of provider.
     """
@@ -256,7 +311,9 @@ class WebConfig:
 
 
 def _get_default_config_path() -> Path:
-    return SIADA_HOME / 'conf.yaml'
+    from siada.config.conf_store import get_conf_path
+
+    return get_conf_path()
 
 
 _DEFAULT_CONFIG_TEMPLATE = """# Siada Configuration File
@@ -282,11 +339,46 @@ llm_config:
   # API key for authentication (required for most providers)
   # api_key: "your-api-key-here"
   
-  # Enable thinking mode for supported models (default: true for models that support it)
-  # thinking: true
-  
   # Enable parallel tool calls (default: true for models that support it)
   # parallel_tool_calls: true
+
+  # Default reasoning effort level for models that support the reasoning_effort
+  # API parameter. Valid values: "low" / "medium" / "high".
+  # (priority: CLI --reasoning-effort > conf.yaml > model default)
+  # reasoning_effort: high
+
+  # NOTE on reasoning_effort for li provider:
+  # litellm only recognizes "reasoning_effort" as a top-level param for models
+  # whose provider supports it (gemini, gpt-5.x). For OpenAI-provider models
+  # such as deepseek/qwen/glm/kimi, litellm's openai provider does NOT list it
+  # in supported_params, and since drop_params=True is set globally, a top-level
+  # reasoning_effort would be silently dropped. The li provider therefore
+  # routes reasoning_effort through extra_body for those models, so it reaches
+  # the gateway even though the model's supports_extra_params only declares
+  # "thinking_tokens". This is why the value still takes effect on deepseek v4
+  # flash even though the model config does not list "reasoning_effort".
+
+  # Dedicated vision engine for text-only main models (open-source vision
+  # bridge): attached images are transcribed by this image-capable model and
+  # fed to the main model as text evidence. The model must have
+  # supports_images=true (defined in models.json or a built-in config).
+  # vision_provider defaults to the main provider when omitted.
+  # vision_model: "glm-4v"
+  # vision_provider: "zhipuai"
+
+  # Enable thinking mode for supported models (default: true for models that support it)
+  # enable_thinking: true
+  #   - false: explicitly send enable_thinking=false to the gateway to disable
+  #     thinking. NOTE: merely omitting the param does NOT disable thinking for
+  #     models whose default is thinking-ON (e.g. v4 flash has
+  #     default_thinking_tokens=1024) — the gateway falls back to the model
+  #     default, so we must send enable_thinking=false explicitly.
+  #   - true / unset: keep model default (for v4 flash this enables thinking via
+  #     default_thinking_tokens -> enable_thinking)
+  # NOTE: "enable_thinking" is not a recognized litellm param, so it is passed
+  # through as-is to the gateway (same passthrough path as extra_body). Set
+  # "enable_thinking: false" here to disable thinking for models that would
+  # otherwise enable it by default.
 
 # Checkpoint Configuration
 # Configure session checkpoint settings
@@ -329,8 +421,14 @@ auto_update:
 # Code Agent Configuration
 # Configure the code generation agent behavior
 # code_agent:
-#   # Maximum number of turns for the code agent (default: 200)
-#   # max_turns: 200
+#   # Maximum number of turns for the code agent (default: 1000)
+#   # max_turns: 1000
+
+# Goal Configuration
+# Configure automatic retry limits for /goal verification
+# goal:
+#   # Maximum consecutive failed verifications before a goal is blocked (default: 6)
+#   max_turns: 6
 
 # Command Timeout Configuration
 # Timeout in seconds for command execution (optional)
@@ -388,18 +486,42 @@ auto_update:
 #     temporal_decay_half_life: 0     # 0=disable; e.g. 90 = halve relevance every 90 days
 #     prefetch_limit: 5               # top-N facts injected into each user message
 #     custom_dict:                    # extra jieba terms (project / tool names)
-#       - myproject
-#       - mytool
+#       - chehejia
+#       - authli
 
 # Web Tools Configuration (web_search / web_fetch)
 #
 # Tri-state master switch for the web search tools exposed to the agent:
-#   - null / unset ("auto", default): web tools are ON when the active provider
-#     is "li" and OFF for every other provider.
+#   - null / unset ("auto", default): web tools are ON.
 #   - true:  always enable web tools regardless of provider.
 #   - false: always disable web tools regardless of provider.
 # web:
 #   enabled: null
+
+# Sub-Agent Configuration (run_subtask)
+#
+# ``enabled`` is the master switch for the whole sub-agent feature, default ON:
+#   - true (default): the main agent gets the `run_subtask` tool plus the
+#     matching system-prompt guidance, so it can delegate self-contained work
+#     to a sub-agent running in a clean context window.
+#   - false: `run_subtask` is left out of the tool list and its prompt
+#     guidance is dropped — every task is worked inline in the main agent's
+#     own context. Recursive nesting is disabled as well, since it is an
+#     extension of this feature.
+#
+# Master switch for recursive sub-agent nesting, default OFF (unchanged —
+# a sub-agent can never spawn another sub-agent). When set to true:
+#   - A sub-agent (depth 1, launched by the main agent) may itself call
+#     run_subtask to launch a "sub-sub-agent" (depth 2).
+#   - A sub-sub-agent (depth 2) cannot spawn further nested agents — the
+#     nesting depth is hard-capped at 2 levels.
+#   - The total number of simultaneously alive agents (main agent + all its
+#     sub-agents + sub-sub-agents) is capped at 12; a run_subtask call that
+#     would exceed this cap is rejected with an explanation instead of
+#     silently queuing or crashing.
+# sub_agent:
+#   enabled: true
+#   allow_recursive_subagents: false
 
 # Lark IM Configuration
 # Configure Lark bot integration mode
@@ -421,7 +543,7 @@ auto_update:
 #
 #   # Relay mode settings (optional - defaults are hardcoded)
 #   # relay:
-#   #   server_url: "ws://your-im-gateway.example.com/ws/relay"
+#   #   server_url: "wss://relay.example.com/ws/relay"
 #   #   heartbeat_interval: 10
 #   #   reconnect_backoff: [3, 5, 10, 30, 60]
 """
@@ -550,6 +672,7 @@ class Config:
     proactive_config: ProactiveConfig = field(default_factory=ProactiveConfig)
     auto_update_config: AutoUpdateConfig = field(default_factory=AutoUpdateConfig)
     code_agent_config: CodeAgentConfig = field(default_factory=CodeAgentConfig)
+    goal_config: GoalConfig = field(default_factory=GoalConfig)
     pre_plan: Optional[bool] = None
     preferred_language: Optional[str] = None
     compaction_strategy: Optional[str] = None
@@ -601,6 +724,7 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
     proactive_config = ProactiveConfig()
     auto_update_config = AutoUpdateConfig()
     code_agent_config = CodeAgentConfig()
+    goal_config = GoalConfig()
     memory_config = MemoryConfig()
     holographic_config = HolographicConfig()
     sub_agent_config = SubAgentConfig()
@@ -613,56 +737,57 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
     compaction_strategy: Optional[str] = None
     enable_notification: bool = True
 
-    try:
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as file:
-                data = yaml.safe_load(file) or {}
-                if 'llm_config' in data and data['llm_config'] is not None:
-                    llm_config = LLMConfig.from_dict(data['llm_config'])
-                    if llm_config.base_url is not None and llm_config.api_key is not None:
-                        os.environ['BASE_URL'] = llm_config.base_url
-                        os.environ['API_KEY'] = llm_config.api_key
-                if 'checkpoint_config' in data and data['checkpoint_config'] is not None:
-                    checkpoint_config = CheckpointConfig.from_dict(data['checkpoint_config'])
-                if 'proactive' in data and data['proactive'] is not None:
-                    proactive_config = ProactiveConfig.from_dict(data['proactive'])
-                if 'auto_update' in data and data['auto_update'] is not None:
-                    auto_update_config = AutoUpdateConfig.from_dict(data['auto_update'])
-                if 'code_agent' in data and data['code_agent'] is not None:
-                    code_agent_config = CodeAgentConfig.from_dict(data['code_agent'])
-                if 'memory' in data and data['memory'] is not None:
-                    memory_config = MemoryConfig.from_dict(data['memory'])
-                    # Holographic is a sub-section of memory: memory.holographic
-                    holo_data = data['memory'].get('holographic') if isinstance(data['memory'], dict) else None
-                    if holo_data is not None:
-                        holographic_config = HolographicConfig.from_dict(holo_data)
-                if 'sub_agent' in data and data['sub_agent'] is not None:
-                    sub_agent_config = SubAgentConfig.from_dict(data['sub_agent'])
-                if 'web' in data and data['web'] is not None:
-                    web_config = WebConfig.from_dict(data['web'])
-                if 'headroom' in data and data['headroom'] is not None:
-                    headroom_config = HeadroomConfig.from_dict(data['headroom'])
-                # Load lark IM config
-                lark_config = _load_lark_config(data)
-                command_timeout = data.get('command_timeout')
-                pre_plan = data.get('pre_plan')
-                preferred_language = data.get('preferred_language')
-                compaction_strategy = data.get('compaction_strategy')
-                enable_notification = data.get('enable_notification', True)
-    except yaml.YAMLError as e:
+    from siada.config.conf_store import read_conf_dict
+
+    def _notify_conf_error(message: str) -> None:
         try:
             io = InputOutput.get_instance()
             if io:
-                io.print_error(f"Warning: Configuration file format error: {e}")
+                io.print_error(f"Warning: {message}")
         except Exception:
             pass
-    except Exception as e:
+
+    data = read_conf_dict(config_path, on_error=_notify_conf_error)
+    if data:
+        # A malformed *section* (e.g. llm_config: "not-a-mapping") must not
+        # kill startup — report it and keep the defaults for that section.
         try:
-            io = InputOutput.get_instance()
-            if io:
-                io.print_error(f"Warning: Failed to load configuration file: {e}")
-        except Exception:
-            pass
+            if 'llm_config' in data and data['llm_config'] is not None:
+                llm_config = LLMConfig.from_dict(data['llm_config'])
+                if llm_config.base_url is not None and llm_config.api_key is not None:
+                    os.environ['BASE_URL'] = llm_config.base_url
+                    os.environ['API_KEY'] = llm_config.api_key
+            if 'checkpoint_config' in data and data['checkpoint_config'] is not None:
+                checkpoint_config = CheckpointConfig.from_dict(data['checkpoint_config'])
+            if 'proactive' in data and data['proactive'] is not None:
+                proactive_config = ProactiveConfig.from_dict(data['proactive'])
+            if 'auto_update' in data and data['auto_update'] is not None:
+                auto_update_config = AutoUpdateConfig.from_dict(data['auto_update'])
+            if 'code_agent' in data and data['code_agent'] is not None:
+                code_agent_config = CodeAgentConfig.from_dict(data['code_agent'])
+            if 'goal' in data and data['goal'] is not None:
+                goal_config = GoalConfig.from_dict(data['goal'])
+            if 'memory' in data and data['memory'] is not None:
+                memory_config = MemoryConfig.from_dict(data['memory'])
+                # Holographic is a sub-section of memory: memory.holographic
+                holo_data = data['memory'].get('holographic') if isinstance(data['memory'], dict) else None
+                if holo_data is not None:
+                    holographic_config = HolographicConfig.from_dict(holo_data)
+            if 'sub_agent' in data and data['sub_agent'] is not None:
+                sub_agent_config = SubAgentConfig.from_dict(data['sub_agent'])
+            if 'web' in data and data['web'] is not None:
+                web_config = WebConfig.from_dict(data['web'])
+            if 'headroom' in data and data['headroom'] is not None:
+                headroom_config = HeadroomConfig.from_dict(data['headroom'])
+            # Load lark IM config
+            lark_config = _load_lark_config(data)
+            command_timeout = data.get('command_timeout')
+            pre_plan = data.get('pre_plan')
+            preferred_language = data.get('preferred_language')
+            compaction_strategy = data.get('compaction_strategy')
+            enable_notification = data.get('enable_notification', True)
+        except Exception as e:
+            _notify_conf_error(f"Failed to parse a conf.yaml section: {e}")
 
     mcp_config = MCPConfigLoader.load_config()
     model_config = load_user_model_config()
@@ -676,6 +801,7 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
         proactive_config=proactive_config,
         auto_update_config=auto_update_config,
         code_agent_config=code_agent_config,
+        goal_config=goal_config,
         pre_plan=pre_plan,
         preferred_language=preferred_language,
         compaction_strategy=compaction_strategy,
@@ -694,29 +820,9 @@ def save_conf_field(key: str, value, config_path: Optional[Path] = None) -> bool
 
     key supports dotted notation for nested fields, e.g. 'llm_config.model'.
     """
-    from ruamel.yaml import YAML
+    from siada.config.conf_store import save_conf_fields
 
-    if config_path is None:
-        config_path = _get_default_config_path()
-    try:
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        ryaml = YAML()
-        ryaml.preserve_quotes = True
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                data = ryaml.load(f) or {}
-        else:
-            data = {}
-        parts = key.split('.')
-        node = data
-        for part in parts[:-1]:
-            if part not in node or not isinstance(node[part], dict):
-                node[part] = {}
-            node = node[part]
-        node[parts[-1]] = value
-        with open(config_path, 'w', encoding='utf-8') as f:
-            ryaml.dump(data, f)
-        return True
-    except Exception as e:
-        print(f"Warning: Failed to save conf.yaml field '{key}': {e}")
+    if not save_conf_fields({key: value}, config_path):
+        print(f"Warning: Failed to save conf.yaml field '{key}'")
         return False
+    return True

@@ -1,15 +1,22 @@
 import { useEffect, MutableRefObject, Dispatch, SetStateAction } from 'react';
 import { SiadaACPClient } from '../../../acp/client.js';
-import { ClientConfig, Message, ConnectionStatus } from '../../../types/index.js';
+import { ClientConfig, Message, ConnectionStatus, type AgentMessageSubtype } from '../../../types/index.js';
 import { logger } from '../../../utils/logger.js';
-import { TokenUsage, InteractiveInputRequest, LoginState, TodoItem, BannerInfo, TodoMessageRange, CacheStatusData, GoalState } from '../types.js';
+import { recordFlicker } from '../../../utils/flickerMonitor.js';
+import { TokenUsage, InteractiveInputRequest, LoginState, TodoItem, BannerInfo, TodoMessageRange, CacheStatusData, GoalState, SubAgentItem, SubAgentMessageEntry } from '../types.js';
 import { promptQueueStore } from '../../../store/promptQueueStore.js';
+import { inputRestoreStore } from '../../../store/inputRestoreStore.js';
+import { removeLastUserMessage } from './messageRemoval.js';
 import { setTerminalTitle } from '../../../utils/terminalTitle.js';
+import { isThemeName, setActiveTheme } from '../../../themes/index.js';
+import type { ThinkingStep } from '../../../constants/phrases.js';
+import { isRenderableToolDiff } from '../../../utils/diff.js';
 
 interface EventHandlers {
   setClient: Dispatch<SetStateAction<SiadaACPClient | null>>;
   setConnectionStatus: Dispatch<SetStateAction<ConnectionStatus>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
+  setActiveStep?: Dispatch<SetStateAction<ThinkingStep | null>>;
   setTokenUsage: Dispatch<SetStateAction<TokenUsage | null>>;
   setInteractiveInput: Dispatch<SetStateAction<InteractiveInputRequest | null>>;
   setLoginState: Dispatch<SetStateAction<LoginState>>;
@@ -17,6 +24,8 @@ interface EventHandlers {
   setTodoItems: Dispatch<SetStateAction<TodoItem[]>>;
   setTodoMessageRanges: Dispatch<SetStateAction<Map<string, TodoMessageRange>>>;
   setGoalState: Dispatch<SetStateAction<GoalState | null>>;
+  setSubAgentItems: Dispatch<SetStateAction<SubAgentItem[]>>;
+  setSubAgentMessages: Dispatch<SetStateAction<Map<string, SubAgentMessageEntry[]>>>;
   messagesRef: MutableRefObject<Message[]>;
   clientRef: MutableRefObject<SiadaACPClient | null>;
   currentSessionIdRef: MutableRefObject<string | null>;
@@ -28,20 +37,21 @@ interface EventHandlers {
   setCacheStatus: Dispatch<SetStateAction<CacheStatusData | null>>;
   handleAgentMessage: (message: Message) => void;
   handleToolUse: (toolData: any) => void;
+  handleStreamAborted: (data: { streamStartId?: string; reason?: string }) => void;
   flushStreamingNow: () => void;
   resetStreaming: () => void;
 }
 
 export function useClientEvents(config: ClientConfig, handlers: EventHandlers): void {
   const {
-    setClient, setConnectionStatus, setLoading, setTokenUsage,
+    setClient, setConnectionStatus, setLoading, setActiveStep, setTokenUsage,
     setInteractiveInput, setLoginState, setMessages,
-    setTodoItems, setTodoMessageRanges, setGoalState, messagesRef,
+    setTodoItems, setTodoMessageRanges, setGoalState, setSubAgentItems, setSubAgentMessages, messagesRef,
     clientRef, currentSessionIdRef,
     pendingHistoryRef, historyBufferRef, pendingUserMessageIdRef, pullHistoryTimeoutRef,
     setBannerInfo,
     setCacheStatus,
-    handleAgentMessage, handleToolUse, flushStreamingNow, resetStreaming,
+    handleAgentMessage, handleToolUse, handleStreamAborted, flushStreamingNow, resetStreaming,
   } = handlers;
 
   useEffect(() => {
@@ -79,6 +89,28 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
             logger.debug('Received agent message', message);
             handleAgentMessage(message);
           }
+        });
+
+        // A cold --resume can send ui/loadHistory immediately after its first
+        // (restored) banner_info. Register before connect() resolves; App's
+        // later useAdapterEvents effect would miss history arriving in the
+        // same stdout chunk as that ready signal.
+        acpClient.adapter.on('ui:loadHistory', (params: { messages?: Array<{ role: string; content: string; subtype?: string }> }) => {
+          if (!mounted) return;
+          const rawMessages = params?.messages;
+          logger.info('Received ui:loadHistory', { messageCount: rawMessages?.length ?? 0 });
+          recordFlicker('clearMessages', `ui:loadHistory — replacing messages with ${rawMessages?.length ?? 0} history items`);
+          setMessages(Array.isArray(rawMessages) ? rawMessages.filter(msg => msg.role && msg.content).map(msg => ({
+            id: `history-${Date.now()}-${Math.random()}`,
+            type: msg.role === 'user' ? 'user' : 'agent',
+            content: msg.content,
+            timestamp: new Date().toISOString(),
+            author: msg.role === 'user' ? 'User' : 'Assistant',
+            metadata: msg.subtype ? {
+              subtype: msg.subtype as AgentMessageSubtype,
+              ...(msg.subtype === 'tool_use' && isRenderableToolDiff(msg.content) ? { streamEnd: true } : {}),
+            } : undefined,
+          })) : []);
         });
 
         acpClient.on('toolUse', (toolData: any) => {
@@ -122,6 +154,8 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
 
             if (isSessionChange) {
               setMessages([]);
+              setSubAgentItems([]);
+              setSubAgentMessages(new Map());
               setTokenUsage(null);
               resetStreaming();
               // Reset the queue de-dup table alongside the message history.
@@ -178,8 +212,20 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
           }
         });
 
-        acpClient.on('animation:stop', () => { if (mounted) setLoading(false); });
+        acpClient.on('animation:stop', () => {
+          if (mounted) {
+            setLoading(false);
+            // Turn finished — clear the step label along with the spinner.
+            setActiveStep?.(null);
+          }
+        });
         acpClient.on('animation:start', () => { if (mounted) setLoading(true); });
+
+        // Backend aborted a bad stream (repetition loop, deepseek-v4-flash
+        // family) and is retrying — discard whatever the stream produced.
+        acpClient.on('stream:aborted', (data: { streamStartId?: string; reason?: string }) => {
+          if (mounted) handleStreamAborted(data);
+        });
 
         // queue:itemConsumed — the backend has actually consumed a queued prompt
         // (mid-turn injection or end-of-turn flush). This is the moment the
@@ -210,6 +256,26 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
           }
         });
 
+        // input:restore — the user interrupted (Ctrl+C) before their input was
+        // persisted to the session. The backend hands the text back so the
+        // input box can be refilled rather than losing the message. The
+        // optimistically-rendered user bubble goes with it: the message never
+        // reached the session history, so it must not stay on screen.
+        acpClient.adapter.on('input:restore', (data: { content?: string }) => {
+          if (mounted && data?.content) {
+            // The App-level Ctrl+C handler already handled this interrupt
+            // synchronously on keypress (bubble removed by id + text refilled).
+            // Skip the duplicate entirely: refilling would clobber in-progress
+            // typing, and removing by content again could drop an OLDER
+            // identical bubble instead of the already-removed one.
+            if (inputRestoreStore.wasRecentlyRequested(data.content)) {
+              return;
+            }
+            inputRestoreStore.request(data.content);
+            setMessages(prev => removeLastUserMessage(prev, data.content!));
+          }
+        });
+
         acpClient.on('interactive:input', (data: { prompt: string; inputType: string; isPassword: boolean }) => {
           if (mounted) {
             setInteractiveInput({
@@ -218,6 +284,7 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
               isPassword: data.isPassword,
             });
             setLoading(false);
+            setActiveStep?.(null);
           }
         });
 
@@ -248,6 +315,7 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
               author: 'System',
             }]);
             setLoading(false);
+            setActiveStep?.(null);
           }
         });
 
@@ -357,7 +425,10 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
                 content: m.content || '',
                 timestamp: m.timestamp || new Date().toISOString(),
                 author: m.author || (m.role === 'user' ? 'You' : 'Siada'),
-                metadata: m.subtype ? { subtype: m.subtype } : undefined,
+                metadata: m.subtype ? {
+                  subtype: m.subtype,
+                  ...(m.subtype === 'tool_use' && isRenderableToolDiff(m.content || '') ? { streamEnd: true } : {}),
+                } : undefined,
               }));
 
               logger.info('📥 pullHistoryDone: inserting history messages', {
@@ -462,6 +533,29 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
 
         acpClient.adapter.on('context:goalState', handleGoalState);
 
+        // Sub-agent item list snapshot: full replace (backend sends the whole list).
+        const handleSubAgentState = (params: { items?: SubAgentItem[] }) => {
+          if (!mounted) return;
+          setSubAgentItems(params?.items ?? []);
+          logger.debug('[SubAgentState] updated', { count: params?.items?.length ?? 0 });
+        };
+
+        // Sub-agent content append: immutable Map update keyed by sub-agent id.
+        // Entries arriving before their state snapshot (or with unknown id) are
+        // still accumulated — ordering loss never drops content.
+        const handleSubAgentMessage = (params: { id?: string; entry?: SubAgentMessageEntry }) => {
+          if (!mounted || !params?.id || !params.entry) return;
+          const { id, entry } = params;
+          setSubAgentMessages(prev => {
+            const next = new Map(prev);
+            next.set(id, [...(next.get(id) ?? []), entry]);
+            return next;
+          });
+        };
+
+        acpClient.adapter.on('context:subAgentState', handleSubAgentState);
+        acpClient.adapter.on('context:subAgentMessage', handleSubAgentMessage);
+
         // Deferred rendering: handle ui/appendHistory from backend (legacy/fallback path)
         acpClient.adapter.on('ui:appendHistory', (data: { messages: any[] }) => {
           if (mounted && data?.messages?.length) {
@@ -485,6 +579,32 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
           if (mounted) {
             logger.info('Memory status changed', { component: 'useClientEvents', enabled: params?.enabled });
             setBannerInfo(prev => prev ? { ...prev, memoryEnabled: params.enabled } : prev);
+          }
+        });
+
+        // Handle runtime reasoning-effort changes from backend (/effort <level>)
+        acpClient.adapter.on('ui:reasoningEffortChanged', (params: { effort?: string }) => {
+          if (mounted) {
+            logger.info('Reasoning effort changed', { component: 'useClientEvents', effort: params?.effort });
+            setBannerInfo(prev => prev ? { ...prev, reasoningEffort: params?.effort } : prev);
+          }
+        });
+
+        // Handle runtime thinking on/off changes from backend (/thinking on|off)
+        acpClient.adapter.on('ui:thinkingChanged', (params: { thinking?: boolean | null }) => {
+          if (mounted) {
+            logger.info('Thinking state changed', { component: 'useClientEvents', thinking: params?.thinking });
+            // null (backend "not configured") normalizes to undefined = model default.
+            setBannerInfo(prev => prev ? { ...prev, thinkingEnabled: params?.thinking ?? undefined } : prev);
+          }
+        });
+
+        // Handle theme changes from backend (/theme dark|light and the
+        // startup theme carried by banner_info)
+        acpClient.adapter.on('ui:themeChanged', (params: { theme?: string }) => {
+          if (mounted && isThemeName(params?.theme)) {
+            logger.info('Theme changed', { component: 'useClientEvents', theme: params.theme });
+            setActiveTheme(params.theme);
           }
         });
 
