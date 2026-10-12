@@ -59,3 +59,47 @@ describe('SiadaACPAdapter handleACPSessionUpdate', () => {
     }]);
   });
 });
+
+describe('SiadaACPAdapter readiness (banner_info)', () => {
+  const banner = {
+    params: { reason: 'banner_info', content: '{}', metadata: { type: 'banner' } },
+  };
+
+  it('marks ready even after waitForReady already timed out', () => {
+    // First login (e.g. configuring a Custom Provider) can exceed the 30s
+    // waitForReady timeout, whose handler clears readyResolver but leaves
+    // isReady false. The banner then arrives late and must still mark ready,
+    // otherwise isConnected() stays false and every send reports "Not connected".
+    const adapter = new SiadaACPAdapter();
+    (adapter as any).readyResolver = null;
+    (adapter as any).isReady = false;
+
+    (adapter as any).handleACPSessionUpdate(banner);
+
+    expect((adapter as any).isReady).toBe(true);
+  });
+
+  it('is adapter-ready once the late banner arrives', () => {
+    const adapter = new SiadaACPAdapter();
+    (adapter as any).readyResolver = null;
+    (adapter as any).isReady = false;
+    (adapter as any).process = { exitCode: null };
+
+    (adapter as any).handleACPSessionUpdate(banner);
+
+    expect(adapter.isAdapterReady()).toBe(true);
+  });
+
+  it('resolves and clears a pending waitForReady resolver', () => {
+    const adapter = new SiadaACPAdapter();
+    const resolve = vi.fn();
+    (adapter as any).isReady = false;
+    (adapter as any).readyResolver = resolve;
+
+    (adapter as any).handleACPSessionUpdate(banner);
+
+    expect(resolve).toHaveBeenCalledOnce();
+    expect((adapter as any).readyResolver).toBeNull();
+    expect((adapter as any).isReady).toBe(true);
+  });
+});

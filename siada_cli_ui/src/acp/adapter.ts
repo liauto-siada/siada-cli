@@ -1140,7 +1140,13 @@ export class SiadaACPAdapter extends EventEmitter {
 
         // banner_info means initial setup is complete. A cold --resume can
         // send ui/loadHistory immediately afterwards, before connect() settles.
-        if (!this.isReady && this.readyResolver) {
+        // Mark ready on ANY banner_info, even after waitForReady() already
+        // timed out: the first login (e.g. configuring a Custom Provider) can
+        // easily exceed that timeout, and banner_info only arrives afterwards.
+        // Gating this on `readyResolver` being set left isReady permanently
+        // false in that case, so isConnected() stayed false and every send
+        // reported "Not connected to siada-cli" while the backend was alive.
+        if (!this.isReady) {
           logger.info('[Adapter] [waitForReady] siada-cli ready signal received (banner_info)', {
             component: 'Adapter',
             operation: 'waitForReady',
@@ -1148,7 +1154,7 @@ export class SiadaACPAdapter extends EventEmitter {
           this.isReady = true;
           const resolver = this.readyResolver;
           this.readyResolver = null;
-          resolver();
+          resolver?.();
         }
         break;
       
