@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { Box, Text } from '@jrichman/ink';
 import { useKeypress } from '../../hooks/useKeypress.js';
+import { ShortcutTextInput } from '../Input/ShortcutTextInput.js';
 
 // ── Exported types ─────────────────────────────────────────────────────────────
 
@@ -152,7 +153,6 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
   const [phase, setPhase] = useState<Phase>('selecting');
   const [selectedProvider, setSelectedProvider] = useState<ProviderInfo | null>(null);
   const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
-  const [inputBuffer, setInputBuffer] = useState('');
   const [customBaseUrl, setCustomBaseUrl] = useState('');
   const [customModelName, setCustomModelName] = useState('');
 
@@ -160,6 +160,11 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
   const isSubmitKey = (key: { name: string }) => key.name === 'return' || key.name === 'enter';
 
   useKeypress((key) => {
+    // The text-entry phases are owned by ShortcutTextInput (its own key
+    // handler), so the wizard must not also act on those keys.
+    if (phase === 'baseurl-input' || phase === 'model-name-input' || phase === 'apikey-input') {
+      return;
+    }
     if (phase === 'selecting') {
       if (key.name === 'up' || key.sequence === 'k') {
         setActiveIndex(i => clamp(i - 1, visibleOptions.length));
@@ -185,7 +190,6 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
       } else if (isSubmitKey(key)) {
         const p = effectiveProviders[activeIndex];
         setSelectedProvider(p);
-        setInputBuffer('');
         if (p.id === 'custom') {
           setPhase('baseurl-input');
         } else {
@@ -208,7 +212,6 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         const m = models[activeIndex];
         if (m) {
           setSelectedModel(m);
-          setInputBuffer('');
           setPhase('apikey-input');
         }
       } else if (key.name === 'escape') {
@@ -217,70 +220,6 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         setActiveIndex(idx >= 0 ? idx : 0);
       }
 
-    } else if (phase === 'baseurl-input') {
-      if (isSubmitKey(key)) {
-        const val = inputBuffer.trim();
-        if (val) {
-          setCustomBaseUrl(val);
-          setInputBuffer('');
-          setPhase('model-name-input');
-        }
-      } else if (key.name === 'escape') {
-        const idx = effectiveProviders.findIndex(p => p.id === 'custom');
-        setPhase('provider-select');
-        setActiveIndex(idx >= 0 ? idx : 0);
-        setInputBuffer('');
-      } else if (key.name === 'backspace' || key.name === 'delete') {
-        setInputBuffer(prev => prev.slice(0, -1));
-      } else if (key.insertable && key.sequence && !key.ctrl && !key.alt) {
-        setInputBuffer(prev => prev + key.sequence);
-      }
-
-    } else if (phase === 'model-name-input') {
-      if (isSubmitKey(key)) {
-        const val = inputBuffer.trim();
-        if (val) {
-          setCustomModelName(val);
-          setInputBuffer('');
-          setPhase('apikey-input');
-        }
-      } else if (key.name === 'escape') {
-        setPhase('baseurl-input');
-        setInputBuffer(customBaseUrl);
-      } else if (key.name === 'backspace' || key.name === 'delete') {
-        setInputBuffer(prev => prev.slice(0, -1));
-      } else if (key.insertable && key.sequence && !key.ctrl && !key.alt) {
-        setInputBuffer(prev => prev + key.sequence);
-      }
-
-    } else if (phase === 'apikey-input') {
-      if (isSubmitKey(key)) {
-        const apiKey = inputBuffer.trim();
-        if (apiKey && selectedProvider) {
-          const baseUrl = selectedProvider.id === 'custom' ? customBaseUrl : selectedProvider.baseUrl;
-          const modelId = selectedProvider.id === 'custom' ? customModelName : (selectedModel?.id ?? '');
-          onSelect('3', JSON.stringify({
-            provider_id: selectedProvider.id,
-            api_key: apiKey,
-            base_url: baseUrl,
-            model: modelId,
-          }));
-        }
-      } else if (key.name === 'escape') {
-        if (selectedProvider?.id === 'custom') {
-          setInputBuffer(customModelName);
-          setPhase('model-name-input');
-        } else {
-          const idx = selectedProvider?.models.findIndex(m => m.id === selectedModel?.id) ?? -1;
-          setInputBuffer('');
-          setPhase('model-select');
-          setActiveIndex(idx >= 0 ? idx : 0);
-        }
-      } else if (key.name === 'backspace' || key.name === 'delete') {
-        setInputBuffer(prev => prev.slice(0, -1));
-      } else if (key.insertable && key.sequence && !key.ctrl && !key.alt) {
-        setInputBuffer(prev => prev + key.sequence);
-      }
     }
   }, { isActive: !submitting });
 
@@ -354,13 +293,24 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         <Box paddingX={1} marginBottom={1}>
           <Text dimColor>Enter provider base URL (OpenAI-compatible):</Text>
         </Box>
-        <Box paddingX={1} marginBottom={1}>
-          <Text color="cyan">{'> '}</Text>
-          <Text>{inputBuffer}</Text>
-          <Text color="cyan">{'█'}</Text>
-        </Box>
+        <ShortcutTextInput
+          key="baseurl-input"
+          initialValue={customBaseUrl}
+          placeholder="https://api.example.com/v1"
+          active={!submitting}
+          onSubmit={(val) => {
+            if (!val) return;
+            setCustomBaseUrl(val);
+            setPhase('model-name-input');
+          }}
+          onCancel={() => {
+            const idx = effectiveProviders.findIndex(p => p.id === 'custom');
+            setPhase('provider-select');
+            setActiveIndex(idx >= 0 ? idx : 0);
+          }}
+        />
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-          <Text color="gray" dimColor>Enter confirm · Esc back</Text>
+          <Text color="gray" dimColor>Enter confirm · Esc back · Ctrl+A/E/K/U/W editing shortcuts</Text>
         </Box>
       </Box>
     );
@@ -379,11 +329,18 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         <Box paddingX={1} marginBottom={1}>
           <Text dimColor>Enter model name (e.g. gpt-4o, llama-3-70b):</Text>
         </Box>
-        <Box paddingX={1} marginBottom={1}>
-          <Text color="cyan">{'> '}</Text>
-          <Text>{inputBuffer}</Text>
-          <Text color="cyan">{'█'}</Text>
-        </Box>
+        <ShortcutTextInput
+          key="model-name-input"
+          initialValue={customModelName}
+          placeholder="e.g. gpt-4o, llama-3-70b"
+          active={!submitting}
+          onSubmit={(val) => {
+            if (!val) return;
+            setCustomModelName(val);
+            setPhase('apikey-input');
+          }}
+          onCancel={() => setPhase('baseurl-input')}
+        />
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
           <Text color="gray" dimColor>Enter confirm · Esc back</Text>
         </Box>
@@ -411,11 +368,31 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
             <Text dimColor>Format: {hint}</Text>
           </Box>
         ) : null}
-        <Box paddingX={1} marginBottom={1}>
-          <Text color="cyan">{'> '}</Text>
-          <Text>{'•'.repeat(inputBuffer.length)}</Text>
-          <Text color="cyan">{'█'}</Text>
-        </Box>
+        <ShortcutTextInput
+          key={`apikey-${selectedProvider?.id ?? ''}`}
+          masked
+          active={!submitting}
+          onSubmit={(apiKey) => {
+            if (!apiKey || !selectedProvider) return;
+            const baseUrl = selectedProvider.id === 'custom' ? customBaseUrl : selectedProvider.baseUrl;
+            const modelId = selectedProvider.id === 'custom' ? customModelName : (selectedModel?.id ?? '');
+            onSelect('3', JSON.stringify({
+              provider_id: selectedProvider.id,
+              api_key: apiKey,
+              base_url: baseUrl,
+              model: modelId,
+            }));
+          }}
+          onCancel={() => {
+            if (selectedProvider?.id === 'custom') {
+              setPhase('model-name-input');
+            } else {
+              const idx = selectedProvider?.models.findIndex(m => m.id === selectedModel?.id) ?? -1;
+              setPhase('model-select');
+              setActiveIndex(idx >= 0 ? idx : 0);
+            }
+          }}
+        />
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
           <Text color="gray" dimColor>{submitting ? 'Submitting login...' : 'Enter submit · Esc back'}</Text>
         </Box>

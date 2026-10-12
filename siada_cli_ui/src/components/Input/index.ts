@@ -5,6 +5,12 @@
 export { InputPromptWithWrapUseKPC } from './InputPromptWithWrapUseKPC.js';
 export type { InputPromptWithWrapUseKPCProps } from './InputPromptWithWrapUseKPC.js';
 
+// Shortcut-enabled single-line input (reuses the TextBuffer engine + keymap)
+export { ShortcutTextInput } from './ShortcutTextInput.js';
+export type { ShortcutTextInputProps } from './ShortcutTextInput.js';
+export { applyShortcutKey, toSingleLine } from './shortcutKeymap.js';
+export type { ShortcutBuffer, ShortcutKeyEnv, ShortcutDirection } from './shortcutKeymap.js';
+
 // TextBuffer system
 export { useTextBuffer, useEnhancedTextBuffer, calculateLayout, logicalToVisualCursor } from './TextBuffer.js';
 export type { TextBuffer, EnhancedTextBuffer, Viewport, Direction, CursorPosition, VisualLayout } from './TextBuffer.js';
