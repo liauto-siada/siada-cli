@@ -56,11 +56,21 @@ export interface AppProps {
   onExit?: (sessionId: string | null) => void;
 }
 
+/**
+ * How long the login view waits for a backend reply (ui/loginSuccess,
+ * ui/loginError or banner_info) before it gives up: clears the submitting
+ * state, shows a retry hint and re-enables input. Without this the view could
+ * sit on "Submitting login..." forever when the backend never answers.
+ */
+const LOGIN_SUBMIT_TIMEOUT_MS = 60_000;
+
 export const App: React.FC<AppProps> = ({ config, onExit }) => {
   const { exit } = useApp();
   useThemeVersion(); // repaint the whole tree when the theme changes
   const [isCollapsed, setIsCollapsed] = useState(true); // default compact mode
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
+  const [loginSubmitError, setLoginSubmitError] = useState<string | null>(null);
+  const loginSubmitTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [showSessionBrowser, setShowSessionBrowser] = useState(false); // Session browser state
   const [modelSelectorData, setModelSelectorData] = useState<{ models: string[]; currentModel: string; modelNotes?: Record<string, string> } | null>(null);
   const [effortSelectorData, setEffortSelectorData] = useState<import('../hooks/useAdapterEvents.js').EffortSelectorData | null>(null);
@@ -399,11 +409,25 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     }
   }, [loginState]);
 
+  const clearLoginSubmitTimer = useCallback(() => {
+    if (loginSubmitTimerRef.current) {
+      clearTimeout(loginSubmitTimerRef.current);
+      loginSubmitTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     if (loginState?.phase !== 'selecting') {
+      // The login view is going away (success / error / banner): drop the
+      // submitting state, any pending watchdog and any retry hint.
       setIsSubmittingLogin(false);
+      setLoginSubmitError(null);
+      clearLoginSubmitTimer();
     }
-  }, [loginState?.phase]);
+  }, [loginState?.phase, clearLoginSubmitTimer]);
+
+  // Never leave a watchdog timer behind on unmount.
+  useEffect(() => clearLoginSubmitTimer, [clearLoginSubmitTimer]);
 
   const handleLoginSelect = useCallback(async (choice: LoginChoice, apiKey?: string) => {
     // During the startup login window, connect() hasn't resolved yet so `client`
@@ -420,12 +444,29 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     }
 
     setIsSubmittingLogin(true);
+    setLoginSubmitError(null);
+    clearLoginSubmitTimer();
+    // Watchdog: the backend must answer (ui/loginSuccess, ui/loginError or
+    // banner_info) or the login view would stay on "Submitting login..."
+    // forever. On timeout, free the UI and let the user retry.
+    loginSubmitTimerRef.current = setTimeout(() => {
+      loginSubmitTimerRef.current = null;
+      setIsSubmittingLogin(false);
+      setLoginSubmitError(
+        'Login timed out — the backend did not respond. Please retry, or press Esc to cancel.'
+      );
+      logger.warn('[handleLoginSelect] login submit watchdog fired', {
+        choice,
+        timeoutMs: LOGIN_SUBMIT_TIMEOUT_MS,
+      });
+    }, LOGIN_SUBMIT_TIMEOUT_MS);
     try {
       await activeClient.sendLoginChoice(choice, choice === '3' ? apiKey : undefined);
     } catch {
+      clearLoginSubmitTimer();
       setIsSubmittingLogin(false);
     }
-  }, [client, clientRef, isSubmittingLogin]);
+  }, [client, clientRef, isSubmittingLogin, clearLoginSubmitTimer]);
 
   const handleResumeSession = useCallback(async (sessionId: string) => {
     try {
@@ -569,7 +610,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
             version={bannerInfo?.version}
             workingDir={bannerInfo?.workingDir || config.workingDir}
             agent={bannerInfo?.agent || 'coder'}
-            provider={bannerInfo?.provider || 'default'}
+            provider={bannerInfo?.provider || 'li'}
             model={bannerInfo?.model || config.model}
             isCollapsed={isCollapsed}
             showAgentInfo={false}
@@ -581,6 +622,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               cancelable={s.cancelable}
               liidDisabled={s.liidDisabled}
               submitting={isSubmittingLogin}
+              submitError={loginSubmitError}
             />
           </Box>
         </Box>
@@ -595,7 +637,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
             version={bannerInfo?.version}
             workingDir={bannerInfo?.workingDir || config.workingDir}
             agent={bannerInfo?.agent || 'coder'}
-            provider={bannerInfo?.provider || 'default'}
+            provider={bannerInfo?.provider || 'li'}
             model={bannerInfo?.model || config.model}
             isCollapsed={isCollapsed}
             showAgentInfo={false}
@@ -679,7 +721,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               version={bannerInfo?.version || "0.0.0"}
               workingDir={bannerInfo?.workingDir || config.workingDir}
               agent={bannerInfo?.agent || "coder"}
-              provider={bannerInfo?.provider || "default"}
+              provider={bannerInfo?.provider || "li"}
               model={bannerInfo?.model || config.model}
               reasoningEffort={bannerInfo?.reasoningEffort}
               thinkingEnabled={bannerInfo?.thinkingEnabled}

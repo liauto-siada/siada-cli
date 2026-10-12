@@ -37,6 +37,8 @@ export interface LoginSelectorProps {
   liidDisabled?: boolean;
   /** When true, temporarily disable input while the selection is being submitted. */
   submitting?: boolean;
+  /** Error to show under the input when a submit timed out or failed. */
+  submitError?: string | null;
 }
 
 // ── Bundled snapshot (curated from models.dev/api.json) ───────────────────────
@@ -144,7 +146,7 @@ type Phase =
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, cancelable, submitting = false }) => {
+export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, cancelable, submitting = false, submitError = null }) => {
   const effectiveProviders =
     providers && providers.length > 0 ? providers : PROVIDERS_SNAPSHOT;
   const visibleOptions = OPTIONS;
@@ -222,6 +224,15 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
 
     }
   }, { isActive: !submitting });
+
+  // While a submit is in flight the wizard disables the handlers above; keep
+  // Escape available so the user can always back out instead of being stuck on
+  // "Submitting login..." with no way forward.
+  useKeypress((key) => {
+    if (key.name === 'escape') {
+      onSelect(cancelable ? 'cancel' : 'skip');
+    }
+  }, { isActive: submitting });
 
   // ── Renders ──────────────────────────────────────────────────────────────────
 
@@ -393,8 +404,13 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
             }
           }}
         />
+        {submitError ? (
+          <Box paddingX={1} marginBottom={1}>
+            <Text color="red">{submitError}</Text>
+          </Box>
+        ) : null}
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-          <Text color="gray" dimColor>{submitting ? 'Submitting login...' : 'Enter submit · Esc back'}</Text>
+          <Text color="gray" dimColor>{submitting ? 'Submitting login... (Esc to cancel)' : 'Enter submit · Esc back'}</Text>
         </Box>
       </Box>
     );
