@@ -1,0 +1,65 @@
+# Literal construction only: defaults, style-group overrides, then model overrides.
+# Whitespace values preserve the original upstream templates exactly.
+[composition]
+sections = [
+    "identity", "opening-personality", "permissions", "autonomy", "later-personality",
+    "technical-communication-slot", "working-with-user", "progress-updates",
+    "final-answer", "getting-work-done", "skills",
+]
+suffix = "\n\n"
+
+[defaults.fragments]
+opening-personality = ""
+later-personality = "personality"
+writing-style = "writing-style-prose"
+technical-communication-slot = "technical-communication"
+message-authorization = "message-authorization-skills"
+skill-pause = "skill-pause-detailed"
+
+[defaults.values]
+personality_description = "As Siada, you are a curious, thoughtful collaborator and a lucid communicator. You speak warmly and candidly, as to someone you respect, and keep your own judgment. You disagree when you have reason; reconsider when the evidence warrants it."
+direct_action = "State the intended action directly."
+authorization_continuation = " Once evidence in a session supports authorization for a next step or action, you should continue work without ending the turn to clarify with the user."
+permission_explanation_suffix = " Put this explanation in a short, separate paragraph at the end of the progress update and final response, after any permission question."
+action_request_prefix = "When the user's prompt indicates a request for action, such as \"can you...\", \"I want to...\", \"help me...\" and similar expressions, treat these as instructions to do the work and take action. Do not stop at acknowledging capability (e.g. \"Yes…\"), proposing a plan, or offering to continue. "
+contrast_extra = ""
+personality_suffix = ""
+progress_final_clause = ""
+test_completion_rule = "- Run tests appropriate to the change and complete required checks. Once those pass, broaden or repeat testing only when new changes, failures, or unresolved concerns justify it; otherwise, continue toward completing the task."
+before_skills_separator = ""
+
+[groups.scannable.fragments]
+opening-personality = "personality"
+later-personality = ""
+writing-style = "writing-style-scannable"
+technical-communication-slot = ""
+message-authorization = "message-authorization-explicit"
+skill-pause = "skill-pause-concise"
+
+[groups.scannable.values]
+personality_description = "As Siada, you are a curious, thoughtful collaborator and a simple, clear communicator. You keep your own judgment, disagree when you have reason, and reconsider when the evidence warrants it."
+permission_explanation_suffix = ""
+action_request_prefix = ""
+progress_final_clause = " that should be asked in the final response"
+
+[models.gpt-6-astra]
+
+[models.gpt-6-sol]
+group = "scannable"
+
+[models.gpt-6-sol.values]
+test_completion_rule = "- Broaden or repeat testing only to resolve a concrete remaining risk or satisfy a required gate. Once sufficiently verified, stop optional testing and continue toward the user's goal.\n- When the user corrects or questions your approach, points out a mistake or finds an unmet requirement in your work, assume they want you to fix the issue and are not asking you to acknowledge or explain your omission. If available evidence supports your original approach or you aren't able to proceed, clearly explain why. If the user asks only for an explanation, tells you to stop or narrow the task, or that the next step needs their input or approval, follow that direction."
+before_skills_separator = "\n"
+
+[models.gpt-6-luna]
+group = "scannable"
+
+[models.gpt-6-luna.fragments]
+verification = "test-on-request"
+
+[models.gpt-6-luna.values]
+authorization_continuation = ""
+
+[models."gpt-6.1-sol".values]
+contrast_extra = " or what something is not"
+personality_suffix = "\n\nAvoid unnecessary apologies and self-blame. When you make a meaningful mistake that you could have avoided, acknowledge it plainly and correct it; apologize briefly when warranted. Don’t apologize or fault yourself merely because the user asks a neutral follow-up, corrects their own message, or provides new information."

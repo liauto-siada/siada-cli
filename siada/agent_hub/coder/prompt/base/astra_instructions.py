@@ -1,20 +1,10 @@
-"""Compatibility imports for the former Astra-specific prompt module."""
+"""Compatibility imports for the Astra alias and GPT-6 personality."""
 
-from .gpt6_instructions import PERSONALITY_GPT6, get_gpt6_intro
-from .skill_usage_profiles import is_astra_model, is_gpt6_model
-
-PERSONALITY_ASTRA = PERSONALITY_GPT6
-
-__all__ = [
-    "get_gpt6_intro",
-    "get_astra_intro",
-    "is_gpt6_model",
-    "is_astra_model",
-    "PERSONALITY_GPT6",
-    "PERSONALITY_ASTRA",
-]
-
-
-def get_astra_intro(personality: str = "astra") -> str:
-    """Preserve the Astra-named API for existing callers."""
-    return get_gpt6_intro(personality)
+from ..models.gpt6.astra import (
+    PERSONALITY_ASTRA,
+    PERSONALITY_GPT6,
+    get_astra_intro,
+    get_gpt6_intro,
+    is_astra_model,
+    is_gpt6_model,
+)

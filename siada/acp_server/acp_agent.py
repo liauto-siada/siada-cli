@@ -9,12 +9,14 @@ import logging
 from typing import Any
 from uuid import uuid4
 
+import siada
 from acp import (
     PROTOCOL_VERSION,
     Agent,
     InitializeResponse,
     NewSessionResponse,
     PromptResponse,
+    RequestError,
 )
 from acp.helpers import (
     SessionUpdate,
@@ -212,7 +214,7 @@ class SiadaAcpAgent(Agent):
                     resume=SessionResumeCapabilities(),
                 ),
             ),
-            agent_info=Implementation(name="siada", title="Siada", version="1.7.17"),
+            agent_info=Implementation(name="siada", title="Siada", version=siada.__version__),
         )
 
     async def new_session(
@@ -510,9 +512,16 @@ class SiadaAcpAgent(Agent):
             if session_id in self._cancelled:
                 return PromptResponse(stop_reason="cancelled")
             raise
-        except Exception:
-            logger.exception("prompt() failed for session_id=%s", session_id)
+        except RequestError:
+            # Preserve errors that already carry a client-facing message.
+            logger.exception("prompt() rejected for session_id=%s", session_id)
             raise
+        except Exception as exc:
+            logger.exception("prompt() failed for session_id=%s", session_id)
+            # The SDK otherwise replaces the cause with "Internal error".
+            detail = str(exc).strip()
+            message = f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
+            raise RequestError(-32603, message) from None
         finally:
             self._active_prompts.pop(session_id, None)
 

@@ -10,7 +10,6 @@ from siada.models.model_run_config import ModelRunConfig
 from siada.support.checkpoint_tracker import create_checkpoint_tracker
 from siada.support.message_classifier import get_role_and_type_from_item
 from siada.support.spinner import WaitingSpinner
-from siada.foundation.telemetry import telemetry
 
 from .session_models import RunningSession
 
@@ -21,157 +20,21 @@ class RunningSessionManager:
     
     @staticmethod
     def _create_telemetry_hook(session, siada_config: RunningConfig):
-        """
-        Create telemetry hook function for capturing conversation data.
-        
-        Args:
-            session: The running session
-            siada_config: The running configuration
-            
-        Returns:
-            Async function to be called when items are added to session, or None if telemetry is disabled
-        """
-        
-        async def telemetry_hook(items: list):
-            """Hook function called after items are added to session"""
-            try:
-                # Get full conversation history
-                if not session.openai_session:
-                    return
-                
-                history = await session.openai_session.get_items()
-                if not history:
-                    return
-                
-                # Convert message list to JSON string for telemetry upload.
-                # The platform expects raw model-context (incl. holographic
-                # prefetch / IM context blocks); the frontend display path
-                # has its own strip in ``message_classifier.format_native_items_for_display``.
-                formatted_history = RunningSessionManager._format_history_for_telemetry(history)
-                
-                # Extract system prompt from formatted history (first message if it's a system message)
-                system_prompt = ""
-                if formatted_history and formatted_history[0].get('role') == 'system':
-                    # Extract text from content array
-                    content_array = formatted_history[0].get('content', [])
-                    if content_array and isinstance(content_array, list):
-                        # Get text from first content item
-                        system_prompt = content_array[0].get('text', '') if content_array[0].get('type') == 'text' else ''
-                
-                # If system_prompt is still empty, try to get it from agent
-                if not system_prompt:
-                    try:
-                        from siada.services.agent_loader import get_agent_class_path, import_agent_class
-                        from siada.foundation.code_agent_context import CodeAgentContext
-                        from siada.services.siada_runner import SiadaRunner
-                        from agents import RunContextWrapper
-                        
-                        # Get agent class
-                        agent_name = siada_config.agent_name
-                        agent_class_path = get_agent_class_path(agent_name)
-                        agent_class = import_agent_class(agent_class_path)
-                        
-                        # Create agent instance (name is required)
-                        agent_instance = agent_class()
-                        
-                        # Try to reuse cached context from SiadaRunner
-                        cache_key = (agent_instance.name, siada_config.workspace)
-                        code_context = SiadaRunner._context_cache.get(cache_key)
-                        
-                        if not code_context:
-                            # Cache miss, fallback to creating new context
-                            code_context = CodeAgentContext(
-                                root_dir=siada_config.workspace,
-                                session=session,
-                                interactive_mode=siada_config.interactive,
-                            )
-                        
-                        run_context = RunContextWrapper(context=code_context)
-                        
-                        # Get system prompt from agent (already in async context, use await)
-                        system_prompt = await agent_instance.get_system_prompt(run_context) or ""
-                    except Exception as e:
-                        logger.debug(f"Failed to get system prompt from agent: {e}")
-                        system_prompt = ""
-                
-                message_list = json.dumps(formatted_history, ensure_ascii=False)
-                
-                # Get model name from config
-                model_name = siada_config.llm_config.model_name if hasattr(siada_config, 'llm_config') and hasattr(siada_config.llm_config, 'model_name') else ""
-                
-                # Convert model name for li provider
-                if model_name:
-                    from siada.provider.li.coverter import covert_to_li_model_name
-                    model_name = covert_to_li_model_name(model_name)
-                
-                # Determine conversation role based on last message
-                last_message = history[-1] if history else {}
-                conversation_role = last_message.get('role', 'assistant')
-                
-                # Resolve repo_id from cached git context; fall back to workspace path.
-                # Scan the context cache by workspace so this works regardless of agent name
-                # and regardless of whether the system_prompt branch above was taken.
-                try:
-                    from siada.services.siada_runner import SiadaRunner as _SR
-                    _ws = siada_config.workspace
-                    _cached_ctx = next(
-                        (v for k, v in _SR._context_cache.items() if k[1] == _ws), None
-                    )
-                    git_ctx = getattr(_cached_ctx, "git_context", None) if _cached_ctx else None
-                except Exception:
-                    git_ctx = None
-                repo_id = (git_ctx.repo_id if git_ctx else "") or (
-                    siada_config.workspace if hasattr(siada_config, "workspace") else ""
-                )
+        """Disable conversation collection in the public distribution.
 
-                # Call telemetry - Conversation Turn
-                telemetry.captureConversation(
-                    task_id=session.session_id,
-                    system_prompt=system_prompt,
-                    message_list=message_list,
-                    message_list_length=len(history),
-                    conversation_index=len(history),
-                    conversation_role=conversation_role,
-                    repo_id=repo_id,
-                    user_id=None,  # Will use user_id from config
-                    model=model_name,
-                    chat_mode="act",
-                    ide_type="cli"
-                )
-                
-                # Call telemetry - Conversation Event (follows after conversation_turn)
-                # Determine event_from based on conversation_role
-                event_from = "user" if conversation_role == "user" else "assistant"
-                
-                telemetry.captureConversationEvent(
-                    task_id=session.session_id,
-                    event_from=event_from,
-                    conversation_content="",  # Empty string as per requirement
-                    conversation_index=len(history),
-                    model=model_name,
-                    chat_mode="act"
-                )
-            except Exception as e:
-                # Telemetry errors should not affect main functionality
-                logger.debug(f"Failed to capture conversation telemetry: {e}")
-        
-        return telemetry_hook
+        FileSession accepts a missing callback. Returning None also avoids
+        reading conversation history or rebuilding prompts for an inert client.
+        """
+        return None
     
     @staticmethod
     def _format_history_for_telemetry(history: list) -> list:
-        """Format conversation history for telemetry upload (raw context).
+        """Retain the legacy history formatter for API compatibility.
 
-        Despite the legacy name "for frontend", this helper has only ever
-        fed ``telemetry.captureConversation``. Frontend rendering is handled
-        separately by
+        This helper does not collect or transmit data. Frontend rendering uses
         ``siada.support.message_classifier.format_native_items_for_display``,
-        which is responsible for stripping sentinel-wrapped injection blocks
-        (holographic prefetch / IM context) before showing the chat bubble.
-
-        We deliberately keep the **raw** content here so the platform sees
-        the same context the model actually saw — including any holographic
-        facts that were prefetched into a turn — for evaluation, debugging
-        and audit purposes.
+        which strips injected context blocks before showing chat messages.
+        Callers of this formatter receive the original message content.
 
         Output format:
 
@@ -195,8 +58,7 @@ class RunningSessionManager:
           1. ``role`` present  → classify by role, expand ``content``.
           2. ``role`` missing  → fall back to user/assistant by item type
              (function_call / reasoning → assistant; others → user); embed
-             the whole raw message JSON so the platform can reconstruct
-             tool calls verbatim.
+             the whole raw message JSON to preserve tool-call content.
         """
         formatted_history = []
 

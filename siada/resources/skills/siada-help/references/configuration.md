@@ -16,8 +16,8 @@ Controls which LLM model siada uses.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `llm_config.model` | string | `claude-sonnet-4.6` | Model name, e.g. `claude-3-5-sonnet-20241022`, `gpt-4o` |
-| `llm_config.provider` | string | (auto-detected) | Provider: `anthropic`, `openai`, etc. |
+| `llm_config.model` | string | `claude-sonnet-5` | Model name, e.g. `claude-sonnet-5`, `gpt-6-astra`, `kimi-k3`. Built-in catalog names are the vendor's own model IDs |
+| `llm_config.provider` | string | (auto-detected) | Provider: `anthropic`, `openai`, etc. Signing in with your own API key writes `default` |
 | `llm_config.base_url` | string | (provider default) | API endpoint base URL |
 | `llm_config.api_key` | string | (env var) | API key for authentication |
 | `llm_config.thinking` | bool | `true` | Enable extended thinking for models that support it |
@@ -27,11 +27,15 @@ Controls which LLM model siada uses.
 | `llm_config.vision_provider` | string | (`llm_config.provider`) | Provider for `llm_config.vision_model` |
 | `llm_config.parallel_tool_calls` | bool | `true` | Allow parallel tool calls |
 
+**Sign-in:** this build authenticates with your own provider API key. Signing in writes `provider: default`, `provider_id`, `base_url`, `api_key` (and `model`) into `llm_config`; `/logout` (or `siada-cli --logout`) removes those four provider/credential keys and leaves the rest of the section intact. `siada-cli --set-env API_KEY=... --set-env BASE_URL=...` supplies credentials for that invocation through the environment — it does not rewrite `conf.yaml`.
+
 **Example:**
 ```yaml
 llm_config:
-  model: claude-3-5-sonnet-20241022
-  provider: anthropic
+  model: claude-sonnet-5
+  provider: default
+  provider_id: anthropic
+  base_url: https://api.anthropic.com
   api_key: sk-ant-...
 ```
 
@@ -94,12 +98,14 @@ proactive:
 
 ## checkpoint_config
 
-Controls session checkpointing (save/restore conversation state).
+Controls session checkpointing (save/restore conversation state). Disabled unless you turn it on.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `checkpoint_config.enable` | bool | `true` | Enable session checkpoints |
-| `checkpoint_config.max_checkpoint_files` | int | `10` | Maximum checkpoint files to retain |
+| `checkpoint_config.enable` | bool | `false` | Enable session checkpoints. Non-interactive runs always disable checkpointing |
+| `checkpoint_config.max_checkpoint_files` | int | `50` | Maximum checkpoint files to retain per session. `0` or a negative value disables automatic cleanup |
+
+Checkpoints are stored under `~/.siada-cli/data/tmp/{project_hash}/checkpoints/{session_id}/`; cleanup removes the oldest files in batches once the count exceeds the limit. Use `/resume`, `/undo`, `/restore` and `/compare` to work with them.
 
 ---
 
@@ -111,7 +117,7 @@ Controls the background auto-update mechanism run by the proactive daemon (silen
 |-----|------|---------|-------------|
 | `auto_update.enabled` | bool | `true` | Enable silent background update checks and installation |
 | `auto_update.check_interval_minutes` | int | `30` | How often to check for a new version, in minutes |
-| `auto_update.channel` | string | `"prod"` | Release channel: `prod`, `beta`, or `test` |
+| `auto_update.channel` | string | `"prod"` | Which release line the updater reports against: `prod`, `beta`, or `test`. Releases are always read from the published `siada-cli` metadata; the channel is carried through for reporting |
 
 **Example:**
 ```yaml
@@ -162,7 +168,7 @@ sub_agent:
   enabled: true
   allow_recursive_subagents: false
   llm_config:
-    model: claude-sonnet-4.6
+    model: claude-sonnet-4-6
 ```
 
 ---
@@ -181,7 +187,7 @@ Master switch and tuning for the cross-session memory subsystem (inline `MEMORY.
 
 ### memory.holographic
 
-Sub-section of `memory`: structured fact memory with entity binding and trust scoring (SQLite + FTS5). See `design_docs/siada-holographic-memory-introduction.md` for background.
+Sub-section of `memory`: structured fact memory with entity binding and trust scoring (local SQLite database with FTS5 tables). Each fact carries a trust score that decays over time; facts below the threshold are kept out of default search/prefetch.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -235,37 +241,55 @@ web:
 
 ## lark
 
-Configures the Lark/Feishu bot integration that lets you remotely control your local siada-cli from a Lark chat (DM or @mention in a group). This is a **separate feature** from the generic MCP integration — it turns Lark into another *client/entry point* for siada, not just a tool the agent can call. See `docs/remote_control_lark.md` for the full setup guide.
+Configures the Lark/Feishu bot integration that lets you remotely control your local siada-cli from a Lark chat (DM or @mention in a group). This is a **separate feature** from the generic MCP integration — it turns Lark into another *client/entry point* for siada, not just a tool the agent can call. See `docs/remote_control_lark.md` for the full setup guide (creating the app, permissions, pairing).
+
+This build serves **direct mode only**: siada talks to the Lark Open Platform over the Lark SDK's WebSocket long connection, using your own app credentials. `mode: relay` (via a hosted IM Gateway) is a legacy value from older builds — the relay client is not bundled, and the daemon refuses to start that connection with a clear error. Set `mode: direct`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `lark.mode` | string | `"relay"` | `"relay"` (via IM Gateway, no bot credentials needed) or `"direct"` (talk to Lark's WebSocket SDK directly) |
+| `lark.enabled` | bool | `true` | Set `false` to disable the Lark bot without removing the config (the daemon then starts without a Lark connection) |
+| `lark.mode` | string | `"direct"` | Connection mode. Only `"direct"` is supported in this build; `"relay"` is legacy and fails with a clear error |
 | `lark.workspace` | string | `~/.siada-cli/workspace/lark` | Workspace directory for Lark session state |
-| `lark.direct.app_id` | string | (none) | Lark app ID (only for `mode: direct`) |
-| `lark.direct.app_secret` | string | (none) | Lark app secret (only for `mode: direct`) |
-| `lark.direct.access.dm_policy` | string | `"open"` | `"open"` or `"allowlist"` — who can DM the bot (only for `mode: direct`) |
-| `lark.direct.access.allow_from` | list[string] | `[]` | Allowed Lark open IDs when `dm_policy: allowlist` |
-| `lark.relay.server_url` | string | (hardcoded default) | IM Gateway relay WebSocket URL (only needed to override the default) |
-| `lark.relay.heartbeat_interval` | int | `10` | Relay heartbeat interval in seconds |
-| `lark.relay.reconnect_backoff` | list[int] | `[3, 5, 10, 30, 60]` | Reconnect backoff schedule in seconds |
+| `lark.notify_email` | string | (none) | Optional email used to auto-resolve the `open_id` for routing bootstrap |
+| `lark.direct.app_id` | string | (none) | Lark app ID (required for direct mode) |
+| `lark.direct.app_secret` | string | (none) | Lark app secret (required for direct mode) |
+| `lark.direct.domain` | string | `"lark"` | Lark domain: `"lark"` (international), `"feishu"` (China), or a custom base URL |
+| `lark.direct.http_timeout_ms` | int | `30000` | HTTP request timeout in milliseconds |
+| `lark.direct.resolve_sender_names` | bool | `true` | Resolve sender display names through the contact API |
+| `lark.context.include_conversation_info` | bool | `true` | Inject conversation metadata (sender name, user ID, ...) into user messages |
+| `lark.access.group_policy` | string | `"allowlist"` | Group chats: `"open"`, `"allowlist"` or `"disabled"` |
+| `lark.access.group_allow_from` | list[string] | `[]` | Allowed group chat IDs when `group_policy: allowlist` |
+| `lark.access.history_limit` | int | `30` | Pending-history buffer per group chat |
+| `lark.access.idle_session_timeout` | int | `86400` | Seconds of DM silence after which the next message starts a new session (`<= 0` disables) |
+| `lark.access.dm_policy` | string | `"allowlist"` | `"open"` or `"allowlist"` — who may DM the bot |
+| `lark.access.allow_from` | list[string] | `[]` | Allowed Lark open IDs when `dm_policy: allowlist` |
 
-**Example (relay mode, minimal):**
-```yaml
-lark:
-  mode: relay
-```
+The whole `lark` section is a nested object, so it has no `config_manager.py set` target — edit it in `conf.yaml` by hand.
 
-**Example (direct mode):**
+The old `lark.relay.*` keys (`server_url`, `heartbeat_interval`, `reconnect_backoff`) have no effect in this build and can be deleted.
+
+**Example (direct mode, minimal):**
 ```yaml
 lark:
   mode: direct
   direct:
-    app_id: "your_app_id"
-    app_secret: "your_app_secret"
-    access:
-      dm_policy: allowlist
-      allow_from:
-        - "ou_xxx"
+    app_id: "cli_xxxxxxxxxxxx"
+    app_secret: "xxxxxxxxxxxxxxxx"
+```
+
+**Example (direct mode with access control):**
+```yaml
+lark:
+  enabled: true
+  mode: direct
+  direct:
+    app_id: "cli_xxxxxxxxxxxx"
+    app_secret: "xxxxxxxxxxxxxxxx"
+    domain: feishu
+  access:
+    dm_policy: allowlist
+    allow_from:
+      - "ou_xxxxxxxxxxxxxxxx"
 ```
 
 ---
@@ -283,14 +307,6 @@ lark:
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `command_timeout` | int | (none) | Timeout in seconds for shell command execution |
-
----
-
-## pre_plan
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `pre_plan` | bool | `false` | Agent shows a plan and waits for approval before executing |
 
 ---
 
@@ -345,35 +361,51 @@ im:
 
 ---
 
-## headroom
+## headroom (legacy, not supported)
 
-Optional integration with a local `headroom` proxy that routes LLM traffic and tracks a spend budget. Only effective when enabled; upstream endpoints are not configurable.
+Older builds (and older `conf.yaml` files) may contain a `headroom:` section — a proxy that used to route LLM traffic and track a spend budget. **The proxy integration is not part of this distribution:** nothing is bundled or started, and the `--headroom*` CLI flags (`--headroom`, `--no-headroom`, `--headroom-port`, `--headroom-budget`) were removed.
+
+The keys below are still *read* from an existing file so that a config migrated from an older build keeps parsing — they have no effect, and `enabled: true` does **not** start any proxy or route traffic:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `headroom.enabled` | bool | `false` | Start the local headroom proxy and route LLM traffic through it |
-| `headroom.host` | string | `"127.0.0.1"` | Proxy bind host |
-| `headroom.port` | int | `8787` | Proxy port |
-| `headroom.budget` | float or null | `null` | Spend limit in USD (no limit when unset) |
-| `headroom.budget_period` | string | `"daily"` | Budget window: `hourly`, `daily`, or `monthly` |
-| `headroom.telemetry` | bool | `false` | Send proxy telemetry |
-| `headroom.startup_timeout` | float | `30.0` | Seconds to wait for the proxy to become healthy at startup |
+| `headroom.enabled` | bool | `false` | Ignored — retained only for compatibility with older config files |
+| `headroom.host` | string | `"127.0.0.1"` | Ignored |
+| `headroom.port` | int | `8787` | Ignored |
+| `headroom.budget` | float or null | `null` | Ignored |
+| `headroom.budget_period` | string | `"daily"` | Ignored |
+| `headroom.telemetry` | bool | `false` | Ignored |
+| `headroom.startup_timeout` | float | `30.0` | Ignored |
 
-Related CLI flags: `--headroom` (one-click enable), `--no-headroom` (force off, overrides `conf.yaml`), `--headroom-port <port>`, `--headroom-budget <usd>`.
+The whole section can be deleted from `conf.yaml` without changing behavior.
 
 ---
 
-## user_id and credentials
+## Sign-in state (API key) and legacy credential keys
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `user_id` | string | (set at login) | Identifier written automatically when you sign in |
-| `siada_api_key` | string | (set at login) | Access token for the configured provider |
-| `refresh_token` | string | (set at login) | Token used to silently renew `siada_api_key` |
-| `user_email` | string | (set at login) | Email of the signed-in account |
-| `email_refresh_token` | string | (set at login) | Refresh token for the email identity |
+This build signs in with your own **provider API key**. Everything it stores lives inside `llm_config`:
 
-These keys are written by the login flow (`/configure`) and removed by `/logout`. There is normally no reason to edit them by hand.
+| Key | Description |
+|-----|-------------|
+| `llm_config.provider` | `"default"` after an API-key sign-in |
+| `llm_config.provider_id` | Provider the key belongs to (e.g. `openai`, `kimi`, `custom`) |
+| `llm_config.base_url` | API endpoint the key is used with |
+| `llm_config.api_key` | The API key itself |
+| `llm_config.model` | Model selected during sign-in |
+
+`/configure` re-runs the sign-in selector (cancel leaves the session untouched); `/logout` (or `siada-cli --logout`) removes the stored key. `siada-cli --user-id` and `siada-cli --access-token` are deprecated and rejected: they exit with an error explaining that this build authenticates with a provider API key, plus how to configure one (`--set-env API_KEY=... --set-env BASE_URL=...`, or the login prompt).
+
+Older builds signed in with LiId/domain-account credentials and wrote extra top-level keys. Those may still be present in a migrated `conf.yaml`; the current sign-in flow never writes them, so treat them as compatibility-only and leave them alone:
+
+| Key | Status |
+|-----|--------|
+| `user_id` | Legacy account identifier. Not written by the API-key sign-in; a few older code paths still consult it, so do not hand-edit it |
+| `siada_api_key` | Legacy access token — no longer read |
+| `refresh_token` | Legacy token — no longer read |
+| `user_email` | Legacy account email — no longer read |
+| `email_refresh_token` | Legacy token — no longer read |
+
+These legacy keys reach the validator's known-key list, so `config_manager.py validate` will not flag them as unknown.
 
 ---
 
@@ -381,7 +413,7 @@ These keys are written by the login flow (`/configure`) and removed by `/logout`
 
 ```yaml
 llm_config:
-  model: claude-sonnet-4.6
+  model: claude-sonnet-5
 
 proactive:
   enabled: true
@@ -393,8 +425,8 @@ proactive:
   send_daily_summary_to_im: false
 
 checkpoint_config:
-  enable: true
-  max_checkpoint_files: 10
+  enable: false
+  max_checkpoint_files: 50
 
 auto_update:
   enabled: true
@@ -403,6 +435,9 @@ auto_update:
 
 code_agent:
   max_turns: 1000
+
+goal:
+  max_turns: 6
 
 memory:
   enabled: true
@@ -430,11 +465,13 @@ im:
     group: false
 
 # lark:
-#   mode: relay
+#   mode: direct
+#   direct:
+#     app_id: "cli_xxxxxxxxxxxx"
+#     app_secret: "xxxxxxxxxxxxxxxx"
 
 compaction_strategy: null
 command_timeout: 300
-pre_plan: false
 preferred_language: null
 enable_notification: true
 ```
@@ -447,7 +484,7 @@ These are configured in their own files, not `~/.siada-cli/conf.yaml`:
 
 | What | File |
 |------|------|
-| Per-model overrides (context window, pricing, thinking budget, etc.) | `~/.siada-cli/model_config.json` — see `docs/external_model_configuration.md` |
-| MCP servers | `~/.siada-cli/mcp_config.json` |
+| User-defined models (context window, thinking defaults, pricing, vision bridge) | `~/.siada-cli/models.json` — see `docs/external_model_configuration.md`. When present, user models replace the built-in catalog and user prices win over the built-in estimates |
+| MCP servers | `~/.siada-cli/mcp_config.json` (a project-level `siada_mcp_config.json` is also read) |
 | Cron tasks | `~/.siada-cli/workspace/cron_tasks.json` (managed via the **manage-cron-task** skill) |
 | Custom slash commands | `~/.siada-cli/commands/**/*.toml` |

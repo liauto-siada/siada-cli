@@ -4,12 +4,18 @@ Siada Hub command line tool entry point
 from siada.foundation.logging import logger
 
 
-_TOKEN_REFRESH_REGISTERED = False
+_PRE_CALL_HOOK_REGISTERED = False
 _CURRENT_PROVIDER: str = ""
 
 
 def set_current_provider(provider: str) -> None:
-    """Set the current active provider. Called from model_setup after provider is resolved."""
+    """Record the current active provider after provider resolution.
+
+    The name is kept process-wide for callers that report it (startup logging,
+    model switches). It does not gate any authentication: every provider in
+    this build talks to the endpoint the user configured with their own
+    credentials.
+    """
     global _CURRENT_PROVIDER
     _CURRENT_PROVIDER = provider or ""
 
@@ -19,8 +25,7 @@ def _normalize_empty_assistant_content(messages) -> None:
     litellm never has a reason to invoke its Anthropic empty-text placeholder.
 
     Two shapes need handling, both of which legitimately arise from
-    ``agents.models.chatcmpl_converter.Converter.items_to_messages()`` (see
-    ``siada/internal/provider/li/li_provider.py::LiModel._fetch_response``):
+    ``agents.models.chatcmpl_converter.Converter.items_to_messages()``:
 
     1. ``content`` is an empty/whitespace-only string — the common case for a
        pure tool-call assistant turn (no text output), or a message item whose
@@ -137,9 +142,9 @@ def _configure_litellm():
         litellm.success_callback = []
         litellm.failure_callback = []
 
-        # Register token-refresh callback that fires before every deployment
-        # call (including retries), ensuring each attempt gets a fresh token.
-        _register_token_refresh_callback()
+        # Register the pre-call hook that normalizes request messages before
+        # every deployment call (including retries).
+        _register_pre_call_hook()
 
         logger.debug(" logging configuration completed")
 
@@ -149,100 +154,28 @@ def _configure_litellm():
         logger.debug(f"Error configuring  logging: {e}")
 
 
-def _register_token_refresh_callback():
-    """Register a litellm callback that refreshes auth token before each call."""
-    global _TOKEN_REFRESH_REGISTERED
-    if _TOKEN_REFRESH_REGISTERED:
+def _register_pre_call_hook():
+    """Register a litellm callback that preprocesses every model request.
+
+    The hook only rewrites the outgoing ``messages`` payload; it never reads or
+    writes credentials and never adds provider-specific headers, so it behaves
+    identically for every provider configured in this build.
+    """
+    global _PRE_CALL_HOOK_REGISTERED
+    if _PRE_CALL_HOOK_REGISTERED:
         return
 
     import litellm
     from litellm.integrations.custom_logger import CustomLogger
 
-    class _SiadaTokenRefreshCallback(CustomLogger):
+    class _SiadaPreCallHook(CustomLogger):
         async def async_pre_call_deployment_hook(self, kwargs, call_type):
             _normalize_empty_assistant_content(kwargs.get("messages"))
-
-            from siada.entrypoint import _CURRENT_PROVIDER
-            # Skip IDaaS auth when the active provider is 'default'.
-            # Users who configure 'default' provider supply their own base_url + API key;
-            # injecting IDaaS (li) tokens into those calls is wrong and causes failures
-            # when the IDaaS refresh token has expired.
-            # Exception: internal li-proxy calls (e.g. memory service) always use
-            # api_key="li" (set by SiadaClient) regardless of the main provider —
-            # those still need IDaaS auth.
-            if _CURRENT_PROVIDER == "default" and kwargs.get("api_key") != "li":
-                return kwargs
-
-            from siada.internal.services.idaas.auth_store import ensure_valid_auth, generate_dedup_token
-
-            _user_id, _access_token = await ensure_valid_auth()
-
-            # Debug: log a safe token fingerprint so we can correlate retries
-            # and determine whether the refresh actually rotated the token.
-            # Only the head/tail 6 chars are emitted to avoid leaking secrets.
-            if _access_token:
-                _token_sig = f"{_access_token[:6]}..{_access_token[-6:]}"
-            else:
-                _token_sig = "<empty>"
-            _call_uuid = (kwargs.get("extra_headers") or {}).get("uuid", "")
-            logger.info(
-                "[token-hook] uid=%s token=%s call_type=%s uuid=%s",
-                _user_id,
-                _token_sig,
-                call_type,
-                _call_uuid,
-            )
-
-            merged = {
-                **(kwargs.get("extra_headers") or {}),
-                "X-Siada-User-ID": _user_id,
-                "X-Siada-Token": _access_token,
-                "X-Siada-Dedup": generate_dedup_token(),
-            }
-            # httpx rejects None header values with
-            # "Header value must be str or bytes, not <class 'NoneType'>".
-            # Drop any None-valued entries here to protect every provider
-            # (Anthropic/Claude is strictest).
-            kwargs["extra_headers"] = {
-                k: v for k, v in merged.items() if v is not None
-            }
             return kwargs
 
-        async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
-            """On auth rejection (HTTP 401/403) mark the token for forced refresh.
-
-            The LLM proxy may reject a token that still looks unexpired per
-            local JWT checks (revoked server-side by a re-login elsewhere,
-            clock skew). litellm's own retries reuse the same request headers
-            and can never recover from this, so mark the token invalid here:
-            the next call's pre-call hook (or SiadaClient's auth retry) then
-            rotates it via the refresh token.
-            """
-            from siada.entrypoint import _CURRENT_PROVIDER
-            # Same gating as the pre-call hook: only manage IDaaS tokens for
-            # li-authed calls (li provider, or internal li-proxy calls with
-            # api_key="li"), never for user-configured 'default' credentials.
-            if _CURRENT_PROVIDER == "default" and kwargs.get("api_key") != "li":
-                return
-
-            exc = kwargs.get("exception")
-            status_code = getattr(exc, "status_code", None)
-            if status_code not in (401, 403):
-                return
-
-            from siada.internal.services.idaas.auth_store import invalidate_access_token
-
-            logger.warning(
-                "[token-hook] auth rejected (HTTP %s); marking token for forced"
-                " refresh | model=%s",
-                status_code,
-                kwargs.get("model"),
-            )
-            invalidate_access_token()
-
     if not any(
-        type(cb).__name__ == "_SiadaTokenRefreshCallback"
+        type(cb).__name__ == "_SiadaPreCallHook"
         for cb in litellm.callbacks
     ):
-        litellm.callbacks.append(_SiadaTokenRefreshCallback())
-    _TOKEN_REFRESH_REGISTERED = True
+        litellm.callbacks.append(_SiadaPreCallHook())
+    _PRE_CALL_HOOK_REGISTERED = True

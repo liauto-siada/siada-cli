@@ -59,7 +59,6 @@ VALID_KEYS = {
     "web.enabled": bool,
     "compaction_strategy": str,
     "command_timeout": int,
-    "pre_plan": bool,
     "preferred_language": str,
     "enable_notification": bool,
     "goal.max_turns": int,
@@ -68,11 +67,46 @@ VALID_KEYS = {
     "ui.theme": str,
 }
 
-# Top-level keys that are known-but-not-in-VALID_KEYS because their value is
-# an object/list rather than a simple scalar (so `set` can't target them
-# directly, but they're still legitimate sections in conf.yaml and shouldn't
-# be flagged as unknown by `validate`).
-KNOWN_OBJECT_TOP_KEYS = {"lark", "sub_agent", "memory", "im", "ui", "headroom", "llm_config", "checkpoint_config"}
+# Top-level keys whose value is an object/list rather than a simple scalar, so
+# `set` cannot target them directly (and `validate` must not flag them as unknown).
+KNOWN_OBJECT_TOP_KEYS = {"lark", "sub_agent", "memory", "im", "ui", "llm_config", "checkpoint_config"}
+
+# Legacy keys that an older (non-open-source) install could have written. They are
+# recognized so such a conf.yaml still parses and validates cleanly, but they are
+# purely for backward compatibility: none of them enables a capability in this build.
+#   - headroom: the proxy integration is not bundled; no proxy is started and no
+#     traffic is routed (the old `--headroom*` CLI flags do not exist)
+#   - user_id / access_token / siada_api_key / refresh_token / user_email /
+#     email_refresh_token: old account sign-in state. This build signs in with a
+#     provider API key only, so the sign-in flow never writes them.
+LEGACY_TOP_KEYS = {
+    "headroom",
+    "user_id",
+    "access_token",
+    "siada_api_key",
+    "refresh_token",
+    "user_email",
+    "email_refresh_token",
+}
+
+LEGACY_TOP_KEY_NOTES = {
+    "headroom": "the proxy integration was removed from this build; nothing starts and no traffic is routed",
+    "user_id": "old account sign-in state; this build signs in with a provider API key only",
+    "access_token": "old account sign-in state; not read by this build",
+    "siada_api_key": "old account sign-in state; not read by this build",
+    "refresh_token": "old account sign-in state; not read by this build",
+    "user_email": "old account sign-in state; not read by this build",
+    "email_refresh_token": "old account sign-in state; not read by this build",
+}
+
+# Top-level keys accepted by `validate`: every section that holds scalar keys in
+# VALID_KEYS, plus the object sections and the legacy keys above. Anything else is
+# reported as an unknown key.
+KNOWN_TOP_KEYS = (
+    {key.split(".")[0] for key in VALID_KEYS}
+    | KNOWN_OBJECT_TOP_KEYS
+    | LEGACY_TOP_KEYS
+)
 
 
 
@@ -124,6 +158,23 @@ def _coerce(value_str: str, expected_type):
     return value_str  # str
 
 
+def _type_name(value) -> str:
+    """Friendly type name for messages (ruamel wraps scalars in subclasses)."""
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, int):
+        return "int"
+    if isinstance(value, float):
+        return "float"
+    if isinstance(value, str):
+        return "str"
+    if isinstance(value, list):
+        return "list"
+    if isinstance(value, dict):
+        return "dict"
+    return type(value).__name__
+
+
 def cmd_view(_args) -> None:
     if not CONFIG_PATH.exists():
         print("(config file is empty or does not exist)")
@@ -163,8 +214,8 @@ def cmd_set(args) -> None:
     print(f"Backup saved to: {BACKUP_PATH}")
     print()
     print("NOTE: Restart the siada daemon for changes to take effect:")
-    print("  siada --stop-daemon")
-    print("  siada")
+    print("  siada-cli --restart-daemon")
+    print("(or stop it with 'siada-cli --stop-daemon'; it auto-starts again on the next launch)")
 
 
 def cmd_validate(_args) -> None:
@@ -177,26 +228,31 @@ def cmd_validate(_args) -> None:
         print(f"[ERROR] YAML parse error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    if not isinstance(data, dict):
+        print(
+            "[ERROR] conf.yaml root must be a YAML mapping of keys to values, "
+            f"got {type(data).__name__}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     issues = []
 
     # Check for unknown top-level keys.
-    # Everything siada itself writes or reads must be listed here, otherwise a
-    # perfectly valid conf.yaml gets noisy "unknown key" warnings. This covers
-    # the tool-usable sections in VALID_KEYS plus:
-    #   - object/multi-key sections (lark, sub_agent, memory, headroom, im, ui)
-    #   - scalars handled elsewhere (enable_notification)
-    #   - login state written by the auth flow and cleared by /logout
-    known_top = {
-        "llm_config", "checkpoint_config", "proactive", "auto_update",
-        "code_agent", "goal", "sub_agent", "memory", "web", "lark", "im", "ui",
-        "headroom", "compaction_strategy", "command_timeout", "user_id",
-        "pre_plan", "preferred_language", "enable_notification",
-        "siada_api_key", "refresh_token", "user_email", "email_refresh_token",
-    }
-    unknown_top = set(data.keys()) - known_top
+    # KNOWN_TOP_KEYS covers the sections that VALID_KEYS can target, the object
+    # sections, and the legacy keys described above - so a valid conf.yaml is not
+    # reported as having unknown keys.
+    unknown_top = set(data.keys()) - KNOWN_TOP_KEYS
 
     for key in sorted(unknown_top):
         issues.append(f"[WARN]  Unknown top-level key: {key!r}")
+
+    # Legacy keys are tolerated, but they do not enable anything in this build.
+    for key in sorted(LEGACY_TOP_KEYS & set(data.keys())):
+        issues.append(
+            f"[WARN]  legacy key {key!r} is kept for compatibility only: "
+            f"{LEGACY_TOP_KEY_NOTES[key]}"
+        )
 
     # Check value types for all present keys
     type_names = {bool: "bool", int: "int", str: "str"}
@@ -212,7 +268,7 @@ def cmd_validate(_args) -> None:
         if actual_ok:
             print(f"[OK]    {dotted_key} = {value!r}")
         else:
-            actual_name = type(value).__name__
+            actual_name = _type_name(value)
             expected_name = type_names.get(expected_type, expected_type.__name__)
             issues.append(
                 f"[WARN]  {dotted_key}: expected {expected_name}, got {actual_name} ({value!r})"

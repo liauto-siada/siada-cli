@@ -195,12 +195,22 @@ class GitDiffUtil:
             'has_function_changes': has_function_changes
         }
 
-# Example usage
 if __name__ == "__main__":
-    # from siada.foundation.tools.get_git_diff import GitDiffUtil
-    # Example usage
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Print the git diff of a repository, excluding test files."
+    )
+    parser.add_argument(
+        "repo_path",
+        nargs="?",
+        default=".",
+        help="Path to the Git repository (defaults to the current directory).",
+    )
+    args = parser.parse_args()
+
     try:
-        diff = GitDiffUtil.get_git_diff_exclude_test_files(repo_path="/Users/caoxin/Projects/AgentHub/siada-agenthub")
+        diff = GitDiffUtil.get_git_diff_exclude_test_files(repo_path=args.repo_path)
         print("Git diff (excluding test files):")
         print(diff)
     except Exception as e:

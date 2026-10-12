@@ -21,13 +21,17 @@ class NoInteractiveController:
 
         async def run_async():
             # Run the agent
-            result = await SiadaRunner.run_agent(
-                agent_name=self.config.agent_name,
-                user_input=wrap_user_input(user_input),
-                workspace=self.config.workspace,
-                session=self.session,
-            )
-            return result
+            try:
+                return await SiadaRunner.run_agent(
+                    agent_name=self.config.agent_name,
+                    user_input=wrap_user_input(user_input),
+                    workspace=self.config.workspace,
+                    session=self.session,
+                )
+            finally:
+                from siada.provider.provider_factory import aclose_providers
+
+                await aclose_providers()
         
         try:
             result = asyncio.run(run_async())

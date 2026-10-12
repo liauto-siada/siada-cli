@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 import plugin from "bun-plugin-tailwind";
 import { existsSync } from "fs";
-import { cp, readFile, rm, writeFile } from "fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "fs/promises";
 import path from "path";
+import { copyLicenses } from "../../scripts/copy-licenses.mjs";
 import { vendorPdfViewer, VENDOR_DIR } from "./scripts/vendor-pdf-viewer";
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -114,6 +115,7 @@ console.log("\n🚀 Starting build process...\n");
 
 const cliConfig = parseArgs();
 const outdir = (typeof cliConfig.outdir === "string" ? cliConfig.outdir : null) || path.join(process.cwd(), "dist");
+const auditBuild = process.env.CHROME_ACP_BUILD_AUDIT === "1";
 
 if (existsSync(outdir)) {
   console.log(`🗑️ Cleaning previous build at ${outdir}`);
@@ -133,7 +135,8 @@ const result = await Bun.build({
   plugins: [plugin],
   minify: true,
   target: "browser",
-  sourcemap: "linked",
+  sourcemap: "none",
+  metafile: auditBuild,
   naming: {
     chunk: "[name]-[hash].[ext]",
     asset: "[name]-[hash].[ext]",
@@ -163,11 +166,28 @@ const bgResult = await Bun.build({
   minify: true,
   target: "browser",
   format: "iife",
-  sourcemap: "linked",
+  sourcemap: "none",
+  metafile: auditBuild,
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
   },
 });
+
+if (!result.success || !bgResult.success) {
+  throw new AggregateError(
+    [...result.logs, ...bgResult.logs],
+    "Chrome extension build failed",
+  );
+}
+
+if (auditBuild) {
+  const auditDir = path.resolve(import.meta.dir, "../../.build-audit");
+  await mkdir(auditDir, { recursive: true });
+  await writeFile(
+    path.join(auditDir, "extension-inputs.json"),
+    JSON.stringify({ sidepanel: result.metafile, background: bgResult.metafile }, null, 2),
+  );
+}
 
 // Vendored pdf.js viewer (see scripts/vendor-pdf-viewer.ts): copied as-is to
 // dist/pdf/ — these assets are pre-built and must NOT go through the bundler.
@@ -219,5 +239,12 @@ const outputTable = allOutputs.map(output => {
 
 console.table(outputTable);
 const buildTime = (end - start).toFixed(2);
+
+// Ship the canonical LICENSE + THIRD_PARTY_NOTICES.md next to the built
+// extension: `just pack-extension` zips both, and
+// siada.browser_addon.installer._EXT_ITEMS requires them in the package dir.
+// The helper verifies each copy and throws on any missing/empty source, so a
+// failed copy fails the build (never a silently license-less zip).
+await copyLicenses([import.meta.dir]);
 
 console.log(`\n✅ Build completed in ${buildTime}ms\n`);

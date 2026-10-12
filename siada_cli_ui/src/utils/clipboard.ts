@@ -151,8 +151,7 @@ async function getImageFromClipboardMacos(): Promise<ClipboardImage | null> {
         logger.warn(
           '[clipboard] AppKit/PyObjC missing on this Python interpreter — ' +
           'image paste cannot work. Set SIADA_PYTHON_PATH to a Python that ' +
-          'has pyobjc-framework-Cocoa installed (the siada-agenthub conda ' +
-          'env normally does).',
+          'has pyobjc-framework-Cocoa installed.',
           { pythonBin },
         );
       }

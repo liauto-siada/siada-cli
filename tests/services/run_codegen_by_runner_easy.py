@@ -1,5 +1,6 @@
 import os
 import asyncio
+import tempfile
 from siada.services.siada_runner import SiadaRunner
 from siada.session.session_manager import RunningSessionManager
 from siada.entrypoint.interaction.running_config import RunningConfig
@@ -7,14 +8,17 @@ from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
 
 
+# Workspace used by this demo script. It defaults to a synthetic directory under
+# the system temp dir so the script never points at a developer's local checkout.
+DEMO_WORKSPACE = os.environ.get(
+    "SIADA_DEMO_WORKSPACE",
+    os.path.join(tempfile.gettempdir(), "siada-demo-workspace"),
+)
+
+
 async def run_codegen():
-    # 获取当前工作目录
-    # current_dir = os.getcwd()
-
-    # 构建正确的文件路径
-    # file_path = os.path.join(current_dir, "test_data", "complex_python_file.py")
-
-    current_dir = '/Users/yunan/code/copilot/agent-web'
+    # 演示工作目录（合成路径）
+    current_dir = DEMO_WORKSPACE
 
     # Define the user input and agent name
     user_input: str = f"""创建一个shell脚本， 打印三遍：你好北京"""

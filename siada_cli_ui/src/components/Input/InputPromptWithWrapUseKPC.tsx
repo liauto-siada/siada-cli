@@ -236,6 +236,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
         cwd: dir,
         encoding: 'utf-8',
         timeout: 2000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim();
       return result || null;
     } catch {
@@ -998,7 +999,6 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       logger.info('[InputPromptWithWrapUseKPC] paste event', {
         textLength: text.length,
         isEmpty: !text,
-        preview: text.slice(0, 60),
       });
 
       // Empty bracketed paste = clipboard may contain an image (macOS Cmd+V with image)

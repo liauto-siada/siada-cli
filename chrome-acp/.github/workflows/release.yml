@@ -25,7 +25,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build all packages
         run: bun run build
@@ -36,7 +36,8 @@ jobs:
           # Remove sourcemaps (not needed for production)
           rm -f dist/*.map
           # Zip only required files
-          zip -r ../../chrome-acp.zip manifest.json icons/ rules/ dist/
+          test -s LICENSE && test -s THIRD_PARTY_NOTICES.md
+          zip -r ../../chrome-acp.zip manifest.json icons/ rules/ dist/ LICENSE THIRD_PARTY_NOTICES.md
 
       - name: Publish to npm
         run: |

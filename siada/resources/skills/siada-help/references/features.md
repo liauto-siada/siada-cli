@@ -8,6 +8,49 @@
 - **File operations**: create, edit, view, and search files
 - **Side questions**: use `/btw <question>` to ask a quick question without polluting the main conversation history
 
+Siada works within the requested task scope and the tool's permission checks.
+The coding agent sends progress, results, and blockers through ordinary assistant
+messages. You can add instructions while it works, including a request to review
+a plan before execution. There is no separate question tool or planning-mode
+panel. Normal, forked, background, and recursive `run_subtask` calls run unattended
+and report blockers to their calling agent.
+
+## Tool Call Summaries (terminal)
+
+Tool calls in the terminal UI are rendered as concise structured summaries: a heading plus a few labeled fields (for example a file read with its path, a directory view, a command, or a patch with its change counts), with a compact one-line form while collapsed. Expand a call to inspect the full details and output.
+
+This is a display layer only: it parses the tool call that actually ran and shows it. It does not call a model to summarize, does not learn from your sessions, and does not change what the agent does. Semantic tools (analyze-definitions, memory search/write, fact store, sub-agent delegation, undo) render the same way.
+
+## Sign-in and Authentication
+
+siada signs in with **your own model-provider API key** — there is no hosted/account login in this build:
+
+- On first launch (or with `/configure`) the sign-in wizard asks for the provider, the model and the API key, and persists them into `llm_config` in `~/.siada-cli/conf.yaml` (`provider: default`)
+- Credentials can also come from the `BASE_URL` / `API_KEY` environment variables (e.g. `siada-cli --set-env API_KEY=... --set-env BASE_URL=...`)
+- `/logout` or `siada-cli --logout` removes the stored provider API key
+- The legacy account options `--user-id` / `--access-token` are deprecated and rejected: they exit with an error that points at configuring a provider API key (LiId/domain-account credentials are not supported here)
+- Old `user_id` / `siada_api_key` / `refresh_token` / `user_email` / `email_refresh_token` keys may remain in a migrated `conf.yaml`; they are compatibility leftovers, not a sign-in method
+
+## Models and Cost Estimates
+
+- `/model` opens the model selector (or switches to a named model); `/effort` and `/thinking` tune reasoning for the current model; `siada-cli --list-models` prints the catalog
+- Built-in catalog entries use the vendor's own published model IDs (e.g. `claude-sonnet-5`, `gpt-6-astra`, `kimi-k3`, `glm-5.3`)
+- Cost numbers shown in the status bar and exports are **estimates** in CNY per million tokens. Vendors that publish USD prices are converted at a fixed snapshot rate (7.0 CNY per USD) — not a live exchange rate. Off-list models have no known price and report 0 instead of a guessed number
+- `~/.siada-cli/models.json` is authoritative for your own setup: user-defined models replace the built-in catalog, and any `input_price` / `output_price` / `cache_*_price` you set wins over the built-in estimate (see `docs/external_model_configuration.md`)
+
+The default provider uses OpenAI-compatible Chat Completions except for its
+Claude/Gemini routes and GPT-5-and-later Responses routes. A provider prefix is
+not enough to make an endpoint compatible. Custom models declare reasoning
+capabilities through `supports_extra_params` and `default_reasoning_effort`;
+Siada does not infer these settings from a custom GLM model's name.
+
+Kimi K3 and later use a Kimi Code-based prompt; Kimi K2 and older keep the generic
+prompt. GPT-6 prompts are composed from packaged Markdown templates. GLM-5.2
+and later receive a dedicated prompt profile and hidden reminders after three
+identical tool calls. GLM models of any generation can also receive a reminder
+after ten assistant turns without `todo_write` while the list is empty; set
+`SIADA_TODO_EMPTY_LIST_REMINDER=0` to disable that empty-list reminder.
+
 ## @ File References
 
 Use `@filename` in conversation to bring file content into context:
@@ -63,7 +106,7 @@ Type `/` in the input box to trigger — no configuration required:
 | `/theme [auto\|dark\|light]` | Show or switch the UI color theme, persisted to `conf.yaml` (`ui.theme`). `auto` follows the system/terminal background |
 | `/status` | Show current status (model, agent, session ID, workspace) |
 | `/clear` | Clear conversation history and start a new task |
-| `/compact` | Manually compact conversation history to reduce context window usage |
+| `/compact` | Manually compact conversation history; show message counts and the number removed beneath the compaction status |
 | `/btw <question>` | Ask a quick side question without polluting the main conversation |
 | `/export [<filename>]` | Export the conversation to a `.txt` file (UI mode) |
 | `/share` | Share the current session as a web link served by the browser-addon proxy (see Browser Add-on & Session Sharing) |
@@ -71,7 +114,6 @@ Type `/` in the input box to trigger — no configuration required:
 | `/memory [enable\|disable]` | Show or toggle the memory subsystem for the current workspace |
 | `/web [enable\|disable]` | Show or toggle the web search tools (`web_search`/`web_fetch`) |
 | `/lang en` / `/lang zh-CN` | Switch language preference |
-| `/pre-plan-mode` | Toggle plan mode (show a plan before executing) |
 | `/goal <objective>` | Set a standing goal; the agent starts working immediately and a verifier checks completion after each turn |
 | `/goal clear` | Remove the current standing goal |
 | `/init` | Analyze the project and generate a tailored `SIADA.md` context file |
@@ -99,8 +141,8 @@ Type `/` in the input box to trigger — no configuration required:
 | `/restore` | Restore files from a checkpoint |
 | `/compare` | Compare files between the working directory and a checkpoint |
 | `/statusbar` | Toggle status bar item visibility (UI mode) |
-| `/configure` | Reconfigure the provider API key or switch login method without restarting |
-| `/logout` | Sign out and clear all stored credentials |
+| `/configure` | Re-run provider sign-in (API key) in the Siada UI without restarting; cancelling leaves the session and config untouched. Requires the UI |
+| `/logout` | Sign out: remove the stored provider API key from `conf.yaml` (the process then exits) |
 | `/exit` | Exit siada |
 | `/help` | Show help for all commands |
 
@@ -136,13 +178,19 @@ siada can build and maintain a layered understanding of a project:
 - `/init` analyzes the project and writes a tailored `SIADA.md` (and honors an existing `AGENTS.md`)
 - `siada_rule.md` files (global and per-directory) let you pin persistent instructions/conventions that get combined into the agent's context
 - `/rule-list`, `/rule-show`, `/rule-refresh`, `/rule-init`, `/context-file-refresh` manage and inspect this layered context
+- When the workspace contains `AGENTS.md`, neither root `CLAUDE.md` nor
+  `.claude/CLAUDE.md` is added to workspace memory. `SIADA.md` remains eligible.
+- The main coding agent attaches a bounded, hidden Git snapshot to the first user
+  request in a Git workspace and refreshes it after compaction. It is context
+  data, not additional authorization. Set `SIADA_GIT_SNAPSHOT=0` to disable it.
 
 ## Remote Control via Lark/Feishu
 
 Beyond the local CLI, siada can be controlled remotely through a **Lark (Feishu) bot** — this is a separate feature from the generic MCP tool integration below: it turns Lark into another *entry point* for siada, not just a tool the agent calls.
 
 - Message the bot directly (DM) or `@mention` it in a group chat; the message is forwarded to your local siada-cli and results stream back in real time
-- Two connection modes: `relay` (via a hosted IM Gateway, no bot credentials needed) or `direct` (talk to Lark's WebSocket SDK directly with your own app credentials)
+- This build serves **direct mode only**: siada connects to the Lark Open Platform through the Lark SDK's WebSocket long connection using your own app credentials (`lark.direct.app_id` / `app_secret`). `mode: relay` (a hosted IM Gateway) is a legacy value — the relay client is not bundled and the daemon fails with a clear error if you request it
+- Access control lives under `lark.access` (`dm_policy`, `allow_from`, `group_policy`, `group_allow_from`); `lark.enabled: false` disables the bot without deleting the config
 - Configured under the `lark:` section of `conf.yaml`; see `docs/remote_control_lark.md` for the full setup guide
 - `/lark-auth`, `/lark-status`, `/lark-refresh` manage the Lark **MCP** OAuth connection (a related but distinct piece — see MCP Tool Integration below)
 
@@ -161,6 +209,7 @@ siada monitors your work in the background and can:
 - **Proactive suggestions**: periodically analyze work status during work hours and offer suggestions
 - **Toggle**: set `proactive.enabled: false` in `conf.yaml` to disable all proactive features
 - **Dedicated model**: `proactive.llm_config` can override the model used specifically for proactive/cron tasks
+- **Safe by default**: `proactive.auto_execute_enabled` is `false`, so tasks wait for explicit user approval before they run
 
 ## Cron Tasks
 
@@ -242,19 +291,48 @@ The `chrome-acp` browser add-on connects siada to your own Chrome through a loca
 - `siada-cli --browser-start` / `--browser-stop` / `--browser-restart` / `--browser-status` — manage or inspect the running proxy
 - `siada-cli --browser-port <port>`, `--browser-host <host>`, `--browser-base-url <url>` — tune the setup; `--browser-host 0.0.0.0` allows connections from other devices on your LAN (wss/https with a self-signed certificate)
 
+### Browser activity trace
+
+The Chrome side panel and the web client share a **Trace** tab: a timeline of what the agent did in the browser, next to real pictures of the controlled tab.
+
+- steps, durations, targets and values come from the ACP session stream, so they describe tool calls that really ran
+- the picture is a real capture: a before/after pair around each mutating call, plus an optional live view ("Go live") that streams the tab through the Chrome debugger while it is enabled (needs the `debugger` permission, off by default)
+- the change-region overlay is a pixel diff of that before/after pair
+
+The trace only observes and displays. It does not learn from runs, keeps no trained or persisted model, and never replays anything on its own — replaying a recorded step is what the separate `browser_replay` tool does. Read a trace as a record of the agent's real actions in your signed-in browser, not as a background learning feature.
+
 Use `/share` to expose the current session as a web link served by that proxy — the recipient opens it in a browser and sees the conversation update as you keep working. The link embeds a token that grants full control over the agent, so only send it to people you trust; sharing requires the proxy to be reachable from the recipient (e.g. bound to `0.0.0.0`).
 
 ## MCP Tool Integration
 
 Connect external tools (e.g. databases, browsers, or the Lark MCP server) via the MCP protocol. Config file: `~/.siada-cli/mcp_config.json`. Use `/mcp-server` to check connection status and `/mcp-list` to see available tools per server.
 
+The JSON loader reads configuration files only. Plugin-provided MCP servers
+are attached separately by the plugin runtime.
+
 ## Session Checkpoints
 
-siada automatically saves session state so you can resume from where you left off, or manually roll back to a previous state. Config key: `checkpoint_config.enable`. Related commands: `/resume`, `/undo`, `/restore`, `/compare`.
+siada can save session state so you can resume from where you left off, or manually roll back to a previous state. Checkpoints are opt-in: set `checkpoint_config.enable: true` in `conf.yaml`, or start with `siada-cli --checkpointing` (non-interactive runs never checkpoint). Up to `checkpoint_config.max_checkpoint_files` files are kept per session (default `50`). Related commands: `/resume`, `/undo`, `/restore`, `/compare`.
 
 ## Background Auto-Update
 
-siada can silently check for and install new versions in the background via the proactive daemon. Controlled by the `auto_update` section in `conf.yaml` (`enabled`, `check_interval_minutes`, `channel`). Use `siada-cli --just-check-update` to check the version once without installing.
+siada can silently check for and install new versions in the background via the proactive daemon. Controlled by the `auto_update` section in `conf.yaml` (`enabled`, `check_interval_minutes`, `channel`).
+
+Manual version handling from the CLI:
+
+- `siada-cli --version` — print the installed version
+- `siada-cli --just-check-update` — check once without installing (the exit code reports whether an update is available)
+- `siada-cli --upgrade` (alias `--update`) — install the latest release
+- For a `uv`-managed install, update with `uv tool upgrade siada-cli` (or reinstall with `uv tool install --force --python python3.12 siada-cli` if the environment is broken)
+
+## ACP Mode (editor / third-party clients)
+
+siada ships a standalone Agent Client Protocol server, so any ACP-compatible client (Zed, Kiro, vscode-acp, ...) can use it as a first-class agent:
+
+- `siada-acp` — run the standalone ACP stdio server
+- `siada-cli --acp` — launch the bundled UI over the same ACP core
+
+The ACP session advertises the installed siada version (the same value `siada-cli --version` prints), and a failed prompt is reported to the client with its underlying cause — including the provider's error text — instead of a generic failure.
 
 ## Theme
 

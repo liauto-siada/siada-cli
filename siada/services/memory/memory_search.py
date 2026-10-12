@@ -13,15 +13,7 @@ from typing import List, Optional, Set
 from dataclasses import dataclass
 
 from siada.foundation.logging import logger
-
-# Import jieba for Chinese word segmentation (required dependency)
-# Suppress the pkg_resources deprecation warning emitted by jieba._compat on import;
-# this is a jieba internal issue and not actionable from our side.
-import warnings
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
-    warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
-    import jieba
+from siada.services.memory.jieba_compat import jieba
 
 
 @dataclass

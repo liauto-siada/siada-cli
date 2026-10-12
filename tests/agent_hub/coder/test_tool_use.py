@@ -11,19 +11,19 @@ Covers:
 - rules.py convergence: Git Safety / OWASP / Concise Communication shared by
   both branches; default branch gained the behavior clauses and Completion
   Discipline; GPT-5 editing constraints reference real tool names.
-- pre_plan no longer conflicts with the GPT-5 "implement directly" wording.
 """
 import importlib
+from pathlib import Path
 
 import pytest
 import yaml
 
-from siada.agent_hub.coder.prompt.base.gpt5_instructions import (
+from siada.agent_hub.coder.prompt.models.gpt5.instructions import (
     get_gpt5_editing_constraints,
     get_gpt5_extra_sections,
 )
-from siada.agent_hub.coder.prompt.base import rules as rules_module
-from siada.agent_hub.coder.prompt.base.rules import get_rules_section
+from siada.agent_hub.coder.prompt.sections.rules.dispatch import get_rules_section
+from siada.agent_hub.coder.prompt.sections.rules.shared import _COMPLETION_DISCIPLINE_SECTION
 from siada.agent_hub.coder.prompt import code_gen_prompt, issue_review_prompt
 from siada.models.model_base_config import get_model_config
 
@@ -82,7 +82,8 @@ def test_kimi_models_parallel_tool_calls_enabled():
 # --------------------------------------------------------------------------- #
 
 def test_removed_agents_not_in_agent_config():
-    with open("agent_config.yaml", "r", encoding="utf-8") as f:
+    config_path = Path(__file__).resolve().parents[3] / "agent_config.yaml"
+    with config_path.open("r", encoding="utf-8") as f:
         agents = yaml.safe_load(f).get("agents", {})
     for removed in ("bugfix", "fegen", "bugreproduce", "test", "deepresearch", "browser", "card"):
         assert removed not in agents, f"{removed} should no longer be registered"
@@ -154,17 +155,9 @@ def test_default_completion_discipline_byte_identical():
         "- Before reporting completion, verify your change by running the relevant tests or checks for the files you touched. Prefer the project's existing test suite over a throwaway reproduction script you wrote yourself.\n"
         "- When a test or command fails, treat the failure output as the primary source of truth: analyze it, revise the fix, then run it again. Re-running an unchanged command is not a fix."
     )
-    assert rules_module._COMPLETION_DISCIPLINE_SECTION == expected
+    assert _COMPLETION_DISCIPLINE_SECTION == expected
     default_rules = get_rules_section("/cwd", "Darwin", "/home", model_name="claude-sonnet-5")
     assert expected in default_rules
-
-
-def test_gpt5_pre_plan_mutual_exclusion():
-    normal = get_rules_section("/cwd", "Darwin", "/home", model_name="gpt-5.4", pre_plan=False)
-    pre_plan = get_rules_section("/cwd", "Darwin", "/home", model_name="gpt-5.4", pre_plan=True)
-    assert "go ahead and actually implement" in normal
-    assert "go ahead and actually implement" not in pre_plan
-    assert "design plan" in pre_plan
 
 
 def test_gpt5_completion_discipline_merged_single_section():
@@ -199,7 +192,7 @@ def test_gpt5_editing_constraints_reference_real_tool():
     assert "str_replace" not in constraints
     assert "replace_in_file" not in constraints
     assert "write_to_file" not in constraints
-    # Git Safety was single-sourced into rules.py.
+    # Git Safety was single-sourced into rules_shared.py.
     assert "git worktree" not in constraints
 
 
@@ -218,14 +211,6 @@ def test_code_gen_prompt_has_no_thinking_tag_residue():
         assert "thinking tag" not in prompt
         assert "<thinking>" not in prompt
         assert "one tool per message" not in prompt
-
-
-def test_code_gen_prompt_gpt5_pre_plan_has_no_conflict():
-    prompt = code_gen_prompt.get_system_prompt("/cwd", pre_plan=True, model_name="gpt-5.4")
-    assert "modifies or creates files" in prompt
-    # The implement-directly directive must not coexist with pre_plan.
-    assert "Go ahead and implement rather than proposing" not in prompt
-    assert "go ahead and actually implement" not in prompt
 
 
 def test_issue_review_prompt_has_no_thinking_tag_residue():

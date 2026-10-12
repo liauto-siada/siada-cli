@@ -39,7 +39,7 @@ const TestApp: React.FC = () => {
         <Text>{''}</Text>
         
         <Text color="gray">Unix absolute path:</Text>
-        <HighlightedText text="请查看文件 /Users/caoxin/mycli/siada-cli-1.6.0/siada-cli-ui/src/components/markdown/CodeColorizer.tsx" />
+        <HighlightedText text="请查看文件 /home/user/demo-project/src/components/markdown/CodeColorizer.tsx" />
         <Text>{''}</Text>
         
         <Text color="gray">Relative path:</Text>
@@ -94,7 +94,7 @@ const TestApp: React.FC = () => {
         <Text bold color="yellow">🎯 Test 4: Mixed Content Highlighting</Text>
         <Text>{''}</Text>
         
-        <HighlightedText text="在 /Users/caoxin/project 目录下运行 $ npm test 执行测试，使用 `jest --coverage` 生成报告" />
+        <HighlightedText text="在 /home/user/demo-project 目录下运行 $ npm test 执行测试，使用 `jest --coverage` 生成报告" />
         <Text>{''}</Text>
       </Box>
 

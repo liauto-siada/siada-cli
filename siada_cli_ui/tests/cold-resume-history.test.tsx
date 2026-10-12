@@ -7,7 +7,6 @@ import type { ClientConfig } from '../src/types/config.js';
 import type { Message } from '../src/types/index.js';
 
 const EDIT = 'In the file `src/a.ts`, replace the string:\n```ts\nold\n```\nwith:\n```ts\nnew\n```';
-
 vi.mock('../src/acp/client.js', () => ({
   SiadaACPClient: class extends EventEmitter {
     adapter = new EventEmitter();
@@ -15,6 +14,7 @@ vi.mock('../src/acp/client.js', () => ({
     connect() {
       // The backend sends its single restored banner, then a tiny history
       // batch before the frontend connect() promise can settle.
+      this.emit('session:id', 'restored-session');
       this.adapter.emit('ui:loadHistory', {
         messages: [
           { role: 'user', content: 'from cold resume' },

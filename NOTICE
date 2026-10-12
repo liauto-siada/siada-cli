@@ -1,0 +1,312 @@
+Siada CLI
+Copyright 2026 Siada Team
+
+Siada CLI is licensed under the Apache License, Version 2.0. The full license
+text ships with every distribution (see LICENSE) and is also available at
+https://www.apache.org/licenses/LICENSE-2.0
+
+This NOTICE lists third-party software that is incorporated into, or
+redistributed with, Siada CLI, together with the attribution notices those
+licenses require. It is kept at the repository root because Python build
+backends (poetry-core) copy LICENSE / NOTICE files into the wheel metadata
+directory (.dist-info/licenses/), so this file ships with every built
+distribution.
+
+===============================================================================
+1. Source code incorporated or adapted from other open-source projects
+===============================================================================
+
+Cline - Apache License 2.0 - https://github.com/cline/cline
+    Referenced its prompt design and adapted tool usage and rules.
+    See docs/CREDITS.md for the project-level credit.
+
+Aider - Apache License 2.0 - https://github.com/Aider-AI/aider
+    Referenced its interaction approach and adapted @command handling,
+    streaming output and related behaviour; drew on its repository-map design.
+    See docs/CREDITS.md for the project-level credit.
+
+OpenHands - MIT License - https://github.com/All-Hands-AI/OpenHands
+    Copyright (c) 2025 OpenHands contributors (as stated in the upstream
+    LICENSE at https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE)
+    Code from its file-editing tool is quoted and adapted. The same
+    functionality is also redistributed as the `openhands-aci` 0.3.3 PyPI
+    dependency, which ships its own MIT license file.
+    See docs/CREDITS.md for the project-level credit.
+
+OpenAI Codex - Apache License 2.0 - https://github.com/openai/codex
+    Referenced its skills-module implementation (field limits, prompt
+    wording, skills-list rendering budget) and adapted it to the Siada
+    skills system.
+    The packaged GPT-6 prompt templates are modified versions of
+    model_messages.instructions_template entries in codex-rs/models-manager/models.json
+    at commit 2fdf047c9631c9ed01a31b62efb7891718a931a8.
+    Their modifications are documented in
+    siada/agent_hub/coder/prompt/models/gpt6/templates/README.md.
+    GPT-5 personality guidance also adapts
+    codex-rs/core/templates/personalities/gpt-5.2-codex_pragmatic.md and
+    gpt-5.2-codex_friendly.md at commit 2dbcab90e24bbe3c710ad41ffab7bb372256827b.
+    The identity and tool guidance are adapted to Siada.
+    Attribution text from the upstream NOTICE file
+    (https://github.com/openai/codex/blob/2fdf047c9631c9ed01a31b62efb7891718a931a8/NOTICE),
+    reproduced with normalized whitespace:
+
+        OpenAI Codex
+        Copyright 2025 OpenAI
+
+    (The upstream NOTICE file additionally carries a notice for code derived
+    from Ratatui. That notice covers Codex's Rust terminal UI, none of which is
+    used or adapted here, so per Apache License 2.0 section 4(d) - notices that
+    do not pertain to any part of the derivative work may be omitted - it is not
+    reproduced. If that changes, copy the Ratatui notice from the upstream
+    NOTICE file.)
+
+ZCode - Apache License 2.0 - https://github.com/zai-org/ZCode
+    Copyright 2026 Z.AI Co., Ltd (upstream LICENSE at the commit below).
+    The identity/harness and communication structure of the public ZCode CLI at
+    commit 29628c9acdb81b703bbd4080c207a0e7ce5e276e
+    (apps/zcode-cli/packages/core/src/context/sections/cli-prefix.ts,
+    .../context/sections/identity.ts and .../context/dynamic-sections.ts) is
+    adapted for Siada's GLM-5.2-and-later prompt profile. The wording is
+    rewritten for Siada's tools, permission model and safety rules, and ZCode
+    product identifiers are removed; this entry is also the notice that the
+    adapted files were changed, as Apache License 2.0 section 4(b) requires.
+    The todo reminder also adapts runtime/helpers/runtime-reminders.ts at
+    that commit; tool names and the reminder's presentation are changed for Siada.
+    The Apache-2.0 license is reproduced in docs/CREDITS.md, which ships in
+    the sdist and wheel. Upstream NOTICE.md points to THIRD-PARTY-NOTICES.md
+    for ZCode's own third-party (npm dependency) notices.
+    See docs/CREDITS.md for the project-level credit.
+
+Kimi Code - MIT License - https://github.com/MoonshotAI/kimi-code
+    Copyright (c) 2026 Moonshot AI (as stated in the upstream LICENSE at
+    https://github.com/MoonshotAI/kimi-code/blob/main/LICENSE)
+    Kimi Code's system-prompt template is adapted for Siada's Kimi K3-and-later
+    prompt (siada/agent_hub/coder/prompt/models/kimi_k3/templates/system.md);
+    runtime facts and the available tools are adapted to Siada. The MIT
+    permission notice that must accompany the adapted template is reproduced in
+    docs/CREDITS.md, which ships in the sdist and wheel.
+    See docs/CREDITS.md for the project-level credit.
+
+chrome-acp - MIT License - https://github.com/Areo-Joe/chrome-acp
+    Copyright (c) 2025 Areo-Joe (upstream LICENSE, retained verbatim in this
+    repository as chrome-acp/LICENSE; the same file is redistributed with the
+    browser add-on packages)
+    The Chrome extension (chrome-acp/packages/chrome-extension) and the local
+    proxy (chrome-acp/packages/proxy-server) are adapted for Siada. The
+    third-party components those artifacts bundle or install are listed in
+    chrome-acp/THIRD_PARTY_NOTICES.md.
+
+===============================================================================
+2. Bundled native executables
+===============================================================================
+
+ripgrep 14.1.1 - https://github.com/BurntSushi/ripgrep
+    Prebuilt ripgrep binaries for five platforms are redistributed inside the
+    Python package directory `siada/tools/coder/file_search/bin/`:
+    rg-macos-arm64, rg-macos-x64, rg-linux-x64, rg-linux-arm64 and rg.exe.
+    (All five binaries contain the version and revision strings "14.1.1" and
+    "4649aa9700"; the macOS arm64 binary reports "ripgrep 14.1.1 (rev
+    4649aa9700)", "features:+pcre2" and "PCRE2 10.43 is available (JIT is
+    available)" when executed.)
+    ripgrep is dual-licensed: "Dual-licensed under MIT or the UNLICENSE"
+    (upstream README). The MIT option is reproduced below; the UNLICENSE text
+    is available at https://github.com/BurntSushi/ripgrep/blob/master/UNLICENSE
+
+The MIT License (MIT)
+
+Copyright (c) 2015 Andrew Gallant
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+PCRE2 10.43 - https://github.com/PCRE2Project/pcre2
+    The ripgrep binaries above are built with PCRE2 support linked in: all five
+    binaries contain PCRE2 code, and the macOS arm64 binary reports
+    "PCRE2 10.43 is available (JIT is available)"; the string "10.43" is
+    present in the other four binaries as well. PCRE2 is distributed under the
+    "BSD" licence (3-clause) with an exemption for binary library-like
+    packages, https://github.com/PCRE2Project/pcre2/blob/pcre2-10.43/LICENCE -
+    the usual notice is reproduced below.
+
+PCRE2 LICENCE
+-------------
+
+PCRE2 is a library of functions to support regular expressions whose syntax
+and semantics are as close as possible to those of the Perl 5 language.
+
+Releases 10.00 and above of PCRE2 are distributed under the terms of the "BSD"
+licence, as specified below, with one exemption for certain binary
+redistributions. The documentation for PCRE2, supplied in the "doc" directory,
+is distributed under the same terms as the software itself. The data in the
+testdata directory is not copyrighted and is in the public domain.
+
+The basic library functions are written in C and are freestanding. Also
+included in the distribution is a just-in-time compiler that can be used to
+optimize pattern matching. This is an optional feature that can be omitted when
+the library is built.
+
+
+THE BASIC LIBRARY FUNCTIONS
+---------------------------
+
+Written by:       Philip Hazel
+Email local part: Philip.Hazel
+Email domain:     gmail.com
+
+Retired from University of Cambridge Computing Service,
+Cambridge, England.
+
+Copyright (c) 1997-2024 University of Cambridge
+All rights reserved.
+
+
+PCRE2 JUST-IN-TIME COMPILATION SUPPORT
+--------------------------------------
+
+Written by:       Zoltan Herczeg
+Email local part: hzmester
+Email domain:     freemail.hu
+
+Copyright(c) 2010-2024 Zoltan Herczeg
+All rights reserved.
+
+
+STACK-LESS JUST-IN-TIME COMPILER
+--------------------------------
+
+Written by:       Zoltan Herczeg
+Email local part: hzmester
+Email domain:     freemail.hu
+
+Copyright(c) 2009-2024 Zoltan Herczeg
+All rights reserved.
+
+
+THE "BSD" LICENCE
+-----------------
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notices,
+      this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above copyright
+      notices, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+
+    * Neither the name of the University of Cambridge nor the names of any
+      contributors may be used to endorse or promote products derived from this
+      software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+
+EXEMPTION FOR BINARY LIBRARY-LIKE PACKAGES
+------------------------------------------
+
+The second condition in the BSD licence (covering binary redistributions) does
+not apply all the way down a chain of software. If binary package A includes
+PCRE2, it must respect the condition, but if package B is software that
+includes package A, the condition is not imposed on package B unless it uses
+PCRE2 independently.
+
+End
+
+===============================================================================
+3. Bundled JavaScript - terminal UI (siada_cli_ui/bundle/siada-ui.js)
+===============================================================================
+
+The terminal UI ships as a single minified esbuild bundle. The current build's
+own esbuild metafile (siada_cli_ui/bundle/esbuild-meta.json) records 999 inputs:
+998 files and the virtual module `devtools-stub:devtools-stub`. Excluding that
+virtual module and assigning each file to its owning npm package - by walking up to
+the nearest ancestor package.json that declares both `name` and `version` -
+yields 52 third-party install roots resolving to 50 distinct `name@version`
+packages, all matching the committed siada_cli_ui/package-lock.json, with no
+file input left without an owning package. devDependencies and type-only `@types/*`
+packages contribute no shipped code and are not part of that set.
+
+The complete package list for this bundle - package names, versions, SPDX
+license identifiers and the copyright/attribution lines quoted verbatim from
+each package's shipped LICENSE file - together with the full license texts, is
+maintained in siada_cli_ui/THIRD_PARTY_NOTICES.md. The bundling step
+(siada_cli_ui/esbuild.config.js) copies that file next to the bundle as
+siada_cli_ui/bundle/siada-ui.LEGAL.txt, and the pyproject include pattern
+`siada_cli_ui/bundle/*.LEGAL.txt` ships it in the sdist and wheel:
+siada-ui.LEGAL.txt is the authoritative list of the bundle's conservative
+package input closure; inputs can still be removed during tree shaking.
+
+This section therefore does not repeat a package table. Earlier revisions of
+this NOTICE carried a 71-row table assembled from the runtime dependency
+closure of siada_cli_ui/package.json (plus one dev-flagged package) and
+presented as if that closure were included in the bundle. That table was
+over-inclusive (it listed runtime dependencies the current bundle does not
+inline) and stale for the current build: packages the bundle does inline - for
+example `ink`, `terminal-size`, `widest-line` and `emoji-regex` - were absent,
+and some rows named versions other than the ones the bundle uses (for example
+`cli-truncate` 4.0.0 where the bundle has 5.2.0, and `ansi-regex` 5.0.1 where
+the bundle has 6.2.2). It has been superseded by the audited list in
+siada-ui.LEGAL.txt.
+
+The historical over-inclusive attributions are preserved so that nothing the
+earlier table attributed is dropped: siada_cli_ui/THIRD_PARTY_NOTICES.md keeps
+an "Additional upstream attributions" table for the packages recorded in
+siada_cli_ui/package-lock.json that are not current bundle inputs (the rest of
+the runtime dependency closure, plus one dev-flagged package), and the bundle
+copy siada-ui.LEGAL.txt carries the same list.
+
+esbuild also preserves the `@license` banners of the files it inlines at the
+end of bundle/siada-ui.js; among them:
+    react / react-reconciler / scheduler - MIT - Copyright (c) Meta Platforms, Inc. and affiliates.
+    @jrichman/ink build/scroll.js, layout.js, selection.js - Apache-2.0 - Copyright 2025 Google LLC
+    fzf 0.5.2 - BSD 3-Clause - Copyright (c) 2021 Ajit
+
+===============================================================================
+4. Browser add-on artifacts (chrome-acp)
+===============================================================================
+
+The extension zip, the proxy tarball and the PWA assets built from
+chrome-acp/ redistribute their own third-party components (React, motion,
+shiki, streamdown, Mozilla pdf.js, the proxy's npm runtime dependencies, ...).
+Their notices and license texts are listed in
+chrome-acp/THIRD_PARTY_NOTICES.md; the adapted chrome-acp source itself
+remains under the MIT license shown in chrome-acp/LICENSE.
+
+===============================================================================
+5. Attribution material shipped with Siada CLI
+===============================================================================
+
+LICENSE ............................. Apache License 2.0 (Siada CLI)
+docs/CREDITS.md ..................... project-level credits and license texts
+siada_cli_ui/THIRD_PARTY_NOTICES.md . terminal-UI bundle notices and license
+                                      texts (copied at bundle time to
+                                      siada_cli_ui/bundle/siada-ui.LEGAL.txt,
+                                      which ships in the sdist and wheel)
+chrome-acp/LICENSE .................. MIT license of the adapted browser add-on
+chrome-acp/THIRD_PARTY_NOTICES.md ... browser add-on third-party notices

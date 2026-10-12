@@ -22,6 +22,13 @@ import {
   trajectoryWsUrlFor,
 } from "./settings";
 import { executeBrowserTool } from "./tools/browser";
+import {
+  createScreencast,
+  createScreenshotPolling,
+  type LiveViewState,
+  type ScreencastSession,
+  type ScreencastTarget,
+} from "./screencast/screencast";
 // Self-wiring module: applies the persisted default-PDF-handler toggle
 // (DNR redirect rules) at startup and follows storage changes.
 import "./pdf/pdf-handler";
@@ -47,7 +54,9 @@ let bufferChain: Promise<void> = Promise.resolve();
 async function trajectoryWsUrl(): Promise<string> {
   const stored = await loadStoredSettings();
   const settings = resolveProxySettings(stored);
-  return trajectoryWsUrlFor(settings.proxyUrl);
+  // The trajectory endpoint sits behind the same token gate as /ws; carry the
+  // token the user configured for the tool channel or the proxy refuses us.
+  return trajectoryWsUrlFor(settings.proxyUrl, settings.token);
 }
 
 async function connectWs(urlOverride?: string) {
@@ -182,6 +191,211 @@ let toolWsReconnectDelay = WS_RECONNECT_BASE_MS;
 // Same remembered-working-URL scheme fallback as the trajectory channel.
 let toolWsWorkingUrl: string | null = null;
 
+// Browser actions that change the page, and therefore deserve a picture in the
+// activity viewer. `read`/`tabs`/`paragraphs` leave the page alone.
+const MUTATING_ACTIONS = new Set(["execute", "replay"]);
+
+/**
+ * Capture the controlled page's content area.
+ *
+ * `captureVisibleTab` only sees the active tab of a window, so a mutation that
+ * happened on a background tab returns null rather than a mislabelled picture.
+ * Lifting that restriction is what a CDP screencast frame source is for.
+ */
+async function captureFrame(
+  tabId: number,
+  phase: "before" | "after",
+): Promise<{
+  dataUrl: string;
+  width: number;
+  height: number;
+  tsMs: number;
+  phase: "before" | "after";
+  url?: string;
+  title?: string;
+} | null> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.active) return null;
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format: "jpeg",
+      quality: 60,
+    });
+    return {
+      dataUrl,
+      width: tab.width ?? 0,
+      height: tab.height ?? 0,
+      tsMs: Date.now(),
+      phase,
+      url: tab.url,
+      title: tab.title,
+    };
+  } catch (error) {
+    // Never let a failed capture affect tool execution.
+    console.log("[frame] capture skipped:", (error as Error).message);
+    return null;
+  }
+}
+
+// ============================================================================
+// Live view (CDP screencast via chrome.debugger)
+// ============================================================================
+// Started on demand by the proxy when a viewer asks for it, stopped when that
+// viewer goes away or the tab detaches. Only one stream exists at a time: a
+// second viewer reuses the running one rather than attaching twice (Chrome
+// refuses two debuggers on one tab).
+
+let liveView: {
+  session: ScreencastSession;
+  tabId: number;
+  socket: WebSocket;
+} | null = null;
+// Tabs this worker attached, so teardown never detaches someone else's
+// debugger session (another extension or DevTools).
+const attachedTabs = new Set<number>();
+
+// Starting and stopping a stream are each a pair of async Chrome API calls, so
+// two overlapping requests can interleave (stop during attach, two starts) and
+// leave a stream running that nothing references any more. Requests are run one
+// after another instead; the sessions themselves also abort a start that is
+// stopped mid-flight, for the paths that do not go through this queue.
+let liveViewQueue: Promise<unknown> = Promise.resolve();
+function queueLiveViewRequest(task: () => Promise<void>): void {
+  liveViewQueue = liveViewQueue
+    .then(task, task)
+    .catch((error) => console.warn("[live-view] request failed:", error));
+}
+
+function debuggerTarget(tabId: number): ScreencastTarget {
+  const target = { tabId };
+  let unsubscribe: (() => void) | null = null;
+  return {
+    attach: async () => {
+      await chrome.debugger.attach(target, "1.3");
+      attachedTabs.add(tabId);
+    },
+    detach: async () => {
+      attachedTabs.delete(tabId);
+      await chrome.debugger.detach(target);
+    },
+    isAttached: () => attachedTabs.has(tabId),
+    sendCommand: (method, params) =>
+      chrome.debugger.sendCommand(target, method, params),
+    onEvent: (listener) => {
+      const handler = (
+        source: chrome.debugger.Debuggee,
+        method: string,
+        params?: object,
+      ) => {
+        if (source.tabId !== tabId) return;
+        listener(method, (params ?? {}) as Record<string, unknown>);
+      };
+      chrome.debugger.onEvent.addListener(handler);
+      unsubscribe = () => chrome.debugger.onEvent.removeListener(handler);
+      return () => {
+        unsubscribe?.();
+        unsubscribe = null;
+      };
+    },
+  };
+}
+
+/**
+ * Send a tab-scoped message over the tool channel. The proxy routes pictures
+ * and live-view state by the tab they belong to and drops untagged ones, so
+ * every frame/state send must name its tab here.
+ */
+function sendTabMessage(socket: WebSocket, tabId: number, message: object): void {
+  if (socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ ...message, tabId }));
+}
+
+function sendScreencastState(socket: WebSocket, tabId: number, state: LiveViewState): void {
+  sendTabMessage(socket, tabId, { type: "screencast_state", payload: state });
+}
+
+/** Stop the running stream, if any. `session.stop()` reports the state change. */
+async function stopLiveView(): Promise<void> {
+  const current = liveView;
+  if (!current) return;
+  liveView = null;
+  await current.session.stop();
+}
+
+async function handleScreencastRequest(
+  socket: WebSocket,
+  payload: { enabled?: boolean; tabId?: number },
+): Promise<void> {
+  const requestedTabId = typeof payload.tabId === "number" ? payload.tabId : undefined;
+
+  if (!payload.enabled) {
+    // A stop names the tab it stops: a viewer disconnecting from another tab
+    // must not kill the user's running stream. The proxy always sends the tab
+    // it had bound; a legacy stop without one falls back to the single stream.
+    if (liveView && requestedTabId !== undefined && liveView.tabId !== requestedTabId) {
+      sendScreencastState(socket, requestedTabId, { active: false });
+      return;
+    }
+    if (!liveView) {
+      if (requestedTabId !== undefined) {
+        sendScreencastState(socket, requestedTabId, { active: false });
+      }
+      return;
+    }
+    await stopLiveView();
+    return;
+  }
+
+  const tabId = requestedTabId;
+  if (tabId === undefined) {
+    // The proxy answers a start without a bound tab itself and never forwards
+    // one, and a state message without a tab could not be routed back anyway.
+    console.warn("[live-view] start request without a tab was ignored");
+    return;
+  }
+
+  if (liveView?.tabId === tabId && liveView.session.isActive()) {
+    sendScreencastState(socket, tabId, { active: true });
+    return;
+  }
+
+  await stopLiveView();
+
+  // Pick the mode by how Chrome will treat the tab. A visible tab streams
+  // (screencast); a tab the user is not looking at is not composited, so
+  // `Page.startScreencast` would emit one frame and stop — poll screenshots
+  // instead, which has no such restriction.
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  const options = {
+    // Keep the payload small: the viewer is a monitor, not a video player.
+    quality: 60,
+    maxWidth: 1280,
+    onFrame: (frame: { dataUrl: string; width: number; height: number; tsMs: number }) => {
+      sendTabMessage(socket, tabId, { type: "frame", payload: frame });
+    },
+    onState: (state: LiveViewState) => sendScreencastState(socket, tabId, state),
+  };
+  const session = tab?.active
+    ? createScreencast(debuggerTarget(tabId), options)
+    : createScreenshotPolling(debuggerTarget(tabId), options);
+
+  liveView = { session, tabId, socket };
+  await session.start();
+
+  // start() already reported the failure and detached; just drop the handle —
+  // unless a later request replaced it in the meantime, in which case dropping
+  // it would leave that running stream with nobody able to stop it.
+  if (!session.isActive() && liveView?.session === session) liveView = null;
+}
+
+// Chrome detaches on its own when a tab closes or navigates in some cases;
+// mirror that into the live view so the UI stops believing it is streaming.
+chrome.debugger.onDetach.addListener((source) => {
+  if (source.tabId === undefined) return;
+  attachedTabs.delete(source.tabId);
+  if (liveView?.tabId === source.tabId) void stopLiveView();
+});
+
 function scheduleToolWsReconnect() {
   setTimeout(() => void connectToolWs(), toolWsReconnectDelay);
   toolWsReconnectDelay = Math.min(toolWsReconnectDelay * 2, WS_RECONNECT_MAX_MS);
@@ -217,7 +431,12 @@ async function connectToolWs(urlOverride?: string): Promise<void> {
 
   socket.onmessage = (event: MessageEvent) => {
     void (async () => {
-      let msg: { type?: string; callId?: string; params?: unknown };
+      let msg: {
+        type?: string;
+        callId?: string;
+        params?: unknown;
+        payload?: { enabled?: boolean; tabId?: number };
+      };
       try {
         msg = JSON.parse(String(event.data));
       } catch {
@@ -230,20 +449,55 @@ async function connectToolWs(urlOverride?: string): Promise<void> {
         socket.send(JSON.stringify({ type: "pong" }));
         return;
       }
+      if (msg.type === "screencast") {
+        queueLiveViewRequest(() => handleScreencastRequest(socket, msg.payload ?? {}));
+        return;
+      }
       if (msg.type !== "browser_tool_call" || msg.callId === undefined) return;
+
+      const params = msg.params as Parameters<typeof executeBrowserTool>[0];
+      const watchPage = params.tabId !== undefined && MUTATING_ACTIONS.has(params.action);
+      // Take the "before" picture up front: the change overlay is produced by
+      // diffing it against the picture taken once the action has run.
+      const beforeFrame = watchPage ? await captureFrame(params.tabId!, "before") : null;
 
       let result: unknown;
       try {
-        result = await executeBrowserTool(msg.params as Parameters<typeof executeBrowserTool>[0]);
+        result = await executeBrowserTool(params);
       } catch (error) {
         result = { error: (error as Error).message };
       }
       socket.send(JSON.stringify({ type: "browser_tool_result", callId: msg.callId, result }));
+
+      // Frames go to the UI, the tool result goes to the agent; they are sent
+      // separately for that reason. Each frame is tagged with the tab the tool
+      // ran in, so the proxy hands it to that tab's client only.
+      if (beforeFrame) {
+        sendTabMessage(socket, params.tabId!, {
+          type: "frame",
+          callId: msg.callId,
+          payload: beforeFrame,
+        });
+      }
+      if (watchPage) {
+        const afterFrame = await captureFrame(params.tabId!, "after");
+        if (afterFrame) {
+          sendTabMessage(socket, params.tabId!, {
+            type: "frame",
+            callId: msg.callId,
+            payload: afterFrame,
+          });
+        }
+      }
     })();
   };
 
   socket.onclose = () => {
     if (toolWs === socket) toolWs = null;
+    // The proxy can only tell us to stop while its socket is alive; if this
+    // channel drops first, clean up here so the user's tab is not left with a
+    // debugger attached and nothing watching.
+    if (liveView?.socket === socket) void stopLiveView();
     if (!opened && !urlOverride) {
       const flipped = flipLoopbackWsScheme(socket.url);
       if (flipped) {

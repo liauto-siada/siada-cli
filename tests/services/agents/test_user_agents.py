@@ -549,15 +549,15 @@ class TestPreloadedSkills(unittest.TestCase):
 
 class TestResolveEffortForModel(unittest.TestCase):
     def test_no_effort_configured_returns_none(self):
-        self.assertIsNone(resolve_effort_for_model(None, "kivy-glm-5.3"))
+        self.assertIsNone(resolve_effort_for_model(None, "glm-5.3"))
 
     def test_level_accepted_by_the_model_passes_through(self):
-        self.assertEqual(resolve_effort_for_model("high", "kivy-glm-5.3"), "high")
+        self.assertEqual(resolve_effort_for_model("high", "glm-5.3"), "high")
 
     def test_level_not_accepted_maps_to_the_nearest_neighbour(self):
         # GLM-5.3 accepts low/high/max — "medium" is the default-abroad tier
         # that aligns with "high".
-        self.assertEqual(resolve_effort_for_model("medium", "kivy-glm-5.3"), "high")
+        self.assertEqual(resolve_effort_for_model("medium", "glm-5.3"), "high")
 
     def test_level_unknown_to_the_model_maps_to_the_nearest_neighbour(self):
         # xhigh is a Claude-only tier; on a plain low/medium/high model the

@@ -108,7 +108,6 @@ export class SlashCommandService {
       { name: 'resume', description: 'Resume a previous session', requiresSession: true, argumentHint: '[<index> | <session_id> | latest | --all]' },
       { name: 'clear', description: 'Start a new task session without previous conversation history', requiresSession: true },
       { name: 'lang', description: 'Switch language preference between English and Chinese', requiresSession: true, argumentHint: '<en | zh-CN>' },
-      { name: 'pre-plan-mode', description: 'Toggle plan mode for tool execution', requiresSession: true, argumentHint: '<true | false>' },
       { name: 'issue-fix', description: 'Fix an issue from Siada Patch Review by issue ID', requiresSession: true, argumentHint: '<issue_id>' },
       { name: 'help', description: 'Show help about commands', requiresSession: false },
       { name: 'plugin', description: 'Open plugin/skill manager (discover, install, disable skills)', requiresSession: true, argumentHint: '[install | remove | enable | disable | validate | marketplace] <args>' },

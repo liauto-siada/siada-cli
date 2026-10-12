@@ -123,11 +123,14 @@ export class SiadaACPAdapter extends EventEmitter {
     });
 
     const { command, args } = this.buildCommand(config);
+    // Never log raw args: user-supplied siadaArgs may carry credentials
+    // (`--set-env API_KEY=...`). The argument count keeps the command build
+    // debuggable; flags the adapter adds are already logged individually.
     logger.debug('Built siada-cli command', {
       component: 'Adapter',
       operation: 'start',
       command,
-      args,
+      argCount: args.length,
     });
     
     // Build environment variables
@@ -243,11 +246,13 @@ export class SiadaACPAdapter extends EventEmitter {
           model: config.model,
         });
       } else {
+        // siadaArgs itself stays out of the log (it may embed credentials);
+        // the count is enough to explain why --model was skipped.
         logger.info('Skipping --model from config (already in siadaArgs)', {
           component: 'Adapter',
           operation: 'buildCommand',
           configModel: config.model,
-          siadaArgs: config.siadaArgs,
+          siadaArgsCount: config.siadaArgs?.length ?? 0,
         });
       }
     }

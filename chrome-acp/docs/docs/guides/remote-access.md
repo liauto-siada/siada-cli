@@ -12,9 +12,9 @@ By default the proxy binds to `127.0.0.1` (this machine only). Anything else nee
 Managed by Siada CLI — set the bind address once at install time:
 
 ```bash
-siada-browser setup /path/to/siada-agenthub/chrome-acp --host 0.0.0.0
+siada-browser setup /path/to/siada-cli/chrome-acp --host 0.0.0.0
 # or
-siada-cli --browser-setup /path/to/siada-agenthub/chrome-acp --browser-host 0.0.0.0
+siada-cli --browser-setup /path/to/siada-cli/chrome-acp --browser-host 0.0.0.0
 ```
 
 The host is persisted in `~/.siada-cli/browser/state.json`, so later `siada-browser start | restart` calls keep using it. A non-loopback host adds `--https` to the proxy command line automatically.

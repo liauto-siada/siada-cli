@@ -28,6 +28,7 @@ import {
 } from '../../constants/limits.js';
 import { Banner } from '../Banner/Banner.js';
 import { parseToolCall, isTodoWriteAllCompleted, type ParsedToolCall } from '../../utils/toolCallParser.js';
+import { getSemanticToolCallDisplay } from '../../utils/toolCallDisplay.js';
 import { recordFlicker } from '../../utils/flickerMonitor.js';
 import { beginSyncOutput, endSyncOutput } from '../../utils/stdio.js';
 import { extractCleanContent } from '../../utils/contentCleaner.js';
@@ -47,7 +48,6 @@ export interface MessageListProps {
     agent?: string;
     provider?: string;
     model?: string;
-    prePlanMode?: boolean;
   };
   terminalWidth?: number;  // For triggering remount on resize
   maxHeight?: number;      // Maximum height in rows for the message list
@@ -267,7 +267,8 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
           continue;
         }
 
-        if (parsed?.type === 'apply_patch' || parsed?.type === 'update_file') {
+        if (parsed?.type === 'apply_patch' || parsed?.type === 'update_file' ||
+            (parsed?.type === 'create_file' && isRenderableToolDiff(msg.content || ''))) {
           groups.push({ type: msg.type, message: msg });
           continue;
         }
@@ -405,7 +406,7 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
     // retain their existing height-based placement.
     const lastToolContent = (lastGroup.message.content || '').replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
     const lastGroupIsCompletedTool = !lastGroup.isAggregated && lastGroupDone && lastGroupSubtype === 'tool_use' &&
-      (isRenderableToolDiff(lastToolContent) ||
+      (isRenderableToolDiff(lastGroup.message.content || '') ||
         (parseToolCall(lastToolContent)?.type === 'todo_write' &&
           (isTodoWriteAllCompleted(lastToolContent) || lastToolContent === 'Clearing todo list')));
 
@@ -567,7 +568,10 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
 
           // Extract display text
           let displayItem = '';
-          if (tool.path) {
+          const semanticDisplay = getSemanticToolCallDisplay(tool);
+          if (semanticDisplay) {
+            displayItem = semanticDisplay.compactPreview;
+          } else if (tool.path) {
             // Use only the last path segment (filename or dirname)
             const pathParts = tool.path.split('/');
             const filename = pathParts[pathParts.length - 1] || tool.path;

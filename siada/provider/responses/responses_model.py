@@ -6,11 +6,9 @@ building, input/tool sanitization, reasoning config resolution, streaming
 event patching, usage normalization — and delegates authentication/routing
 to an injected ``ResponsesTransport``.
 
-Used by:
-- the internal ``li`` provider (via ``LiProxyResponsesTransport``) for
-  Responses-only models such as the GPT-5 family;
-- the open-source ``default`` provider (via ``DefaultResponsesTransport``)
-  for the same model families against a plain OpenAI-compatible endpoint.
+Used by the open-source ``default`` provider (via
+``DefaultResponsesTransport``) for Responses-only model families against a
+plain OpenAI-compatible endpoint.
 """
 from __future__ import annotations
 
@@ -68,15 +66,11 @@ def _normalize_reasoning(
 ) -> dict[str, Any] | None:
     """Normalize reasoning config to a plain dict before sending upstream.
 
-    Background:
-    - siada-plugin sends a plain JSON object such as
-      ``{"effort": "xhigh", "summary": "auto"}``
-    - The Python OpenAI SDK can serialize ``Reasoning`` Pydantic objects using
-      field aliases (for example ``summary`` -> ``generate_summary``), which
-      is incompatible with some proxies' Responses API forwarding behavior.
-
-    To keep parity with siada-plugin, convert Pydantic-like objects into a
-    plain dict using the raw ``summary`` key.
+    The Python OpenAI SDK can serialize ``Reasoning`` Pydantic objects using
+    field aliases (for example ``summary`` -> ``generate_summary``), which is
+    incompatible with some proxies' Responses API forwarding behavior. Convert
+    those objects into a plain dict using the raw ``summary`` key and request a
+    detailed summary whenever reasoning is enabled.
     """
     if reasoning is None and reasoning_effort is None:
         return None
@@ -91,8 +85,8 @@ def _normalize_reasoning(
             # effort="none" fully disables reasoning; requesting a reasoning
             # summary alongside it is rejected by the Responses API.
             normalized.pop("summary", None)
-        elif normalized.get("effort") is not None and "summary" not in normalized:
-            normalized["summary"] = "auto"
+        elif normalized:
+            normalized["summary"] = "detailed"
         return normalized or None
 
     effort = getattr(reasoning, "effort", None) or reasoning_effort
@@ -101,13 +95,13 @@ def _normalize_reasoning(
     normalized: dict[str, Any] = {}
     if effort is not None:
         normalized["effort"] = effort
-        if effort != "none":
-            # No summary alongside effort="none" (reasoning is fully off).
-            normalized["summary"] = "auto"
     if max_tokens is not None:
         normalized["max_tokens"] = max_tokens
 
     if normalized:
+        if normalized.get("effort") != "none":
+            # The Responses API uses "detailed" for the full reasoning summary.
+            normalized["summary"] = "detailed"
         return normalized
 
     model_dump = getattr(reasoning, "model_dump", None)
@@ -141,12 +135,9 @@ class ResponsesModel(Model):
         """Return True for reasoning-capable model families that expect a
         ``reasoning`` parameter on every Responses API call.
 
-        siada-plugin's ``normalizeOpenaiReasoningEffort`` defaults unspecified
-        effort to ``"medium"`` and always sends
-        ``reasoning: {effort, summary: "auto"}``, which is how it guarantees
-        ``response.reasoning_summary_text.delta`` events are emitted. We
-        match that behaviour here: for GPT-5 / o-series reasoning models,
-        inject a minimal reasoning config if the caller did not supply one.
+        For GPT-5 / o-series reasoning models, inject a minimal reasoning
+        config if the caller did not supply one. The normalization step requests
+        a detailed summary for active reasoning.
 
         We intentionally do NOT default reasoning for non-reasoning
         families (e.g. gpt-4, classic chat models) since sending
@@ -200,12 +191,9 @@ class ResponsesModel(Model):
         # non-reasoning model errors out.  Tool-derived includes are merged
         # rather than overwritten.
         #
-        # This is the single assembly point for the Responses protocol, so both
-        # provider channels pick it up: the default provider
-        # (``default_provider.py`` -> ``DefaultResponsesTransport``) and the li
-        # provider (``li_provider.py`` -> ``LiProxyResponsesTransport``) only
-        # differ in the transport that sends the finished params.  Chat
-        # completions wires never reach this method and stay untouched.
+        # The default provider sends these parameters through
+        # DefaultResponsesTransport. Chat Completions requests use their own
+        # assembly path.
         include_set: set[str] = (
             set(converted.includes) if converted and converted.includes else set()
         )
@@ -265,28 +253,20 @@ class ResponsesModel(Model):
         # ------------------------------------------------------------------
         # Default reasoning for GPT-5.x when the caller did not specify one.
         #
-        # siada-plugin (see ``normalizeOpenaiReasoningEffort`` in
-        # ``siada-plugin/src/shared/storage/types.ts``) defaults the effort to
-        # ``"medium"`` when no effort is supplied, so the Responses API call
-        # always carries ``reasoning: {effort: "medium", summary: "auto"}``
-        # and the model emits ``response.reasoning_summary_text.delta``
-        # events. In siada-cli, by contrast, ``gpt-5.4`` has
-        # ``default_reasoning_effort = None``, which means ``reasoning``
-        # was missing from the request entirely — the root cause of empty
-        # thinking summaries on this protocol path.
+        # Some models (e.g. ``gpt-5.4``) have
+        # ``default_reasoning_effort = None``, which means ``reasoning`` was
+        # missing from the request entirely — the root cause of empty thinking
+        # summaries on this protocol path.
         #
-        # We match siada-plugin's behaviour: if we are going to send to a
-        # GPT-5-family model and nothing set reasoning yet, inject a minimal
-        # ``{"effort": "low", "summary": "auto"}`` so thinking streams on.
-        # The ``summary: "auto"`` part is what actually drives
-        # ``reasoning_summary_text.delta`` emission; the ``effort`` field
-        # controls how much thinking the model does.
+        # If we are going to send to a GPT-5-family model and nothing set
+        # reasoning yet, inject a minimal effort. Normalization adds the
+        # detailed summary; effort controls how much thinking the model does.
         # ------------------------------------------------------------------
         if reasoning_config is None and self._should_default_reasoning(self.model):
-            reasoning_config = {"effort": "low", "summary": "auto"}
+            reasoning_config = {"effort": "low"}
             logger.debug(
                 f"[ResponsesModel] No reasoning supplied for model {self.model!r}; "
-                f"defaulting to {reasoning_config!r} (matches siada-plugin default) "
+                f"defaulting to {reasoning_config!r} "
                 f"so ``response.reasoning_summary_text.delta`` events are emitted."
             )
 
@@ -304,9 +284,9 @@ class ResponsesModel(Model):
         if tool_choice is not omit:
             request_params["tool_choice"] = tool_choice
 
-        # Do not send previous_response_id — mirrors siada-plugin's
-        # usePreviousResponseId: false. Sending a stale / un-stored ID causes
-        # a 400 "item not found" error from the upstream service.
+        # Do not send previous_response_id (the legacy client keeps
+        # ``usePreviousResponseId: false``). Sending a stale / un-stored ID
+        # causes a 400 "item not found" error from the upstream service.
 
         if conversation_id:
             request_params["conversation"] = conversation_id
@@ -424,9 +404,9 @@ class ResponsesModel(Model):
     ) -> AsyncIterator[TResponseStreamEvent]:
         """Stream a response from OpenAI Responses API.
 
-        Mirrors siada-plugin's createResponseStream: call responses.create once,
-        then iterate native Responses API events directly — no chat-completion
-        bridging needed because the upstream returns native events.
+        Call ``responses.create`` once, then iterate native Responses API
+        events directly — no chat-completion bridging needed because the
+        upstream returns native events.
         """
         with generation_span(
             model=self.model,
@@ -449,8 +429,8 @@ class ResponsesModel(Model):
                 stream, _llm_request_body = await self._transport.create_stream(**request_params)
 
                 # Track function-call metadata by item ID so delta events can be
-                # enriched with call_id / name — mirrors siada-plugin's
-                # functionCallByItemId Map in createResponseStream.
+                # enriched with call_id / name, keyed by item ID like the
+                # legacy client did.
                 def _truncate(s: str, head: int = 20, tail: int = 20) -> str:
                     if len(s) <= head + tail + 3:
                         return s
@@ -458,8 +438,8 @@ class ResponsesModel(Model):
 
                 function_call_by_item_id: dict[str, dict[str, Any]] = {}
 
-                # Accumulate reasoning summary text per item ID — mirrors
-                # siada-plugin's ReasoningHandler.processReasoningDelta.
+                # Accumulate reasoning summary text per item ID from the
+                # reasoning-summary delta events.
                 #
                 # The upstream streams reasoning text via
                 # ``response.reasoning_summary_text.delta`` events but may leave
@@ -574,8 +554,7 @@ class ResponsesModel(Model):
                     elif event_type == "response.reasoning_summary_text.delta":
                         # Primary channel for reasoning text. The upstream emits
                         # these as the model thinks; we accumulate and patch
-                        # back into the ReasoningItem later. Matches
-                        # siada-plugin's handling of the same event type.
+                        # back into the ReasoningItem later.
                         item_id = getattr(event, "item_id", None)
                         delta = getattr(event, "delta", "") or ""
                         if item_id and delta:

@@ -30,13 +30,13 @@ bun run build
 
 ```bash
 # Point setup at the chrome-acp/ directory of this repository
-siada-browser setup /path/to/siada-agenthub/chrome-acp
+siada-browser setup /path/to/siada-cli/chrome-acp
 ```
 
 The equivalent `siada-cli` flag:
 
 ```bash
-siada-cli --browser-setup /path/to/siada-agenthub/chrome-acp
+siada-cli --browser-setup /path/to/siada-cli/chrome-acp
 ```
 
 `setup`:

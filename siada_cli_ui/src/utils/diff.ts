@@ -40,6 +40,12 @@ export interface FileEditInfo {
   isComplete: boolean;
 }
 
+export interface FileCreateInfo {
+  filePath: string;
+  newString: string;
+  isComplete: boolean;
+}
+
 export type ApplyPatchAction = 'create' | 'update' | 'delete' | 'move' | 'failed' | 'unknown';
 
 export interface ApplyPatchFileChange {
@@ -182,12 +188,38 @@ export function parseFileEditContent(content: string): FileEditInfo | null {
   return null;
 }
 
+export function parseFileCreateContent(content: string): FileCreateInfo | null {
+  const createMatch = content.trimStart().replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').match(
+    /^Create the file `([^`]+)`+ with the following content:\r?\n([\s\S]*)$/,
+  );
+  if (!createMatch) return null;
+
+  const filePath = createMatch[1]!;
+  const body = createMatch[2]!;
+  const isMarkdownFile = /\.(?:md|markdown|mdown|mkd)$/i.test(filePath);
+  const fencedContent = isMarkdownFile
+    ? null
+    : body.match(/^```[^\r\n]*\r?\n([\s\S]*)\r?\n```$/);
+  const hasOpeningFence = !isMarkdownFile && /^```[^\r\n]*\r?\n/.test(body);
+  return {
+    filePath,
+    newString: fencedContent?.[1] ?? body,
+    isComplete: !hasOpeningFence || fencedContent !== null,
+  };
+}
+
 /** Whether a completed tool-call body renders as a file diff in Message. */
 export function isRenderableToolDiff(content: string): boolean {
   const cleanContent = content.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
   if (parseApplyPatchContent(cleanContent)) return true;
 
   const edit = parseFileEditContent(cleanContent);
-  return edit?.isComplete === true &&
-    getSimplePatch(edit.filePath, edit.oldString, edit.newString).length > 0;
+  if (edit?.isComplete === true &&
+      getSimplePatch(edit.filePath, edit.oldString, edit.newString).length > 0) {
+    return true;
+  }
+
+  const create = parseFileCreateContent(content);
+  return create?.isComplete === true && create.newString.length > 0 &&
+    getSimplePatch(create.filePath, '', create.newString).length > 0;
 }

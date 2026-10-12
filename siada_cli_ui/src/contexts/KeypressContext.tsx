@@ -523,14 +523,6 @@ export function* emitKeys(
       if (!escaped) {
         name = 'j';
         ctrl = true;
-        logger.info('🔥 Ctrl+J detected (line feed)', {
-          component: 'KeypressContext',
-          operation: 'parse_ctrl_j',
-          charCode: ch.charCodeAt(0),
-          hexCode: '\\x0a',
-          parsedName: 'j',
-          ctrl: true,
-        });
       } else {
         name = 'enter';
         alt = escaped;
@@ -551,16 +543,8 @@ export function* emitKeys(
     } else if (!escaped && ch <= '\x1a') {
       name = String.fromCharCode(ch.charCodeAt(0) + 'a'.charCodeAt(0) - 1);
       ctrl = true;
-      
-      // 🔥 INFO: Log control character parsing (especially Ctrl+C which is \x03)
-      logger.info('🔥 Control character parsed', {
-        component: 'KeypressContext',
-        operation: 'parse_control_char',
-        charCode: ch.charCodeAt(0),
-        hexCode: '\\x' + ch.charCodeAt(0).toString(16).padStart(2, '0'),
-        parsedName: name,
-        ctrl: true,
-      });
+      // No per-keystroke log here: the parsed control character plus its
+      // char code identify the key that was pressed, which is key content.
     } else if (/^[0-9A-Za-z]$/.exec(ch) !== null) {
       name = ch.toLowerCase();
       shift = /^[A-Z]$/.exec(ch) !== null;
@@ -669,10 +653,11 @@ function bufferPaste(keypressHandler: KeypressHandler): KeypressHandler {
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n');
 
+      // Lengths only — the cleaned content itself (e.g. a pasted API key or
+      // password) must never reach the log file, not even a preview of it.
       logger.info('[KeypressContext] bufferPaste done', {
         rawBufferLength: buffer.length,
         cleanedBufferLength: cleanedBuffer.length,
-        cleanedPreview: cleanedBuffer.slice(0, 80),
         isEmpty: cleanedBuffer.length === 0,
       });
 
@@ -837,18 +822,20 @@ export function KeypressProvider({
   
   const broadcast = useCallback(
     (key: Key) => {
-      // 🔥 INFO: Log all broadcast events (especially Ctrl+C)
+      // 🔥 INFO: Log broadcast metadata only (especially Ctrl+C).
+      // Never log key.sequence or single-character names, including shortcuts:
+      // they can reveal typed secrets character by character.
+      // Length/flags keep the diagnostic value without carrying content.
       logger.info('🔥 Broadcasting key event', {
         component: 'KeypressContext',
         operation: 'broadcast',
-        key: {
-          name: key.name,
-          ctrl: key.ctrl,
-          alt: key.alt,
-          cmd: key.cmd,
-          shift: key.shift,
-          sequence: JSON.stringify(key.sequence),
-        },
+        keyName: !key.insertable && Array.from(key.name).length > 1 ? key.name : undefined,
+        insertable: key.insertable,
+        ctrl: key.ctrl,
+        alt: key.alt,
+        cmd: key.cmd,
+        shift: key.shift,
+        sequenceLength: key.sequence.length,
         subscriberCount: subscribers.size,
       });
       
@@ -956,22 +943,30 @@ export function KeypressProvider({
       isRaw: process.stdin.isRaw,
     });
     
-    // Register data event listener
-    process.stdin.on('data', (chunk: Buffer | string) => {
+    // Register data event listener.
+    // The handler is kept in a named binding so the effect cleanup removes
+    // *this* listener instead of the parser closure from createDataListener()
+    // (which was never registered on stdin, leaving a dangling listener per
+    // mount/unmount cycle).
+    const onStdinData = (chunk: Buffer | string) => {
       const data = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
       
-      // Log every input received for debugging
+      // Metadata only: logging the chunk (or its hex dump) recorded every
+      // keystroke — including typed/pasted passwords and API keys — into
+      // ~/.siada-cli/ui-logs/siada-ui.log.
       logger.info('🔥 Process.stdin data received', {
         component: 'KeypressContext',
         operation: 'process_stdin_data',
-        chunk: JSON.stringify(data),
         chunkLength: data.length,
-        hexDump: Array.from(data).map(c => '\\x' + c.charCodeAt(0).toString(16).padStart(2, '0')).join(''),
         containsCtrlC: data.includes('\x03'),
+        containsEscape: data.includes('\x1b'),
       });
       
       dataListener(data);
-    });
+    };
+
+    // Register data event listener
+    process.stdin.on('data', onStdinData);
     
     logger.info('✅ Process.stdin listener registered', {
       component: 'KeypressContext',
@@ -988,7 +983,7 @@ export function KeypressProvider({
       if (kittyEnabled) {
         process.stdout.write('\x1b[<u'); // Pop Kitty keyboard protocol
       }
-      process.stdin.removeListener('data', dataListener);
+      process.stdin.removeListener('data', onStdinData);
       if (wasRaw === false) {
         setRawMode(false);
       }

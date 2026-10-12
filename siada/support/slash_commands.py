@@ -73,7 +73,7 @@ def _looks_like_filepath(slash_input: str) -> bool:
 # right after a fully-typed command name (before the user has typed any
 # argument yet), e.g. "/goal " renders as "/goal [<objective> | clear]" with
 # the hint dimmed. Keys use the same hyphenated command name exposed via
-# get_commands()/matching_commands() (cmd_pre_plan_mode -> "pre-plan-mode"),
+# get_commands()/matching_commands(),
 # i.e. the `cmd_name` built in Controller.show_announcements(). Commands that
 # take no meaningful argument, or only open a picker/UI with no argument, are
 # intentionally omitted (empty hint -> nothing is rendered).
@@ -92,7 +92,6 @@ ARGUMENT_HINTS: dict[str, str] = {
     "restore": "<checkpoint_filename>",
     "resume": "[<index> | <session_id> | latest | --all]",
     "lang": "<en | zh-CN>",
-    "pre-plan-mode": "<true | false>",
     "issue-fix": "<issue_id>",
     "plugin": "[install | remove | enable | disable | validate | marketplace] <args>",
     "export": "[<filename>]",
@@ -380,6 +379,11 @@ class SlashCommands:
         )
         new_messages = ApiMessageTransferFilter._maybe_reinject_goal_reminder(
             context, new_messages,
+        )
+        # Same for the runtime Git snapshot: keep exactly one, freshly
+        # captured copy for the next request (no-op for sessions without one).
+        new_messages = ApiMessageTransferFilter.refresh_git_snapshot_after_manual_compaction(
+            context, real_api_messages, new_messages,
         )
         after_count = len(new_messages)
 
@@ -1306,23 +1310,21 @@ class SlashCommands:
             # Provider resolution for the new model:
             # - If the session currently runs on the user's own provider config
             #   ("default": custom base_url + API key), KEEP it. User-defined
-            #   models (models.json) are defined for that endpoint, and
-            #   re-routing them to the internal "li" proxy breaks the next LLM
-            #   call with LiAuthError ("Not logged in") for users who never
-            #   signed in with Li ID.
+            #   models (models.json) are defined for that endpoint, so
+            #   re-routing them to another provider would send the next LLM
+            #   call to an endpoint the user never configured.
             # - Otherwise use the config-file default provider as the fallback,
             #   NOT the current session's provider. This avoids inheriting a
-            #   force-assigned provider (e.g. "openai_agents" was set because
-            #   the session was running gpt-5.x) when switching to a model that
-            #   belongs to a different provider family (e.g. claude-sonnet-4.6 -> "li").
+            #   force-assigned provider when switching to a model that belongs
+            #   to a different provider family.
             current_provider = session.siada_config.llm_config.provider
             default_provider = ModelRunConfig.get_default_config().provider
             if current_provider == "default":
                 new_llm_config.provider = "default"
             else:
-                # Resolve the new model's provider (handles legacy keys like
-                # "openai_agents" -> "li"), so users don't need to juggle the
-                # provider concept when switching models.
+                # Resolve the new model's provider (including legacy provider
+                # keys), so users don't need to juggle the provider concept
+                # when switching models.
                 new_llm_config.provider = resolve_provider_by_model(model_name, default_provider)
 
             # Carry over the user's session-level /effort and /thinking
@@ -1333,10 +1335,8 @@ class SlashCommands:
             )
             session.siada_config.llm_config = new_llm_config
 
-            # Keep the process-wide provider tracker in sync so the litellm
-            # token-refresh callback (siada.entrypoint) knows whether IDaaS
-            # auth applies to the new provider (skipped for "default",
-            # required for "li").
+            # Keep the process-wide provider tracker in sync with the provider
+            # this switch landed on, for consumers that report it.
             try:
                 from siada.entrypoint import set_current_provider
                 set_current_provider(new_llm_config.provider or "")
@@ -1878,18 +1878,9 @@ class SlashCommands:
     #     return combined_output
 
     def cmd_logout(self, args):
-        "Sign out and clear all stored credentials (LiId token and API key)"
-        try:
-            from siada.internal.services.idaas.auth_store import clear_login_state
-            user_id = clear_login_state()
-        except ImportError:
-            user_id = None
+        "Sign out and remove the stored provider API key"
         from siada.entrypoint.login.login_prompt import clear_api_key_config
-        api_cleared = clear_api_key_config()
-        if user_id:
-            self.io.print_info(f"Signed out from {user_id}.")
-            logger.info(f"[logout] Signed out: {user_id}")
-        elif api_cleared:
+        if clear_api_key_config():
             self.io.print_info("API key configuration removed.")
             logger.info("[logout] API key config cleared")
         else:
@@ -1897,13 +1888,17 @@ class SlashCommands:
         sys.exit()
 
     def cmd_configure(self, session, args):
-        "Reconfigure provider API key or switch login method without restarting"
+        "Reconfigure the provider API key without restarting"
         if not (hasattr(self.io, 'acp_adapter') and self.io.acp_adapter
                 and getattr(getattr(self.io.acp_adapter, 'transport', None), 'is_connected', False)):
             self.io.print_error("This command requires the Siada UI.")
             return
 
-        from siada.entrypoint.login.login_prompt import reconfigure_acp, get_applied_api_key_config
+        from siada.entrypoint.login.login_prompt import (
+            reconfigure_acp,
+            get_applied_api_key_config,
+            _field_text,
+        )
         result = reconfigure_acp(self.io)
 
         if result is None:
@@ -1911,19 +1906,25 @@ class SlashCommands:
 
         if result.startswith("api-key-"):
             from siada.provider.models_dev import get_provider_model_configs
-            from siada.models.model_base_config import set_user_model_settings
             from siada.models.model_run_config import ModelRunConfig
+            from siada.entrypoint.helpers.model_setup import (
+                merge_provider_models_into_user_settings,
+            )
 
             api_cfg = get_applied_api_key_config()
             if not api_cfg:
                 return
-            provider_id = api_cfg.get('provider_id', '')
-            new_model = (api_cfg.get('model') or '').strip()
-            base_url = (api_cfg.get('base_url') or '').strip()
+            # Defensive reads: a wrongly-typed payload field must not crash
+            # /configure; it simply reads as "not provided".
+            provider_id = _field_text(api_cfg.get('provider_id')) or ''
+            new_model = _field_text(api_cfg.get('model')) or ''
+            base_url = _field_text(api_cfg.get('base_url')) or ''
 
             provider_models = get_provider_model_configs(provider_id, new_model, base_url)
             if provider_models:
-                set_user_model_settings(provider_models)
+                # Merge, never replace: an already-loaded models.json keeps its
+                # custom thinking/price fields; only missing models are added.
+                merge_provider_models_into_user_settings(provider_models)
 
             if new_model:
                 new_llm = ModelRunConfig(new_model)
@@ -3437,66 +3438,6 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             self.io.print_info(f"✓ Language switched to {display_name}\nSaved to ~/.siada-cli/conf.yaml, takes effect on next message")
         else:
             self.io.print_warning("Failed to save language setting to conf.yaml")
-
-    def cmd_pre_plan_mode(self, session, args):
-        """Toggle plan mode for tool execution"""
-        try:
-            # Parse arguments
-            arg = args.strip().lower()
-            
-            from siada.config.config_loader import load_conf, save_conf_field
-
-            if not arg:
-                # No argument provided, show current status
-                _conf = load_conf()
-                status = "enabled" if _conf.pre_plan else "disabled"
-                info_lines = [
-                    f"Pre-plan mode is currently: {status}",
-                    "",
-                    "Usage:",
-                    "  /pre-plan-mode true   - Enable pre-plan mode",
-                    "  /pre-plan-mode false  - Disable pre-plan mode"
-                ]
-                self.io.print_info("\n".join(info_lines))
-                return
-
-            # Determine the new state - only support true/false
-            if arg == 'true':
-                new_state = True
-            elif arg == 'false':
-                new_state = False
-            else:
-                self.io.print_error(f"Invalid argument: {arg}")
-                self.io.print_info("Usage: /pre-plan-mode <true|false>")
-                return
-
-            # Get old state
-            old_state = load_conf().pre_plan
-
-            # Save to conf.yaml
-            if save_conf_field('pre_plan', new_state):
-                self.io.print_info("✓ Setting saved globally to ~/.siada-cli/conf.yaml")
-            else:
-                self.io.print_warning("Failed to save global setting")
-            
-            # Display result
-            if old_state == new_state:
-                status = "enabled" if new_state else "disabled"
-                self.io.print_info(f"Plan mode is already {status}")
-            else:
-                status = "enabled" if new_state else "disabled"
-                result_lines = [f"✓ Plan mode {status}"]
-                if new_state:
-                    result_lines.append("Agent will now request approval before executing plan")
-                else:
-                    result_lines.append("Agent will finish plan automatically without approval")
-                self.io.print_info("\n".join(result_lines))
-            
-        except Exception as e:
-            self.io.print_error(f"Failed to toggle pre-plan mode: {str(e)}")
-            if self.verbose:
-                import traceback
-                self.io.print_error(traceback.format_exc())
 
     def cmd_skill_list(self, session, args):
         """List all available skills"""

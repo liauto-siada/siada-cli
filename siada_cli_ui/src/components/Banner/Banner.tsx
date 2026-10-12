@@ -16,7 +16,6 @@ export interface BannerProps {
   agent?: string;
   provider?: string;
   model?: string;
-  prePlanMode?: boolean;
   isCollapsed?: boolean;
   showAgentInfo?: boolean;
   quotaUsage?: string | null;
@@ -28,7 +27,6 @@ export const Banner: React.FC<BannerProps> = ({
   agent = 'coder',
   provider = 'default',
   model,
-  prePlanMode = true,
   isCollapsed = false,
   showAgentInfo = true,
   quotaUsage = null,
@@ -174,11 +172,6 @@ export const Banner: React.FC<BannerProps> = ({
             { text: ', Model: ' },
             { text: model || 'default', color: 'yellow' },
           ];
-
-          if (prePlanMode) {
-            segments.push({ text: '; ' });
-            segments.push({ text: 'pre-plan mode', color: 'green' });
-          }
 
           if (quotaUsage !== null && quotaUsage !== undefined) {
             segments.push({ text: '; Balance: ' });

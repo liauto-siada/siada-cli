@@ -71,9 +71,9 @@ class TestShouldReplayForGLM:
         ctx = _make_context("glm-5.2", item)
         assert should_replay_reasoning_content(ctx) is True
 
-    def test_lpai_glm_52_with_matching_origin(self):
-        item = _make_reasoning_item(provider_data={"model": "lpai-glm-5.2"})
-        ctx = _make_context("lpai-glm-5.2", item)
+    def test_provider_qualified_glm_52_with_matching_origin(self):
+        item = _make_reasoning_item(provider_data={"model": "zhipuai/glm-5.2"})
+        ctx = _make_context("zhipuai/glm-5.2", item)
         assert should_replay_reasoning_content(ctx) is True
 
     def test_glm_with_empty_provider_data_backward_compat(self):
@@ -96,20 +96,20 @@ class TestShouldReplayForQwen:
         ctx = _make_context("qwen-3.8-max", item)
         assert should_replay_reasoning_content(ctx) is True
 
-    def test_kivy_qwen_with_matching_origin(self):
-        item = _make_reasoning_item(provider_data={"model": "kivy-qwen-3.8-max"})
-        ctx = _make_context("kivy-qwen-3.8-max", item)
+    def test_provider_qualified_qwen_with_matching_origin(self):
+        item = _make_reasoning_item(provider_data={"model": "dashscope/qwen3.8-max"})
+        ctx = _make_context("dashscope/qwen3.8-max", item)
         assert should_replay_reasoning_content(ctx) is True
 
-    def test_kivy_qwen_37_with_matching_origin(self):
-        item = _make_reasoning_item(provider_data={"model": "kivy-qwen-3.7-plus"})
-        ctx = _make_context("kivy-qwen-3.7-plus", item)
+    def test_qwen_37_plus_with_matching_origin(self):
+        item = _make_reasoning_item(provider_data={"model": "qwen3.7-plus"})
+        ctx = _make_context("qwen3.7-plus", item)
         assert should_replay_reasoning_content(ctx) is True
 
     def test_qwen_with_empty_provider_data_backward_compat(self):
         """Reasoning items without provider_data (old non-streaming path)."""
         item = _make_reasoning_item(provider_data={})
-        ctx = _make_context("kivy-qwen-3.8-max", item)
+        ctx = _make_context("qwen3.8-max", item)
         assert should_replay_reasoning_content(ctx) is True
 
 
@@ -132,18 +132,18 @@ class TestNoCrossModelContamination:
         assert should_replay_reasoning_content(ctx) is False
 
     def test_qwen_reasoning_not_replayed_to_deepseek(self):
-        item = _make_reasoning_item(provider_data={"model": "kivy-qwen-3.8-max"})
+        item = _make_reasoning_item(provider_data={"model": "qwen3.8-max"})
         ctx = _make_context("deepseek-v4-pro", item)
         assert should_replay_reasoning_content(ctx) is False
 
     def test_qwen_reasoning_not_replayed_to_glm(self):
-        item = _make_reasoning_item(provider_data={"model": "kivy-qwen-3.8-max"})
+        item = _make_reasoning_item(provider_data={"model": "qwen3.8-max"})
         ctx = _make_context("glm-5.2", item)
         assert should_replay_reasoning_content(ctx) is False
 
     def test_glm_reasoning_not_replayed_to_qwen(self):
         item = _make_reasoning_item(provider_data={"model": "glm-5.2"})
-        ctx = _make_context("kivy-qwen-3.8-max", item)
+        ctx = _make_context("qwen3.8-max", item)
         assert should_replay_reasoning_content(ctx) is False
 
 
@@ -237,7 +237,7 @@ class TestItemsToMessagesReplay:
         """Qwen preserve_thinking: reasoning content must be replayed."""
         reasoning_item = _make_reasoning_item(
             "Thinking about the equation.",
-            provider_data={"model": "kivy-qwen-3.8-max"},
+            provider_data={"model": "qwen3.8-max"},
         )
         assistant_output = {
             "id": "msg_fixture_3",
@@ -253,7 +253,7 @@ class TestItemsToMessagesReplay:
         ]
         messages = Converter.items_to_messages(
             items,
-            model="kivy-qwen-3.8-max",
+            model="qwen3.8-max",
             should_replay_reasoning_content=should_replay_reasoning_content,
         )
         assistant_msgs = [m for m in messages if m.get("role") == "assistant"]
@@ -279,7 +279,7 @@ class TestItemsToMessagesReplay:
         ]
         messages = Converter.items_to_messages(
             items,
-            model="kivy-qwen-3.8-max",
+            model="qwen3.8-max",
             should_replay_reasoning_content=should_replay_reasoning_content,
         )
         assistant_msgs = [m for m in messages if m.get("role") == "assistant"]

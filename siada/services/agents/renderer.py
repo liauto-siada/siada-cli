@@ -42,7 +42,7 @@ def render_agents_section(agents: list[UserAgentDefinition]) -> str | None:
         used += len(entry)
 
     return (
-        "AGENT TYPES\n\n"
+        "# AGENT TYPES\n\n"
         f"{AGENTS_INTRO}\n\n"
         "Available agents (name — description):\n"
         + "\n".join(lines)

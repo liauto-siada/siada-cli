@@ -1,5 +1,5 @@
 import agents
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, ClassVar
 
 
@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     
     Manages configuration using pydantic_settings, supports loading from environment variables
     """
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
+
     # Application basic information
     APP_NAME: str = "Siada API"
     APP_VERSION: str = "0.1.0"
@@ -47,11 +49,6 @@ class Settings(BaseSettings):
 
     # Set RunConfig as ClassVar so it won't be included in model validation
     _DEFAULT_RUN_CONFIG: ClassVar[agents.RunConfig] = None
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # ignore unknown env vars, so stale configs cannot break startup after upgrade
 
     class Constants:
         # Agent name

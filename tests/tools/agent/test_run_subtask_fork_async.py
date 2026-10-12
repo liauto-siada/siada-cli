@@ -203,6 +203,8 @@ class TestCloneContextForSubagent(unittest.TestCase):
         parent_ctx = CodeAgentContext(root_dir="/tmp", is_subagent=False)
         clone = _clone_context_for_subagent(parent_ctx)
         self.assertTrue(clone.is_subagent)
+        self.assertFalse(clone.interactive_mode)
+        self.assertTrue(parent_ctx.interactive_mode)
         self.assertEqual(clone.root_dir, "/tmp")
 
     def test_clone_defaults_to_depth_1_with_no_self_id(self):
@@ -218,6 +220,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
             allow_recursive_subagents=True,
         )
         clone = _clone_context_for_subagent(parent_ctx, depth=2, self_id="sa_child")
+        self.assertFalse(clone.interactive_mode)
         self.assertEqual(clone.subagent_depth, 2)
         self.assertEqual(clone.root_session_id, "root-sess-1")
         self.assertTrue(clone.allow_recursive_subagents)
@@ -243,6 +246,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
         )
         clone = _clone_context_for_subagent(parent_ctx, depth=1, self_id="sa_parent")
         self.assertIs(clone.session, fake_session)
+        self.assertFalse(clone.interactive_mode)
 
     def test_clone_does_not_propagate_session_when_recursion_disabled(self):
         # Default (off) path must stay byte-for-byte identical to

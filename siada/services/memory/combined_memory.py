@@ -72,7 +72,7 @@ logger = logging.getLogger(__name__)
 # them.
 _MEMORY_LAYERS_COMMON_RULES = """\
 ====
-Memory Layers — Common Rules
+## Memory Layers — Common Rules
 
 The blocks below are auxiliary context drawn from prior sessions and
 stored facts. When any of them conflicts with the user's current
@@ -85,7 +85,7 @@ instruction, follow the user — they are the authoritative source.
 # model guessing about the content's provenance and authority right after
 # the language instruction. The titled ``====`` wrapper makes the source
 # explicit, consistent with the stored-memory sections below.
-_WORKSPACE_MEMORY_TITLE = "Workspace Memory (SIADA.md / AGENTS.md / CLAUDE.md)"
+_WORKSPACE_MEMORY_TITLE = "Workspace Memory"
 
 
 def _build_inline_memory_section(memory_store: object) -> Optional[str]:
@@ -98,12 +98,12 @@ def _build_inline_memory_section(memory_store: object) -> Optional[str]:
     cohesive unit:
 
         ====
-        Inline Memory
+        ## Inline Memory
 
-        MEMORY (your personal notes)
+        ### MEMORY (your personal notes)
         <entries...>
 
-        USER PROFILE (who the user is)
+        ### USER PROFILE (who the user is)
         <entries...>
 
         <guidance body about how to use these blocks and the memory tool>
@@ -130,7 +130,7 @@ def _build_inline_memory_section(memory_store: object) -> Optional[str]:
     inner_parts.append(MEMORY_GUIDANCE)
 
     body = "\n\n".join(inner_parts)
-    return f"====\nInline Memory\n\n{body}\n===="
+    return f"====\n## Inline Memory\n\n{body}\n===="
 
 
 def build_combined_memory(
@@ -176,14 +176,14 @@ def build_combined_memory(
         # 2. Workspace memory (SIADA.md / AGENTS.md / CLAUDE.md). Wrapped
         #    in a titled ``====`` section so the raw file contents don't
         #    bleed into neighbouring prompt sections without provenance.
-        #    Each file body already carries its own ``# <path>`` heading
+        #    Each file body already carries a ``# Loaded from <path>`` heading
         #    from ``load_siada_memory``, so multi-file workspaces keep
         #    visible boundaries inside the section.
         try:
             from siada.services.siada_memory import load_siada_memory
             user_mem = load_siada_memory(workspace_path)
             if user_mem:
-                parts.append(f"====\n{_WORKSPACE_MEMORY_TITLE}\n\n{user_mem}\n====")
+                parts.append(f"====\n## {_WORKSPACE_MEMORY_TITLE}\n\n{user_mem}\n====")
         except Exception as exc:
             logger.debug("Failed to load user memory: %s", exc)
 

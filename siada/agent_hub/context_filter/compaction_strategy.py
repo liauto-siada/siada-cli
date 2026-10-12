@@ -375,9 +375,7 @@ class CompactionStrategy(ABC):
         return compress_before_index
 
     @staticmethod
-    def try_get_first_user_assistant_pair(
-        messages: List, compress_before_index: int
-    ) -> List:
+    def try_get_first_user_assistant_pair(messages: list) -> list:
         """Get the first user-assistant message pair as a header."""
         first_message = messages[0]
         if len(messages) >= 2 and Converter.maybe_response_output_message(messages[1]):
@@ -461,8 +459,7 @@ class CompactionStrategy(ABC):
         # which strict Chat Completions providers reject (Moonshot:
         # "an assistant message with 'tool_calls' must be followed by tool
         # messages responding to each 'tool_call_id'"). Repair the ordering
-        # before sending; the normal streaming path applies the same repair
-        # in siada/internal/provider/li/li_provider.py.
+        # before sending; the normal streaming path applies the same repair.
         converted_messages = fix_tool_message_ordering(converted_messages)
         compact_messages = converted_messages + [
             {"role": "user", "content": self._get_compaction_user_prompt()}

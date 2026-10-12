@@ -18,11 +18,11 @@ const TOOL_PATTERNS = {
   analyze: /^Analyze definitions in `([^`]+)`/,
   web: /^(?:Crawl the url:|Fetch URL:|Web search:)\s*(.+)/,
   browser: /^> Siada will (.+)/,
-  memory_search: /^Searching memory:\s*(.+)/,
+  memory_search: /^Searching memory(?::\s*([\s\S]*))?$/,
   memory_write: /^Save to memory/,
   fact_store: /^Fact memory(?:\s+(.+))?/,
   fact_feedback: /^Fact feedback(?:\s+(.+))?/,
-  sub_agent: /^Sub-agent task:\s*(.+)/,
+  sub_agent: /^Sub-agent task(?::\s*([\s\S]*))?$/,
   apply_patch: /^Apply patch: (\d+) files? changed/,
 
   lark: /^Send Lark/,
@@ -36,6 +36,8 @@ export interface ParsedToolCall {
   summary: string;
   path?: string;
   details?: string;
+  action?: string;
+  target?: string;
   lineStart?: number;
   lineEnd?: number;
   fileCount?: number;
@@ -61,6 +63,14 @@ export function parseToolCall(content: string): ParsedToolCall | null {
   }
 
   return null;
+}
+
+function parseActionTarget(label: string | undefined): { action?: string; target?: string } {
+  const [action, ...targetParts] = (label || '').split('/');
+  return {
+    action: action.trim() || undefined,
+    target: targetParts.join('/').trim() || undefined,
+  };
 }
 
 /**
@@ -154,7 +164,7 @@ function createParsedResult(
     case 'analyze':
       return {
         type,
-        summary: 'Analyze code',
+        summary: 'Analyze definitions',
         path: match[1],
         details: match[1],
       };
@@ -177,36 +187,67 @@ function createParsedResult(
       return {
         type,
         summary: 'Search memory',
-        details: match[1],
+        details: (match[1] || '').trim(),
       };
 
-    case 'memory_write':
+    case 'memory_write': {
+      const input = fullContent.substring('Save to memory'.length).trim();
+      const parts = input.match(/^\[([^\]]*)\]\s*:?\s*([\s\S]*)$/);
+      const { action, target } = parseActionTarget(parts?.[1]);
       return {
         type,
         summary: 'Save to memory',
-        details: fullContent.substring('Save to memory'.length).trim(),
+        action,
+        target,
+        details: parts ? parts[2]!.trim() : input.replace(/^:\s*/, ''),
       };
+    }
 
-    case 'fact_store':
+    case 'fact_store': {
+      const rawDetails = (match[1] || '').trim();
+      const parts = rawDetails.match(/^\[([^\]]+)\]\s*([\s\S]*)$/);
+      const { action, target } = parseActionTarget(parts?.[1]);
+      let details = parts ? parts[2]!.trim() : rawDetails;
+      let parsedTarget = target || undefined;
+
+      if (!parsedTarget && (action === 'update' || action === 'remove')) {
+        const fact = details.match(/^(#\S+)(?:\s+([\s\S]*))?$/);
+        if (fact) {
+          parsedTarget = fact[1];
+          details = (fact[2] || '').trim();
+        }
+      } else if (!parsedTarget && action === 'list' && details) {
+        parsedTarget = details;
+        details = '';
+      }
+
       return {
         type,
         summary: 'Fact memory',
-        details: (match[1] || '').trim(),
+        action,
+        target: parsedTarget,
+        details,
       };
+    }
 
-    case 'fact_feedback':
+    case 'fact_feedback': {
+      const rawDetails = (match[1] || '').trim();
+      const parts = rawDetails.match(/^(?:(#[^\s:]+)(?:\s+|(?=:|$)))?([A-Za-z][\w-]*)?(?:\s*:\s*([\s\S]*))?$/);
       return {
         type,
         summary: 'Fact feedback',
-        details: (match[1] || '').trim(),
+        target: parts?.[1],
+        action: parts?.[2],
+        details: parts ? (parts[3] || '').trim() : rawDetails,
       };
+    }
 
     case 'sub_agent':
 
       return {
         type,
         summary: 'Sub-agent task',
-        details: match[1],
+        details: (match[1] || '').trim(),
       };
 
     case 'apply_patch':

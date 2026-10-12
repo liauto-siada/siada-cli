@@ -1,15 +1,13 @@
 // Trajectory writer: appends recorded browser-operation events to
-// ~/.siada-cli/workspace/browser_trajectories/YYYY-MM-DD.jsonl.
+// ~/.siada-cli/workspace/browser_trajectories/YYYY-MM-DD.jsonl — one file per
+// day, the on-disk record of the `/ws/trajectory` step events (documented in
+// docs/docs/reference/architecture.md).
 //
-// This is the sole persistence point for raw browser trajectories. The
-// siada-agenthub daemon reads these files directly from disk to run its
-// offline distillation pipeline (atomize -> classify -> bucket -> distill),
-// producing reusable Skills. See design_docs/browser-skill-graph-design.md
-// in the siada-agenthub repo for the full design.
-//
-// Superseded: the old ~/.chrome-acp/trajectories + LEARNING.md "agent
-// manually summarizes pipelines" mechanism has been retired in favor of the
-// automated distillation pipeline above.
+// The same batch received on /ws/trajectory is also forwarded to the tab's
+// agent subprocess over ACP (`_trajectory_event`), which is the path
+// siada-agenthub's browser-skill pipeline consumes
+// (`siada/services/browser_skill/`); this directory is documented as the
+// recording location there (`siada/services/browser_skill/paths.py`).
 
 import { appendFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";

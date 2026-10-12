@@ -14,13 +14,32 @@ Siada CLI incorporates and adapts from the following open source projects. We ar
 
 ### [OpenHands](https://github.com/All-Hands-AI/OpenHands)
 - **License**: MIT
+- **Attribution**: Copyright (c) 2025 OpenHands contributors (as stated in the upstream [LICENSE](https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE)).
 - **Contribution & Modifications**: Quoted the code from its file editing tool and modified its parameters to adapt to the openai-agent-sdk.
 
 ### [Codex](https://github.com/openai/codex)
 - **License**: Apache 2.0
 - **Contribution & Modifications**: Referenced its skills module implementation and adapted it to our own skills system, including the field limits, prompt wording, and the skills list rendering budget and degradation design.
 - **Attribution (from the Codex NOTICE file)**: OpenAI Codex, Copyright 2025 OpenAI.
+- **GPT-5 personality guidance**: adapted `codex-rs/core/templates/personalities/gpt-5.2-codex_pragmatic.md` and `gpt-5.2-codex_friendly.md` at commit `2dbcab90e24bbe3c710ad41ffab7bb372256827b`, changing the identity and tool guidance for Siada. The Apache-2.0 license and Codex attribution above apply.
+- **GPT-6 templates**: the packaged GPT-6 templates (`siada/agent_hub/coder/prompt/models/gpt6/templates/`) are modified versions of Codex's `model_messages.instructions_template` entries in `codex-rs/models-manager/models.json` (source commit `2fdf047c9631c9ed01a31b62efb7891718a931a8`, 2026-10-08; models catalog commit `d63a9b8344cfe58bc78bbe319b560378fc8756ef`, 2026-10-06). They stay under the Apache 2.0 license and the attribution above; the individual modifications are listed in that directory's `README.md`.
 
+### [ZCode](https://github.com/zai-org/ZCode)
+- **License**: Apache 2.0 ([LICENSE](https://github.com/zai-org/ZCode/blob/main/LICENSE); the repository states that its first-party code is Apache-2.0 in [NOTICE.md](https://github.com/zai-org/ZCode/blob/main/NOTICE.md), section "第三方许可与版权声明").
+- **Attribution**: Copyright 2026 Z.AI Co., Ltd, as stated in the LICENSE at commit `29628c9acdb81b703bbd4080c207a0e7ce5e276e`; the Apache-2.0 license text below applies.
+- **Contribution & Modifications**: adapted the identity/harness and communication structure of the public ZCode CLI at commit 29628c9 (`apps/zcode-cli/packages/core/src/context/sections/cli-prefix.ts`, `.../sections/identity.ts` and `.../context/dynamic-sections.ts`) for the GLM-5.2-and-later prompt profile. All wording was rewritten for Siada's tools, permission model and safety rules, and ZCode product identifiers were removed.
+- **Todo reminder**: adapted `apps/zcode-cli/packages/core/src/runtime/helpers/runtime-reminders.ts` at the same commit, changing tool names and the reminder's presentation for Siada.
+
+### [Kimi Code](https://github.com/MoonshotAI/kimi-code)
+- **License**: MIT ([LICENSE](https://github.com/MoonshotAI/kimi-code/blob/main/LICENSE)).
+- **Attribution**: Copyright (c) 2026 Moonshot AI. The MIT permission notice is reproduced below and applies to the adapted template.
+- **Contribution & Modifications**: adapted the system-prompt template structure for the Kimi K3-and-later prompt (`siada/agent_hub/coder/prompt/models/kimi_k3/templates/system.md`); runtime facts and the available tools are adapted to Siada.
+
+### [chrome-acp](https://github.com/Areo-Joe/chrome-acp)
+- **License**: MIT
+- **Attribution**: Copyright (c) 2025 Areo-Joe.
+- **Contribution & Modifications**: Adapted the browser extension and proxy for Siada, including browser tools, recording, remote access, and the activity trace. Its original [license](../chrome-acp/LICENSE) is retained.
+- **Third-party components**: the extension, proxy and PWA bundles ship their own notices and license texts, see [chrome-acp/THIRD_PARTY_NOTICES.md](../chrome-acp/THIRD_PARTY_NOTICES.md).
 
 ## Open Source licenses
 

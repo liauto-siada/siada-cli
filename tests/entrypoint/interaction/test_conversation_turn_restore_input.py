@@ -57,6 +57,24 @@ class TestRestoreUnpersistedInput:
     """Ctrl+C before persistence restores the input to the input box."""
 
     @pytest.mark.asyncio
+    async def test_legacy_question_state_does_not_suppress_interrupt_note(self, tmp_path):
+        """Retired question checkpoints do not change normal interruption."""
+        import json
+
+        turn, sent = _make_turn(history=[{"role": "user", "content": "fix the bug"}])
+        turn.session.session_id = "paused-session"
+        turn.session.openai_session.session_folder = tmp_path
+        legacy_state = {"version": 1, "run_state": {"synthetic": True}, "phase": "waiting"}
+        state_path = tmp_path / "user_input.json"
+        state_path.write_text(json.dumps(legacy_state), encoding="utf-8")
+
+        await turn.handle_interrupt()
+
+        turn.session.openai_session.add_items.assert_called_once()
+        assert not sent
+        assert json.loads(state_path.read_text(encoding="utf-8")) == legacy_state
+
+    @pytest.mark.asyncio
     async def test_restore_when_history_has_no_matching_input(self):
         turn, sent = _make_turn(
             user_input="fix the bug",

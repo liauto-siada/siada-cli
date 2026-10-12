@@ -16,8 +16,7 @@ class ModelSettingsConverter:
     """Converts a ``ModelRunConfig`` into provider-ready ``ModelSettings``.
 
     ALL reasoning-parameter translation lives here; providers forward the
-    result verbatim (``LiModel._fetch_response`` / the SDK's
-    ``LitellmModel._fetch_response``) without further post-processing:
+    result verbatim through the SDK's ``LitellmModel._fetch_response``:
 
     * ``extra_args``  -> top-level litellm kwargs (params the provider
       natively accepts: ``thinking`` / ``output_config`` for anthropic).
@@ -29,8 +28,7 @@ class ModelSettingsConverter:
       for providers that map it natively (Gemini -> thinkingLevel; Claude's
       default effort).
 
-    Wire formats per family (verified against litellm 1.91.0 and the
-    li-mate test gateway):
+    Wire formats per family:
 
     - Effort is the ONLY strength control: token budgets are NEVER emitted.
     - Explicit disable (--no-thinking / ``enable_thinking: false``) is the
@@ -57,9 +55,8 @@ class ModelSettingsConverter:
       ``enable_thinking: true`` only as the "thinking on" signal from
       thinking_tokens. Effort rides ``extra_body.reasoning_effort``. Disable:
       Qwen -> ``enable_thinking: false``; others -> the generic
-      ``thinking: {type: "disabled"}`` (LiProvider translates this into
-      ``enable_thinking: false`` for kivy-* models — an li-gateway-only
-      concern). Temperature stays None whenever reasoning is on.
+      ``thinking: {type: "disabled"}``. Temperature stays None whenever
+      reasoning is on.
     """
 
     @staticmethod
@@ -74,8 +71,7 @@ class ModelSettingsConverter:
 
         if is_claude_model(model_name):
             # Claude's thinking/output_config must ride ``extra_args`` (top-level
-            # litellm kwargs): the "anthropic" provider — used by BOTH the li
-            # gateway and the default provider — does NOT unwrap ``extra_body``,
+            # litellm kwargs): the "anthropic" provider does NOT unwrap ``extra_body``,
             # so a literal "extra_body" key reaches the request body and the
             # gateway rejects it with "Extra inputs are not permitted". See
             # tests/provider/test_claude_param_channel.py.
@@ -148,9 +144,7 @@ class ModelSettingsConverter:
                     # DashScope's native switch; the thinking dict is not.
                     extra_body["enable_thinking"] = False
                 else:
-                    # Generic disable form. (kivy-* models speak
-                    # enable_thinking=false instead — LiProvider translates
-                    # this for them; the default provider never serves kivy.)
+                    # Generic disable form.
                     extra_body["thinking"] = {"type": "disabled"}
             elif effort is not None or thinking_tokens is not None:
                 if is_glm_model(model_name):
@@ -169,8 +163,7 @@ class ModelSettingsConverter:
                     # Qwen: DashScope expects enable_thinking alongside
                     # preserve_thinking (its counterpart of clear_thinking=False).
                     # Others: enable_thinking only as the "thinking on" signal
-                    # from thinking_tokens. (kivy-* gateways default it on their
-                    # own when reasoning params are present.)
+                    # from thinking_tokens.
                     if is_qwen_model(model_name):
                         extra_body["enable_thinking"] = True
                         extra_body["preserve_thinking"] = True
@@ -178,8 +171,6 @@ class ModelSettingsConverter:
                         extra_body["enable_thinking"] = True
                     # Effort rides extra_body: a top-level reasoning_effort kwarg
                     # is dropped by drop_params for these openai-protocol models.
-                    # (Kimi K3+'s "max"-omission is an li-gateway concern and is
-                    # applied in LiProvider, not here.)
                     if effort is not None:
                         extra_body["reasoning_effort"] = effort
 

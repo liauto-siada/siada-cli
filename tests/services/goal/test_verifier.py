@@ -27,7 +27,6 @@ def _make_context():
         root_dir="/workspace",
         combined_memory="memory blob",
         interactive_mode=True,
-        pre_plan=False,
         siadaignore_controller=None,
     )
 

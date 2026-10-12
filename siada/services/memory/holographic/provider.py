@@ -85,7 +85,7 @@ def _resolve_db_path(raw: Optional[str]) -> Path:
 # (e.g. adding "follow rule_memory first") only need a single edit.
 HOLOGRAPHIC_GUIDANCE_TEMPLATE = """\
 ====
-Structured Fact Memory
+## Structured Fact Memory
 
 A structured fact store is also available. It currently holds
 **{fact_count} facts** with named entities (people, projects, tools,

@@ -223,19 +223,27 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--logout",
         action="store_true",
-        help="Sign out and clear stored credentials",
+        help="Sign out and clear the stored provider API key from conf.yaml",
         default=False,
     )
     group.add_argument(
         "--user-id",
         metavar="USER_ID",
-        help="Set the user ID (domain account) and save to conf.yaml",
+        help=(
+            "Deprecated, not supported: this build authenticates with a provider "
+            "API key, not LiId/domain-account credentials. Configure a key via "
+            "--set-env API_KEY=... (with BASE_URL) or the login prompt."
+        ),
         default=None,
     )
     group.add_argument(
         "--access-token",
         metavar="ACCESS_TOKEN",
-        help="Set the access token (siada_api_key) and save to conf.yaml",
+        help=(
+            "Deprecated, not supported: this build authenticates with a provider "
+            "API key, not LiId/domain-account credentials. Configure a key via "
+            "--set-env API_KEY=... (with BASE_URL) or the login prompt."
+        ),
         default=None,
     )
 
@@ -425,41 +433,6 @@ def get_parser(default_config_files, git_root):
         metavar="URL",
         help="Override the BOS base URL used by --browser-setup when downloading artifacts",
         default=None,
-    )
-
-    ##########
-    group = parser.add_argument_group("Headroom proxy integration")
-
-    group.add_argument(
-        "--headroom",
-        action="store_true",
-        default=False,
-        help=(
-            "Enable headroom proxy integration (one-click startup). Starts a "
-            "local `headroom proxy`, waits until it is healthy, routes LLM "
-            "traffic through it, and cleans up on exit."
-        ),
-    )
-
-    group.add_argument(
-        "--no-headroom",
-        action="store_true",
-        default=False,
-        help="Explicitly disable headroom proxy integration (overrides conf.yaml).",
-    )
-
-    group.add_argument(
-        "--headroom-port",
-        type=int,
-        default=None,
-        help="Headroom proxy port (default: 8787 or value from conf.yaml).",
-    )
-
-    group.add_argument(
-        "--headroom-budget",
-        type=float,
-        default=None,
-        help="Headroom USD budget limit (default: from conf.yaml).",
     )
 
     return parser
@@ -654,23 +627,6 @@ class SiadaArgs:
     @property
     def no_daemon(self) -> bool:
         return self._get('no_daemon', False)
-
-    # Headroom proxy integration
-    @property
-    def headroom(self) -> bool:
-        return self._get('headroom', False) or False
-
-    @property
-    def no_headroom(self) -> bool:
-        return self._get('no_headroom', False) or False
-
-    @property
-    def headroom_port(self):
-        return self._get('headroom_port', None)
-
-    @property
-    def headroom_budget(self):
-        return self._get('headroom_budget', None)
 
     # Browser proxy (chrome-acp)
     @property

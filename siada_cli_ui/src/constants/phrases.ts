@@ -53,11 +53,13 @@ export const THINKING_STEPS: Record<ThinkingStep, ThinkingStepInfo> = {
 };
 
 /**
- * Content pattern marking a non-streaming process/system message as context
- * compaction activity (backend compaction notices mention compact/compress,
- * or the Chinese term for compression).
+ * Match the backend's compaction start notice, rather than arbitrary content
+ * that happens to mention compression.
  */
-export const COMPACTION_CONTENT_PATTERN = /compact|compress|压缩/i;
+export const COMPACTION_CONTENT_PATTERN = /^Compacting context\.\.\.$/;
+
+/** Terminal compaction notices let the indicator resume before the next token. */
+export const COMPACTION_COMPLETE_PATTERN = /^(?:Compacted:\s*\d+\s*→\s*\d+\s+messages\s*\(-?\d+\s+removed\)|Nothing to compact \(conversation too short or already compact\)\.|No conversation history to compact\.|Compaction failed:[\s\S]*|Compaction interrupted\.)$/;
 
 /**
  * Shortcut hints shown after the thinking step phrase as "(tips: ...)".

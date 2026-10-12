@@ -12,14 +12,17 @@ Correctness contract, verified by these tests:
    output for GPT-6 must equal the pre-refactor golden snapshots
    (``reasoning_parity_golden_responses.json``).
 
-2. **default path — unchanged for claude/gemini.** The default provider
-   (SDK LitellmModel) must behave identically for Claude and Gemini families
-   (compared against the frozen pre-refactor snapshot
-   ``reasoning_parity_default_before_refactor.json``).
+2. **default path — unchanged for claude/gemini.** Those families keep the
+   retained provider path (SDK LitellmModel) and must behave identically for
+   both, compared against the frozen pre-refactor snapshot
+   ``reasoning_parity_default_before_refactor.json``.
 
 3. **default path — intentional new behavior elsewhere.** For
    deepseek/qwen/glm/kimi the OpenRouter-style ``extra_body.reasoning`` dict
-   is gone; native litellm params are used instead (asserted explicitly).
+   is gone; the public default provider serves those families through the
+   official Chat Completions SDK, so the assertions here run against the final
+   HTTP request body (``capture_default_wire_body``) instead of a LiteLLM
+   kwargs capture.
 
 Regenerating the golden files (from the repo root):
 
@@ -36,12 +39,16 @@ from unittest import mock as unittest_mock
 import litellm
 import pytest
 
+# Local test helper (``tests/provider`` is on sys.path while pytest imports
+# this module); see its docstring for the logging-queue leak it cleans up.
+from _litellm_test_cleanup import drain_litellm_logging
 from reasoning_parity_harness import (
     MODELS,
     RESPONSES_ONLY_MODELS,
     VARIANTS,
     build_settings,
     capture_default,
+    capture_default_wire_body,
     capture_responses,
     is_unreachable,
     make_config,
@@ -125,76 +132,125 @@ def test_default_path_unchanged_for_claude_and_gemini(model: str, variant: str):
 # ---------------------------------------------------------------------------
 # 3. default path: intentional new behavior (OpenRouter format removed)
 # ---------------------------------------------------------------------------
-# The default provider's LitellmModel subclass (KeepExtraBodyReasoningEffortMixin,
-# siada/provider/default/effort_channel.py) does NOT hoist
-# extra_body["reasoning_effort"] into a top-level kwarg — the SDK's hoist
-# would get the kwarg silently DROPPED by litellm's global drop_params=True
-# for openai-protocol models (glm/deepseek/qwen/kimi). The value stays in
-# extra_body and is merged verbatim into the HTTP request body (verified by
-# request capture; see tests below). Claude/Gemini's ModelSettings.reasoning
-# is still hoisted — those providers natively accept the top-level kwarg.
+# The reasoning parameters reach their families through the official Chat
+# Completions transport (siada/provider/default/chat_completions.py): the SDK
+# merges the ModelSettings.extra_body / extra_args channels verbatim into the
+# request body, so there is no litellm drop_params step on this path any more,
+# and no provider-layer post-processing. The assertions below therefore read
+# the FINAL HTTP request body captured at the client's transport boundary
+# (_default_wire_body), not an intermediate kwargs dict. Claude/Gemini keep the
+# retained LiteLLM route and are covered by section 2.
 
-def _default_projection(model: str, variant: str) -> dict:
+def _default_wire_body(model: str, variant: str) -> dict:
+    """Final request body the public default provider sends for (model, variant).
+
+    Everything but the client's transport is real: provider routing, the model
+    object, the SDK's request serialization. Nothing is sent over the network.
+    """
     settings = build_settings(model, variant)
-    kwargs = asyncio.run(capture_default(model, settings))
-    return _reasoning_projection(kwargs)
+    return asyncio.run(capture_default_wire_body(model, settings))
+
+
+def _reasoning_of(body: dict) -> dict:
+    """Reasoning-related fields actually PRESENT in the request body.
+
+    An absent key means the field was never sent: the SDK omits unset
+    parameters instead of serializing ``null`` for them.
+    """
+    keys = (
+        "reasoning_effort", "extra_body", "enable_thinking", "preserve_thinking",
+        "thinking_budget", "thinking", "output_config", "temperature",
+    )
+    return {k: v for k, v in body.items() if k in keys}
+
+
+@pytest.mark.asyncio
+async def test_public_provider_routing_matches_the_capture_paths(monkeypatch):
+    """Which transport each covered family gets, checked against the provider.
+
+    The captures above follow this split (SDK for the Chat Completions
+    families, the retained LiteLLM route for claude/gemini), so the split is
+    pinned on the real provider instead of only in the harness.
+    """
+    import siada.entrypoint
+    from reasoning_parity_harness import uses_litellm_route
+    from siada.provider.default.chat_completions import (
+        DefaultOpenAIChatCompletionsModel,
+    )
+    from siada.provider.default.default_provider import DefaultProvider
+
+    # No global litellm configuration in this test: only routing is under test.
+    monkeypatch.setattr(siada.entrypoint, "_configure_litellm", lambda: None)
+    provider = DefaultProvider()
+    try:
+        for model_name in (
+            "deepseek-v4-flash", "kimi-k3", "glm-5.2", "glm-5.3",
+            "qwen3.7-plus", "qwen3.8-max",
+        ):
+            assert not uses_litellm_route(model_name)
+            model = provider.get_model_with_credentials(
+                model_name, base_url="https://gateway.test/v1", api_key="sk-test"
+            )
+            assert isinstance(model, DefaultOpenAIChatCompletionsModel)
+            # The endpoint's model id is sent verbatim; the override
+            # credentials ride on the SDK client, not on the process env.
+            assert model.model == model_name
+            assert model.api_key == "sk-test"
+
+        for model_name, expected_wire_model in (
+            ("claude-sonnet-5", "anthropic/claude-sonnet-5"),
+            ("gemini-3.5-flash", "gemini/gemini-3.5-flash"),
+        ):
+            assert uses_litellm_route(model_name)
+            model = provider.get_model_with_credentials(
+                model_name, base_url="https://gateway.test/v1", api_key="sk-test"
+            )
+            assert not isinstance(model, DefaultOpenAIChatCompletionsModel)
+            assert model.model == expected_wire_model
+    finally:
+        await provider.aclose()
 
 
 def test_default_deepseek_effort_only_no_switch():
-    # deepseek effort-only: no outer enable_thinking — the gateway defaults
-    # it on its own when reasoning params are present. The effort stays in
-    # extra_body: the SDK subclass does not hoist it, because a top-level
-    # kwarg would be dropped by litellm's drop_params for openai-protocol
-    # models.
-    p = _default_projection("deepseek-v4-flash", "effort_low")
-    assert p == {
-        "reasoning_effort": None,  # SDK always passes the kwarg; None is ignored
-        "extra_body": {"reasoning_effort": "low"},
-        "temperature": None,
-    }
+    # deepseek effort-only: the effort is the whole reasoning signal — the
+    # gateway turns thinking on by itself when reasoning params are present,
+    # so no outer enable_thinking switch, no thinking dict, and no temperature
+    # rides the body.
+    body = _default_wire_body("deepseek-v4-flash", "effort_low")
+    assert _reasoning_of(body) == {"reasoning_effort": "low"}
 
 
 def test_default_kimi_effort_has_no_switch():
-    # Non-qwen models with effort only: no enable_thinking; low/high ride in
-    # extra_body (survives drop_params; a hoisted top-level kwarg would not).
-    p = _default_projection("kimi-k3", "effort_low")
-    assert p == {
-        "reasoning_effort": None,
-        "extra_body": {"reasoning_effort": "low"},
-        "temperature": None,
-    }
+    # Non-qwen models with effort only: no enable_thinking either — the effort
+    # itself is what turns thinking on at the gateway.
+    body = _default_wire_body("kimi-k3", "effort_low")
+    assert _reasoning_of(body) == {"reasoning_effort": "low"}
 
-    p = _default_projection("kimi-k3", "effort_max")
     # The converter always emits the effort (even "max"); the default path
-    # keeps it.
-    assert p == {
-        "reasoning_effort": None,
-        "extra_body": {"reasoning_effort": "max"},
-        "temperature": None,
-    }
+    # keeps it on the wire.
+    body = _default_wire_body("kimi-k3", "effort_max")
+    assert _reasoning_of(body) == {"reasoning_effort": "max"}
 
 
 def test_default_deepseek_tokens_is_enable_only():
     # thinking_tokens no longer emits a budget — it only carries the
     # enable_thinking signal; effort is the sole strength control.
-    p = _default_projection("deepseek-v4-flash", "tokens_2048")
-    assert p["extra_body"] == {"enable_thinking": True}
-    assert "thinking_budget" not in p
+    body = _default_wire_body("deepseek-v4-flash", "tokens_2048")
+    assert _reasoning_of(body) == {"enable_thinking": True}
 
 
 def test_default_deepseek_thinking_off():
     # The GENERIC disable form for openai-protocol models (deepseek/kimi) is
     # the thinking dict.
-    p = _default_projection("deepseek-v4-flash", "thinking_off")
-    assert p["extra_body"] == {"thinking": {"type": "disabled"}}
+    body = _default_wire_body("deepseek-v4-flash", "thinking_off")
+    assert _reasoning_of(body) == {"thinking": {"type": "disabled"}}
 
 
 def test_default_qwen_effort_preserves_thinking():
-    # Qwen preserved thinking: extra_body carries enable_thinking +
-    # preserve_thinking (DashScope contract); the effort also stays in
-    # extra_body (drop_params-safe channel for openai-protocol models).
-    p = _default_projection("qwen3.8-max", "effort_low")
-    assert p["extra_body"] == {
+    # Qwen preserved thinking: the body carries enable_thinking +
+    # preserve_thinking (DashScope contract), plus the effort itself.
+    body = _default_wire_body("qwen3.8-max", "effort_low")
+    assert _reasoning_of(body) == {
         "enable_thinking": True,
         "preserve_thinking": True,
         "reasoning_effort": "low",
@@ -202,43 +258,49 @@ def test_default_qwen_effort_preserves_thinking():
 
 
 def test_default_qwen_tokens_preserves_thinking():
-    p = _default_projection("qwen3.8-max", "tokens_2048")
-    assert p["extra_body"] == {"enable_thinking": True, "preserve_thinking": True}
-    assert "thinking_budget" not in p
+    body = _default_wire_body("qwen3.8-max", "tokens_2048")
+    assert _reasoning_of(body) == {"enable_thinking": True, "preserve_thinking": True}
 
 
-def test_default_kimi_tokens_temperature_none():
-    # When reasoning is on, temperature is always left at None (not sent) —
-    # the Kimi temperature=1.0 rule was removed. And a configured
-    # thinking_tokens only raises enable_thinking, never a budget.
-    p = _default_projection("kimi-k3", "tokens_2048")
-    assert p["extra_body"] == {"enable_thinking": True}
-    assert "thinking_budget" not in p
-    assert p["temperature"] is None
+def test_default_kimi_tokens_temperature_not_sent():
+    # A configured thinking_tokens only raises enable_thinking, never a budget;
+    # and when reasoning is on the temperature is not sent at all (the Kimi
+    # temperature=1.0 rule was removed) — the field is omitted, not nulled.
+    body = _default_wire_body("kimi-k3", "tokens_2048")
+    assert _reasoning_of(body) == {"enable_thinking": True}
+    assert "temperature" not in body
 
 
 def test_default_glm_52_thinking_dict_unchanged():
-    p = _default_projection("glm-5.2", "default")
-    assert p["extra_body"] == {"thinking": {"type": "enabled", "clear_thinking": False}}
+    body = _default_wire_body("glm-5.2", "default")
+    assert _reasoning_of(body) == {
+        "thinking": {"type": "enabled", "clear_thinking": False}
+    }
 
 
-def test_default_glm_53_effort_via_extra_body():
-    p = _default_projection("glm-5.3", "effort_low")
-    assert p["extra_body"]["reasoning_effort"] == "low"
+def test_default_glm_53_effort_reaches_the_body():
+    body = _default_wire_body("glm-5.3", "effort_low")
+    assert body["reasoning_effort"] == "low"
+    assert _reasoning_of(body) == {
+        "thinking": {"type": "enabled", "clear_thinking": False},
+        "reasoning_effort": "low",
+    }
 
 
 def test_default_glm_53_max_effort_omitted():
-    p = _default_projection("glm-5.3", "effort_max")
+    body = _default_wire_body("glm-5.3", "effort_max")
     # "max" effort is omitted (gateway default), but the preserved-thinking
     # dict is still sent.
-    assert p["reasoning_effort"] is None
-    assert p["extra_body"] == {"thinking": {"type": "enabled", "clear_thinking": False}}
+    assert _reasoning_of(body) == {
+        "thinking": {"type": "enabled", "clear_thinking": False}
+    }
+
 
 def _reasoning_projection(kwargs: dict) -> dict:
     """The reasoning-related subset of captured acompletion kwargs."""
     keys = (
-        "reasoning_effort", "extra_body", "enable_thinking", "thinking_budget",
-        "thinking", "output_config", "temperature",
+        "reasoning_effort", "extra_body", "enable_thinking", "preserve_thinking",
+        "thinking_budget", "thinking", "output_config", "temperature",
     )
     return {k: v for k, v in kwargs.items() if k in keys}
 
@@ -605,15 +667,27 @@ def test_responses_disable_beats_effort():
 
 
 def test_responses_effort_none_never_carries_summary():
-    # _normalize_reasoning must NOT attach summary="auto" to effort="none"
+    # _normalize_reasoning must NOT attach a summary to effort="none"
     # (the Responses API rejects that combination), and must strip a summary
     # that a caller supplied alongside.
     from siada.provider.responses.responses_model import _normalize_reasoning
 
     assert _normalize_reasoning({"effort": "none"}) == {"effort": "none"}
     assert _normalize_reasoning({"effort": "none", "summary": "auto"}) == {"effort": "none"}
-    # sanity: regular efforts still get the auto summary
-    assert _normalize_reasoning({"effort": "low"}) == {"effort": "low", "summary": "auto"}
+
+
+def test_responses_reasoning_requests_detailed_summary():
+    from siada.provider.responses.responses_model import _normalize_reasoning
+
+    assert _normalize_reasoning({"effort": "low"}) == {
+        "effort": "low",
+        "summary": "detailed",
+    }
+    # The protocol layer overrides an older or caller-supplied summary mode.
+    assert _normalize_reasoning({"effort": "max", "summary": "auto"}) == {
+        "effort": "max",
+        "summary": "detailed",
+    }
 
 
 def test_gpt6_and_newer_route_to_responses():
@@ -649,23 +723,29 @@ def test_gpt6_converter_uses_responses_branch():
 
 
 # ---------------------------------------------------------------------------
-# 7. Default path: effort must survive litellm's drop_params (HTTP body level)
+# 7. Default path: the reasoning params must reach the FINAL HTTP body
 # ---------------------------------------------------------------------------
-# The kwargs-level parity above cannot catch this: a top-level
-# reasoning_effort kwarg LOOKS fine in captured acompletion kwargs but is
-# silently DROPPED by litellm (drop_params=True, set globally by
-# siada.entrypoint._configure_litellm) for openai-protocol models. Only the
-# final HTTP request body tells the truth — these tests intercept httpx.
+# The kwargs-level parity above cannot prove what the endpoint receives. On the
+# retained LiteLLM route a top-level reasoning_effort kwarg LOOKS fine in
+# captured acompletion kwargs but is silently DROPPED by litellm
+# (drop_params=True, set globally by siada.entrypoint._configure_litellm) for
+# openai-protocol models. Both routes are therefore checked at the request
+# body: the Chat Completions families through the public provider's SDK
+# transport, claude through the retained LiteLLM route.
 
 
-def _capture_default_http_body(litellm_model: str, settings) -> dict | None:
-    """Run the default provider's model class end-to-end and capture the
-    final HTTP request body (past litellm's param dropping)."""
+def _capture_litellm_route_http_body(litellm_model: str, settings) -> dict | None:
+    """Capture the retained LiteLLM route's final HTTP request body.
+
+    That route serves claude / anthropic / gemini in production; the body is
+    captured past litellm's param dropping.
+    """
     import httpx
     from agents.models.interface import ModelTracing
     from siada.provider.default.kimi_tool_ordering import (
         get_kimi_tool_ordering_litellm_model_cls,
     )
+    from siada.provider.default.default_provider import _register_custom_claude_model
 
     captured: list[tuple[str, dict | None]] = []
 
@@ -683,6 +763,9 @@ def _capture_default_http_body(litellm_model: str, settings) -> dict | None:
             "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
         }, request=request)
 
+    # Mirror DefaultProvider's setup for vendor releases newer than LiteLLM's
+    # pinned capability registry; otherwise drop_params removes their reasoning.
+    _register_custom_claude_model(litellm_model)
     model = get_kimi_tool_ordering_litellm_model_cls()(
         model=litellm_model, base_url="http://test.local", api_key="k"
     )
@@ -699,16 +782,26 @@ def _capture_default_http_body(litellm_model: str, settings) -> dict | None:
          unittest_mock.patch.object(litellm, "success_callback", []), \
          unittest_mock.patch.object(litellm, "failure_callback", []), \
          unittest_mock.patch.object(litellm, "callbacks", []):
-        try:
-            asyncio.run(model._fetch_response(
-                "You are a test", [{"role": "user", "content": "hi"}],
-                settings, [], None, [], MagicMock(), ModelTracing.DISABLED,
-                stream=False,
-            ))
-        except Exception:
-            # Response parsing may fail on provider-specific fake payloads;
-            # only the captured request body matters here.
-            pass
+
+        async def _send_and_drain():
+            try:
+                await model._fetch_response(
+                    "You are a test", [{"role": "user", "content": "hi"}],
+                    settings, [], None, [], MagicMock(), ModelTracing.DISABLED,
+                    stream=False,
+                )
+            except Exception:
+                # Response parsing may fail on provider-specific fake payloads;
+                # only the captured request body matters here.
+                pass
+            # LiteLLM hands its success callback to a process-global logging
+            # queue *after* the response comes back; drain that queue inside
+            # this same loop so the coroutine is awaited instead of being
+            # dropped un-awaited when the loop closes
+            # (see tests/provider/_litellm_test_cleanup.py).
+            await drain_litellm_logging()
+
+        asyncio.run(_send_and_drain())
     # Only the model request matters — other real httpx traffic (e.g. the
     # remote model-config fetch) may also be intercepted. The model request is
     # the only one aimed at our stub base_url (note: the anthropic path ends
@@ -717,20 +810,17 @@ def _capture_default_http_body(litellm_model: str, settings) -> dict | None:
     return chat_bodies[-1] if chat_bodies else None
 
 
-def test_default_effort_survives_drop_params_in_http_body():
-    # glm/deepseek/kimi via the openai/deepseek/moonshot providers: a
-    # top-level reasoning_effort kwarg is dropped by drop_params, so the
-    # effort must travel in extra_body and land in the request body.
-    s = build_settings("glm-5.3", "effort_low")
-    body = _capture_default_http_body("openai/glm-5.3", s)
-    assert body is not None
-    assert body.get("reasoning_effort") == "low"
-    assert body.get("thinking") == {"type": "enabled", "clear_thinking": False}
+def test_default_effort_reaches_the_chat_request_body():
+    # glm/kimi ride the official Chat Completions transport: the effort and the
+    # preserved-thinking dict must survive into the JSON body an
+    # OpenAI-compatible endpoint receives (there is no drop_params step on this
+    # path — the fields arrive because no layer removed them).
+    body = _default_wire_body("glm-5.3", "effort_low")
+    assert body["reasoning_effort"] == "low"
+    assert body["thinking"] == {"type": "enabled", "clear_thinking": False}
 
-    s = build_settings("kimi-k3", "effort_low")
-    body = _capture_default_http_body("moonshot/kimi-k3", s)
-    assert body is not None
-    assert body.get("reasoning_effort") == "low"
+    body = _default_wire_body("kimi-k3", "effort_low")
+    assert body["reasoning_effort"] == "low"
 
 
 def test_default_claude_channels_survive_drop_params():
@@ -741,7 +831,7 @@ def test_default_claude_channels_survive_drop_params():
     cfg.reasoning_effort = None  # simulate no explicit effort
     cfg.thinking_tokens = 4096  # thinking on, no effort -> adaptive (DT=-1)
     s = ModelSettingsConverter.convert_model_settings(cfg)
-    body = _capture_default_http_body("anthropic/claude-sonnet-5", s)
+    body = _capture_litellm_route_http_body("anthropic/claude-sonnet-5", s)
     assert body is not None
     assert body.get("thinking") == {"type": "adaptive", "display": "summarized"}
 

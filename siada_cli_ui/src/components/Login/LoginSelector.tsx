@@ -32,7 +32,7 @@ export interface LoginSelectorProps {
   providers?: ProviderInfo[];
   /** When true (reconfigure flow), Esc cancels without error instead of sending 'skip'. */
   cancelable?: boolean;
-  /** When true, hide LiId / Device Code options and only allow API key configuration. */
+  /** Legacy flag retained for compatibility with existing ACP notifications. */
   liidDisabled?: boolean;
   /** When true, temporarily disable input while the selection is being submitted. */
   submitting?: boolean;
@@ -128,8 +128,6 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
 // ── Main options ───────────────────────────────────────────────────────────────
 
 const OPTIONS = [
-  { id: '1' as const, label: 'Sign in with LiId',        description: 'Opens browser automatically' },
-  { id: '2' as const, label: 'Sign in with Device Code', description: 'Print URL — works without a browser' },
   { id: '3' as const, label: 'Configure API Key',        description: 'Use your own API key (kimi, openai, claude...)' },
 ];
 
@@ -145,10 +143,10 @@ type Phase =
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, cancelable, liidDisabled, submitting = false }) => {
+export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, cancelable, submitting = false }) => {
   const effectiveProviders =
     providers && providers.length > 0 ? providers : PROVIDERS_SNAPSHOT;
-  const visibleOptions = liidDisabled ? OPTIONS.filter(option => option.id === '3') : OPTIONS;
+  const visibleOptions = OPTIONS;
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('selecting');
@@ -415,7 +413,7 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         ) : null}
         <Box paddingX={1} marginBottom={1}>
           <Text color="cyan">{'> '}</Text>
-          <Text>{inputBuffer}</Text>
+          <Text>{'•'.repeat(inputBuffer.length)}</Text>
           <Text color="cyan">{'█'}</Text>
         </Box>
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
@@ -433,9 +431,7 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
       </Box>
       <Box paddingX={1} marginBottom={1}>
           <Text dimColor>
-            {liidDisabled
-              ? 'You are not signed in. Please configure an API key to continue:'
-              : 'You are not signed in. Choose a sign-in method:'}
+            You are not signed in. Please configure an API key to continue:
           </Text>
       </Box>
       <Box flexDirection="column" paddingX={1}>

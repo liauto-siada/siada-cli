@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import time
 
 from siada.foundation.context import set_context_var, set_session_id, MODEL_PROVIDER_NAME, LLM_CONFIG, AGENT_NAME
@@ -234,7 +235,7 @@ class SiadaRunner:
 
         Covers: base context, root_dir,
         workspace resources (user_memory / rule_memory / siadaignore),
-        and agent configuration (pre_plan / preferred_language).
+        and agent configuration (preferred_language).
 
         Session binding and checkpoint operations are handled in build_context
         (per-run) and are intentionally excluded here to allow safe caching.
@@ -259,12 +260,11 @@ class SiadaRunner:
             except Exception as e:
                 logging.warning(f"Failed to init SiadaIgnoreController: {e}")
 
-        # Load agent configuration (pre_plan / preferred_language / max_turns) fresh from conf.yaml
+        # Load agent configuration (preferred_language / max_turns) fresh from conf.yaml
         try:
             from siada.config.config_loader import load_conf
             from siada.config.language_config import get_agent_default_language
             _conf = load_conf()
-            context.pre_plan = bool(_conf.pre_plan) if _conf.pre_plan else False
             agent_name = running_session.siada_config.agent_name if running_session else None
             context.preferred_language = _conf.preferred_language or get_agent_default_language(agent_name)
             context.max_turns = _conf.code_agent_config.max_turns
@@ -337,8 +337,7 @@ class SiadaRunner:
                 else:
                     context.holographic_provider = None
         except Exception as e:
-            logging.warning(f"Failed to load conf.yaml for pre_plan/preferred_language: {e}")
-            context.pre_plan = False
+            logging.warning(f"Failed to load conf.yaml for preferred_language: {e}")
             context.memory_store = None
             context.holographic_provider = None
             if running_session:
@@ -404,7 +403,8 @@ class SiadaRunner:
             model=llm_config.model_name,
             model_provider=provider_wrapper,
             model_settings=model_settings,
-            call_model_input_filter=context_capture_filter
+            call_model_input_filter=context_capture_filter,
+            tool_not_found_behavior="return_error_to_model",
         )
 
     @overload
@@ -490,7 +490,6 @@ class SiadaRunner:
         # merged server list never leaks into other sessions' runs, mirroring
         # the fork-agent pattern used in side_question.py.
         if extra_mcp_servers:
-            import copy
             agent = copy.copy(agent)
             agent.mcp_servers = list(getattr(agent, "mcp_servers", None) or []) + list(extra_mcp_servers)
             agent.mcp_config = {"convert_schemas_to_strict": True}
@@ -519,9 +518,8 @@ class SiadaRunner:
         if session and session.spinner:
             session.spinner.start()
 
-        # Ensure the agents-SDK monkey-patches (e.g. soft-handling of
-        # hallucinated tool names) are applied before any turn runs. This is
-        # idempotent — the normal path patches inside the agents-init warmup
+        # Ensure SDK initialization completes before a turn runs. This is
+        # idempotent — the normal path imports inside the agents-init warmup
         # thread; this call is a safety net for entry points that bypass
         # siadahub.py (tests, external scripts).
         try:
@@ -764,7 +762,7 @@ class SiadaRunner:
                 
                 if global_mcp_task:
                     # Gather BOTH global and plugin connections concurrently.
-                    # Cap global MCP init at 8s so a slow server (e.g. li-mate 30s timeout)
+                    # Cap global MCP init at 8s so a slow server
                     # doesn't block the first turn indefinitely.
                     _GLOBAL_MCP_TIMEOUT = 8.0
                     bounded_global = asyncio.ensure_future(

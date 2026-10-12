@@ -13,14 +13,17 @@ import { truncateByLines, truncateByJSONLines } from '../../utils/contentTruncat
 import { MarkdownText } from '../common/MarkdownText.js';
 import { ShellOutput } from '../Shell/ShellOutput.js';
 import { parseToolCall } from '../../utils/toolCallParser.js';
+import { getSemanticToolCallDisplay } from '../../utils/toolCallDisplay.js';
 import { FileChangeSetView } from '../diff/FileChangeSetView.js';
 import { ToolHeading } from './ToolHeading.js';
 import { CommandView, parseCommandContent } from './CommandView.js';
 import { ToolPromptView } from './ToolPromptView.js';
+import { SemanticToolCallView } from './SemanticToolCallView.js';
 import { TodoPlanView } from './TodoPlanView.js';
 import { parseTodoWriteContent } from '../../utils/todoWrite.js';
-import { parseApplyPatchContent, parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
+import { parseApplyPatchContent, parseFileCreateContent, parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
 import { formatElapsedShort } from '../../utils/formatter.js';
+import { THINKING_STEPS } from '../../constants/phrases.js';
 import { getActiveTheme, useThemeVersion } from '../../themes/index.js';
 import { colors } from '../../utils/colors.js';
 
@@ -227,6 +230,28 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   if (isToolUse) {
     // Remove the arrow markers if present
     const cleanContent = safeContent.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
+    if (cleanContent === THINKING_STEPS.compaction.phrase) {
+      return (
+        <Box marginBottom={0}>
+          <ToolHeading parts={[cleanContent]} accent={colors.secondary} />
+        </Box>
+      );
+    }
+    const compactionResult = cleanContent.match(/^Compacted:\s*(\d+)\s*→\s*(\d+)\s+messages\s*\((-?\d+)\s+removed\)$/);
+    if (compactionResult) {
+      return (
+        <Box flexDirection="column" marginBottom={1} paddingLeft={2}>
+          <Text>
+            <Text color={colors.content.secondary}>{'├─ messages: '}</Text>
+            {compactionResult[1]} <Text color={colors.content.secondary}>→</Text> {compactionResult[2]}
+          </Text>
+          <Text>
+            <Text color={colors.content.secondary}>{'└─ removed: '}</Text>
+            {compactionResult[3]}
+          </Text>
+        </Box>
+      );
+    }
     const fullContent = originalContent.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
     const patchInfo = (!isCollapsed || fullContent.startsWith('Apply patch:'))
       ? parseApplyPatchContent(fullContent)
@@ -234,8 +259,13 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     const editInfo = (!isCollapsed || fullContent.startsWith('In the file '))
       ? parseFileEditContent(fullContent)
       : null;
+    const createInfo = parseFileCreateContent(originalContent);
     const editHunks = editInfo?.isComplete
       ? getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString)
+      : [];
+    const createHunks = (message.metadata?.streamEnd || disableTruncation) &&
+        createInfo?.isComplete && createInfo.newString.length > 0
+      ? getSimplePatch(createInfo.filePath, '', createInfo.newString)
       : [];
     // The broad todo_write prefix also matches ordinary "✓ ..." tool notices.
     // Only a formatter snapshot with its progress footer (or an explicit
@@ -257,14 +287,15 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     }
 
     // 🔥 Compact mode: show simplified summary
-    if (isCollapsed && !patchInfo && !editInfo?.isComplete) {
+    if (isCollapsed && !patchInfo && !editInfo?.isComplete && createHunks.length === 0) {
       const parsed = parseToolCall(cleanContent);
       
       if (parsed && parsed.type !== 'apply_patch' && parsed.type !== 'update_file') {
+        const semanticDisplay = getSemanticToolCallDisplay(parsed);
         // Format compact display based on tool type
-        let compactDisplay = '';
+        let compactDisplay = semanticDisplay?.compactSummary || '';
         
-        switch (parsed.type) {
+        if (!semanticDisplay) switch (parsed.type) {
           case 'read_file':
             if (parsed.lineStart !== undefined && parsed.lineEnd !== undefined) {
               compactDisplay = `Read(${parsed.path}:${parsed.lineStart}-${parsed.lineEnd})`;
@@ -345,11 +376,31 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
       );
     }
 
+    if (createInfo && createHunks.length > 0) {
+      return (
+        <Box flexDirection="column" marginBottom={1}>
+          <FileChangeSetView
+            changes={[{ action: 'create', path: createInfo.filePath, hunks: createHunks }]}
+            fileCount={1}
+            width={Math.max(terminalWidth - 2, 8)}
+          />
+        </Box>
+      );
+    }
+
     const parsed = parseToolCall(cleanContent);
+    const semanticDisplay = parsed ? getSemanticToolCallDisplay(parsed) : null;
+    if (semanticDisplay) {
+      return (
+        <Box flexDirection="column" marginBottom={1}>
+          <SemanticToolCallView tool={parsed!} maxRows={disableTruncation ? undefined : dynamicMaxLines} />
+        </Box>
+      );
+    }
     const isCommand = !isCollapsed && (parsed?.type === 'run_command' || parsed?.type === 'run_powershell');
     const commandDisplay = isCommand ? parseCommandContent(cleanContent) : null;
     const isPromptTool = !isCollapsed && parsed && (
-      parsed.type === 'read_file' || parsed.type === 'search' ||
+      parsed.type === 'read_file' || parsed.type === 'view_dir' || parsed.type === 'search' ||
       (parsed.type === 'web' && /^(?:Fetch URL:|Crawl the url:|Web search:)/.test(cleanContent))
     );
     if (isPromptTool) {
@@ -365,7 +416,13 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
         {commandDisplay ? (
           <CommandView content={commandDisplay.body} hiddenLinesCount={hiddenLinesCount} />
         ) : (
-          <Box marginLeft={2} marginRight={2} flexDirection="column" borderStyle="round" borderColor={colors.content.border}>
+          <Box
+            marginLeft={2}
+            marginRight={2}
+            flexDirection="column"
+            borderStyle={parsed?.type === 'create_file' ? undefined : 'round'}
+            borderColor={colors.content.border}
+          >
             {hiddenLinesCount > 0 && (
               <Box paddingLeft={2} paddingRight={2}>
                 <Text color={colors.warning}>

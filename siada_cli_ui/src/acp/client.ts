@@ -95,6 +95,10 @@ export class SiadaACPClient extends EventEmitter {
       this.emit('animation:start');
     });
 
+    this.adapter.on('stream:start', (data: { messageId: string; messageType: string }) => {
+      this.emit('stream:start', data);
+    });
+
     this.adapter.on('stream:aborted', (data: { streamStartId?: string; reason?: string }) => {
       logger.warn('Stream aborted by backend', {
         component: 'Client',
@@ -236,6 +240,7 @@ export class SiadaACPClient extends EventEmitter {
             streamEnd: event.data.streamEnd,
             streamStartId: event.data.metadata?.streamStartId, // Read from correct path
             chunkIndex: event.data.metadata?.chunkIndex,
+            eventType: event.data.metadata?.eventType,
             // Add banner_info fields
             reason: event.data.metadata?.reason,
             type: event.data.metadata?.type,

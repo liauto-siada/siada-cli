@@ -77,7 +77,7 @@ const TestApp: React.FC = () => {
   return (
     <MainLayout
       version="1.6.0"
-      workingDir="/Users/caoxin/test-project"
+      workingDir="/home/user/demo-project"
       agent="coder"
       provider="li"
       model="claude-3-5-sonnet-20241022"

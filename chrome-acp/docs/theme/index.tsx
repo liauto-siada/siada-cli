@@ -136,7 +136,7 @@ export function HomeLayout() {
     }
   }, []);
 
-  const installCommand = `siada-cli --browser-setup /path/to/siada-agenthub/chrome-acp`;
+  const installCommand = `siada-cli --browser-setup /path/to/siada-cli/chrome-acp`;
   const startCommand = `siada-cli --browser-start`;
 
   const handleCopy = async () => {

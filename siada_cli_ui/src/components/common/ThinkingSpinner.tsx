@@ -18,6 +18,8 @@ export interface ThinkingSpinnerProps {
   active?: boolean;
   /** Animation speed in milliseconds */
   interval?: number;
+  /** Fixed color for activity steps with their own semantic accent. */
+  color?: string;
 }
 
 /**
@@ -26,6 +28,7 @@ export interface ThinkingSpinnerProps {
 export const ThinkingSpinner: React.FC<ThinkingSpinnerProps> = ({
   active = true,
   interval = 200, // Increased from 100ms to 200ms to reduce refresh rate
+  color,
 }) => {
   const [frameIndex, setFrameIndex] = useState(0);
 
@@ -48,10 +51,10 @@ export const ThinkingSpinner: React.FC<ThinkingSpinnerProps> = ({
   }
 
   const frame = SPINNER_FRAMES[frameIndex];
-  const color = COLORS[frameIndex % COLORS.length];
+  const displayColor = color ?? COLORS[frameIndex % COLORS.length];
 
   return (
-    <Text color={color} bold>
+    <Text color={displayColor} bold>
       {frame}
     </Text>
   );

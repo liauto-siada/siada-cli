@@ -25,6 +25,7 @@ This skill handles three types of requests:
 - If a built-in slash command exists for the task (e.g. `/model` to switch models), tell the user to use that command.
 - If no slash command applies, tell the user to edit `~/.siada-cli/conf.yaml` directly.
 - **Never tell users to run `config_manager.py`** — that is an internal tool used by siada to make changes on the user's behalf, not a user-facing instruction.
+- If the user asks about a capability this build does not ship (the `headroom` proxy, Lark `relay` mode, LiId/domain sign-in), say plainly that it is not part of this build instead of describing the old behavior.
 
 ### Siada Overview
 
@@ -37,17 +38,24 @@ This skill handles three types of requests:
 
 **Key files:**
 - `~/.siada-cli/conf.yaml` — main configuration (LLM, proactive agent, checkpoints, sub-agents, theme)
-- `~/.siada-cli/model_config.json` — per-model overrides (context window, pricing, vision engine)
+- `~/.siada-cli/models.json` — user-defined model list and pricing (authoritative over the built-in catalog when present)
 - `~/.siada-cli/mcp_config.json` — MCP server configuration
 - `~/.siada-cli/workspace/cron_tasks.json` — scheduled cron tasks
 - `~/.siada-cli/workspace/memory/` — agent memory files
 
 **Daemon commands:**
 ```
-siada-cli --stop-daemon     # stop daemon
-siada-cli --daemon-status   # check if running
+siada-cli --stop-daemon       # stop daemon
+siada-cli --restart-daemon    # stop it and start a fresh one
+siada-cli --daemon-status     # check if running
 ```
 Note: there is no separate start command; the daemon auto-starts when siada is launched.
+
+**What this open-source build supports:**
+- **Sign-in: provider API key only.** `/configure` re-runs the sign-in selector (it needs the Siada UI; cancelling changes nothing) and `/logout` removes the stored provider API key. The legacy `--user-id` / `--access-token` options are deprecated and rejected: they exit with an error pointing at API-key sign-in.
+- **Lark remote control: `direct` mode only** — your own Lark app credentials (`lark.direct.app_id` / `app_secret`). `mode: relay` is a legacy value and fails with a clear error; the relay client is not bundled.
+- **The `headroom` proxy is not bundled.** A legacy `headroom:` section in `conf.yaml` is only tolerated so old files still parse: no proxy starts and the `--headroom*` CLI flags do not exist.
+- **Costs shown are estimates** (CNY per million tokens; USD list prices converted at a fixed snapshot rate). Models defined in `~/.siada-cli/models.json` are authoritative. See `references/features.md` for details.
 
 ---
 
@@ -83,7 +91,7 @@ python {skill_dir}/scripts/config_manager.py set --key <dotted.key> --value <val
 
 ```bash
 # Change LLM model
-python {skill_dir}/scripts/config_manager.py set --key llm_config.model --value claude-3-5-sonnet-20241022
+python {skill_dir}/scripts/config_manager.py set --key llm_config.model --value claude-sonnet-5
 
 # Disable proactive agent
 python {skill_dir}/scripts/config_manager.py set --key proactive.enabled --value false
@@ -147,9 +155,9 @@ python {skill_dir}/scripts/config_manager.py validate
 | `sub_agent.enabled` | bool |
 | `sub_agent.allow_recursive_subagents` | bool |
 | `web.enabled` | bool |
+| `goal.max_turns` | int |
 | `compaction_strategy` | string |
 | `command_timeout` | int |
-| `pre_plan` | bool |
 | `preferred_language` | string |
 | `enable_notification` | bool |
 | `im.verbose.p2p` | bool |
@@ -173,7 +181,7 @@ Some sections (`lark.*`, `sub_agent.llm_config`, `proactive.llm_config`) are obj
 python {skill_dir}/scripts/config_manager.py validate
 ```
 
-2. If the file is missing, tell the user: siada will use built-in defaults, no action needed.
+2. If the file is missing, tell the user: siada uses built-in defaults for everything until they change it, so no action is needed. (The first launch still asks for a provider API key; that sign-in creates a fresh `conf.yaml` with your `llm_config`.)
 
 3. Parse the output and report to the user in plain language:
    - Lines starting with `[OK]` — fine, no need to list all of them unless asked
@@ -193,11 +201,12 @@ python {skill_dir}/scripts/config_manager.py view
 
 Always remind the user:
 
-> Configuration saved. Restart the siada daemon for changes to take effect:
+> Configuration saved. Restart the daemon for changes to take effect:
 > ```
-> siada --stop-daemon
-> siada
+> siada-cli --stop-daemon
+> siada-cli
 > ```
+> (`siada-cli --restart-daemon` does the same in one step.)
 
 A backup of the previous config is automatically saved to `~/.siada-cli/conf.yaml.bak`.
 

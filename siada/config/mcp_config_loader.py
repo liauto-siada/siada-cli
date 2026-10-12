@@ -32,6 +32,9 @@ class MCPConfigLoader:
         Merge strategy (when both exist):
         - mcpServers: merge server definitions, project servers override home servers with same name
         - Other settings: project config overrides home config
+
+        Only JSON configuration sources are loaded here. Plugin connections are
+        owned separately by SiadaRunner.
         """
         try:
             # Determine configuration file path(s)
@@ -50,13 +53,6 @@ class MCPConfigLoader:
                 # Environment variable substitution
                 resolved_config = cls._resolve_env_variables(raw_config)
 
-                # Inject MCP servers from enabled plugins (lowest priority)
-                try:
-                    from siada.services.plugins.mcp_integration import inject_plugin_mcp_servers
-                    resolved_config = inject_plugin_mcp_servers(resolved_config)
-                except Exception as _e:
-                    logger.warning(f"Failed to inject plugin MCP servers: {_e}")
-
                 # Convert to configuration object
                 return cls._convert_to_mcp_config(resolved_config)
             else:
@@ -71,13 +67,6 @@ class MCPConfigLoader:
                 
                 # Environment variable substitution
                 resolved_config = cls._resolve_env_variables(merged_config)
-
-                # Inject MCP servers from enabled plugins (lowest priority)
-                try:
-                    from siada.services.plugins.mcp_integration import inject_plugin_mcp_servers
-                    resolved_config = inject_plugin_mcp_servers(resolved_config)
-                except Exception as _e:
-                    logger.warning(f"Failed to inject plugin MCP servers: {_e}")
 
                 # Convert to configuration object
                 return cls._convert_to_mcp_config(resolved_config)

@@ -17,7 +17,7 @@ from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
 from siada.tools.web import web_search, web_fetch
-from siada.agent_hub.coder.prompt.base.gpt5_instructions import (
+from siada.agent_hub.coder.prompt.selection.model_features import (
     uses_native_patch_file_tools,
 )
 

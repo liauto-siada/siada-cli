@@ -126,7 +126,7 @@ _RELAY_TRANSPORT_NOTIFICATION_TEMPLATES: dict[str, RelayTransportNotificationTem
         ),
         email_mismatch_message=(
             "❌ Siada connection rejected (4005 EMAIL_MISMATCH):\n"
-            "The email in the relay config does not match the IDaaS token identity.\n"
+            "The email in the relay config does not match the authenticated account.\n"
             "Please verify that the email in the relay config matches the currently "
             "logged-in account, then restart Siada-CLI."
         ),
@@ -149,7 +149,7 @@ _RELAY_TRANSPORT_NOTIFICATION_TEMPLATES: dict[str, RelayTransportNotificationTem
         ),
         email_mismatch_message=(
             "❌ Siada connection rejected (4005 EMAIL_MISMATCH):\n"
-            "The email in the relay config does not match the IDaaS token identity.\n"
+            "The email in the relay config does not match the authenticated account.\n"
             "Please verify that the email in the relay config matches the currently "
             "logged-in account, then restart Siada-CLI."
         ),

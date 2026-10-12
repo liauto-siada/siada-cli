@@ -15,53 +15,58 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
 
 **方法1：默认配置**
    - 系统从 `agent_config.yaml` 文件读取默认配置
-   - 当前默认：模型 `claude-sonnet-4.5`，供应商 `li`
+   - 当前默认：模型 `claude-sonnet-5`，供应商 `default`
+   - 首次启动时选择供应商并输入 API Key，所选地址和模型保存在
+     `~/.siada-cli/conf.yaml`。
 
    **方法2：通过配置文件自定义**
    - 普通用户
       - 编辑配置文件 `~/.siada-cli/conf.yaml`
-         ```bash
-         # 1. 在用户主目录下创建配置文件
-         cd ~
-         mkdir -p ~/.siada-cli
-         touch ~/.siada-cli/conf.yaml
-
-         # 2. 配置文件内容示例
+         ```yaml
          llm_config:
-         model: "claude-sonnet-4.5"          # 更改为您想要的模型
-         provider: "li"
+           provider: "default"
+           provider_id: "openai"
+           model: "gpt-4o-mini"  # 使用该地址支持的模型
+           base_url: "https://api.openai.com/v1"
+           api_key: "YOUR_API_KEY"
          ```
    - 开发者模式
       - 编辑 `agent_config.yaml` 文件中的 `llm_config` 部分：
          ```yaml
          llm_config:
-         provider: "li"
-         model_name: "claude-sonnet-4.5"     # 更改为您想要的模型
+           provider: "default"
+           model_name: "claude-sonnet-5"     # 更改为您想要的模型
          ```
 
    **方法3：通过环境变量**
    ```bash
    # 设置模型
-   export SIADA_MODEL="claude-sonnet-4.5"
+   export SIADA_MODEL="gpt-4o-mini"
    
    # 设置供应商
-   export SIADA_PROVIDER="li"
+   export SIADA_PROVIDER="default"
+
+   # 当前终端会话的供应商凭据
+   export BASE_URL="https://api.openai.com/v1"
+   export API_KEY="YOUR_API_KEY"
    ```
 
    **方法4：通过命令行参数（最高优先级）**
    ```bash
    # 仅更改模型（保持供应商不变）
-   siada-cli --model claude-sonnet-4.5
+   siada-cli --model gpt-4o-mini
    
    # 同时更改模型和供应商
-   siada-cli --model gpt-4.1 --provider li
+   siada-cli --model gpt-4o-mini --provider default
    
    # 仅更改供应商（保持模型不变）
-   siada-cli --provider li
+   siada-cli --provider default
    ```
 
    > **重要提醒：**
-   > - **完整优先级**：`命令行参数` > `环境变量(SIADA_前缀)` > `配置文件(agent_config.yaml)`
+   > - 模型和供应商优先级：命令行参数 > `SIADA_MODEL` / `SIADA_PROVIDER` >
+   >   `~/.siada-cli/conf.yaml` > 内置默认值。
+   > - 非空的 `BASE_URL`、`API_KEY` 覆盖对应的已存凭据，两项完整时可直接进入会话。
 
 ### `/goal` 验证轮次上限
 
@@ -98,8 +103,8 @@ agents:
     enabled: true
 
 llm_config:
-  provider: "li"
-  model_name: "claude-sonnet-4.5"
+  provider: "default"
+  model_name: "claude-sonnet-5"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
   repo_verbose: true
@@ -112,7 +117,7 @@ llm_config:
 ```bash
 # Siada 特定设置（使用 SIADA_ 前缀）
 export SIADA_AGENT="coder"
-export SIADA_MODEL="claude-sonnet-4.5"
+export SIADA_MODEL="gpt-4o-mini"
 export SIADA_THEME="dark"
 
 # 在当前终端会话中取消环境变量
@@ -221,6 +226,8 @@ Siada CLI 提供检查点跟踪功能，可以自动保存会话状态，并支�
 
 Siada CLI 集成了 MCP（Model Context Protocol）服务，为 AI 代理提供扩展的工具和资源
 
+MCP 配置加载器仅处理 JSON 配置来源，已安装插件自带的 MCP server 由插件运行时独立加载。
+
 **MCP 配置文件 `~/.siada-cli/mcp_config.json`**
 
    参数说明：
@@ -294,6 +301,25 @@ siada-cli --agent coder
 [AI 响应...]
 ```
 
+### 任务执行与阻碍
+
+Siada 在用户请求的任务范围内执行工具，并遵守工具的权限检查。代码代理通过普通助手消息
+发送进展、结果和阻碍；执行中可补充指令，也可明确要求先审阅计划再执行。
+代码代理没有单独的交互提问工具或规划模式面板。
+
+`run_subtask` 的普通、fork、后台和递归子任务均无人值守执行，无法解决的阻碍汇报给调用方代理。
+
+### ACP 对话中的浏览器上下文
+
+浏览器客户端附带前置 `<browser-context>` 时，ACP 后端将它与用户原始输入分开。
+同时包含页面上下文和 browser-skill 经验建议的回合，会以三个独立 user-role 输入项传给代理：
+包含用户消息的 `<user_input>`、包裹页面上下文的 `<system-reminder>`，
+以及单独包裹经验建议的 `<system-reminder>`。缺少的上下文项不添加，普通输入保留原有形态。
+
+提醒标签仅标记低信任运行时上下文，不表示 system 消息角色，也不扩大授权。
+上下文项随回合保存，但在历史回放中隐藏。`@文件` 扩展只处理用户消息，
+不会将上下文项合并回用户输入。
+
 ## 守护进程与定时任务
 
 ### 守护进程
@@ -366,42 +392,25 @@ siada-cli --check-update       # 启动时检查并提示更新（默认开启�
 
 在 CLI 中，您可以使用斜杠命令来获得额外功能：
 
-- `/shell` - 切换到 shell 模式执行系统命令（输入 `exit` 或 `quit` 退出 shell 模式）
 - `!<命令>` - 在不切换模式的情况下直接执行单条 shell 命令
 - `/model` - 显示模型选择器或切换模型（`/model <model_name>`）
 - `/editor` 或 `/edit` - 打开编辑器进行多行输入
-- `/init [--force]` - 分析项目并创建定制的 siada.md 文件
+- `/init [--force]` - 分析项目并创建定制的 `SIADA.md` 文件
+- `/compact` - 压缩会话上下文；终端在压缩状态下方显示消息数量变化和移除数量。执行中显示压缩状态，结束后恢复模型推理状态。
 - `/restore <checkpoint_file>` - 从检查点文件恢复会话状态（需要启用检查点跟踪）
 - `/undo <checkpoint_file>` - 撤销检查点所做的更改，恢复到检查点创建之前的状态（需要启用检查点跟踪）
 - `/compare <checkpoint_file>` - 将当前状态与检查点文件进行比较以查看差异
-- `/memory-refresh` - 从 siada.md 文件刷新用户内存内容
-- `/memory-status` - 显示当前用户内存状态（文件信息、大小、加载状态）
+- `/context-file-refresh` - 刷新 `SIADA.md` 和 `AGENTS.md` 上下文文件，并显示内容概览
+- `/rule-status` - 显示发现的 `siada_rule.md` 层级文件和相关配置
 - `/status` - 显示当前会话状态（模型、Agent、会话ID和工作空间）
 - `/lang` - 查看当前语言配置
   - `/lang zh` - 切换中文
   - `/lang en` - 切换英文
 - `/exit` - 退出应用程序
 
-### Shell 模式使用说明
+### 执行 Shell 命令
 
-Siada CLI 提供两种方式执行系统命令：
-
-#### 方式一：使用 `/shell` 切换到 shell 模式
-切换到持续的 shell 模式，在此模式下可以连续执行多个系统命令：
-
-```bash
-> /shell
-# 进入 shell 模式后可以执行多个命令
-ls -la
-cd my-project
-npm install
-git status
-# 使用 exit 或 quit 退出 shell 模式
-exit
-```
-
-#### 方式二：使用 `!` 前缀直接执行命令
-在交互模式下直接执行单个系统命令，无需切换模式：
+在提示符中使用 `!` 前缀执行单条系统命令：
 
 ```bash
 > !ls -la
@@ -409,9 +418,7 @@ exit
 > !npm run dev
 ```
 
-两种方式的区别：
-- **`/shell`**：适合需要连续执行多个系统命令的场景，一次切换持续使用
-- **`!<命令>`**：适合偶尔执行单个系统命令的场景，执行完立即返回 AI 对话模式
+命令执行结束后，提示符返回对话模式。用于持续 shell 模式的 `/shell` 命令在当前版本中已停用。
 
 ### 语言配置
 
@@ -441,11 +448,11 @@ exit
 ## 示例
 
 ### 激活虚拟环境（仅开发者模式需要）
-首先，进入 siada-agenthub 项目目录并激活虚拟环境：
+首先，进入 siada-cli 项目目录并激活虚拟环境：
 
 ```bash
 # 进入项目目录
-cd ~/path/to/siada-agenthub
+cd ~/path/to/siada-cli
 
 # 激活虚拟环境（推荐方法）
 source $(poetry env info --path)/bin/activate
@@ -544,5 +551,17 @@ deactivate
 - 检查代理在 `agent_config.yaml` 中是否启用
 - 验证代理类路径是否正确
 - 使用 `--verbose` 标志查看详细输出
+
+**补丁上下文不匹配（`Invalid Context` / `Invalid EOF Context`）：**
+
+原生补丁失败时会返回恢复建议：
+
+- 旧文本及上下文必须匹配当前文件中的完整行，匹配器不会理解 JSON 字段或行内片段。
+- 重新读取目标区域，再按当前原文生成补丁；不要复制阅读输出的行号和截断标记，
+  也不要原样重试失败的补丁。
+- 定位时容忍行首/行尾空白及常见 Unicode 标点或特殊空格差异，保留未修改的原文。
+  字段值变化和不同 JSON 排版不视为等价。
+- 每项原生操作在写入前校验；整批操作不是事务，失败不会回滚已成功的操作，
+  SDK 仍可能尝试后续操作。重试前检查每项结果及当前文件。
 
 有关更详细的故障排除，请检查日志并使用 `--verbose` 标志获取额外的调试信息。

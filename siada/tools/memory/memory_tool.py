@@ -8,7 +8,6 @@ Compatible with OpenClaw's memory search approach.
 import asyncio
 import logging
 import time
-import warnings
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -16,11 +15,7 @@ from agents import function_tool, RunContextWrapper
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.global_cache import get_global_cache, LAST_MEMORY_NAME
 from siada.services.memory import MemorySearch, SearchResult, DEFAULT_CHUNK_SIZE
-
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
-    warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
-    import jieba
+from siada.services.memory.jieba_compat import jieba
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 SESSION_SEARCH_GUIDANCE = (
     "====\n"
-    "Session Search\n"
+    "## Session Search\n"
     "\n"
     "When the user references something from a past conversation or you\n"
     "suspect relevant cross-session context exists, use `search_memory`\n"

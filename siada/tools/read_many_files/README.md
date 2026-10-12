@@ -217,4 +217,4 @@ pytest tests/tools/test_read_many_files_tool.py::TestReadManyFilesTool::test_exe
 
 ## License
 
-This tool is part of the siada-agenthub project.
+This tool is part of the Siada CLI project.

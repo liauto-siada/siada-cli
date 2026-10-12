@@ -210,6 +210,7 @@ def _clone_context_for_subagent(
     return CodeAgentContext(
         root_dir=agent_context.root_dir,
         is_subagent=True,
+        interactive_mode=False,
         subagent_depth=depth,
         root_session_id=agent_context.root_session_id,
         allow_recursive_subagents=agent_context.allow_recursive_subagents,

@@ -15,7 +15,9 @@ def load_im_config(config_path: Optional[Path] = None) -> Optional[dict]:
     """Load lark IM configuration from conf.yaml.
 
     Delegates to config_loader.load_conf() for unified config loading.
-    For relay mode, hardcoded defaults are automatically merged.
+    Environment references are resolved by the shared loader. Missing mode
+    defaults to direct mode in the controller; legacy relay values remain
+    readable so the controller can report an actionable unsupported-mode error.
 
     Args:
         config_path: Path to conf.yaml. Defaults to ~/.siada-cli/conf.yaml.

@@ -3,6 +3,8 @@ Siada Memory Service
 
 Handles loading and managing user memory content from SIADA.md / AGENTS.md / CLAUDE.md files.
 
+When AGENTS.md exists, CLAUDE.md is not loaded from either location.
+
 Near-duplicate files (e.g. a CLAUDE.md whose content was copied into
 SIADA.md) are skipped so duplicated instructions aren't injected twice.
 """
@@ -13,7 +15,7 @@ from typing import List, Optional, Tuple
 
 # Context files recognised as workspace-level memory, in priority order.
 # Entries may be plain filenames or relative paths (e.g. '.claude/CLAUDE.md').
-# All non-empty files are loaded and combined.
+# Non-empty files are combined, except CLAUDE.md when AGENTS.md exists.
 WORKSPACE_MEMORY_FILES = [
     'SIADA.md',
     'AGENTS.md',
@@ -80,13 +82,11 @@ def load_siada_memory(workspace: str) -> Optional[str]:
     """
     Load workspace memory from SIADA.md, AGENTS.md, and/or CLAUDE.md.
 
-    All recognised files are first-class context sources. If multiple exist
-    and are non-empty their contents are combined (SIADA.md first).
-    CLAUDE.md is checked at both the project root and .claude/CLAUDE.md.
+    Non-empty files are combined (SIADA.md first). When AGENTS.md exists,
+    neither the root CLAUDE.md nor .claude/CLAUDE.md is loaded.
 
-    Each file body is prefixed with a ``# <relative path>`` heading so the
-    model can tell where one file ends and the next begins, instead of
-    seeing a bare concatenation of markdown blobs.
+    Each file body is prefixed with a ``# Loaded from <relative path>`` heading
+    to identify its source without repeating the file's own title.
 
     Near-duplicate guard: a file whose body is >=90% similar to any
     already-loaded, higher-priority file is skipped. This covers the
@@ -104,7 +104,10 @@ def load_siada_memory(workspace: str) -> Optional[str]:
     loaded: List[Tuple[str, str]] = []   # (label, body) actually shipped — near-dup reference
     seen_name: set = set()   # deduplicate by basename (e.g. CLAUDE.md wins over .claude/CLAUDE.md)
     seen_real: set = set()   # deduplicate by resolved path (symlink guard)
+    agents_md_present = os.path.isfile(os.path.join(workspace, 'AGENTS.md'))
     for frel in WORKSPACE_MEMORY_FILES:
+        if agents_md_present and os.path.basename(frel) == 'CLAUDE.md':
+            continue
         fpath = os.path.join(workspace, frel)
         name = os.path.basename(fpath)
         if name in seen_name:
@@ -123,8 +126,7 @@ def load_siada_memory(workspace: str) -> Optional[str]:
             with open(fpath, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
             if content:
-                # Prefix each file body with a "# <path>" heading so file
-                # boundaries stay visible in the combined prompt section.
+                # Prefix the source without duplicating a title in the file.
                 # Normalise to forward slashes for a stable label across
                 # platforms (os.path.join yields '\' on Windows).
                 label = frel.replace(os.sep, '/')
@@ -134,7 +136,7 @@ def load_siada_memory(workspace: str) -> Optional[str]:
                 if _find_near_duplicate(content, loaded) is not None:
                     continue
                 loaded.append((label, content))
-                parts.append(f"# {label}\n\n{content}")
+                parts.append(f"# Loaded from {label}\n\n{content}")
         except Exception as e:
             print(f"Warning: Failed to load {frel}: {e}")
     return '\n\n'.join(parts) if parts else None
@@ -173,10 +175,14 @@ def refresh_siada_memory(workspace: str) -> tuple[Optional[str], str]:
     loaded: List[Tuple[str, str]] = []
     seen_name: set = set()
     seen_real: set = set()
+    agents_md_present = os.path.isfile(os.path.join(workspace, 'AGENTS.md'))
     for frel in WORKSPACE_MEMORY_FILES:
         fpath = os.path.join(workspace, frel)
         label = frel
         name = os.path.basename(fpath)
+        if agents_md_present and name == 'CLAUDE.md' and os.path.isfile(fpath):
+            rows.append(f"  ~ {label:<20} (skipped, AGENTS.md present)")
+            continue
         if name in seen_name:
             rows.append(f"  ~ {label:<20} (skipped, {name} already loaded)")
             continue

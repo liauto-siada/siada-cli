@@ -283,3 +283,64 @@ def test_standalone_reminder_message_dropped_even_when_goal_command_is_a_separat
     result = format_native_items_for_display(items)
 
     assert result == [{"role": "user", "content": "/goal ship the feature"}]
+
+
+def test_reminder_with_source_attribute_is_dropped():
+    """The repeated-tool reminder names its source in the opening tag."""
+    items = [
+        {"role": "user", "content": "run the tests"},
+        {
+            "role": "user",
+            "content": (
+                '<system-reminder source="siada.runtime.repeated-tool">\n'
+                "Three completed calls to run_cmd used equivalent arguments.\n"
+                "</system-reminder>"
+            ),
+        },
+    ]
+
+    assert format_native_items_for_display(items) == [
+        {"role": "user", "content": "run the tests"}
+    ]
+
+
+def test_attribute_tag_still_requires_the_matching_closing_spelling():
+    from siada.support.message_classifier import is_hidden_runtime_text
+
+    assert is_hidden_runtime_text('<system-reminder source="x">body</system-reminder>')
+    assert not is_hidden_runtime_text('<system-reminder source="x">body</system_reminder>')
+    assert not is_hidden_runtime_text('please see <system-reminder source="x">body</system-reminder>')
+    assert not is_hidden_runtime_text("<system-reminderx>body</system-reminder>")
+
+
+def test_wrapped_git_snapshot_is_hidden_without_special_case():
+    from siada.services.git_snapshot import GitSnapshot, render_git_snapshot_text
+    from siada.support.message_classifier import is_hidden_runtime_content, is_hidden_runtime_text
+
+    snapshot = render_git_snapshot_text(GitSnapshot(
+        branch="main", head="abc1234", upstream="", ahead=0, behind=0,
+        entries=(), total_changes=0, staged=0, unstaged=0, untracked=0,
+        captured_at="2026-01-02T03:04:05Z",
+    ))
+    assert is_hidden_runtime_text(snapshot)
+    assert is_hidden_runtime_content([{"type": "input_text", "text": snapshot}])
+    items = [{"role": "user", "content": [
+        {"type": "input_text", "text": "fix it"},
+        {"type": "input_text", "text": snapshot},
+    ]}]
+    assert format_native_items_for_display(items) == [{"role": "user", "content": "fix it"}]
+    assert not is_hidden_runtime_text("please explain " + snapshot)
+
+
+def test_hidden_runtime_content_requires_every_part_to_be_hidden():
+    from siada.support.message_classifier import is_hidden_runtime_content
+
+    reminder = "<system-reminder>\nnudge\n</system-reminder>"
+    assert is_hidden_runtime_content(reminder)
+    assert is_hidden_runtime_content([{"type": "input_text", "text": reminder}])
+    assert not is_hidden_runtime_content([
+        {"type": "input_text", "text": "real text"},
+        {"type": "input_text", "text": reminder},
+    ])
+    assert not is_hidden_runtime_content([])
+    assert not is_hidden_runtime_content("real text")

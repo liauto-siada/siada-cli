@@ -3,7 +3,7 @@
 **简体中文 | [English](../../README.md)**
 
 [![PyPI version](https://img.shields.io/pypi/v/siada-cli)](https://pypi.org/project/siada-cli/)
-[![Python Version](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.12%E2%80%933.13-blue)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../../LICENSE)
 
 ![Siada CLI Screenshot](../assets/siada-cli-screenshot-zh.gif)
@@ -12,28 +12,38 @@
 
 Siada CLI 可感知用户的**项目上下文**、**计算机环境**与**跨会话持久记忆**，并支持 Terminal、飞书、ACP 客户端、Web 等多种入口，提供一致、可持续的个性化智能辅助。
 
-> **当前最新版本：v1.7.31**
+> **源码版本：v1.7.32**
 
 ---
 
-## v1.7.31 新特性
+## v1.7.32 新特性
+
+- **终端工具调用摘要** — 文件读取、目录查看、命令和补丁显示简洁的标题、路径及变更计数，展开后可查看详情。
+- **浏览器操作时间线** — Chrome 侧栏将工具操作与受控标签页的实时画面、截图及画面差异结合，可暂停画面、查看此前步骤并继续观察。
+- **更清楚的 ACP 错误提示** — 请求失败时透传具体原因，让终端和浏览器客户端显示有用的错误信息。
+- **按模型选择提示词** — Kimi K3 及后续版本使用基于 Kimi Code 的提示词，GPT-6 使用随包模板，GLM-5.2 及后续版本使用专属提示词及重复工具调用提醒。
+- **当前工作区上下文** — 首次用户请求附带有界 Git 快照，压缩后刷新；工作区记忆优先使用 `AGENTS.md`，不再同时加载 `CLAUDE.md`。
+- **补丁恢复与执行反馈** — 原生补丁失败时返回重新读取和匹配当前文件的建议；终端显示压缩计数及当前执行步骤。
+
+### 延续 v1.7.31 的功能
 
 ### 1. 跨平台扩展与生态兼容
 
-- **真正的跨平台** — 完整支持 **macOS、Linux、Windows**，三端体验一致。不是"POSIX 工具 + 兼容层"：命令执行按平台原生实现（Unix 走 `pexpect` PTY，Windows 自动识别 **PowerShell / cmd**），终端主题探测、系统通知、IPC（Unix socket 与 **命名管道**）、守护进程拉起、`ripgrep` 二进制、Node UI 引导均有各平台专属路径。
+- **按平台集成** — 通过原生命令执行（Unix 走 `pexpect` PTY，Windows 自动识别 **PowerShell / cmd**）、终端主题探测、系统通知、IPC（Unix socket 与 **命名管道**）、守护进程拉起、`ripgrep` 二进制和 Node UI 引导路径支持 **macOS、Linux、Windows**。
 - **原生支持飞书（Lark）Bot** — 内置 Bot 通道，带流式卡片与输入状态提示，无需任何胶水代码即可在聊天中驱动 Siada。参见[远程控制指南](./remote_control_lark_zh.md)。
 - **ACP 原生** — 提供独立的 [Agent Client Protocol](https://agentclientprotocol.com/) 服务（`siada-acp`），可自由接入 Zed、Kiro、vscode-acp 、微信、飞书等任意 ACP 生态客户端。终端、聊天、编辑器、Web 共用同一内核。
 - **Chrome 浏览器插件** — 可直接驱动你已登录的浏览器：读取页面、截图、回放录制好的操作步骤、渲染 PDF，并支持从手机远程接管浏览器，详见 [chrome-acp](../../chrome-acp)。终端界面同时提供 **深色 / 浅色 / 跟随系统** 主题。
 
 ### 2. 把模型性能榨到极致
 
-- **对齐一线水平** — 在 Claude、GPT 系列模型上，真实代码生成与缺陷修复效果与 Claude Code、Codex 等现有编码工具持平。
-- **面向国产/开源模型深度优化** — 针对 **GLM-5.2**、**DeepSeek V4 Flash / Pro**、**Kimi**、**Qwen** 做了专门工程化：多轮工具调用间的 reasoning 内容回放、按模型映射 thinking 参数、按模型设定上下文与 token 预算，以及对快速模型的幻觉工具名与重复调用循环的抑制。
+- **按模型提供编码指导** — 为 Claude、GPT、GLM 和 Kimi 等模型选择对应家族的提示词与工具。
+- **推理与上下文控制** — 多轮工具调用间回放 reasoning 内容，映射支持的 thinking 参数，使用配置的上下文与 token 预算；未知工具调用向模型返回错误，GLM-5.2 及后续版本还会收到重复调用提醒。
+- **可配置的模型端点** — 使用 default 或 OpenRouter provider，并通过[自定义模型配置](./external_model_configuration_zh.md)接入端点。default provider 使用兼容 OpenAI 的 Chat Completions，GPT-5 及后续版本使用 Responses，Claude/Gemini 保留原有路由。
 - **模型列表跟得上你的用法** — `/model` 列表展示每个模型的备注；切换模型时 `/effort`、`/thinking` 等推理设置会被保留，并按新模型支持的可选项自动映射。
 
 ### 3. 长周期执行与自我迭代记忆
 
-- **长周期任务执行** — 自动判定任务复杂度，Spec 驱动的 Research → Plan → Act 流水线，子 Agent 独立上下文编排，配合 Checkpoint 与自动压缩，可在数百步的任务链上保持目标不漂移。
+- **多步骤任务执行** — 结合子 Agent 编排、Checkpoint、可见待办清单、持续目标和自动压缩处理较大的任务。
 - **自我迭代的记忆** — 跨会话持久记忆 + **结构化事实库**（实体抽取、全息 HRR 向量检索、信任度评分、矛盾检测），并有后台复盘与更新流水线。记忆不是只增不减的日志，而是会被打分、纠正与淘汰。
 - **工程化编辑与长任务纪律** — Codex 风格 `apply_patch`、任务中途切换子 Agent、待办提醒，让多步长任务保持目标不漂移。
 
@@ -58,6 +68,7 @@ Siada CLI 可感知用户的**项目上下文**、**计算机环境**与**跨会
 |---|---|
 | 操作系统 | macOS、Linux、Windows |
 | Python | 3.12 – 3.13 |
+| Node.js | 维护中的 LTS 版本（22.12+，推荐 24 LTS），用于终端 UI 和浏览器代理 |
 | GCC | 11+（macOS / Linux） |
 | 包管理器 | [uv](https://github.com/astral-sh/uv) |
 
@@ -99,11 +110,11 @@ uv tool uninstall siada-cli
 
 ## 开发者模式安装
 
-1. **前提条件：** 确保已安装 [Python 3.12+](https://www.python.org/downloads/) 和 [Poetry](https://python-poetry.org/docs/#installation)。
+1. **前提条件：** 安装 [Python 3.12 或 3.13](https://www.python.org/downloads/)、[Poetry](https://python-poetry.org/docs/#installation) 和 [Node.js 24 LTS](https://nodejs.org/)。
 
 2. **克隆并安装：**
    ```bash
-   git clone https://github.com/liauto-siada/siada-cli.git
+   git clone --branch develop https://github.com/liauto-siada/siada-cli.git
    cd siada-cli
    poetry install
    ```
@@ -146,7 +157,7 @@ siada-cli
 
 ### 非交互模式（脚本 / CI 集成）
 ```bash
-siada-cli --no-interactive "修复 src/main.py 中的空指针异常"
+siada-cli --prompt "修复 src/main.py 中的空指针异常"
 ```
 
 ### 飞书（Lark）Bot
@@ -157,10 +168,11 @@ siada-cli --no-interactive "修复 src/main.py 中的空指针异常"
 ```bash
 siada-acp
 ```
-或以 ACP 方式启动内置 UI：
+也可通过以下命令启动同一个 stdio ACP 服务：
 ```bash
 siada-cli --acp
 ```
+运行不带 `--acp` 的 `siada-cli` 可打开终端 UI。
 
 ---
 
@@ -173,7 +185,7 @@ siada-cli --acp
 在关键决策点保存和恢复 Agent 状态，让你对长时任务保持完全掌控。
 
 ### Skills（技能系统）
-以 `SKILL.md` 文件形式定义可复用的指令集和工作流，将其扩展为针对你的领域或团队规范的专用能力。详见 [Skills 文档](../SKILLS.md)。
+以 `SKILL.md` 文件形式定义可复用的指令集和工作流，将其扩展为针对你的领域或团队规范的专用能力。详见 [Skills 文档](./SKILLS_zh.md)。
 
 ### MCP 支持
 通过 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 连接外部工具服务，按需扩展 Siada 的工具集。
@@ -197,7 +209,7 @@ siada-cli --acp
 | 文档 | 说明 |
 |---|---|
 | [用户手册](./USERMANUAL_zh.md) | 完整使用指南、命令参考与配置说明 |
-| [Skills 系统文档](../SKILLS.md) | 创建和管理可复用 AI 技能 |
+| [Skills 系统文档](./SKILLS_zh.md) | 创建和管理可复用 AI 技能 |
 | [外部模型配置](./external_model_configuration_zh.md) | 配置私有/自定义模型端点 |
 | [飞书远程控制](./remote_control_lark_zh.md) | 通过飞书消息控制 Siada |
 | [压缩策略配置](./compaction_configuration_zh.md) | 上下文压缩策略设置 |

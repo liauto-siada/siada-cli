@@ -1,4 +1,4 @@
-"""Kimi/Moonshot tool-message ordering fix for the default (LiteLLM) provider.
+"""Kimi/Moonshot tool-message ordering fix for the legacy LiteLLM path.
 
 Background
 ----------
@@ -30,22 +30,21 @@ Moonshot rejects the whole request with::
 
 Fix
 ---
-The ``li`` provider solves this at the message level by applying
-``LitellmModel._fix_tool_message_ordering`` for kimi/moonshot models
-(``siada/internal/provider/li/li_provider.py::_fetch_response``).  The default
-provider builds requests through the SDK's ``LitellmModel._fetch_response``,
-which applies that fix only for anthropic/claude/gemini models -- so the
-default path needs its own hook *before* the SDK converts items into messages.
+One way to solve this is at the message level, by applying
+``LitellmModel._fix_tool_message_ordering`` for kimi/moonshot models inside
+``_fetch_response``.  The default provider's legacy LiteLLM path builds requests
+through the SDK's ``LitellmModel._fetch_response``, which applies that fix only
+for anthropic/claude/gemini models.  The direct Chat Completions adapter instead
+uses the provider-neutral input-ordering mixin in ``chat_completions.py``.
 
 ``KimiToolOrderingLitellmMixin`` re-pairs items at the *input* level: each
 ``function_call_output`` is moved to directly follow the ``function_call``
 holding the same ``call_id``.  After the SDK's own conversion this yields
-exactly the message list the li provider produces::
+exactly the message list the endpoint requires::
 
     assistant(tool_calls=[A]), tool(A), assistant(text, tool_calls=[B]), tool(B)
 
-(verified by ``tests/provider/test_default_provider_kimi_tool_ordering.py``,
-including a deep-equality check against the li-provider output).
+(verified by ``tests/provider/test_chat_completions_providers.py``).
 
 anthropic/claude/gemini are deliberately *not* handled here: the SDK already
 applies ``_fix_tool_message_ordering`` for them inside ``_fetch_response``.
@@ -54,6 +53,8 @@ applies ``_fix_tool_message_ordering`` for them inside ``_fetch_response``.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+
+from siada.provider.chat_completions import reorder_tool_call_output_items
 
 if TYPE_CHECKING:
     from agents import AgentOutputSchemaBase
@@ -66,63 +67,8 @@ if TYPE_CHECKING:
     from agents.tracing.span_data import GenerationSpanData
 
 # Model-family keywords whose Chat-Completions endpoints require tool outputs
-# to immediately follow the assistant message declaring the tool call.  Keep in
-# sync with the kimi/moonshot entries of the list in
-# siada/internal/provider/li/li_provider.py (_fetch_response).
+# to immediately follow the assistant message declaring the tool call.
 _KIMI_TOOL_ORDERING_MODEL_KEYWORDS: tuple[str, ...] = ("kimi", "moonshot")
-
-
-def _item_field(item: Any, field: str) -> Any:
-    """Read a field from an input item (plain dict/TypedDict or pydantic model)."""
-    if isinstance(item, dict):
-        return item.get(field)
-    return getattr(item, field, None)
-
-
-def reorder_tool_call_output_items(items: list) -> list:
-    """Re-pair ``function_call_output`` items with their ``function_call`` items.
-
-    Moves each ``function_call_output`` so that it directly follows the
-    ``function_call`` item holding the same ``call_id``.  After
-    ``Converter.items_to_messages`` runs on the reordered list, every
-    ``role: "tool"`` message immediately follows the assistant message that
-    declared its ``tool_call_id`` -- the ordering Kimi/Moonshot APIs require.
-
-    Rules:
-    - Returns a new list; neither the input list nor its items are mutated.
-    - Only outputs that appear *after* their call are moved; outputs that
-      precede their call, orphaned outputs (no matching call) and items that
-      are not function calls/outputs keep their original relative order.
-    - If there is nothing to move, the input list is returned as-is.
-    """
-    # call_id -> index of its first function_call_output
-    output_indices: dict[Any, int] = {}
-    for idx, item in enumerate(items):
-        if _item_field(item, "type") == "function_call_output":
-            call_id = _item_field(item, "call_id")
-            if call_id and call_id not in output_indices:
-                output_indices[call_id] = idx
-
-    if not output_indices:
-        return items
-
-    moved: set[int] = set()
-    reordered: list = []
-    for idx, item in enumerate(items):
-        if idx in moved:
-            continue  # already emitted right after its call
-        reordered.append(item)
-        if _item_field(item, "type") == "function_call":
-            call_id = _item_field(item, "call_id")
-            output_idx = output_indices.get(call_id)
-            if (
-                output_idx is not None
-                and output_idx > idx
-                and output_idx not in moved
-            ):
-                reordered.append(items[output_idx])
-                moved.add(output_idx)
-    return reordered
 
 
 class KimiToolOrderingLitellmMixin:
@@ -158,9 +104,8 @@ class KimiToolOrderingLitellmMixin:
 
         For kimi/moonshot models, ``function_call_output`` input items are moved
         to directly follow their ``function_call`` before the SDK converts items
-        into Chat-Completions messages.  This mirrors (item-level) what the li
-        provider does (message-level) with ``_fix_tool_message_ordering``.
-        Everything else is delegated unchanged to ``LitellmModel``.
+        into Chat-Completions messages. Everything else is delegated unchanged
+        to ``LitellmModel``.
         """
         model_lower = self.model.lower()
         if (
@@ -187,13 +132,13 @@ _model_cls_cache: type | None = None
 
 
 def get_kimi_tool_ordering_litellm_model_cls() -> type:
-    """Build (once) and return the ``LitellmModel`` subclass used by DefaultProvider.
+    """Build (once) and return the legacy ``LitellmModel`` subclass.
 
     ``LitellmModel`` lives in a module that imports litellm, which is heavy, so
     the subclass is created lazily and cached: importing this module (and
     ``default_provider.py``) never pulls in litellm.
 
-    Two default-provider customisations are stacked on the SDK class:
+    Two legacy default-provider customisations are stacked on the SDK class:
 
     - ``KimiToolOrderingLitellmMixin``: tool-message ordering fix for
       kimi/moonshot models (see module docstring above).

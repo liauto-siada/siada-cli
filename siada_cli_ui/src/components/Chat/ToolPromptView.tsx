@@ -8,7 +8,7 @@ import { ToolHeading } from './ToolHeading.js';
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
-function wrap(text: string, width: number): string[] {
+export function wrapToolFieldText(text: string, width: number): string[] {
   const rows: string[] = [];
   let row = '';
   let rowWidth = 0;
@@ -96,7 +96,7 @@ function searchFragments(row: SearchFragment[]): React.ReactNode {
   ));
 }
 
-/** Parsed, borderless arguments for read, regex search, fetch, and web search. */
+/** Parsed, borderless arguments for file/directory reads, search, and fetch. */
 export const ToolPromptView: React.FC<{
   tool: ParsedToolCall;
   content: string;
@@ -110,9 +110,12 @@ export const ToolPromptView: React.FC<{
   // WebSearchFormatter emits "Web search: search: <query>"; older history
   // sometimes has only "Web search: <query>".
   const webQuery = isWebSearch ? (tool.details || '').replace(/^search:\s*/, '') : '';
-  const action = tool.type === 'read_file' ? 'Read file' : isFetch ? 'Fetch' : isWebSearch ? 'Web Search' : 'Search';
+  const action = tool.type === 'read_file' ? 'Read file'
+    : tool.type === 'view_dir' ? 'View directory'
+      : isFetch ? 'Fetch' : isWebSearch ? 'Web Search' : 'Search';
   const argument = tool.type === 'read_file' ? tool.path || ''
-    : isFetch ? tool.details || '' : isWebSearch ? webQuery : tool.query || '';
+    : tool.type === 'view_dir' ? tool.path || ''
+      : isFetch ? tool.details || '' : isWebSearch ? webQuery : tool.query || '';
   const lineRange = tool.type === 'read_file' && tool.lineStart !== undefined && tool.lineEnd !== undefined
     ? ` · lines ${tool.lineStart}-${tool.lineEnd}` : '';
   const searchRows = tool.type === 'search' && tool.path ? wrapSearchHeading(
@@ -137,7 +140,7 @@ export const ToolPromptView: React.FC<{
   const visibleSearch = searchRows?.slice(0, shownCount);
   const entries: Array<[string, string]> = tool.type === 'read_file'
     ? tool.cwd ? [['cwd', tool.cwd]] : []
-    : isFetch || isWebSearch
+    : tool.type === 'view_dir' || isFetch || isWebSearch
       ? []
       : ([
           ['file pattern', tool.filePattern || ''],
@@ -152,7 +155,7 @@ export const ToolPromptView: React.FC<{
   const width = Math.max(2, columns - 6);
   const rows = fields.flatMap(([name, value], index) => {
     const branch = index === fields.length - 1 ? '└─ ' : '├─ ';
-    return wrap(`${name}: ${value}`, width).map((line, lineIndex) => ({
+    return wrapToolFieldText(`${name}: ${value}`, width).map((line, lineIndex) => ({
       prefix: lineIndex === 0 ? branch : '   ',
       line,
     }));

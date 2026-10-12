@@ -54,6 +54,29 @@ describe("trajectoryWsUrlFor", () => {
       "wss://proxy.example.com:9443/ws/trajectory",
     );
   });
+
+  test("carries the configured token, like the tool channel", () => {
+    // The trajectory endpoint shares /ws's token gate; a remote proxy refuses
+    // an untokened producer instead of persisting its events.
+    expect(trajectoryWsUrlFor("ws://localhost:9315/ws", "secret-token")).toBe(
+      "ws://localhost:9315/ws/trajectory?token=secret-token",
+    );
+    expect(trajectoryWsUrlFor("wss://192.168.1.5:9315/ws", "abc")).toBe(
+      "wss://192.168.1.5:9315/ws/trajectory?token=abc",
+    );
+  });
+
+  test("keeps a token already embedded in the proxy URL", () => {
+    expect(trajectoryWsUrlFor("ws://localhost:9315/ws?token=from-url")).toBe(
+      "ws://localhost:9315/ws/trajectory?token=from-url",
+    );
+  });
+
+  test("an explicit token wins over one embedded in the proxy URL", () => {
+    expect(
+      trajectoryWsUrlFor("wss://proxy.example.com:9443/ws?token=old", "new"),
+    ).toBe("wss://proxy.example.com:9443/ws/trajectory?token=new");
+  });
 });
 
 describe("flipLoopbackWsScheme", () => {

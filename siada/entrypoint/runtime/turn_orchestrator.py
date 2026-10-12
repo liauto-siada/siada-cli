@@ -1,9 +1,8 @@
 """Turn execution core shared by all controller surfaces.
 
-Step-5 seed of the controller-runtime split (see
-``design_docs/controller-runtime-sequence-analysis.md``): surfaces (terminal
-Controller, IM controllers, ACP runtime) own input transport and rendering;
-this package owns the surface-agnostic turn pipeline.
+Step-5 seed of the controller-runtime split: surfaces (terminal Controller, IM
+controllers, ACP runtime) own input transport and rendering; this package owns
+the surface-agnostic turn pipeline.
 
 The ACP runtime migrates first (``SiadaTurnRunner._stream_turn`` consumes
 ``run_agent_turn``); the terminal and IM surfaces keep their direct

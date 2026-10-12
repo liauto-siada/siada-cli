@@ -15,12 +15,12 @@ unprefixed gateway names), litellm's ``drop_params=True`` (set globally by
 in the provider's supported params, so the top-level kwarg is silently
 DROPPED and the effort never reaches the gateway. Routed via ``extra_body``
 instead, litellm merges the value verbatim into the HTTP request body, where
-it survives (verified by HTTP request capture against litellm 1.91.0 — see
+it survives (verified by HTTP request capture against the pinned LiteLLM — see
 ``tests/provider/test_reasoning_params_parity.py``).
 
 That is exactly why ``ModelSettingsConverter`` puts the effort for those
-families into ``extra_body`` in the first place (mirroring the li provider's
-channel rules). The SDK hoist would undo that choice on the default path.
+families into ``extra_body`` in the first place. The SDK hoist would undo that
+choice on the default path.
 
 Fix
 ---

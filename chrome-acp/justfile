@@ -1,20 +1,44 @@
 # Pack proxy-server as a self-contained tarball for the siada browser addon
-# (dist + public + package.json + production node_modules).
-# IMPORTANT: node_modules must be installed with npm from a clean staging dir —
-# bun's workspace layout symlinks into the repo-root .bun store, so copying
-# the workspace's node_modules drops transitive deps (e.g. pino-std-serializers).
+# (dist + public + package.json + package-lock.json + pinned production
+# node_modules + LICENSE + THIRD_PARTY_NOTICES.md).
+# IMPORTANT: node_modules must be installed with `npm ci` from the committed
+# package-lock.json in a clean staging dir — bun's workspace layout symlinks
+# into the repo-root .bun store, so copying the workspace's node_modules drops
+# transitive deps (e.g. pino-std-serializers) and drifts from the reviewed lock.
+# `--ignore-scripts` is safe here: the only install script in this closure is
+# @parcel/watcher's, which compiles from source only when
+# npm_config_build_from_source=true — the native binding comes from its
+# prebuilt platform optionalDependency (@parcel/watcher-<os>-<arch>).
 # Per-platform because of @parcel/watcher's native optional dependencies.
 pack-proxy:
     #!/usr/bin/env bash
     set -euo pipefail
     VERSION=$(node -p "require('./packages/proxy-server/package.json').version")
     STAGE="release/chrome-acp-proxy-${VERSION}"
-    rm -rf release
-    mkdir -p "${STAGE}"
+    # Only clean the staging dir owned by this recipe — never wipe release/,
+    # which may hold artifacts produced by the other pack recipe.
+    rm -rf "${STAGE}"
+    mkdir -p release "${STAGE}"
+    just build-web
     just build-proxy
-    cp -R packages/proxy-server/dist packages/proxy-server/public packages/proxy-server/package.json "${STAGE}/"
-    (cd "${STAGE}" && npm install --omit=dev --no-audit --no-fund --loglevel=error)
-    tar -czf "release/chrome-acp-proxy-${VERSION}.tar.gz" -C release "chrome-acp-proxy-${VERSION}"
+    # Redistribution contract (siada.browser_addon.installer._PROXY_ITEMS and
+    # the package `files` list): fail loudly instead of shipping a partial set.
+    for required in dist/cli/bin.js public/index.html LICENSE THIRD_PARTY_NOTICES.md package.json package-lock.json; do
+        test -f "packages/proxy-server/${required}" || { echo "❌ missing packages/proxy-server/${required} — run just build-proxy"; exit 1; }
+    done
+    # The generated copies must be the canonical repo-root files.
+    cmp -s LICENSE packages/proxy-server/LICENSE || { echo "❌ packages/proxy-server/LICENSE is stale — run just build-proxy"; exit 1; }
+    cmp -s THIRD_PARTY_NOTICES.md packages/proxy-server/THIRD_PARTY_NOTICES.md || { echo "❌ packages/proxy-server/THIRD_PARTY_NOTICES.md is stale — run just build-proxy"; exit 1; }
+    cp -R packages/proxy-server/dist packages/proxy-server/public "${STAGE}/"
+    cp packages/proxy-server/package.json packages/proxy-server/package-lock.json \
+        packages/proxy-server/LICENSE packages/proxy-server/THIRD_PARTY_NOTICES.md "${STAGE}/"
+    (cd "${STAGE}" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error)
+    # `npm ci` must leave a real production tree, not a symlink into the bun store.
+    test -d "${STAGE}/node_modules" && [ ! -L "${STAGE}/node_modules" ] || { echo "❌ ${STAGE}/node_modules is not a real npm install"; exit 1; }
+    # Smoke-test the staged CLI's full ESM import graph (no server/port start).
+    (cd "${STAGE}" && node dist/cli/bin.js --help > /dev/null)
+    # macOS tar otherwise emits AppleDouble members for filesystem metadata.
+    COPYFILE_DISABLE=1 tar -czf "release/chrome-acp-proxy-${VERSION}.tar.gz" -C release "chrome-acp-proxy-${VERSION}"
     shasum -a 256 "release/chrome-acp-proxy-${VERSION}.tar.gz" > "release/chrome-acp-proxy-${VERSION}.tar.gz.sha256"
     echo "✅ release/chrome-acp-proxy-${VERSION}.tar.gz (+ .sha256)"
 
@@ -25,7 +49,18 @@ pack-extension:
     VERSION=$(node -p "require('./packages/chrome-extension/manifest.json')['version']")
     mkdir -p release
     just build
-    (cd packages/chrome-extension && zip -qr "${OLDPWD}/release/chrome-acp-extension-${VERSION}.zip" manifest.json icons rules dist)
+    # Redistribution contract (siada.browser_addon.installer._EXT_ITEMS): the
+    # build copies the canonical LICENSE + THIRD_PARTY_NOTICES.md next to the
+    # built extension — fail loudly if any item is missing or stale.
+    for required in manifest.json icons rules dist LICENSE THIRD_PARTY_NOTICES.md; do
+        test -e "packages/chrome-extension/${required}" || { echo "❌ missing packages/chrome-extension/${required} — run just build"; exit 1; }
+    done
+    cmp -s LICENSE packages/chrome-extension/LICENSE || { echo "❌ packages/chrome-extension/LICENSE is stale — run just build"; exit 1; }
+    cmp -s THIRD_PARTY_NOTICES.md packages/chrome-extension/THIRD_PARTY_NOTICES.md || { echo "❌ packages/chrome-extension/THIRD_PARTY_NOTICES.md is stale — run just build"; exit 1; }
+    # zip updates an existing archive; remove this recipe's output first so
+    # files deleted from the build cannot survive in the next distribution.
+    rm -f "release/chrome-acp-extension-${VERSION}.zip"
+    (cd packages/chrome-extension && zip -qr "${OLDPWD}/release/chrome-acp-extension-${VERSION}.zip" manifest.json icons rules dist LICENSE THIRD_PARTY_NOTICES.md)
     shasum -a 256 "release/chrome-acp-extension-${VERSION}.zip" > "release/chrome-acp-extension-${VERSION}.zip.sha256"
     echo "✅ release/chrome-acp-extension-${VERSION}.zip (+ .sha256)"
 
@@ -38,8 +73,9 @@ pack: pack-proxy pack-extension
 build:
     bun run build:extension
 
-# Build proxy server
+# Build proxy server without carrying forward stale generated files
 build-proxy:
+    rm -rf packages/proxy-server/dist
     bun run build:proxy
 
 # Build web client (PWA)
@@ -83,9 +119,13 @@ release version:
     echo "📝 Updating packages/proxy-server/package.json..."
     sed_inplace 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' packages/proxy-server/package.json
 
+    # Keep the committed npm lock's root version in sync (no dependency
+    # re-resolution) so `npm ci` in pack-proxy keeps accepting the pair.
+    node -e 'const fs=require("fs");const p="packages/proxy-server/package-lock.json";const v=JSON.parse(fs.readFileSync("packages/proxy-server/package.json","utf8")).version;const l=JSON.parse(fs.readFileSync(p,"utf8"));l.version=v;if(l.packages&&l.packages[""])l.packages[""].version=v;fs.writeFileSync(p,JSON.stringify(l,null,2)+"\n");'
+
     # Commit changes
     echo "📦 Committing version bump..."
-    git add packages/chrome-extension/manifest.json packages/proxy-server/package.json
+    git add packages/chrome-extension/manifest.json packages/proxy-server/package.json packages/proxy-server/package-lock.json
     git commit -m "chore: bump version to $VERSION"
 
     # Create and push tag
@@ -97,7 +137,7 @@ release version:
     git push --tags
 
     echo "✅ Done! GitHub Actions will handle the rest."
-    echo "   Watch: https://github.com/Areo-Joe/chrome-acp/actions"
+    echo "   Watch the Actions page of the configured release repository."
 
 # Release a beta version
 # Usage: just release-beta 1.2.3-beta.1
@@ -128,9 +168,13 @@ release-beta version:
     echo "📝 Updating packages/proxy-server/package.json..."
     sed_inplace 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' packages/proxy-server/package.json
 
+    # Keep the committed npm lock's root version in sync (no dependency
+    # re-resolution) so `npm ci` in pack-proxy keeps accepting the pair.
+    node -e 'const fs=require("fs");const p="packages/proxy-server/package-lock.json";const v=JSON.parse(fs.readFileSync("packages/proxy-server/package.json","utf8")).version;const l=JSON.parse(fs.readFileSync(p,"utf8"));l.version=v;if(l.packages&&l.packages[""])l.packages[""].version=v;fs.writeFileSync(p,JSON.stringify(l,null,2)+"\n");'
+
     # Commit changes
     echo "📦 Committing version bump..."
-    git add packages/proxy-server/package.json
+    git add packages/proxy-server/package.json packages/proxy-server/package-lock.json
     git commit -m "chore: bump version to $VERSION"
 
     # Create and push tag
@@ -143,5 +187,5 @@ release-beta version:
 
     echo "✅ Done! GitHub Actions will handle the rest."
     echo "   Install with: npm install -g @chrome-acp/proxy-server@$VERSION"
-    echo "   Watch: https://github.com/Areo-Joe/chrome-acp/actions"
+    echo "   Watch the Actions page of the configured release repository."
 

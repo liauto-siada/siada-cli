@@ -217,8 +217,8 @@ class ModelRunConfig(ModelBaseConfig):
         try:
             model_config = ModelRunConfig(model_name)
         except ValueError:
-            # agent_config.yaml holds a framework default model (e.g.
-            # kivy-kimi-k3) that may not exist in the currently active model
+            # agent_config.yaml holds a default model that may not exist in the
+            # currently active model
             # settings — this happens when a 'default' provider's model list has
             # replaced the built-in MODEL_SETTING (e.g. on the feishu daemon's
             # 2nd+ message). This baseline is only a seed: callers either override

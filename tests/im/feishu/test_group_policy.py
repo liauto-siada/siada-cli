@@ -112,7 +112,7 @@ class TestGroupPolicyAllowlist:
 
 
 class TestGroupPolicyRelayMode:
-    """Relay mode does not support group chat, should always reject."""
+    """The unavailable relay transport must not bypass local access control."""
 
     def test_relay_always_rejects(self):
         config = {
@@ -141,6 +141,11 @@ class TestGroupPolicyRelayMode:
         config = {}
         ac = LarkAccessControl(config, mode="relay")
         assert ac.check_group_access(_make_msg("oc_any")) is False
+
+    def test_relay_rejects_dm_even_with_open_policy(self):
+        config = {"lark": {"access": {"dm_policy": "open"}}}
+        ac = LarkAccessControl(config, mode="relay")
+        assert ac.check_dm_access(_make_msg("oc_any")) is False
 
 
 class TestGroupPolicyNoConfig:

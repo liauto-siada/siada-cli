@@ -1,11 +1,8 @@
-"""DefaultProvider OpenRouter auto-prefixing.
+"""DefaultProvider OpenRouter model routing.
 
-OpenRouter catalog ids (``vendor/model``) collide with litellm's provider
-routing prefixes: a bare ``anthropic/claude-3.7-sonnet`` would be routed as a
-DIRECT anthropic call (wrong protocol — ``/v1/v1/messages``), and
-``google/gemini-...`` fails outright. When BASE_URL points at OpenRouter,
-DefaultProvider must prefix model ids with ``openrouter/`` so litellm routes
-them through its openrouter provider instead.
+OpenRouter catalog IDs retain their ``vendor/model`` form. Chat-compatible
+models send that ID directly through the official SDK; Claude/Gemini retain
+the LiteLLM exception path and its ``openrouter/`` routing prefix.
 """
 
 from __future__ import annotations
@@ -15,6 +12,7 @@ import json
 import os
 from unittest import mock as unittest_mock
 
+import httpx
 import pytest
 
 
@@ -52,13 +50,7 @@ class TestEnsureOpenrouterPrefix:
 
 
 def _capture_acompletion_kwargs(model_obj, model_settings):
-    """Run _fetch_response with litellm.acompletion mocked; return its kwargs.
-
-    (The real URL/protocol routing against OpenRouter is covered by
-    test_routes_through_openrouter_provider's live verification — see
-    CLAUDE.local.md; here we assert the model/base_url kwargs the default
-    path hands to litellm, without any network or auth interference.)
-    """
+    """Run _fetch_response with litellm.acompletion mocked; return its kwargs."""
     import litellm
     from litellm.types.utils import ModelResponse, Choices, Message
     from agents.models.interface import ModelTracing
@@ -86,7 +78,7 @@ def _capture_acompletion_kwargs(model_obj, model_settings):
     return captured[-1] if captured else None
 
 class TestOpenRouterEndToEnd:
-    """Full DefaultProvider.get_model chain with BASE_URL=OpenRouter."""
+    """OpenRouter Chat models use the catalog model ID with the official SDK."""
 
     @pytest.mark.parametrize("model_name,expected_wire_model", [
         ("anthropic/claude-3.7-sonnet", "anthropic/claude-3.7-sonnet"),
@@ -94,53 +86,95 @@ class TestOpenRouterEndToEnd:
         ("gpt-4o", "openai/gpt-4o"),
         ("openrouter/openai/gpt-4o", "openai/gpt-4o"),
     ])
-    def test_routes_through_openrouter_provider(self, model_name, expected_wire_model):
-        from siada.models.model_run_config import ModelRunConfig
-        from siada.models.model_setting_converter import ModelSettingsConverter
+    def test_routes_through_openrouter_provider(
+        self, model_name, expected_wire_model, monkeypatch
+    ):
+        from agents.models.interface import ModelTracing
+        from agents import ModelSettings
+        from siada.provider.default import chat_completions as chat_module
         from siada.provider.default.default_provider import DefaultProvider
 
-        old = {k: os.environ.get(k) for k in ("BASE_URL", "API_KEY", "DEEPSEEK_API_KEY")}
-        try:
-            os.environ["BASE_URL"] = "https://openrouter.ai/api/v1"
-            os.environ["API_KEY"] = "sk-or-test"
-            os.environ.pop("DEEPSEEK_API_KEY", None)
+        if "claude" in model_name:
+            import siada.entrypoint
 
+            from siada.models.model_run_config import ModelRunConfig
+            from siada.models.model_setting_converter import ModelSettingsConverter
+
+            monkeypatch.setenv("BASE_URL", "https://openrouter.ai/api/v1")
+            monkeypatch.setenv("API_KEY", "sk-or-test")
+            monkeypatch.setattr(siada.entrypoint, "_configure_litellm", lambda: None)
             model = DefaultProvider().get_model(model_name)
             assert model.model.startswith("openrouter/")
-
-            cfg = ModelRunConfig("claude-sonnet-4.6")
-            settings = ModelSettingsConverter.convert_model_settings(cfg)
-            kwargs = _capture_acompletion_kwargs(model, settings)
-            assert kwargs is not None, "acompletion was not called"
-            # litellm receives the openrouter-prefixed model and the
-            # configured base_url; its openrouter provider then strips the
-            # prefix and hits {base_url}/chat/completions with the catalog id
-            # (verified live against openrouter.ai).
-            assert kwargs["model"].startswith("openrouter/")
+            kwargs = _capture_acompletion_kwargs(
+                model, ModelSettingsConverter.convert_model_settings(
+                    ModelRunConfig("claude-sonnet-4.6")
+                )
+            )
+            assert kwargs is not None
             assert kwargs["model"] == f"openrouter/{expected_wire_model}"
             assert kwargs["base_url"] == "https://openrouter.ai/api/v1"
-            # the OpenRouter key must NOT leak into vendor env vars
-            assert os.environ.get("DEEPSEEK_API_KEY") != "sk-or-test"
-        finally:
-            for k, v in old.items():
-                if v is None:
-                    os.environ.pop(k, None)
-                else:
-                    os.environ[k] = v
+            return
 
-    def test_non_openrouter_base_url_untouched(self):
+        requests = []
+
+        def handler(request):
+            requests.append(request)
+            return httpx.Response(
+                200,
+                json={
+                    "id": "chatcmpl-test",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": expected_wire_model,
+                    "choices": [{
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "ok"},
+                        "finish_reason": "stop",
+                    }],
+                },
+                request=request,
+            )
+
+        original_async_openai = chat_module.AsyncOpenAI
+
+        def create_client(**kwargs):
+            return original_async_openai(
+                **kwargs,
+                http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            )
+
+        monkeypatch.setenv("BASE_URL", "https://openrouter.ai/api/v1")
+        monkeypatch.setenv("API_KEY", "sk-or-test")
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+        monkeypatch.setattr(chat_module, "AsyncOpenAI", create_client)
+        provider = DefaultProvider()
+        model = provider.get_model(model_name)
+        asyncio.run(
+            model.get_response(
+                system_instructions=None,
+                input=[{"role": "user", "content": "hi"}],
+                model_settings=ModelSettings(),
+                tools=[],
+                output_schema=None,
+                handoffs=[],
+                tracing=ModelTracing.DISABLED,
+            )
+        )
+        assert len(requests) == 1
+        assert requests[0].url == "https://openrouter.ai/api/v1/chat/completions"
+        body = json.loads(requests[0].content)
+        assert body["model"] == expected_wire_model
+        assert requests[0].headers["authorization"] == "Bearer sk-or-test"
+        assert os.environ.get("DEEPSEEK_API_KEY") != "sk-or-test"
+        asyncio.run(provider.aclose())
+
+    def test_non_openrouter_base_url_untouched(self, monkeypatch):
+        import siada.entrypoint
         from siada.provider.default.default_provider import DefaultProvider
         from siada.provider.default.coverter import covert_to_litellm_model_name
 
-        old = {k: os.environ.get(k) for k in ("BASE_URL", "API_KEY")}
-        try:
-            os.environ["BASE_URL"] = "https://my-gateway.example.com/v1"
-            os.environ["API_KEY"] = "sk-test"
-            model = DefaultProvider().get_model("claude-sonnet-4.6")
-            assert model.model == covert_to_litellm_model_name("claude-sonnet-4.6")
-        finally:
-            for k, v in old.items():
-                if v is None:
-                    os.environ.pop(k, None)
-                else:
-                    os.environ[k] = v
+        monkeypatch.setenv("BASE_URL", "https://my-gateway.example.com/v1")
+        monkeypatch.setenv("API_KEY", "sk-test")
+        monkeypatch.setattr(siada.entrypoint, "_configure_litellm", lambda: None)
+        model = DefaultProvider().get_model("claude-sonnet-4.6")
+        assert model.model == covert_to_litellm_model_name("claude-sonnet-4.6")

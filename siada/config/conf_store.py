@@ -62,10 +62,9 @@ def _warn_once(message: str) -> None:
 
 def _describe_yaml_error(exc: yaml.YAMLError) -> str:
     mark = getattr(exc, "problem_mark", None)
-    problem = getattr(exc, "problem", None)
     if mark is not None:
-        return f"line {mark.line + 1}, column {mark.column + 1}: {problem or exc}"
-    return str(exc)
+        return f"line {mark.line + 1}, column {mark.column + 1}"
+    return "invalid YAML syntax"
 
 
 def read_conf_dict(
@@ -99,8 +98,10 @@ def read_conf_dict(
             f"conf.yaml has a YAML syntax error ({_describe_yaml_error(exc)}) "
             f"in {path}; treating it as empty. Please fix the file."
         )
-    except OSError as exc:
-        return _fail(f"Failed to read {path}: {exc}; treating it as empty.")
+    except (OSError, UnicodeError) as exc:
+        return _fail(
+            f"Failed to read {path}: {type(exc).__name__}; treating it as empty."
+        )
     if data is None:
         return {}
     if not isinstance(data, dict):
@@ -177,7 +178,7 @@ def write_conf_dict(data: Mapping[str, Any], config_path: Optional[Path] = None)
         _atomic_write_text(path, buf.getvalue())
         return True
     except Exception as exc:
-        logger.warning(f"Failed to write {path}: {exc}")
+        logger.warning(f"Failed to write {path}: {type(exc).__name__}")
         return False
 
 
@@ -220,11 +221,10 @@ def update_conf(
         if mark is not None:
             logger.warning(
                 f"Failed to update {path}: YAML syntax error at "
-                f"line {mark.line + 1}, column {mark.column + 1}: "
-                f"{getattr(exc, 'problem', None) or exc}"
+                f"line {mark.line + 1}, column {mark.column + 1}"
             )
         else:
-            logger.warning(f"Failed to update {path}: {exc}")
+            logger.warning(f"Failed to update {path}: {type(exc).__name__}")
         return False
 
 

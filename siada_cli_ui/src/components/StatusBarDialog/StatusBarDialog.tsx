@@ -9,7 +9,7 @@ import { useKeypress } from '../../hooks/useKeypress.js';
 
 // Full 12-item definition: key → label preview
 const STATUSBAR_ITEM_LABELS: Record<string, string> = {
-  model: 'Model: kivy-glm-5.2',
+  model: 'Model: glm-5.2',
   balance: 'Balance: 25.34%',
   input_cost: 'in:¥0.0012(12,345)',
   output_cost: 'out:¥0.0034(6,789)',

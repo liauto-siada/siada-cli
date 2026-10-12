@@ -1,9 +1,8 @@
 """Memory update package: pre-compaction snapshot capture pipeline.
 
-This package implements the design described in
-``design_docs/pre-compaction-memory-update-design.md``: a two-stage
-(sync + async) hook that runs immediately before context compaction,
-so the memory pipeline always sees the unsummarized message stream.
+This package implements a two-stage (sync + async) hook that runs
+immediately before context compaction, so the memory pipeline always sees
+the unsummarized message stream.
 
 Public surface:
     - ``MemoryUpdateTrigger`` / ``PreCompactionTrigger``

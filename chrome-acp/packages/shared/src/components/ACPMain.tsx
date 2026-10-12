@@ -1,10 +1,15 @@
-import { useState, useRef, useCallback } from "react";
-import { FolderOpen, MessageSquare, History } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { FolderOpen, MessageSquare, History, Activity, Play, Square } from "lucide-react";
+import { cn } from "../lib/utils";
 import type { ACPClient } from "../acp/client";
-import type { AgentSessionInfo } from "../acp/types";
+import type { AgentSessionInfo, LiveViewMode } from "../acp/types";
+import { createTraceStore } from "./trace/index.ts";
+import type { TraceRun } from "../trace/types";
 import { ChatInterface } from "./ChatInterface";
 import { FileExplorer } from "./FileExplorer";
 import { ThreadHistory } from "./ThreadHistory";
+import { TraceView } from "./trace/TraceView";
+import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 interface ACPMainProps {
@@ -17,11 +22,33 @@ interface ACPMainProps {
   onSessionActive?: (sessionId: string) => void;
 }
 
-const TAB_ORDER = ["chat", "history", "files"] as const;
+const TAB_ORDER = ["chat", "trace", "history", "files"] as const;
 type TabValue = (typeof TAB_ORDER)[number];
 
 /**
- * Main container component that provides tabs for Chat, History, and File explorer.
+ * The tab the side panel is showing (Chrome extension only; undefined in the
+ * web client). The same lookup ChatInterface uses when it binds a session to a
+ * tab, so both agree on which tab "this" session is looking at.
+ */
+async function currentTabId(): Promise<number | undefined> {
+  try {
+    const chromeApi = (
+      globalThis as {
+        chrome?: { tabs?: { query?: (queryInfo: object) => Promise<{ id?: number }[]> } };
+      }
+    ).chrome;
+    if (!chromeApi?.tabs?.query) return undefined;
+    const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
+    return tabs[0]?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Main container component that provides tabs for Chat, Trace, History, and
+ * File explorer. The Trace tab is the browser-activity viewer: per-step
+ * timings come from the ACP stream, pictures from a pluggable frame source.
  * Reference: Zed's AgentPanel with ThreadHistory integration
  * This component should be rendered after successful connection.
  */
@@ -29,6 +56,83 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
   const [activeTab, setActiveTab] = useState<TabValue>("chat");
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+
+  // Trace store. A run is one turn of one session: it starts when a prompt goes
+  // out and ends on the protocol's terminal events, and the frame source holds
+  // the pictures captured while it ran (see trace/trace-store.ts for the
+  // rules, which are exercised by tests without rendering this component).
+  const trace = useMemo(
+    () =>
+      createTraceStore({
+        model: () => client.modelState?.currentModelId ?? undefined,
+      }),
+    // The model getter closes over the client, so the store is rebuilt with it.
+    [client],
+  );
+  const [run, setRun] = useState<TraceRun>(() => trace.collector.snapshot());
+
+  useEffect(() => trace.collector.subscribe(setRun), [trace]);
+  // attach/detach rather than create/dispose: React runs this effect twice on
+  // mount in StrictMode, and the second attach must not double the streams.
+  useEffect(() => {
+    trace.attach(client);
+    return () => trace.detach();
+  }, [client, trace]);
+
+  // Live view: off until asked for, because streaming attaches a debugger to
+  // the user's tab and that should be a deliberate choice.
+  const [liveState, setLiveState] = useState<{
+    active: boolean;
+    error?: string;
+    mode?: LiveViewMode;
+  }>({ active: false });
+  useEffect(() => client.onScreencastState(setLiveState), [client]);
+  useEffect(
+    () => () => {
+      // Leaving the panel stops streaming; if the socket is already gone there
+      // is nothing left to stop, so this must not throw on the way out.
+      try {
+        client.setScreencast(false);
+      } catch {
+        /* disconnected */
+      }
+    },
+    [client],
+  );
+
+  const toggleLiveView = useCallback(() => {
+    try {
+      client.setScreencast(!liveState.active);
+    } catch (error) {
+      // Say why the toggle did nothing instead of throwing out of the handler.
+      setLiveState({
+        active: false,
+        error: error instanceof Error ? error.message : "live view is unavailable",
+      });
+    }
+  }, [client, liveState.active]);
+
+  // A new session means a new run: otherwise steps and pictures from the
+  // previous session would keep accumulating into one timeline.
+  const handleSessionActiveInternal = useCallback(
+    (sessionId: string) => {
+      trace.setSession(sessionId);
+      // The tab binding is resolved from Chrome (undefined in the web client);
+      // until it is known, pictures are accepted on their own evidence.
+      void currentTabId().then((tabId) => trace.setTab(tabId));
+      onSessionActive?.(sessionId);
+    },
+    [trace, onSessionActive],
+  );
+
+  // The only page-change evidence the viewer produces: the verdict of an
+  // actual pixel comparison of a step's own before/after pair.
+  const handlePageChange = useCallback(
+    (correlationId: string, changed: boolean) => {
+      trace.collector.reportPageChange(correlationId, changed);
+    },
+    [trace],
+  );
 
   // Handle session selection from history
   // Reference: Zed's connection_view.rs line 616-631
@@ -110,6 +214,10 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
           <MessageSquare className="h-4 w-4" />
           <span>Chat</span>
         </TabsTrigger>
+        <TabsTrigger value="trace" className="gap-1.5">
+          <Activity className="h-4 w-4" />
+          <span>Trace</span>
+        </TabsTrigger>
         <TabsTrigger value="history" className="gap-1.5">
           <History className="h-4 w-4" />
           <span>History</span>
@@ -126,7 +234,50 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
         onTouchEnd={handleTouchEnd}
       >
         <TabsContent value="chat" forceMount className="w-full h-full m-0 max-w-2xl mx-auto">
-          <ChatInterface client={client} initialSession={initialSession} onSessionActive={onSessionActive} />
+          <ChatInterface client={client} initialSession={initialSession} onSessionActive={handleSessionActiveInternal} />
+        </TabsContent>
+
+        <TabsContent value="trace" forceMount className="w-full h-full m-0 flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 border-b px-3 py-1.5">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Browser activity
+            </span>
+            <span
+              className={cn(
+                "ml-auto truncate text-[11px]",
+                liveState.error ? "text-amber-600" : "text-muted-foreground",
+              )}
+            >
+              {liveState.error
+                ? liveState.error
+                : liveState.active
+                  ? liveState.mode === "screenshots"
+                    ? "live · polling"
+                    : "live"
+                  : "snapshots only"}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant={liveState.active ? "secondary" : "outline"}
+              className="h-6 gap-1 px-2 text-[11px]"
+              onClick={toggleLiveView}
+            >
+              {liveState.active ? (
+                <Square className="size-3" />
+              ) : (
+                <Play className="size-3" />
+              )}
+              {liveState.active ? "Stop live" : "Go live"}
+            </Button>
+          </div>
+          <TraceView
+            run={run}
+            frameSource={trace.frames}
+            className="min-h-0 flex-1"
+            onPageChange={handlePageChange}
+            placeholder="Frames appear here as the agent acts. Timings come from the trace, not from the picture."
+          />
         </TabsContent>
 
         <TabsContent value="history" forceMount className="flex flex-col h-full m-0 max-w-2xl mx-auto w-full">

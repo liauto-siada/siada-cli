@@ -7,7 +7,7 @@ metadata:
 
 # Skill Creator
 
-This skill helps you create new skills for siada-agenthub.
+This skill helps you create new skills for Siada CLI.
 
 ## Workflow
 

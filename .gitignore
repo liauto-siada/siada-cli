@@ -46,6 +46,7 @@ node_modules/
 bundle/*
 !siada_cli_ui/bundle/
 !siada_cli_ui/bundle/siada-ui.js
+siada_cli_ui/bundle/esbuild-meta.json
 
 # ── JSON build artefacts (with explicit overrides) ────────────────────────────
 benchmark/**/*.json
@@ -61,6 +62,7 @@ benchmark_bp
 screenshots/
 *.ipynb
 *.txt
+!siada_cli_ui/bundle/siada-ui.LEGAL.txt
 patch_analysis_summary.txt
 
 # ── Internal test scripts (not for open-source distribution) ─────────────────

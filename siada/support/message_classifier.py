@@ -11,6 +11,9 @@ _SYSTEM_REMINDER_WRAPPERS = (
     ("<system_reminder>", "</system_reminder>"),
 )
 
+# Hyphen-spelling opening tag carrying attributes (e.g. a ``source=...``).
+_SYSTEM_REMINDER_OPEN_WITH_ATTRS = re.compile(r"<system-reminder\s[^<>]*>")
+
 
 def _is_whole_system_reminder(text: str) -> bool:
     """Return True only if ``text``, once surrounding whitespace is
@@ -48,10 +51,34 @@ def _is_whole_system_reminder(text: str) -> bool:
     if not isinstance(text, str):
         return False
     stripped = text.strip()
-    return any(
+    if any(
         stripped.startswith(open_tag) and stripped.endswith(close_tag)
         for open_tag, close_tag in _SYSTEM_REMINDER_WRAPPERS
+    ):
+        return True
+    # The hyphen spelling may also carry attributes naming its source (e.g.
+    # ``<system-reminder source="siada.runtime.repeated-tool">``); the
+    # closing tag must still be the same spelling's.
+    return bool(_SYSTEM_REMINDER_OPEN_WITH_ATTRS.match(stripped)) and stripped.endswith(
+        "</system-reminder>"
     )
+
+
+def is_hidden_runtime_text(text: Any) -> bool:
+    """Whether ``text`` is a whole system-reminder block, including Git snapshots."""
+    return _is_whole_system_reminder(text)
+
+
+def is_hidden_runtime_content(content: Any) -> bool:
+    """Whether message ``content`` (str or content-part list) is entirely hidden runtime text."""
+    if isinstance(content, str):
+        return is_hidden_runtime_text(content)
+    if isinstance(content, list) and content:
+        return all(
+            isinstance(part, dict) and is_hidden_runtime_text(part.get("text"))
+            for part in content
+        )
+    return False
 
 
 def get_role_from_item(item: Any) -> Optional[str]:
@@ -202,8 +229,6 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
       untouched, since that's real conversation history, not a harness
       nudge.
     """
-    from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
-    from siada.tools.coder.apply_patch_presentation import render_apply_patch_history_preview
     # Lazy-import the marker helpers so the holographic-memory module is
     # only pulled in when there's actually something to strip; cheap path
     # for plain conversations stays a single ``has_any_injection_block``
@@ -213,6 +238,10 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
         strip_all_injection_blocks,
         strip_user_input,
     )
+    from siada.tools.coder.apply_patch_presentation import (
+        render_apply_patch_history_preview,
+    )
+    from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 
     messages: List[Dict[str, str]] = []
     for item in items:
@@ -260,14 +289,14 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
         content = item.get("content", "")
         text = ""
         if isinstance(content, str):
-            text = "" if _is_whole_system_reminder(content) else content
+            text = "" if is_hidden_runtime_text(content) else content
         elif isinstance(content, list):
             for part in content:
                 if isinstance(part, dict) and part.get("type") in (
                     "output_text", "text", "input_text",
                 ):
                     part_text = part.get("text", "")
-                    if _is_whole_system_reminder(part_text):
+                    if is_hidden_runtime_text(part_text):
                         continue
                     text += part_text
 

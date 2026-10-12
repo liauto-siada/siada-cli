@@ -1,10 +1,16 @@
 """
 测试复杂仓库的 repo map 生成功能
 
-这个测试文件专门用于测试复杂仓库 /Users/yunan/code/copilot/siada 的 repo map 生成，
-重点验证是否能够生成包含函数名、类名、方法名的详细 repo map。
+测试会在临时目录中动态构建一个合成仓库（synthetic fixture）：包含多个模块、
+类、方法以及跨文件引用的 Python 项目，用于验证 repo map 能否生成包含函数名、
+类名、方法名的详细输出。
+
+测试不依赖本地开发路径，也不会调用外部模型或网络服务：token 统计使用
+RepoMap 自带的本地 TokenCounterModel。
 """
 
+import shutil
+import tempfile
 import unittest
 import os
 import sys
@@ -15,17 +21,99 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from siada.tools.coder.repo_map.repo_map import RepoMap, Tag
-    from siada.tools.coder.repo_map.dump import dump
-    from siada.tools.coder.repo_map.special import filter_important_files
-    from siada.tools.coder.repo_map.waiting import Spinner
-    from siada.tools.coder.repo_map.io import IO, SilentIO
+    from siada.tools.coder.repo_map.repo_map import RepoMap
+    from siada.tools.coder.repo_map.io import SilentIO
     from siada.tools.coder.repo_map.token_counter import TokenCounterModel
-    import litellm
     DEPENDENCIES_OK = True
 except ImportError as e:
     print(f"导入失败: {e}")
     DEPENDENCIES_OK = False
+
+
+# 合成仓库内容：相对路径 -> 源码。
+# 文件之间保留了跨文件引用，用于检验 repo map 的排序与标签提取。
+SYNTHETIC_REPO_FILES = {
+    "app/__init__.py": '"""Synthetic package used by the repo map fixture."""',
+    "app/main.py": '''"""Synthetic application entry point."""
+
+from app.services.agent_runner import AgentRunner
+from app.services.report import build_report
+
+
+def main() -> str:
+    """Run the synthetic agent and render its report."""
+    runner = AgentRunner(name="demo")
+    result = runner.run("summarize the repository")
+    return build_report(result)
+
+
+if __name__ == "__main__":
+    print(main())
+''',
+    "app/services/__init__.py": "",
+    "app/services/agent_runner.py": '''"""Synthetic service module with classes and methods."""
+
+from app.utils.text import normalize
+
+
+class BaseRunner:
+    """Base class for synthetic runners."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def run(self, task: str) -> str:
+        raise NotImplementedError
+
+
+class AgentRunner(BaseRunner):
+    """Runs a synthetic task and returns a normalized summary."""
+
+    def run(self, task: str) -> str:
+        return normalize(task)
+
+    def describe(self) -> str:
+        return f"runner={self.name}"
+
+
+def build_runner(name: str) -> AgentRunner:
+    """Factory used by the entry point to build a runner."""
+    return AgentRunner(name)
+
+
+def is_ready(runner: AgentRunner) -> bool:
+    """Return True when the runner has been configured with a name."""
+    return bool(runner.describe())
+''',
+    "app/services/report.py": '''"""Synthetic reporting helpers."""
+
+from app.utils.text import normalize
+
+
+def build_report(payload: str) -> str:
+    """Build a human readable report from a payload."""
+    return f"report: {normalize(payload)}"
+
+
+def build_summary(payload: str, max_lines: int = 5) -> str:
+    """Build a truncated summary."""
+    lines = payload.splitlines()[:max_lines]
+    return " | ".join(lines)
+''',
+    "app/utils/__init__.py": "",
+    "app/utils/text.py": '''"""Synthetic string helpers."""
+
+
+def normalize(text: str) -> str:
+    """Collapse whitespace and strip the surrounding spaces."""
+    return " ".join(text.split()).strip()
+
+
+def truncate(text: str, limit: int = 20) -> str:
+    """Truncate text to a maximum length."""
+    return text[:limit]
+''',
+}
 
 
 @unittest.skipIf(not DEPENDENCIES_OK, "缺失依赖")
@@ -33,14 +121,21 @@ class TestComplexRepoMap(unittest.TestCase):
     """测试复杂仓库的 repo map 生成"""
     
     def setUp(self):
-        """设置测试环境"""
-        self.complex_repo_root = "/Users/yunan/code/copilot/siada"
+        """构建合成仓库（synthetic fixture）与临时输出目录"""
+        self.complex_repo_root = tempfile.mkdtemp(prefix="siada-repo-map-fixture-")
+        self.output_dir = tempfile.mkdtemp(prefix="siada-repo-map-output-")
+        self.addCleanup(shutil.rmtree, self.complex_repo_root, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, self.output_dir, ignore_errors=True)
+
+        # 写入合成的 Python 文件
+        for rel_path, content in SYNTHETIC_REPO_FILES.items():
+            abs_path = os.path.join(self.complex_repo_root, rel_path)
+            os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+            with open(abs_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
         self.io = SilentIO()  # 使用静默IO避免测试输出干扰
         self.model = TokenCounterModel("claude-3-5-sonnet-20241022")
-        
-        # 检查目标仓库是否存在
-        if not os.path.exists(self.complex_repo_root):
-            self.skipTest(f"目标仓库不存在: {self.complex_repo_root}")
 
     def test_complex_repo_map_generation(self):
         """测试复杂仓库的 repo map 生成"""
@@ -123,7 +218,7 @@ class TestComplexRepoMap(unittest.TestCase):
                 chat_files=chat_files,
                 other_files=other_files,
                 mentioned_fnames=set(),  # 不指定特定文件
-                mentioned_idents=set(['class', 'def', 'function'])  # 提及一些通用标识符
+                mentioned_idents={'AgentRunner', 'normalize'}  # 合成仓库中提及的标识符
             )
             
             if result:
@@ -142,9 +237,8 @@ class TestComplexRepoMap(unittest.TestCase):
                 print(f"包含函数/类信息: {has_functions}")
                 print(f"包含详细内容: {has_detailed_content}")
                 
-                # 保存结果到测试目录
-                test_output_dir = Path(__file__).parent
-                output_file = test_output_dir / "complex_repo_map_output.txt"
+                # 保存结果到临时输出目录，避免覆盖仓库中提交的示例输出
+                output_file = os.path.join(self.output_dir, "complex_repo_map_output.txt")
                 with open(output_file, 'w', encoding='utf-8') as f:
                     f.write(result)
                 print(f"\nRepo map 已保存到: {output_file}")
@@ -191,26 +285,9 @@ class TestComplexRepoMap(unittest.TestCase):
             verbose=True
         )
         
-        # 找一个有实际内容的 Python 文件进行测试
-        test_file = None
-        for root, dirs, files in os.walk(self.complex_repo_root):
-            for file in files:
-                if file.endswith('.py') and not file.startswith('.'):
-                    filepath = os.path.join(root, file)
-                    try:
-                        with open(filepath, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            # 寻找包含类和函数定义的文件
-                            if 'def ' in content and 'class ' in content and len(content) > 500:
-                                test_file = filepath
-                                break
-                    except:
-                        continue
-            if test_file:
-                break
-        
-        if not test_file:
-            self.skipTest("未找到合适的测试文件")
+        # 使用合成仓库中同时包含类定义与方法定义的文件
+        test_file = os.path.join(self.complex_repo_root, "app", "services", "agent_runner.py")
+        self.assertTrue(os.path.exists(test_file), f"合成仓库文件缺失: {test_file}")
         
         print(f"测试文件: {os.path.relpath(test_file, self.complex_repo_root)}")
         
@@ -233,6 +310,9 @@ class TestComplexRepoMap(unittest.TestCase):
                 print("定义标签示例:")
                 for tag in def_tags[:10]:  # 显示前10个
                     print(f"  {tag.kind}: {tag.name} (行 {tag.line + 1})")
+
+                # 合成仓库中的类/函数名应被识别为定义标签
+                self.assertIn('AgentRunner', {tag.name for tag in def_tags})
             
             # 显示一些引用标签
             if ref_tags:

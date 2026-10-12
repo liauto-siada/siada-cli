@@ -16,7 +16,7 @@ The npm packages of this monorepo are **not published**, so there is nothing to 
 ## Prerequisites
 
 - **Siada CLI** installed and on `PATH` (the proxy launches `siada-cli --acp` as its agent)
-- **Node.js 18+** (Siada CLI bundles one in its virtualenv; otherwise put `node` on `PATH`)
+- **Node.js >= 22.12** (Node.js 24 LTS recommended; Siada CLI prefers the Node.js bundled in its virtualenv, otherwise put `node` on `PATH`)
 - **Bun** and a checkout of this repository when building from source
 - **Chrome** (or any Chromium browser) for the extension
 
@@ -42,9 +42,9 @@ bun run build:web
 ### Install and start
 
 ```bash
-siada-browser setup /path/to/siada-agenthub/chrome-acp
+siada-browser setup /path/to/siada-cli/chrome-acp
 # or, without the standalone entry point
-siada-cli --browser-setup /path/to/siada-agenthub/chrome-acp
+siada-cli --browser-setup /path/to/siada-cli/chrome-acp
 ```
 
 `setup` copies the built proxy and extension into `~/.siada-cli/browser/`, persists `{host, port, token}` in `state.json`, starts the proxy (idempotently) and walks you through loading the extension in Chrome.
@@ -186,7 +186,7 @@ Re-run the install with the same source you used the first time; both the proxy 
 cd chrome-acp
 bun install
 bun run build
-siada-browser setup /path/to/siada-agenthub/chrome-acp     # reinstall + restart
+siada-browser setup /path/to/siada-cli/chrome-acp     # reinstall + restart
 ```
 
 ## Next Steps

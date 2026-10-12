@@ -219,7 +219,20 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
             setActiveStep?.(null);
           }
         });
-        acpClient.on('animation:start', () => { if (mounted) setLoading(true); });
+        acpClient.on('animation:start', () => {
+          if (mounted) {
+            setActiveStep?.('reasoning');
+            setLoading(true);
+          }
+        });
+        acpClient.on('stream:start', (data: { messageType: string }) => {
+          if (!mounted) return;
+          if (data.messageType === 'thinking' || data.messageType === 'answer') {
+            setActiveStep?.('reasoning');
+          } else if (data.messageType === 'tool_call' || data.messageType === 'tool_use' || data.messageType === 'tool_result') {
+            setActiveStep?.('tool_execution');
+          }
+        });
 
         // Backend aborted a bad stream (repetition loop, deepseek-v4-flash
         // family) and is retrying — discard whatever the stream produced.

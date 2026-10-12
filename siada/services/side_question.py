@@ -1,8 +1,6 @@
 """/btw side question — lightweight read-only fork of the main agent.
 
 Entry point: run_side_question(session, question) -> str
-
-Design doc: design_docs/siada-btw-side-question-design.md
 """
 from __future__ import annotations
 
@@ -333,7 +331,6 @@ async def _run_async(
         interactive_mode=getattr(parent_ctx, "interactive_mode", False),
         combined_memory=parent_ctx.combined_memory,
         preferred_language=getattr(parent_ctx, "preferred_language", None),
-        pre_plan=getattr(parent_ctx, "pre_plan", False),
         siadaignore_controller=getattr(parent_ctx, "siadaignore_controller", None),
         holographic_provider=None,   # don't trigger prefetch / fact_count
         memory_store=None,           # don't trigger memory scheduler

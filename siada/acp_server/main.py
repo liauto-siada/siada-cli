@@ -94,7 +94,12 @@ def main() -> None:
         finally:
             # Cancel in-flight browser skill/trajectory tasks and shut down
             # the lazy learning worker before the process exits.
-            await turn_runner.close()
+            try:
+                await turn_runner.close()
+            finally:
+                from siada.provider.provider_factory import aclose_providers
+
+                await aclose_providers()
 
     try:
         asyncio.run(_run())

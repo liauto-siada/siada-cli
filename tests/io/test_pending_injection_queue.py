@@ -328,6 +328,26 @@ class TestPendingInjectionQueue(unittest.TestCase):
         self.monitor._dispatch_or_enqueue(lines)
         self.assertEqual(len(_mod._pending_injections), 0)
 
+    def test_legacy_question_response_never_becomes_a_prompt(self):
+        """Responses from retired question cards stay outside both input queues."""
+        import json
+
+        payload = json.dumps({
+            "jsonrpc": "2.0",
+            "method": "userInput/respond",
+            "params": {
+                "request_id": "retired-request",
+                "answers": {"choice": "Proceed"},
+            },
+        })
+        for running in (False, True):
+            with self.subTest(agent_running=running):
+                _mod._agent_running = running
+                self.monitor._dispatch_or_enqueue(_make_acp_lines(payload))
+
+                self.assertTrue(self.monitor._queue.empty())
+                self.assertEqual(len(_mod._pending_injections), 0)
+
     # ------------------------------------------------------------------
     # deque upper bound (_PENDING_MAX) — runaway frontend protection
     # ------------------------------------------------------------------

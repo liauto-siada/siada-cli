@@ -25,6 +25,7 @@ import { FileChangeSetView } from '../src/components/diff/FileChangeSetView.js';
 import { parseApplyPatchContent } from '../src/utils/diff.js';
 
 const EDIT = 'In the file `src/a.ts``, replace the string:\n```ts\nold\n```\nwith:\n```ts\nnew\n```';
+const CREATE = 'Create the file `src/new.ts`` with the following content:\n```ts\nnew\n```';
 const PATCH = `Apply patch: 1 file changed
 
 <!-- siada-apply-patch:start -->
@@ -54,21 +55,24 @@ function renderList(messages: MessageType[], noStatic = false, isCollapsed = fal
 }
 
 describe('completed tool diff placement', () => {
-  it.each([['edit', EDIT], ['apply_patch', PATCH]])(
+  it.each([['edit', EDIT], ['apply_patch', PATCH], ['create_file', CREATE]])(
     'commits a short completed %s diff directly to Static', (_name, content) => {
       const output = renderList([toolMessage('diff', content, true)]);
       expect(output).toMatch(/<section data-area="static">[\s\S]*data-id="diff"[\s\S]*<\/section>/);
     },
   );
 
-  it.each([['edit', EDIT], ['apply_patch', PATCH]])(
+  it.each([['edit', EDIT], ['apply_patch', PATCH], ['create_file', CREATE]])(
     'keeps an unfinished %s tool stream dynamic even when the text is parseable', (_name, content) => {
       const output = renderList([toolMessage('diff', content, false)]);
       expect(output).toMatch(/<\/section><p data-id="diff">/);
+      if (_name === 'create_file') {
+        expect(output).not.toContain('Create src/new.ts (+1 -0)');
+      }
     },
   );
 
-  it.each([['edit', EDIT], ['apply_patch', PATCH]])(
+  it.each([['edit', EDIT], ['apply_patch', PATCH], ['create_file', CREATE]])(
     'keeps an unfinished %s diff dynamic in compact mode', (_name, content) => {
       const output = renderList([toolMessage('diff', content, false)], false, true);
       expect(output).toMatch(/<\/section><p data-id="diff">/);
@@ -94,7 +98,7 @@ describe('completed tool diff placement', () => {
     expect(output).toContain('data-id="diff"');
   });
 
-  it.each([['edit', EDIT], ['apply_patch', PATCH]])(
+  it.each([['edit', EDIT], ['apply_patch', PATCH], ['create_file', CREATE]])(
     'keeps completed %s diffs independent of later aggregated tool calls in compact mode', (_name, content) => {
       const output = renderList([
         toolMessage('diff', content, true),
@@ -119,7 +123,7 @@ describe('completed tool diff placement', () => {
 });
 
 describe('one-shot diff metadata', () => {
-  it('marks only completed edit/apply_patch diff boxes, leaving other tools unchanged', () => {
+  it('marks completed diffs without changing read or edit streaming behavior', () => {
     let messages: MessageType[] = [];
     let handleToolUse: ReturnType<typeof useStreamingMessages>['handleToolUse'] | undefined;
     const setMessages = (update: SetStateAction<MessageType[]>) => {
@@ -160,5 +164,19 @@ describe('one-shot diff metadata', () => {
     handleToolUse!({ content: 'the string:\n```ts\nold\n```\nwith:\n```ts\nnew\n```', metadata: { chunkIndex: 1, streamEnd: true } });
     expect(messages[3]?.content).toBe(EDIT);
     expect(messages[3]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1 });
+
+    handleToolUse!({ content: CREATE, metadata: { chunkIndex: 0, streamEnd: true } });
+    expect(messages[4]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 0, streamEnd: true });
+
+    handleToolUse!({ content: 'Create the file `docs/notes.md`` with the following content:\n第一行\n', metadata: { chunkIndex: 0, streamEnd: false } });
+    expect(messages[5]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 0 });
+    handleToolUse!({ content: '\n第二行\n\n', metadata: { chunkIndex: 1, streamEnd: true } });
+    expect(messages[5]?.content).toBe('Create the file `docs/notes.md`` with the following content:\n第一行\n\n第二行\n\n');
+    expect(messages[5]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1, streamEnd: true, isStreaming: false });
+    expect(renderList(messages.slice(5), false, true)).toMatch(/data-area="static"[\s\S]*data-id=/);
+
+    handleToolUse!({ content: 'Read the file `', metadata: { chunkIndex: 0, streamEnd: false } });
+    handleToolUse!({ content: 'src/a.ts`', metadata: { chunkIndex: 1, streamEnd: true } });
+    expect(messages[6]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1 });
   });
 });

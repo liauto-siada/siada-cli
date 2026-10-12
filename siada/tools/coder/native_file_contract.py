@@ -25,5 +25,13 @@ content."""
 
 
 APPLY_PATCH_DESCRIPTION = """Create, update, delete, or move text files with
-focused patches. Read the current file before updating it. All referenced
-paths, including `move_to`, must be workspace-relative."""
+focused patches. Read the current file before updating it. Paths, including
+`move_to`, may be workspace-relative or absolute; workspace-relative paths
+resolve from the current workspace. Old/context lines must be complete source
+lines copied from the current file, without reader line numbers or truncation
+markers. Matching is line-based, not JSON-field or substring replacement.
+If context matching fails, read the target region again and generate a new
+patch from its current contents; do not retry the unchanged patch. Each operation
+is verified before its writes. Multiple operations are not a transaction:
+failures do not roll back successful operations or prevent later operations
+from being attempted. Read the results and current files before retrying."""

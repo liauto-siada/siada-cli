@@ -179,7 +179,7 @@ const colorIndex = Math.floor(ratio * (lineColors.length - 1));
 
 - [Ink 官方文档](https://github.com/vadimdemedes/ink)
 - [React 文档](https://react.dev/)
-- [Siada CLI 主项目](../README.md)
+- [Siada CLI 主项目](../../README.md)
 
 ## 贡献
 

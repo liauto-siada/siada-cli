@@ -42,9 +42,6 @@ class CodeAgentContext(BaseModel):
     # SiadaIgnore controller for file access control
     siadaignore_controller: Optional[Any] = None
 
-    # Whether to enable human agreement mechanism for plan execution
-    pre_plan: bool = False
-
     # Master switch: False disables all memory tools and memory-related system prompt.
     # Set by SiadaRunner based on memory_config.enabled; defaults to True.
     memory_tools_enabled: bool = True
@@ -66,8 +63,7 @@ class CodeAgentContext(BaseModel):
     memory_store: Optional[Any] = None
 
     # Holographic structured fact memory provider; None when holographic disabled.
-    # See siada/services/memory/holographic/provider.py and
-    # design_docs/siada-holographic-memory-introduction.md.
+    # See siada/services/memory/holographic/provider.py.
     holographic_provider: Optional[Any] = None
 
     # Maximum number of turns for the code agent (None means use default from settings)
@@ -162,6 +158,12 @@ class CodeAgentContext(BaseModel):
     # its own queue in its own on_llm_end, independent of
     # TodoReminderProcessor / hook registration order.
     pending_hallucination_reminder_items: List[Any] = Field(default_factory=list)
+
+    # Same durable-persistence pattern again, owned solely by
+    # RepeatedToolReminderProcessor (the GLM repeated-tool-call reminder).
+    # Same OVERWRITE contract as pending_reminder_items: a retried call
+    # recomputes the reminder, so at most one item is ever pending.
+    pending_repeated_tool_reminder_items: List[Any] = Field(default_factory=list)
 
 
 

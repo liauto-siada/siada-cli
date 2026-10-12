@@ -117,6 +117,10 @@ vim ~/.siada-cli/conf.yaml
 
 Add the `lark` section to `conf.yaml`:
 
+This build supports `direct` mode and uses it when `lark.mode` is omitted.
+If an existing configuration specifies `mode: relay`, change it to `direct`
+and provide your app credentials; the relay transport is unavailable.
+
 ```yaml
 # ... other siada config (llm_config, checkpoint_config, etc.) ...
 
@@ -127,7 +131,7 @@ lark:
   # Default: true
   # enabled: true
 
-  # Connection mode: direct (Lark WS SDK) or relay (via IM Gateway)
+  # Connection mode: direct (Lark WS SDK)
   mode: direct
 
   # Working directory (optional, defaults to ~/.siada-cli/workspace/lark)
@@ -194,8 +198,9 @@ A complete `conf.yaml` example with both LLM and Lark direct mode config:
 ```yaml
 # LLM configuration
 llm_config:
-  model: "claude-sonnet-4-20250514"
-  provider: "anthropic"
+  model: "claude-sonnet-4-6"
+  provider: "default"
+  base_url: "https://api.anthropic.com"
   api_key: "sk-ant-xxxxx"
   thinking: true
 
@@ -219,7 +224,7 @@ lark:
 | Config Item | Required | Default | Description |
 |-------------|----------|---------|-------------|
 | `lark.enabled` | ❌ | `true` | Set to `false` to disable the Lark bot without removing the config; daemon starts without a Lark WebSocket connection |
-| `lark.mode` | ✅ | - | Connection mode, use `direct` for direct mode |
+| `lark.mode` | ❌ | `direct` | Supported connection mode; legacy `relay` configurations must be changed to `direct` |
 | `lark.workspace` | ❌ | `~/.siada-cli/workspace/lark` | Agent working directory |
 | `lark.notify_email` | ❌ | - | Notification email for auto open_id resolution and routing bootstrap |
 | `lark.direct.app_id` | ✅ | - | Lark App ID |
@@ -354,7 +359,6 @@ After pairing, you can use the following slash commands in Lark conversations (I
 | `/model` | Switch model |
 | `/clear` | Clear conversation history, start new session |
 | `/lang` | Switch language (en / zh-CN) |
-| `/pre-plan-mode` | Toggle pre-plan mode |
 | `/verbose` | Control output verbosity (see below) |
 | `/resume` | Switch to a specific session (DM only) |
 | `/mcp-list` | List MCP services and tools |

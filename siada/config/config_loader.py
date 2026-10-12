@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 from datetime import datetime
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
@@ -32,17 +33,29 @@ class LLMConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'LLMConfig':
+        if not isinstance(data, dict):
+            raise ValueError("llm_config must be a mapping")
+
+        def text(name: str) -> Optional[str]:
+            value = data.get(name)
+            if value is None:
+                return None
+            if not isinstance(value, str):
+                logger.warning("Ignoring llm_config.%s: expected a string", name)
+                return None
+            return value.strip() or None
+
         return cls(
-            model=data.get('model'),
-            provider=data.get('provider'),
-            base_url=data.get('base_url'),
-            api_key=data.get('api_key'),
+            model=text('model'),
+            provider=text('provider'),
+            base_url=text('base_url'),
+            api_key=text('api_key'),
             thinking=bool(data['thinking']) if 'thinking' in data and data['thinking'] is not None else None,
             enable_thinking=bool(data['enable_thinking']) if 'enable_thinking' in data and data['enable_thinking'] is not None else None,
             parallel_tool_calls=bool(data['parallel_tool_calls']) if 'parallel_tool_calls' in data and data['parallel_tool_calls'] is not None else None,
-            reasoning_effort=data.get('reasoning_effort'),
-            vision_model=data.get('vision_model'),
-            vision_provider=data.get('vision_provider'),
+            reasoning_effort=text('reasoning_effort'),
+            vision_model=text('vision_model'),
+            vision_provider=text('vision_provider'),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -250,7 +263,6 @@ class HolographicConfig:
     Layered on top of inline memory: persists atomic facts with entity-binding
     (HRR vectors) and trust scoring in a SQLite + FTS5 database. Enables
     fact_store / fact_feedback tools and prefetch injection.
-    See design_docs/siada-holographic-memory-introduction.md.
     """
     enabled: bool = True               # default ON — set false in conf.yaml to disable
     hrr_enabled: bool = True           # disable HRR even when numpy available
@@ -319,11 +331,6 @@ def _get_default_config_path() -> Path:
 _DEFAULT_CONFIG_TEMPLATE = """# Siada Configuration File
 # This file contains the main configuration for Siada
 
-# User Information
-# Your user identifier for telemetry and tracking (internal use only)
-# Format: username@domain.com
-# user_id: "yunan@lixiang.com"
-
 # LLM Configuration
 # Configure your Language Model provider settings
 llm_config:
@@ -346,17 +353,6 @@ llm_config:
   # API parameter. Valid values: "low" / "medium" / "high".
   # (priority: CLI --reasoning-effort > conf.yaml > model default)
   # reasoning_effort: high
-
-  # NOTE on reasoning_effort for li provider:
-  # litellm only recognizes "reasoning_effort" as a top-level param for models
-  # whose provider supports it (gemini, gpt-5.x). For OpenAI-provider models
-  # such as deepseek/qwen/glm/kimi, litellm's openai provider does NOT list it
-  # in supported_params, and since drop_params=True is set globally, a top-level
-  # reasoning_effort would be silently dropped. The li provider therefore
-  # routes reasoning_effort through extra_body for those models, so it reaches
-  # the gateway even though the model's supports_extra_params only declares
-  # "thinking_tokens". This is why the value still takes effect on deepseek v4
-  # flash even though the model config does not list "reasoning_effort".
 
   # Dedicated vision engine for text-only main models (open-source vision
   # bridge): attached images are transcribed by this image-capable model and
@@ -434,9 +430,6 @@ auto_update:
 # Timeout in seconds for command execution (optional)
 # command_timeout: 300
 
-# Pre-plan mode: agent shows a plan and waits for approval before executing (default: false)
-# pre_plan: false
-
 # Preferred language for AI responses: "en" (English) or "zh-CN" (Chinese)
 # preferred_language: null
 
@@ -486,8 +479,8 @@ auto_update:
 #     temporal_decay_half_life: 0     # 0=disable; e.g. 90 = halve relevance every 90 days
 #     prefetch_limit: 5               # top-N facts injected into each user message
 #     custom_dict:                    # extra jieba terms (project / tool names)
-#       - chehejia
-#       - authli
+#       - myproject
+#       - mytool
 
 # Web Tools Configuration (web_search / web_fetch)
 #
@@ -526,26 +519,17 @@ auto_update:
 # Lark IM Configuration
 # Configure Lark bot integration mode
 # lark:
-#   # Mode: "relay" (via IM Gateway) or "direct" (Lark WS SDK)
-#   mode: relay
+#   mode: direct  # Use your own application through the Lark WS SDK
 #   # workspace: /path/to/your/workspace  # Optional, defaults to ~/.siada-cli/workspace/lark
 #
-#   # Direct mode settings (only needed when mode=direct)
-#   # direct:
-#   #   app_id: "your_app_id"
-#   #   app_secret: "your_app_secret"
-#   #
-#   #   # DM access control (only for direct mode)
-#   #   access:
-#   #     dm_policy: open  # open | allowlist
-#   #     allow_from:
-#   #       - "ou_xxx"
+#   direct:
+#     app_id: "${LARK_APP_ID}"
+#     app_secret: "${LARK_APP_SECRET}"
+#   access:
+#     dm_policy: allowlist  # open | allowlist
+#     allow_from:
+#       - "ou_example"
 #
-#   # Relay mode settings (optional - defaults are hardcoded)
-#   # relay:
-#   #   server_url: "wss://relay.example.com/ws/relay"
-#   #   heartbeat_interval: 10
-#   #   reconnect_backoff: [3, 5, 10, 30, 60]
 """
 
 
@@ -618,11 +602,9 @@ def _backup_config_file(config_path: Path, max_backups: int = 10) -> None:
 
 @dataclass(frozen=True)
 class HeadroomConfig:
-    """Headroom proxy integration configuration (from conf.yaml `headroom`).
+    """Legacy config fields retained for reading existing configuration files.
 
-    NOTE: upstream URLs are intentionally NOT part of this config — they are
-    hard-coded in siada.internal.services.headroom_proxy_manager and cannot be
-    overridden by the user.
+    The proxy integration is unavailable in this distribution.
     """
     enabled: bool = False
     host: str = "127.0.0.1"
@@ -673,7 +655,6 @@ class Config:
     auto_update_config: AutoUpdateConfig = field(default_factory=AutoUpdateConfig)
     code_agent_config: CodeAgentConfig = field(default_factory=CodeAgentConfig)
     goal_config: GoalConfig = field(default_factory=GoalConfig)
-    pre_plan: Optional[bool] = None
     preferred_language: Optional[str] = None
     compaction_strategy: Optional[str] = None
     enable_notification: bool = True
@@ -688,8 +669,9 @@ class Config:
 def _load_lark_config(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Extract lark config from raw conf.yaml data.
 
-    Relay defaults are merged lazily in build_relay_config() at runtime.
-    ``mode`` is optional here — callers default to "relay" when absent.
+    ``mode`` is optional here — public callers default to "direct" when absent.
+    Environment references in string values are resolved without changing the
+    stored file or the process environment.
 
     Returns:
         Dict with structure {"lark": {...}}, or None if no valid lark config.
@@ -698,15 +680,22 @@ def _load_lark_config(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not lark_section or not isinstance(lark_section, dict):
         return None
 
-    # Wrap in {"lark": ...} for backward compatibility with callers.
-    # Do NOT gate on mode presence: a lark section without an explicit mode
-    # is valid and will default to "relay" in create_if_configured().
-    # Requiring mode here silently drops access.idle_session_timeout and
-    # other sub-keys that users configure alongside a default-relay setup.
-    lark_config = {"lark": lark_section}
-    mode = lark_section.get("mode", "relay")
-    logger.info(f"Lark config loaded, mode={mode}")
-    return lark_config
+    def resolve(value: Any) -> Any:
+        if isinstance(value, str):
+            return re.sub(
+                r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}",
+                lambda match: os.environ.get(match.group(1), ""),
+                value,
+            )
+        if isinstance(value, dict):
+            return {key: resolve(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [resolve(item) for item in value]
+        return value
+
+    # Keep access and session settings even when the mode is omitted.
+    logger.info("Lark config loaded")
+    return {"lark": resolve(lark_section)}
 
 
 def load_conf(config_path: Optional[Path] = None) -> 'Config':
@@ -732,7 +721,6 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
     headroom_config = HeadroomConfig()
     lark_config: Optional[Dict[str, Any]] = None
     command_timeout: Optional[int] = None
-    pre_plan: Optional[bool] = None
     preferred_language: Optional[str] = None
     compaction_strategy: Optional[str] = None
     enable_notification: bool = True
@@ -740,54 +728,54 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
     from siada.config.conf_store import read_conf_dict
 
     def _notify_conf_error(message: str) -> None:
+        print(f"Warning: {message}", file=sys.stderr)
         try:
             io = InputOutput.get_instance()
-            if io:
-                io.print_error(f"Warning: {message}")
+            adapter = getattr(io, "acp_adapter", None)
+            if adapter:
+                adapter.error(f"Warning: {message}")
         except Exception:
             pass
 
     data = read_conf_dict(config_path, on_error=_notify_conf_error)
-    if data:
-        # A malformed *section* (e.g. llm_config: "not-a-mapping") must not
-        # kill startup — report it and keep the defaults for that section.
+
+    def _load_section(name, section_data, default):
+        """Keep a malformed section from discarding unrelated user settings."""
+        if section_data is None:
+            return default
         try:
-            if 'llm_config' in data and data['llm_config'] is not None:
-                llm_config = LLMConfig.from_dict(data['llm_config'])
-                if llm_config.base_url is not None and llm_config.api_key is not None:
-                    os.environ['BASE_URL'] = llm_config.base_url
-                    os.environ['API_KEY'] = llm_config.api_key
-            if 'checkpoint_config' in data and data['checkpoint_config'] is not None:
-                checkpoint_config = CheckpointConfig.from_dict(data['checkpoint_config'])
-            if 'proactive' in data and data['proactive'] is not None:
-                proactive_config = ProactiveConfig.from_dict(data['proactive'])
-            if 'auto_update' in data and data['auto_update'] is not None:
-                auto_update_config = AutoUpdateConfig.from_dict(data['auto_update'])
-            if 'code_agent' in data and data['code_agent'] is not None:
-                code_agent_config = CodeAgentConfig.from_dict(data['code_agent'])
-            if 'goal' in data and data['goal'] is not None:
-                goal_config = GoalConfig.from_dict(data['goal'])
-            if 'memory' in data and data['memory'] is not None:
-                memory_config = MemoryConfig.from_dict(data['memory'])
-                # Holographic is a sub-section of memory: memory.holographic
-                holo_data = data['memory'].get('holographic') if isinstance(data['memory'], dict) else None
-                if holo_data is not None:
-                    holographic_config = HolographicConfig.from_dict(holo_data)
-            if 'sub_agent' in data and data['sub_agent'] is not None:
-                sub_agent_config = SubAgentConfig.from_dict(data['sub_agent'])
-            if 'web' in data and data['web'] is not None:
-                web_config = WebConfig.from_dict(data['web'])
-            if 'headroom' in data and data['headroom'] is not None:
-                headroom_config = HeadroomConfig.from_dict(data['headroom'])
-            # Load lark IM config
-            lark_config = _load_lark_config(data)
-            command_timeout = data.get('command_timeout')
-            pre_plan = data.get('pre_plan')
-            preferred_language = data.get('preferred_language')
-            compaction_strategy = data.get('compaction_strategy')
-            enable_notification = data.get('enable_notification', True)
-        except Exception as e:
-            _notify_conf_error(f"Failed to parse a conf.yaml section: {e}")
+            return type(default).from_dict(section_data)
+        except Exception:
+            _notify_conf_error(f"Failed to parse conf.yaml section '{name}'; using defaults.")
+            return default
+
+    if data:
+        llm_config = _load_section('llm_config', data.get('llm_config'), llm_config)
+        for name, value in (
+            ('BASE_URL', llm_config.base_url),
+            ('API_KEY', llm_config.api_key),
+        ):
+            if value and not os.environ.get(name, '').strip():
+                os.environ[name] = value
+        checkpoint_config = _load_section('checkpoint_config', data.get('checkpoint_config'), checkpoint_config)
+        proactive_config = _load_section('proactive', data.get('proactive'), proactive_config)
+        auto_update_config = _load_section('auto_update', data.get('auto_update'), auto_update_config)
+        code_agent_config = _load_section('code_agent', data.get('code_agent'), code_agent_config)
+        goal_config = _load_section('goal', data.get('goal'), goal_config)
+        memory_config = _load_section('memory', data.get('memory'), memory_config)
+        memory_data = data.get('memory')
+        if isinstance(memory_data, dict):
+            holographic_config = _load_section(
+                'memory.holographic', memory_data.get('holographic'), holographic_config
+            )
+        sub_agent_config = _load_section('sub_agent', data.get('sub_agent'), sub_agent_config)
+        web_config = _load_section('web', data.get('web'), web_config)
+        headroom_config = _load_section('headroom', data.get('headroom'), headroom_config)
+        lark_config = _load_lark_config(data)
+        command_timeout = data.get('command_timeout')
+        preferred_language = data.get('preferred_language')
+        compaction_strategy = data.get('compaction_strategy')
+        enable_notification = data.get('enable_notification', True)
 
     mcp_config = MCPConfigLoader.load_config()
     model_config = load_user_model_config()
@@ -802,7 +790,6 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
         auto_update_config=auto_update_config,
         code_agent_config=code_agent_config,
         goal_config=goal_config,
-        pre_plan=pre_plan,
         preferred_language=preferred_language,
         compaction_strategy=compaction_strategy,
         enable_notification=enable_notification,

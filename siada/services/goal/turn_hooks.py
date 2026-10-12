@@ -184,8 +184,7 @@ def maybe_run_goal_verifier(
 
     Deliberately NOT routed through the plugin HookRunner (hooks.json) —
     that system is for user-authored shell commands; this needs a real
-    LLM call with structured output. See
-    design_docs/goal-command-implementation-plan.md §3.1.
+    LLM call with structured output.
 
     Only runs for conversation turns — slash commands (including /goal
     itself) don't represent progress toward the goal, so checking after

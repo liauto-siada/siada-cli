@@ -4,7 +4,7 @@ to the compaction summarization call.
 
 Regression context
 ------------------
-Session 1786609084879-68bf0bb7 (model bailian-kimi-k3) failed compaction with::
+Interleaved tool calls can fail Chat Completions validation with::
 
     litellm.BadRequestError: MoonshotException - an assistant message with
     'tool_calls' must be followed by tool messages responding to each
@@ -19,7 +19,7 @@ between a function_call and its function_call_output (valid for Responses)::
 ``Converter.items_to_messages`` flushed the pending assistant message at the
 interleaved text, stranding ``tool(edit_file_24)`` behind the second
 assistant message — which Moonshot strictly rejects. The normal streaming
-path already repairs this (li_provider → LitellmModel._fix_tool_message_ordering);
+path already repairs this (LitellmModel._fix_tool_message_ordering);
 ``fix_tool_message_ordering`` brings the same repair to the compaction path.
 """
 from __future__ import annotations

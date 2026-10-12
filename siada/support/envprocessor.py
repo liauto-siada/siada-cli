@@ -1,3 +1,6 @@
+import json
+import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,6 +37,23 @@ def generate_search_path_list(default_file, git_root, command_line_file):
 
 
 def load_dotenv_files(git_root, dotenv_fname, encoding="utf-8"):
+    # The UI launcher forwards --set-env through inherited environment values.
+    # Preserve only those explicit assignments across the usual .env override
+    # order. Consume the names-only marker before any agent tool can inherit it.
+    explicit_values = {}
+    encoded_keys = os.environ.pop("_SIADA_CLI_ENV_KEYS", None)
+    if encoded_keys:
+        try:
+            keys = json.loads(encoded_keys)
+            if isinstance(keys, list):
+                explicit_values = {
+                    key: os.environ[key]
+                    for key in keys
+                    if isinstance(key, str) and key in os.environ
+                }
+        except (ValueError, TypeError):
+            pass
+
     # Standard .env file search path
     dotenv_files = generate_search_path_list(
         ".env",
@@ -42,13 +62,18 @@ def load_dotenv_files(git_root, dotenv_fname, encoding="utf-8"):
     )
 
     loaded = []
-    for fname in dotenv_files:
-        try:
-            if Path(fname).exists():
-                load_dotenv(fname, override=True, encoding=encoding)
-                loaded.append(fname)
-        except OSError as e:
-            print(f"OSError loading {fname}: {e}")
-        except Exception as e:
-            print(f"Error loading {fname}: {e}")
+    try:
+        for fname in dotenv_files:
+            try:
+                if Path(fname).exists():
+                    load_dotenv(fname, override=True, encoding=encoding)
+                    loaded.append(fname)
+            except Exception as exc:
+                print(
+                    f"Unable to load environment file {fname}: "
+                    f"{type(exc).__name__}",
+                    file=sys.stderr,
+                )
+    finally:
+        os.environ.update(explicit_values)
     return loaded

@@ -478,6 +478,7 @@ class SessionManager:
         ``siada.services.memory.holographic.marker.wrap_user_input``.
         """
         import re
+
         from siada.services.memory.holographic.marker import strip_user_input
         text = re.sub(r'^\s*<task>\s*', '', text)
         text = re.sub(r'\s*</task>.*$', '', text, flags=re.DOTALL)
@@ -486,16 +487,23 @@ class SessionManager:
     def _extract_metadata_from_history(self, session_id: str, items: List[dict]) -> dict:
         """Extract metadata from session history items."""
         first_user_message = "Untitled Session"
-        
+        from siada.support.message_classifier import (
+            is_hidden_runtime_content,
+            is_hidden_runtime_text,
+        )
+
         for item in items:
-            if item.get('role') == 'user':
+            # Skip hidden runtime items (Git snapshot, reminders): they are
+            # not user-authored and must not become the session title.
+            if item.get('role') == 'user' and not is_hidden_runtime_content(item.get('content')):
                 content = item.get('content', '')
                 if isinstance(content, str):
                     first_user_message = self._strip_task_tags(content)[:100]
                     break
                 elif isinstance(content, list):
                     for part in content:
-                        if isinstance(part, dict) and part.get('type') == 'text':
+                        if (isinstance(part, dict) and part.get('type') in ('text', 'input_text')
+                                and not is_hidden_runtime_text(part.get('text'))):
                             first_user_message = self._strip_task_tags(part.get('text', ''))[:100]
                             break
                     if first_user_message != "Untitled Session":

@@ -4,7 +4,7 @@
  * CLI entry point for siada-cli-ui.
  *
  * Responsibilities:
- *  - readVersion:     reads the package version from pyproject.toml
+ *  - readVersion:     uses the bundled release version or checkout metadata
  *  - configureLogger: maps --debug / --log-level flags to internal LogLevel
  *  - parseSiadaArgs:  shell-like tokenizer for the --siada-args passthrough string
  *  - buildConfig:     resolves launch mode (executable vs. module) and builds ClientConfig
@@ -33,6 +33,9 @@ const __dirname = dirname(__filename);
 const _T0 = Date.now();
 
 function readVersion(): string {
+  if (process.env.CLI_VERSION) {
+    return process.env.CLI_VERSION;
+  }
   try {
     const content = readFileSync(join(__dirname, '../../pyproject.toml'), 'utf-8');
     const match = content.match(/^version\s*=\s*"([^"]+)"/m);
@@ -78,11 +81,13 @@ function parseSiadaArgs(raw: string): string[] | undefined {
     }
   }
   if (current) args.push(current);
-  logger.debug('Parsed siada-args', { original: raw, parsed: args });
+  // Count only: the raw --siada-args string may contain credentials
+  // (e.g. `--set-env API_KEY=...`) and must never be written to the log.
+  logger.debug('Parsed siada-args', { argCount: args.length });
   return args;
 }
 
-function buildConfig(workingDir: string, options: any) {
+function buildConfig(workingDir: string, options: any, siadaArgs?: string[]) {
   const pythonPath = options.pythonPath || process.env.SIADA_PYTHON_PATH;
   const siadaModule = options.siadaModule || process.env.SIADA_MODULE_PATH;
   const useModuleMode = options.useModuleMode || (pythonPath && siadaModule) || false;
@@ -100,7 +105,7 @@ function buildConfig(workingDir: string, options: any) {
     siadaModule,
     useModuleMode,
     acpMode: options.acpMode,
-    siadaArgs: parseSiadaArgs(options.siadaArgs),
+    siadaArgs: siadaArgs ?? parseSiadaArgs(options.siadaArgs),
   });
 }
 
@@ -171,10 +176,10 @@ function createProgram(): Command {
     .option('--no-parallel-tool-calls', 'Disable parallel tool calls')
     .option('--siada-path <path>', 'Path to siada-cli executable')
     .option('--python-path <path>', 'Path to Python interpreter (for module mode)')
-    .option('--siada-module <path>', 'Path to siada-agenthub module directory')
+    .option('--siada-module <path>', 'Path to Siada CLI module directory')
     .option('--use-module-mode', 'Use Python module mode instead of executable')
     .option('--siada-args <args>', 'Additional arguments for siada-cli', '')
-    .option('--acp-mode', 'Enable ACP mode for siada-agenthub communication (enabled by default)', true)
+    .option('--acp-mode', 'Enable ACP mode for Siada CLI communication (enabled by default)', true)
     .option('--no-acp-mode', 'Disable ACP mode')
     .option('--alternate-buffer', 'Use alternate screen buffer (full-screen mode)')
     .option('--no-alternate-buffer', 'Disable alternate buffer (scrollable mode, preserves history, enabled by default)', true)
@@ -198,9 +203,21 @@ function main(): void {
       configureLogger(options);
       logger.info(`[ui-timing] phase=logger_configured  elapsed_ms=${Date.now() - _T0}`);
 
-      logger.info('Starting siada-cli-ui', { workingDir, options });
+      // Log only non-sensitive startup metadata. `options` carries
+      // --siada-args verbatim, which may embed credentials (e.g.
+      // `--set-env API_KEY=...`), so it is reduced to an arg count here.
+      const siadaArgs = parseSiadaArgs(options.siadaArgs);
+      logger.info('Starting siada-cli-ui', {
+        workingDir,
+        acpMode: options.acpMode !== false,
+        alternateBuffer: options.alternateBuffer === true,
+        useModuleMode: options.useModuleMode === true,
+        debug: options.debug === true,
+        logLevel: options.logLevel,
+        siadaArgsCount: siadaArgs?.length ?? 0,
+      });
 
-      const config = buildConfig(workingDir, options);
+      const config = buildConfig(workingDir, options, siadaArgs);
       logger.info(`[ui-timing] phase=config_built        elapsed_ms=${Date.now() - _T0}`);
       logger.info(getTerminalInfoString());
 

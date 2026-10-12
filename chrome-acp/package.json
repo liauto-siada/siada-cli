@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "bun run --filter @chrome-acp/extension dev",
+    "test": "(cd packages/chrome-extension && bun test) && bun test packages/shared packages/proxy-server && (cd packages/web-client && bun test)",
     "build": "bun run build:web && bun run build:extension && bun run build:proxy",
     "build:extension": "bun run --filter @chrome-acp/extension build",
     "build:proxy": "bun run --filter @chrome-acp/proxy-server build",

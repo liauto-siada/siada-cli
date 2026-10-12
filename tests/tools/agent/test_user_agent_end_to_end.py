@@ -153,7 +153,7 @@ def _make_tool_context(run_ctx):
 def _stand_in_internal_web_search():
     """Stand-in for the internal-only ``web_search`` tool.
 
-    The real implementation ships in ``siada.internal`` (not open-sourced), so
+    The real implementation is not part of this open-source distribution, so
     ``siada.tools.web.web_search`` is None here and the tool would silently
     disappear from the sub-agent's default surface. That surface is what the
     generic-sub-agent test pins down, so a placeholder with the same name

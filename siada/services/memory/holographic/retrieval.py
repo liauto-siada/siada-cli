@@ -8,19 +8,12 @@ from __future__ import annotations
 
 import logging
 import math
-import warnings
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
 
-# Suppress jieba's pkg_resources deprecation warnings the same way store.py does.
-with warnings.catch_warnings():
-    warnings.filterwarnings(
-        "ignore", message="pkg_resources is deprecated", category=UserWarning,
-    )
-    warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
-    import jieba
+from siada.services.memory.jieba_compat import jieba
 
 from siada.services.memory.holographic import hrr
 

@@ -16,53 +16,59 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
 
 **Method 1: Default Configuration**
    - The system reads default configuration from `agent_config.yaml` file
-   - Current defaults: model `claude-sonnet-4.5`, provider `li`
+   - Current defaults: model `claude-sonnet-5`, provider `default`
+   - On first launch, choose a provider and enter your API key. The selected
+     endpoint and model are saved in `~/.siada-cli/conf.yaml`.
 
    **Method 2: Customize via Configuration File**
    - Regular Users
       - Edit configuration file `~/.siada-cli/conf.yaml`
-         ```bash
-         # 1. Create configuration file in user home directory
-         cd ~
-         mkdir -p ~/.siada-cli
-         touch ~/.siada-cli/conf.yaml
-
-         # 2. Configuration file content example
+         ```yaml
          llm_config:
-            model: "claude-sonnet-4.5"          # Change to your desired model
-            provider: "li"
+            provider: "default"
+            provider_id: "openai"
+            model: "gpt-4o-mini"  # Use a model available at your endpoint
+            base_url: "https://api.openai.com/v1"
+            api_key: "YOUR_API_KEY"
          ```
    - Developer Mode
       - Edit the `llm_config` section in `agent_config.yaml` file:
          ```yaml
          llm_config:
-            provider: "li"
-            model_name: "claude-sonnet-4.5"     # Change to your desired model
+            provider: "default"
+            model_name: "claude-sonnet-5"     # Change to your desired model
          ```
 
    **Method 3: Via Environment Variables**
    ```bash
    # Set model
-   export SIADA_MODEL="claude-sonnet-4.5"
+   export SIADA_MODEL="gpt-4o-mini"
    
    # Set provider
-   export SIADA_PROVIDER="li"
+   export SIADA_PROVIDER="default"
+
+   # Provider credentials for this terminal session
+   export BASE_URL="https://api.openai.com/v1"
+   export API_KEY="YOUR_API_KEY"
    ```
 
    **Method 4: Via Command Line Parameters (Highest Priority)**
    ```bash
    # Only change model (keep provider unchanged)
-   siada-cli --model claude-sonnet-4
+   siada-cli --model gpt-4o-mini
    
    # Change both model and provider
-   siada-cli --model gpt-4.1 --provider li
+   siada-cli --model gpt-4o-mini --provider default
    
    # Only change provider (keep model unchanged)
-   siada-cli --provider li
+   siada-cli --provider default
    ```
 
    > **Important Notes:**
-   > - **Complete Priority**: `Command line parameters` > `Environment variables (SIADA_ prefix)` > `Configuration file (agent_config.yaml)`
+   > - Model/provider priority: command line parameters > `SIADA_MODEL` /
+   >   `SIADA_PROVIDER` > `~/.siada-cli/conf.yaml` > bundled defaults.
+   > - Non-empty `BASE_URL` and `API_KEY` override the corresponding stored
+   >   credentials. Both are required to sign in without the configuration prompt.
 
 ### Goal Verification Limit
 
@@ -103,8 +109,8 @@ agents:
     enabled: true
 
 llm_config:
-  provider: "li"
-  model_name: "claude-sonnet-4.5"
+  provider: "default"
+  model_name: "claude-sonnet-5"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
   repo_verbose: true
@@ -117,7 +123,7 @@ Set environment variables to configure behavior:
 ```bash
 # Siada-specific settings (use SIADA_ prefix)
 export SIADA_AGENT="coder"
-export SIADA_MODEL="claude-sonnet-4.5"
+export SIADA_MODEL="gpt-4o-mini"
 export SIADA_THEME="dark"
 
 # Unset environment variables in current terminal session
@@ -180,6 +186,9 @@ Siada CLI provides checkpoint tracking functionality to automatically save sessi
 ### MCP Configuration
 
 Siada CLI integrates MCP (Model Context Protocol) service to provide extended tools and resources for AI agents.
+
+The MCP configuration loader reads JSON configuration sources only. MCP servers
+provided by installed plugins are loaded separately by the plugin runtime.
 
 **MCP Configuration File `~/.siada-cli/mcp_config.json`**
 
@@ -300,6 +309,32 @@ siada-cli --agent coder
 [AI response...]
 ```
 
+### Task Execution and Blockers
+
+Siada executes tools within the requested task scope and the tool's permission
+checks. The coding agent sends progress, results, and blockers through ordinary
+assistant messages. You can send additional instructions while it works,
+including a request to review a plan before execution. There is no separate
+interactive question tool or planning-mode panel.
+
+All `run_subtask` modes (normal, forked, background and recursive) run unattended
+and report unresolved blockers to their calling agent.
+
+### Browser Context in ACP Conversations
+
+When a browser client supplies a leading `<browser-context>` preamble, the ACP
+runtime separates it from the user's literal input. A turn with both page context
+and browser-skill experience suggestions reaches the agent as three independent
+user-role input items: `<user_input>` containing the user's message, a
+`<system-reminder>` containing page context, and another containing experience
+suggestions. Missing context items are omitted; ordinary prompts retain their
+existing input shape.
+
+These reminder tags mark low-trust runtime context, not a system wire role or
+additional authorization. The context items are saved with the turn but hidden
+from history replay. `@file` expansion processes the user's message without
+merging the context items back into it.
+
 ## Daemon and Scheduled Tasks
 
 ### Daemon Process
@@ -371,42 +406,25 @@ siada-cli --check-update       # Check and prompt for updates on startup (enable
 
 In the CLI, you can use slash commands for additional functionality:
 
-- `/shell` - Switch to shell mode to execute system commands (type `exit` or `quit` to exit shell mode)
 - `!<command>` - Execute a single shell command without switching modes
 - `/model` - Show model selector or switch model (`/model <model_name>`)
 - `/editor` or `/edit` - Open editor for multiline input
-- `/init [--force]` - Analyze the project and create a tailored siada.md file
+- `/init [--force]` - Analyze the project and create a tailored `SIADA.md` file
+- `/compact` - Compact conversation context; the terminal displays message counts and the number removed beneath the compaction status. The activity indicator shows compaction while it runs, then returns to model reasoning.
 - `/restore <checkpoint_file>` - Restore session state from a checkpoint file (requires checkpoint tracking enabled)
 - `/undo <checkpoint_file>` - Undo changes made by a checkpoint, restoring to the state before the checkpoint was created (requires checkpoint tracking enabled)
 - `/compare <checkpoint_file>` - Compare current state with a checkpoint file to see differences
-- `/memory-refresh` - Refresh user memory content from siada.md file
-- `/memory-status` - Display current user memory status (file info, size, loaded status)
+- `/context-file-refresh` - Refresh `SIADA.md` and `AGENTS.md` context files and show a content overview
+- `/rule-status` - Show the discovered `siada_rule.md` hierarchy and its configuration
 - `/status` - Display current session status (model, agent, session ID, and workspace)
 - `/lang` - View current language configuration
   - `/lang zh` - Switch to Chinese
   - `/lang en` - Switch to English
 - `/exit` - Exit the application
 
-### Shell Mode Usage Guide
+### Execute Shell Commands
 
-Siada CLI provides two ways to execute system commands:
-
-#### Method 1: Use `/shell` to switch to shell mode
-Switch to persistent shell mode where you can continuously execute multiple system commands:
-
-```bash
-> /shell
-# After entering shell mode, you can execute multiple commands
-ls -la
-cd my-project
-npm install
-git status
-# Use exit or quit to exit shell mode
-exit
-```
-
-#### Method 2: Use `!` prefix to execute commands directly
-Execute single system commands directly in interactive mode without switching modes:
+Use the `!` prefix to execute a single system command from the prompt:
 
 ```bash
 > !ls -la
@@ -414,9 +432,7 @@ Execute single system commands directly in interactive mode without switching mo
 > !npm run dev
 ```
 
-Differences between the two methods:
-- **`/shell`**: Suitable for scenarios requiring continuous execution of multiple system commands, switch once and use persistently
-- **`!<command>`**: Suitable for occasionally executing single system commands, returns to AI conversation mode immediately after execution
+After the command finishes, the prompt returns to the conversation. The `/shell` command for persistent shell mode is disabled in this build.
 
 ### Language Configuration
 
@@ -446,11 +462,11 @@ In addition to the built-in agent types, you can define your own named sub-agent
 ## Examples
 
 ### Activate Virtual Environment (Developer Mode Only)
-First, enter the siada-agenthub project directory and activate the virtual environment:
+First, enter the siada-cli project directory and activate the virtual environment:
 
 ```bash
 # Enter project directory
-cd ~/path/to/siada-agenthub
+cd ~/path/to/siada-cli
 
 # Activate virtual environment (recommended method)
 source $(poetry env info --path)/bin/activate
@@ -549,5 +565,22 @@ If running `siada-cli` directly shows command not found:
 - Check if the agent is enabled in `agent_config.yaml`
 - Verify the agent class path is correct
 - Use `--verbose` flag to see detailed output
+
+**Patch context mismatch (`Invalid Context` / `Invalid EOF Context`):**
+
+Native patch failures return recovery guidance:
+
+- Old and context lines must match complete lines in the current file. The
+  matcher does not interpret JSON fields or line fragments.
+- Read the target region again and generate a patch from the current text.
+  Exclude reader line numbers and truncation markers; do not repeat an unchanged
+  failed patch.
+- Matching tolerates leading/trailing whitespace and common Unicode punctuation
+  or space differences while preserving untouched text. Different values and
+  JSON formatting are not equivalent.
+- Each native operation is validated before its writes. A batch is not a
+  transaction: failed operations do not roll back successful ones, and the SDK
+  may attempt later operations. Check each result and the current files before
+  retrying.
 
 For more detailed troubleshooting, check logs and use the `--verbose` flag for additional debug information.

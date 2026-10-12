@@ -1,6 +1,6 @@
 """SQLite-backed fact storage for holographic memory.
 
-Schema (see design_docs/siada-holographic-memory-introduction.md §4):
+Schema:
 - ``facts``         — atomic content + meta (trust, retrieval_count, hrr_vector BLOB)
 - ``entities``      — canonical entity table with aliases
 - ``fact_entities`` — many-to-many link
@@ -17,21 +17,13 @@ from __future__ import annotations
 import logging
 import sqlite3
 import threading
-import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 from siada.services.memory.holographic import hrr
 from siada.services.memory.holographic.entity_extractor import extract_entities
-
-# Suppress jieba pkg_resources warning the same way memory_db.py does.
-with warnings.catch_warnings():
-    warnings.filterwarnings(
-        "ignore", message="pkg_resources is deprecated", category=UserWarning,
-    )
-    warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
-    import jieba
+from siada.services.memory.jieba_compat import jieba
 
 logger = logging.getLogger("siada.holographic.store")
 jieba.setLogLevel(logging.WARNING)

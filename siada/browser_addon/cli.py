@@ -65,6 +65,13 @@ def cmd_setup(args: argparse.Namespace) -> int:
         _print(f"    ✓ {paths.extension_dir()}")
     else:
         base = args.base_url or installer.DEFAULT_BOS_BASE
+        if not base:
+            _print(
+                "error: No browser artifact host is configured. Build chrome-acp "
+                "and run `siada-browser setup <chrome-acp-directory>`, "
+                "or pass --base-url <url>."
+            )
+            return 1
         installer.install_proxy_from_bos(base)
         installer.install_extension_from_bos(base)
 
@@ -139,12 +146,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("setup", help="Install the proxy + extension and start them (no argument = download from BOS)")
-    p.add_argument("repo", nargs="?", default=None, help="Path to the chrome-acp repo (must be built); omit to download from BOS")
+    p = sub.add_parser("setup", help="Install a built checkout or download from --base-url")
+    p.add_argument("repo", nargs="?", default=None, help="Path to the built chrome-acp repo; omit when using --base-url")
     p.add_argument("--port", type=int, default=paths.DEFAULT_PORT)
     p.add_argument("--host", default="127.0.0.1",
                    help="Proxy listen address; set to 0.0.0.0 to let other LAN devices connect remotely (enables wss/https)")
-    p.add_argument("--base-url", default=None, help=f"Override the BOS base URL (default {installer.DEFAULT_BOS_BASE})")
+    p.add_argument("--base-url", default=None, help="Artifact host URL; public builds have no default host")
     p.add_argument("--no-wait", action="store_true", help="Do not poll for the extension connection (used by installer scripts)")
     p.set_defaults(func=cmd_setup)
 

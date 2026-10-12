@@ -5,11 +5,22 @@ Injects a hidden todo reminder into the LLM input when the model has gone
 too many assistant turns without calling todo_write, and durably persists
 that reminder into the real Session.
 
-The reminder only ever keeps an EXISTING todo list up to date: a model that
-has not called todo_write yet is never proactively nudged to start one,
-regardless of model family and regardless of whether an active /goal is set.
-The standing goal is carried by the goal reminder merged into the turn's
-input and enforced by the completion verifier, so it needs no todo list.
+The reminder fires once todo_write is registered, at least
+TURNS_SINCE_WRITE_THRESHOLD assistant turns have passed since the last
+todo_write AND at least TURNS_BETWEEN_REMINDERS_THRESHOLD turns since the
+previous reminder. For GLM models, that holds even when the todo list is
+empty (matching the public ZCode runtime reminder): an empty list gets a
+short "consider starting a todo list" text that never claims existing items.
+For other models, only an existing list gets the "keep your list up to date"
+text with its contents. The first request of a session never qualifies (no
+assistant turns yet). The GLM empty-list behaviour has its own opt-out switch
+(TODO_EMPTY_LIST_REMINDER_ENV); /goal keeps its own goal reminder and verifier
+independently of this processor.
+
+The existing-list reminder is adapted from zai-org/ZCode at commit
+29628c9acdb81b703bbd4080c207a0e7ce5e276e, under Apache-2.0.
+Copyright 2026 Z.AI Co., Ltd. Siada changes tool names, persistence, and
+model-specific reminder behavior; attribution is included in docs/CREDITS.md.
 
 This used to be split across two pieces: a ``TodoReminderFilter``
 ``call_model_input_filter`` (context_capture_filter.py) that injected the
@@ -36,6 +47,7 @@ here as a single ``AgentHooks`` processor:
 """
 
 import logging
+import os
 import time
 from typing import Any, List
 
@@ -46,11 +58,26 @@ from siada.agent_hub.hooks.processors.reminder_persistence_utils import (
     persist_pending_reminder_items,
 )
 from siada.foundation.code_agent_context import CodeAgentContext
+from siada.models.model_base_config import get_glm_version
 
 logger = logging.getLogger(__name__)
 
 TURNS_SINCE_WRITE_THRESHOLD = 10
 TURNS_BETWEEN_REMINDERS_THRESHOLD = 10
+
+# Opt-out switch for the GLM-only empty-list reminder (default ON). Set it to
+# a falsy value (0/false/no/off) to restore the previous behaviour where an
+# empty todo list is never reminded about.
+TODO_EMPTY_LIST_REMINDER_ENV = "SIADA_TODO_EMPTY_LIST_REMINDER"
+_FALSY = ("0", "false", "no", "off", "disabled")
+
+
+def is_empty_list_reminder_enabled() -> bool:
+    """Whether an empty todo list may receive the reminder."""
+    value = os.environ.get(TODO_EMPTY_LIST_REMINDER_ENV)
+    if value is None:
+        return True
+    return value.strip().lower() not in _FALSY
 
 
 def _count_assistant_turns_since_todo_write(input_items: List) -> int:
@@ -72,7 +99,7 @@ def _count_assistant_turns_since_todo_write(input_items: List) -> int:
     - Returns the total model turn count if no todo_write call is found
 
     IMPORTANT — provider-format bug fix:
-    Some provider paths (e.g. li/Bedrock/ADK — see
+    Some model-provider paths (see
     ``agent_hub/context_filter/utils.py::_normalize_to_responses_items``) write
     ChatCompletion-style dicts into ``task_message_state`` instead of pure
     Responses-API items, e.g.::
@@ -125,10 +152,9 @@ def _count_assistant_turns_since_todo_write(input_items: List) -> int:
 def _build_reminder_text(todos: List[Any]) -> str:
     """Build the hidden reminder injected as a user message.
 
-    Only ever called by ``TodoReminderProcessor.on_llm_start`` once a todo
-    list exists, so this describes the existing (possibly stale) list. The
-    empty-list fallback below is defensive only: the processor never asks a
-    model to create a list it has not started itself.
+    With a todo list, the text describes the existing (possibly stale)
+    list. With an empty list it only suggests starting one — it must never
+    pretend there are existing items.
     """
     if todos:
         lines = [f"{i + 1}. [{t.status}] {t.content}" for i, t in enumerate(todos)]
@@ -145,18 +171,19 @@ def _build_reminder_text(todos: List[Any]) -> str:
             "</system-reminder>"
         )
 
-    # Fallback for direct callers that bypass TodoReminderProcessor's guard —
-    # on_llm_start itself never reaches this branch (it only calls this
-    # helper once a todo list exists).
-    return (
-        "<system-reminder>\n"
-        "The todo_write tool hasn't been used recently. If you're working on tasks that "
-        "would benefit from tracking progress, consider using the todo_write tool to "
-        "track progress. This is just a gentle reminder — ignore if not applicable.\n"
-        "Make sure that you NEVER mention this reminder to the user.\n\n"
-        "Here are the existing contents of your todo list:\n\n(empty — no todos currently tracked)\n"
-        "</system-reminder>"
-    )
+    return _EMPTY_TODO_LIST_REMINDER_TEXT
+
+
+# Empty-list variant (see module docstring): a short, gentle nudge that
+# never mentions existing items, since there are none.
+_EMPTY_TODO_LIST_REMINDER_TEXT = (
+    "<system-reminder>\n"
+    "The todo_write tool has not been used recently. If tracking progress would help "
+    "with this task, consider using todo_write to start a todo list. Ignore this "
+    "reminder when it is not relevant.\n"
+    "Do not mention this reminder to the user.\n"
+    "</system-reminder>"
+)
 
 
 class TodoReminderProcessor(AgentHooks):
@@ -175,19 +202,30 @@ class TodoReminderProcessor(AgentHooks):
         """Inject the hidden todo reminder directly into the real model input."""
         try:
             siada_context = context.context
+            # A failed attempt may leave a pending reminder behind. Only the
+            # current call's injection may be persisted by on_llm_end.
+            if hasattr(siada_context, "pending_reminder_items"):
+                siada_context.pending_reminder_items = []
 
-            # Guard: the reminder only keeps an EXISTING todo list up to
-            # date. A model that has not called todo_write yet is never
-            # proactively nudged to start one — regardless of model family,
-            # and not even while an active /goal is set: the standing goal is
-            # carried by the goal reminder merged into the turn's input and
-            # enforced by the completion verifier, so it needs no todo list.
+            # Only GLM models may be nudged to start a list. Other models
+            # retain the existing-list-only behaviour, regardless of the switch.
             if not siada_context.todos:
-                logger.debug(
-                    "[TodoReminderProcessor] skip: context.todos is empty — the "
-                    "reminder only keeps an existing todo list up to date"
-                )
-                return
+                session = getattr(siada_context, "session", None)
+                config = getattr(session, "siada_config", None)
+                llm_config = getattr(config, "llm_config", None)
+                model_name = getattr(llm_config, "model_name", None)
+                if get_glm_version(model_name) is None:
+                    logger.debug(
+                        "[TodoReminderProcessor] skip: context.todos is empty and "
+                        "the model is not GLM"
+                    )
+                    return
+                if not is_empty_list_reminder_enabled():
+                    logger.debug(
+                        "[TodoReminderProcessor] skip: context.todos is empty and "
+                        f"{TODO_EMPTY_LIST_REMINDER_ENV} disables the empty-list reminder"
+                    )
+                    return
 
             # Guard: only operate on non-empty list-format inputs
             if not isinstance(input_items, list) or not input_items:

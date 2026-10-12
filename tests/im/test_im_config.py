@@ -90,8 +90,8 @@ lark:
         result = load_im_config(config_path=tmp_path / "nonexistent.yaml")
         assert result is None
 
-    def test_returns_none_when_no_mode_set(self, tmp_path):
-        """Should return None when lark section exists but mode is not set."""
+    def test_preserves_config_when_mode_is_omitted(self, tmp_path):
+        """Keep settings for the controller's default direct mode."""
         config_path = tmp_path / "conf.yaml"
         self._write_yaml(config_path, """
 lark:
@@ -100,7 +100,7 @@ lark:
         from siada.im.config import load_im_config
 
         result = load_im_config(config_path=config_path)
-        assert result is None
+        assert result == {"lark": {"workspace": "/tmp/test"}}
 
     def test_returns_none_for_empty_file(self, tmp_path):
         """Should return None for empty YAML file."""

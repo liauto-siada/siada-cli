@@ -64,6 +64,9 @@ class TestInstaller:
         (proxy / "public").mkdir()
         (proxy / "public" / "index.html").write_text("<html>")
         (proxy / "package.json").write_text('{"name": "@chrome-acp/proxy-server"}')
+        (proxy / "package-lock.json").write_text(
+            '{"name": "@chrome-acp/proxy-server", "lockfileVersion": 3, "packages": {}}'
+        )
 
         ext = tmp_path / "packages" / "chrome-extension"
         (ext / "dist").mkdir(parents=True)
@@ -73,6 +76,9 @@ class TestInstaller:
         (ext / "rules").mkdir()
         (ext / "rules" / "strip_csp.json").write_text("{}")
         (ext / "manifest.json").write_text('{"name": "Siada", "version": "0.0.0"}')
+        for package in (proxy, ext):
+            (package / "LICENSE").write_text("Synthetic upstream license fixture")
+            (package / "THIRD_PARTY_NOTICES.md").write_text("Synthetic dependency notices")
         return tmp_path
 
     def test_install_layout(self, home, fake_repo, monkeypatch):
@@ -82,10 +88,14 @@ class TestInstaller:
 
         assert paths.proxy_entry() is not None
         assert (paths.proxy_dir() / "public" / "index.html").is_file()
+        assert (paths.proxy_dir() / "package-lock.json").is_file()
         assert not (paths.browser_home() / "proxy.staging").exists()
         assert (paths.extension_dir() / "manifest.json").is_file()
         assert (paths.extension_dir() / "dist" / "background.js").is_file()
         assert not (paths.browser_home() / "extension.staging").exists()
+        for package in (paths.proxy_dir(), paths.extension_dir()):
+            assert (package / "LICENSE").read_text() == "Synthetic upstream license fixture"
+            assert (package / "THIRD_PARTY_NOTICES.md").read_text() == "Synthetic dependency notices"
 
     def test_install_replaces_existing(self, home, fake_repo, monkeypatch):
         monkeypatch.setattr(installer, "subprocess", _NoopNpm())
@@ -97,6 +107,31 @@ class TestInstaller:
     def test_install_requires_built_repo(self, home, tmp_path):
         with pytest.raises(FileNotFoundError):
             installer.install_proxy(tmp_path)
+
+    def test_install_requires_reviewed_lockfile(self, home, fake_repo, monkeypatch):
+        (fake_repo / "packages" / "proxy-server" / "package-lock.json").unlink()
+        monkeypatch.setattr(installer, "subprocess", _NoopNpm())
+
+        with pytest.raises(FileNotFoundError, match="package-lock.json"):
+            installer.install_proxy(fake_repo)
+
+        assert not paths.proxy_dir().exists()
+
+    def test_install_uses_locked_production_dependencies(self, home, fake_repo, monkeypatch):
+        calls = []
+        monkeypatch.setattr(paths, "npm_argv", lambda: ["npm"])
+        monkeypatch.setattr(
+            installer.subprocess, "run", lambda argv, **kwargs: calls.append((argv, kwargs))
+        )
+
+        installer.install_proxy(fake_repo)
+
+        assert calls[0][0] == [
+            "npm", "ci", "--omit=dev", "--ignore-scripts",
+            "--no-audit", "--no-fund", "--loglevel=error",
+        ]
+        assert calls[0][1]["check"] is True
+        assert calls[0][1]["cwd"] == str(home / "proxy.staging")
 
 
 class TestBosInstall:
@@ -112,6 +147,11 @@ class TestBosInstall:
         (pkg / "dist" / "cli").mkdir(parents=True)
         (pkg / "dist" / "cli" / "bin.js").write_text(marker)
         (pkg / "package.json").write_text("{}")
+        (pkg / "package-lock.json").write_text('{"lockfileVersion": 3}')
+        (pkg / "public").mkdir()
+        (pkg / "public" / "index.html").write_text("<html>")
+        (pkg / "LICENSE").write_text("Synthetic upstream license fixture")
+        (pkg / "THIRD_PARTY_NOTICES.md").write_text("Synthetic dependency notices")
         tgz = bos / f"{name}.tar.gz"
         with tarfile_mod.open(tgz, "w:gz") as tar:
             tar.add(pkg, arcname=pkg.name)
@@ -138,6 +178,8 @@ class TestBosInstall:
         (ext_stage / "dist").mkdir(parents=True)
         (ext_stage / "dist" / "background.js").write_text("// bos")
         (ext_stage / "manifest.json").write_text('{"version": "%s"}' % version)
+        (ext_stage / "LICENSE").write_text("Synthetic upstream license fixture")
+        (ext_stage / "THIRD_PARTY_NOTICES.md").write_text("Synthetic dependency notices")
         ext_zip = bos / f"chrome-acp-extension-{version}.zip"
         with zipfile_mod.ZipFile(ext_zip, "w") as zf:
             for p in ext_stage.rglob("*"):
@@ -175,6 +217,104 @@ class TestBosInstall:
         assert ev == "9.9.9"
         assert (paths.extension_dir() / "manifest.json").is_file()
         assert (paths.extension_dir() / "dist" / "background.js").is_file()
+        for package in (paths.proxy_dir(), paths.extension_dir()):
+            assert (package / "LICENSE").read_text() == "Synthetic upstream license fixture"
+            assert (package / "THIRD_PARTY_NOTICES.md").read_text() == "Synthetic dependency notices"
+
+    @pytest.mark.parametrize("name", ["LICENSE", "THIRD_PARTY_NOTICES.md"])
+    @pytest.mark.parametrize("contents", [None, ""])
+    @pytest.mark.parametrize("kind", ["proxy", "extension"])
+    @pytest.mark.parametrize("existing_install", [False, True])
+    def test_archives_reject_missing_or_empty_notices(
+        self, home, bos_dir, fake_net, monkeypatch, tmp_path, name, contents, kind,
+        existing_install
+    ):
+        import hashlib
+        import tarfile
+        import zipfile
+
+        if kind == "proxy":
+            archive = bos_dir / "chrome-acp-proxy-9.9.9.tar.gz"
+            build = tmp_path / "broken-proxy"
+            with tarfile.open(archive) as tar:
+                tar.extractall(build, filter="data")
+            package = build / "chrome-acp-proxy-9.9.9"
+        else:
+            archive = bos_dir / "chrome-acp-extension-9.9.9.zip"
+            package = tmp_path / "broken-extension"
+            with zipfile.ZipFile(archive) as zf:
+                zf.extractall(package)
+
+        if contents is None:
+            (package / name).unlink()
+        else:
+            (package / name).write_text(contents)
+        if kind == "proxy":
+            with tarfile.open(archive, "w:gz") as tar:
+                tar.add(package, arcname=package.name)
+            monkeypatch.setattr(installer, "proxy_platform_tag", lambda: None)
+            install = installer.install_proxy_from_bos
+        else:
+            with zipfile.ZipFile(archive, "w") as zf:
+                for entry in package.rglob("*"):
+                    zf.write(entry, entry.relative_to(package))
+            install = installer.install_extension_from_bos
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        Path(str(archive) + ".sha256").write_text(f"{digest}  {archive.name}\n")
+        target = paths.proxy_dir() if kind == "proxy" else paths.extension_dir()
+        if existing_install:
+            target.mkdir(parents=True)
+            (target / "existing.txt").write_bytes(b"existing installation")
+
+        with pytest.raises(RuntimeError, match=f"missing or empty {name}"):
+            install("fake://bos")
+
+        if existing_install:
+            assert list(target.iterdir()) == [target / "existing.txt"]
+            assert (target / "existing.txt").read_bytes() == b"existing installation"
+        else:
+            assert not target.exists()
+
+    @pytest.mark.parametrize("name", ["package-lock.json", "public/index.html"])
+    def test_proxy_archive_requires_runtime_layout_and_preserves_existing_install(
+        self, home, bos_dir, fake_net, monkeypatch, tmp_path, name
+    ):
+        import hashlib
+        import tarfile
+
+        archive = bos_dir / "chrome-acp-proxy-9.9.9.tar.gz"
+        build = tmp_path / "incomplete-proxy"
+        with tarfile.open(archive) as tar:
+            tar.extractall(build, filter="data")
+        package = build / "chrome-acp-proxy-9.9.9"
+        (package / name).unlink()
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(package, arcname=package.name)
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        Path(str(archive) + ".sha256").write_text(f"{digest}  {archive.name}\n")
+        monkeypatch.setattr(installer, "proxy_platform_tag", lambda: None)
+        target = paths.proxy_dir()
+        target.mkdir(parents=True)
+        (target / "existing.txt").write_bytes(b"existing installation")
+
+        with pytest.raises(RuntimeError, match=f"no {name}"):
+            installer.install_proxy_from_bos("fake://bos")
+
+        assert list(target.iterdir()) == [target / "existing.txt"]
+        assert (target / "existing.txt").read_bytes() == b"existing installation"
+
+    @pytest.mark.parametrize(
+        "install", [installer.install_proxy_from_bos, installer.install_extension_from_bos]
+    )
+    def test_public_download_requires_explicit_artifact_host(self, monkeypatch, install):
+        monkeypatch.setattr(installer, "DEFAULT_BOS_BASE", "")
+        monkeypatch.setattr(
+            installer, "_fetch_text",
+            lambda url: pytest.fail("missing host must fail before downloading"),
+        )
+
+        with pytest.raises(ValueError, match="--base-url"):
+            install()
 
     def test_bos_prefers_platform_tarball(self, home, bos_dir, fake_net, monkeypatch, tmp_path):
         monkeypatch.setattr(installer, "proxy_platform_tag", lambda: "linux-x64")
@@ -246,7 +386,7 @@ class TestProxyPlatformTag:
 
 
 class _NoopNpm:
-    """Stand-in for installer.subprocess so npm install is a no-op in tests."""
+    """Stand-in for installer.subprocess so dependency installation is inert."""
 
     def run(self, *args, **kwargs):
         return None
@@ -417,3 +557,18 @@ class TestCli:
         out = capsys.readouterr().out
         assert "wss://" not in out
         assert manager.load_state()["host"] == "127.0.0.1"
+
+    def test_setup_without_host_reports_source_install_path(
+        self, home, fake_setup, monkeypatch, capsys
+    ):
+        monkeypatch.setattr(installer, "DEFAULT_BOS_BASE", "")
+        monkeypatch.setattr(
+            installer, "install_proxy_from_bos",
+            lambda base: pytest.fail("setup must not download without a host"),
+        )
+
+        assert cli.main(["setup"]) == 1
+        output = capsys.readouterr().out
+        assert "siada-browser setup <chrome-acp-directory>" in output
+        assert "--base-url" in output
+        assert not paths.state_path().exists()

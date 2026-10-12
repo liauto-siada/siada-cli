@@ -176,17 +176,21 @@ class FileSession(SessionABC):
             1 for item in items if not self._is_injected(item)
         )
         
-        # Extract first user message if not set
+        # Extract first user message if not set. Hidden runtime items (the
+        # Git snapshot and reminders, whether standalone or content parts)
+        # are not user-authored and must not become the session title.
         if not metadata.get('first_user_message'):
+            from siada.support.message_classifier import is_hidden_runtime_content, is_hidden_runtime_text
             for item in items:
-                if item.get('role') == 'user':
+                if item.get('role') == 'user' and not is_hidden_runtime_content(item.get('content')):
                     content = item.get('content', '')
                     if isinstance(content, str):
                         metadata['first_user_message'] = content[:100]
                         break
                     elif isinstance(content, list):
                         for part in content:
-                            if isinstance(part, dict) and part.get('type') == 'text':
+                            if (isinstance(part, dict) and part.get('type') in ('text', 'input_text')
+                                    and not is_hidden_runtime_text(part.get('text'))):
                                 metadata['first_user_message'] = part.get('text', '')[:100]
                                 break
                         if metadata.get('first_user_message'):

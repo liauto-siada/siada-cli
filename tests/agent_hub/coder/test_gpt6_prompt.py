@@ -4,15 +4,17 @@ import ast
 from pathlib import Path
 
 from siada.agent_hub.coder.prompt import code_gen_prompt
-from siada.agent_hub.coder.prompt.base.astra_instructions import get_astra_intro
-from siada.agent_hub.coder.prompt.base.gpt6_instructions import get_gpt6_intro
-from siada.agent_hub.coder.prompt.base.gpt5_instructions import (
+from siada.agent_hub.coder.prompt.models.gpt6.astra import get_astra_intro
+from siada.agent_hub.coder.prompt.models.gpt6.instructions import get_gpt6_intro
+from siada.agent_hub.coder.prompt.models.gpt6.templates import get_gpt6_template, resolve_gpt6_template_name
+import pytest
+from siada.agent_hub.coder.prompt.selection.model_features import (
     is_gpt5_model,
     is_gpt5_or_newer_model,
     uses_native_patch_file_tools,
 )
-from siada.agent_hub.coder.prompt.base.rules import get_rules_section
-from siada.agent_hub.coder.prompt.base.skill_usage_profiles import (
+from siada.agent_hub.coder.prompt.sections.rules.dispatch import get_rules_section
+from siada.agent_hub.coder.prompt.selection.skill_usage import (
     is_astra_model,
     is_gpt6_model,
     resolve_skill_usage_profile,
@@ -21,7 +23,7 @@ from siada.models.model_base_config import MODEL_SETTING
 from siada.services.skills import SkillMetadata, SkillScope, SkillUsageProfile, render_skills_section
 
 
-def _render_gpt6_prompt(monkeypatch, **kwargs) -> str:
+def _render_gpt6_prompt(monkeypatch, model_name: str = "gpt-6-astra", **kwargs) -> str:
     """Render a deterministic GPT-6 prompt without user-local skill discovery."""
     skill = SkillMetadata("test-skill", "Test instructions", Path("/skills/test/SKILL.md"), SkillScope.REPO)
 
@@ -31,14 +33,67 @@ def _render_gpt6_prompt(monkeypatch, **kwargs) -> str:
     monkeypatch.setattr(code_gen_prompt, "get_skills_section", render_fixed_skills)
     monkeypatch.setattr(code_gen_prompt, "_skills_context_window", lambda _model: None)
     monkeypatch.setattr(code_gen_prompt, "get_username", lambda: None)
-    return code_gen_prompt.get_system_prompt("/cwd", model_name="gpt-6-astra", **kwargs)
+    monkeypatch.setattr(code_gen_prompt, "get_agents_section", lambda *_a, **_k: None)
+    return code_gen_prompt.get_system_prompt("/cwd", model_name=model_name, **kwargs)
 
 
-def test_gpt6_variants_share_the_same_prompt_in_each_mode(monkeypatch):
-    for options in ({}, {"pre_plan": True}, {"interactive_mode": False}):
-        expected = _render_gpt6_prompt(monkeypatch, **options)
-        for model_name in ("gpt-6-sol", "gpt-6-luna", "astra"):
-            assert code_gen_prompt.get_system_prompt("/cwd", model_name=model_name, **options) == expected
+def test_gpt6_preserves_four_distinct_upstream_templates_in_each_mode(monkeypatch):
+    """Writing-style siblings retain their upstream policy differences."""
+    for options in ({}, {"interactive_mode": False}):
+        scannable = _render_gpt6_prompt(monkeypatch, model_name="gpt-6-sol", **options)
+        for model_name in ("gpt-6-sol", "vendor-gpt-6-sol"):
+            assert code_gen_prompt.get_system_prompt("/cwd", model_name=model_name, **options) == scannable
+
+        prose = _render_gpt6_prompt(monkeypatch, model_name="gpt-6-astra", **options)
+        for model_name in ("gpt-6-astra", "astra"):
+            assert code_gen_prompt.get_system_prompt("/cwd", model_name=model_name, **options) == prose
+
+        assert "write so the user understands your response on first read" in scannable
+        assert "Write in connected prose" in prose
+        assert scannable != prose
+        luna = _render_gpt6_prompt(monkeypatch, model_name="gpt-6-luna", **options)
+        sol61 = _render_gpt6_prompt(monkeypatch, model_name="gpt-6.1-sol", **options)
+        assert len({prose, scannable, luna, sol61}) == 4
+        assert "Avoid unnecessary apologies and self-blame." in sol61
+        assert "Avoid unnecessary apologies and self-blame." not in prose
+        assert "Do not add or run tests unless the user asks" in luna
+        assert "Do not add or run tests unless the user asks" not in scannable
+
+
+def test_gpt6_writing_style_follows_the_per_model_split(monkeypatch):
+    for model_name in ("gpt-6-sol", "gpt-6-luna", "vendor-gpt-6-sol"):
+        prompt = _render_gpt6_prompt(monkeypatch, model_name=model_name)
+        assert "write so the user understands your response on first read" in prompt
+        assert "minimize cognitive load" in prompt
+        assert "Write in connected prose" not in prompt
+        assert "avoid concluding summary statements" not in prompt
+
+    for model_name in ("gpt-6-astra", "gpt-6.1-sol", "astra", "gpt-6-nova"):
+        prompt = _render_gpt6_prompt(monkeypatch, model_name=model_name)
+        assert "Write in connected prose" in prompt
+        assert "write so the user understands your response on first read" not in prompt
+
+
+def test_gpt6_action_requests_and_risk_scaled_verification_across_modes(monkeypatch):
+    for options in ({}, {"interactive_mode": False}):
+        prompt = _render_gpt6_prompt(monkeypatch, **options)
+        assert '"can you..."' in prompt
+        assert '"help me..."' in prompt
+        assert "treat these as instructions to do the work and take action" in prompt
+        assert "complete all the necessary work until the intended outcome is fulfilled" in prompt
+        assert "Complete required checks before reporting success" in prompt
+        assert "Incorporate corrections, clarifications, constraints" in prompt
+
+
+def test_gpt6_final_answers_are_structured_and_not_token_compressed(monkeypatch):
+    prompt = _render_gpt6_prompt(monkeypatch)
+
+    assert "## Final answer" in prompt
+    assert "fully self-contained" in prompt
+    assert "blank line before any list" in prompt
+    assert "Minimize output tokens" not in prompt
+    assert "use 1-2 short paragraphs" not in prompt
+    assert "explain what changed, why, how it was tested" in prompt
 
 
 def test_gpt6_model_detection_uses_major_version_with_astra_alias_support():
@@ -79,6 +134,7 @@ def test_gpt6_intro_preserves_astra_compatibility():
     intro = get_astra_intro()
     without_personality = get_astra_intro(personality="default")
     gpt6_intro = get_gpt6_intro()
+    scannable_intro = get_gpt6_intro(personality="scannable")
 
     assert "# Personality" in intro
     assert "## Writing style" in intro
@@ -87,6 +143,13 @@ def test_gpt6_intro_preserves_astra_compatibility():
     assert "# Personality" not in without_personality
     assert "You are Siada, an agent based on GPT-6." in without_personality
     assert gpt6_intro == intro
+
+    # The caller picks the writing-style variant by name; the intro itself
+    # never depends on a separately threaded model name.
+    assert "write so the user understands your response on first read" in scannable_intro
+    assert "Write in connected prose" in intro
+    assert "Write in connected prose" not in scannable_intro
+    assert "write so the user understands your response on first read" not in intro
 
 
 def test_gpt6_rules_include_permissions_without_duplicating_personality():
@@ -99,15 +162,6 @@ def test_gpt6_rules_include_permissions_without_duplicating_personality():
     assert "## Visualizations" in rules
     assert "# Personality" not in rules
     assert "## Writing style" not in rules
-
-
-def test_gpt6_pre_plan_uses_one_plan_gate(monkeypatch):
-    prompt = _render_gpt6_prompt(monkeypatch, pre_plan=True)
-
-    assert "Plan-first mode is enabled" in prompt
-    assert "Complete the work that is already authorized" not in prompt
-    assert "go ahead and actually implement" not in prompt
-    assert prompt.count("modifies or creates files") == 1
 
 
 def test_gpt6_non_interactive_permission_variant(monkeypatch):
@@ -123,8 +177,9 @@ def test_gpt6_system_prompt_uses_gpt6_skills_and_has_no_codex_only_mechanisms(mo
     assert "# Personality" in prompt
     assert "develop it with the explanation and detail the reader needs" in prompt
     assert "reasonable judgement" in prompt
-    assert "### How to use skills" in prompt
-    assert "explicitly require approval" in prompt
+    assert prompt.splitlines().count("## How to use skills") == 1
+    assert "### How to use skills" not in prompt
+    assert "User authorization and preferences persist across turns" in prompt
     assert "you must use that skill" not in prompt
     assert "long-horizon" not in prompt
     assert "only hidden" not in prompt
@@ -136,7 +191,6 @@ def test_gpt6_system_prompt_uses_gpt6_skills_and_has_no_codex_only_mechanisms(mo
     for forbidden in (
         "commentary channel",
         "final channel",
-        "request_user_input_async",
         "send_user_message_async",
         "codex_apps",
         "tool_search",
@@ -165,7 +219,7 @@ def test_gpt6_prompt_lists_read_file_and_native_apply_patch(monkeypatch):
 def test_every_gpt5_or_newer_prompt_uses_the_native_file_tool_contract(monkeypatch):
     monkeypatch.setattr(code_gen_prompt, "get_username", lambda: None)
     for model_name in ("gpt-5.6-luna", "gpt-6-nova", "vendor-gpt-7-nova"):
-        prompt = code_gen_prompt.get_system_prompt("/cwd", model_name=model_name)
+        prompt = _render_gpt6_prompt(monkeypatch, model_name=model_name)
 
         assert "You can use `read_file` to view files and directories." in prompt
         assert "You can use `apply_patch` to create, update, delete, and move text files" in prompt
@@ -173,7 +227,7 @@ def test_every_gpt5_or_newer_prompt_uses_the_native_file_tool_contract(monkeypat
 
     gpt6_prompt = code_gen_prompt.get_system_prompt("/cwd", model_name="gpt-6-nova")
     assert "reasonable judgement" in gpt6_prompt
-    assert "## When to Ask the User" in gpt6_prompt
+    assert "# When to ask the user for permission" in gpt6_prompt
     assert "you must use that skill" not in gpt6_prompt
 
     # GPT-5 retains its own extra editing section; later GPT generations use
@@ -181,6 +235,43 @@ def test_every_gpt5_or_newer_prompt_uses_the_native_file_tool_contract(monkeypat
     assert "Use `read_file` to inspect source before changing it" in code_gen_prompt.get_system_prompt(
         "/cwd", model_name="gpt-5.6-luna"
     )
+
+
+@pytest.mark.parametrize("model_name, expected", [
+    ("gpt-6-astra", "gpt-6-astra"), ("astra", "gpt-6-astra"),
+    ("vendor-gpt-6.1-sol", "gpt-6.1-sol"), ("gpt-6-sol", "gpt-6-sol"),
+    ("vendor-gpt-6-luna", "gpt-6-luna"), ("gpt-6-nova", "gpt-6-astra"),
+])
+def test_gpt6_template_aliases(model_name, expected):
+    assert resolve_gpt6_template_name(model_name) == expected
+
+
+def test_gpt6_uses_literal_template_then_runtime_fragments(monkeypatch):
+    monkeypatch.setattr(code_gen_prompt, "get_rules_for_profile", lambda *_a, **_k: pytest.fail("Legacy rules used"))
+    monkeypatch.setattr(code_gen_prompt, "render_system_prompt", lambda **_k: pytest.fail("Legacy builder used"))
+    prompt = _render_gpt6_prompt(monkeypatch, preferred_language="zh-CN", user_memory="Synthetic note")
+    template = get_gpt6_template("gpt-6-astra")
+    assert prompt.startswith(template + "\n\n===\n\n# CAPABILITIES")
+    headings = ["# CAPABILITIES", "# Runtime instructions", "# SYSTEM INFORMATION", "# PREFERRED LANGUAGE", "## Skills", "# Combined Memory"]
+    assert [prompt.splitlines().index(heading) for heading in headings] == sorted(prompt.splitlines().index(heading) for heading in headings)
+    assert "# RULES" not in prompt and "# OBJECTIVE" not in prompt
+    assert "### Writing PR descriptions" in prompt
+    assert "## User input tools" not in prompt
+
+
+@pytest.mark.parametrize("model_name", [
+    "claude-sonnet-5", "gpt-5.4", "zhipuai/glm-5.3", "gpt-6-astra",
+    "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol",
+])
+@pytest.mark.parametrize("interactive_mode", [True, False])
+def test_prompts_do_not_advertise_question_tools(monkeypatch, model_name, interactive_mode):
+    prompt = _render_gpt6_prompt(
+        monkeypatch, model_name=model_name, interactive_mode=interactive_mode,
+    )
+    assert "## User input tools" not in prompt
+    for name in ("request_user_input", "request_user_input_async", "ask_followup_question"):
+        assert name not in prompt
+    assert "send_message_to_user_async" not in prompt
 
 
 def test_non_gpt_prompt_includes_shared_skill_root_alias_guidance(monkeypatch):
@@ -237,17 +328,16 @@ def _assert_gpt6_literals(module_path: Path, expected_names: set[str]) -> None:
 def test_gpt6_prompt_text_is_defined_by_module_level_literals():
     root = Path(__file__).resolve().parents[3]
     _assert_gpt6_literals(
-        root / "siada/agent_hub/coder/prompt/base/gpt6_instructions.py",
-        {"_GPT6_INTRO_HEADER", "PERSONALITY_GPT6"},
+        root / "siada/agent_hub/coder/prompt/models/gpt6/instructions.py",
+        {"_GPT6_INTRO_HEADER", "PERSONALITY_GPT6", "PERSONALITY_GPT6_SCANNABLE"},
     )
     _assert_gpt6_literals(
-        root / "siada/agent_hub/coder/prompt/base/rules.py",
+        root / "siada/agent_hub/coder/prompt/models/gpt6/rules.py",
         {
             "_GPT6_CONCISE_COMMUNICATION_SECTION",
+            "_GPT6_FINAL_ANSWER_SECTION",
             "_GPT6_AUTONOMY_IMPLEMENT",
-            "_GPT6_AUTONOMY_PRE_PLAN",
             "_GPT6_PERMISSION_ASK",
-            "_GPT6_PERMISSION_PREPLAN",
             "_GPT6_PERMISSION_NONINTERACTIVE",
             "_GPT6_TOOL_DISCIPLINE_SECTION",
             "_GPT6_STEERING_SECTION",

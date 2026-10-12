@@ -3,7 +3,7 @@
 The SDK default (``default_should_replay_reasoning_content``) only replays
 reasoning content for DeepSeek models.  This module provides a project-wide
 hook that extends the replay to GLM models (e.g. glm-5.1, glm-5.2), Kimi
-(e.g. kimi-k3) and Qwen (e.g. kivy-qwen-3.8-max) as well, so that
+(e.g. kimi-k3) and Qwen (e.g. qwen3.8-max) as well, so that
 reasoning/thinking content is preserved across multi-turn tool-call
 conversations regardless of which provider is used.
 
@@ -39,7 +39,7 @@ def should_replay_reasoning_content(context: ReasoningContentReplayContext) -> b
 
     Extends the SDK default (which only replays for DeepSeek) to also replay
     for GLM (e.g. glm-5.1, glm-5.2), Kimi (e.g. kimi-k3) and Qwen
-    (e.g. kivy-qwen-3.8-max) models so that reasoning/thinking content is
+    (e.g. qwen3.8-max) models so that reasoning/thinking content is
     preserved across multi-turn tool-call conversations.
 
     The origin-model check prevents cross-model contamination: reasoning from

@@ -43,7 +43,7 @@ class LarkSlashCommandHandler:
     # the IO does not expose an ACP adapter, which is exactly the Lark case,
     # so the command captures fine via this handler's IO buffering. This
     # lets IM users list, install, remove, enable/disable skills and manage
-    # marketplaces remotely (e.g. ``/plugin install idaas-doctor``).
+    # marketplaces remotely through ``/plugin install <plugin-name>``.
     #
     # ``goal`` is temporarily blocked too: the standing-goal feature's
     # GoalStatusBar / verifier UX is currently ACP-frontend-only, so there

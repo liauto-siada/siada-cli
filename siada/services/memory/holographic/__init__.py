@@ -11,7 +11,7 @@ Key components:
 - ``retrieval.FactRetriever`` — 5 retrieval actions: search / probe / related / reason / contradict.
 - ``provider.HolographicProvider`` — top-level façade for tool dispatch and prefetch.
 
-See design_docs/siada-holographic-memory-introduction.md for the full design.
+See "Memory System & Fact Store" in README.md for the user-facing overview.
 """
 
 # Lazy re-export to avoid forcing every importer to pull in the full

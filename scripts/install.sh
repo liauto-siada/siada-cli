@@ -128,13 +128,14 @@ check_python() {
     return 0
 }
 
-# Uninstall old version
+# Uninstall old version of the distribution built from this checkout
+# (`siada-cli`, see pyproject.toml)
 uninstall_old() {
     log_info "Checking for previously installed version..."
     
-    if pip3 show siada-agenthub &> /dev/null; then
+    if pip3 show siada-cli &> /dev/null; then
         log_warning "Found installed version, uninstalling..."
-        if pip3 uninstall siada-agenthub -y; then
+        if pip3 uninstall siada-cli -y; then
             log_success "Old version uninstalled"
             return 0
         else
@@ -196,10 +197,10 @@ show_usage() {
     echo ""
     echo "Basic usage:"
     echo "  siada-cli --help                    # Show help"
-    echo "  siada-cli bugfix \"Fix some issue\"  # Use bugfix agent"
+    echo "  siada-cli --agent coder --prompt \"Fix some issue\""
     echo ""
     echo "Examples:"
-    echo "  siada-cli bugfix \"Complete a requirement\""
+    echo "  siada-cli --agent coder --prompt \"Complete a requirement\""
     echo ""
 }
 

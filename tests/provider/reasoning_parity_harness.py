@@ -1,9 +1,17 @@
 """Shared harness for reasoning-params parity tests (default / responses paths).
 
-Captures the FINAL arguments each provider path hands to ``litellm.acompletion``
-(or, for the Responses path, the request params built by ``ResponsesModel``)
-for a matrix of (model, config-variant) combinations, normalized so that
-environment-dependent values (auth headers) do not affect comparisons.
+Captures the FINAL arguments each provider path hands to its network entry
+point, normalized so that environment-dependent values (auth headers) do not
+affect comparisons:
+
+* ``capture_default`` -- the retained LiteLLM route (claude / anthropic /
+  gemini in production) and the frozen pre-refactor snapshots: the kwargs
+  handed to ``litellm.acompletion``.
+* ``capture_default_wire_body`` -- the Chat Completions families, which the
+  public default provider serves through the official SDK: the JSON request
+  body an OpenAI-compatible endpoint receives.
+* ``capture_responses`` -- the Responses path: the request params built by
+  ``ResponsesModel``.
 
 The matrix and capture logic live here so that the golden generator
 (``_gen_reasoning_parity_golden.py``) and the parity tests
@@ -13,24 +21,33 @@ The matrix and capture logic live here so that the golden generator
 from __future__ import annotations
 
 import asyncio
+import json
 from copy import deepcopy
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import httpx
 import litellm
 from litellm.types.utils import Choices, Message, ModelResponse
 
 # ---------------------------------------------------------------------------
-# Pin model settings to the built-in MODEL_SETTING list.
-#
-# get_model_settings() prefers ``_user_model_settings`` over remote-config
-# fetches, so setting it here makes the matrix immune to the background
-# remote-model-config thread and to whatever models.json a developer machine
-# has locally.
+# Pin model settings while constructing each test config, without changing
+# other tests' active catalog. The historical Gemini entry is an offline
+# request-format fixture; it is not part of the public supported-model list.
 # ---------------------------------------------------------------------------
 from siada.models import model_base_config as _mbc
 
-_mbc._user_model_settings = [deepcopy(c) for c in _mbc.MODEL_SETTING]
+_PINNED_MODEL_SETTINGS = [deepcopy(c) for c in _mbc.MODEL_SETTING]
+_PINNED_MODEL_SETTINGS.append(
+    _mbc.ModelBaseConfig(
+        model_name="gemini-3.5-flash",
+        max_tokens=65535,
+        context_window=600_000,
+        parallel_tool_calls=True,
+        supports_extra_params=["reasoning_effort"],
+        default_reasoning_effort="low",
+    )
+)
 
 from agents.models.interface import ModelTracing
 
@@ -42,7 +59,7 @@ from siada.models.model_setting_converter import ModelSettingsConverter
 # ---------------------------------------------------------------------------
 
 # Every model family / converter branch is covered (one model per branch
-# family, all names present in MODEL_SETTING):
+# family, using the built-in catalog and the historical fixture above):
 #   claude (adaptive default DT=-1), gemini, glm-5.2 (DT=1024), glm-5.3,
 #   deepseek, qwen (effort+enable_thinking), kimi (effort only, DRE=max),
 #   gpt-6 (responses-only).
@@ -76,7 +93,8 @@ VARIANTS: list[str] = [
 
 def make_config(model: str, variant: str) -> ModelRunConfig:
     """Build a ModelRunConfig for (model, variant)."""
-    cfg = ModelRunConfig(model)
+    with patch.object(_mbc, "_user_model_settings", _PINNED_MODEL_SETTINGS):
+        cfg = ModelRunConfig(model)
     if variant == "default":
         return cfg
     cfg.thinking_tokens = None
@@ -151,9 +169,30 @@ def _normalize_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 _INPUT = [{"role": "user", "content": "hi"}]
 
+# Endpoint/credentials for the in-process transport capture: synthetic, and
+# never dialed (the client's transport is replaced by a MockTransport).
+_STUB_BASE_URL = "http://provider-harness.test/v1"
+_STUB_API_KEY = "sk-harness-test"
+
+# Model-family keywords served by the retained LiteLLM route; mirrors
+# ``DefaultProvider._build_model``. Everything else is Chat Completions.
+_LITELLM_ROUTE_KEYWORDS: tuple[str, ...] = ("claude", "anthropic", "gemini")
+
+
+def uses_litellm_route(model_name: str) -> bool:
+    """Whether the public default provider keeps ``model_name`` on LiteLLM."""
+    lower = (model_name or "").lower()
+    return any(keyword in lower for keyword in _LITELLM_ROUTE_KEYWORDS)
+
 
 async def capture_default(model_name: str, settings) -> dict[str, Any]:
-    """Run the default provider's LitellmModel._fetch_response and capture acompletion kwargs."""
+    """Capture the retained LiteLLM route's ``litellm.acompletion`` kwargs.
+
+    This is the production transport for claude / anthropic / gemini (and the
+    frozen pre-refactor snapshot comparison for those families). The
+    Chat Completions families no longer take this route -- they are captured by
+    ``capture_default_wire_body`` instead.
+    """
     from siada.provider.default.kimi_tool_ordering import (
         get_kimi_tool_ordering_litellm_model_cls,
     )
@@ -182,6 +221,89 @@ async def capture_default(model_name: str, settings) -> dict[str, Any]:
     return _normalize_kwargs(captured[0])
 
 
+def _chat_completion_payload(model_name: str) -> dict[str, Any]:
+    return {
+        "id": "chatcmpl-harness",
+        "object": "chat.completion",
+        "created": 1,
+        "model": model_name,
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": "hi"},
+            }
+        ],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    }
+
+
+async def capture_default_wire_body(model_name: str, settings) -> dict[str, Any]:
+    """Capture the final HTTP request body the default provider sends.
+
+    Chat Completions families are served by ``DefaultOpenAIChatCompletionsModel``
+    (the official SDK), so this runs the real
+    provider -> model -> SDK serialization chain and replaces only the client's
+    transport with an in-process ``MockTransport``: the returned dict is the
+    JSON body an OpenAI-compatible endpoint receives. Nothing leaves the
+    process, and the ambient ``HTTP(S)_PROXY`` settings cannot reroute it.
+    """
+    if uses_litellm_route(model_name):
+        raise ValueError(
+            f"{model_name!r} keeps the retained LiteLLM route; capture it with "
+            "capture_default() instead"
+        )
+
+    from siada.provider.default import chat_completions as chat_module
+    from siada.provider.default.chat_completions import (
+        DefaultOpenAIChatCompletionsModel,
+    )
+    from siada.provider.default.default_provider import DefaultProvider
+
+    bodies: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(
+            200, json=_chat_completion_payload(model_name), request=request
+        )
+
+    real_async_openai = chat_module.AsyncOpenAI
+
+    def create_client(**kwargs: Any) -> Any:
+        return real_async_openai(
+            **kwargs,
+            http_client=httpx.AsyncClient(
+                transport=httpx.MockTransport(handler), trust_env=False
+            ),
+        )
+
+    provider = DefaultProvider()
+    try:
+        with patch.object(chat_module, "AsyncOpenAI", create_client):
+            model = provider.get_model_with_credentials(
+                model_name, base_url=_STUB_BASE_URL, api_key=_STUB_API_KEY
+            )
+            assert isinstance(model, DefaultOpenAIChatCompletionsModel), (
+                f"the default provider no longer serves {model_name!r} through "
+                f"the Chat Completions transport ({type(model).__name__})"
+            )
+            await model.get_response(
+                system_instructions="You are a test",
+                input=deepcopy(_INPUT),
+                model_settings=settings,
+                tools=[],
+                output_schema=None,
+                handoffs=[],
+                tracing=ModelTracing.DISABLED,
+            )
+    finally:
+        await provider.aclose()
+
+    assert bodies, "the Chat Completions transport sent no request"
+    return bodies[0]
+
+
 def capture_responses(model_name: str, settings) -> dict[str, Any]:
     """Run ResponsesModel._build_request_params (used for responses-only models)."""
     from siada.provider.responses.responses_model import ResponsesModel
@@ -203,7 +325,13 @@ def capture_responses(model_name: str, settings) -> dict[str, Any]:
 
 
 def capture_all(model: str, variant: str) -> dict[str, dict[str, Any]]:
-    """Capture the provider path used in production for one (model, variant) pair."""
+    """Capture the provider path used in production for one (model, variant) pair.
+
+    The ``"default"`` entry is the retained LiteLLM route's kwargs (the frozen
+    pre-refactor comparison, and the reference snapshots the generator writes);
+    the Chat Completions families' production body is captured by
+    ``capture_default_wire_body``.
+    """
     settings = build_settings(model, variant)
     result: dict[str, dict[str, Any]] = {}
 

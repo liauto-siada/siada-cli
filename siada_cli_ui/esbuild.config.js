@@ -6,37 +6,42 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
+import { copyFileSync, readFileSync } from 'node:fs';
 
 let esbuild;
 try {
   esbuild = (await import('esbuild')).default;
 } catch (_error) {
-  console.warn('esbuild not available, skipping bundle step');
-  process.exit(0);
+  console.error('esbuild is required to build the UI bundle; run npm ci first.');
+  process.exit(1);
 }
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const require = createRequire(import.meta.url);
-const pkg = require(path.resolve(__dirname, 'package.json'));
+const project = readFileSync(path.resolve(__dirname, '../pyproject.toml'), 'utf8');
+const releaseVersion = project.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+if (!releaseVersion) {
+  throw new Error('No release version found in pyproject.toml');
+}
 
-// 基础配置
+// Base configuration.
 const baseConfig = {
   bundle: true,
   platform: 'node',
   format: 'esm',
   external: [
-    // 只保留原生模块为 external（无法打包）
+    // Native dependencies cannot be bundled.
     'fsevents',
   ],
   loader: { '.node': 'file' },
   write: true,
-  minify: true, // 减小 bundle 体积（3.7MB→1.5MB），node 启动解析快 ~150ms
-  sourcemap: true,
+  minify: true,
+  sourcemap: false,
+  // Preserve significant spaces inside strings as escapes in generated code.
+  supported: { 'template-literal': false },
 };
 
-// CLI 入口配置
+// CLI entry point.
 const cliConfig = {
   ...baseConfig,
   banner: {
@@ -48,7 +53,7 @@ globalThis.__dirname = require('path').dirname(globalThis.__filename);`,
   entryPoints: ['src/cli.ts'],
   outfile: 'bundle/siada-ui.js',
   define: {
-    'process.env.CLI_VERSION': JSON.stringify(pkg.version),
+    'process.env.CLI_VERSION': JSON.stringify(releaseVersion),
     'process.env.DEV': JSON.stringify('false'),  // Disable Ink devtools in production
   },
   metafile: true,
@@ -79,11 +84,15 @@ globalThis.__dirname = require('path').dirname(globalThis.__filename);`,
   }],
 };
 
-// 构建
+// Build the release bundle.
 async function build() {
   try {
     console.log('Building siada-cli-ui with esbuild...');
     const result = await esbuild.build(cliConfig);
+    copyFileSync(
+      path.resolve(__dirname, 'THIRD_PARTY_NOTICES.md'),
+      path.resolve(__dirname, 'bundle/siada-ui.LEGAL.txt'),
+    );
     
     if (result.metafile && process.env.DEV === 'true') {
       const { writeFileSync } = await import('node:fs');

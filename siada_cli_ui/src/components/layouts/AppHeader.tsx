@@ -16,7 +16,6 @@ export interface AppHeaderProps {
   agent?: string;
   provider?: string;
   model?: string;
-  prePlanMode?: boolean;
   isCollapsed?: boolean;
 }
 
@@ -26,7 +25,6 @@ export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
   agent = 'coder',
   provider = 'default',
   model,
-  prePlanMode = true,
   isCollapsed = false,
 }) => {
   // ASCII art lines - matching siada-cli output
@@ -94,12 +92,6 @@ export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
         <Text color="yellow">{provider}</Text>
         <Text>, Model: </Text>
         <Text color="yellow">{model || 'default'}</Text>
-        {prePlanMode && (
-          <>
-            <Text>; </Text>
-            <Text color="green">pre-plan mode</Text>
-          </>
-        )}
         <Text>.</Text>
       </Box>
 

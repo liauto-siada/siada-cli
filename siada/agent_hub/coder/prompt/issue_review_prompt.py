@@ -10,8 +10,8 @@ from __future__ import annotations
 import os
 import platform
 
-from .base.capabilities import get_capabilities_section
-from .base.rules import get_rules_section
+from .sections.capabilities import get_capabilities_section
+from .sections.rules.dispatch import get_rules_section
 
 
 _INTRO = """\
@@ -33,7 +33,7 @@ selected patch is preferable and call out material limitations or risks.
 
 
 _OBJECTIVE = """\
-OBJECTIVE
+# OBJECTIVE
 
 Analyze the issue and each proposed patch before reaching a conclusion. Trace
 the relevant code paths when context is available, distinguish evidence from

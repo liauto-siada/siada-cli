@@ -81,9 +81,8 @@ def fix_tool_message_ordering(messages: List) -> List:
         an assistant message with 'tool_calls' must be followed by tool
         messages responding to each 'tool_call_id'
 
-    The normal streaming path already applies this repair (see
-    ``siada/internal/provider/li/li_provider.py`` →
-    ``LitellmModel._fix_tool_message_ordering``); the compaction summarization
+    The normal streaming path already applies this repair
+    (``LitellmModel._fix_tool_message_ordering``); the compaction summarization
     call needs it too.
 
     Repairs performed
@@ -195,7 +194,7 @@ def _normalize_to_responses_items(items: List) -> List:
       - function call output:    ``{type:"function_call_output", call_id, output}``
       - reasoning / item_reference / file_search_call / compaction
 
-    Some siada provider paths (e.g. li/Bedrock/ADK) write ChatCompletion-style
+    Some model-provider paths write ChatCompletion-style
     dicts into ``task_message_state``::
 
         {role:"assistant", content:"", tool_calls:[{id, function:{name, arguments}}]}

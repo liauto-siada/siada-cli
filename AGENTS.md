@@ -58,11 +58,33 @@ and contribution guidance. Dependency and command definitions live in
 - Use Poetry to install dependencies and run Python commands. Do not rely on a
   globally installed Python package or CLI to validate checkout changes.
 - For UI development, use npm and a maintained Node.js LTS release satisfying the
-  locked dependencies. Some current UI dependencies require Node.js `>=20`, even
-  though the UI package itself declares `>=18`.
+  locked dependencies. The UI requires Node.js `>=22.12.0`; Node.js 24 LTS is
+  recommended.
 - Keep `${REPO_ROOT}/poetry.lock` and
   `${REPO_ROOT}/siada_cli_ui/package-lock.json` consistent with intentional
   dependency changes. Avoid unrelated upgrades or switching package managers.
+
+### Tool discovery in non-interactive shells
+
+Automated shells may have a minimal `PATH`. A `command not found` error does not
+prove that Node.js, npm, or Poetry is uninstalled. Before reporting a blocked
+check:
+
+1. Inspect `PATH` and run `command -v node`, `command -v npm`, and
+   `command -v poetry`. Check standard installation locations such as the
+   selected nvm Node.js version's `bin` directory, `/opt/homebrew/bin`,
+   `/usr/local/bin`, and `$HOME/.local/bin`. Use a compatible Node.js LTS release.
+2. If a binary exists outside `PATH`, prepend its verified directory for the
+   current command or shell session. Do not change global shell configuration
+   or install another toolchain merely because the initial lookup failed.
+3. For Python, check `poetry -C "$REPO_ROOT" env list --full-path` and
+   `poetry -C "$REPO_ROOT" run python -V`. Poetry may select an existing but
+   incomplete virtual environment. If pytest is missing, use a supported
+   environment with development dependencies or install them as shown below
+   before concluding that tests cannot run.
+4. If UI `node_modules` is absent, run the lockfile-based `npm ci` command below
+   before checking for Vitest or TypeScript. Use the project's npm scripts,
+   not globally installed test or compiler binaries.
 
 Install Python dependencies, including the development group:
 
@@ -124,6 +146,8 @@ and include them only when required by the task or packaging workflow.
   `@jrichman/ink` rather than introducing a different Ink package.
 - Write new comments and docstrings in English. Explain intent and non-obvious
   constraints instead of narrating the code.
+- Format generated system-prompt section titles as Markdown headings (`#` for
+  top-level sections, `##`/`###` for nested sections) throughout the assembled prompt.
 - Keep agent behavior, tool execution, service logic, and UI presentation in their
   existing layers. Do not put backend business logic into UI components.
 - Preserve async cancellation, subprocess cleanup, and resource ownership. Avoid

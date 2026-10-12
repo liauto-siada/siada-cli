@@ -2,8 +2,8 @@
 
 Two sources:
   - A chrome-acp checkout (``install_proxy/install_extension``): copy
-    dist/public/package.json, then ``npm install --omit=dev`` in the staging
-    dir. The repo's bun workspace node_modules cannot be copied — it
+    dist/public and the locked package metadata, then ``npm ci --omit=dev``
+    in the staging dir. The repo's bun workspace node_modules cannot be copied — it
     symlinks into the repo-root .bun store and drops transitive deps.
   - BOS tarball/zip (``install_*_from_bos``): artifacts produced by the
     chrome-acp CI (``just pack``), sha256-verified. This is what end users
@@ -37,8 +37,34 @@ from siada.browser_addon import paths
 # artifact host that serves the packed tarballs.
 DEFAULT_BOS_BASE = ""
 
-_PROXY_ITEMS = ("dist", "public", "package.json")
-_EXT_ITEMS = ("manifest.json", "icons", "rules", "dist")
+_PROXY_ITEMS = (
+    "dist",
+    "public",
+    "package.json",
+    "package-lock.json",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+)
+_EXT_ITEMS = ("manifest.json", "icons", "rules", "dist", "LICENSE", "THIRD_PARTY_NOTICES.md")
+
+
+def _require_license_files(package: Path) -> None:
+    """Reject packages that would drop the upstream redistribution notices."""
+    for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
+        notice = package / name
+        if not notice.is_file() or not notice.read_bytes().strip():
+            raise RuntimeError(f"missing or empty {name} in browser package {package.name}")
+
+
+def _artifact_base_url(base: str | None) -> str:
+    """Require an explicitly configured artifact host in public builds."""
+    resolved = (base or DEFAULT_BOS_BASE).strip().rstrip("/")
+    if not resolved:
+        raise ValueError(
+            "No browser artifact host is configured. Build chrome-acp and run "
+            "`siada-browser setup <chrome-acp-directory>`, or pass --base-url <url>."
+        )
+    return resolved
 
 
 def _replace_dir(target: Path, stage: Path) -> None:
@@ -56,6 +82,7 @@ def install_proxy(repo: Path) -> None:
     src = Path(repo).expanduser() / "packages" / "proxy-server"
     if not (src / "dist" / "cli" / "bin.js").is_file():
         raise FileNotFoundError(f"{src / 'dist'} not built — run `bun run build:proxy` in {repo}")
+    _require_license_files(src)
 
     stage = paths.browser_home() / "proxy.staging"
     shutil.rmtree(stage, ignore_errors=True)
@@ -72,7 +99,10 @@ def install_proxy(repo: Path) -> None:
     if npm is None:
         raise RuntimeError("npm not found (needed for the proxy's production dependencies)")
     subprocess.run(
-        npm + ["install", "--omit=dev", "--no-audit", "--no-fund", "--loglevel=error"],
+        npm + [
+            "ci", "--omit=dev", "--ignore-scripts",
+            "--no-audit", "--no-fund", "--loglevel=error",
+        ],
         cwd=str(stage), check=True, timeout=300,
     )
     _replace_dir(paths.proxy_dir(), stage)
@@ -82,6 +112,7 @@ def install_extension(repo: Path) -> None:
     src = Path(repo).expanduser() / "packages" / "chrome-extension"
     if not (src / "manifest.json").is_file():
         raise FileNotFoundError(f"missing {src / 'manifest.json'}")
+    _require_license_files(src)
 
     # Fixed destination: Chrome pins the absolute path of load-unpacked
     # extensions, so updates must replace the contents in place.
@@ -162,7 +193,7 @@ def install_proxy_from_bos(base: str | None = None) -> str:
     (pure JS, watcher degrades to fs.watch) when the platform build is absent.
     A sha256 mismatch on an existing artifact is never silently downgraded.
     """
-    base = base or DEFAULT_BOS_BASE
+    base = _artifact_base_url(base)
     version = _bos_version(base)
     tag = proxy_platform_tag()
     names = [f"chrome-acp-proxy-{version}-{tag}.tar.gz"] if tag else []
@@ -199,12 +230,16 @@ def _install_proxy_archive(base: str, filename: str) -> None:
         shutil.move(str(Path(tmp) / root), str(stage))
     if not (stage / "dist" / "cli" / "bin.js").is_file():
         raise RuntimeError(f"tarball layout unexpected: no dist/cli/bin.js in {filename}")
+    for name in ("package.json", "package-lock.json", "public/index.html"):
+        if not (stage / name).is_file():
+            raise RuntimeError(f"tarball layout unexpected: no {name} in {filename}")
+    _require_license_files(stage)
     _replace_dir(paths.proxy_dir(), stage)
 
 
 def install_extension_from_bos(base: str | None = None) -> str:
     """Download + verify + unpack the extension zip. Returns version."""
-    base = base or DEFAULT_BOS_BASE
+    base = _artifact_base_url(base)
     version = _bos_version(base)
     filename = f"chrome-acp-extension-{version}.zip"
 
@@ -223,5 +258,6 @@ def install_extension_from_bos(base: str | None = None) -> str:
             zf.extractall(stage)
     if not (stage / "manifest.json").is_file():
         raise RuntimeError(f"zip layout unexpected: no manifest.json at root of {filename}")
+    _require_license_files(stage)
     _replace_dir(paths.extension_dir(), stage)
     return version

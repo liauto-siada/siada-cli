@@ -42,7 +42,7 @@ class TestCmdEffortShow:
 
     def test_no_args_shows_off_when_unset(self):
         sc = _make_slash_commands()
-        session = _make_session("gemini-3.5-flash")
+        session = _make_session("gpt-6-astra")
         session.siada_config.llm_config.reasoning_effort = None
 
         sc.cmd_effort(session, "   ")
@@ -122,7 +122,7 @@ class TestCmdEffortSet:
 
     def test_non_claude_model_rejects_xhigh(self):
         sc = _make_slash_commands()
-        session = _make_session("gemini-3.5-flash")
+        session = _make_session("gpt-6-astra")
 
         sc.cmd_effort(session, "xhigh")
 

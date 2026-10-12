@@ -14,7 +14,7 @@
     "model": "gpt-6-luna",
     "reasoning": {
       "effort": "max",
-      "summary": "auto"
+      "summary": "detailed"
     },
     "tool_choice": "auto"
   },
@@ -33,7 +33,7 @@
     "model": "gpt-6-luna",
     "reasoning": {
       "effort": "low",
-      "summary": "auto"
+      "summary": "detailed"
     },
     "tool_choice": "auto"
   },
@@ -52,7 +52,7 @@
     "model": "gpt-6-luna",
     "reasoning": {
       "effort": "low",
-      "summary": "auto"
+      "summary": "detailed"
     },
     "tool_choice": "auto"
   },
@@ -71,7 +71,7 @@
     "model": "gpt-6-luna",
     "reasoning": {
       "effort": "max",
-      "summary": "auto"
+      "summary": "detailed"
     },
     "tool_choice": "auto"
   },
@@ -90,7 +90,7 @@
     "model": "gpt-6-luna",
     "reasoning": {
       "effort": "low",
-      "summary": "auto"
+      "summary": "detailed"
     },
     "tool_choice": "auto"
   },
@@ -145,7 +145,7 @@
     "model": "gpt-6-luna",
     "reasoning": {
       "effort": "low",
-      "summary": "auto"
+      "summary": "detailed"
     },
     "tool_choice": "auto"
   },
@@ -164,7 +164,7 @@
     "model": "gpt-6-luna",
     "reasoning": {
       "effort": "low",
-      "summary": "auto"
+      "summary": "detailed"
     },
     "tool_choice": "auto"
   }

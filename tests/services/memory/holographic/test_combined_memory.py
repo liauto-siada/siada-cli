@@ -23,7 +23,7 @@ from siada.services.memory.combined_memory import build_combined_memory
 from siada.services.memory.holographic.provider import (
     HOLOGRAPHIC_GUIDANCE_TEMPLATE,
 )
-from siada.services.memory.memory_store import MEMORY_GUIDANCE
+from siada.services.memory.memory_store import MEMORY_GUIDANCE, MemoryStore
 from siada.tools.memory.memory_tool import SESSION_SEARCH_GUIDANCE
 
 
@@ -168,7 +168,7 @@ def test_workspace_memory_wrapped_in_titled_section(tmp_path):
     # SIADA.md content used to be concatenated with no boundary marker at
     # all — the only block in combined_memory without provenance. It must
     # now ship inside a titled ==== section, with each file body prefixed
-    # by its own "# <path>" heading.
+    # by a generated source heading.
     (tmp_path / "SIADA.md").write_text("prefer poetry for runs", encoding="utf-8")
     out = build_combined_memory(str(tmp_path), None, None)
     assert out is not None
@@ -177,11 +177,21 @@ def test_workspace_memory_wrapped_in_titled_section(tmp_path):
     # assert the wrapped block as a substring rather than the whole
     # output.)
     expected = (
-        "====\nWorkspace Memory (SIADA.md / AGENTS.md / CLAUDE.md)"
-        "\n\n# SIADA.md\n\nprefer poetry for runs\n===="
+        "====\n## Workspace Memory"
+        "\n\n# Loaded from SIADA.md\n\nprefer poetry for runs\n===="
     )
     assert expected in out
 
+
+
+def test_workspace_memory_loads_agents_md_without_claude_md(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("# AGENTS.md\n\nUse Poetry", encoding="utf-8")
+    (tmp_path / "CLAUDE.md").write_text("Ignore Poetry", encoding="utf-8")
+    out = build_combined_memory(str(tmp_path), None, None)
+    assert out is not None
+    section = out.split("====\n## Workspace Memory\n\n", 1)[1].split("\n====", 1)[0]
+    assert section == "# Loaded from AGENTS.md\n\n# AGENTS.md\n\nUse Poetry"
+    assert "CLAUDE.md" not in section
 
 
 def test_workspace_memory_precedes_stored_memory_layers(tmp_path):
@@ -220,3 +230,25 @@ def test_full_stack_assembly_shape():
     pos_rules = out.find("Memory Layers — Common Rules")
     pos_inline = out.find("Inline Memory")
     assert -1 < pos_rules < pos_inline
+
+
+def test_generated_memory_sections_use_markdown_headings(tmp_path):
+    (tmp_path / "MEMORY.md").write_text("Synthetic note", encoding="utf-8")
+    (tmp_path / "USER.md").write_text("Synthetic preference", encoding="utf-8")
+    store = MemoryStore(memory_dir=tmp_path)
+    store.load_from_disk()
+    out = build_combined_memory(
+        None,
+        store,
+        _StubHolographicProvider(count=3),
+    )
+    assert out is not None
+    for heading in (
+        "## Memory Layers — Common Rules",
+        "## Inline Memory",
+        "### MEMORY (your personal notes)",
+        "### USER PROFILE (who the user is)",
+        "## Session Search",
+        "## Structured Fact Memory",
+    ):
+        assert heading in out.splitlines()

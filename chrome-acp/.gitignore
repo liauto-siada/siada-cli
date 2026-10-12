@@ -41,3 +41,12 @@ release/
 
 # vendored pdf.js viewer (downloaded at build time by scripts/vendor-pdf-viewer.ts)
 packages/chrome-extension/vendor/
+.build-audit/
+
+# license artifacts (copied at build time by scripts/copy-licenses.mjs from the
+# chrome-acp root LICENSE + THIRD_PARTY_NOTICES.md; see justfile pack recipes)
+packages/chrome-extension/LICENSE
+packages/chrome-extension/THIRD_PARTY_NOTICES.md
+packages/proxy-server/LICENSE
+packages/proxy-server/THIRD_PARTY_NOTICES.md
+# (packages/proxy-server/public/ above already covers the PWA copies)

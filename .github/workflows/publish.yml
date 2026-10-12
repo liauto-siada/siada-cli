@@ -40,7 +40,18 @@ jobs:
 
       - name: Install Dependencies
         run: poetry install
-      
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: siada_cli_ui/package-lock.json
+
+      - name: Build terminal UI
+        run: |
+          npm --prefix siada_cli_ui ci
+          npm --prefix siada_cli_ui run build:all
+
       - name: Build release distributions
         run: poetry build
 

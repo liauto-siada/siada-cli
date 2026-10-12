@@ -1,29 +1,14 @@
-"""modlens-style vision bridge for text-only models (deepseek-v4 family).
+"""modlens-style vision bridge for text-only models.
 
 Reference: https://github.com/liustack/modlens — a text-only model cannot read
 images, so attached images are first transcribed into structured text evidence
 by a vision-capable "engine" model, and the evidence is fed to the text model
 in place of the raw image.
 
-Why a bridge instead of native ``supports_images``: the kivy gateway accepts
-image parts for deepseek-v4 models without an error but silently drops them —
-the model then hallucinates about the image content (verified 2026-08 with a
-synthetic-image probe: asked for the color of a pure-red PNG, v4-flash answered
-"Gray", v4-pro answered "Blue", while kivy-qwen-3.7-plus answered "Red").
-
-Engine resolution (``_get_vision_engine``):
-  * Internal build (``li`` provider available) → the model flagged
-    ``is_vision_engine_model`` in ``model_base_config`` (first match wins;
-    must also be ``supports_images=True``), falling back to the built-in
-    ``kivy-qwen-3.7-plus`` when no flagged model exists. The flag is remotely
-    controllable via Apollo (siada-server model config), like any other
-    ModelBaseConfig field.
-  * Open-source build → ``llm_config.vision_model`` from conf.yaml when set
-    (must be an image-capable model; ``vision_provider`` is optional and
-    defaults to the main provider). Without it, the user's configured model
-    is reused, but only when that model natively supports images; otherwise
-    the bridge is unavailable and callers fall back to the legacy
-    strip/reject behavior.
+Engine resolution uses ``llm_config.vision_model`` from conf.yaml when set.
+It must be image-capable; ``vision_provider`` defaults to the main provider.
+Without a dedicated vision model, the user's configured model is reused only
+when it supports images. Otherwise callers retain their strip/reject behavior.
 """
 
 from __future__ import annotations
@@ -37,33 +22,6 @@ from typing import List, Optional, Tuple
 
 from siada.foundation.logging import logger
 from siada.models.model_base_config import get_model_config
-
-# Internal-build fallback vision engine, used when no model in the (possibly
-# remotely overridden) model settings carries the is_vision_engine_model
-# flag. Pinned to a model verified to actually read images on the kivy
-# gateway (see module docstring).
-_INTERNAL_VISION_MODEL: str = "kivy-qwen-3.7-plus"
-_INTERNAL_PROVIDER: str = "li"
-
-
-def _get_internal_vision_model() -> str:
-    """Pick the internal vision engine: the first model flagged
-    ``is_vision_engine_model`` in the model settings (see model_base_config;
-    the flag is remotely controllable via Apollo) that is also image-capable.
-    Falls back to ``_INTERNAL_VISION_MODEL`` when no flagged model exists
-    (e.g. user-defined model settings replaced the built-in list).
-    """
-    from siada.models.model_base_config import get_model_settings
-
-    for config in get_model_settings():
-        if config.is_vision_engine_model:
-            if config.supports_images:
-                return config.model_name
-            logger.warning(
-                f"[vision-bridge] model {config.model_name!r} is flagged "
-                "is_vision_engine_model but supports_images=False; skipping"
-            )
-    return _INTERNAL_VISION_MODEL
 
 # Upper bound for one transcription call (image reads are slow, ~5-30s).
 _TRANSCRIBE_TIMEOUT_S = 120
@@ -122,19 +80,9 @@ def _image_capable(model_name: str) -> bool:
 def _get_vision_engine() -> Optional[Tuple[str, str]]:
     """Return ``(model_name, provider_name)`` for the vision engine.
 
-    ``None`` when no vision-capable engine is available (open-source build
-    with neither a dedicated ``vision_model`` nor an image-capable main
-    model configured).
+    ``None`` when neither a dedicated ``vision_model`` nor an image-capable
+    main model is configured.
     """
-    from siada.provider.provider_factory import get_provider
-
-    try:
-        get_provider(_INTERNAL_PROVIDER)
-        return _get_internal_vision_model(), _INTERNAL_PROVIDER
-    except ValueError:
-        pass
-
-    # Open-source build.
     llm = _read_user_llm_section()
 
     # Preferred: a dedicated vision engine (``llm_config.vision_model``) —

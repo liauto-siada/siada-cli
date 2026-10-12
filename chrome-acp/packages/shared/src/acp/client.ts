@@ -21,6 +21,8 @@ import type {
   FileItem,
   FileContent,
   FileChange,
+  FramePayload,
+  LiveViewMode,
 } from "./types";
 
 /**
@@ -101,6 +103,42 @@ function modelStateFromConfigOptions(
 export type FileChangesHandler = (changes: FileChange[]) => void;
 // Handler for server-pushed directory listings (e.g., after session cwd change)
 export type DirListingPushHandler = (path: string, items: FileItem[]) => void;
+// Handler for pictures of the controlled page pushed by the extension. Kept
+// trace-agnostic: the caller decides how a frame maps onto a trace step.
+//
+// The relay routes each picture to the viewer of the tab it came from and tags
+// it with that tab and the run it belongs to, so a consumer can reject a
+// picture that reach it late (after a session switch, say) instead of blending
+// it into the current timeline. Producers that do not tag their pictures leave
+// these undefined.
+export interface FrameEnvelope {
+  callId?: string;
+  tabId?: number;
+  sessionId?: string;
+  payload: FramePayload;
+}
+export type FrameHandler = (frame: FrameEnvelope) => void;
+// Handler for live view state changes (the extension reports whether the
+// screencast actually started, and why not when it failed).
+export type ScreencastStateHandler = (state: {
+  active: boolean;
+  error?: string;
+  mode?: LiveViewMode;
+}) => void;
+// What a second consumer (the trace collector) needs to know about a turn:
+// when a prompt starts and when/why it stops. A turn is what the protocol
+// actually ends with — `prompt_complete` carries the stop reason (including
+// "cancelled"), a proxy "error" message is a failed turn, and a dropped
+// connection ends the stream without either. Emitted *in addition to* the
+// single-handler prompt_complete/error setters, which ChatInterface already
+// owns.
+export type TurnLifecycleEvent =
+  | { kind: "started" }
+  | { kind: "completed"; stopReason: string }
+  | { kind: "failed"; message: string }
+  | { kind: "cancel-requested" }
+  | { kind: "disconnected"; error?: string };
+export type TurnLifecycleHandler = (event: TurnLifecycleEvent) => void;
 // Handler for session loaded/resumed events
 export type SessionLoadedHandler = (sessionId: string) => void;
 // Handler fired before switching the active session.
@@ -133,12 +171,20 @@ export class ACPClient {
 
   private onConnectionStateChange: ConnectionStateHandler | null = null;
   private onSessionUpdate: SessionUpdateHandler | null = null;
+  // Additional consumers of the session-update stream (e.g. the trace
+  // collector). Kept separate from onSessionUpdate so the single-handler
+  // setters used by ChatInterface keep working unchanged.
+  private sessionUpdateListeners: Set<SessionUpdateHandler> = new Set();
   private onSessionCreated: SessionCreatedHandler | null = null;
   private onPromptComplete: PromptCompleteHandler | null = null;
+  // Additional consumers of the turn lifecycle (e.g. the trace collector).
+  private turnLifecycleHandlers: Set<TurnLifecycleHandler> = new Set();
   private onPermissionRequest: PermissionRequestHandler | null = null;
   private onError: ErrorHandler | null = null;
   private onBrowserToolCall: BrowserToolCallHandler | null = null;
   private fileChangesHandlers: Set<FileChangesHandler> = new Set();
+  private frameHandlers: Set<FrameHandler> = new Set();
+  private screencastStateHandlers: Set<ScreencastStateHandler> = new Set();
   private onDirListingPush: DirListingPushHandler | null = null;
 
   // Pending file operations - keyed by unique requestId to handle concurrent requests
@@ -180,12 +226,49 @@ export class ACPClient {
     this.onSessionUpdate = handler;
   }
 
+  /**
+   * Observe session updates without replacing the primary handler. Returns an
+   * unsubscribe function. Used by the trace collector, which runs alongside
+   * ChatInterface rather than instead of it.
+   */
+  addSessionUpdateListener(handler: SessionUpdateHandler): () => void {
+    this.sessionUpdateListeners.add(handler);
+    return () => {
+      this.sessionUpdateListeners.delete(handler);
+    };
+  }
+
   setSessionCreatedHandler(handler: SessionCreatedHandler): void {
     this.onSessionCreated = handler;
   }
 
   setPromptCompleteHandler(handler: PromptCompleteHandler): void {
     this.onPromptComplete = handler;
+  }
+
+  /**
+   * Observe the turn lifecycle (started / completed / failed / cancel
+   * requested / disconnected) without replacing the primary
+   * prompt_complete and error callbacks.
+   *
+   * @returns Unsubscribe function
+   */
+  addTurnLifecycleListener(handler: TurnLifecycleHandler): () => void {
+    this.turnLifecycleHandlers.add(handler);
+    return () => {
+      this.turnLifecycleHandlers.delete(handler);
+    };
+  }
+
+  private emitTurn(event: TurnLifecycleEvent): void {
+    for (const handler of this.turnLifecycleHandlers) {
+      try {
+        handler(event);
+      } catch (error) {
+        // A listener must never break the connection's own message handling.
+        console.error("[ACPClient] turn lifecycle listener failed:", error);
+      }
+    }
   }
 
   setModelChangedHandler(handler: ModelChangedHandler): void {
@@ -230,7 +313,14 @@ export class ACPClient {
   }
 
   private setState(state: ConnectionState, error?: string): void {
+    const wasConnected = this.connectionState === "connected";
     this.connectionState = state;
+    if (wasConnected && (state === "disconnected" || state === "error")) {
+      // The stream the run was following is gone; nothing else will report the
+      // turn as finished, so tell lifecycle listeners (e.g. the trace viewer)
+      // instead of leaving it "running" forever.
+      this.emitTurn({ kind: "disconnected", error });
+    }
     this.onConnectionStateChange?.(state, error);
   }
 
@@ -510,6 +600,7 @@ export class ACPClient {
         this.pendingSessionTarget = null;
         // Surface runtime errors (e.g. prompt failures) to the UI
         this.onError?.(response.payload.message);
+        this.emitTurn({ kind: "failed", message: response.payload.message });
         // Reject pending session operations if any
         this.pendingSessionList?.reject(new Error(response.payload.message));
         this.pendingSessionList = null;
@@ -575,10 +666,18 @@ export class ACPClient {
 
       case "session_update":
         this.onSessionUpdate?.(response.payload.sessionId, response.payload.update);
+        for (const listener of this.sessionUpdateListeners) {
+          try {
+            listener(response.payload.sessionId, response.payload.update);
+          } catch (error) {
+            console.error("[ACPClient] session update listener failed:", error);
+          }
+        }
         break;
 
       case "prompt_complete":
         this.onPromptComplete?.(response.payload.stopReason);
+        this.emitTurn({ kind: "completed", stopReason: response.payload.stopReason });
         break;
 
       case "permission_request":
@@ -599,6 +698,29 @@ export class ACPClient {
 
       case "browser_tool_call":
         this.handleBrowserToolCall(response.callId, response.params);
+        break;
+
+      case "frame": {
+        // Routing metadata the relay adds on top of the payload. The shared
+        // message type does not declare it yet, so it is read as an optional
+        // extra: a picture without it is passed on as-is rather than guessed at.
+        const relayed = response as { tabId?: unknown; sessionId?: unknown };
+        for (const handler of this.frameHandlers) {
+          handler({
+            callId: response.callId,
+            tabId: typeof relayed.tabId === "number" ? relayed.tabId : undefined,
+            sessionId:
+              typeof relayed.sessionId === "string" ? relayed.sessionId : undefined,
+            payload: response.payload,
+          });
+        }
+        break;
+      }
+
+      case "screencast_state":
+        for (const handler of this.screencastStateHandlers) {
+          handler(response.payload);
+        }
         break;
 
       case "dir_listing": {
@@ -745,10 +867,18 @@ export class ACPClient {
       : content;
 
     this.send({ type: "prompt", payload: { content: contentBlocks } });
+    // The protocol has no "turn started" notification; sending the prompt is
+    // the observable start of one.
+    this.emitTurn({ kind: "started" });
   }
 
   cancel(): void {
     this.send({ type: "cancel" });
+    // The agent answers a cancel with prompt_complete (stopReason
+    // "cancelled"), but that can take a while or never arrive (the prompt may
+    // already have failed agent-side). Report the request now; listeners that
+    // close a turn on it are expected to treat later events as idempotent.
+    this.emitTurn({ kind: "cancel-requested" });
   }
 
   /**
@@ -956,6 +1086,36 @@ export class ACPClient {
     this.fileChangesHandlers.add(handler);
     return () => {
       this.fileChangesHandlers.delete(handler);
+    };
+  }
+
+  /**
+   * Subscribe to pictures of the controlled page pushed by the extension.
+   * @returns Unsubscribe function
+   */
+  onFrame(handler: FrameHandler): () => void {
+    this.frameHandlers.add(handler);
+    return () => {
+      this.frameHandlers.delete(handler);
+    };
+  }
+
+  /**
+   * Ask for the live view of the browser tab bound to this session, or turn it
+   * off. The proxy resolves the tab, so this works from the web client too.
+   */
+  setScreencast(enabled: boolean): void {
+    this.send({ type: "screencast", payload: { enabled } });
+  }
+
+  /**
+   * Observe whether the live view is actually streaming.
+   * @returns Unsubscribe function
+   */
+  onScreencastState(handler: ScreencastStateHandler): () => void {
+    this.screencastStateHandlers.add(handler);
+    return () => {
+      this.screencastStateHandlers.delete(handler);
     };
   }
 

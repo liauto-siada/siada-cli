@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseApplyPatchContent } from '../src/utils/diff.js';
+import { getSimplePatch, isRenderableToolDiff, parseApplyPatchContent, parseFileCreateContent } from '../src/utils/diff.js';
 import { parseToolCall } from '../src/utils/toolCallParser.js';
 
 const MULTI_FILE_PATCH = `Apply patch: 4 files changed
@@ -124,5 +124,61 @@ describe('native apply_patch display protocol', () => {
       summary: 'Patch(4 files)',
       fileCount: 4,
     });
+  });
+});
+
+describe('create-file diff display protocol', () => {
+  it('parses fenced file content as a creation diff', () => {
+    const content = 'Create the file `src/new.ts`` with the following content:\n```ts\nexport {};\n```';
+
+    expect(parseFileCreateContent(content)).toEqual({
+      filePath: 'src/new.ts',
+      newString: 'export {};',
+      isComplete: true,
+    });
+    expect(isRenderableToolDiff(content)).toBe(true);
+  });
+
+  it('parses unfenced Markdown content and leaves empty files without a diff', () => {
+    const markdown = 'Create the file `docs/new.md`` with the following content:\n# New document\n';
+    const fencedMarkdown = 'Create the file `docs/example.md`` with the following content:\n```ts\ncode\n```';
+    const empty = 'Create the file `src/empty.ts`';
+
+    expect(parseFileCreateContent(markdown)?.newString).toBe('# New document\n');
+    expect(parseFileCreateContent(fencedMarkdown)?.newString).toBe('```ts\ncode\n```');
+    expect(isRenderableToolDiff(markdown)).toBe(true);
+    expect(parseFileCreateContent(empty)).toBeNull();
+    expect(isRenderableToolDiff(empty)).toBe(false);
+  });
+
+  it('preserves Chinese Markdown and only its real blank lines through the diff', () => {
+    const fileText = '第一行\n\n第二行\n\n';
+    const content = `Create the file \`docs/notes.md\`\` with the following content:\n${fileText}`;
+    const prefixed = `▶ TOOL USE ${content}`;
+
+    expect(parseFileCreateContent(prefixed)?.newString).toBe(fileText);
+    expect(isRenderableToolDiff(prefixed)).toBe(true);
+    const added = getSimplePatch('docs/notes.md', '', fileText)
+      .flatMap(hunk => hunk.lines).filter(line => line.startsWith('+'));
+    expect(added).toEqual(['+第一行', '+', '+第二行', '+']);
+
+    const whitespaceOnly = 'Create the file `docs/blank.md`` with the following content:\n\n';
+    expect(isRenderableToolDiff(whitespaceOnly)).toBe(true);
+    expect(isRenderableToolDiff('Create the file `docs/empty.md`')).toBe(false);
+  });
+
+  it('keeps edit, patch, and read detection separate from create diffs', () => {
+    const edit = 'In the file `src/a.ts``, replace the string:\n```ts\nold\n```\nwith:\n```ts\nnew\n```';
+    expect(isRenderableToolDiff(edit)).toBe(true);
+    expect(isRenderableToolDiff(MULTI_FILE_PATCH)).toBe(true);
+    expect(isRenderableToolDiff('Read the file `docs/notes.md`.\n')).toBe(false);
+    expect(isRenderableToolDiff('View the directory `docs`.\n')).toBe(false);
+  });
+
+  it('does not treat an unfinished code fence as a completed create diff', () => {
+    const unfinished = 'Create the file `src/new.ts`` with the following content:\n```ts\nnew';
+
+    expect(parseFileCreateContent(unfinished)?.isComplete).toBe(false);
+    expect(isRenderableToolDiff(unfinished)).toBe(false);
   });
 });

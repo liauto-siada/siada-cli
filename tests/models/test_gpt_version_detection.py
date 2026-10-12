@@ -58,10 +58,10 @@ class TestIsGpt5OrNewerNegative:
         for name in (
             "claude-sonnet-5",
             "gemini-3.5-flash",
-            "kivy-qwen-3.8-max",
+            "qwen3.8-max",
             "bailian-kimi-k3",
             "baidu-deepseek-v4-pro",
-            "kivy-glm-5.2",
+            "glm-5.2",
             "o3-mini",
         ):
             assert is_gpt_5_or_newer(name) is False, name
@@ -110,7 +110,7 @@ class TestGptEffortLadder:
             "high",
             "max",
         ]
-        assert get_valid_reasoning_efforts("kivy-qwen-3.7-plus") == [
+        assert get_valid_reasoning_efforts("qwen3.7-plus") == [
             "low",
             "medium",
             "xhigh",

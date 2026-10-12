@@ -213,9 +213,7 @@ class SummarizeWithHeaderCompaction(CompactionStrategy):
             raise ValueError("No messages to keep after trimming")
 
         compacted_messages = self.create_compressed_message_history(
-            header_message=self.try_get_first_user_assistant_pair(
-                real_api_messages, compress_before_index
-            ),
+            header_message=self.try_get_first_user_assistant_pair(real_api_messages),
             summary=summary,
             history_to_keep=history_to_keep,
         )

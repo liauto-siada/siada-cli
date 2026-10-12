@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
+import siada
+
 JsonObject = dict[str, Any]
 TurnRunner = Callable[[str, str], Iterable[JsonObject]]
 
@@ -57,7 +59,7 @@ class AcpServer:
             request_id,
             {
                 "protocolVersion": 1,
-                "agentInfo": {"name": "Siada", "version": "1.7.17"},
+                "agentInfo": {"name": "Siada", "version": siada.__version__},
                 "agentCapabilities": {},
             },
         )

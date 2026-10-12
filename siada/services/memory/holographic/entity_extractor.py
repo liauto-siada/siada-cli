@@ -19,17 +19,11 @@ from __future__ import annotations
 
 import logging
 import re
-import warnings
 from typing import Iterable, List, Tuple
 
-# Same warning suppression as memory_db.py to keep import quiet.
-with warnings.catch_warnings():
-    warnings.filterwarnings(
-        "ignore", message="pkg_resources is deprecated", category=UserWarning,
-    )
-    warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
-    import jieba
-    import jieba.posseg as pseg
+from siada.services.memory.jieba_compat import import_posseg, jieba
+
+pseg = import_posseg()
 
 logger = logging.getLogger("siada.holographic.entity_extractor")
 jieba.setLogLevel(logging.WARNING)

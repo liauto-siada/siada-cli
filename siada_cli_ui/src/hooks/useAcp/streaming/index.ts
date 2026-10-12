@@ -12,8 +12,8 @@ import {
   StreamRepetitionDetector,
   isRepetitionGuardModel,
 } from '../../../utils/streamRepetition.js';
-import { COMPACTION_CONTENT_PATTERN, ThinkingStep } from '../../../constants/phrases.js';
-import { isRenderableToolDiff } from '../../../utils/diff.js';
+import { COMPACTION_CONTENT_PATTERN, COMPACTION_COMPLETE_PATTERN, ThinkingStep } from '../../../constants/phrases.js';
+import { isRenderableToolDiff, parseFileCreateContent } from '../../../utils/diff.js';
 import { parseTodoWriteContent } from '../../../utils/todoWrite.js';
 
 // Throttle interval for streaming message flushes.
@@ -39,21 +39,31 @@ interface StreamingDeps {
  * label the thinking indicator / thinking content:
  *   - thinking / answer streams → model reasoning
  *   - tool_use streams         → tool execution
- *   - non-streaming notices mentioning compaction (e.g. the backend's
- *     "Compacting context..." from /compact) → context compaction
+ *   - the backend's one-shot compaction start notice → context compaction
+ *   - terminal compaction notices → model reasoning
  *   - anything else (process/system notices)  → system processing
  *
- * NOTE on ordering: the backend maps most one-shot notices (info, warning,
- * tool results) to subtype 'tool_use' for rendering (see adapter
- * handleWarning/handleToolResult), so compaction content matching must run
- * BEFORE the tool_use check and only for non-streaming messages — otherwise
- * a "Compacting context..." notice would be misclassified as tool execution.
+ * Info notices share the tool_use renderer, but actual tool chunks and results
+ * must never select compaction just because their content mentions it. Older
+ * backends may omit eventType, so exact one-shot notices remain compatible.
  */
 function classifyAgentStep(message: Message): ThinkingStep {
   const subtype = message.metadata?.subtype;
   if (subtype === 'thinking' || subtype === 'answer') return 'reasoning';
-  const isStreaming = message.metadata?.isStreaming !== false;
-  if (!isStreaming && COMPACTION_CONTENT_PATTERN.test(message.content || '')) return 'compaction';
+  const metadata = message.metadata;
+  const isNotice = (metadata?.isStreaming === false || metadata?.streamEnd === true) &&
+    metadata?.chunkIndex === undefined;
+  if (isNotice) {
+    const content = (message.content || '').replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
+    const eventType = metadata?.eventType;
+    if ((!eventType || eventType === 'info') && COMPACTION_CONTENT_PATTERN.test(content)) {
+      return 'compaction';
+    }
+    if ((!eventType || eventType === 'info' || eventType === 'error') &&
+        COMPACTION_COMPLETE_PATTERN.test(content)) {
+      return 'reasoning';
+    }
+  }
   if (subtype === 'tool_use') return 'tool_execution';
   return 'system_processing';
 }
@@ -191,7 +201,8 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
     splitCounterRef.current = 0;
     repetitionDetectorRef.current = null;
     streamHeldRef.current = false;
-  }, []);
+    setActiveStep?.(null);
+  }, [setActiveStep]);
 
   const handleAgentMessage = useCallback((message: Message) => {
     if (message.metadata?.reason === 'quota_update') {
@@ -213,7 +224,6 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           agent: info.agent || 'coder',
           provider: info.provider || 'default',
           model: info.model || model,
-          prePlanMode: info.pre_plan || false,
           thinkingTokens: info.thinking_tokens,
           reasoningEffort: info.reasoning_effort,
           thinkingEnabled: info.thinking_enabled ?? undefined,
@@ -249,7 +259,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           accumulatedContentRef.current += message.content;
 
           // Repetition guard (whitelisted models: deepseek-v4-flash family,
-          // lpai-glm-5.3): once the tail of this stream is a repeating loop,
+          // glm-5.3): once the tail of this stream is a repeating loop,
           // stop flushing to the screen and wait for the backend verdict
           // (stream_aborted vs normal streamEnd).
           if (isRepetitionGuardModel(model)) {
@@ -458,20 +468,13 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
 
   const handleToolUse = useCallback((toolData: any) => {
     const chunkIndex = toolData.metadata?.chunkIndex ?? 0;
-    const isFinal = toolData.metadata.streamEnd;
+    const isFinal = toolData.metadata?.streamEnd;
     const content = toolData.content || '';
 
-    // Tool call streaming — the agent is currently executing a tool.
-    // Exception: one-shot notices (the backend maps print_info/warning to
-    // tool_use events, e.g. "Compacting context..." from auto-compaction)
-    // are classified as context compaction instead.
-    if (setActiveStep) {
-      setActiveStep(
-        isFinal && COMPACTION_CONTENT_PATTERN.test(content)
-          ? 'compaction'
-          : 'tool_execution',
-      );
-    }
+    setActiveStep?.(classifyAgentStep({
+      ...toolData,
+      metadata: { ...toolData.metadata, subtype: 'tool_use' },
+    }));
 
     if (chunkIndex === 0) {
       flushStreamingNow();
@@ -502,7 +505,19 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           const m = prev[i];
           if (m.type === 'agent' && m.metadata?.subtype === 'tool_use') {
             const updated = [...prev];
-            updated[i] = { ...m, content: (m.content || '') + content, metadata: { ...m.metadata, chunkIndex } };
+            const nextContent = (m.content || '') + content;
+            const createInfo = isFinal ? parseFileCreateContent(nextContent) : null;
+            const completedCreate = createInfo?.isComplete === true && createInfo.newString.length > 0 &&
+              isRenderableToolDiff(nextContent);
+            updated[i] = {
+              ...m,
+              content: nextContent,
+              metadata: {
+                ...m.metadata,
+                chunkIndex,
+                ...(completedCreate ? { streamEnd: true, isStreaming: false } : {}),
+              },
+            };
             return updated;
           }
         }

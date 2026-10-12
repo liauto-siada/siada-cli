@@ -1,13 +1,24 @@
 """
 Login prompt for unauthenticated users.
 
-Presents three options:
-  1. Sign in with LiId        — opens browser for OAuth authorization
-  2. Sign in with Device Code — prints URL, works without a browser/display
-  3. Configure API Key        — enter a provider API key (kimi/openai/claude etc.)
+The open-source build signs in with the user's own model provider: the only
+supported sign-in method is configuring a provider API key (or any other
+OpenAI-compatible endpoint), which is persisted to ``~/.siada-cli/conf.yaml``
+under ``llm_config`` with ``provider: default``.
 
-On success the domain account (leg) is written to ~/.siada-cli/conf.yaml
-for telemetry and subsequent session use.
+Credentials already present in the environment (``BASE_URL`` + ``API_KEY``,
+e.g. shell exports or ``--set-env``) are accepted as-is for this process: they
+are never persisted and never prompted for, so non-interactive ``--prompt``
+runs sign in too. Only a pair that still misses one of the two halves falls
+through to the prompt below.
+
+Two entry points share this module:
+
+  * ``ensure_logged_in()`` — first-run sign-in. In ACP mode the frontend
+    ``LoginSelector`` is shown with ``liidDisabled`` set (API key only); in TTY
+    mode base URL / API key / model are read from stdin.
+  * ``reconfigure_acp()`` — the ``/configure`` re-run of the same selector,
+    cancelable, without restarting the process.
 """
 import os
 import sys
@@ -15,13 +26,6 @@ import time
 from typing import Optional
 
 from siada.foundation.logging import logger
-
-try:
-    import siada.internal.services.idaas.auth_store 
-    _HAS_INTERNAL = True
-except ImportError:
-    _HAS_INTERNAL = False
-    logger.warning("siada.internal not available: IDaaS login is disabled.")
 
 # Set after API-key login; read by siadahub to update runtime provider/model.
 _applied_api_key_config: Optional[dict] = None
@@ -60,8 +64,13 @@ def clear_api_key_config() -> bool:
     return True
 
 
-def _save_provider_config(provider_id: str, api_key: str, base_url: str, model: str) -> None:
-    """Persist provider API-key config to ~/.siada-cli/conf.yaml."""
+def _save_provider_config(provider_id: str, api_key: str, base_url: str, model: str) -> bool:
+    """Persist provider API-key config to ~/.siada-cli/conf.yaml.
+
+    Returns True only when the config reached conf.yaml. A failed write must
+    reach the caller: reporting a sign-in the next launch cannot reproduce
+    (no stored credentials) is worse than failing the prompt.
+    """
     from siada.config.conf_store import update_conf
 
     def _set_provider_config(data: dict) -> None:
@@ -78,24 +87,61 @@ def _save_provider_config(provider_id: str, api_key: str, base_url: str, model: 
 
     if update_conf(_set_provider_config):
         logger.info(f"[login] Provider config saved: provider_id={provider_id}, model={model}")
-    else:
-        logger.warning("[login] Failed to save provider config")
+        return True
+    logger.warning("[login] Failed to save provider config")
+    return False
+
+
+def _field_text(value) -> Optional[str]:
+    """Return the stripped text of a JSON payload string field.
+
+    ``None`` marks a field whose JSON type is not a string (number, list, …):
+    the caller reports it instead of crashing on ``.strip()`` or signing in
+    with a half-usable config. Missing fields (``None``) read as empty.
+    """
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        return value.strip()
+    return None
+
+
+def _save_failed_message() -> str:
+    """Error text for a failed conf.yaml write (never contains the API key)."""
+    return (
+        "Could not save the API key configuration to ~/.siada-cli/conf.yaml. "
+        "Check that the file is writable and try again."
+    )
 
 
 def _handle_provider_api_key_config(config_data: dict, io) -> Optional[str]:
     """Handle provider API-key config from a choice-3 JSON payload."""
     global _applied_api_key_config
 
-    provider_id = config_data.get('provider_id', 'custom')
-    api_key = (config_data.get('api_key') or '').strip()
-    base_url = (config_data.get('base_url') or '').strip()
-    model = (config_data.get('model') or '').strip()
+    provider_id = _field_text(config_data.get('provider_id'))
+    api_key = _field_text(config_data.get('api_key'))
+    base_url = _field_text(config_data.get('base_url'))
+    model = _field_text(config_data.get('model'))
 
+    if provider_id is None or api_key is None or base_url is None or model is None:
+        # Wrong JSON types cannot authenticate this build: report them instead
+        # of raising (or worse, letting a partial config sign in).
+        _send_acp_notification(io, 'ui/loginError', {'error': 'Invalid API key configuration.'})
+        return None
+
+    provider_id = provider_id or 'custom'
     if not api_key:
         _send_acp_notification(io, 'ui/loginError', {'error': 'API key cannot be empty.'})
         return None
+    if not base_url:
+        _send_acp_notification(io, 'ui/loginError', {'error': 'Base URL cannot be empty.'})
+        return None
 
-    _save_provider_config(provider_id, api_key, base_url, model)
+    if not _save_provider_config(provider_id, api_key, base_url, model):
+        # Nothing was persisted, so the environment/applied config are left
+        # untouched: no fake sign-in, and the key is never echoed back.
+        _send_acp_notification(io, 'ui/loginError', {'error': _save_failed_message()})
+        return None
 
     os.environ['BASE_URL'] = base_url
     os.environ['API_KEY'] = api_key
@@ -113,91 +159,97 @@ def _handle_provider_api_key_config(config_data: dict, io) -> Optional[str]:
     return user_id
 
 
-def _check_stored_api_key_config() -> Optional[str]:
-    """Check conf.yaml for a stored default-provider config.
+def _read_stored_provider_config() -> dict:
+    """Return conf.yaml's sanitized ``llm_config`` for a default provider.
 
-    If found, applies credentials to the environment and returns a synthetic
-    user_id so LiId login is skipped.
+    Returns {} when the section is absent, not a mapping, or belongs to another
+    provider, so callers can treat "nothing stored" and "not our provider"
+    identically. Never raises: a credential check must not crash an entry point.
+
+    conf.yaml is user-editable, so every field is filtered through
+    ``_field_text``: a value of the wrong YAML type (number, list, …) reads as
+    missing (''), never as a credential, and can never break a caller with
+    ``.strip()``. The returned dict therefore always carries strings only.
     """
-    global _applied_api_key_config
     try:
         from siada.config.conf_store import get_conf_section
 
         llm_cfg = get_conf_section("llm_config")
-        if (llm_cfg.get('provider') == 'default'
-                and llm_cfg.get('base_url')
-                and llm_cfg.get('api_key')):
-            os.environ['BASE_URL'] = llm_cfg['base_url']
-            os.environ['API_KEY'] = llm_cfg['api_key']
-            _applied_api_key_config = {
-                'provider_id': llm_cfg.get('provider_id', 'configured'),
-                'base_url': llm_cfg['base_url'],
-                'api_key': llm_cfg['api_key'],
-                'model': llm_cfg.get('model', ''),
-            }
-            logger.info("[login] Found stored API key config, using default provider")
-            return 'api-key-configured'
-        return None
     except Exception as exc:
-        logger.debug(f"[login] _check_stored_api_key_config error: {exc}")
+        logger.debug(f"[login] Could not read stored provider config: {exc}")
+        return {}
+    if llm_cfg.get('provider') != 'default':
+        return {}
+    return {
+        'provider_id': _field_text(llm_cfg.get('provider_id')) or 'configured',
+        'base_url': _field_text(llm_cfg.get('base_url')) or '',
+        'api_key': _field_text(llm_cfg.get('api_key')) or '',
+        'model': _field_text(llm_cfg.get('model')) or '',
+    }
+
+
+def _resolve_session_credentials() -> Optional[tuple[dict, str]]:
+    """Resolve the credentials that authenticate this session, or None.
+
+    ``BASE_URL``/``API_KEY`` already present in the environment (shell exports,
+    ``--set-env``, or the values ``get_config()`` pre-loads from conf.yaml) are
+    the explicit per-invocation configuration and take priority over the stored
+    ``llm_config`` — the same priority model setup resolves them with.
+    conf.yaml still supplies whichever half the environment leaves empty; a
+    pair that is incomplete even after that (e.g. an API key with no endpoint)
+    is rejected so the login prompt/selector below still runs instead of
+    reporting a fake sign-in.
+
+    Stored fields arrive already sanitized (see
+    ``_read_stored_provider_config``), so bad YAML types read as missing: a
+    complete environment pair still signs in even next to a corrupt stored
+    config, and a stored pair with a wrongly-typed half never does.
+
+    Returns ``(applied_config, synthetic_user_id)``. The api key is carried for
+    the running model only: it is never logged and, for environment
+    credentials, never persisted either.
+    """
+    stored = _read_stored_provider_config()
+    stored_base_url = stored.get('base_url') or ''
+    stored_api_key = stored.get('api_key') or ''
+
+    base_url = (os.environ.get('BASE_URL') or '').strip() or stored_base_url
+    api_key = (os.environ.get('API_KEY') or '').strip() or stored_api_key
+    if not base_url or not api_key:
         return None
+
+    if base_url == stored_base_url and api_key == stored_api_key:
+        # conf.yaml alone supplied the credentials (the environment either
+        # mirrors it or did not provide them): keep the stored provider
+        # identity and the model the user configured with the wizard.
+        return (
+            {
+                'provider_id': stored.get('provider_id') or 'configured',
+                'base_url': base_url,
+                'api_key': api_key,
+                'model': stored.get('model') or '',
+            },
+            'api-key-configured',
+        )
+
+    # The credentials came (at least partly) from the environment, which names
+    # neither a provider nor a model. The empty model keeps ``_apply_login()``
+    # from overriding the model ``--model`` / conf.yaml already selected.
+    provider_id = 'configured'
+    return (
+        {
+            'provider_id': provider_id,
+            'base_url': base_url,
+            'api_key': api_key,
+            'model': '',
+        },
+        f'api-key-user:{provider_id}',
+    )
 
 
 def _is_interactive_tty() -> bool:
     """Return True if running in an interactive TTY."""
     return sys.stdin.isatty() and sys.stdout.isatty()
-
-
-def _refresh_telemetry(user_id: str) -> None:
-    try:
-        from siada.internal.foundation.telemetry import telemetry
-        telemetry.config.user_id = user_id
-    except Exception:
-        pass
-
-
-def _save(
-    user_id: str,
-    access_token: str,
-    io,
-    refresh_token: Optional[str] = None,
-    email: Optional[str] = None,
-    email_refresh_token: Optional[str] = None,
-) -> None:
-    if not _HAS_INTERNAL:
-        return
-    from siada.internal.services.idaas.auth_store import save_login_state
-    try:
-        save_login_state(
-            user_id=user_id,
-            access_token=access_token,
-            refresh_token=refresh_token,
-            email=email,
-            email_refresh_token=email_refresh_token,
-        )
-    except Exception as exc:
-        io.print_warning(f"Could not save login state: {exc}")
-
-
-def _extract_user_from_token(access_token: str) -> Optional[str]:
-    """Extract user identity (leg/sub/username) from a JWT access token, or None on failure."""
-    import base64
-    import json
-    try:
-        parts = access_token.split(".")
-        if len(parts) < 2:
-            return None
-        payload_b64 = parts[1]
-        padding = (4 - len(payload_b64) % 4) % 4
-        payload_b64 += "=" * padding
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-        return (
-            payload.get("leg")
-            or payload.get("sub")
-            or payload.get("username")
-        )
-    except Exception:
-        return None
 
 
 # --- ACP mode ---
@@ -210,17 +262,35 @@ def _read_acp_stdin_message() -> Optional[str]:
     forever (or only see EOF) because the monitor has already consumed the
     bytes. To stay compatible with both monitored and direct stdin modes, read
     through the monitor when it is active.
+
+    An empty read means different things in the two modes and must not be
+    conflated:
+
+      * active monitor — ``readline(timeout=…)`` returned no data yet: keep
+        polling. No overall wait timeout is applied here on purpose: the
+        frontend may take arbitrarily long over a login configuration, and
+        giving up would abort a reply that is still on its way.
+      * unmonitored stdin (a pipe) — ``readline()`` only returns '' at EOF:
+        raise EOFError so the caller can report a closed/cancelled login
+        instead of spinning forever.
+
+    Raises:
+        EOFError: unmonitored stdin reached EOF (the pipe/frontend is gone).
     """
     from siada.io.stdin_interrupt_monitor import is_monitor_active, get_stdin_monitor
 
     def _read_line() -> str:
         if is_monitor_active():
             return get_stdin_monitor().readline(timeout=0.1)
-        return sys.stdin.readline()
+        line = sys.stdin.readline()
+        if not line:
+            raise EOFError("ACP stdin reached EOF")
+        return line
 
     while True:
         line = _read_line()
         if not line:
+            # Monitor poll timeout (no data yet): keep waiting for the choice.
             time.sleep(0.05)
             continue
         if line.strip() == "<<<SIADA_MSG_START>>>":
@@ -228,6 +298,9 @@ def _read_acp_stdin_message() -> Optional[str]:
             while True:
                 content = _read_line()
                 if not content:
+                    # Same distinction as above: a monitor timeout mid-frame
+                    # keeps polling, while unmonitored EOF inside the frame
+                    # propagates as EOFError from _read_line().
                     time.sleep(0.05)
                     continue
                 if content.strip() == "<<<SIADA_MSG_END>>>":
@@ -247,11 +320,29 @@ def _send_acp_notification(io, method: str, params: dict) -> None:
         logger.warning(f"[login_acp] Failed to send {method}: {exc}")
 
 
-def _ensure_logged_in_acp_apikey_only(io) -> Optional[str]:
-    """ACP fallback when siada.internal is absent: only provider API key is available."""
-    if not (hasattr(io, "acp_adapter") and io.acp_adapter
-            and hasattr(io.acp_adapter, "transport") and io.acp_adapter.transport
-            and getattr(io.acp_adapter.transport, "is_connected", False)):
+def _acp_transport_connected(io) -> bool:
+    """Return True when the frontend transport can receive login notifications."""
+    return bool(
+        hasattr(io, "acp_adapter") and io.acp_adapter
+        and hasattr(io.acp_adapter, "transport") and io.acp_adapter.transport
+        and getattr(io.acp_adapter.transport, "is_connected", False)
+    )
+
+
+def _ensure_logged_in_acp(io) -> Optional[str]:
+    """ACP-mode sign-in: show the frontend LoginSelector and read the choice.
+
+    The API key wizard is the only method offered in this build, so the
+    selector is sent with ``liidDisabled`` set — the frontend then renders the
+    provider/model/API-key flow alone (the ``liidDisabled`` flag is the existing
+    frontend compatibility contract for "no hosted sign-in in this build").
+
+    Returns the synthetic ``api-key-user:<provider_id>`` id on success (after
+    saving the config and notifying the frontend), or None when the user could
+    not complete the wizard.
+    """
+    if not _acp_transport_connected(io):
+        logger.warning("[login_acp] ACP transport not connected, cannot perform login")
         return None
 
     try:
@@ -264,7 +355,10 @@ def _ensure_logged_in_acp_apikey_only(io) -> Optional[str]:
         "providers": providers_data,
         "liidDisabled": True,
     })
-    logger.info("[login_acp] internal unavailable — showing API-key-only selector")
+    logger.info(
+        "[login_acp] Sent ui/showLoginSelector with %d providers (API key only)",
+        len(providers_data),
+    )
 
     try:
         raw = _read_acp_stdin_message()
@@ -291,20 +385,37 @@ def _ensure_logged_in_acp_apikey_only(io) -> Optional[str]:
                 return _handle_provider_api_key_config(config_data, io)
         except (ValueError, TypeError):
             pass
+        _send_acp_notification(io, "ui/loginError", {
+            "error": "Invalid API key configuration.",
+        })
+        return None
 
+    # Hosted sign-in is not part of this build, and the selector only offers the
+    # API key wizard; treat any other choice as an abandoned login.
     _send_acp_notification(io, "ui/loginError", {
-        "error": "LiId login is not available in this build. Please use an API key."
+        "error": "Login is required to use Siada. Please configure an API key."
     })
+    logger.warning("[login_acp] Unsupported login choice %r — API key required", choice)
     return None
 
 
-def _ensure_logged_in_tty_apikey_only(io) -> Optional[str]:
-    """TTY fallback when siada.internal is absent: prompt for base_url/api_key/model."""
+def _ensure_logged_in_tty(io) -> Optional[str]:
+    """TTY-mode sign-in: read base URL / API key / model from stdin.
+
+    Reached only when neither the environment nor conf.yaml provides a complete
+    credential pair; a non-interactive shell (``--prompt`` runs) therefore
+    cannot sign in here and returns None.
+
+    Returns the synthetic ``api-key-user:configured`` id on success, or None
+    when the user cannot sign in (non-interactive shell, empty base URL/API
+    key, or a conf.yaml write failure).
+    """
     if not _is_interactive_tty():
+        logger.info("[login] Non-interactive environment, login required but not possible")
         return None
 
     io.print_info("")
-    io.print_info("LiId login is not available in this build. Please configure an API key.")
+    io.print_info("You are not signed in. Configure your model provider to use Siada.")
     io.print_info("")
 
     try:
@@ -316,12 +427,20 @@ def _ensure_logged_in_tty_apikey_only(io) -> Optional[str]:
         io.print_info("\nLogin is required to use Siada. Exiting.")
         sys.exit(1)
 
+    if not base_url:
+        io.print_error("Base URL cannot be empty.")
+        return None
     if not api_key:
         io.print_error("API key cannot be empty.")
         return None
 
     provider_id = "configured"
-    _save_provider_config(provider_id, api_key, base_url, model)
+    if not _save_provider_config(provider_id, api_key, base_url, model):
+        # Nothing was persisted: keep the environment and the applied config
+        # untouched instead of reporting a sign-in that would not survive.
+        io.print_error(_save_failed_message())
+        return None
+
     os.environ['BASE_URL'] = base_url
     os.environ['API_KEY'] = api_key
 
@@ -335,283 +454,8 @@ def _ensure_logged_in_tty_apikey_only(io) -> Optional[str]:
 
     user_id = f"api-key-user:{provider_id}"
     io.print_info(f"API key configured for {provider_id}.")
+    logger.info(f"[login] Signed in via provider API key: {user_id}")
     return user_id
-
-
-def _ensure_logged_in_acp(io) -> Optional[str]:
-    """ACP-mode login: interact via frontend LoginSelector, then run Device Code Flow."""
-    if not _HAS_INTERNAL:
-        return _ensure_logged_in_acp_apikey_only(io)
-
-    from siada.internal.services.idaas.auth_store import (
-        get_stored_user_id, get_stored_access_token, get_stored_refresh_token,
-        is_token_valid, save_login_state,
-    )
-
-    user_id = get_stored_user_id()
-    if user_id:
-        access_token = get_stored_access_token()
-        if access_token and is_token_valid(access_token):
-            logger.debug(f"[login_acp] Already logged in as: {user_id}")
-            return user_id
-        # Token expired — try refresh_token silently before showing login UI
-        refresh_token = get_stored_refresh_token()
-        if refresh_token:
-            try:
-                from siada.internal.services.idaas.refresh_token import sync_refresh_access_token
-                new_at, new_rt = sync_refresh_access_token(refresh_token)
-                save_login_state(user_id, new_at, new_rt or refresh_token)
-                logger.info(f"[login_acp] Token silently refreshed for {user_id}")
-                return user_id
-            except Exception as exc:
-                logger.info(f"[login_acp] Silent refresh failed ({exc}), proceeding to login UI")
-        logger.info(f"[login_acp] Stored token for {user_id} has expired, re-authenticating")
-
-    if not (hasattr(io, "acp_adapter") and io.acp_adapter
-            and hasattr(io.acp_adapter, "transport") and io.acp_adapter.transport
-            and getattr(io.acp_adapter.transport, "is_connected", False)):
-        logger.warning("[login_acp] ACP transport not connected, cannot perform login")
-        return None
-
-    # Send login selector with available providers to the frontend.
-    try:
-        from siada.provider.models_dev import get_providers_for_ui
-        providers_data = get_providers_for_ui()
-    except Exception:
-        providers_data = []
-    _send_acp_notification(io, "ui/showLoginSelector", {"providers": providers_data})
-    logger.info("[login_acp] Sent ui/showLoginSelector with %d providers", len(providers_data))
-
-    try:
-        raw = _read_acp_stdin_message()
-    except (EOFError, KeyboardInterrupt):
-        _send_acp_notification(io, "ui/loginError", {"error": "Login is required to use Siada."})
-        return None
-
-    if not raw or not raw.startswith("__LOGIN_CHOICE__:"):
-        _send_acp_notification(io, "ui/loginError", {"error": "Login is required to use Siada."})
-        return None
-
-    parts = raw.split(":", 2)
-    choice = parts[1] if len(parts) >= 2 else ""
-
-    if choice == "skip":
-        _send_acp_notification(io, "ui/loginError", {"error": "Login is required to use Siada. Please sign in."})
-        logger.warning("[login_acp] User attempted to skip login, which is not allowed")
-        return None
-
-    # Choice 3: provider API key (JSON payload) or legacy LiId access token.
-    if choice == "3":
-        payload_str = parts[2].strip() if len(parts) >= 3 else ""
-        if not payload_str:
-            _send_acp_notification(io, "ui/loginError", {"error": "API key cannot be empty."})
-            return None
-
-        try:
-            import json as _json
-            config_data = _json.loads(payload_str)
-            if isinstance(config_data, dict) and 'provider_id' in config_data:
-                return _handle_provider_api_key_config(config_data, io)
-        except (ValueError, TypeError):
-            pass
-
-        # Fallback: treat payload as a legacy LiId access token.
-        api_key = payload_str
-        from siada.internal.services.idaas.auth_store import is_token_valid
-        if not is_token_valid(api_key):
-            _send_acp_notification(io, "ui/loginError", {"error": "Invalid or expired API key."})
-            return None
-
-        user_id = _extract_user_from_token(api_key)
-        if not user_id:
-            _send_acp_notification(io, "ui/loginError", {"error": "Could not extract user identity from the provided API key."})
-            return None
-
-        _save(user_id, api_key, io)
-        _refresh_telemetry(user_id)
-        _send_acp_notification(io, "ui/loginSuccess", {"userId": user_id, "displayName": user_id})
-        logger.info(f"[login_acp] Signed in via LiId API key: {user_id}")
-        return user_id
-
-    open_browser = choice == "1"
-    logger.info(f"[login_acp] choice={choice}, open_browser={open_browser}")
-
-    # Run Device Code Flow.
-    try:
-        from siada.internal.services.idaas.get_device_code import get_device_code
-        from siada.internal.services.idaas.get_auth_token import poll_auth_token, AuthExpiredError, AuthFailedError
-        from siada.internal.services.idaas.get_user import decode_id_token
-
-        device = get_device_code()
-        url = device.verification_uri_complete
-        _send_acp_notification(io, "ui/loginDeviceUrl", {"url": url, "openBrowser": open_browser})
-        logger.info(f"[login_acp] Sent ui/loginDeviceUrl: {url}")
-
-        auth_token = poll_auth_token(device.device_code, device.interval)
-        user = decode_id_token(auth_token.id_token)
-
-    except (AuthExpiredError, AuthFailedError) as exc:
-        _send_acp_notification(io, "ui/loginError", {"error": str(exc)})
-        io.print_error(f"Login failed: {exc}")
-        return None
-    except KeyboardInterrupt:
-        _send_acp_notification(io, "ui/loginError", {"error": "Login is required to use Siada."})
-        return None
-    except Exception as exc:
-        _send_acp_notification(io, "ui/loginError", {"error": str(exc)})
-        logger.exception("[login_acp] Unexpected error")
-        return None
-
-    if not user.leg:
-        _send_acp_notification(io, "ui/loginError", {"error": "No domain account (leg) in token"})
-        return None
-
-    from siada.internal.services.idaas.get_user import fetch_email
-    email = fetch_email(auth_token.access_token)
-    email_refresh_token = auth_token.refresh_token
-
-    _save(
-        user.leg, auth_token.access_token, io,
-        refresh_token=auth_token.refresh_token,
-        email=email or None,
-        email_refresh_token=email_refresh_token,
-    )
-    _refresh_telemetry(user.leg)
-
-    display_name = user.nickname if user.nickname else user.leg
-    _send_acp_notification(io, "ui/loginSuccess", {"userId": user.leg, "displayName": display_name})
-    logger.info(f"[login_acp] Login successful: {user.leg}")
-    return user.leg
-
-
-# --- TTY mode ---
-
-def _ensure_logged_in_tty(io) -> Optional[str]:
-    """TTY-mode login: uses input() interactively; login cannot be skipped."""
-    if not _HAS_INTERNAL:
-        return _ensure_logged_in_tty_apikey_only(io)
-
-    from siada.internal.services.idaas.auth_store import (
-        get_stored_user_id, get_stored_access_token, get_stored_refresh_token,
-        is_token_valid, save_login_state,
-    )
-
-    user_id = get_stored_user_id()
-    if user_id:
-        access_token = get_stored_access_token()
-        if access_token and is_token_valid(access_token):
-            logger.debug(f"[login] Already logged in as: {user_id}")
-            return user_id
-        # Token expired — try refresh_token silently before showing login menu
-        refresh_token = get_stored_refresh_token()
-        if refresh_token:
-            try:
-                from siada.internal.services.idaas.refresh_token import sync_refresh_access_token
-                new_at, new_rt = sync_refresh_access_token(refresh_token)
-                save_login_state(user_id, new_at, new_rt or refresh_token)
-                logger.info(f"[login] Token silently refreshed for {user_id}")
-                return user_id
-            except Exception as exc:
-                logger.info(f"[login] Silent refresh failed ({exc}), proceeding to login menu")
-        logger.info(f"[login] Stored token for {user_id} has expired, re-authenticating")
-        io.print_info(f"Session expired for {user_id}. Please sign in again.")
-
-    if not _is_interactive_tty():
-        logger.info("[login] Non-interactive environment, login required but not possible")
-        return None
-
-    io.print_info("")
-    io.print_info("You are not signed in. Login is required to use Siada.")
-
-    while True:
-        io.print_info("")
-        io.print_info("  1. Sign in with LiId          (opens browser automatically)")
-        io.print_info("  2. Sign in with Device Code   (print URL, no browser needed)")
-        io.print_info("  3. Provide API key            (enter access token directly)")
-        io.print_info("")
-
-        try:
-            raw = input("Select [1/2/3]: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            io.print_info("\nLogin is required to use Siada. Exiting.")
-            sys.exit(1)
-
-        if raw not in ("1", "2", "3"):
-            io.print_warning(f"Invalid selection '{raw}'. Please enter 1, 2, or 3.")
-            continue
-
-        if raw == "3":
-            try:
-                import getpass
-                api_key = getpass.getpass("Enter your API key: ").strip()
-            except (EOFError, KeyboardInterrupt):
-                io.print_info("\nLogin is required to use Siada. Exiting.")
-                sys.exit(1)
-
-            if not api_key:
-                io.print_warning("API key cannot be empty.")
-                continue
-
-            from siada.internal.services.idaas.auth_store import is_token_valid
-            if not is_token_valid(api_key):
-                io.print_error("Invalid or expired API key.")
-                io.print_info("Please try again.")
-                continue
-
-            user_id = _extract_user_from_token(api_key)
-            if not user_id:
-                io.print_error("Could not extract user identity from the provided API key.")
-                io.print_info("Please try again.")
-                continue
-
-            _save(user_id, api_key, io)
-            _refresh_telemetry(user_id)
-            io.print_info(f"Signed in as {user_id}")
-            io.print_info("")
-            logger.info(f"[login] Signed in via API key: {user_id}")
-            return user_id
-
-        open_browser = raw == "1"
-
-        try:
-            from siada.internal.services.idaas.login import run_device_code_flow
-            from siada.internal.services.idaas.get_auth_token import AuthExpiredError, AuthFailedError
-
-            access_token, refresh_token, user, email, email_refresh_token = run_device_code_flow(
-                open_browser=open_browser,
-                print_line=lambda msg: io.print_info(msg),
-            )
-        except (AuthExpiredError, AuthFailedError) as exc:
-            io.print_error(f"Login failed: {exc}")
-            io.print_info("Please try again.")
-            continue
-        except KeyboardInterrupt:
-            io.print_info("\nLogin is required to use Siada. Exiting.")
-            sys.exit(1)
-        except Exception as exc:
-            io.print_error(f"Login error: {exc}")
-            logger.exception("[login] Unexpected error during login flow")
-            io.print_info("Please try again.")
-            continue
-
-        if not user.leg:
-            io.print_error("Login succeeded but no domain account (leg) found in token.")
-            io.print_info("Please try again.")
-            continue
-
-        _save(
-            user.leg, access_token, io,
-            refresh_token=refresh_token,
-            email=email or None,
-            email_refresh_token=email_refresh_token,
-        )
-        _refresh_telemetry(user.leg)
-
-        display_name = user.nickname if user.nickname else user.leg
-        io.print_info(f"Signed in as {display_name} ({user.leg})")
-        io.print_info("")
-        logger.info(f"[login] Successfully logged in: {user.leg}")
-        return user.leg
 
 
 # --- Public entry points ---
@@ -619,15 +463,15 @@ def _ensure_logged_in_tty(io) -> Optional[str]:
 def reconfigure_acp(io) -> Optional[str]:
     """Reconfiguration flow triggered by /configure (ACP mode).
 
-    Always shows the LoginSelector (skips the fast path) and supports cancel.
+    Always shows the LoginSelector (skips the stored-config fast path) and
+    supports cancel. Like the first-run selector it is API-key only, so
+    ``liidDisabled`` is always set.
 
     Returns:
-        'api-key-user:{provider_id}' on new API-key config,
-        'liid:{user_id}' on LiId switch, or None on cancel/failure.
+        'api-key-user:{provider_id}' when the user configured a new API key,
+        or None when the user cancelled or the input could not be used.
     """
-    if not (hasattr(io, "acp_adapter") and io.acp_adapter
-            and hasattr(io.acp_adapter, "transport") and io.acp_adapter.transport
-            and getattr(io.acp_adapter.transport, "is_connected", False)):
+    if not _acp_transport_connected(io):
         logger.warning("[reconfigure_acp] ACP transport not connected")
         return None
 
@@ -637,15 +481,12 @@ def reconfigure_acp(io) -> Optional[str]:
     except Exception:
         providers_data = []
 
-    # cancelable=True so the frontend shows an Esc-to-cancel hint
-    selector_params = {
+    _send_acp_notification(io, "ui/showLoginSelector", {
         "providers": providers_data,
+        # cancelable=True so the frontend shows an Esc-to-cancel hint
         "cancelable": True,
-    }
-    if not _HAS_INTERNAL:
-        selector_params["liidDisabled"] = True
-
-    _send_acp_notification(io, "ui/showLoginSelector", selector_params)
+        "liidDisabled": True,
+    })
 
     try:
         raw = _read_acp_stdin_message()
@@ -662,6 +503,7 @@ def reconfigure_acp(io) -> Optional[str]:
 
     if choice in ("cancel", "skip"):
         _send_acp_notification(io, "ui/loginDismiss", {})
+        logger.info("[reconfigure_acp] Cancelled by user")
         return None
 
     # Option 3: provider API key
@@ -680,62 +522,46 @@ def reconfigure_acp(io) -> Optional[str]:
         _send_acp_notification(io, "ui/loginDismiss", {})
         return None
 
-    if not _HAS_INTERNAL:
-        _send_acp_notification(io, "ui/loginError", {
-            "error": "LiId login is not available in this build. Please use an API key."
-        })
-        logger.warning("[reconfigure_acp] LiId login requested but siada.internal is unavailable")
-        return None
-
-    # Options 1/2: LiId device code flow
-    open_browser = choice == "1"
-    try:
-        from siada.internal.services.idaas.get_device_code import get_device_code
-        from siada.internal.services.idaas.get_auth_token import poll_auth_token, AuthExpiredError, AuthFailedError
-        from siada.internal.services.idaas.get_user import decode_id_token
-
-        device = get_device_code()
-        url = device.verification_uri_complete
-        _send_acp_notification(io, "ui/loginDeviceUrl", {"url": url, "openBrowser": open_browser})
-
-        auth_token = poll_auth_token(device.device_code, device.interval)
-        user = decode_id_token(auth_token.id_token)
-    except (AuthExpiredError, AuthFailedError) as exc:
-        _send_acp_notification(io, "ui/loginError", {"error": str(exc)})
-        return None
-    except Exception as exc:
-        _send_acp_notification(io, "ui/loginError", {"error": str(exc)})
-        return None
-
-    if not user.leg:
-        _send_acp_notification(io, "ui/loginError", {"error": "No domain account (leg) in token"})
-        return None
-
-    _save(user.leg, auth_token.access_token, io, refresh_token=auth_token.refresh_token)
-    _refresh_telemetry(user.leg)
-    # Clear API key config since user switched to LiId
-    clear_api_key_config()
-
-    display_name = user.nickname if user.nickname else user.leg
-    _send_acp_notification(io, "ui/loginSuccess", {"userId": user.leg, "displayName": display_name})
-    logger.info(f"[reconfigure_acp] Switched to LiId: {user.leg}")
-    return f"liid:{user.leg}"
+    # Only the API key wizard is offered (liidDisabled); nothing else can be
+    # applied, so leave the previous configuration untouched.
+    _send_acp_notification(io, "ui/loginError", {
+        "error": "Login is required to use Siada. Please configure an API key."
+    })
+    logger.warning("[reconfigure_acp] Unsupported login choice %r", choice)
+    return None
 
 
 def ensure_logged_in(io, acp_mode: bool = False) -> Optional[str]:
     """Verify login state and prompt the user to sign in if needed.
+
+    Credentials resolved from the environment (``BASE_URL``/``API_KEY``) or from
+    conf.yaml sign the session in without any prompt — including non-interactive
+    ``--prompt`` runs; a partial pair falls through to the prompt/selector.
 
     Args:
         io: InputOutput instance.
         acp_mode: True to interact via frontend LoginSelector; False for TTY input().
 
     Returns:
-        Logged-in domain account (leg) or synthetic api-key user_id, or None on failure.
+        Synthetic api-key user_id, or None when the environment cannot sign in.
     """
-    # Fast path: conf.yaml already has a default-provider config — skip LiId login.
-    api_key_user = _check_stored_api_key_config()
-    if api_key_user:
-        return api_key_user
+    global _applied_api_key_config
+
+    # Never reuse credentials applied by an earlier call: when this attempt
+    # fails, the caller must see "not signed in", not a stale config.
+    _applied_api_key_config = None
+
+    resolved = _resolve_session_credentials()
+    if resolved is not None:
+        applied, user_id = resolved
+        _applied_api_key_config = applied
+        os.environ['BASE_URL'] = applied['base_url']
+        os.environ['API_KEY'] = applied['api_key']
+        logger.info(
+            "[login] Signed in as %s (provider_id=%s, model=%s)",
+            user_id, applied['provider_id'], applied['model'] or '-',
+        )
+        return user_id
 
     if acp_mode:
         return _ensure_logged_in_acp(io)

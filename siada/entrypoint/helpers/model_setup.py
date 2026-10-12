@@ -13,14 +13,24 @@ from siada.models.model_run_config import ModelRunConfig
 
 
 def get_api_key_provider_models(provider_id: str, selected_model: str, base_url: str = '') -> list:
-    """Return a ModelBaseConfig list for the given provider from the models_dev cache."""
+    """Load provider models, falling back to the selected model on cache errors.
+
+    The emergency fallback does not infer model-family capabilities; the
+    gateway uses its own defaults when metadata cannot be loaded.
+    """
+    from siada.provider.models_dev import get_provider_model_configs
+
     try:
-        from siada.provider.models_dev import get_provider_model_configs
         return get_provider_model_configs(provider_id, selected_model, base_url)
-    except Exception:
-        pass
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        logger.warning(
+            "[model_setup] Unable to load provider model configs; "
+            "falling back if a model is selected: %s",
+            exc,
+        )
     if selected_model:
         from siada.models.model_base_config import ModelBaseConfig
+
         return [ModelBaseConfig(
             model_name=selected_model,
             context_window=128_000,
@@ -30,6 +40,56 @@ def get_api_key_provider_models(provider_id: str, selected_model: str, base_url:
     return []
 
 
+def _user_model_settings(model_config) -> list:
+    """Convert user model entries while preserving all shared configuration fields."""
+    from siada.models.model_base_config import ModelBaseConfig
+
+    return [
+        ModelBaseConfig(**{
+            field.name: getattr(model, field.name)
+            for field in fields(ModelBaseConfig)
+            if hasattr(model, field.name)
+        })
+        for model in model_config.models
+    ]
+
+
+def merge_provider_models_into_user_settings(provider_models: list) -> None:
+    """Add provider-catalogue models without replacing the user's models.json.
+
+    ``models.json`` is authoritative
+    for the models it defines: a catalogue entry for the same model may carry
+    different defaults and no custom thinking budgets / prices, so an existing
+    entry is never replaced. Only models the user catalogue does not know yet
+    are appended — which is also what lets a selected ``--model`` resolve later
+    in the same session. Nothing is written back to disk.
+
+    Shared by the login flow (``siadahub._apply_login``), the default-provider
+    pre-load in ``get_config`` and ``/configure`` so all three keep the same
+    "merge, never replace" semantics.
+    """
+    from siada.models import model_base_config
+
+    existing = model_base_config._user_model_settings
+    if existing is None:
+        # A session can switch to the default provider after startup without
+        # having loaded models.json yet. Preserve that catalogue as well.
+        from siada.config.model_config import load_user_model_config
+
+        user_config = load_user_model_config()
+        if user_config is None:
+            model_base_config.set_user_model_settings(provider_models)
+            return
+        existing = _user_model_settings(user_config)
+        model_base_config.set_user_model_settings(existing)
+
+    existing_names = {model.model_name for model in existing}
+    for provider_model in provider_models:
+        if provider_model.model_name not in existing_names:
+            existing.append(provider_model)
+            existing_names.add(provider_model.model_name)
+
+
 def _pre_load_default_provider_models(conf: Optional[Config], model_name: str) -> None:
     """Pre-populate model settings from stored default-provider config in conf.yaml.
 
@@ -37,6 +97,10 @@ def _pre_load_default_provider_models(conf: Optional[Config], model_name: str) -
     yet in model settings (e.g. on the second launch, before _apply_login runs).
     If models_dev has entries for the stored provider_id, they are loaded so that
     configure_model_settings() can succeed without waiting for _apply_login.
+
+    Loading goes through ``merge_provider_models_into_user_settings``: a
+    models.json catalogue already loaded for this session keeps its custom
+    fields (thinking budgets, prices, …) and only gains missing models.
     """
     try:
         provider_id: str = ''
@@ -49,8 +113,7 @@ def _pre_load_default_provider_models(conf: Optional[Config], model_name: str) -
 
         provider_models = get_api_key_provider_models(provider_id, model_name, base_url)
         if provider_models:
-            from siada.models.model_base_config import set_user_model_settings
-            set_user_model_settings(provider_models)
+            merge_provider_models_into_user_settings(provider_models)
             logger.info(
                 f"[model_setup] Pre-loaded {len(provider_models)} model(s) for "
                 f"provider_id={provider_id!r} (default provider, second launch)"
@@ -76,9 +139,7 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
     # Used to re-resolve provider if the model falls back to a different model family.
     user_preferred_provider = final_provider
 
-    # Resolve the provider for the model (handles legacy keys like
-    # "openai_agents" -> "li").
-    # This dilutes the user-facing "provider" concept: users only need to pick the model.
+    # Resolve provider overrides while preserving the user's selected endpoint.
     from siada.provider.provider_factory import resolve_provider_by_model
     resolved_provider = resolve_provider_by_model(final_model, final_provider)
     if resolved_provider != final_provider:
@@ -93,27 +154,9 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
     # If provider is 'default', load user-defined model configurations
     if final_provider == "default" and conf and conf.model_config:
         logger.info("Loading user-defined model configurations for 'default' provider")
-        from siada.models.model_base_config import set_user_model_settings, ModelBaseConfig
+        from siada.models.model_base_config import set_user_model_settings
 
-        user_models = []
-        for user_model in conf.model_config.models:
-            user_models.append(ModelBaseConfig(
-                model_name=user_model.model_name,
-                context_window=user_model.context_window,
-                max_tokens=user_model.max_tokens,
-                supports_images=user_model.supports_images,
-                supports_vision_bridge=user_model.supports_vision_bridge,
-                supports_prompt_cache=user_model.supports_prompt_cache,
-                supports_extra_params=user_model.supports_extra_params,
-                parallel_tool_calls=user_model.parallel_tool_calls,
-                default_thinking_tokens=user_model.default_thinking_tokens,
-                default_reasoning_effort=user_model.default_reasoning_effort,
-                input_price=user_model.input_price,
-                output_price=user_model.output_price,
-                cache_write_price=user_model.cache_write_price,
-                cache_read_price=user_model.cache_read_price,
-            ))
-
+        user_models = _user_model_settings(conf.model_config)
         logger.debug(f"Loaded {len(user_models)} user-defined models")
         set_user_model_settings(user_models)
 
@@ -148,7 +191,7 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
 
         # If the model was silently replaced by a fallback, re-resolve the provider
         # using the user's original preferred provider so the fallback model gets
-        # a correct provider (e.g. unknown-gpt5-x falls back to kivy-kimi-k3 → li).
+        # a provider consistent with the user's configured endpoint.
         if config.model_name != final_model:
             re_resolved = resolve_provider_by_model(config.model_name, user_preferred_provider)
             if re_resolved != final_provider:
@@ -162,8 +205,7 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
         logger.info(f"Setting provider: {final_provider}")
         config.provider = final_provider
 
-    # Persist the resolved provider so the litellm token-refresh callback can
-    # determine whether IDaaS auth should be skipped (e.g. for 'default' provider).
+    # Persist the resolved provider for the shared request callbacks.
     try:
         from siada.entrypoint import set_current_provider
         set_current_provider(config.provider or "")
@@ -181,15 +223,14 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
         # are missing: the interactive login flow runs after get_config() and
         # collects base_url/api_key there (API-key-only fallback).
         if conf and conf.llm_config:
-            if os.getenv("BASE_URL") is None:
-                base_url = getattr(conf.llm_config, "base_url", None)
-                if base_url:
-                    os.environ["BASE_URL"] = base_url
-            if os.getenv("API_KEY") is None:
-                api_key = getattr(conf.llm_config, "api_key", None)
-                if api_key:
-                    os.environ["API_KEY"] = api_key
-        if os.getenv("BASE_URL") is None or os.getenv("API_KEY") is None:
+            for name, field_name in (
+                ("BASE_URL", "base_url"),
+                ("API_KEY", "api_key"),
+            ):
+                value = getattr(conf.llm_config, field_name, None)
+                if isinstance(value, str) and value.strip() and not (os.getenv(name) or "").strip():
+                    os.environ[name] = value.strip()
+        if not (os.getenv("BASE_URL") or "").strip() or not (os.getenv("API_KEY") or "").strip():
             logger.info(
                 "BASE_URL/API_KEY not set for default provider yet; "
                 "the login flow will collect them interactively."

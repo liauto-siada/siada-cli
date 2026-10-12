@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
+import pytest
 from agents import (
     Agent,
     ApplyPatchTool,
@@ -26,6 +29,7 @@ from openai.types.responses import ResponseApplyPatchToolCall
 
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.sub_task_agent import _build_default_tools
+from siada.foundation.code_agent_context import RuntimeSource
 from siada.foundation.siadaignore_controller import SiadaIgnoreController
 from siada.tools.coder.native_file_tools import (
     APPLY_PATCH_DESCRIPTION,
@@ -112,6 +116,12 @@ def test_read_file_formatter_has_a_read_only_display_contract():
     assert full_complete is True
     assert full == "Read the file `README.md`."
 
+    directory, directory_complete = formatter.format_input(
+        "call-read", "read_file", '{"path":"src","view_range":null}'
+    )
+    assert directory_complete is True
+    assert directory == "View the directory `src`."
+
 
 def test_read_file_formatters_include_cwd_only_when_given():
     native = ToolCallFormatterFactory.get_formatter("read_file")
@@ -136,7 +146,7 @@ def test_native_apply_patch_tool_keeps_its_contract():
     assert tool.name == "apply_patch"
     assert tool.type == "apply_patch"
     assert tool.description == APPLY_PATCH_DESCRIPTION
-    assert "workspace-relative" in tool.description
+    assert "workspace-relative or absolute" in tool.description
     assert "Codex's file-oriented patch rules" not in tool.description
 
 
@@ -206,18 +216,25 @@ def test_editor_rejects_invalid_diff_without_modifying_file():
         assert file_path.read_text(encoding="utf-8") == "one\ntwo\n"
 
 
-def test_editor_rejects_workspace_escape_and_siadaignore_paths():
+def test_editor_grants_outside_workspace_and_enforces_siadaignore():
     editor = SiadaNativeApplyPatchEditor()
-    with TemporaryDirectory() as root:
+    with TemporaryDirectory() as base:
+        root = Path(base, "workspace")
+        root.mkdir()
         controller = SiadaIgnoreController(root)
         Path(root, ".siadaignore").write_text("private.txt\n", encoding="utf-8")
         controller.initialize()
 
+        # Parent-directory traversal resolves outside the workspace and is
+        # granted by default: siada-cli runs in auto mode, so there is no
+        # approval flow to consult.
         escaped = editor.create_file(
-            _operation(root, type="create_file", path="../outside.txt", diff="+blocked\n")
+            _operation(root, type="create_file", path="../outside.txt", diff="+granted\n")
         )
-        assert escaped.status == "failed"
-        assert "parent-directory traversal" in (escaped.output or "")
+        assert escaped.status == "completed"
+        outside = Path(base, "outside.txt")
+        assert outside.read_text(encoding="utf-8") == "granted"
+        assert str(outside) in (escaped.output or "")
 
         ignored = editor.create_file(
             ApplyPatchOperation(
@@ -229,6 +246,19 @@ def test_editor_rejects_workspace_escape_and_siadaignore_paths():
         )
         assert ignored.status == "failed"
         assert ".siadaignore" in (ignored.output or "")
+        assert not Path(root, "private.txt").exists()
+
+        # Absolute spellings of in-workspace paths stay protected.
+        ignored_absolute = editor.create_file(
+            ApplyPatchOperation(
+                type="create_file",
+                path=str(root / "private.txt"),
+                diff="+blocked\n",
+                ctx_wrapper=_RunContext(root, controller),
+            )
+        )
+        assert ignored_absolute.status == "failed"
+        assert ".siadaignore" in (ignored_absolute.output or "")
         assert not Path(root, "private.txt").exists()
 
         source = Path(root, "source.txt")
@@ -245,6 +275,112 @@ def test_editor_rejects_workspace_escape_and_siadaignore_paths():
         assert blocked_move.status == "failed"
         assert source.read_text(encoding="utf-8") == "before\n"
         assert not Path(root, "private.txt").exists()
+
+
+def test_editor_accepts_absolute_paths_and_symlinked_worktrees():
+    editor = SiadaNativeApplyPatchEditor()
+    with TemporaryDirectory() as base:
+        root = Path(base, "session-root")
+        other = Path(base, "another-repo")
+        (root / ".worktrees").mkdir(parents=True)
+        other.mkdir()
+        os.symlink(other, root / ".worktrees" / "original-link")
+
+        absolute = editor.create_file(
+            _operation(
+                root,
+                type="create_file",
+                path=str(other / "docs" / "spec.md"),
+                diff="+from absolute\n",
+            )
+        )
+        assert absolute.status == "completed"
+        assert (other / "docs" / "spec.md").read_text(encoding="utf-8") == "from absolute"
+
+        # Regression: a workspace-relative path through a symlinked worktree
+        # was previously rejected as "escapes the workspace".
+        linked = editor.create_file(
+            _operation(
+                root,
+                type="create_file",
+                path=".worktrees/original-link/docs/superpowers/specs/alignment.md",
+                diff="+from symlink\n",
+            )
+        )
+        assert linked.status == "completed"
+        spec = other / "docs" / "superpowers" / "specs" / "alignment.md"
+        assert spec.read_text(encoding="utf-8") == "from symlink"
+        assert str(spec) in (linked.output or "")
+
+        # An absolute path inside the workspace keeps its relative display.
+        inside = editor.create_file(
+            _operation(root, type="create_file", path=str(root / "inside.txt"), diff="+inside\n")
+        )
+        assert inside.status == "completed"
+        assert "Created inside.txt" in (inside.output or "")
+
+
+def test_editor_updates_moves_and_deletes_across_symlinked_worktrees():
+    editor = SiadaNativeApplyPatchEditor()
+    with TemporaryDirectory() as base:
+        root = Path(base, "session-root")
+        other = Path(base, "another-repo")
+        (root / ".worktrees").mkdir(parents=True)
+        other.mkdir()
+        os.symlink(other, root / ".worktrees" / "original-link")
+
+        spec = other / "docs" / "alignment.md"
+        spec.parent.mkdir(parents=True)
+        spec.write_text("phase one\nphase two\n", encoding="utf-8")
+
+        linked_path = ".worktrees/original-link/docs/alignment.md"
+        updated = editor.update_file(
+            _operation(
+                root,
+                type="update_file",
+                path=linked_path,
+                diff="@@\n phase one\n-phase two\n+phase two done\n",
+            )
+        )
+        assert updated.status == "completed"
+        assert spec.read_text(encoding="utf-8") == "phase one\nphase two done\n"
+        assert str(spec) in (updated.output or "")
+
+        # Cross-root move: from the linked repository into the workspace.
+        moved = editor.update_file(
+            _operation(
+                root,
+                type="update_file",
+                path=linked_path,
+                diff="@@\n phase one\n-phase two done\n+phase two renamed\n",
+                move_to="notes/alignment.md",
+            )
+        )
+        assert moved.status == "completed"
+        assert not spec.exists()
+        assert (
+            Path(root, "notes/alignment.md").read_text(encoding="utf-8")
+            == "phase one\nphase two renamed\n"
+        )
+
+        # Delete through an absolute path outside the workspace.
+        scratch = other / "scratch.txt"
+        scratch.write_text("temporary\n", encoding="utf-8")
+        deleted = editor.delete_file(_operation(root, type="delete_file", path=str(scratch)))
+        assert deleted.status == "completed"
+        assert not scratch.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="native Windows paths are valid on Windows")
+def test_editor_rejects_windows_path_spelling_on_posix():
+    editor = SiadaNativeApplyPatchEditor()
+    with TemporaryDirectory() as root:
+        result = editor.create_file(
+            _operation(root, type="create_file", path="C:\\docs\\spec.md", diff="+x\n")
+        )
+        assert result.status == "failed"
+        assert "Windows path syntax" in (result.output or "")
+        assert not Path(root, "C:").exists()
 
 
 def test_gpt5_or_newer_replaces_edit_file_with_native_patch_tools():
@@ -278,6 +414,45 @@ def test_non_fork_subtask_uses_the_same_gpt5_or_newer_file_tools():
     assert "edit_file" in names
     assert "read_file" not in names
     assert "apply_patch" not in names
+
+
+@pytest.mark.parametrize("model_name", [
+    "claude-sonnet-5", "gpt-5.4", "gpt-6-astra", "gpt-6-sol",
+    "gpt-6-luna", "gpt-6.1-sol", "glm-5.3",
+])
+@pytest.mark.parametrize("interactive_mode, is_subagent, runtime_source", [
+    (True, False, RuntimeSource.CLI),
+    (False, False, RuntimeSource.CLI),
+    (False, True, RuntimeSource.CLI),
+    (True, False, RuntimeSource.LARK_CONTROLLER),
+    (False, False, RuntimeSource.DAEMON),
+])
+def test_coding_tool_surfaces_omit_question_tools(
+    monkeypatch, model_name, interactive_mode, is_subagent, runtime_source,
+):
+    monkeypatch.setattr(
+        "siada.agent_hub.coder.code_gen_agent.get_available_lark_tools", lambda: [],
+    )
+    context = SimpleNamespace(
+        model_run_config=SimpleNamespace(model_name=model_name),
+        provider="offline",
+        interactive_mode=interactive_mode,
+        is_subagent=is_subagent,
+        runtime_source=runtime_source,
+        subagent_enabled=True,
+        memory_tools_enabled=False,
+        web_tools_enabled=False,
+    )
+    agent = CodeGenAgent()
+    agent.configure_tools_for_context(context)
+    retired_tools = {
+        "request_user_input", "request_user_input_async", "ask_followup_question",
+    }
+    for tools in (agent.tools, _build_default_tools(model_name=model_name)):
+        names = {getattr(tool, "name", "") for tool in tools}
+        assert names.isdisjoint(retired_tools)
+        assert {"run_cmd", "regex_search_files"} <= names
+    assert "todo_write" in {tool.name for tool in agent.tools}
 
 
 def test_gpt5_or_newer_tools_convert_to_native_responses_apply_patch():
@@ -360,7 +535,7 @@ def test_native_apply_patch_sdk_output_keeps_call_id_and_display_custom_data():
     assert APPLY_PATCH_DISPLAY_END in rendered
 
 
-def test_native_apply_patch_recorder_captures_move_and_failure():
+def test_native_apply_patch_recorder_preserves_successful_move_before_later_failure():
     async def execute_fixture():
         with TemporaryDirectory() as root:
             Path(root, "source.txt").write_text("before\n", encoding="utf-8")
@@ -379,13 +554,17 @@ def test_native_apply_patch_recorder_captures_move_and_failure():
                     {"type": "create_file", "path": "already.txt", "diff": "+duplicate\n"},
                 ],
             }
-            return await ApplyPatchAction.execute(
+            result = await ApplyPatchAction.execute(
                 agent=Agent(name="patch-fixture", tools=[tool]),
                 call=ToolRunApplyPatchCall(tool_call=raw_call, apply_patch_tool=tool),
                 hooks=RunHooks(),
                 context_wrapper=RunContextWrapper(context=_Context(root)),
                 config=RunConfig(),
             )
+            assert not Path(root, "source.txt").exists()
+            assert Path(root, "renamed.txt").read_text(encoding="utf-8") == "after\n"
+            assert Path(root, "already.txt").read_text(encoding="utf-8") == "present\n"
+            return result
 
     result = asyncio.run(execute_fixture())
     operations = result.custom_data[APPLY_PATCH_CUSTOM_DATA_KEY]["operations"]
@@ -395,10 +574,12 @@ def test_native_apply_patch_recorder_captures_move_and_failure():
     assert operations[0]["action"] == "move"
     assert operations[0]["path"] == "source.txt"
     assert operations[0]["move_to"] == "renamed.txt"
+    assert operations[0]["status"] == "completed"
     assert operations[0]["old_text"] == "before\n"
     assert operations[0]["new_text"] == "after\n"
     assert operations[1]["status"] == "failed"
     assert "already exists" in operations[1]["error"]
+    assert "Moved source.txt to renamed.txt" in result.raw_item["output"]
 
 
 def test_streamed_native_patch_output_exposes_custom_data_before_conversation_consumes_it():

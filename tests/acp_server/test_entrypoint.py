@@ -3,8 +3,10 @@ import os
 import subprocess
 import sys
 
+import siada
 
-def test_module_entrypoint_serves_official_initialize_and_exits_on_eof():
+
+def test_module_entrypoint_serves_official_initialize_and_exits_on_eof(tmp_path):
     request = {
         "jsonrpc": "2.0",
         "id": 1,
@@ -15,7 +17,7 @@ def test_module_entrypoint_serves_official_initialize_and_exits_on_eof():
             "clientInfo": {"name": "test-client", "version": "1.0"},
         },
     }
-    environment = os.environ | {"PYTHONPATH": "."}
+    environment = os.environ | {"PYTHONPATH": ".", "HOME": str(tmp_path)}
 
     process = subprocess.run(
         [sys.executable, "-m", "siada.acp_server"],
@@ -39,7 +41,7 @@ def test_module_entrypoint_serves_official_initialize_and_exits_on_eof():
                     "loadSession": True,
                     "sessionCapabilities": {"list": {}, "resume": {}},
                 },
-                "agentInfo": {"name": "siada", "title": "Siada", "version": "1.7.17"},
+                "agentInfo": {"name": "siada", "title": "Siada", "version": siada.__version__},
             },
         }
     ]

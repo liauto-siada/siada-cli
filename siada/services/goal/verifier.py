@@ -8,8 +8,7 @@ looked nothing like the main turn's request, so caches (e.g. Anthropic
 ``cache_control``) never hit.
 
 This module now mirrors the ``/btw`` side-question design (see
-``siada/services/side_question.py`` and
-``design_docs/siada-btw-side-question-design.md``): it reuses the SAME main
+``siada/services/side_question.py``): it reuses the SAME main
 Agent instance, the SAME materialized tool list (local + MCP, same order),
 and the RAW, unfiltered message history the main turn just used — appending
 only a short verification request at the end. Keeping the outgoing
@@ -374,7 +373,6 @@ async def verify_goal_with_context(
             interactive_mode=getattr(context, "interactive_mode", False),
             combined_memory=context.combined_memory,
             preferred_language=getattr(context, "preferred_language", None),
-            pre_plan=getattr(context, "pre_plan", False),
             siadaignore_controller=getattr(context, "siadaignore_controller", None),
             holographic_provider=None,
             memory_store=None,

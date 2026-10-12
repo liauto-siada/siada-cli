@@ -40,14 +40,13 @@ class LarkAccessControl:
         - "allowlist" (default): only allow groups listed in group_allow_from
         - "disabled": reject all group messages
 
-        In relay mode, group access control is handled server-side by the
-        Gateway (same as DM access), so this always returns True.
+        Relay transport is unavailable in this distribution. Reject legacy
+        relay-mode calls rather than bypassing local access control.
 
         Reference: OpenClaw policy.ts -> isFeishuGroupAllowed()
         """
-        # Relay mode: access control is handled server-side by the Gateway
         if self._mode == "relay":
-            return True
+            return False
 
         access_cfg = self._config.get("lark", {}).get("access", {})
         group_policy = access_cfg.get("group_policy", "allowlist")
@@ -80,14 +79,13 @@ class LarkAccessControl:
     def check_dm_access(self, msg: IMMessage) -> bool:
         """Check if a DM sender is allowed based on access.dm_policy config.
 
-        In relay mode, access control is handled by the Gateway server,
-        so this always returns True.
+        Legacy relay-mode calls are rejected because that transport is not
+        available in this distribution.
 
         Returns True if allowed, False if blocked.
         """
-        # Relay mode: access control is handled server-side by the Gateway
         if self._mode == "relay":
-            return True
+            return False
 
         access_cfg = self._config.get("lark", {}).get("access", {})
         dm_policy = access_cfg.get("dm_policy", "allowlist")

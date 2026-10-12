@@ -17,8 +17,7 @@ LARK_AUTH_EXPIRED_SUGGESTION = """
 Solution: Lark-mcp tool authorization expired.
 Always wait for user confirmation of re-authorization.
 Do not resolve independently.
-Use ask_followup_question tool and only provide options:
-Re-authorized/Give up.
+Report the authorization blocker in the final response.
 """
 
 

@@ -9,7 +9,6 @@ export interface BannerInfo {
   agent: string;
   provider: string;
   model: string;
-  prePlanMode: boolean;
   thinkingTokens?: string;
   reasoningEffort?: string;
   /** Whether thinking is explicitly disabled via /thinking off; undefined/null = model default (on). */

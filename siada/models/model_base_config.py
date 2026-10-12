@@ -73,10 +73,20 @@ class ModelBaseConfig:
 
 # Fallback model when the configured model is not found in the settings
 # list. Pinned by name so it does not depend on MODEL_SETTING ordering.
+# "claude-sonnet-5" is an Anthropic-published Claude API model ID (from the 4.6
+# generation on, IDs are dateless and a major release omits the minor segment);
+# agent_config.yaml pins the same name.
 DEFAULT_MODEL_NAME = "claude-sonnet-5"
 
-# Simple list of all model configurations, kept in alphabetical order by
-# model_name (this is the display order in model lists/selectors).
+# Built-in model catalog. Every entry is a model ID that its vendor publishes
+# on a public model/pricing page; siada.models.model_pricing holds the matching
+# price estimates. context_window uses the vendor's published context length
+# where there is one. max_tokens, supports_* and the effort defaults are
+# conservative working defaults for this client -- they are not vendor-verified
+# capability guarantees, and a vendor may change or retire a model at any time.
+# User-defined models (~/.siada-cli/models.json) replace this list entirely.
+# Kept in alphabetical order by model_name (the display order in model
+# lists/selectors).
 MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="claude-opus-5-5",
@@ -90,6 +100,8 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="claude-sonnet-4-6",
         max_tokens=8192 * 4,
+        # The vendor documents a 1M-token context window for Claude 4.6 and
+        # newer; this client deliberately keeps a smaller working window.
         context_window=200_000,
         supports_images=True,
         parallel_tool_calls=True,
@@ -101,6 +113,8 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="claude-sonnet-5",
         max_tokens=8192 * 10,  # 80k output budget
+        # The vendor documents a 1M-token context window for Claude 4.6 and
+        # newer; this client deliberately keeps a smaller working window.
         context_window=200_000,
         supports_images=True,
         parallel_tool_calls=True,
@@ -113,7 +127,8 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="deepseek-v4-pro",
         max_tokens=384_000,
-        context_window=600_000,
+        # Vendor-published context length for deepseek-v4-pro (1M).
+        context_window=1_000_000,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
         # DeepSeek controls thinking intensity by level, not a token budget:
@@ -122,9 +137,11 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_vision_bridge=True,
     ),
     ModelBaseConfig(
+        # Alibaba Model Studio ID for the pinned DeepSeek-V4-Pro-0813 version;
+        # DeepSeek's own API serves the same weights under "deepseek-v4-pro".
         model_name="deepseek-v4-pro-0813",
         max_tokens=384_000,
-        context_window=600_000,
+        context_window=1_000_000,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
         # DeepSeek controls thinking intensity by level, not a token budget:
@@ -133,6 +150,8 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_vision_bridge=True,
     ),
     ModelBaseConfig(
+        # Alibaba Model Studio ID for the DeepSeek-V4.1-Flash version that
+        # DeepSeek's own API now serves under "deepseek-flash".
         model_name="deepseek-v4.1-flash",
         max_tokens=384_000,
         context_window=1_000_000,
@@ -142,6 +161,9 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_images=True,
     ),
     ModelBaseConfig(
+        # Legacy DeepSeek model name: the vendor now publishes this model as
+        # "deepseek-flash" and still accepts "deepseek-v4-flash" for it, at the
+        # same Flash price.
         model_name="deepseek-v4-flash",
         max_tokens=384_000,
         context_window=1_000_000,
@@ -151,17 +173,10 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_vision_bridge=True,
     ),
     ModelBaseConfig(
-        model_name="gemini-3.5-flash",
-        max_tokens=65535,
-        context_window=600_000,
-        parallel_tool_calls=True,
-        supports_extra_params=["reasoning_effort"],
-        default_reasoning_effort="low",
-    ),
-    ModelBaseConfig(
         model_name="glm-5.2",
         max_tokens=8192 * 8,
-        context_window=600_000,
+        # Vendor-published context length for GLM-5.2 (1M).
+        context_window=1_000_000,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens"],
         default_thinking_tokens=1024,
@@ -194,7 +209,9 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="gpt-6-astra",
         max_tokens=32768 * 2,
-        context_window=1_000_000,
+        # Vendor-published context window (1.05M). The price table bands this
+        # model at 272K input tokens (see siada.models.model_pricing).
+        context_window=1_050_000,
         supports_images=True,
         parallel_tool_calls=True,
         supports_extra_params=["reasoning_effort"],
@@ -203,7 +220,9 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="gpt-6-luna",
         max_tokens=32768 * 2,
-        context_window=1_000_000,
+        # Vendor-published context window (1.05M). The price table bands this
+        # model at 272K input tokens (see siada.models.model_pricing).
+        context_window=1_050_000,
         supports_images=True,
         parallel_tool_calls=True,
         supports_extra_params=["reasoning_effort"],
@@ -212,7 +231,9 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="gpt-6-sol",
         max_tokens=32768 * 2,
-        context_window=272_000,
+        # https://developers.openai.com/api/docs/models/gpt-6-sol
+        # The context window is distinct from the 272K pricing threshold.
+        context_window=1_050_000,
         supports_images=True,
         parallel_tool_calls=True,
         supports_extra_params=["reasoning_effort"],
@@ -221,10 +242,9 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="kimi-k3",
         # max_tokens=131_072,
-        context_window=600_000,
+        # Vendor-published context window for kimi-k3 (1,048,576 tokens).
+        context_window=1_048_576,
         supports_images=True,
-        # Capability confirmed: the model supports parallel tool calls; the
-        # previous False value was a config leftover, not a capability limit.
         parallel_tool_calls=True,
         supports_extra_params=["reasoning_effort"],
         # Kimi K3 always reasons; effort is configured via the top-level
@@ -234,7 +254,8 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="qwen3.7-max",
         max_tokens=8192 * 4,
-        context_window=600_000,
+        # Vendor-published context length for qwen3.7-max (1M).
+        context_window=1_000_000,
         parallel_tool_calls=True,
         # Qwen controls thinking intensity by level (reasoning_effort) instead
         # of a token budget: extra_body={"enable_thinking": True,
@@ -246,11 +267,8 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="qwen3.7-plus",
         max_tokens=8192 * 4,
-        context_window=131_072,
-        # Capability confirmed against the provider (model id qwen3.7-plus):
-        # the model actually reads images (verified with a synthetic-image
-        # probe), so it serves as the vision engine for the deepseek-v4 vision
-        # bridge.
+        # Vendor-published context length for qwen3.7-plus (1M).
+        context_window=1_000_000,
         supports_images=True,
         parallel_tool_calls=True,
         # Qwen controls thinking intensity by level (reasoning_effort) instead
@@ -271,7 +289,8 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="qwen3.8-max",
         max_tokens=8192 * 4,
-        context_window=600_000,
+        # Vendor-published context length for qwen3.8-max (1M).
+        context_window=1_000_000,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
         default_reasoning_effort="xhigh",
@@ -283,6 +302,61 @@ MODEL_SETTING: List[ModelBaseConfig] = [
 # caches also typically expire on the order of minutes. Used as the universal
 # heuristic for "the next request will hit the prompt cache".
 PROMPT_CACHE_TTL_SECONDS = 4 * 60 + 30
+
+
+def get_extended_context_window(model_name: str) -> Optional[int]:
+    """Return the context window that applies to a model's next request.
+
+    This build keeps one static window per model — there is no remote catalog
+    and no expanded window — so the configured ``context_window`` is the
+    effective value.
+
+    Args:
+        model_name: The model name.
+
+    Returns:
+        The model's configured context window, or None when the model is not
+        known.
+    """
+    config = get_model_config(model_name)
+    return config.context_window if config else None
+
+
+def resolve_effective_context_window(
+    llm_config,
+    *,
+    last_request_at: Optional[float] = None,
+    last_model: Optional[str] = None,
+    same_turn: bool = False,
+    now: float = 0.0,
+) -> None:
+    """Resolve and apply the effective context_window for the next request.
+
+    The effective window is the model's configured ``context_window``. It is
+    written back onto ``llm_config`` in place (the same shared object is
+    exposed as ``CodeAgentContext.model_run_config``) because the live
+    ModelRunConfig may have been created before the model's metadata was
+    known, and every consumer (compaction threshold, tool-result truncation,
+    ...) reads the value from that object.
+
+    The continuity arguments are accepted for callers that resolve the window
+    per request; with a single static window per model they do not change the
+    result.
+
+    Args:
+        llm_config: The live ModelRunConfig to update in place (duck-typed
+            here to avoid a circular import with model_run_config).
+        last_request_at: Completion timestamp of the previous LLM request
+            (None before the first request of the session).
+        last_model: Model used by the previous request.
+        same_turn: True when the previous request belonged to the same turn
+            as the upcoming one.
+        now: Current timestamp.
+    """
+    base_cfg = get_model_config(llm_config.model_name)
+    if base_cfg is None:
+        return
+    llm_config.context_window = base_cfg.context_window
 
 
 def is_claude_model(model_name: str) -> bool:
@@ -513,18 +587,32 @@ def is_qwen_model(model_name: str) -> bool:
     return "qwen" in model_name.lower()
 
 
-# Matches major.minor in GLM model names like "glm-5.2"; re.search-based, so
-# provider-qualified names like "zhipuai/glm-5.2" match too.
-_GLM_VERSION_PATTERN = re.compile(r"glm-(\d+)\.(\d+)", re.IGNORECASE)
+# Matches the GLM generation in bare or provider-qualified model names:
+# "glm-5.2", "zhipuai/glm-5.2", "openai/glm-5.4" and integer-only generations
+# such as "glm-6" (read as 6.0). The leading boundary keeps unrelated tokens
+# such as "xglm-5.3" out, and the trailing digit guard makes "glm-5.30" parse
+# as (5, 30) instead of a truncated (5, 3).
+_GLM_VERSION_PATTERN = re.compile(
+    r"(?:^|[^a-z0-9])glm[-_]?(\d+)(?:\.(\d+))?(?![0-9])", re.IGNORECASE
+)
+
+
+def get_glm_version(model_name: Optional[str]) -> Optional[tuple[int, int]]:
+    """Return the ``(major, minor)`` GLM generation of a model name, or None.
+
+    A name without a minor version (e.g. ``glm-6``) reports minor 0.
+    """
+    if not model_name:
+        return None
+    match = _GLM_VERSION_PATTERN.search(str(model_name).lower())
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2) or 0)
 
 
 def _glm_version_at_least(model_name: str, major: int, minor: int) -> bool:
-    if not model_name:
-        return False
-    match = _GLM_VERSION_PATTERN.search(model_name.lower())
-    if not match:
-        return False
-    return (int(match.group(1)), int(match.group(2))) >= (major, minor)
+    version = get_glm_version(model_name)
+    return version is not None and version >= (major, minor)
 
 
 def is_glm_5_2_or_newer(model_name: str) -> bool:

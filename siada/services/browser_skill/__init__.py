@@ -2,8 +2,6 @@
 interventions, distilled into an evidence-backed, incrementally maintained
 Playbook.
 
-See design_docs/browser-skill-graph-design.md for the full design.
-
 Modules:
 - models       : ReplayStep / VerificationResult / ExecutionRecord / RegistryEntry
 - paths        : filesystem locations under ~/.siada-cli/workspace/

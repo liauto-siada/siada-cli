@@ -20,6 +20,19 @@ Siada CLI 包含并改编了以下开源项目。我们对它们对开源社区�
 - **开源协议**: Apache 2.0
 - **贡献&修改内容**: 参考了其 skills 模块的实现，并适配到我们自己的 skills 系统中，包括字段长度限制、提示词文案以及技能列表渲染的预算与降级设计。
 - **归属声明（来自 Codex NOTICE 文件）**: OpenAI Codex, Copyright 2025 OpenAI。
+- **GPT-5 personality 提示词**: 改编自 commit `2dbcab90e24bbe3c710ad41ffab7bb372256827b` 的 `codex-rs/core/templates/personalities/gpt-5.2-codex_pragmatic.md` 和 `gpt-5.2-codex_friendly.md`，身份和工具说明已适配 Siada；上述 Apache-2.0 许可及 Codex 归属声明适用。
+- **GPT-6 模板**: 随包的 GPT-6 模板（`siada/agent_hub/coder/prompt/models/gpt6/templates/`）改编自 Codex 的 `codex-rs/models-manager/models.json` 中 `model_messages.instructions_template` 字段（源码 commit `2fdf047c9631c9ed01a31b62efb7891718a931a8`，2026-10-08；模型目录 commit `d63a9b8344cfe58bc78bbe319b560378fc8756ef`，2026-10-06），继续按 Apache 2.0 协议及上述归属声明分发；具体修改见该目录的 `README.md`。
+
+### [ZCode](https://github.com/zai-org/ZCode)
+- **开源协议**: Apache 2.0（见 [LICENSE](https://github.com/zai-org/ZCode/blob/main/LICENSE)；该仓库在 [NOTICE.md](https://github.com/zai-org/ZCode/blob/main/NOTICE.md) 的“第三方许可与版权声明”一节中说明其第一方代码采用 Apache-2.0）。
+- **归属声明**: Copyright 2026 Z.AI Co., Ltd，来自 commit `29628c9acdb81b703bbd4080c207a0e7ce5e276e` 的 LICENSE；下方 Apache-2.0 许可原文适用于该部分。
+- **贡献&修改内容**: 参考了公开 ZCode CLI 在 commit 29628c9（`apps/zcode-cli/packages/core/src/context/sections/cli-prefix.ts`、`.../sections/identity.ts`、`.../context/dynamic-sections.ts`）中的身份/运行时与沟通结构，用于 GLM-5.2 及后续版本的提示词配置。文案已按 Siada 的工具、权限模型和安全规则重写，并移除了 ZCode 的产品标识。
+- **待办提醒**: 改编自同一 commit 的 `apps/zcode-cli/packages/core/src/runtime/helpers/runtime-reminders.ts`，工具名称和提醒的呈现方式已适配 Siada。
+
+### [Kimi Code](https://github.com/MoonshotAI/kimi-code)
+- **开源协议**: MIT（见 [LICENSE](https://github.com/MoonshotAI/kimi-code/blob/main/LICENSE)）。
+- **归属声明**: Copyright (c) 2026 Moonshot AI。下方复现的 MIT 许可声明适用于改编后的模板。
+- **贡献&修改内容**: 将 Kimi Code 的系统提示词模板结构改编为 Kimi K3 及后续版本使用的 `siada/agent_hub/coder/prompt/models/kimi_k3/templates/system.md`；运行时事实与可用工具已适配 Siada。
 
 
 ## 开源许可证

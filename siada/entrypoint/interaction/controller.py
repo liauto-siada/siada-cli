@@ -280,13 +280,12 @@ class Controller:
         Provider resolution:
         - If the session currently runs on the user's own provider config
           ("default": custom base_url + API key), KEEP it. User-defined models
-          (models.json) are defined for that endpoint, and re-routing them to
-          the internal "li" proxy breaks the next LLM call with LiAuthError
-          ("Not logged in") for users who never signed in with Li ID.
+          (models.json) are defined for that endpoint, so re-routing them to
+          another provider would send the next LLM call to an endpoint the user
+          never configured.
         - Otherwise resolve against the config-file default provider (NOT the
-          current session's provider), so a force-assigned provider (e.g.
-          "openai_agents" set for a gpt-5.x session) is not inherited when
-          switching to a model of a different provider family.
+          current session's provider), so a force-assigned provider is not
+          inherited when switching to a model of a different provider family.
         """
         try:
             from siada.models.model_run_config import ModelRunConfig
@@ -309,10 +308,8 @@ class Controller:
             new_llm_config.carry_over_reasoning_settings(old_llm_config)
             self.config.llm_config = new_llm_config
 
-            # Keep the process-wide provider tracker in sync so the litellm
-            # token-refresh callback (siada.entrypoint) knows whether IDaaS
-            # auth applies to the new provider (skipped for "default",
-            # required for "li").
+            # Keep the process-wide provider tracker in sync with the provider
+            # this switch landed on, for consumers that report it.
             try:
                 from siada.entrypoint import set_current_provider
                 set_current_provider(new_llm_config.provider or "")

@@ -84,7 +84,7 @@ def memory_impl(
         return json.dumps({"success": False, "error": f"Unknown action '{action}'. Use add, replace, or remove."})
 
     # Mirror successful adds into the holographic store so structured queries
-    # see them too. See design_docs/siada-holographic-memory-introduction.md §7.2.
+    # see them too (``HolographicProvider.on_memory_write``).
     if (
         holographic_provider is not None
         and action == "add"

@@ -250,6 +250,32 @@ This adaptation of the extension adds a few more tools on top of the core three.
 
 ---
 
+## Browser Activity Trace (side panel)
+
+The side panel's **Trace** tab shows the agent's browser work as a timeline — one
+row per tool call, with its duration, status, target and value — next to real
+pictures of the controlled tab.
+
+- the timeline is derived from the ACP session stream, so it observes calls that
+  actually ran rather than reconstructing or summarising them;
+- pictures are real captures of the tab: a before/after pair around each mutating
+  call (`browser_execute`, `browser_replay`), plus an optional live view that
+  streams the tab through the Chrome debugger while **Go live** is enabled;
+- a picture is tied to a step only when the capture reports the same correlation
+  id as the ACP tool call; the change-region overlay is the pixel diff of such a
+  step's own before/after pair. Pictures without a matching id are shown as the
+  latest picture of the run, and the tab says so — a step with no comparable
+  pair reports that no comparison was made, not that the page stayed the same;
+- a run starts when a prompt goes out and ends when the protocol says the turn is
+  over (prompt completion, cancel, error, dropped connection), which is what the
+  "live" badge follows.
+
+The trace only observes and displays. It does not learn from runs, keeps no
+trained or persisted model, and does not replay anything by itself; deterministic
+replay of a recorded step is the `browser_replay` tool's job.
+
+---
+
 ## Security Considerations
 
 - Scripts execute in the **main world** (same context as the page's JavaScript)
@@ -269,3 +295,4 @@ The extension requires these permissions in `manifest.json`:
 | `sidePanel` | Show the chat UI in Chrome's side panel |
 | `storage` | Persist connection settings, feature toggles and recorded steps |
 | `declarativeNetRequest` | Strip Content-Security-Policy headers for script execution |
+| `debugger` | Live view (CDP screencast) of the controlled tab while the Trace tab's live view is on |

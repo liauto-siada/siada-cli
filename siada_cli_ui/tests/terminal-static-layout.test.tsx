@@ -21,6 +21,42 @@ function toolMessage(content: string): ChatMessage {
 }
 
 describe('real Ink static layout', () => {
+  it.each([32, 80])('appends compaction result branches directly below their status at %i columns', async terminalColumns => {
+    const stdout = Object.assign(new PassThrough(), { columns: terminalColumns, rows: 24 });
+    const frames: string[] = [];
+    const dynamicFrames: string[] = [];
+    const progress = { ...toolMessage('Compacting context...'), id: 'compaction' };
+    const result = { ...toolMessage('Compacted: 100 → 22 messages (78 removed)'), id: 'result' };
+    const view = (messages: ChatMessage[]) => (
+      <Box width={terminalColumns} flexDirection="column">
+        <MessageList messages={messages} terminalWidth={terminalColumns} isCollapsed />
+        <Text>input</Text>
+      </Box>
+    );
+    const app = render(view([progress]), {
+      stdout, stdin: new PassThrough(), patchConsole: false, exitOnCtrlC: false, maxFps: 0,
+      onRender: ({ staticOutput, output }) => {
+        if (staticOutput && staticOutput !== '\n') frames.push(staticOutput);
+        dynamicFrames.push(output);
+      },
+    });
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 80));
+      app.rerender(view([progress, result]));
+      await new Promise(resolve => setTimeout(resolve, 80));
+      const text = (frames.join('') + dynamicFrames[dynamicFrames.length - 1]).replace(/\x1b\[[0-9;]*m/g, '');
+      const lines = text.split('\n');
+      expect(text).toContain('● Compacting context...\n  ├─ messages: 100 → 22\n  └─ removed: 78');
+      expect(text.match(/Compacting context/g)).toHaveLength(1);
+      expect(text).not.toMatch(/[╭╮╰╯│]/);
+      expect(Math.max(...lines.map(stringWidth))).toBeLessThan(terminalColumns);
+    } finally {
+      app.unmount();
+      app.cleanup();
+    }
+  });
+
   it('nests each file heading and its diff under a multi-file tool tree', async () => {
     const stdout = Object.assign(new PassThrough(), { columns, rows: 48 });
     const frames: string[] = [];
@@ -306,6 +342,40 @@ describe('real Ink static layout', () => {
       app.unmount();
       app.cleanup();
       Object.defineProperty(process.stdout, 'columns', { value: originalColumns, configurable: true });
+    }
+  });
+
+  it('keeps semantic tools borderless beside a browser tool in real Ink output', async () => {
+    const terminalColumns = 48;
+    const stdout = Object.assign(new PassThrough(), { columns: terminalColumns, rows: 32 });
+    const frames: string[] = [];
+    const query = `${'缓存查询'.repeat(12)}中🙂`;
+    const messages = [
+      { ...toolMessage(`Searching memory: ${query}`), id: 'memory' },
+      { ...toolMessage('> Siada will click on element `button`'), id: 'browser' },
+      { id: 'end', type: 'agent' as const, content: 'done', author: 'Siada',
+        timestamp: '2026-01-01T00:00:00.000Z', metadata: { subtype: 'answer', streamEnd: true } },
+    ];
+    const app = render(
+      <Box width={terminalColumns} flexDirection="column">
+        <MessageList messages={messages} terminalWidth={terminalColumns} isCollapsed={false} />
+      </Box>,
+      { stdout, stdin: new PassThrough(), patchConsole: false, exitOnCtrlC: false, maxFps: 0,
+        onRender: ({ staticOutput }) => { if (staticOutput) frames.push(staticOutput); } },
+    );
+    try {
+      await new Promise(resolve => setTimeout(resolve, 80));
+      const lines = frames.join('').replace(/\x1b\[[0-9;]*m/g, '').split('\n');
+      const memoryIndex = lines.findIndex(line => line.includes('● Search memory'));
+      const browserIndex = lines.findIndex(line => line.includes('● Browser action'));
+      expect(memoryIndex).toBeGreaterThanOrEqual(0);
+      expect(browserIndex).toBeGreaterThan(memoryIndex);
+      expect(lines.slice(memoryIndex, browserIndex).filter(line => stringWidth(line) >= terminalColumns)).toEqual([]);
+      expect(lines.slice(memoryIndex, browserIndex).join('\n')).not.toMatch(/[╭╮╰╯│]/);
+      expect(lines.slice(browserIndex).join('\n')).toMatch(/[╭╮╰╯│]/);
+    } finally {
+      app.unmount();
+      app.cleanup();
     }
   });
 

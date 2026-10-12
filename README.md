@@ -3,7 +3,7 @@
 **[简体中文](./docs/zh-CN/README_zh.md) | English**
 
 [![PyPI version](https://img.shields.io/pypi/v/siada-cli)](https://pypi.org/project/siada-cli/)
-[![Python Version](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.12%E2%80%933.13-blue)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ![Siada CLI Screenshot](./docs/assets/siada-cli-screenshot.gif)
@@ -12,29 +12,38 @@ This repository contains **Siada CLI**, a command-line AI workflow tool that pro
 
 Siada CLI is context-aware of your **project**, **computing environment**, and **cross-session persistent memory**, offering consistent, personalized, and continuously improving intelligent assistance across Terminal, Feishu (Lark), ACP clients, and Web interfaces.
 
-> **Current latest version: v1.7.31**
+> **Source version: v1.7.32**
 
 ---
 
-## What's New in v1.7.31
+## What's New in v1.7.32
+
+- **Tool call summaries in the terminal** — file reads, directory views, commands, and patches show concise headings with paths and change counts. Expand a tool call to inspect its details.
+- **Browser activity trace** — the Chrome sidepanel combines tool activity with live views of the controlled tab, captured frames, and frame differences. Pause the view, inspect earlier steps, and resume watching the browser.
+- **Clear ACP failures** — failed prompts report their underlying cause so the terminal and browser clients can show a useful error.
+- **Model-specific prompts** — Kimi K3 and later use a Kimi Code-based prompt, GPT-6 prompts use packaged templates, and GLM-5.2 and later have a dedicated prompt profile and reminders for repeated tool calls.
+- **Current workspace context** — a bounded Git snapshot accompanies the first user request and is refreshed after compaction. Workspace memory prefers `AGENTS.md` over `CLAUDE.md`.
+- **Patch recovery and execution feedback** — failed native patches return guidance for reading and matching the current file. The terminal shows compaction counts and the current activity step.
+
+### Features carried forward from v1.7.31
 
 ### 1. Runs Everywhere, Plugs Into Anything
 
-- **True cross-platform** — fully supported on **macOS, Linux, and Windows**, with a consistent experience on all three. Not a POSIX tool with a compatibility shim: shell execution is platform-native (`pexpect` PTY on Unix, **PowerShell / cmd detection** on Windows), and terminal theme detection, notifications, IPC (Unix socket vs. **named pipe**), daemon spawning, `ripgrep` binaries, and the Node UI bootstrap all have dedicated per-platform paths.
+- **Platform-specific integration** — supports **macOS, Linux, and Windows** through native shell execution (`pexpect` PTY on Unix, **PowerShell / cmd detection** on Windows), theme detection, notifications, IPC (Unix sockets or **named pipes**), daemon spawning, `ripgrep` binaries, and Node UI bootstrap paths.
 - **Native Feishu (Lark) bot** — a built-in bot transport with streaming cards and typing indicators, so you can drive Siada from chat without writing any glue code. See [Remote Control Guide](./docs/remote_control_lark.md).
 - **ACP-native** — ships a standalone [Agent Client Protocol](https://agentclientprotocol.com/) server (`siada-acp`), so Siada drops into any ACP-compatible client (Zed, Kiro, vscode-acp, …) as a first-class agent. Terminal, chat, editor, and Web all talk to the same core.
 - **Browser addon for Chrome** — Siada can drive the browser you are already signed in to: read pages, take screenshots, replay recorded interaction steps, render PDFs, and reach the browser remotely from a phone. See [chrome-acp](./chrome-acp). The terminal UI also ships **dark / light / auto** themes.
 
 ### 2. Squeezes the Most Out of Every Model
 
-- **On par with the best on frontier models** — on Claude and GPT families, Siada CLI matches leading coding tools such as Claude Code and Codex on real-world code generation and bug fixing.
-- **Deeply tuned for domestic/open models** — dedicated engineering for **GLM-5.2**, **DeepSeek V4 Flash / Pro**, **Kimi**, and **Qwen**: reasoning-content replay across multi-turn tool calls, per-model thinking-parameter mapping, per-model context and token budgets, and hallucination/loop suppression for fast models that invent tool names or repeat identical calls.
-- **One interface, any provider** — unified provider layer over LiteLLM, plus [custom endpoints](./docs/external_model_configuration.md) for private deployments.
+- **Model-specific coding guidance** — Claude, GPT, GLM, and Kimi models use the prompts and tools selected for their family.
+- **Reasoning and context controls** — replay reasoning content across tool turns, map supported thinking parameters, and use configured context and token budgets. Unknown tool calls return an error to the model; GLM-5.2 and later also receive repeated-call reminders.
+- **Configurable model endpoints** — use the default or OpenRouter provider with [custom model configuration](./docs/external_model_configuration.md). The default provider uses OpenAI-compatible Chat Completions, Responses for GPT-5 and later, and the existing Claude/Gemini routes.
 - **Model lists that stay in sync with your work** — `/model` shows a per-model note, and reasoning settings (`/effort`, `/thinking`) are carried over — and mapped — when you switch models.
 
 ### 3. Long-Horizon Execution and Self-Evolving Memory
 
-- **Long-horizon task execution** — automatic task-complexity judgment, spec-driven Research → Plan → Act pipelines, sub-agent orchestration with clean context windows, checkpoints, and auto-compaction keep goals on track across task chains of hundreds of steps.
+- **Multi-step task execution** — combine sub-agent orchestration, checkpoints, visible todo lists, standing goals, and automatic compaction to work through larger tasks.
 - **Self-evolving memory** — cross-session persistent memory combined with a **structured fact store** (entity extraction, holographic/HRR vector retrieval, trust scoring, and contradiction detection) plus a background review-and-update pipeline. Memory is not just an append-only log: it is scored, corrected, and pruned over time.
 - **Proactive automation** — run Siada as a background daemon with scheduled tasks so it keeps working, and keeps improving, between your sessions.
 - **Agentic editing and long-run discipline** — Codex-style `apply_patch`, switching sub-agents mid-task, and todo reminders that keep multi-step runs on track.
@@ -60,6 +69,7 @@ Siada CLI is context-aware of your **project**, **computing environment**, and *
 |---|---|
 | OS | macOS, Linux, Windows |
 | Python | 3.12 – 3.13 |
+| Node.js | A maintained LTS release (22.12+; 24 LTS recommended) for the terminal UI and browser proxy |
 | GCC | 11+ (macOS / Linux) |
 | Package Manager | [uv](https://github.com/astral-sh/uv) |
 
@@ -101,11 +111,11 @@ uv tool uninstall siada-cli
 
 ## Developer Mode Installation
 
-1. **Prerequisites:** Ensure you have [Python 3.12+](https://www.python.org/downloads/) and [Poetry](https://python-poetry.org/docs/#installation) installed.
+1. **Prerequisites:** Install [Python 3.12 or 3.13](https://www.python.org/downloads/), [Poetry](https://python-poetry.org/docs/#installation), and [Node.js 24 LTS](https://nodejs.org/).
 
 2. **Clone and Install:**
    ```bash
-   git clone https://github.com/liauto-siada/siada-cli.git
+   git clone --branch develop https://github.com/liauto-siada/siada-cli.git
    cd siada-cli
    poetry install
    ```
@@ -148,7 +158,7 @@ siada-cli
 
 ### Non-Interactive Mode (script / CI integration)
 ```bash
-siada-cli --no-interactive "Fix the null pointer exception in src/main.py"
+siada-cli --prompt "Fix the null pointer exception in src/main.py"
 ```
 
 ### Feishu (Lark) Bot
@@ -159,10 +169,11 @@ Expose Siada over the Agent Client Protocol so any ACP-compatible client can use
 ```bash
 siada-acp
 ```
-Or launch the bundled UI over ACP:
+The same stdio ACP server is also available through:
 ```bash
 siada-cli --acp
 ```
+Run `siada-cli` without `--acp` to open the terminal UI.
 
 ---
 

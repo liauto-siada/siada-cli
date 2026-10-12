@@ -22,7 +22,7 @@ class DefaultFormatter(ToolCallFormatter):
 
 
 class ReadFileFormatter(ToolCallFormatter):
-    """Format GPT-5+ ``read_file`` calls without exposing edit semantics."""
+    """Format GPT-5+ file and directory reads without exposing edit semantics."""
 
     def format_input(
         self, call_id: str, function_name: str, arguments: str
@@ -34,6 +34,9 @@ class ReadFileFormatter(ToolCallFormatter):
             view_range = args.get("view_range") if args else None
             if not path:
                 return "", False
+
+            if not os.path.splitext(str(path))[1]:
+                return f"View the directory `{path}`.", complete
 
             content = f"Read the file `{path}`"
             if (
@@ -456,24 +459,6 @@ class ReproduceCompletionFormatter(ToolCallFormatter):
     @property
     def supported_function(self) -> str:
         return "reproduce_completion"
-
-
-class AskFollowupQuestionFormatter(ToolCallFormatter):
-    """
-    Formatter for the ask_followup_question function.
-    """
-
-    def format_input(self, call_id: str, function_name: str, arguments: str) -> Tuple[str, bool]:
-        try:
-            args = json.loads(arguments)
-            question = args.get("question", "")
-            return f"{question}", True
-        except json.JSONDecodeError:
-            return f"failed to parse arguments: {arguments}", False
-
-    @property
-    def supported_function(self) -> str:
-        return "ask_followup_question" 
 
 
 class ListCodeDefinitionNamesFormatter(ToolCallFormatter):

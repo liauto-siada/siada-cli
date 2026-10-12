@@ -159,13 +159,13 @@
 
 模型名的完整格式为：`协议/模型名`
 
-- **协议**：决定了最终访问的 API 接口类型和规范
+- **协议/模型前缀**：标识 Siada 使用的模型家族或供应商路由
 - **模型名**：具体的模型标识符，需符合接口约束
 
 示例：
 - `anthropic/claude-3-opus` - 使用 Anthropic 原生协议访问 Claude 3 Opus
-- `openai/gpt-4-turbo` - 使用 OpenAI 原生协议访问 GPT-4 Turbo
-- `deepseek/deepseek-coder` - 使用 DeepSeek 原生协议访问 DeepSeek Coder
+- `openai/gpt-4-turbo` - 使用 OpenAI Chat Completions 访问 GPT-4 Turbo
+- `deepseek/deepseek-coder` - 使用兼容 OpenAI 的端点访问 DeepSeek Coder
 
 ### 自动协议映射
 
@@ -174,18 +174,19 @@
 | 模型名前缀 | 自动映射为 | API 协议 |
 |-----------|-----------|---------|
 | `claude-*` | `anthropic/claude-*` | Anthropic |
-| `gpt-*` | `openai/gpt-*` | OpenAI |
-| `o3-*` | `openai/o3-*` | OpenAI |
-| `deepseek-*` | `deepseek/deepseek-*` | DeepSeek |
-| `gemini-*` | `google/gemini-*` | Google |
-| `kimi-*` | `moonshotai/kimi-*` | Moonshot AI |
+| `gpt-*` | `openai/gpt-*` | OpenAI Chat Completions；GPT-5 及以上使用 Responses |
+| `o3-*` | `openai/o3-*` | OpenAI Chat Completions |
+| `deepseek-*` | `deepseek/deepseek-*` | 兼容 OpenAI 的 Chat Completions |
+| `gemini-*` | `google/gemini-*` | Gemini 原生协议/LiteLLM |
+| `kimi-*` | `moonshotai/kimi-*` | 兼容 OpenAI 的 Chat Completions |
 
 **查看完整实现**：[siada/provider/default/coverter.py](../../siada/provider/default/coverter.py)
 
 ### 使用说明
 
-- 标准模型名（如 `gpt-4`）会自动映射为完整格式（`openai/gpt-4`）
-- 显式指定协议的模型名（如 `anthropic/claude-3-opus`）按原样使用
+- 标准模型名（如 `gpt-4`）会映射为“供应商/模型”形式；OpenAI Chat Completions 请求会去掉 LiteLLM 路由前缀，只发送端点接受的模型 ID。
+- Claude 和 Gemini 保留原有 LiteLLM/原生路由。其他 default provider 模型必须使用支持 OpenAI Chat Completions 的端点；仅填写 LiteLLM 原生协议前缀并不能保证兼容。
+- GPT-5 及后续版本使用 Responses API；其他仅支持 Responses 的别名也不会发到 Chat Completions。
 - 完整配置示例请参考上文的[配置示例](#配置示例)章节
 
 ## 使用方法
@@ -222,6 +223,7 @@ export API_KEY=your-api-key-here
 > 
 > - **OpenAI 兼容协议**（如 `openai/*`、`deepseek/*` 等）：需要包含 `/v1` 路径
 >   - 示例：`https://api.openai.com/v1`
+>   - Chat 路由的模型必须支持 `POST /chat/completions`；模型 ID 必须是该端点接受的 ID
 > 
 > - **Anthropic 协议**（`anthropic/*`）：
 >   - 方式1：不包含路径后缀，如 `https://api.anthropic.com`
@@ -242,6 +244,48 @@ siada --provider default --model openai/gpt-4
 siada
 ```
 
+## Git 快照（所有模型）
+
+主编码 Agent 会为所有模型在 Git 工作区的首次用户请求中，追加一项有界的 Git 快照，
+包含分支、HEAD、工作树摘要及采集时间。快照以 `<system-reminder>` 包裹的隐藏
+`input_text` 内容项保存到同一条用户消息中，并写入会话的 `api_history.json`。
+后续轮次和 `/resume` 会复用快照，压缩后在模型可见的 `api_messages.json` 中刷新。
+仍兼容旧会话中的独立快照消息。非 Git 工作区或采集失败时不添加快照。
+快照是上下文数据，不扩大授权，不作为会话中途的 system 消息发送，也不显示在聊天历史中。
+设置 `SIADA_GIT_SNAPSHOT=0`（或 `false` / `off`）可关闭快照。
+
+## GLM-5.2 及后续模型
+
+Siada 识别 GLM-5.2 及后续版本，例如 `glm-5.2`、`glm-5.2-flash`、`glm-5.3`、
+`glm-6`，也支持带供应商前缀的名称。GLM-5.1 及更早版本保留原有提示词和重复工具调用行为。
+这些提示词适配不改变模型的推理能力或供应商设置。GLM-5.3 及后续版本使用 Chat Completions。
+
+自定义模型名不会自动推断推理支持或默认努力级别；内置 GLM-5.3 条目保留显式配置。
+自定义 `models.json` 条目可通过 `supports_extra_params: ["reasoning_effort"]` 启用
+`/effort`，通过 `default_reasoning_effort` 指定默认级别。未显式指定时由网关决定默认
+推理行为。API Key 供应商提供、但没有匹配内置条目的模型也不会自动填充这些设置。
+
+主编码 Agent 在 GLM-5.2 及后续模型上使用专属身份和行为段落，仍提供共用能力说明、
+技能、代理及记忆。连续三次调用同一工具且参数相同后，会加入一条隐藏 user-role 提醒，
+要求使用已有结果或改变做法。GLM 提示词和重复调用提醒没有单独的关闭开关。
+
+GLM 全系列模型连续至少十个 assistant 轮次未调用 `todo_write` 时，还可收到空列表提醒，
+两次提醒至少相隔十轮。设置 `SIADA_TODO_EMPTY_LIST_REMINDER=0`（或 `false` / `off`）
+可关闭空列表提醒。其他模型仅在已有待办清单时收到提醒；该开关不关闭已有清单的提醒。
+提醒是隐藏运行时上下文，不是 system-role 消息，也不扩大授权。
+
+## Kimi K3 及后续模型
+
+主编码 Agent 为 Kimi K3 及后续版本使用基于 Kimi Code 的提示词，包括 `kimi-k3`、
+`kimi-k3.1`、`kimi-k3.5` 和 `kimi-k4`。识别不区分大小写，支持供应商前缀
+（`vendor-kimi-k4`、`openai/kimi-k3.5`）、下划线（`kimi_k3.1`）及 `-preview` 等后缀。
+简写 `k3`、`k3.1`、`k3.5`、`k4` 和 `openai/k4` 等斜杠前缀形式也会选择同一套提示词。
+仍需填写端点接受的准确模型 ID；提示词识别不会把别名重写成 API 模型 ID。
+
+Kimi K2 及更早版本保留通用提示词。Kimi 提示词使用终端沟通和按任务选择技能的指导，
+替代通用的四行回复限制及严格技能触发段落；仍保留 Siada 的 `edit_file` 工具、Git 安全、
+权限边界、非交互模式的阻碍报告、技能与代理目录及组合记忆。
+
 ## 配置优先级
 
 配置的优先级顺序为：
@@ -256,4 +300,4 @@ siada
 - **配置文件格式**：确保 JSON 格式正确，可以使用在线 JSON 验证工具检查
 - **模型名称**：`model_name` 必须与你的 API 提供商支持的模型名称完全一致
 - **API 配置**：使用 default provider 时，必须配置 `BASE_URL` 和 `API_KEY`
-- **兼容性**：配置的模型参数应该与实际 API 提供商的模型能力匹配
+- **兼容性**：模型参数必须与端点能力匹配。除 Claude/Gemini 和 GPT-5 及以上的 Responses 路由外，default provider 要求端点兼容 OpenAI Chat Completions；不会自动支持任意 LiteLLM 原生协议供应商。

@@ -235,8 +235,42 @@ export type ProxyMessage =
   | { type: "read_file"; payload: { path: string } }
   // Trajectory recording events (extension background -> proxy-server)
   | { type: "trajectory_events"; payload: TrajectoryEvent[] }
+  // Per-step picture frames (extension background -> proxy-server -> clients)
+  | { type: "frame"; callId?: string; payload: FramePayload }
+  // Live view control (client -> proxy-server -> extension). The proxy fills in
+  // the tab from the requesting client's bound session, so the UI never needs
+  // chrome.tabs access and the web client can drive it too.
+  | { type: "screencast"; payload: { enabled: boolean } }
+  // Live view state reported by the extension (extension -> proxy -> clients)
+  | { type: "screencast_state"; payload: { active: boolean; error?: string } }
   // Heartbeat
   | { type: "ping" };
+
+/**
+ * One captured picture of the controlled page's content area. Deliberately
+ * generic: the extension captures it today, a CDP screencast can supply it
+ * later without changing any consumer.
+ */
+export interface FramePayload {
+  /** `data:` URL. */
+  dataUrl: string;
+  /**
+   * Content-area size in CSS pixels. 0 when the producer cannot report it; the
+   * viewer then falls back to the image's own aspect ratio.
+   */
+  width: number;
+  height: number;
+  /** Epoch ms the frame was captured at. */
+  tsMs?: number;
+  /**
+   * `before` for the picture taken just before a step ran, `after` for the one
+   * taken once it finished. Defaults to `after`; only the pair makes the
+   * change-region overlay possible.
+   */
+  phase?: "before" | "after";
+  url?: string;
+  title?: string;
+}
 
 // Messages received FROM the proxy server
 // Reference: Zed's AgentConnection stores agentCapabilities from initialize response
@@ -298,6 +332,38 @@ export interface ProxyModelChangedMessage {
   type: "model_changed";
   payload: {
     modelId: string;
+  };
+}
+
+/**
+ * A picture of the controlled page pushed to UI clients. `callId` links it to
+ * the browser tool call that produced it, so the viewer can attach the frame to
+ * the matching trace step.
+ */
+export interface ProxyFrameMessage {
+  type: "frame";
+  callId?: string;
+  payload: FramePayload;
+}
+
+/**
+ * `screencast` streams a tab Chrome is compositing (the one the user is
+ * looking at). `screenshots` is the polling fallback used for a tab Chrome is
+ * not compositing, where a screencast would produce a single frame and stop.
+ */
+export type LiveViewMode = "screencast" | "screenshots";
+
+/**
+ * Whether the live view is currently streaming, so the UI can show an honest
+ * indicator instead of a spinner that never resolves.
+ */
+export interface ProxyScreencastStateMessage {
+  type: "screencast_state";
+  payload: {
+    active: boolean;
+    /** Set when the extension refused or failed to start the stream. */
+    error?: string;
+    mode?: LiveViewMode;
   };
 }
 
@@ -405,6 +471,8 @@ export type ProxyResponse =
   | ProxyPermissionRequestMessage
   | ProxyBrowserToolCallMessage
   | ProxyModelChangedMessage
+  | ProxyFrameMessage
+  | ProxyScreencastStateMessage
   | ProxyPongMessage
   | ProxyDirListingMessage
   | ProxyFileContentMessage

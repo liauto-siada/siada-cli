@@ -1,11 +1,8 @@
-# 任务
-参考OpenClaw关于记忆使用的实现方案， 在code_gen_agent执行任务的时候增加记忆检索能力， 使用MemorySearch的search方法。
-重点在于agent如何与记忆工具集成
+# Siada CLI 记忆（Memory）能力设计
 
-你要完全理解OpenClaw关于集成记忆检索的源代码后才可以开始写代码。 真正开始写代码之前最后先出一份详细的计划。
+本文档描述 Siada CLI 中记忆（Memory）能力的实现方案：在 code_gen_agent 执行任务时增加记忆检索能力，使用 MemorySearch 的 search 方法，重点说明 agent 如何与记忆工具集成。
 
-如果你有任何不清楚的地方可以问我。
-注意保持代码简洁可读好维护。
+实现思路参考了开源项目 OpenClaw 的记忆方案（调研摘要见文末附录），代码保持简洁、可读、易于维护。
 
 ## 实现进展
 
@@ -152,8 +149,9 @@ Agent 在执行任务时会自动判断是否需要调用记忆工具：
 
 
 
-# 以下是OpenClaw 关于记忆实现方案 
-其源代码根目位置在 /Users/yunan/code/open-source/openclaw
+# 附录：OpenClaw 记忆实现方案调研
+
+以下为设计阶段对开源项目 OpenClaw 记忆方案的调研摘要，用于对照实现；文中的文件路径均为 OpenClaw 仓库内的相对路径。
 
 一、整体架构
 

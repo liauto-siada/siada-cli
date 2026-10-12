@@ -55,9 +55,6 @@ from siada.foundation.logging import logger, remove_console_handler  # noqa: E40
 
 
 _NODE_VERSION = "24.21.0"
-_NVM_VERSION = "0.39.7"
-_NVM_INSTALL_URL = f"https://gitee.com/mirrors/nvm/raw/v{_NVM_VERSION}/install.sh"
-_NODE_MIRROR = "https://npmmirror.com/mirrors/node"
 
 
 class UILauncher:
@@ -111,10 +108,6 @@ class UILauncher:
 
         if hasattr(config_args, "env_file") and config_args.env_file:
             args.extend(["--env-file", self._quote_arg(config_args.env_file)])
-
-        if hasattr(config_args, "set_env") and config_args.set_env:
-            for env_val in config_args.set_env:
-                args.extend(["--set-env", self._quote_arg(env_val)])
 
         if hasattr(config_args, "model") and config_args.model:
             args.extend(["--model", config_args.model])
@@ -176,33 +169,42 @@ class UILauncher:
                 else "--no-disable-console-output"
             )
 
-        # Headroom proxy integration: forward these flags to the Python backend
-        # so that launching via the `siada` entrypoint (which spawns the Node UI,
-        # which in turn spawns the backend) still activates headroom. Without
-        # this passthrough, `siada --headroom` is parsed here but never reaches
-        # the backend, so the proxy never starts.
-        if hasattr(config_args, "headroom") and config_args.headroom:
-            args.append("--headroom")
-
-        if hasattr(config_args, "no_headroom") and config_args.no_headroom:
-            args.append("--no-headroom")
-
-        if hasattr(config_args, "headroom_port") and config_args.headroom_port is not None:
-            args.extend(["--headroom-port", str(config_args.headroom_port)])
-
-        if hasattr(config_args, "headroom_budget") and config_args.headroom_budget is not None:
-            args.extend(["--headroom-budget", str(config_args.headroom_budget)])
-
         return args
 
 
     def _find_local_node(self) -> str:
-        """Return the Node.js binary installed by the siada install script."""
-        return str(_expected_node_path()) if _expected_node_path().exists() else _raise_missing_node()
+        """Return the Node.js binary to launch the UI with.
+
+        Resolution order (never downloads anything):
+        1. the Node.js installed by the siada install script inside the venv
+           (``venv/node/bin/node`` or the nvm layout);
+        2. a usable ``node`` already on ``PATH`` — the user's own install;
+        3. the actionable install guidance raised by ``_raise_missing_node()``.
+        """
+        expected = _expected_node_path()
+        if expected.exists():
+            return str(expected)
+
+        import shutil
+
+        path_node = shutil.which("node")
+        if path_node:
+            return path_node
+        return _raise_missing_node()
 
     def _setup_node_env(self) -> Dict[str, str]:
         """Setup environment variables for Node.js execution."""
         env = os.environ.copy()
+        # Credentials supplied with --set-env travel through the environment,
+        # rather than the UI and backend subprocess command lines.
+        assignments = _parse_env_assignments(self.config.get("args"))
+        env.update(assignments)
+        # Send names only so the backend can preserve explicit CLI values
+        # while loading .env files, without duplicating credential payloads.
+        if assignments:
+            env["_SIADA_CLI_ENV_KEYS"] = json.dumps(list(assignments))
+        else:
+            env.pop("_SIADA_CLI_ENV_KEYS", None)
         venv_dir = Path(sys.executable).parent.parent
 
         # Snapshot the user's original env *before* any siada-specific
@@ -297,80 +299,28 @@ class UILauncher:
 
 
 def _raise_missing_node() -> str:
-    from siada.services.auto_update import get_curl_install_flags
-
     node = _expected_node_path()
     raise RuntimeError(
         f"Node.js {_NODE_VERSION} not found at {node}.\n"
-        "Please re-run the siada install script:\n"
-        f"  curl {get_curl_install_flags()} https://bj.bcebos.com/prod-cnhb01-siada/cli-install/prod/remote_install.sh | sh"
+        "Install a maintained Node.js LTS release from https://nodejs.org/ "
+        "and add its bin directory to PATH."
     )
-
 
 
 # ---------------------------------------------------------------------------
 # First-run initialization
+#
+# The launcher never manages other processes.  The proactive daemon belongs to
+# ``siada.agent_hub.proactive.daemon_manager.DaemonManager`` and its explicit
+# backend commands (``--stop-daemon`` / ``--restart-daemon`` /
+# ``--daemon-status``); normal startup lets the backend start it, honoring
+# ``--no-daemon`` (see ``siadahub.main()``).  The version-upgrade path used to
+# kill every matching ``siada.agent_hub.proactive`` process from here and
+# respawn one — racing the daemon's own auto-updater and, because the scan
+# matches the whole process table, reaching processes the launcher does not
+# own.  That must never happen on a plain CLI start.
 # ---------------------------------------------------------------------------
 
-
-def _kill_proactive_processes() -> None:
-    """Kill any running siada.agent_hub.proactive processes, then re-spawn
-    a fresh one using the current venv.
-
-    Context: this helper runs from the version-change one-time setup path
-    (see ``_run_first_time_setup_if_needed``).  The original intent is to
-    make sure no daemon is left running old bytecode after an upgrade.
-    However the proactive daemon's auto-updater may have **already**
-    spawned a helper that restarted the daemon on the new version; in that
-    case blindly killing it here would leave the user with no daemon at
-    all until the next CLI invocation re-creates one.
-
-    To stay safe in both scenarios we:
-      1. Kill every matching process (the original behaviour), so any
-         orphaned old-bytecode daemon is cleaned up.
-      2. Immediately re-spawn a fresh daemon from the *current* venv via
-         ``DaemonManager.start_daemon()``.  This guarantees that after
-         this function returns there is exactly one daemon running the
-         current version.
-    """
-    try:
-        import psutil
-    except ImportError:
-        return
-
-    killed: list[int] = []
-    for proc in psutil.process_iter(["pid", "cmdline"]):
-        try:
-            cmdline = " ".join(proc.info.get("cmdline") or [])
-            if "siada.agent_hub.proactive" in cmdline:
-                proc.kill()
-                killed.append(proc.info["pid"])
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
-
-    if killed:
-        logger.info(f"[siada] Terminated {len(killed)} stale proactive process(es): {killed}")
-
-    # Compensate: re-spawn a daemon from the current venv so we don't leave
-    # the user daemon-less.  Fire-and-forget; failures are non-fatal.
-    try:
-        from siada.foundation.constants import SIADA_HOME
-        from siada.agent_hub.proactive.daemon_manager import DaemonManager
-        from pathlib import Path as _Path
-
-        pid_file = SIADA_HOME / "siada-daemon.pid"
-        daemon_script = (
-            _Path(__file__).parent.parent / "agent_hub/proactive/daemon.py"
-        )
-        manager = DaemonManager(pid_file, daemon_script)
-        # Small grace delay so the OS has fully reaped the killed processes
-        # before our scanner in start_daemon() checks whether one is alive.
-        import time as _time
-        _time.sleep(0.3)
-        if manager.start_daemon():
-            logger.info("[siada] Re-spawned proactive daemon from current venv")
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(f"[siada] Failed to re-spawn proactive daemon: {exc}")
 
 def _locate_siada_cli_ui_dir() -> Path | None:
     """Locate the installed ``siada_cli_ui`` directory.
@@ -446,113 +396,15 @@ def _expected_node_path() -> Path:
     return venv_dir / "nvm" / "versions" / "node" / f"v{_NODE_VERSION}" / "bin" / "node"
 
 
-def _install_node_unix() -> bool:
-    """Download nvm and use it to install Node.js on Unix/macOS."""
-    venv_dir = Path(sys.executable).parent.parent
-    nvm_dir = venv_dir / "nvm"
-    nvm_install_script = venv_dir / "nvm_install.sh"
-
-    logger.info(f"[siada] Downloading nvm from {_NVM_INSTALL_URL} ...")
-    if subprocess.run(["which", "curl"], capture_output=True).returncode == 0:
-        dl = subprocess.run(
-            ["curl", "-fsSL", "-o", str(nvm_install_script), _NVM_INSTALL_URL],
-            capture_output=True,
-        )
-    elif subprocess.run(["which", "wget"], capture_output=True).returncode == 0:
-        dl = subprocess.run(
-            ["wget", "-q", "-O", str(nvm_install_script), _NVM_INSTALL_URL],
-            capture_output=True,
-        )
-    else:
-        logger.warning("[siada] Neither curl nor wget found. Cannot install nvm.")
-        return False
-
-    if dl.returncode != 0:
-        logger.error(f"[siada] Failed to download nvm: {dl.stderr.decode().strip()}")
-        return False
-
-    bash_script = f'''set -e
-export NVM_DIR="{nvm_dir}"
-export NVM_NODEJS_ORG_MIRROR="{_NODE_MIRROR}"
-mkdir -p "$NVM_DIR"
-bash "{nvm_install_script}"
-. "$NVM_DIR/nvm.sh"
-nvm install "{_NODE_VERSION}"
-nvm use "{_NODE_VERSION}"
-'''
-    logger.info(f"[siada] Installing Node.js v{_NODE_VERSION} via nvm ...")
-    result = subprocess.run(["bash", "-c", bash_script])
-    nvm_install_script.unlink(missing_ok=True)
-
-    if result.returncode != 0:
-        logger.error(f"[siada] nvm/Node.js installation failed (exit {result.returncode}).")
-        return False
-
-    if not _expected_node_path().exists():
-        logger.error("[siada] Node.js binary not found after installation.")
-        return False
-
-    logger.info(f"[siada] Node.js v{_NODE_VERSION} installed successfully.")
-    return True
-
-
-def _install_node_windows() -> bool:
-    """Download the Node.js zip and extract it on Windows."""
-    import shutil
-    import urllib.request
-    import zipfile
-
-    venv_dir = Path(sys.executable).parent.parent
-    node_dir = venv_dir / "node"
-    node_url = f"https://nodejs.org/dist/v{_NODE_VERSION}/node-v{_NODE_VERSION}-win-x64.zip"
-    temp_zip = venv_dir / "node.zip"
-
-    logger.info(f"[siada] Downloading Node.js v{_NODE_VERSION} for Windows ...")
-    try:
-        urllib.request.urlretrieve(node_url, temp_zip)
-    except Exception as e:
-        logger.error(f"[siada] Failed to download Node.js: {e}")
-        return False
-
-    logger.info("[siada] Extracting Node.js ...")
-    try:
-        with zipfile.ZipFile(temp_zip) as zf:
-            zf.extractall(venv_dir)
-        extracted = venv_dir / f"node-v{_NODE_VERSION}-win-x64"
-        if node_dir.exists():
-            shutil.rmtree(node_dir)
-        extracted.rename(node_dir)
-    except Exception as e:
-        logger.error(f"[siada] Failed to extract Node.js: {e}")
-        return False
-    finally:
-        temp_zip.unlink(missing_ok=True)
-
-    if not _expected_node_path().exists():
-        logger.error("[siada] Node.js binary not found after extraction.")
-        return False
-
-    logger.info(f"[siada] Node.js v{_NODE_VERSION} installed successfully.")
-    return True
-
-
-def _ensure_nodejs() -> bool:
-    """Install Node.js into the siada venv if not already present."""
-    if _expected_node_path().exists():
-        return True
-
-    logger.info(f"[siada] Node.js v{_NODE_VERSION} not found, installing ...")
-    try:
-        if sys.platform == "win32":
-            return _install_node_windows()
-        return _install_node_unix()
-    except Exception as e:
-        logger.error(f"[siada] Node.js installation error: {e}")
-        return False
-
-
 def _run_first_time_setup_if_needed() -> None:
-    """Run one-time setup tasks when the installed version changes."""
+    """Record the initialized version and check the UI bundle once per version.
+
+    Deliberately limited to local bookkeeping: the launcher neither manages
+    other processes (see the note above) nor installs toolchains.  Node.js is
+    resolved from the venv install layout or from ``PATH`` at UI launch time
+    (see ``UILauncher._find_local_node``), and a missing Node fails with the
+    launcher's install guidance instead of an implicit download.
+    """
     import importlib.metadata
 
     try:
@@ -567,9 +419,6 @@ def _run_first_time_setup_if_needed() -> None:
     marker_dir = Path.home() / ".siada-cli"
     marker_file = marker_dir / ".setup_version"
 
-    if not _expected_node_path().exists():
-        _ensure_nodejs()
-
     if marker_file.exists():
         try:
             if marker_file.read_text().strip() == current_version:
@@ -577,7 +426,6 @@ def _run_first_time_setup_if_needed() -> None:
         except OSError:
             pass
 
-    _kill_proactive_processes()
     _check_ui_bundle()
 
     try:
@@ -648,12 +496,37 @@ def _resolve_workspace() -> tuple:
     return workspace, git_root
 
 
+def _parse_env_assignments(args) -> Dict[str, str]:
+    """Validate CLI environment assignments without exposing their values."""
+    overrides = {}
+    for setting in getattr(args, "set_env", None) or []:
+        if not isinstance(setting, str):
+            raise ValueError("Invalid --set-env format. Use ENV_VAR_NAME=value.")
+        name, separator, value = setting.partition("=")
+        if not separator or not name.strip() or "\0" in setting:
+            raise ValueError("Invalid --set-env format. Use ENV_VAR_NAME=value.")
+        overrides[name.strip()] = value.strip()
+    return overrides
+
+
 def _parse_args(git_root):
-    """Build the full argument parser and parse sys.argv."""
+    """Build the full argument parser and parse sys.argv.
+
+    This deliberately runs *before* ``_run_first_time_setup_if_needed()``:
+    ``--version`` is an argparse ``action="version"`` and ``-h``/``--help`` are
+    the parser's default help action, so they print and exit here — a plain
+    version/help query never reaches the one-time setup (no marker file, no
+    bundle check), the backend or the Node UI.  Argparse errors behave the
+    same way: an invalid invocation exits before any setup work.
+    """
     from siada.entrypoint.args_parser.args import get_parser
 
     parser = get_parser(default_config_files=[], git_root=git_root)
     args, _ = parser.parse_known_args()
+    try:
+        _parse_env_assignments(args)
+    except ValueError as exc:
+        parser.error(str(exc))
     return args
 
 
@@ -749,17 +622,22 @@ def main():
     except Exception:
         pass
 
-    _run_first_time_setup_if_needed()
-    logger.debug(f"[PERF][launcher] first_time_setup done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
-
     if _BACKEND_ONLY_ARGS.intersection(sys.argv):
         return _run_backend()
 
     workspace, git_root = _resolve_workspace()
     logger.debug(f"[PERF][launcher] resolve_workspace done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
 
+    # Parse before any one-time setup work: argparse answers ``--version`` /
+    # ``--help`` / ``-h`` (print and exit) and reports invalid invocations here,
+    # so a plain version/help query never writes to ``~/.siada-cli``, checks the
+    # bundle or launches the Node UI.  Only then does the version-change setup
+    # run, still before the UI backend is started (see ``_parse_args``).
     args = _parse_args(git_root)
     logger.debug(f"[PERF][launcher] parse_args done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
+
+    _run_first_time_setup_if_needed()
+    logger.debug(f"[PERF][launcher] first_time_setup done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
 
     if rc := _check_resume_workspace(workspace, args):
         return rc

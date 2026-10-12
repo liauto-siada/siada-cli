@@ -18,7 +18,7 @@ from agents.tool_context import ToolContext
 
 from siada.agent_hub.coder.code_gen_agent import CodeGenAgent
 from siada.agent_hub.coder.prompt import code_gen_prompt
-from siada.agent_hub.coder.prompt.base.capabilities import get_capabilities_section
+from siada.agent_hub.coder.prompt.sections.capabilities import get_capabilities_section
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.tools.agent.run_subtask import run_subtask
 

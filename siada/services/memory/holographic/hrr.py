@@ -20,19 +20,11 @@ import hashlib
 import logging
 import math
 import struct
-import warnings
 from typing import Iterable, List
 
 import numpy as np
 
-# Reuse the same jieba initialization pattern memory_db.py uses, so we
-# don't pay the import cost twice and stay quiet about pkg_resources.
-with warnings.catch_warnings():
-    warnings.filterwarnings(
-        "ignore", message="pkg_resources is deprecated", category=UserWarning,
-    )
-    warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
-    import jieba
+from siada.services.memory.jieba_compat import jieba
 
 logger = logging.getLogger("siada.holographic.hrr")
 

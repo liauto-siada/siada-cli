@@ -76,3 +76,22 @@ def get_provider(p_type: provider_type | None = None):
         return provider_map[p_type]
 
     raise ValueError("No model providers found or registered.")
+
+
+async def aclose_providers() -> None:
+    """Close provider-owned async clients when the runtime is shutting down."""
+    if not _providers_discovered:
+        return
+    errors: list[Exception] = []
+    for provider in tuple(provider_map.values()):
+        close = getattr(provider, "aclose", None)
+        if callable(close):
+            try:
+                await close()
+            except Exception as exc:
+                errors.append(exc)
+
+    if len(errors) == 1:
+        raise errors[0]
+    if errors:
+        raise ExceptionGroup("Failed to close one or more model providers", errors)

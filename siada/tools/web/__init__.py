@@ -1,27 +1,30 @@
-"""
-Web tools package - stub that re-exports from internal.
+"""Web tools exposed to agents.
 
-This module delegates to siada.internal.tools.web for backward compatibility.
-The actual implementations live in siada/internal/tools/web/ (not open-sourced).
+Only tools implemented in this distribution are published here: ``web_fetch``
+comes from the local module, while ``web_search`` has no public implementation
+and therefore stays ``None`` and is left out of ``get_web_tools()``.
 """
 
 from typing import List, Optional
 
+web_search = None
+
 try:
-    from siada.internal.tools.web import get_web_tools, web_search, web_fetch
+    from siada.tools.web.web_fetch import web_fetch
 except ImportError:
-    web_search = None
+    web_fetch = None
 
-    try:
-        from siada.tools.web.web_fetch import web_fetch
-    except ImportError:
-        web_fetch = None
 
-    def get_web_tools() -> List:
-        tools = []
-        if web_fetch is not None:
-            tools.append(web_fetch)
-        return tools
+def get_web_tools() -> List:
+    """Return the web tools implemented in this distribution.
+
+    Internal-only tooling is not reconstructed here; when no public
+    implementation is importable the list stays empty.
+    """
+    tools = []
+    if web_fetch is not None:
+        tools.append(web_fetch)
+    return tools
 
 __all__ = [
     'web_fetch',
@@ -67,7 +70,7 @@ def resolve_web_tools_enabled(provider: Optional[str], explicit: Optional[bool])
     """Resolve whether web tools should be enabled for the given provider.
 
     Args:
-        provider: The active provider name (e.g. ``"li"``, ``"default"``).
+        provider: The active provider name (e.g. ``"default"``, ``"openrouter"``).
         explicit: The user-configured tri-state value:
             - ``None``  ("auto", default): web tools are ON.
             - ``True``:  always enable.

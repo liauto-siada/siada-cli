@@ -16,7 +16,7 @@
  * - MessageList: Remaining space (constrained with overflow)
  */
 
-import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Box, Static, Text } from '@jrichman/ink';
 import { AppHeader } from './AppHeader.js';
 import { MessageList } from '../Chat/MessageList.js';
@@ -45,7 +45,6 @@ export interface MainLayoutProps {
   agent?: string;
   provider?: string;
   model?: string;
-  prePlanMode?: boolean;
   /** Current reasoning effort level (e.g. "low"); rendered next to the model in the status bar. */
   reasoningEffort?: string;
   /** Whether thinking is explicitly disabled via /thinking off; rendered as "model(thinking off)". */
@@ -148,7 +147,6 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
   model,
   reasoningEffort,
   thinkingEnabled,
-  prePlanMode = true,
   messages,
   loading = false,
   activeStep = null,
@@ -212,7 +210,7 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
     messages,
     workingDir,
     onAddMessage,
-    banner: { version, workingDir, agent, provider, model, prePlanMode, isCollapsed },
+    banner: { version, workingDir, agent, provider, model, isCollapsed },
     columns,
   };
 
@@ -243,9 +241,8 @@ export const MainLayout: React.FC<MainLayoutProps> = React.memo(({
     agent,
     provider,
     model,
-    prePlanMode,
     isCollapsed,
-  }), [version, workingDir, agent, provider, model, prePlanMode, isCollapsed]);
+  }), [version, workingDir, agent, provider, model, isCollapsed]);
 
   return (
     <Box flexDirection="column" width={columns}

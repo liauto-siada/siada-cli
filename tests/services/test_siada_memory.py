@@ -5,9 +5,10 @@
 bodies into a single string for the system prompt. The contract verified
 here:
 
-1. Every file body is prefixed with a ``# <relative path>`` heading so
-   file boundaries stay visible in the combined output.
-2. Files are concatenated in ``WORKSPACE_MEMORY_FILES`` priority order.
+1. Every file body is prefixed with a ``# Loaded from <relative path>`` heading
+   so file boundaries stay visible without repeating the file's own heading.
+2. SIADA.md and AGENTS.md are loaded in priority order; AGENTS.md excludes
+   both CLAUDE.md locations even when its body is empty or skipped as a copy.
 3. Deduplication by basename: a project-root ``CLAUDE.md`` shadows
    ``.claude/CLAUDE.md``.
 4. ``.claude/CLAUDE.md`` is used when no root-level ``CLAUDE.md`` exists,
@@ -30,20 +31,38 @@ from siada.services.siada_memory import (
 def test_single_file_gets_heading(tmp_path):
     (tmp_path / "SIADA.md").write_text("prefer poetry for runs", encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert out == "# SIADA.md\n\nprefer poetry for runs"
+    assert out == "# Loaded from SIADA.md\n\nprefer poetry for runs"
 
 
-def test_multiple_files_each_carry_heading_in_priority_order(tmp_path):
+def test_agents_md_shadows_both_claude_locations(tmp_path):
     # Written in reverse priority order on purpose: the output order must
     # follow WORKSPACE_MEMORY_FILES, not filesystem or creation order.
     (tmp_path / "CLAUDE.md").write_text("claude body", encoding="utf-8")
     (tmp_path / "AGENTS.md").write_text("agents body", encoding="utf-8")
     (tmp_path / "SIADA.md").write_text("siada body", encoding="utf-8")
+    dot_claude = tmp_path / ".claude"
+    dot_claude.mkdir()
+    (dot_claude / "CLAUDE.md").write_text("nested claude body", encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
     assert out == (
-        "# SIADA.md\n\nsiada body\n\n"
-        "# AGENTS.md\n\nagents body\n\n"
-        "# CLAUDE.md\n\nclaude body"
+        "# Loaded from SIADA.md\n\nsiada body\n\n"
+        "# Loaded from AGENTS.md\n\nagents body"
+    )
+
+
+def test_agents_md_with_own_title_has_one_file_title(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("# AGENTS.md\n\nInstructions", encoding="utf-8")
+    out = load_siada_memory(str(tmp_path))
+    assert out == "# Loaded from AGENTS.md\n\n# AGENTS.md\n\nInstructions"
+    assert out.splitlines().count("# AGENTS.md") == 1
+
+
+def test_siada_and_claude_md_both_load_without_agents_md(tmp_path):
+    (tmp_path / "SIADA.md").write_text("siada body", encoding="utf-8")
+    (tmp_path / "CLAUDE.md").write_text("claude body", encoding="utf-8")
+    assert load_siada_memory(str(tmp_path)) == (
+        "# Loaded from SIADA.md\n\nsiada body\n\n"
+        "# Loaded from CLAUDE.md\n\nclaude body"
     )
 
 
@@ -53,7 +72,7 @@ def test_root_claude_md_shadows_dot_claude_dir(tmp_path):
     dot_claude.mkdir()
     (dot_claude / "CLAUDE.md").write_text("nested body", encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert out == "# CLAUDE.md\n\nroot body"
+    assert out == "# Loaded from CLAUDE.md\n\nroot body"
 
 
 def test_dot_claude_fallback_heading_shows_real_path(tmp_path):
@@ -61,15 +80,23 @@ def test_dot_claude_fallback_heading_shows_real_path(tmp_path):
     dot_claude.mkdir()
     (dot_claude / "CLAUDE.md").write_text("nested body", encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert out == "# .claude/CLAUDE.md\n\nnested body"
+    assert out == "# Loaded from .claude/CLAUDE.md\n\nnested body"
 
 
 def test_empty_files_are_skipped(tmp_path):
     (tmp_path / "SIADA.md").write_text("", encoding="utf-8")
-    (tmp_path / "AGENTS.md").write_text("   \n  ", encoding="utf-8")
     (tmp_path / "CLAUDE.md").write_text("claude body", encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert out == "# CLAUDE.md\n\nclaude body"
+    assert out == "# Loaded from CLAUDE.md\n\nclaude body"
+
+
+def test_empty_agents_md_still_shadows_claude_md(tmp_path):
+    (tmp_path / "AGENTS.md").write_text(" \n", encoding="utf-8")
+    (tmp_path / "CLAUDE.md").write_text("claude body", encoding="utf-8")
+    assert load_siada_memory(str(tmp_path)) is None
+    _, status = refresh_siada_memory(str(tmp_path))
+    assert "~ CLAUDE.md" in status
+    assert "skipped, AGENTS.md present" in status
 
 
 def test_returns_none_when_nothing_exists(tmp_path):
@@ -108,7 +135,7 @@ def test_identical_claude_md_is_skipped(tmp_path):
     (tmp_path / "SIADA.md").write_text(body, encoding="utf-8")
     (tmp_path / "CLAUDE.md").write_text(body, encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert out == f"# SIADA.md\n\n{body.strip()}"
+    assert out == f"# Loaded from SIADA.md\n\n{body.strip()}"
 
 
 def test_near_identical_agents_md_is_skipped(tmp_path):
@@ -116,7 +143,17 @@ def test_near_identical_agents_md_is_skipped(tmp_path):
     (tmp_path / "SIADA.md").write_text(base, encoding="utf-8")
     (tmp_path / "AGENTS.md").write_text(tweaked, encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert out == f"# SIADA.md\n\n{base}"
+    assert out == f"# Loaded from SIADA.md\n\n{base}"
+
+
+def test_near_identical_agents_md_still_shadows_claude_md(tmp_path):
+    base, tweaked = _near_identical_pair()
+    (tmp_path / "SIADA.md").write_text(base, encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text(tweaked, encoding="utf-8")
+    (tmp_path / "CLAUDE.md").write_text("unrelated claude guidance", encoding="utf-8")
+    out, status = refresh_siada_memory(str(tmp_path))
+    assert out == f"# Loaded from SIADA.md\n\n{base}"
+    assert "skipped, AGENTS.md present" in status
 
 
 def test_partially_overlapping_file_is_still_loaded(tmp_path):
@@ -127,18 +164,29 @@ def test_partially_overlapping_file_is_still_loaded(tmp_path):
     (tmp_path / "SIADA.md").write_text(siada_body, encoding="utf-8")
     (tmp_path / "CLAUDE.md").write_text(claude_body, encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert f"# SIADA.md\n\n{siada_body}" in out
-    assert f"# CLAUDE.md\n\n{claude_body}" in out
+    assert f"# Loaded from SIADA.md\n\n{siada_body}" in out
+    assert f"# Loaded from CLAUDE.md\n\n{claude_body}" in out
 
 
-def test_claude_md_copy_of_agents_md_is_skipped(tmp_path):
-    # The near-dup reference is any already-loaded file, not just SIADA.md:
-    # with SIADA.md absent, a CLAUDE.md copied from AGENTS.md is dropped.
-    body = "# Shared\n\nsame instructions everywhere\n"
-    (tmp_path / "AGENTS.md").write_text(body, encoding="utf-8")
-    (tmp_path / "CLAUDE.md").write_text(body, encoding="utf-8")
-    out = load_siada_memory(str(tmp_path))
-    assert out == f"# AGENTS.md\n\n{body.strip()}"
+def test_distinct_claude_md_is_skipped_when_agents_md_exists(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("agents-only guidance", encoding="utf-8")
+    (tmp_path / "CLAUDE.md").write_text("different claude guidance", encoding="utf-8")
+    content, status = refresh_siada_memory(str(tmp_path))
+    assert content == "# Loaded from AGENTS.md\n\nagents-only guidance"
+    assert "✓ AGENTS.md" in status
+    assert "~ CLAUDE.md" in status
+    assert "skipped, AGENTS.md present" in status
+
+
+def test_refresh_reports_nested_claude_skipped_when_agents_md_exists(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("agents body", encoding="utf-8")
+    dot_claude = tmp_path / ".claude"
+    dot_claude.mkdir()
+    (dot_claude / "CLAUDE.md").write_text("nested claude body", encoding="utf-8")
+    content, status = refresh_siada_memory(str(tmp_path))
+    assert content == "# Loaded from AGENTS.md\n\nagents body"
+    assert "~ .claude/CLAUDE.md" in status
+    assert "skipped, AGENTS.md present" in status
 
 
 def test_skipped_root_claude_md_still_shadows_dot_claude(tmp_path):
@@ -151,7 +199,7 @@ def test_skipped_root_claude_md_still_shadows_dot_claude(tmp_path):
     dot_claude.mkdir()
     (dot_claude / "CLAUDE.md").write_text("unique nested content", encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert out == f"# SIADA.md\n\n{body.strip()}"
+    assert out == f"# Loaded from SIADA.md\n\n{body.strip()}"
 
 
 def test_refresh_reports_near_duplicate_skip(tmp_path):
@@ -176,7 +224,7 @@ def test_large_near_duplicate_is_skipped(tmp_path):
     (tmp_path / "SIADA.md").write_text(base, encoding="utf-8")
     (tmp_path / "CLAUDE.md").write_text(tweaked, encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert out == f"# SIADA.md\n\n{base}"
+    assert out == f"# Loaded from SIADA.md\n\n{base}"
 
 
 def test_large_dissimilar_files_are_all_loaded(tmp_path):
@@ -187,5 +235,5 @@ def test_large_dissimilar_files_are_all_loaded(tmp_path):
     (tmp_path / "SIADA.md").write_text(siada_body, encoding="utf-8")
     (tmp_path / "CLAUDE.md").write_text(claude_body, encoding="utf-8")
     out = load_siada_memory(str(tmp_path))
-    assert f"# SIADA.md\n\n{siada_body}" in out
-    assert f"# CLAUDE.md\n\n{claude_body}" in out
+    assert f"# Loaded from SIADA.md\n\n{siada_body}" in out
+    assert f"# Loaded from CLAUDE.md\n\n{claude_body}" in out

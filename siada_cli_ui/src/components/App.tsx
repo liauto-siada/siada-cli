@@ -571,7 +571,6 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
             agent={bannerInfo?.agent || 'coder'}
             provider={bannerInfo?.provider || 'default'}
             model={bannerInfo?.model || config.model}
-            prePlanMode={bannerInfo?.prePlanMode || false}
             isCollapsed={isCollapsed}
             showAgentInfo={false}
           />
@@ -598,7 +597,6 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
             agent={bannerInfo?.agent || 'coder'}
             provider={bannerInfo?.provider || 'default'}
             model={bannerInfo?.model || config.model}
-            prePlanMode={bannerInfo?.prePlanMode || false}
             isCollapsed={isCollapsed}
             showAgentInfo={false}
           />
@@ -685,7 +683,6 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               model={bannerInfo?.model || config.model}
               reasoningEffort={bannerInfo?.reasoningEffort}
               thinkingEnabled={bannerInfo?.thinkingEnabled}
-              prePlanMode={bannerInfo?.prePlanMode || false}
               messages={messages}
               loading={loading}
               activeStep={activeStep}

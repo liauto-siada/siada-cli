@@ -57,6 +57,7 @@ so without `--base-url` install from a local checkout as above.
 
 ```bash
 bun install
+bun run test             # package-specific DOM and proxy test environments
 bun run build            # all packages (or build:extension / build:proxy / build:web)
 bun run dev              # extension with hot reload
 
@@ -99,6 +100,29 @@ The extension can record what the user does and replay it deterministically:
   the injected page script and under test;
 - `explain/` — explains page content to the agent;
 - the proxy writes the trajectory to disk (`trajectory-writer`).
+
+## Browser activity trace
+
+The side panel and the web client share a **Trace** tab: a timeline of what the
+agent did in the browser, next to real pictures of the controlled tab.
+
+- steps, durations, targets and values come from the ACP session stream
+  (`packages/shared/src/trace/`), so they describe tool calls that really ran;
+- the picture is a real capture: a before/after pair around each mutating call,
+  plus an optional live view (**Go live**) that streams the tab through the
+  Chrome debugger while it is enabled (needs the `debugger` permission, off by
+  default);
+- a picture is only tied to a step when the capture reports the same
+  correlation id as the ACP tool call, so the change-region overlay — a pixel
+  diff of that step's own before/after pair — appears when such a pair exists.
+  Pictures that carry no matching id are shown as the latest picture of the run,
+  and the viewer says so rather than attributing them to a step;
+- the timeline is a turn: it goes live when a prompt is sent and ends when the
+  protocol ends it (prompt completion, cancel, error, dropped connection).
+
+The trace only observes and displays. It does not learn from runs, keeps no
+trained or persisted model, and never replays anything on its own — replaying a
+recorded step is what the separate `browser_replay` tool does.
 
 ## Proxy options
 

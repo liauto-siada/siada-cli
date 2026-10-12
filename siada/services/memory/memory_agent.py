@@ -113,9 +113,8 @@ def _get_memory_agent() -> Agent:
 def _build_run_config() -> RunConfig:
     """RunConfig for MemoryAgent.
 
-    MemoryAgent always runs on the fast model (DeepSeek via li provider),
-    regardless of the main agent's model choice. See
-    ``siada.provider.fast_llm`` for the policy.
+    MemoryAgent uses the fast-model policy defined in
+    ``siada.provider.fast_llm``.
     """
     from siada.provider.fast_llm import build_fast_run_config
     return build_fast_run_config()

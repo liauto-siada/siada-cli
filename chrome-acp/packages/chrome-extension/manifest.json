@@ -10,7 +10,8 @@
     "tabs",
     "storage",
     "alarms",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "debugger"
   ],
   "content_scripts": [
     {

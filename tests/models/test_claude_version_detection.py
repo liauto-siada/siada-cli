@@ -87,9 +87,9 @@ class TestIsClaude46OrNewerNegative:
 
     def test_non_claude_models(self):
         for name in (
-            "kivy-deepseek-v4-flash",
-            "kivy-qwen-3.8-max",
-            "kivy-glm-5.2",
+            "deepseek-v4-flash",
+            "qwen3.8-max",
+            "glm-5.2",
             "bailian-kimi-k3",
             "gemini-3.5-flash",
             "gpt-5.6-luna",

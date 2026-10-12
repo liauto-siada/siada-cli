@@ -1,15 +1,35 @@
 [tool.poetry]
 name = "siada-cli"
-version = "1.7.31"
+version = "1.7.32"
 description = "Siada CLI is a Ai Pair Programming Tool in terminal"
-packages = [{include = "siada"}, {include = "siada_cli_ui"}, {include = "agent_config.yaml"}]
+packages = [
+    {include = "siada"},
+    {include = "siada_cli_ui", format = "sdist"},
+    {include = "siada_cli_ui/__init__.py", format = "wheel"},
+]
 include = [
-    "agent_config.yaml",
+    {path = "agent_config.yaml", format = ["sdist", "wheel"]},
     "siada/resources/**/*",             # Include built-in skills and resource files
-    "siada_cli_ui/**/*",                # Include entire siada_cli_ui directory
-    "!siada_cli_ui/node_modules",       # Exclude node_modules (if exists)
-    "!siada_cli_ui/**/*.ts",            # Exclude TypeScript source files
-    "!siada_cli_ui/**/*.tsx"           # Exclude TypeScript source files
+    {path = "siada/agent_hub/coder/prompt/models/gpt6/templates/**/*.md", format = ["sdist", "wheel"]},
+    {path = "siada/agent_hub/coder/prompt/models/gpt6/templates/*.toml", format = ["sdist", "wheel"]},
+    {path = "siada/agent_hub/coder/prompt/models/kimi_k3/templates/*.md", format = ["sdist", "wheel"]},
+    {path = "siada_cli_ui/bundle/siada-ui.js", format = ["sdist", "wheel"]},
+    {path = "siada_cli_ui/bundle/*.LEGAL.txt", format = ["sdist", "wheel"]},
+    {path = "siada_cli_ui/package.json", format = ["sdist", "wheel"]},
+    {path = "docs/CREDITS.md", format = ["sdist", "wheel"]},
+    {path = "docs/zh-CN/CREDITS_zh.md", format = ["sdist", "wheel"]},
+    {path = "chrome-acp/LICENSE", format = ["sdist", "wheel"]},
+    {path = "chrome-acp/THIRD_PARTY_NOTICES.md", format = ["sdist", "wheel"]},
+    {path = "NOTICE", format = ["sdist", "wheel"]},
+]
+exclude = [
+    "**/__pycache__",
+    "**/*.pyc",
+    "siada_cli_ui/node_modules",
+    "siada_cli_ui/dist",
+    "siada_cli_ui/examples",
+    "siada_cli_ui/**/*.map",
+    "siada_cli_ui/bundle/esbuild-meta.json",
 ]
 license = "Apache-2.0"
 readme = "README.md"
@@ -28,17 +48,15 @@ siada-cli = "siada.entrypoint.launch_ui_with_acp:main"
 siada-acp = "siada.acp_server.main:main"
 siada-browser = "siada.browser_addon.cli:main"
 [tool.poetry.dependencies]
-# litellm (a core dependency, also pulled transitively via google-adk[extensions])
-# requires Python <3.14, so cap the project's supported range accordingly.
+# litellm requires Python <3.14, so cap the supported range accordingly.
 python = ">=3.12,<3.14"
 fastapi = ">=0.110.0,<1.0.0"
 uvicorn = ">=0.27.0,<1.0.0"
 # Align with openai-agents-python reference project versions.
 # Pins track the v0.22.3 release's uv.lock: openai-agents 0.22.3 requires
 # openai>=3.0.0,<4, and its lock pins openai 3.0.0 / litellm 1.83.0 (the
-# litellm extra requires >=1.83.0). pydantic tracks the >=2.12.5 floor that
-# google-adk 2.9.1's google-genai dependency imposes (the SDK's own lock pins
-# 2.12.3; the floor is a superset of the SDK's >=2.12.2 requirement).
+# litellm extra requires >=1.83.0). The pydantic floor also satisfies the
+# SDK's >=2.12.2 requirement.
 pydantic = ">=2.12.5,<3.0.0"
 pydantic-settings = ">=2.2.0,<3.0.0"
 openai-agents = "0.22.3"
@@ -61,29 +79,20 @@ trafilatura = ">=2.0.0,<3.0.0"
 prompt-toolkit = ">=3.0.51,<4.0.0"
 partial-json-parser = ">=0.2.1.1.post6,<1.0.0"
 networkx = ">=3.5.0,<4.0.0"
+# NetworkX's PageRank implementation imports SciPy at runtime.
+scipy = ">=1.11.2,<2.0.0"
 playwright = ">=1.40.0,<2.0.0"
 gitpython = ">=3.1.0,<4.0.0"
 pathspec = ">=0.12.0,<1.0.0"
 mcp = "1.26.0"
 aiohttp = ">=3.8.0,<4.0.0"
 drawille = ">=0.1.0,<1.0.0"
-# google-adk's "extensions" extra pins openai<3, which is incompatible with
-# openai-agents >=0.22.3 (requires openai>=3.0.0) and its "a2a" extra is all
-# siada imports; the one extension-provided package siada used directly
-# (docker, in the compile_agent tool) is declared explicitly below.
-google-adk = {version = "2.9.1", extras = ["a2a"]}
-# Required by siada's compile_agent Docker-build tool
-# (siada/agent_hub/a2a/a2a_agents/compile_agent/tools/docker_build.py), which
-# used to receive it transitively from google-adk's "extensions" extra.
-docker = ">=7.0.0,<8.0.0"
-
 concurrent-log-handler = ">=0.9.25,<1.0.0"
 toml = "^0.10.2"
 requests = "^2.31.0"
 jieba = ">=0.42.0,<1.0.0"
 apscheduler = ">=3.10.0,<4.0.0"
 ruamel-yaml = ">=0.18.0,<1.0.0"
-python-jenkins = "^1.8.3"
 agent-client-protocol = "0.11.0"
 httpx = {version = ">=0.27.0,<1.0.0", extras = ["socks"]}
 lark-oapi = "^1.6.7"

@@ -3,7 +3,7 @@
 Usage:
     poetry run python tests/im/send_ipc_card_demo.py [email] [language]
 
-Default email: zhangmeng20@lixiang.com
+Default email: user@example.com
 Default language: zh-CN
 """
 
@@ -25,7 +25,7 @@ from siada.im.feishu.ipc_handler import build_ipc_notification_card
 # Credentials
 APP_ID = "cli_xxxxx"
 APP_SECRET = "xxxxx"
-DEFAULT_EMAIL = "xxx@lixiang.com"
+DEFAULT_EMAIL = "user@example.com"
 
 
 def main():
@@ -40,8 +40,8 @@ def main():
             "- `src/main.py`\n"
             "- `src/utils.py`"
         ),
-        source_session_id="feishu_direct_ou_abc123def456_oc_xyz789_1713000000000",
-        current_session_id="feishu_direct_ou_0731f7e587fe_oc_b28d25f3124a_1713099999000",
+        source_session_id="feishu_direct_ou_source_demo_oc_source_demo_1700000000000",
+        current_session_id="feishu_direct_ou_current_demo_oc_current_demo_1700000001000",
         preferred_language=preferred_language,
     )
 

@@ -1,6 +1,6 @@
 """Stream repetition guard for repetition-prone models.
 
-Some models (notably the deepseek-v4-flash variants and lpai-glm-5.3)
+Some models (notably the deepseek-v4-flash variants)
 occasionally fall into a degenerate repetition loop mid-stream: the same
 text unit is emitted over and over until max_tokens. Because deltas are
 forwarded to the UI live, the user watches garbage scroll by until the
@@ -31,7 +31,7 @@ from collections import Counter
 from typing import Optional, Tuple
 
 # Only these models get the repetition guard. Substring match so both
-# "kivy-deepseek-v4-flash" and dated variants ("kivy-deepseek-v4-flash-0731")
+# "deepseek-v4-flash" and dated variants ("deepseek-v4-flash-0731")
 # are covered. Mirrors REPETITION_GUARD_MODEL_MARKERS in streamRepetition.ts.
 REPETITION_GUARD_MODEL_MARKERS = ("deepseek-v4-flash",)
 

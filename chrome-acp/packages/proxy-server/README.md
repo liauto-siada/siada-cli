@@ -11,8 +11,8 @@ Part of the `chrome-acp/` browser add-on for Siada CLI in this repository (`pack
 ```bash
 # Build once, then install + start (also installs the extension)
 cd chrome-acp && bun install && bun run build
-siada-browser setup /path/to/siada-agenthub/chrome-acp
-# or: siada-cli --browser-setup /path/to/siada-agenthub/chrome-acp
+siada-browser setup /path/to/siada-cli/chrome-acp
+# or: siada-cli --browser-setup /path/to/siada-cli/chrome-acp
 ```
 
 The proxy ends up in `~/.siada-cli/browser/proxy/`, is started detached, and is launched as:

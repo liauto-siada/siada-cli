@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import time
 from pathlib import Path
 from typing import List, TYPE_CHECKING, Any
@@ -76,7 +77,7 @@ class ApiMessageTransferFilter:
             # per-session registry inside ``memory_update`` (NOT by
             # ``CodeAgentContext``) — keeps service-layer state out of
             # the foundation-layer data model. See
-            # ``design_docs/pre-compaction-memory-update-design.md``.
+            # ``siada/services/memory/memory_update/``.
             _t0 = time.perf_counter()
             try:
                 # Local import: lazy, keeps cold-start of this filter
@@ -118,17 +119,6 @@ class ApiMessageTransferFilter:
                 logger.warning(f"Compaction failed, using uncompacted messages: {ce}")
                 compacted_messages = real_api_messages
             _t_try_compact = time.perf_counter() - _t0
-            if compaction_occurred:
-                # Surface passive/automatic compaction to the UI so the
-                # frontend can show the "Context Compaction" step instead of
-                # silently blocking between turns. print_info routes to a
-                # one-shot lifecycle event in ACP mode (io.py) and failures
-                # inside it are swallowed there, so this can never break the
-                # LLM call.
-                try:
-                    context.session.siada_config.io.print_info("Compacting context...")
-                except Exception as e:
-                    logger.debug(f"Failed to notify UI about auto-compaction: {e}")
             # Update the model input data
             model_data.input = compacted_messages
             # After compaction: refresh MemoryStore snapshot so new inline memory
@@ -242,6 +232,14 @@ class ApiMessageTransferFilter:
 
         return (filtered, removed) if removed else (messages, 0)
 
+    @staticmethod
+    def _notify_compaction(context: "CodeAgentContext", content: str) -> None:
+        """Keep display failures from affecting compaction or the model call."""
+        try:
+            context.session.siada_config.io.print_info(content)
+        except Exception as e:
+            logger.debug(f"Failed to notify UI about auto-compaction: {e}")
+
     async def _try_compact_real_api_messages(
         self,
         context: "CodeAgentContext",
@@ -279,30 +277,43 @@ class ApiMessageTransferFilter:
             context, instructions=instructions, tools=tools,
         )
 
+        self._notify_compaction(context, "Compacting context...")
         try:
             result = await strategy.compact(
                 model_run_config=context.model_run_config,
                 real_api_messages=real_api_messages,
                 fixed_overhead_tokens=fixed_overhead,
             )
+            compacted_messages = result.messages
+
+            if result.compacted:
+                # Restore reminders and the runtime snapshot before reporting
+                # final counts, just as the manual /compact command does.
+                compacted_messages = self._maybe_reinject_goal_reminder(
+                    context, compacted_messages,
+                )
+                compacted_messages = await self._maybe_refresh_git_snapshot(
+                    context, real_api_messages, compacted_messages,
+                )
+        except asyncio.CancelledError:
+            self._notify_compaction(context, "Compaction interrupted.")
+            raise
         except Exception as e:
+            self._notify_compaction(context, f"Compaction failed: {e}")
             raise CompactionError(f"Compaction failed: {e}") from e
 
-        compacted_messages = result.messages
-
         if result.compacted:
-            # Passive/automatic compaction just ran (this is the per-LLM-call
-            # threshold check, as opposed to the user-invoked /compact
-            # command in slash_commands.py) — the goal reminder turn may
-            # have just been summarized or pruned away by either compaction
-            # strategy. See _maybe_reinject_goal_reminder for why this is
-            # safe to call unconditionally on every actual compaction.
-            #
-            # `result.compacted` is an explicit flag set by the strategy
-            # itself (CompactionStrategy.compact(), see
-            # compaction_strategy.py) rather than a list-identity guess.
-            compacted_messages = self._maybe_reinject_goal_reminder(
-                context, compacted_messages,
+            before_count = len(real_api_messages)
+            after_count = len(compacted_messages)
+            self._notify_compaction(
+                context,
+                f"Compacted: {before_count} → {after_count} messages "
+                f"({before_count - after_count} removed)",
+            )
+        else:
+            self._notify_compaction(
+                context,
+                "Nothing to compact (conversation too short or already compact).",
             )
 
         return compacted_messages
@@ -322,6 +333,69 @@ class ApiMessageTransferFilter:
         from siada.services.goal.prompts import append_goal_reminder_to_messages
 
         return append_goal_reminder_to_messages(messages, goal)
+
+    @staticmethod
+    def _should_refresh_git_snapshot(
+        context: "CodeAgentContext", pre_compaction_messages: List,
+    ) -> bool:
+        """Whether a compaction pass must refresh the runtime Git snapshot.
+
+        Only sessions that already carried a snapshot (i.e. the main agent
+        injected one) are refreshed, independent of model family.
+        """
+        if getattr(context, "is_subagent", False):
+            return False
+        from siada.services.git_snapshot import git_snapshot_enabled, has_git_snapshot
+
+        return git_snapshot_enabled() and has_git_snapshot(pre_compaction_messages)
+
+    @staticmethod
+    def _replace_git_snapshot(messages: List, snapshot: Any) -> List:
+        """Swap every snapshot in ``messages`` for a freshly captured one.
+
+        When the capture failed the compacted messages are returned as is:
+        a snapshot is omitted rather than faked.
+        """
+        if snapshot is None:
+            return messages
+        from siada.services.git_snapshot import build_git_snapshot_item, replace_git_snapshot
+
+        return replace_git_snapshot(messages, build_git_snapshot_item(snapshot))
+
+    @classmethod
+    async def _maybe_refresh_git_snapshot(
+        cls, context: "CodeAgentContext", pre_compaction_messages: List, messages: List,
+    ) -> List:
+        """Async compaction path: capture off the event loop, then replace."""
+        try:
+            if not cls._should_refresh_git_snapshot(context, pre_compaction_messages):
+                return messages
+            import asyncio
+            from siada.services.git_snapshot import capture_git_snapshot
+
+            snapshot = await asyncio.to_thread(
+                capture_git_snapshot, getattr(context, "root_dir", None)
+            )
+            return cls._replace_git_snapshot(messages, snapshot)
+        except Exception as e:
+            logger.debug(f"[ApiMessageTransferFilter] git snapshot refresh skipped: {e}")
+            return messages
+
+    @classmethod
+    def refresh_git_snapshot_after_manual_compaction(
+        cls, context: "CodeAgentContext", pre_compaction_messages: List, messages: List,
+    ) -> List:
+        """Synchronous twin of ``_maybe_refresh_git_snapshot`` for ``/compact``."""
+        try:
+            if not cls._should_refresh_git_snapshot(context, pre_compaction_messages):
+                return messages
+            from siada.services.git_snapshot import capture_git_snapshot
+
+            snapshot = capture_git_snapshot(getattr(context, "root_dir", None))
+            return cls._replace_git_snapshot(messages, snapshot)
+        except Exception as e:
+            logger.debug(f"[ApiMessageTransferFilter] git snapshot refresh skipped: {e}")
+            return messages
 
     # ------------------------------------------------------------------
     # Diagnostic helpers

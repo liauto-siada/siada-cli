@@ -138,6 +138,40 @@ def _make_session(session_id):
     return SimpleNamespace(session_id=session_id)
 
 
+def test_legacy_question_state_does_not_trigger_automatic_continuation(tmp_path):
+    """A restored session waits for ordinary input even with a retired checkpoint."""
+    import json
+
+    config, io = _make_config(inputs=["continue the task"])
+    session = _make_session("question-session")
+    session.openai_session = SimpleNamespace(session_folder=tmp_path)
+    legacy_state = {"version": 1, "run_state": {"synthetic": True}, "phase": "waiting"}
+    state_path = tmp_path / "user_input.json"
+    state_path.write_text(json.dumps(legacy_state), encoding="utf-8")
+    controller, _ui, policy, _monitor = _make_controller(
+        config, SimpleNamespace(), session=session,
+    )
+    policy.results = iter([SimpleNamespace(output=None)])
+
+    with _run_loop_patches(), pytest.raises(_SimulatedExit):
+        controller.run()
+
+    assert policy.executed == ["continue the task"]
+    assert policy.user_initiated == [True]
+    assert len(io.get_input_calls) == 2
+    assert json.loads(state_path.read_text(encoding="utf-8")) == legacy_state
+
+
+def test_in_session_resume_waits_for_the_next_user_input():
+    config, _io = _make_config(inputs=["/resume saved-session", "continue the task"])
+    controller, _ui, policy, _monitor = _make_controller(config, SimpleNamespace(), session=_make_session("session"))
+    policy.results = iter([SimpleNamespace(output=None), SimpleNamespace(output=None)])
+    with _run_loop_patches(), pytest.raises(_SimulatedExit):
+        controller.run()
+    assert policy.executed == ["/resume saved-session", "continue the task"]
+    assert policy.user_initiated == [True, True]
+
+
 def _make_controller(
     config, slash_commands, session=None, shell_mode=False, active_monitor=False
 ):

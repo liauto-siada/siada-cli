@@ -13,8 +13,8 @@ Siada CLI's browser add-on always runs Siada's own ACP entry point, so the side 
 
 ```bash
 # Install once: this is the proxy that Siada CLI spawns for you
-siada-browser setup /path/to/siada-agenthub/chrome-acp
-# or: siada-cli --browser-setup /path/to/siada-agenthub/chrome-acp
+siada-browser setup /path/to/siada-cli/chrome-acp
+# or: siada-cli --browser-setup /path/to/siada-cli/chrome-acp
 
 # Start / restart / inspect it
 siada-browser start

@@ -1,6 +1,6 @@
 /**
  * Stream repetition guard for repetition-prone models
- * (deepseek-v4-flash family and lpai-glm-5.3).
+ * (deepseek-v4-flash variants).
  *
  * Mirrors siada/entrypoint/interaction/turn/stream_repetition.py — keep the
  * constants in sync. The UI side uses this to HOLD rendering of a suspicious
@@ -10,8 +10,8 @@
  * a false positive and the accumulated content is flushed as usual.
  */
 
-/** Substring match so "kivy-deepseek-v4-flash" and dated variants
- *  ("kivy-deepseek-v4-flash-0731") are all covered. */
+/** Substring match so "deepseek-v4-flash" and dated variants
+ *  ("deepseek-v4-flash-0731") are all covered. */
 export const REPETITION_GUARD_MODEL_MARKERS = ['deepseek-v4-flash'];
 
 export function isRepetitionGuardModel(model: string | undefined | null): boolean {

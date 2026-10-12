@@ -4,14 +4,11 @@ The daemon uses this module to check for newer releases in the background,
 install them silently, and persist state so the next CLI launch can pick up
 any applied update without interrupting the current session.
 
-Note on install modes: ``InternalUpdateStrategy`` (proprietary tarball-based
-install infrastructure) lives in ``siada.internal.services.auto_update`` and
-is intentionally excluded from the open-source distribution.  Open-source /
-externally-installed (``pip install siada-cli``) builds only ever use
-``ExternalUpdateStrategy`` below.  ``build_update_strategy()`` lazily imports
-the internal strategy and gracefully falls back when it is unavailable, so
-open-source checkouts don't need (and can't reach) internal auto-update
-infrastructure — only internal builds do.
+Note on install modes: every build uses ``ExternalUpdateStrategy`` below, i.e.
+the release metadata published for ``siada-cli`` plus a ``pip`` upgrade.
+``build_update_strategy()`` never reaches for install infrastructure outside
+this distribution; the detected install mode is still persisted in the
+auto-update state for diagnostics.
 """
 
 from __future__ import annotations
@@ -42,9 +39,8 @@ _AUTO_UPDATE_STATE_FILE = SIADA_HOME / "auto_update" / "state.json"
 _AUTO_UPDATE_LOCK_FILE = SIADA_HOME / "locks" / "auto_update.lock"
 _AUTO_UPDATE_INSTALL_LOG = SIADA_HOME / "logs" / "auto_update_install.log"
 
-# Valid release channels.  The concrete script/URL naming for each channel is
-# internal-only (see siada.internal.services.auto_update) and not part of the
-# open-source distribution.
+# Valid release channels.  Releases are always read from the published
+# ``siada-cli`` metadata; the channel is carried through for reporting.
 _VALID_CHANNELS = {"prod", "beta", "test"}
 
 
@@ -612,25 +608,12 @@ def detect_install_mode() -> str:
 
 
 def build_update_strategy(channel: str = "prod") -> BaseUpdateStrategy:
-    """Build the update strategy for the current install mode.
+    """Build the update strategy used for release queries and installs.
 
-    Internal-mode auto-update (proprietary tarball infrastructure) is
-    implemented in ``siada.internal.services.auto_update.InternalUpdateStrategy``,
-    which is not part of the open-source distribution.  Open-source checkouts
-    simply don't have that module, so this always falls back to
-    ``ExternalUpdateStrategy`` (PyPI-based) for them — i.e. open-source code
-    doesn't need (and can't use) internal auto-update; only internal builds do.
+    Every install mode uses ``ExternalUpdateStrategy``: releases come from the
+    published ``siada-cli`` metadata and upgrades go through ``pip``.  The
+    detected install mode is recorded in the auto-update state for diagnostics.
     """
-    if detect_install_mode() == "internal":
-        try:
-            from siada.internal.services.auto_update import InternalUpdateStrategy
-
-            return InternalUpdateStrategy(channel=channel)
-        except ImportError:
-            logger.debug(
-                "Internal auto-update module unavailable; falling back to "
-                "ExternalUpdateStrategy"
-            )
     return ExternalUpdateStrategy(channel=channel)
 
 

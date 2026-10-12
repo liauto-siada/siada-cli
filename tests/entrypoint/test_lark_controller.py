@@ -138,6 +138,7 @@ def test_build_running_config_reuses_model_setup_logic(monkeypatch) -> None:
     assert running_config.llm_config is expected_model_config
     assert running_config.io is io_token
     assert running_config.workspace == "/tmp/lark-workspace"
+    assert running_config.acp_mode is False
     assert captured == {"io": io_token, "conf": conf}
 
 

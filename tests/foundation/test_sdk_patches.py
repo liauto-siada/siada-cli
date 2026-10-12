@@ -1,18 +1,12 @@
 """Tests for ``siada.foundation.sdk_patches``.
 
-Covers the startup race fixed for openai-agents 0.22.x: the patch runs in a
-background warmup thread, and importing the ``agents`` *package root* there
-(``from agents import FunctionTool``) can observe a partially initialized
-``agents.items`` — 0.22.x's ``__init__`` chain (sandbox → run_config →
-guardrail → items → tool) widened that window. The patch must therefore (a)
-serialize on a lock, (b) wait for the package import, and (c) import from
-concrete submodules.
+Covers serialized, retryable SDK warmup and the absence of private execution
+or response-resolution patches in the startup entry point.
 """
 
 import sys
 import threading
 import time
-from types import ModuleType
 from unittest.mock import MagicMock
 
 import pytest
@@ -20,21 +14,41 @@ import pytest
 from siada.foundation import sdk_patches
 
 
+def test_configure_sdk_run_config_keeps_caller_settings_and_uses_public_recovery():
+    from agents import RunConfig, ToolExecutionConfig
+
+    original = RunConfig(
+        tracing_disabled=True,
+        workflow_name="existing-workflow",
+        tool_execution=ToolExecutionConfig(),
+        tool_not_found_behavior="raise",
+    )
+    configured = sdk_patches.configure_sdk_run_config(original)
+
+    assert configured is not original
+    assert configured.tool_not_found_behavior == "return_error_to_model"
+    assert original.tool_not_found_behavior == "raise"
+    assert configured.tracing_disabled is True
+    assert configured.workflow_name == "existing-workflow"
+    assert configured.tool_execution is original.tool_execution
+
+
+def test_configure_sdk_run_config_creates_defaults_when_not_provided():
+    configured = sdk_patches.configure_sdk_run_config()
+    assert configured.tool_not_found_behavior == "return_error_to_model"
+    assert configured.tool_execution is None
+
+
 @pytest.fixture
 def clean_patch_state(monkeypatch):
-    """Restore global flags and the patched SDK function after each test."""
-    from agents.run_internal import turn_resolution
-
-    original = turn_resolution.process_model_response
+    """Reset only the warmup flag; SDK internals must remain untouched."""
     monkeypatch.setattr(sdk_patches, "_PATCHED", False)
-    yield
-    monkeypatch.setattr(turn_resolution, "process_model_response", original)
 
 
 def test_apply_patches_is_idempotent(clean_patch_state, monkeypatch):
     patch_mock = MagicMock()
     monkeypatch.setattr(
-        sdk_patches, "_patch_unknown_tool_to_synthetic_stub", patch_mock
+        "siada.foundation.sdk_patches.ensure_agents_imported", patch_mock
     )
 
     sdk_patches.apply_sdk_patches()
@@ -57,7 +71,7 @@ def test_apply_patches_retries_after_transient_failure(
                 "initialized module 'agents.items'"
             )
 
-    monkeypatch.setattr(sdk_patches, "_patch_unknown_tool_to_synthetic_stub", flaky)
+    monkeypatch.setattr("siada.foundation.sdk_patches.ensure_agents_imported", flaky)
 
     sdk_patches.apply_sdk_patches()
     assert sdk_patches._PATCHED is False  # failure must stay retryable
@@ -75,7 +89,7 @@ def test_concurrent_apply_runs_patch_once(clean_patch_state, monkeypatch):
         time.sleep(0.05)
 
     monkeypatch.setattr(
-        sdk_patches, "_patch_unknown_tool_to_synthetic_stub", slow_patch
+        "siada.foundation.sdk_patches.ensure_agents_imported", slow_patch
     )
 
     threads = [
@@ -89,22 +103,23 @@ def test_concurrent_apply_runs_patch_once(clean_patch_state, monkeypatch):
     assert len(calls) == 1
 
 
-def test_patch_tolerates_partially_initialized_package(
-    clean_patch_state, monkeypatch
-):
-    """Regression: the patch must not read ``FunctionTool`` off the package root.
+def test_patches_leave_response_and_function_execution_untouched(clean_patch_state):
+    from agents.run_internal import tool_execution, turn_resolution
+    from agents.run_internal.tool_actions import (
+        ApplyPatchAction, ComputerAction, CustomToolAction, LocalShellAction, ShellAction,
+    )
 
-    A partially initialized ``agents`` package (what the racing warmup thread
-    observes) has no such attribute; importing the concrete submodule instead
-    keeps the patch working.
-    """
-    import agents
-
-    partial_package = ModuleType("agents")
-    partial_package.__path__ = list(agents.__path__)
-    monkeypatch.setitem(sys.modules, "agents", partial_package)
-
-    sdk_patches._patch_unknown_tool_to_synthetic_stub()  # must not raise
+    response = turn_resolution.process_model_response
+    executor = tool_execution._FunctionToolBatchExecutor
+    body = executor._execute_single_tool_body
+    invoke = executor._invoke_tool_and_run_post_invoke
+    native_actions = [ApplyPatchAction, ComputerAction, CustomToolAction, LocalShellAction, ShellAction]
+    native_executors = [action.execute.__func__ for action in native_actions]
+    sdk_patches.apply_sdk_patches()
+    assert turn_resolution.process_model_response is response
+    assert executor._execute_single_tool_body is body
+    assert executor._invoke_tool_and_run_post_invoke is invoke
+    assert [action.execute.__func__ for action in native_actions] == native_executors
 
 
 def test_ensure_agents_imported_is_idempotent(monkeypatch):

@@ -163,15 +163,15 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
     """Return a ModelBaseConfig list for the given provider from the cache.
     Matches by provider_id first, then by base_url. Falls back to a single-entry
     list using selected_model if no cache data is found."""
-    from siada.models.model_base_config import ModelBaseConfig, MODEL_SETTING
+    from siada.models.model_base_config import MODEL_SETTING, ModelBaseConfig
     builtin_by_name = {m.model_name: m for m in MODEL_SETTING}
 
     def _build(model_name: str, context_window: int, max_tokens: int) -> ModelBaseConfig:
         # Capability fields (supports_extra_params, default_reasoning_effort,
         # thinking, images, etc.) are not present in the models.dev cache, so
         # inherit them from the built-in MODEL_SETTING when the model is known.
-        # Otherwise a provider-fetched model would lose e.g. reasoning_effort
-        # support and /effort would reject every level.
+        # Unknown names use the dataclass defaults; the gateway determines
+        # reasoning behavior unless the user configures it explicitly.
         builtin = builtin_by_name.get(model_name)
         return ModelBaseConfig(
             model_name=model_name,

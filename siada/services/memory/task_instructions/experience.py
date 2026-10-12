@@ -90,8 +90,8 @@ Rules:
   - Lowercase hyphens only; 3–6 words total
 
   Good:
-    siada-agenthub-test-rules.md         how to write tests in this repo
-    siada-agenthub-dev-conventions.md    coding and PR norms for this repo
+    siada-cli-test-rules.md              how to write tests in this repo
+    siada-cli-dev-conventions.md         coding and PR norms for this repo
     siada-memory-agent-architecture.md   module layout and extension points
     myproject-build-and-release.md       how to build and ship
 

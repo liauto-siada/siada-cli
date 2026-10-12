@@ -159,13 +159,13 @@ Model names support two formats: **Standard model name** and **Full format** (pr
 
 The full format of a model name is: `protocol/model_name`
 
-- **Protocol**: Determines the API interface type and specification to be accessed
+- **Protocol/model prefix**: Identifies the model family or provider route used by Siada
 - **Model name**: Specific model identifier, must comply with interface constraints
 
 Examples:
 - `anthropic/claude-3-opus` - Access Claude 3 Opus using Anthropic native protocol
-- `openai/gpt-4-turbo` - Access GPT-4 Turbo using OpenAI native protocol
-- `deepseek/deepseek-coder` - Access DeepSeek Coder using DeepSeek native protocol
+- `openai/gpt-4-turbo` - Access GPT-4 Turbo using OpenAI Chat Completions
+- `deepseek/deepseek-coder` - Access DeepSeek Coder using an OpenAI-compatible endpoint
 
 ### Automatic Protocol Mapping
 
@@ -174,18 +174,19 @@ To simplify configuration, the system automatically adds protocol prefixes for t
 | Model Name Prefix | Automatically Mapped To | API Protocol |
 |-------------------|-------------------------|--------------|
 | `claude-*` | `anthropic/claude-*` | Anthropic |
-| `gpt-*` | `openai/gpt-*` | OpenAI |
-| `o3-*` | `openai/o3-*` | OpenAI |
-| `deepseek-*` | `deepseek/deepseek-*` | DeepSeek |
-| `gemini-*` | `google/gemini-*` | Google |
-| `kimi-*` | `moonshotai/kimi-*` | Moonshot AI |
+| `gpt-*` | `openai/gpt-*` | OpenAI Chat Completions, except GPT-5+ Responses models |
+| `o3-*` | `openai/o3-*` | OpenAI Chat Completions |
+| `deepseek-*` | `deepseek/deepseek-*` | OpenAI-compatible Chat Completions |
+| `gemini-*` | `google/gemini-*` | Gemini native/LiteLLM |
+| `kimi-*` | `moonshotai/kimi-*` | OpenAI-compatible Chat Completions |
 
 **View Full Implementation**: [siada/provider/default/coverter.py](../siada/provider/default/coverter.py)
 
 ### Usage Notes
 
-- Standard model names (such as `gpt-4`) will be automatically mapped to full format (`openai/gpt-4`)
-- Model names with explicitly specified protocols (such as `anthropic/claude-3-opus`) are used as-is
+- Standard model names (such as `gpt-4`) are mapped to a provider/model form. OpenAI Chat Completions requests send the endpoint's model ID without the LiteLLM routing prefix.
+- Claude and Gemini keep their existing LiteLLM/native routes. Other default-provider models must use an endpoint that accepts OpenAI Chat Completions; a LiteLLM-native protocol prefix alone does not make an endpoint compatible.
+- GPT-5 and newer use the Responses API. Other Responses-only aliases are not sent to Chat Completions.
 - For complete configuration examples, please refer to the [Configuration Example](#configuration-example) section above
 
 ## Usage Guide
@@ -222,6 +223,7 @@ export API_KEY=your-api-key-here
 > 
 > - **OpenAI-compatible protocols** (such as `openai/*`, `deepseek/*` etc.): Must include `/v1` path
 >   - Example: `https://api.openai.com/v1`
+>   - Chat-routed models must accept `POST /chat/completions`; the configured model ID must be the ID accepted by that endpoint
 > 
 > - **Anthropic protocol** (`anthropic/*`):
 >   - Option 1: Without path suffix, e.g., `https://api.anthropic.com`
@@ -242,6 +244,65 @@ siada --provider default --model openai/gpt-4
 siada
 ```
 
+## Git Snapshot (All Models)
+
+For all models, the main coding agent appends a bounded Git snapshot (branch,
+HEAD, worktree summary and capture time) as a hidden `<system-reminder>`-wrapped
+`input_text` content part on the first user request in a Git workspace. It is
+stored in the session's `api_history.json`, reused on later turns and after
+`/resume`, and refreshed in the model-visible `api_messages.json` after
+compaction. Older sessions with a standalone snapshot message remain supported.
+If the workspace is not a Git repository or capture fails, no snapshot is added.
+The snapshot is context data, not additional authorization; it is never sent as
+a mid-conversation system message or shown in chat history. Set
+`SIADA_GIT_SNAPSHOT=0` (or `false` / `off`) to disable it.
+
+## GLM-5.2 and Later
+
+Siada recognizes GLM-5.2 and later generations, such as `glm-5.2`,
+`glm-5.2-flash`, `glm-5.3`, and `glm-6`, including names with a vendor prefix.
+GLM-5.1 and older keep their previous prompt and repeated-tool behavior. These
+prompt adaptations do not change a model's reasoning capabilities or provider
+settings. GLM-5.3 and later use Chat Completions.
+
+Custom model names do not automatically imply reasoning support or effort
+defaults. Built-in GLM-5.3 entries retain their explicit settings. For a custom
+`models.json` entry, configure `supports_extra_params: ["reasoning_effort"]` to
+use `/effort`, and `default_reasoning_effort` to select a default level. Without
+an explicit default, the gateway determines the default reasoning behavior.
+API-key provider models without a matching built-in entry also leave these
+settings unset.
+
+On GLM-5.2 and later, the main coding agent uses a GLM-specific identity and
+behavior section. Shared capabilities, skills, agents and memory remain
+available. After three consecutive tool calls with identical arguments, a
+hidden user-role reminder asks the model to use the results or change approach.
+The GLM prompt and repeated-call reminder have no separate opt-out switches.
+
+GLM models of any generation can receive an empty-list reminder after at least
+ten assistant turns without `todo_write`, with at least ten turns between
+reminders. Set `SIADA_TODO_EMPTY_LIST_REMINDER=0` (or `false` / `off`) to disable
+this behavior. Other models receive reminders only when a todo list already
+exists; this switch does not disable existing-list reminders. Reminders are
+hidden runtime context, not system-role messages or additional authorization.
+
+## Kimi K3 and Later
+
+The main coding agent uses a Kimi Code-based prompt for Kimi K3 and later
+generations, including `kimi-k3`, `kimi-k3.1`, `kimi-k3.5`, and `kimi-k4`.
+Detection is case-insensitive and accepts vendor prefixes
+(`vendor-kimi-k4`, `openai/kimi-k3.5`), underscores (`kimi_k3.1`), and suffixes
+such as `-preview`. Short aliases `k3`, `k3.1`, `k3.5`, and `k4`, including
+slash-qualified forms such as `openai/k4`, select the same prompt. Configure the
+exact model ID accepted by the endpoint; prompt recognition does not rewrite
+aliases into API model IDs.
+
+Kimi K2 and older retain the generic prompt. The Kimi prompt uses terminal
+communication and relevant-skill guidance in place of the generic four-line
+response limit and strict skill-trigger block. It retains Siada's `edit_file`
+tools, Git safety, permission boundaries, non-interactive blocker handling,
+skill and agent catalogs, and combined memory.
+
 ## Configuration Priority
 
 The configuration priority order is:
@@ -256,4 +317,4 @@ The configuration priority order is:
 - **Configuration File Format**: Ensure the JSON format is correct, you can use online JSON validators to check
 - **Model Names**: `model_name` must exactly match the model names supported by your API provider
 - **API Configuration**: When using the default provider, you must configure `BASE_URL` and `API_KEY`
-- **Compatibility**: The configured model parameters should match the actual capabilities of the API provider's models
+- **Compatibility**: Model parameters must match the endpoint's capabilities. Except for Claude/Gemini and GPT-5+ Responses routes, the default provider requires an OpenAI Chat Completions-compatible endpoint; arbitrary LiteLLM-native providers are not automatically supported.

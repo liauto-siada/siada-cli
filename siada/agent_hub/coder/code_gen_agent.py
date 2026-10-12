@@ -3,42 +3,44 @@ Code Generation Agent Module
 
 Provides specialized Agent implementation for code generation tasks.
 """
+import asyncio
+import logging
 import os
 from typing import List
 
 from agents import RunContextWrapper, RunResult, RunResultStreaming, TResponseInputItem
-from siada.foundation.code_agent_context import CodeAgentContext, RuntimeSource
-from siada.agent_hub.siada_agent import SiadaAgent
-from siada.tools.ast.ast_tool import list_code_definition_names
-from siada.tools.coder.file_operator import edit
-from siada.tools.coder.native_file_tools import (
-    create_native_apply_patch_tool,
-    read_file,
-)
-from siada.tools.coder.file_search import regex_search_files
-from siada.tools.coder.run_cmd import run_cmd
-from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
-from siada.foundation.setting import settings
+
 from siada.agent_hub.coder.prompt import code_gen_prompt
-from siada.services.handle_at_command import handle_at_command
-import logging
+from siada.agent_hub.siada_agent import SiadaAgent
+from siada.foundation.code_agent_context import CodeAgentContext, RuntimeSource
 from siada.foundation.logging import logger as siada_logger
+from siada.foundation.setting import settings
+from siada.services import git_snapshot
+from siada.services.handle_at_command import handle_at_command
 from siada.services.memory.holographic.marker import (
     strip_benchmark_hint_block,
     wrap_prefetch_block,
 )
-from siada.tools.memory import search_memory, memory, fact_store, fact_feedback
-from siada.tools.memory import search_memory, memory
+from siada.support.message_classifier import is_hidden_runtime_text
+from siada.tools.agent.run_subtask import run_subtask
+from siada.tools.ast.ast_tool import list_code_definition_names
+from siada.tools.coder.file_operator import edit
+from siada.tools.coder.file_search import regex_search_files
+from siada.tools.coder.native_file_tools import (
+    create_native_apply_patch_tool,
+    read_file,
+)
+from siada.tools.coder.run_cmd import run_cmd
+from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
+from siada.tools.lark import get_available_lark_tools
+from siada.tools.memory import fact_feedback, fact_store, memory, search_memory
 from siada.tools.todo import todo_write
 from siada.tools.web import (
-    web_search,
-    web_fetch,
-    resolve_web_tools_enabled,
     resolve_provider_from_context,
+    resolve_web_tools_enabled,
+    web_fetch,
+    web_search,
 )
-
-from siada.tools.agent.run_subtask import run_subtask
-from siada.tools.lark import get_available_lark_tools
 
 # Note: previously this file called ``logging.getLogger().setLevel(logging.INFO)``
 # and then used ``logging.info(...)`` (the root logger). The siada framework
@@ -82,7 +84,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         (see ``configure_tools_for_context``): when False, the sub-agent tool is
         left out of the surface entirely.
         """
-        from siada.agent_hub.coder.prompt.base.gpt5_instructions import (
+        from siada.agent_hub.coder.prompt.selection.model_features import (
             uses_native_patch_file_tools,
         )
 
@@ -119,7 +121,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         # model is never told about a capability it doesn't have.
         subagent_enabled = bool(getattr(context, "subagent_enabled", True))
         tools = self._get_base_tools(
-            model_name=model_name, include_run_subtask=subagent_enabled
+            model_name=model_name, include_run_subtask=subagent_enabled,
         )
 
         # Web tools (web_search / web_fetch) are gated by a tri-state switch:
@@ -167,8 +169,6 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         # Get preferred language and agent name from session config
         preferred_language = run_context.context.preferred_language
         agent_name = run_context.context.session.siada_config.agent_name
-        # Get pre_plan setting from context
-        pre_plan = run_context.context.pre_plan
 
         # Get model name for GPT-5 specific prompt optimizations
         model_name = None
@@ -180,7 +180,6 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         system_prompt = code_gen_prompt.get_system_prompt(
             root_dir, run_context.context.interactive_mode,
             combined_memory, preferred_language, agent_name,
-            pre_plan,
             model_name=model_name,
             activated_skill_names=run_context.context.activated_skill_names,
             subagent_enabled=getattr(run_context.context, "subagent_enabled", True),
@@ -199,34 +198,25 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
     @staticmethod
     def _flatten_input_text(user_input: str | List[TResponseInputItem]) -> str:
-        """Concatenate every ``input_text``/text content part into one string.
-
-        ``AtCommandParser`` only understands plain strings, but
-        ``user_input`` may now be the Responses-API list shape (e.g.
-        ``[{"role": "user", "content": [{"type": "input_text", ...}, ...]}]``
-        — the same list ``LarkAgentExecutor._build_user_input`` /
-        ``build_multimodal_input_with_media`` produce). This flattens
-        either shape down to the text an @ command could plausibly be
-        typed in, mirroring what the old single-string design already
-        concatenated (user text + any IM context blocks) before handing
-        it to ``handle_at_command``.
-        """
+        """Read the first visible user message, keeping runtime items separate."""
         if isinstance(user_input, str):
             return user_input
         if not isinstance(user_input, list):
             return ""
-        parts: List[str] = []
         for message in user_input:
-            if not isinstance(message, dict):
+            if not isinstance(message, dict) or message.get("role") != "user":
                 continue
             content = message.get("content")
             if isinstance(content, str):
-                parts.append(content)
+                if not is_hidden_runtime_text(content):
+                    return content
             elif isinstance(content, list):
-                for part in content:
-                    if isinstance(part, dict) and part.get("type") == "input_text":
-                        parts.append(part.get("text", ""))
-        return "".join(parts)
+                parts = [part.get("text", "") for part in content
+                         if isinstance(part, dict) and part.get("type") == "input_text"
+                         and not is_hidden_runtime_text(part.get("text"))]
+                if parts:
+                    return "".join(parts)
+        return ""
 
     @staticmethod
     def _replace_input_text(
@@ -234,26 +224,34 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
     ) -> List[TResponseInputItem]:
         """Swap the flattened text back into the list shape after @-expansion.
 
-        Only the ``input_text`` content parts of the first message are
-        collapsed into a single item holding ``processed_text``; every
-        non-text part (images, etc.) and any further message dicts are
-        left untouched, since @ commands are only ever authored in the
-        user's own text.
+        Only visible text in the first visible user message is replaced.
+        Hidden runtime parts/items and non-text parts (images, etc.) are
+        preserved, matching the text selected by ``_flatten_input_text``.
         """
         rebuilt: List[TResponseInputItem] = []
         replaced = False
         for message in user_input:
-            if replaced or not isinstance(message, dict):
+            if replaced or not isinstance(message, dict) or message.get("role") != "user":
                 rebuilt.append(message)
                 continue
             content = message.get("content")
             if isinstance(content, str):
+                if is_hidden_runtime_text(content):
+                    rebuilt.append(message)
+                    continue
                 rebuilt.append({**message, "content": processed_text})
                 replaced = True
             elif isinstance(content, list):
+                visible_text = [part for part in content
+                                if isinstance(part, dict) and part.get("type") == "input_text"
+                                and not is_hidden_runtime_text(part.get("text"))]
+                if not visible_text:
+                    rebuilt.append(message)
+                    continue
                 other_parts = [
                     part for part in content
-                    if not (isinstance(part, dict) and part.get("type") == "input_text")
+                    if not (isinstance(part, dict) and part.get("type") == "input_text"
+                            and not is_hidden_runtime_text(part.get("text")))
                 ]
                 new_content = [{"type": "input_text", "text": processed_text}] + other_parts
                 rebuilt.append({**message, "content": new_content})
@@ -370,6 +368,9 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         processed_input = await self.process_at_commands(user_input, context)
 
         input_with_env = self.assemble_user_input(processed_input, context)
+        input_with_env = await self._maybe_prepend_git_snapshot(
+            input_with_env, context, openai_session
+        )
         result = await self.run_impl(
             starting_agent=self,
             input=input_with_env,
@@ -402,6 +403,9 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         processed_input = await self.process_at_commands(user_input, context)
 
         input_with_env = self.assemble_user_input(processed_input, context)
+        input_with_env = await self._maybe_prepend_git_snapshot(
+            input_with_env, context, openai_session
+        )
         result = await self.run_streamed_impl(
             starting_agent=self,
             input=input_with_env,
@@ -419,8 +423,8 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         # Holographic prefetch injection — runs once per agent ``run()`` (vs.
         # per-LLM-call), so the prefix gets persisted into the conversation
         # alongside the user message and we never accumulate duplicate blocks
-        # on subsequent turns. See
-        # design_docs/siada-holographic-memory-introduction.md §11.
+        # on subsequent turns. See ``_inject_holographic_prefetch`` below and
+        # ``siada/services/memory/holographic/provider.py``.
         #
         # Temporarily disabled: the prefetch facts block is no longer appended
         # to the user input. ``assemble_user_input`` now returns the input
@@ -441,6 +445,63 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
 
         # environment_details = f'<environment_details>\n{project_structure}\n</environment_details>'
         # return task + '\n' + environment_details
+
+    def _uses_git_snapshot(self, context: CodeAgentContext) -> bool:
+        """Whether this run of the main coding agent carries the Git snapshot."""
+        if self.name != "CodeGenAgent" or getattr(context, "is_subagent", False):
+            return False
+        if not getattr(context, "root_dir", None) or getattr(context, "session", None) is None:
+            return False
+        return git_snapshot.git_snapshot_enabled()
+
+    @staticmethod
+    async def _effective_history_has_git_snapshot(
+        context: CodeAgentContext, openai_session=None,
+    ) -> bool:
+        """Whether the history the next model call will see already has a snapshot.
+
+        The model-visible history is the (possibly compacted) real API
+        message list; right after a resume that needs a full refresh it is
+        empty until the next call rebuilds it from the SDK session, so the
+        session items are consulted in that case instead.
+        """
+        real_messages = context.task_message_state.get_real_messages()
+        if real_messages:
+            return git_snapshot.has_git_snapshot(real_messages)
+        if openai_session is not None:
+            return git_snapshot.has_git_snapshot(await openai_session.get_items())
+        return False
+
+    async def _maybe_prepend_git_snapshot(
+        self,
+        user_input: str | List[TResponseInputItem],
+        context: CodeAgentContext,
+        openai_session=None,
+    ) -> str | List[TResponseInputItem]:
+        """Merge a Git snapshot into this turn's user content when needed.
+
+        Only for the main agent, and only when the effective history has no
+        snapshot yet (new session or a resumed session without one). The
+        snapshot is a separate hidden input_text part, not an extra user turn;
+        later turns reuse it instead of rescanning the worktree. Compaction
+        refreshes it separately (ApiMessageTransferFilter). Best-effort: any
+        failure, including a non-Git workspace, omits it.
+        """
+        try:
+            if not self._uses_git_snapshot(context):
+                return user_input
+            if await self._effective_history_has_git_snapshot(context, openai_session):
+                return user_input
+
+            # git runs in a worker thread so the event loop is never blocked.
+            snapshot = await asyncio.to_thread(git_snapshot.capture_git_snapshot, context.root_dir)
+            if snapshot is None:
+                return user_input
+            snapshot_item = git_snapshot.build_git_snapshot_item(snapshot)
+            return git_snapshot.merge_git_snapshot_into_input(user_input, snapshot_item)
+        except Exception as e:
+            siada_logger.debug(f"[git-snapshot] Skipped: {e}")
+            return user_input
 
     def _inject_holographic_prefetch(
         self,

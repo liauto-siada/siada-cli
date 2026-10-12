@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 import json
+import sys
 
 from siada.foundation.constants import SIADA_HOME
 from siada.io.io import InputOutput
@@ -132,26 +133,29 @@ def load_user_model_config(config_path: Optional[Path] = None) -> Optional[Model
             with open(config_path, 'r', encoding='utf-8') as file:
                 data = json.load(file)
                 return ModelCollectionConfig.from_dict(data)
-    except json.JSONDecodeError as e:
-        print(f"Warning: Model configuration file format error: {e}")
-        # Add IO to print errors for sending ACP messages
-        try:
-            io = InputOutput.get_instance()
-            if io:
-                io.print_error(f"Warning: Model configuration file format error: {e}")
-        except:
-            pass
-    except Exception as e:
-        print(f"Warning: Failed to load model configuration file: {e}")
-        # Add IO to print errors for sending ACP messages
-        try:
-            io = InputOutput.get_instance()
-            if io:
-                io.print_error(f"Warning: Failed to load model configuration file: {e}")
-        except:
-            pass
+    except json.JSONDecodeError as exc:
+        _report_model_config_error(
+            "Warning: models.json has invalid JSON "
+            f"at line {exc.lineno}, column {exc.colno}; using built-in models."
+        )
+    except Exception:
+        _report_model_config_error(
+            "Warning: models.json could not be loaded; using built-in models."
+        )
     
     return None
+
+
+def _report_model_config_error(message: str) -> None:
+    """Report safe diagnostics without writing text to ACP protocol stdout."""
+    print(message, file=sys.stderr)
+    try:
+        io = InputOutput.get_instance()
+        adapter = getattr(io, "acp_adapter", None)
+        if adapter:
+            adapter.error(message)
+    except Exception:
+        pass
 
 
 def create_example_model_config(config_path: Optional[Path] = None) -> None:

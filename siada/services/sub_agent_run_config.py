@@ -71,7 +71,7 @@ def adapt_fork_tools_for_effective_model(tools: list | None, model_name: str | N
         return tools
 
     try:
-        from siada.agent_hub.coder.prompt.base.gpt5_instructions import (
+        from siada.agent_hub.coder.prompt.selection.model_features import (
             uses_native_patch_file_tools,
         )
 
@@ -231,4 +231,5 @@ def build_sub_agent_run_config(
         model_provider=provider_wrapper,
         model_settings=model_settings,
         workflow_name="SubTaskAgent",
+        tool_not_found_behavior="return_error_to_model",
     )

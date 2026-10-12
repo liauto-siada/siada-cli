@@ -5,11 +5,11 @@
   "author": "Areo Joe <zengjoe@foxmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Areo-Joe/chrome-acp.git",
-    "directory": "packages/proxy-server"
+    "url": "git+https://github.com/liauto-siada/siada-cli.git",
+    "directory": "chrome-acp/packages/proxy-server"
   },
-  "homepage": "https://github.com/Areo-Joe/chrome-acp#readme",
-  "bugs": "https://github.com/Areo-Joe/chrome-acp/issues",
+  "homepage": "https://github.com/liauto-siada/siada-cli/tree/develop/chrome-acp",
+  "bugs": "https://github.com/liauto-siada/siada-cli/issues",
   "type": "module",
   "main": "./dist/server.js",
   "types": "./dist/server.d.ts",
@@ -18,10 +18,13 @@
   },
   "files": [
     "dist",
-    "public"
+    "public",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node ../../scripts/copy-licenses.mjs .",
+    "prepack": "bun run build",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
@@ -46,7 +49,7 @@
     "selfsigned": "^5.5.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   },
   "keywords": [
     "acp",

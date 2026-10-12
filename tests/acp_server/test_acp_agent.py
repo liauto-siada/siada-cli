@@ -1,6 +1,12 @@
 import asyncio
+import socket
 
+import siada
+from acp import RequestError
+from acp.agent.connection import AgentSideConnection
+from acp.client.connection import ClientSideConnection
 from acp.helpers import update_agent_message_text, update_agent_thought_text
+from acp.schema import TextContentBlock
 
 from siada.acp_server.acp_agent import SiadaAcpAgent
 
@@ -13,6 +19,35 @@ class RecordingClient:
         self.updates.append((session_id, update))
 
 
+def _run_prompt_against_real_client(agent):
+    """Exercise error propagation through both SDK connections."""
+
+    class _StubClient:
+        async def session_update(self, *_args, **_kwargs):
+            pass
+
+    async def run():
+        agent_sock, client_sock = socket.socketpair()
+        agent_read, agent_write = await asyncio.open_connection(sock=agent_sock)
+        client_read, client_write = await asyncio.open_connection(sock=client_sock)
+        connection = AgentSideConnection(agent, agent_write, agent_read, listening=False)
+        listener = asyncio.create_task(connection.listen())
+        client = ClientSideConnection(_StubClient(), client_write, client_read)
+        try:
+            await client.initialize(protocol_version=1)
+            session = await client.new_session(cwd="/tmp", mcp_servers=[])
+            return await client.prompt(
+                session_id=session.session_id,
+                prompt=[TextContentBlock(type="text", text="hi")],
+            )
+        finally:
+            await connection.close()
+            client_write.close()
+            await asyncio.wait_for(listener, timeout=5)
+
+    return asyncio.run(run())
+
+
 def test_acp_agent_emits_sdk_session_update_and_ends_prompt():
     agent = SiadaAcpAgent(turn_runner=lambda _session_id, _text: [update_agent_message_text("hello")])
     client = RecordingClient()
@@ -23,6 +58,7 @@ def test_acp_agent_emits_sdk_session_update_and_ends_prompt():
     response = asyncio.run(agent.prompt(session.session_id, prompt=[]))
 
     assert initialized.agent_info.name == "siada"
+    assert initialized.agent_info.version == siada.__version__
     assert response.stop_reason == "end_turn"
     assert len(client.updates) == 1
 
@@ -167,6 +203,54 @@ def test_cancel_closes_active_async_stream():
 
     assert response.stop_reason == "cancelled"
     assert closed
+
+
+def test_prompt_failure_reaches_the_client_with_the_actual_cause():
+    def failing_turn_runner(_session_id, _text):
+        raise RuntimeError("BadGatewayError: Error code: 502 LiteLLM Retried: 3 times")
+
+    agent = SiadaAcpAgent(turn_runner=failing_turn_runner)
+
+    try:
+        _run_prompt_against_real_client(agent)
+    except RequestError as error:
+        assert error.code == -32603
+        assert "BadGatewayError: Error code: 502 LiteLLM Retried: 3 times" in str(error)
+    else:
+        raise AssertionError("prompt() should have failed")
+
+
+def test_prompt_failure_without_a_message_reports_the_exception_type():
+    class _NoMessageError(Exception):
+        pass
+
+    def failing_turn_runner(_session_id, _text):
+        raise _NoMessageError
+
+    agent = SiadaAcpAgent(turn_runner=failing_turn_runner)
+
+    try:
+        _run_prompt_against_real_client(agent)
+    except RequestError as error:
+        assert error.code == -32603
+        assert str(error) == "_NoMessageError"
+    else:
+        raise AssertionError("prompt() should have failed")
+
+
+def test_prompt_preserves_an_existing_request_error():
+    def failing_turn_runner(_session_id, _text):
+        raise RequestError(-32602, "Invalid model selection")
+
+    agent = SiadaAcpAgent(turn_runner=failing_turn_runner)
+
+    try:
+        _run_prompt_against_real_client(agent)
+    except RequestError as error:
+        assert error.code == -32602
+        assert str(error) == "Invalid model selection"
+    else:
+        raise AssertionError("prompt() should have failed")
 
 
 

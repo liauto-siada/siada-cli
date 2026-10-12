@@ -20,12 +20,17 @@ export function resolveProxySettings(
 
 /**
  * Build the trajectory WebSocket URL from the user-configured proxy URL:
- * keep the scheme/host/port and only replace the pathname with
- * /ws/trajectory (no token needed — the trajectory endpoint has none).
+ * keep the scheme/host/port, replace the pathname with /ws/trajectory, and
+ * carry the same auth token as the tool channel. The trajectory endpoint sits
+ * behind the same token gate as /ws — it writes to the user's on-disk history
+ * and feeds the agent — so an untokened URL is refused by a default (auth
+ * enabled) proxy. A token already embedded in `proxyUrl` is preserved; an
+ * explicit one wins.
  */
-export function trajectoryWsUrlFor(proxyUrl: string): string {
+export function trajectoryWsUrlFor(proxyUrl: string, token?: string): string {
   const url = new URL(proxyUrl);
   url.pathname = "/ws/trajectory";
+  if (token) url.searchParams.set("token", token);
   return url.toString();
 }
 

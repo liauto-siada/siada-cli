@@ -17,6 +17,7 @@ logger = logging.getLogger("siada.tool_call_format.batcher")
 # Tool name -> category mapping
 TOOL_CATEGORY_MAP = {
     "edit_file": "file_op",
+    "read_file": "file_read",
     "run_cmd": "command",
     "run_powershell": "command",
     "regex_search_files": "search",
@@ -30,7 +31,6 @@ TOOL_CATEGORY_MAP = {
     "fact_store": "memory",
     "fact_feedback": "memory",
 
-    "ask_followup_question": "interaction",
     "manage_cron_task": "cron",
     "browser_operate": "browser",
 }

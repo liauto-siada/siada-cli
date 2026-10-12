@@ -1,5 +1,6 @@
 import { mkdir } from "fs/promises";
 import { join } from "path";
+import { copyLicenses } from "../../scripts/copy-licenses.mjs";
 
 const outdir = join(import.meta.dir, "../proxy-server/public");
 
@@ -45,6 +46,13 @@ try {
 } catch {
   // Icons may not exist yet
 }
+
+// Ship the canonical LICENSE + THIRD_PARTY_NOTICES.md with the PWA served by
+// the proxy (installer._PROXY_ITEMS includes public/, and the notices document
+// requires both files inside packages/proxy-server/public/). The helper
+// verifies each copy and throws on any missing/empty source, so a failed copy
+// fails `build:web` (never a license-less PWA/proxy tarball).
+await copyLicenses([outdir]);
 
 console.log("✓ PWA assets copied to", outdir);
 

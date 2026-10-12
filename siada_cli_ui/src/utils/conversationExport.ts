@@ -24,7 +24,6 @@ export interface ExportBannerInfo {
   agent?: string;
   provider?: string;
   model?: string;
-  prePlanMode?: boolean;
   isCollapsed?: boolean;
 }
 
@@ -155,7 +154,6 @@ export function renderBannerBlock(info: ExportBannerInfo, columns = 80): string 
     `, Provider: ${info.provider ?? 'default'}`,
     `, Model: ${info.model || 'default'}`,
   ];
-  if (info.prePlanMode !== false) segments.push('; pre-plan mode');
   segments.push(`; ${info.isCollapsed ? 'compact mode' : 'expanded mode'} (ctrl+o)`);
   const infoLine = [...segments.join('')].slice(0, contentWidth).join('');
   lines.push(bordered(infoLine));

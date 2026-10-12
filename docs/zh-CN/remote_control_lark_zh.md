@@ -117,6 +117,10 @@ vim ~/.siada-cli/conf.yaml
 
 在 `conf.yaml` 中添加 `lark` 配置段：
 
+当前版本支持 `direct` 模式，省略 `lark.mode` 时也默认使用直连。
+如果已有配置写了 `mode: relay`，请改为 `direct` 并填写自己的应用凭证；
+当前版本未提供中转连接。
+
 ```yaml
 # ... 其他 siada 配置（llm_config、checkpoint_config 等）...
 
@@ -127,7 +131,7 @@ lark:
   # 默认：true
   # enabled: true
 
-  # 连接模式：direct（直连）或 relay（中转）
+  # 连接模式：direct（飞书 SDK 直连）
   mode: direct
 
   # 工作目录（可选，默认为 ~/.siada-cli/workspace/lark）
@@ -192,8 +196,9 @@ lark:
 ```yaml
 # LLM 配置
 llm_config:
-  model: "claude-sonnet-4-20250514"
-  provider: "anthropic"
+  model: "claude-sonnet-4-6"
+  provider: "default"
+  base_url: "https://api.anthropic.com"
   api_key: "sk-ant-xxxxx"
   thinking: true
 
@@ -217,7 +222,7 @@ lark:
 | 配置项 | 必填 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `lark.enabled` | ❌ | `true` | 设为 `false` 可在不删除配置的情况下完全禁用飞书机器人，daemon 启动后不建立 WebSocket 长连接 |
-| `lark.mode` | ✅ | - | 连接模式，直连模式填 `direct` |
+| `lark.mode` | ❌ | `direct` | 当前支持的连接模式；旧配置中的 `relay` 须改为 `direct` |
 | `lark.workspace` | ❌ | `~/.siada-cli/workspace/lark` | Agent 工作目录 |
 | `lark.notify_email` | ❌ | - | 通知邮箱，用于自动解析 open_id 引导路由 |
 | `lark.direct.app_id` | ✅ | - | 飞书应用 App ID |
@@ -366,7 +371,6 @@ siada-cli --stop-daemon && siada-cli
 | `/model` | 切换模型 |
 | `/clear` | 清除对话历史，开启新会话 |
 | `/lang` | 切换语言（en / zh-CN） |
-| `/pre-plan-mode` | 切换预规划模式 |
 | `/verbose` | 控制输出详细程度（见下方说明） |
 | `/resume` | 切换到指定会话（仅限私聊） |
 | `/mcp-list` | 查看 MCP 服务及工具列表 |

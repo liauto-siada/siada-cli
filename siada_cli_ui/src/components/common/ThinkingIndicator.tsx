@@ -10,6 +10,8 @@ import { Box, Text } from '@jrichman/ink';
 import { ThinkingSpinner } from './ThinkingSpinner.js';
 import { useThinkingPhrases } from '../../hooks/useThinkingPhrases.js';
 import { THINKING_STEPS, ThinkingStep, SHORTCUT_TIPS, TIP_CHANGE_INTERVAL } from '../../constants/phrases.js';
+import { useThemeVersion } from '../../themes/index.js';
+import { colors } from '../../utils/colors.js';
 
 export interface ThinkingIndicatorProps {
   /** Whether thinking indicator is active */
@@ -33,6 +35,7 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = React.memo(({
   showTime = true,
   step = null,
 }) => {
+  useThemeVersion();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [tipIndex, setTipIndex] = useState(
     () => Math.floor(Math.random() * SHORTCUT_TIPS.length),
@@ -84,14 +87,15 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = React.memo(({
   // A known activity step (model reasoning / tool execution / system
   // processing / compaction) is more informative than the rotating phrases.
   const displayPhrase = step ? THINKING_STEPS[step].phrase : currentPhrase;
+  const systemColor = step === 'compaction' ? colors.secondary : undefined;
 
   // Shortcut tip shown after the step phrase: "(tips: Ctrl+O toggles ...)"
   const tipText = SHORTCUT_TIPS[tipIndex % SHORTCUT_TIPS.length].replace(/^Tip:\s*/, '');
 
   return (
     <Box flexDirection="row" gap={1}>
-      <ThinkingSpinner active={active} />
-      <Text color="cyan">{displayPhrase}</Text>
+      <ThinkingSpinner active={active} color={systemColor} />
+      <Text color={systemColor ?? 'cyan'}>{displayPhrase}</Text>
       <Text color="gray">(tips: {tipText})</Text>
       {showTime && elapsedSeconds > 0 && (
         <Text color="gray">

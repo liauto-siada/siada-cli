@@ -64,7 +64,7 @@ there is no need to write to memory proactively in normal conversation."""
 def _render_block(target: str, entries: List[str], char_limit: int) -> Optional[str]:
     """Render entries into the system-prompt block format.
 
-    Returns a ``"<label>\\n<content>"`` string with no surrounding border
+    Returns a ``"### <label>\\n<content>"`` string with no surrounding border
     lines — the outer ``====`` section is added by ``combined_memory`` so
     that the data blocks plus the guidance text live under a single
     section header.
@@ -89,7 +89,7 @@ def _render_block(target: str, entries: List[str], char_limit: int) -> Optional[
         limit_str = f"{char_limit:,}"
         used_str = f"{used:,}"
         label = f"{label} [{pct}% \u2014 {used_str}/{limit_str} chars]"
-    return f"{label}\n{content}"
+    return f"### {label}\n{content}"
 
 
 def _parse_file(path: Path) -> List[str]:

@@ -81,7 +81,7 @@ benchmark/swe/tools/conda_env.py:
 benchmark/swe/tools/config.py:
 │SWE_DEFAULT_AGENT = 'coder'
 │SWE_MAX_AGENT_ITERATION = 100
-│PROXY_FOR_HUGGINGFACE = 'http://172.17.0.1:7899'
+│PROXY_FOR_HUGGINGFACE = 'http://127.0.0.1:7899'  # synthetic sample host
 
 benchmark/swe/tools/dataset.py:
 ⋮

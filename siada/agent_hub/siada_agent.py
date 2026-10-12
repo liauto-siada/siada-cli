@@ -232,6 +232,9 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
 
         starting_agent = self._attach_plugin_guardrails(starting_agent)
 
+        from siada.foundation.sdk_patches import configure_sdk_run_config
+        run_config = configure_sdk_run_config(run_config)
+
         return await Runner.run(
             starting_agent=starting_agent,
             input=input,
@@ -275,6 +278,9 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
             hooks = SiadaRunHooks()
 
         starting_agent = self._attach_plugin_guardrails(starting_agent)
+
+        from siada.foundation.sdk_patches import configure_sdk_run_config
+        run_config = configure_sdk_run_config(run_config)
 
         return Runner.run_streamed(
             starting_agent=starting_agent,

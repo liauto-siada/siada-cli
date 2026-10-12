@@ -1,6 +1,6 @@
 """Why Claude's thinking/output_config MUST stay in extra_args (top-level).
 
-litellm 1.91.0 channel behavior for claude models, verified by intercepting
+The pinned LiteLLM's channel behavior for Claude models, verified by intercepting
 the final HTTP request body (httpx transport mock):
 
 - anthropic provider — the provider the default path routes Claude traffic to
@@ -34,6 +34,10 @@ from unittest.mock import patch
 import httpx
 import litellm
 
+# Local test helper (``tests/provider`` is on sys.path while pytest imports
+# this module); see its docstring for the logging-queue leak it cleans up.
+from _litellm_test_cleanup import drain_litellm_logging
+
 THINKING = {"type": "enabled", "budget_tokens": 2048}
 OUTPUT_CONFIG = {"effort": "high"}
 
@@ -62,7 +66,10 @@ def _capture_request_bodies():
 
 def _acompletion(**kwargs):
     async def run():
-        with patch.object(litellm, "drop_params", True):
+        with patch.object(litellm, "drop_params", True), \
+             patch.object(litellm, "success_callback", []), \
+             patch.object(litellm, "failure_callback", []), \
+             patch.object(litellm, "callbacks", []):
             try:
                 await litellm.acompletion(
                     messages=[{"role": "user", "content": "hi"}],
@@ -72,6 +79,9 @@ def _acompletion(**kwargs):
                 # Response parsing may fail on some providers; the request
                 # body has already been captured, which is all we assert on.
                 pass
+            finally:
+                # Keep mocked callbacks isolated until all logging has finished.
+                await drain_litellm_logging()
     asyncio.run(run())
 
 
@@ -87,7 +97,8 @@ class TestAnthropicProviderChannels:
                 api_base="http://test.local", api_key="k",
                 extra_body={"thinking": THINKING, "output_config": OUTPUT_CONFIG},
             )
-        body = captured[-1]
+        assert len(captured) == 1
+        body = captured[0]
         assert "extra_body" in body
         assert body["extra_body"] == {"thinking": THINKING, "output_config": OUTPUT_CONFIG}
 
@@ -101,7 +112,8 @@ class TestAnthropicProviderChannels:
                 api_base="http://test.local", api_key="k",
                 thinking=THINKING, output_config=OUTPUT_CONFIG,
             )
-        body = captured[-1]
+        assert len(captured) == 1
+        body = captured[0]
         assert body["thinking"] == THINKING
         assert body["output_config"] == OUTPUT_CONFIG
         assert "extra_body" not in body
@@ -120,7 +132,8 @@ class TestOtherProvidersMergeExtraBody:
                 aws_access_key_id="x", aws_secret_access_key="y",
                 aws_region_name="us-east-1",
             )
-        body = captured[-1]
+        assert len(captured) == 1
+        body = captured[0]
         assert body["thinking"] == THINKING
         assert "extra_body" not in body
 
@@ -132,7 +145,8 @@ class TestOtherProvidersMergeExtraBody:
                 api_base="http://test.local", api_key="k",
                 extra_body={"thinking": THINKING},
             )
-        body = captured[-1]
+        assert len(captured) == 1
+        body = captured[0]
         assert body["thinking"] == THINKING
         assert "extra_body" not in body
 

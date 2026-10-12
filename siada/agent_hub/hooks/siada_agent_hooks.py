@@ -12,6 +12,9 @@ from siada.agent_hub.hooks.processors.todo_reminder_processor import TodoReminde
 from siada.agent_hub.hooks.processors.model_hallucination_suppression_processor import (
     ModelHallucinationSuppressionProcessor,
 )
+from siada.agent_hub.hooks.processors.repeated_tool_reminder_processor import (
+    RepeatedToolReminderProcessor,
+)
 
 
 class SiadaAgentHooks(AgentHooks):
@@ -44,6 +47,10 @@ class SiadaAgentHooks(AgentHooks):
                 # Nudge models prone to looping on an unchanged tool call
                 # (currently the deepseek-v4-flash family) to change course.
                 ModelHallucinationSuppressionProcessor(),
+                # Event-triggered hidden user reminder after three equivalent
+                # sequential tool calls (main coding agent, GLM-5.3 and later
+                # only); persisted on_llm_end once the call succeeded.
+                RepeatedToolReminderProcessor(),
                 # Injects the hidden todo reminder into the real per-call
                 # input on_llm_start, then persists it into
                 # the real Session on_llm_end right after that call succeeds,
