@@ -102,7 +102,14 @@ def _curate(raw: dict) -> list:
                 continue
             if mdata.get('status') == 'deprecated':
                 continue
-            if mdata.get('experimental'):
+            # models.dev's `experimental` is NOT a boolean flag: for the newest
+            # models it is an object describing feature modes / per-mode pricing
+            # (e.g. {"modes": {"fast": ..., "pro": ..., "ultrafast": ...}}). A
+            # non-empty dict is truthy, so a plain truthiness check dropped every
+            # released model that carried one (gpt-6.1-sol, gpt-6-sol, gpt-6-luna,
+            # gpt-6-astra and all gpt-5.x). Only an explicit boolean True means
+            # "experimental".
+            if mdata.get('experimental') is True:
                 continue
             ctx = mdata.get('limit', {}).get('context', 128_000) // 1000
             models.append({
