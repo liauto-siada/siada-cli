@@ -1045,7 +1045,10 @@ class SlashCommands:
         The change takes effect from the next turn and is persisted to
         conf.yaml (llm_config.reasoning_effort).
         """
-        from siada.models.model_base_config import get_valid_reasoning_efforts
+        from siada.models.model_base_config import (
+            get_valid_reasoning_efforts,
+            supports_extra_param,
+        )
 
         llm_config = session.siada_config.llm_config
         model_name = llm_config.model_name
@@ -1095,8 +1098,12 @@ class SlashCommands:
             )
             return
 
-        supported = llm_config.supports_extra_params or []
-        if "reasoning_effort" not in supported:
+        # Tri-state: only an explicit denial (a model that declares its
+        # capabilities without listing reasoning_effort) blocks /effort. An
+        # undeclared one (None) passes through for the gateway to judge.
+        if supports_extra_param(
+            llm_config.supports_extra_params, "reasoning_effort"
+        ) is False:
             self.io.print_error(
                 f"Model {model_name} does not support reasoning effort"
             )

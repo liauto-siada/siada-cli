@@ -1,7 +1,13 @@
 from dataclasses import dataclass, fields
 from typing import Optional
 
-from siada.models.model_base_config import DEFAULT_MODEL_NAME, ModelBaseConfig, get_model_config, get_model_settings
+from siada.models.model_base_config import (
+    DEFAULT_MODEL_NAME,
+    ModelBaseConfig,
+    get_model_config,
+    get_model_settings,
+    supports_extra_param,
+)
 
 
 import os
@@ -106,8 +112,9 @@ class ModelRunConfig(ModelBaseConfig):
         # (e.g. GLM-5.2 takes no reasoning_effort param at all), so a later
         # switch to a supporting model restores it.
         self.user_reasoning_effort = user_effort
-        supports = self.supports_extra_params or []
-        if "reasoning_effort" not in supports:
+        # Tri-state: an undeclared capability (None) is not a denial, so the
+        # intent carries over; only an explicit "does not support" skips it.
+        if supports_extra_param(self.supports_extra_params, "reasoning_effort") is False:
             return None
 
         from siada.models.model_base_config import coerce_reasoning_effort

@@ -170,8 +170,10 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
         # Capability fields (supports_extra_params, default_reasoning_effort,
         # thinking, images, etc.) are not present in the models.dev cache, so
         # inherit them from the built-in MODEL_SETTING when the model is known.
-        # Unknown names use the dataclass defaults; the gateway determines
-        # reasoning behavior unless the user configures it explicitly.
+        # Unknown names get None = capabilities UNDECLARED (not "unsupported"):
+        # the gateway determines reasoning behavior unless the user configures
+        # it explicitly, and callers must not treat None as a denial (see
+        # model_base_config.supports_extra_param).
         builtin = builtin_by_name.get(model_name)
         return ModelBaseConfig(
             model_name=model_name,

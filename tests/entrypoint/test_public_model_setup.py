@@ -200,3 +200,81 @@ def test_invalid_models_json_keeps_protocol_stdout_and_values_private(
     assert "sk-test-private-payload" not in captured.err
     assert model_base_config._user_model_settings[0].model_name == "new-model"
     assert path.read_bytes() == original
+
+
+# ---------------------------------------------------------------------------
+# reasoning_effort capability is tri-state
+#
+# A model that DECLARES its capabilities without listing reasoning_effort is a
+# real denial; a model whose capabilities are undeclared (supports_extra_params
+# is None — e.g. a name absent from every catalogue, synthesized by the
+# provider-catalogue fallback) is NOT. Only the former may fail/print an error;
+# the latter passes the value through for the gateway to judge.
+# ---------------------------------------------------------------------------
+
+def _undeclared_model_entry(name):
+    return ModelBaseConfig(
+        model_name=name,
+        context_window=128_000,
+        parallel_tool_calls=True,
+    )
+
+
+def _make_reasoning_args(model, reasoning_effort=None):
+    return SimpleNamespace(
+        model=model,
+        provider=None,
+        verbose=False,
+        reasoning_effort=reasoning_effort,
+        thinking=None,
+        parallel_tool_calls=None,
+    )
+
+
+def test_conf_effort_passes_through_undeclared_model(monkeypatch, temp_siada_home):
+    monkeypatch.setattr(
+        model_base_config, "_user_model_settings", [_undeclared_model_entry("undeclared-x")]
+    )
+    io = Mock()
+    conf = Config(
+        llm_config=LLMConfig(
+            provider="default", model="undeclared-x", reasoning_effort="medium"
+        )
+    )
+
+    config = get_config_from_conf(io, conf)
+
+    assert config.model_name == "undeclared-x"
+    assert config.reasoning_effort == "medium"
+    io.print_error.assert_not_called()
+
+
+def test_cli_effort_on_undeclared_model_passes_through(monkeypatch, temp_siada_home):
+    monkeypatch.setattr(
+        model_base_config, "_user_model_settings", [_undeclared_model_entry("undeclared-y")]
+    )
+    io = Mock()
+    conf = Config(llm_config=LLMConfig(provider="default", model="undeclared-y"))
+
+    config = model_setup.get_config(_make_reasoning_args("undeclared-y", "high"), io, conf)
+
+    assert config.model_name == "undeclared-y"
+    assert config.reasoning_effort == "high"
+    io.print_error.assert_not_called()
+
+
+def test_cli_effort_on_explicitly_unsupported_model_raises(monkeypatch, temp_siada_home):
+    entry = ModelBaseConfig(
+        model_name="thinking-only",
+        context_window=128_000,
+        supports_extra_params=["thinking_tokens"],
+        parallel_tool_calls=True,
+    )
+    monkeypatch.setattr(model_base_config, "_user_model_settings", [entry])
+    io = Mock()
+    conf = Config(llm_config=LLMConfig(provider="default", model="thinking-only"))
+
+    with pytest.raises(ValueError, match="does not support reasoning effort"):
+        model_setup.get_config(_make_reasoning_args("thinking-only", "high"), io, conf)
+
+    io.print_error.assert_called()

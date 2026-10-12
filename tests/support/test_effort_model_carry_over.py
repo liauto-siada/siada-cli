@@ -146,6 +146,19 @@ class TestCarryOverReasoningSettings:
         assert new.reasoning_effort == new.default_reasoning_effort
         assert new.user_reasoning_effort is None
 
+    def test_undeclared_capability_still_carries_effort(self):
+        # An undeclared capability (supports_extra_params is None) is not a
+        # denial: the intent is carried and mapped onto the new model.
+        old = ModelRunConfig("claude-sonnet-5")
+        old.set_reasoning_effort("high")
+        new = ModelRunConfig("glm-5.3")
+        new.supports_extra_params = None
+
+        carried = new.carry_over_reasoning_settings(old)
+
+        assert carried == ("high", "high")
+        assert new.reasoning_effort == "high"
+
     def test_unsupported_model_keeps_intent_without_setting_effort(self):
         # glm-5.2 does not support the reasoning_effort param at all
         # (thinking_tokens only). The intent is preserved for a later switch

@@ -236,11 +236,18 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
                 "the login flow will collect them interactively."
             )
 
+    # reasoning_effort support is tri-state (see supports_extra_param): a model
+    # that DECLARES its capabilities without listing reasoning_effort is a real
+    # denial; a model whose capabilities are undeclared (None — e.g. a name
+    # absent from every catalogue) is NOT, and the value passes through for the
+    # gateway to judge.
+    from siada.models.model_base_config import supports_extra_param
+
+    reasoning_support = supports_extra_param(
+        config.supports_extra_params, "reasoning_effort"
+    )
     if args.reasoning_effort is not None:
-        if (
-            not config.supports_extra_params
-            or "reasoning_effort" not in config.supports_extra_params
-        ):
+        if reasoning_support is False:
             error_msg = f"Model {config.model_name} does not support reasoning effort"
             logger.error(error_msg)
             io.print_error(error_msg)
@@ -249,14 +256,12 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
         logger.info(f"Reasoning effort set to: {args.reasoning_effort}")
     elif conf and conf.llm_config and conf.llm_config.reasoning_effort is not None:
         # reasoning_effort: CLI > conf.yaml > model default
-        if (
-            not config.supports_extra_params
-            or "reasoning_effort" not in config.supports_extra_params
-        ):
+        if reasoning_support is False:
             error_msg = f"Model {config.model_name} does not support reasoning effort"
             logger.error(error_msg)
             io.print_error(error_msg)
-            # raise ValueError(error_msg)
+            # Non-fatal: conf.yaml is model-agnostic, so an explicit denial on
+            # the startup model maps/keeps the value rather than failing startup.
         # conf.yaml is model-agnostic: map the persisted intent onto the
         # levels the startup model accepts (e.g. "xhigh" set on Claude must
         # become "max" when the startup model is a GLM-5.3).

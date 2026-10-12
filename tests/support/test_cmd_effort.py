@@ -164,6 +164,36 @@ class TestCmdEffortSet:
             "Model claude-sonnet-5 does not support reasoning effort"
         )
 
+    def test_undeclared_model_passes_effort_through(self):
+        # Capabilities undeclared (supports_extra_params is None — e.g. a name
+        # absent from every catalogue) must NOT read as "unsupported": the
+        # value is set and no error is printed.
+        sc = _make_slash_commands()
+        session = _make_session("claude-sonnet-5")
+        session.siada_config.llm_config.supports_extra_params = None
+
+        with patch(
+            "siada.config.config_loader.save_conf_field", return_value=True
+        ):
+            sc.cmd_effort(session, "high")
+
+        assert session.siada_config.llm_config.get_reasoning_effort() == "high"
+        sc.io.print_error.assert_not_called()
+
+    def test_explicit_empty_allowlist_still_denies(self):
+        # An explicit empty list is a real declaration ("this model accepts no
+        # extra params"), unlike None which means "undeclared".
+        sc = _make_slash_commands()
+        session = _make_session("claude-sonnet-5")
+        session.siada_config.llm_config.supports_extra_params = []
+
+        sc.cmd_effort(session, "high")
+
+        assert session.siada_config.llm_config.get_reasoning_effort() == "high"
+        sc.io.print_error.assert_called_once_with(
+            "Model claude-sonnet-5 does not support reasoning effort"
+        )
+
 
 class TestCmdEffortKimiK3:
     """Kimi K3 always reasons; valid efforts are low/high/max (no medium),

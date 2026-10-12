@@ -524,6 +524,31 @@ def get_valid_reasoning_efforts(
     return valid
 
 
+def supports_extra_param(
+    supports: Optional[List[str]], param: str
+) -> Optional[bool]:
+    """Tri-state check for a model's support of an extra request parameter.
+
+    ``supports_extra_params`` is the catalogue's DECLARATION of which extra
+    request params a model accepts. Its absence (``None``) means the model's
+    capabilities are undeclared — e.g. a name missing from every catalogue,
+    synthesized by the provider-catalogue fallback (see
+    :func:`siada.provider.models_dev.get_provider_model_configs`) — which is
+    NOT the same as "unsupported": the gateway decides. Only a non-None
+    declaration that omits ``param`` is an explicit denial.
+
+    Returns:
+        True  — the model declares ``param`` as supported;
+        False — the model declares its capabilities and ``param`` is not
+                listed (an explicit "does not support");
+        None  — capabilities undeclared/unknown; callers must NOT treat this
+                as a denial — pass the value through and let the gateway judge.
+    """
+    if supports is None:
+        return None
+    return param in supports
+
+
 # Ordinal strength of every known effort level; drives the cross-model
 # mapping in coerce_reasoning_effort(). Higher = more thinking.
 _EFFORT_STRENGTH = {"low": 0, "medium": 1, "high": 2, "xhigh": 3, "max": 4}
