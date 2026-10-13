@@ -2,258 +2,245 @@
 
 **简体中文 | [English](../../README.md)**
 
-[![PyPI version](https://img.shields.io/pypi/v/siada-cli)](https://pypi.org/project/siada-cli/)
-[![Python Version](https://img.shields.io/badge/python-3.12%E2%80%933.13-blue)](https://www.python.org/downloads/)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../../LICENSE)
+[![PyPI 版本](https://img.shields.io/pypi/v/siada-cli)](https://pypi.org/project/siada-cli/)
+[![Python 版本](https://img.shields.io/badge/python-3.12%20%E2%80%93%203.13-blue)](https://www.python.org/downloads/)
+[![许可证：Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../../LICENSE)
 
-![Siada CLI Screenshot](../assets/siada-cli-screenshot-zh.gif)
+**Siada CLI 是用于编程、调试和自动化的 AI 助手。** 它结合项目上下文、工具与持续记忆，推动任务从调查、实现走到验证。它也能控制浏览器，并从你当前的阅读和近期操作中感知你的意图。
 
-本仓库包含 **Siada CLI**，这是一个命令行 AI 工作流工具，为代码开发、调试和自动化任务提供专业化的智能代理。
+[News](#news) · [主要能力](#主要能力) · [快速开始](#快速开始) · [浏览器协作预览](#浏览器协作预览) · [文档](#文档)
 
-Siada CLI 可感知用户的**项目上下文**、**计算机环境**与**跨会话持久记忆**，并支持 Terminal、飞书、ACP 客户端、Web 等多种入口，提供一致、可持续的个性化智能辅助。
+[![预览：从终端对话到浏览器中的实际操作](../assets/demos/siada-chrome-home-desktop-v2-preview.gif)](../assets/demos/siada-chrome-home-desktop-v2.mp4?raw=1)
 
-> **源码版本：v1.7.32**
+[浏览器协作展示页与使用手册 · 本地预览](http://127.0.0.1:8765/index.html)。展示页也提供返回 GitHub 仓库的入口。此预览地址需在运行网页服务的电脑上打开。
 
----
+## News
 
-## v1.7.32 新特性
+### Siada: Human in browser use
 
-- **终端工具调用摘要** — 文件读取、目录查看、命令和补丁显示简洁的标题、路径及变更计数，展开后可查看详情。
-- **浏览器操作时间线** — Chrome 侧栏将工具操作与受控标签页的实时画面、截图及画面差异结合，可暂停画面、查看此前步骤并继续观察。
-- **更清楚的 ACP 错误提示** — 请求失败时透传具体原因，让终端和浏览器客户端显示有用的错误信息。
-- **按模型选择提示词** — Kimi K3 及后续版本使用基于 Kimi Code 的提示词，GPT-6 使用随包模板，GLM-5.2 及后续版本使用专属提示词及重复工具调用提醒。
-- **当前工作区上下文** — 首次用户请求附带有界 Git 快照，压缩后刷新；工作区记忆优先使用 `AGENTS.md`，不再同时加载 `CLAUDE.md`。
-- **补丁恢复与执行反馈** — 原生补丁失败时返回重新读取和匹配当前文件的建议；终端显示压缩计数及当前执行步骤。
+> AI 的价值不是取代，而是营造创造的环境。
 
-### 延续 v1.7.31 的功能
+**开发预览：** 浏览器组件与 Chrome 扩展尚未包含在公共 `main` 分支或已发布的 PyPI 包中。以下工作流来自浏览器协作演示；生成飞书产物需要相关技能与授权。
 
-### 1. 跨平台扩展与生态兼容
+浏览器协作预览让 Siada 进入你正在阅读的页面。当前阅读、浏览历史与即时动作都能成为上下文，一起理解、整理，让眼前的信息继续成为作品。
 
-- **按平台集成** — 通过原生命令执行（Unix 走 `pexpect` PTY，Windows 自动识别 **PowerShell / cmd**）、终端主题探测、系统通知、IPC（Unix socket 与 **命名管道**）、守护进程拉起、`ripgrep` 二进制和 Node UI 引导路径支持 **macOS、Linux、Windows**。
-- **原生支持飞书（Lark）Bot** — 内置 Bot 通道，带流式卡片与输入状态提示，无需任何胶水代码即可在聊天中驱动 Siada。参见[远程控制指南](./remote_control_lark_zh.md)。
-- **ACP 原生** — 提供独立的 [Agent Client Protocol](https://agentclientprotocol.com/) 服务（`siada-acp`），可自由接入 Zed、Kiro、vscode-acp 、微信、飞书等任意 ACP 生态客户端。终端、聊天、编辑器、Web 共用同一内核。
-- **Chrome 浏览器插件** — 可直接驱动你已登录的浏览器：读取页面、截图、回放录制好的操作步骤、渲染 PDF，并支持从手机远程接管浏览器，详见 [chrome-acp](../../chrome-acp)。终端界面同时提供 **深色 / 浅色 / 跟随系统** 主题。
+**用户意图感知。** 找回你浏览过的论文、GitHub 项目与文章，与当前页面对照。读取已经记录的点击、滚动与页面跳转，回答“我刚才做了什么”。
 
-### 2. 把模型性能榨到极致
+**利于创造的环境营造。** 翻译、解释与比较直接出现在对应段落旁；通过已经配置的技能与集成，把网页信息继续整理成报告、演示稿、网页或小工具。
 
-- **按模型提供编码指导** — 为 Claude、GPT、GLM 和 Kimi 等模型选择对应家族的提示词与工具。
-- **推理与上下文控制** — 多轮工具调用间回放 reasoning 内容，映射支持的 thinking 参数，使用配置的上下文与 token 预算；未知工具调用向模型返回错误，GLM-5.2 及后续版本还会收到重复调用提醒。
-- **可配置的模型端点** — 使用 default 或 OpenRouter provider，并通过[自定义模型配置](./external_model_configuration_zh.md)接入端点。default provider 使用兼容 OpenAI 的 Chat Completions，GPT-5 及后续版本使用 Responses，Claude/Gemini 保留原有路由。
-- **模型列表跟得上你的用法** — `/model` 列表展示每个模型的备注；切换模型时 `/effort`、`/thinking` 等推理设置会被保留，并按新模型支持的可选项自动映射。
+**高效的浏览器操作。** 连续完成搜索、导航与信息提取，通过 Trace 回看动作快照、每步工具执行耗时和调用间隔，检查任务执行过程。
 
-### 3. 长周期执行与自我迭代记忆
+| 场景 | 案例结果 | 完整视频 |
+| --- | --- | --- |
+| 当前阅读 → 飞书分享 | 整理每日文章精选，保留原文链接，分享到学习群。 | [▶ 30 秒](../assets/demos/siada-reading-to-feishu.mp4?raw=1) |
+| 浏览历史 → 论文对照 | 找回相关研究，对照 survey 的五条关键结论，把解释与比较放回原文。 | [▶ 28 秒](../assets/demos/siada-history-to-paper.mp4?raw=1) |
+| 即时动作 → 浏览路径 | 将记录的点击、滚动、搜索与页面跳转整理为可读的回复。 | [▶ 28 秒](../assets/demos/siada-human-action-perception.mp4?raw=1) |
+| 当前网页 → 就地解释 | 在对应段落旁展示翻译、批注和比较。 | [▶ 28 秒](../assets/demos/siada-history-to-paper.mp4?raw=1) |
+| 经济财报 → 飞书报告 | 对照季度与年度收入、毛利率和现金流，把分析、图表与来源整理成文档。 | [▶ 32 秒](../assets/demos/siada-financial-report.mp4?raw=1) |
+| 电商信息 → 演示稿 | 收集商品图片与参数，比较价格和特性，将选购建议整理成飞书演示稿。 | [▶ 34 秒](../assets/demos/siada-ecommerce-to-ppt.mp4?raw=1) |
+| 浏览器检索 → Trace 回看 | 在 GitHub 项目的 `pyproject.toml` 中查找 Agent 相关依赖、版本与来源，再检查动作与耗时。 | [▶ 36 秒](../assets/demos/siada-browser-control-trace.mp4?raw=1) |
 
-- **多步骤任务执行** — 结合子 Agent 编排、Checkpoint、可见待办清单、持续目标和自动压缩处理较大的任务。
-- **自我迭代的记忆** — 跨会话持久记忆 + **结构化事实库**（实体抽取、全息 HRR 向量检索、信任度评分、矛盾检测），并有后台复盘与更新流水线。记忆不是只增不减的日志，而是会被打分、纠正与淘汰。
-- **工程化编辑与长任务纪律** — Codex 风格 `apply_patch`、任务中途切换子 Agent、待办提醒，让多步长任务保持目标不漂移。
+点击动图预览可打开完整 MP4。六支演示均为无声视频，配有中文画面字幕；论文对照视频同时展示原文就地解释。
 
----
+| 阅读 → 飞书分享 · 30 秒 | 历史浏览 → 论文对照 · 28 秒 |
+| --- | --- |
+| [![预览：阅读、整理并分享到飞书](../assets/demos/siada-reading-to-feishu-preview.gif)](../assets/demos/siada-reading-to-feishu.mp4?raw=1) | [![预览：浏览历史、论文对照与原文就地解释](../assets/demos/siada-history-to-paper-preview.gif)](../assets/demos/siada-history-to-paper.mp4?raw=1) |
 
-## Siada CLI 能做什么
+| 即时动作 → 上下文 · 28 秒 | 财报分析 → 飞书报告 · 32 秒 |
+| --- | --- |
+| [![预览：刚才的点击、滚动与浏览路径](../assets/demos/siada-human-action-perception-preview.gif)](../assets/demos/siada-human-action-perception.mp4?raw=1) | [![预览：财报分析与飞书报告](../assets/demos/siada-financial-report-preview.gif)](../assets/demos/siada-financial-report.mp4?raw=1) |
 
-- **代码生成** — 创建新功能、Web 界面、重构代码，支持多种编程语言
-- **错误修复** — 自动识别、分析和修复大型代码库中的代码缺陷
-- **长周期任务执行** — 通过 Spec 驱动执行与子 Agent 编排，稳定完成跨越多步骤的复杂开发任务
-- **自我进化** — 持久记忆、事实库与定时主动任务，让助手持续进化
-- **主机管理** — 支持对个人电脑、文档的远程管理与处理
-- **多入口支持** — 终端（交互/非交互）、飞书 Bot、ACP 客户端、Web 界面
+| 电商信息 → 演示稿 · 34 秒 | 浏览器检索 → Trace · 36 秒 |
+| --- | --- |
+| [![预览：电商信息整理与飞书演示稿](../assets/demos/siada-ecommerce-to-ppt-preview.gif)](../assets/demos/siada-ecommerce-to-ppt.mp4?raw=1) | [![预览：浏览器检索与 Trace 回看](../assets/demos/siada-browser-control-trace-preview.gif)](../assets/demos/siada-browser-control-trace.mp4?raw=1) |
 
----
+集成概览见[浏览器协作预览](#浏览器协作预览)，正式发布版本见 [Releases](https://github.com/liauto-siada/siada-cli/releases) 与 [PyPI](https://pypi.org/project/siada-cli/)。
 
-## 安装与更新
+## 主要能力
 
-### 系统要求
+| 能力 | 可以完成的工作 |
+| --- | --- |
+| 代码开发与调试 | 理解仓库、实现功能、修复问题，并运行相关检查，支持多种语言和框架。 |
+| 长任务与子智能体 | 规划复杂工作，把边界明确的任务交给专业子智能体，并跟踪目标进度。 |
+| 模型选择 | 使用不同模型系列，通过 Provider 层配置自定义 API 服务。 |
+| 持续记忆 | 跨会话保留偏好、项目背景和决策，通过结构化事实库检索与反馈。 |
+| Skills、Agents 与 MCP | 增加可复用工作流、专业子智能体与外部 MCP 工具。 |
+| 会话控制 | 恢复历史会话、压缩上下文，并按需启用检查点。 |
+| 多入口协作 | 使用终端、ACP 客户端，或通过已配置的飞书机器人提交任务。 |
+| 定时自动化 | 通过后台守护进程执行周期任务与主动工作流。 |
 
-| 要求 | 详情 |
-|---|---|
-| 操作系统 | macOS、Linux、Windows |
-| Python | 3.12 – 3.13 |
-| Node.js | 维护中的 LTS 版本（22.12+，推荐 24 LTS），用于终端 UI 和浏览器代理 |
-| GCC | 11+（macOS / Linux） |
-| 包管理器 | [uv](https://github.com/astral-sh/uv) |
+## 快速开始
+
+### 环境要求
+
+| 要求 | 说明 |
+| --- | --- |
+| 操作系统 | macOS、Linux 或 Windows |
+| Python | 3.12–3.13；以下安装命令选择 Python 3.12 |
+| GCC | macOS / Linux 上需要 11+ |
+| 包管理工具 | [uv](https://docs.astral.sh/uv/) |
+| 模型访问 | 已配置的 Provider 账号或自己的 API Key |
+
+终端界面使用 Node.js 24 LTS。仅使用终端时请自行安装 Node.js；浏览器平台包发布后，也可复用 `siada-browser setup` 安装的运行时。启动器不会在启动时下载 Node.js。源码开发与浏览器组件构建还需要 npm 和 Bun。
 
 ### 安装
 
-**第一步：安装 uv**
+在 **macOS / Linux** 上安装 uv：
 
-macOS / Linux：
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Windows（PowerShell）：
+在 **Windows（PowerShell）** 上安装 uv：
+
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-**第二步：安装 Siada CLI**（各平台命令一致）
+各平台使用相同命令安装已发布的 Siada CLI：
+
 ```bash
 uv tool install --force --python python3.12 --compile --with pip siada-cli@latest
-```
-
-安装后若 `siada-cli` 不在 PATH 中，运行以下命令更新 shell：
-```bash
 uv tool update-shell
 ```
 
-### 更新
+如果终端还找不到 `siada-cli`，重新打开终端。
+
+### 开始一个任务
+
+进入需要处理的项目，再启动 Siada：
+
+```bash
+cd path/to/your/project
+siada-cli
+```
+
+根据提示完成 Provider、模型与 API Key 配置，然后描述任务：
+
+```text
+找出测试失败的原因，修复后运行相关测试。
+```
+
+使用 `/model` 选择可用模型。用户配置位于 `~/.siada-cli/conf.yaml`，自定义模型定义位于 `~/.siada-cli/models.json`。详细说明见[用户手册](./USERMANUAL_zh.md)与[外部模型配置](./external_model_configuration_zh.md)。
+
+### 更新与卸载
+
 ```bash
 uv tool upgrade siada-cli
 ```
 
-### 卸载
 ```bash
 uv tool uninstall siada-cli
 ```
 
----
+## 使用方式
 
-## 开发者模式安装
+| 入口 | 用法 |
+| --- | --- |
+| 交互式终端 | 运行 `siada-cli`，在终端界面中持续对话。 |
+| 脚本或 CI 任务 | 运行 `siada-cli --prompt "找出并修复失败的测试"`，执行单个任务。 |
+| ACP 客户端 | 将客户端的智能体启动命令配置为 `siada-acp`。 |
+| 飞书 / Lark | 配置机器人后从聊天中提交任务，详见[远程控制指南](./remote_control_lark_zh.md)。 |
+| 浏览器预览 | 需要浏览器组件与 Chrome 扩展的开发预览，详见[集成概览](#浏览器协作预览)。 |
 
-1. **前提条件：** 安装 [Python 3.12 或 3.13](https://www.python.org/downloads/)、[Poetry](https://python-poetry.org/docs/#installation) 和 [Node.js 24 LTS](https://nodejs.org/)。
+### 常用命令
 
-2. **克隆并安装：**
-   ```bash
-   git clone --branch develop https://github.com/liauto-siada/siada-cli.git
-   cd siada-cli
-   poetry install
-   ```
+在交互会话中输入：
 
-3. **构建 UI（首次运行前必须）：**
-   ```bash
-   cd siada_cli_ui && npm ci && npm run build:all && cd ..
-   ```
+| 命令 | 用途 |
+| --- | --- |
+| `/help` | 查看可用命令。 |
+| `/model` | 选择或切换模型。 |
+| `/resume` | 浏览并恢复已保存的会话。 |
+| `/clear` | 开始新的对话上下文。 |
+| `/compact` | 压缩当前对话。 |
+| `/skill-list` | 查看可用技能。 |
+| `/skill-reload` | 添加或修改技能后重新加载。 |
+| `/goal <目标>` | 为会话设置目标；使用 `/goal clear` 清除。 |
 
-4. **运行 CLI：**
-   ```bash
-   # 方法1：使用 Poetry 运行
-   poetry run siada-cli
+启动交互会话时可启用检查点：
 
-   # 方法2：激活虚拟环境后使用（推荐）
-   source $(poetry env info --path)/bin/activate
-   siada-cli
-   ```
-
----
-
-## 配置
-
-### 快速模型配置
-
-首次启动时，Siada CLI 会引导你完成交互式配置——选择供应商、选择模型、输入 API Key，即可开始使用，无需手动编辑任何配置文件。
-
-如需高级配置（配置文件、环境变量、命令行参数），请参阅[用户手册](./USERMANUAL_zh.md)。
-
-如需配置自定义外部模型（私有化部署），请参阅[外部模型配置指南](./external_model_configuration_zh.md)。
-
----
-
-## 使用模式
-
-### 交互模式（持续对话）
 ```bash
-siada-cli
+siada-cli --checkpointing
 ```
 
-### 非交互模式（脚本 / CI 集成）
+检查点需要主动启用，非交互模式不支持。恢复、撤销与比较命令见[用户手册](./USERMANUAL_zh.md)。
+
+## 浏览器协作预览
+
+预览通过本地代理连接 Chrome 扩展与 Siada ACP 智能体。ACP 处理智能体对话，MCP 提供网页读取、导航、快照与就地批注等浏览器工具。浏览器动作和页面快照可以在 Trace 中回看。
+
+当前代码增加了浏览器平台包，包含 Node.js、代理服务、生产依赖、网页客户端和 Chrome 扩展。平台包尚未发布，也尚未通过远端发布 workflow 验证。对应版本发布后，可执行：
+
 ```bash
-siada-cli --prompt "修复 src/main.py 中的空指针异常"
+siada-browser setup
 ```
 
-### 飞书（Lark）Bot
-将 Siada CLI 连接到飞书工作空间，通过消息远程下发任务，原生支持流式回复。详见[飞书远程控制使用指南](./remote_control_lark_zh.md)。
+在 `chrome://extensions` 中手动加载 `~/.siada-cli/browser/extension`，并在扩展设置中填写 setup 输出的 token。执行 `uv tool upgrade siada-cli` 后，再运行 `siada-browser setup`，然后在 Chrome 中重新加载扩展。源码安装、候选产物验收和发布说明见[浏览器安装指南](./browser-installation_zh.md)。
 
-### ACP 模式（编辑器 / 三方客户端）
-以 Agent Client Protocol 对外提供服务，可被任意 ACP 客户端接入：
+## 源码开发
+
+安装 Python 3.12 或 3.13、[Poetry](https://python-poetry.org/docs/#installation)，以及带 npm 的受维护 Node.js LTS 版本。Node.js 24 LTS 满足当前终端界面的依赖要求。
+
 ```bash
-siada-acp
+git clone https://github.com/liauto-siada/siada-cli.git
+cd siada-cli
+poetry install --with dev
+npm --prefix siada_cli_ui ci
+npm --prefix siada_cli_ui run build:all
+poetry run siada-cli
 ```
-也可通过以下命令启动同一个 stdio ACP 服务：
-```bash
-siada-cli --acp
-```
-运行不带 `--acp` 的 `siada-cli` 可打开终端 UI。
 
----
+修改终端界面源码后需要重新构建，启动器使用打包后的界面。从源码版本启动独立 ACP 智能体时，使用 `poetry run siada-acp`。
 
-## 核心特性
+| 目录 | 职责 |
+| --- | --- |
+| `siada/entrypoint/` | 命令行参数与启动 |
+| `siada/acp_server/` | ACP 智能体服务 |
+| `siada/agent_hub/` | 智能体与任务编排 |
+| `siada/tools/`、`siada/services/` | 工具与应用服务 |
+| `siada/provider/` | 模型 Provider 集成 |
+| `siada_cli_ui/` | 终端界面 |
+| `tests/`、`docs/` | 测试与文档 |
 
-### 记忆系统与事实库
-跨会话持久记忆让 Siada 记住你的偏好、代码库上下文和历史决策。在此之上，结构化事实库会抽取命名实体、通过全息（HRR）向量检索、根据反馈维护信任度评分并检测矛盾——知识是被不断提炼的，而不只是被不断堆积。
+## 文档
 
-### Checkpoint 检查点
-在关键决策点保存和恢复 Agent 状态，让你对长时任务保持完全掌控。
+| 文档 | 内容 |
+| --- | --- |
+| [用户手册](./USERMANUAL_zh.md) | 配置、使用方式、命令、检查点与故障排查 |
+| [Skills](./SKILLS_zh.md) | 创建和管理可复用工作流 |
+| [自定义 Agents](./USER_AGENTS_zh.md) | 定义专业子智能体及其工具、模型和技能 |
+| [外部模型配置](./external_model_configuration_zh.md) | 接入自定义模型与 API 服务 |
+| [飞书 / Lark 远程控制](./remote_control_lark_zh.md) | 配置机器人通道与聊天访问 |
+| [上下文压缩配置](./compaction_configuration_zh.md) | 配置对话压缩策略 |
+| [贡献指南](./CONTRIBUTING_zh.md) | 开发约定与贡献流程 |
 
-### Skills（技能系统）
-以 `SKILL.md` 文件形式定义可复用的指令集和工作流，将其扩展为针对你的领域或团队规范的专用能力。详见 [Skills 文档](./SKILLS_zh.md)。
+## 贡献
 
-### MCP 支持
-通过 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 连接外部工具服务，按需扩展 Siada 的工具集。
-
-### 守护进程与定时任务
-以后台守护进程模式运行，执行主动式定时自动化任务。
-
-### 指令上下文（规则文件）
-在项目或家目录中放置 `siada_rule.md` 或 `.siadarules/` 文件，持久化设定 AI 行为规则，无需在每次对话中重复说明。
-
-### 自动压缩
-智能压缩对话历史，在不丢失关键上下文的前提下保持在模型上下文限制内。详见[压缩策略配置](./compaction_configuration_zh.md)。
-
-### 平台感知的工具执行
-工具执行会适配宿主操作系统，而不是假定单一环境：macOS/Linux 使用基于 PTY 的 Shell，Windows 自动识别 PowerShell/cmd，按平台分发 `ripgrep` 二进制，使用原生系统通知，并按操作系统选择 IPC 与守护进程方案。提示词中也会携带探测到的操作系统信息，让模型生成的命令在你的机器上真正可执行。
-
----
-
-## 文档目录
-
-| 文档 | 说明 |
-|---|---|
-| [用户手册](./USERMANUAL_zh.md) | 完整使用指南、命令参考与配置说明 |
-| [Skills 系统文档](./SKILLS_zh.md) | 创建和管理可复用 AI 技能 |
-| [外部模型配置](./external_model_configuration_zh.md) | 配置私有/自定义模型端点 |
-| [飞书远程控制](./remote_control_lark_zh.md) | 通过飞书消息控制 Siada |
-| [压缩策略配置](./compaction_configuration_zh.md) | 上下文压缩策略设置 |
-| [贡献指南](./CONTRIBUTING_zh.md) | 如何为本项目做贡献 |
-
----
-
-## 贡献指南
-
-我们欢迎对 Siada CLI 的贡献！无论您想修复错误、添加新功能、改进文档还是提出改进建议，我们都非常感谢。
-
-提交前请阅读[贡献指南](./CONTRIBUTING_zh.md)，其中包含：
-
-- 项目愿景和开发目标
-- 项目目录结构和开发规范
-- Pull Request 指南和最佳实践
-- 代码组织原则
-
----
+欢迎贡献问题修复、新功能、文档与可复用技能。提交前请阅读[贡献指南](./CONTRIBUTING_zh.md)中的贡献协议与 Pull Request 要求，通过 [GitHub Issues](https://github.com/liauto-siada/siada-cli/issues)反馈问题或提出改进建议。
 
 ## 致谢
 
-Siada CLI 的建设离不开众多优秀开源项目的支持，我们对这些项目的贡献者深表敬意与感谢。
+感谢支持 Siada 的开源项目与贡献者，包括：
 
-特别感谢：
-- [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) — 提供核心 Agent 框架
-- [LiteLLM](https://github.com/BerriAI/litellm) — 统一的大模型提供商接口
-- [OpenHands ACI](https://github.com/All-Hands-AI/OpenHands) — Agent 与计算机交互工具集
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli) — 终端原生 AI Agent 设计的重要参考
+- [OpenAI Agents SDK](https://github.com/openai/openai-agents-python)：智能体框架。
+- [LiteLLM](https://github.com/BerriAI/litellm)：模型 Provider 集成。
+- [OpenHands ACI](https://github.com/OpenHands/OpenHands)：智能体工具。
+- [Gemini CLI](https://github.com/google-gemini/gemini-cli)：终端智能体设计的参考。
+- [Agent Client Protocol](https://agentclientprotocol.com/)：智能体客户端集成协议。
 
-有关 Siada CLI 中使用的完整开源项目和许可证清单，请查看 [CREDITS_zh.md](./CREDITS_zh.md)。
-
----
+完整致谢与许可证信息见 [CREDITS_zh.md](./CREDITS_zh.md)。
 
 ## 许可证
 
-本项目采用 [Apache 2.0 许可证](../../LICENSE) 分发。
+本项目采用 [Apache License 2.0](../../LICENSE)。
 
 ## 免责声明
 
-请参阅 [disclaimers.md](../../docs/disclaimers.md)。
+请参阅 [disclaimers.md](../disclaimers.md)。
 
 ---
 
 <div align="center">
-由理想汽车代码智能团队和开源社区倾情打造
+由理想汽车代码智能团队与开源社区共同打造
 </div>
