@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>Skills、Agent 与插件 · Siada 使用手册</title>
+<meta name="description" content="使用项目规则、Skills、自定义命令、子 Agent、插件、MCP 和 Hooks 扩展 Siada 的工作流。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html" aria-current="page">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>Skills、Agent 与插件</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">05 / EXTEND</div>
+      <h1>Skills、Agent 与插件</h1>
+      <p class="docs-intro">把你熟悉的工作方法交给 Siada：用规则保留约定，用 Skill 复用流程，用子 Agent 分工，再通过插件和 MCP 接入需要的工具。</p>
+      <hr class="docs-rule">
+      <section id="choose-extension">
+        <h2>选一种适合的扩展方式</h2>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>方式</th><th>适合什么</th></tr></thead>
+            <tbody>
+              <tr><td>项目规则</td><td>始终适用的约定，如测试命令、代码风格和项目背景。</td></tr>
+              <tr><td>Skill</td><td>按需读取的一套标准流程，可带参考资料与工具脚本。</td></tr>
+              <tr><td>自定义命令</td><td>用简短斜杠命令调用重复使用的提示词。</td></tr>
+              <tr><td>命名子 Agent</td><td>交给专门角色独立处理的任务，例如调研或代码审查。</td></tr>
+              <tr><td>MCP</td><td>外部工具或数据服务，如数据库、浏览器与文档系统。</td></tr>
+              <tr><td>插件与 Hooks</td><td>成套安装技能、工具与会话事件脚本。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section id="project-rules">
+        <h2>让项目约定进入上下文</h2>
+        <p>在项目根目录放置 <code>SIADA.md</code> 或 <code>AGENTS.md</code>，写明代码风格、测试命令和需要遵守的边界。<code>/init</code> 可以分析当前项目并生成 <code>SIADA.md</code>；修改指令文件后，使用 <code>/context-file-refresh</code> 刷新。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">交互输入</div>
+          <pre><code>/init
+/context-file-refresh</code></pre>
+        </div>
+        <p>个人通用约定可以写在 <code>~/.siada-cli/siada_rule.md</code>，项目或目录级约定写在对应目录的 <code>siada_rule.md</code>。用 <code>/rule-list</code> 看加载了哪些规则，<code>/rule-show</code> 看合并内容，修改后用 <code>/rule-refresh</code> 刷新。</p>
+      </section>
+      <section id="skills">
+        <h2>把重复流程写成 Skill</h2>
+        <p>在项目的 <code>.siada-cli/skills/</code> 下给每个 Skill 建一个目录，目录中放 <code>SKILL.md</code>。文件开头的 <code>name</code> 与 <code>description</code> 告诉 Siada 何时使用它，正文写具体流程。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">.siada-cli/skills/review-checklist/SKILL.md</div>
+          <pre><code>---
+name: review-checklist
+description: 当需要检查代码改动的测试覆盖和风险时使用。
+---
+
+先阅读本次改动，再检查相关测试。
+按文件列出问题、原因和建议；没有发现时说明检查范围。</code></pre>
+        </div>
+        <p>输入 <code>/skill-list</code> 查看可用技能，<code>/skill-reload</code> 重新加载。直接输入 <code>/review-checklist 检查这次改动</code> 即可调用，也可以在自然语言里指定使用它。</p>
+        <p>个人通用技能放在 <code>~/.siada-cli/skills/</code>；兼容读取 <code>.agents/skills/</code> 和 <code>.claude/skills/</code>。同名技能以 <code>name</code> 区分，个人技能优先于项目技能和内置技能；同一层级的 <code>.siada-cli/skills/</code> 优先于兼容目录。</p>
+        <p>不想手写文件，可以直接说“用 skill-creator 把这套检查流程做成 Skill”。在脚本模式中，把技能名称写入提示文本，例如 <code>siada-cli -p "使用 review-checklist 检查这次改动"</code>。</p>
+      </section>
+      <section id="custom-commands">
+        <h2>用短命令保存常用提示词</h2>
+        <p>自定义命令使用 TOML 文件。个人命令放在 <code>~/.siada-cli/commands/</code>，项目命令放在 <code>.siada-cli/commands/</code>；子目录会变成命令名中的冒号。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">.siada-cli/commands/git/review.toml</div>
+          <pre><code>description = "检查已暂存的改动"
+prompt = """
+审查下面的 Git diff，报告缺陷与测试遗漏。
+补充要求：{{args}}
+!{git diff --staged}
+"""</code></pre>
+        </div>
+        <p>在会话中输入 <code>/git:review 重点检查边界条件</code>。<code>{{args}}</code> 接收命令参数，<code>@{文件路径}</code> 嵌入文件内容，<code>!{Shell 命令}</code> 在本机执行并嵌入输出。</p>
+      </section>
+      <section id="agents">
+        <h2>给专门任务定义命名子 Agent</h2>
+        <p>在 <code>.agents/agents/</code> 中创建 Markdown 文件。<code>name</code> 与 <code>description</code> 是必填字段；正文描述这个 Agent 的职责和交付格式。主 Agent 会根据任务描述通过 <code>run_subtask</code> 派发任务。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">.agents/agents/reviewer.md</div>
+          <pre><code>---
+name: reviewer
+description: 实现完成后，审查改动中的缺陷与测试遗漏。
+---
+
+阅读本次改动和相关测试。
+只报告可复现的问题，并给出文件位置与修复建议。</code></pre>
+        </div>
+        <p>在会话里说“让 reviewer 审查这次改动”即可。个人角色放在 <code>~/.siada-cli/agents/</code>，定义会在下一轮读取。任务可并行分工，也可交给后台子 Agent 后继续主任务。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>可选字段</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>tools</code></td><td>限定可用工具。</td></tr>
+              <tr><td><code>skills</code></td><td>预载指定技能。</td></tr>
+              <tr><td><code>mcpServers</code></td><td>给该 Agent 接入 MCP 服务。</td></tr>
+              <tr><td><code>background</code></td><td>设为 <code>true</code> 时在后台执行。</td></tr>
+              <tr><td><code>effort</code></td><td>指定推理强度。</td></tr>
+              <tr><td><code>model</code></td><td>指定独立模型；<code>inherit</code> 沿用默认选择。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><code>sub_agent.enabled</code> 控制是否允许派发，<code>sub_agent.llm_config</code> 可统一设置子 Agent 模型。需要更多字段说明时，可以问 <code>/siada-help 如何定义命名子 Agent</code>。</p>
+        <p><code>tools</code> 使用实际工具名；全部名称都无法匹配时会沿用默认工具集。它用于配置角色能力，文件与命令的实际访问仍由系统权限决定。</p>
+      </section>
+      <section id="plugins">
+        <h2>从插件市场添加能力</h2>
+        <p>输入 <code>/plugin</code> 打开插件管理，浏览市场并安装需要的技能或插件。插件可以一起提供 Skills、MCP 服务器和 Hooks。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">交互输入 · 常用管理操作</div>
+          <pre><code>/plugin
+/plugin marketplace add anthropics/claude-code
+/plugin disable PLUGIN_NAME
+/plugin enable PLUGIN_NAME
+/plugin validate PLUGIN_NAME</code></pre>
+        </div>
+        <p>把 <code>PLUGIN_NAME</code> 换成已安装插件的名称。安装或更新后，按界面提示重新加载相应能力；技能可用 <code>/skill-reload</code> 刷新。</p>
+      </section>
+      <section id="hooks">
+        <h2>在关键步骤加入 Hooks</h2>
+        <p>Hook 在用户提交消息、工具执行前后、会话结束或出错等节点运行脚本。可以用它记录审计信息、提供上下文，或在工具执行前检查条件。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>常用事件</th><th>触发时机</th></tr></thead>
+            <tbody>
+              <tr><td><code>UserPromptSubmit</code></td><td>用户提交消息后、Agent 处理前。</td></tr>
+              <tr><td><code>PreToolUse</code></td><td>工具执行前，可检查或阻止调用。</td></tr>
+              <tr><td><code>PostToolUse</code></td><td>工具执行后，可处理输出或补充上下文。</td></tr>
+              <tr><td><code>Stop</code></td><td>Agent 停止回复时。</td></tr>
+              <tr><td><code>OnError</code></td><td>会话发生异常时。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Siada 支持 Claude Code 格式的插件 Hooks。可以通过插件市场安装 <code>hookify</code>，然后按该插件的说明创建和查看规则；插件自己的命令会在安装后出现。</p>
+      </section>
+      <section id="mcp">
+        <h2>用 MCP 接入外部工具</h2>
+        <p>个人服务器配置放在 <code>~/.siada-cli/mcp_config.json</code>；项目可使用根目录的 <code>siada_mcp_config.json</code>。在 <code>mcpServers</code> 中登记服务，项目中的同名服务会覆盖个人配置。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">mcp_config.json · 将命令换成你的 MCP 服务程序</div>
+          <pre><code>{
+  "mcpServers": {
+    "my-tools": {
+      "type": "stdio",
+      "command": "my-mcp-server",
+      "args": []
+    }
+  }
+}</code></pre>
+        </div>
+        <p>连接后用 <code>/mcp-server</code> 检查服务状态，<code>/mcp-list</code> 查看它提供的工具。服务器自身的启动命令、权限与凭据需要按该服务的文档配置。</p>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="sessions.html"><small>← 上一章</small>会话、上下文与记忆</a>
+        <a href="browser.html"><small>下一章 →</small>浏览器协作</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#choose-extension">选择扩展方式</a>
+    <a href="#project-rules">项目约定</a>
+    <a href="#skills">Skills</a>
+    <a href="#custom-commands">自定义命令</a>
+    <a href="#agents">命名子 Agent</a>
+    <a href="#plugins">插件市场</a>
+    <a href="#hooks">Hooks</a>
+    <a href="#mcp">MCP 工具</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

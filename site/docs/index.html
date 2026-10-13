@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>使用手册 · Siada CLI</title>
+<meta name="description" content="Siada 使用手册：安装、命令、模型配置、会话与记忆、Skills、浏览器协作、定时任务、飞书与 ACP 接入。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="page">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout docs-layout--home">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html" aria-current="page">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span><span>使用手册</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">SIADA / USER GUIDE</div>
+      <h1 class="docs-guide-title"><span class="gradient-text">Siada</span> 使用手册</h1>
+      <p class="docs-intro">从一句清楚的意图开始，一起写代码、理解网页、整理信息和创造作品。在这里找到你的第一步，也找到下一次协作需要的命令与配置。</p>
+      <hr class="docs-rule">
+      <section id="first-task">
+        <h2>从一段对话开始</h2>
+        <p>在项目目录启动 Siada，告诉它目标、范围和怎样算完成。你可以继续追问、补充材料，或在浏览器里示范一步，让它接着完成后续工作。</p>
+        <div class="docs-start">
+          <div>
+            <h3>把下一项任务交给 Siada</h3>
+            <p>“找到登录页测试失败的原因，修复后运行相关测试，并说明结果。”</p>
+            <a href="quickstart.html">阅读开始使用 →</a>
+          </div>
+          <div class="docs-code">
+            <div class="docs-code-label">TERMINAL</div>
+            <pre><code>cd my-project
+siada-cli</code></pre>
+          </div>
+        </div>
+      </section>
+      <section id="chapters">
+        <h2>按你的下一步查找</h2>
+        <p>先上手，再按需要调整模型、接入工具，或把重复工作交给后台。每章都给出可以直接使用的入口。</p>
+        <div class="docs-card-grid">
+          <a class="docs-card" href="quickstart.html">
+            <span class="docs-card-index">01 / START</span>
+            <strong>开始使用</strong>
+            <span>第一次对话、脚本调用与文件引用。</span>
+          </a>
+          <a class="docs-card" href="commands.html">
+            <span class="docs-card-index">02 / REFERENCE</span>
+            <strong>命令与快捷输入</strong>
+            <span>常用斜杠命令、启动参数和终端输入方式。</span>
+          </a>
+          <a class="docs-card" href="configuration.html">
+            <span class="docs-card-index">03 / CONFIG</span>
+            <strong>模型与配置</strong>
+            <span>切换模型、指定单次参数与维护个人配置。</span>
+          </a>
+          <a class="docs-card" href="sessions.html">
+            <span class="docs-card-index">04 / CONTEXT</span>
+            <strong>会话、上下文与记忆</strong>
+            <span>恢复对话、检查点、目标模式与跨会话记忆。</span>
+          </a>
+          <a class="docs-card" href="extensions.html">
+            <span class="docs-card-index">05 / EXTEND</span>
+            <strong>Skills、Agent 与插件</strong>
+            <span>项目规则、自定义命令、MCP 与 Hooks。</span>
+          </a>
+          <a class="docs-card" href="browser.html">
+            <span class="docs-card-index">06 / BROWSER</span>
+            <strong>浏览器协作</strong>
+            <span>连接 Chrome、就地阅读与创作、交接和分享会话。</span>
+          </a>
+          <a class="docs-card" href="automation.html">
+            <span class="docs-card-index">07 / AUTOMATION</span>
+            <strong>后台与定时任务</strong>
+            <span>守护进程、周期任务、每日摘要与自动更新。</span>
+          </a>
+          <a class="docs-card" href="integrations.html">
+            <span class="docs-card-index">08 / CONNECT</span>
+            <strong>飞书与 ACP 接入</strong>
+            <span>从飞书远程协作，或在支持 ACP 的编辑器中使用。</span>
+          </a>
+          <a class="docs-card" href="troubleshooting.html">
+            <span class="docs-card-index">09 / HELP</span>
+            <strong>常见问题</strong>
+            <span>启动、配置、浏览器连接与会话恢复的排查入口。</span>
+          </a>
+        </div>
+      </section>
+      <section id="common-actions">
+        <h2>记住几个常用入口</h2>
+        <div class="docs-shortcuts">
+          <a class="docs-shortcut" href="configuration.html#choose-model"><code>/model</code><span>切换模型</span></a>
+          <a class="docs-shortcut" href="sessions.html#resume"><code>/resume</code><span>接着上次的工作</span></a>
+          <a class="docs-shortcut" href="sessions.html#goal"><code>/goal</code><span>持续推进目标</span></a>
+          <a class="docs-shortcut" href="extensions.html#skills"><code>/skill-list</code><span>查看可用技能</span></a>
+        </div>
+        <p>在对话中输入 <code>/siada-help</code>，也可以直接问“如何设置定时任务”或“帮我检查配置”。它会按你的问题解释用法，或帮助调整配置。</p>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="quickstart.html"><small>下一章 →</small>开始使用</a>
+      </nav>
+    </article>
+  </main>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

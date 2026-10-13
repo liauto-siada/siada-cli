@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>模型与配置 · Siada CLI 使用手册</title>
+<meta name="description" content="在 Siada CLI 中选择模型、指定单次运行参数，并管理 conf.yaml 中的个人配置。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html" aria-current="page">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>模型与配置</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">03 / CONFIG</div>
+      <h1>模型与配置</h1>
+      <p class="docs-intro">可以在会话里切换模型，为某一次运行指定参数，或把个人偏好写到 <code>~/.siada-cli/conf.yaml</code>。实际可用的模型取决于你配置的服务。</p>
+      <hr class="docs-rule">
+      <section id="choose-model">
+        <h2>在会话中选择模型</h2>
+        <p>输入 <code>/model</code> 打开模型选择器。要直接选择一个已配置的模型，可以输入 <code>/model 模型名称</code>；在终端运行 <code>siada-cli --list-models</code> 也可查看当前可用模型。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">交互输入</div>
+          <pre><code>/model
+/status</code></pre>
+        </div>
+        <p>选择后用 <code>/status</code> 确认当前模型。<code>/model</code> 的选择会保存到个人配置中；仅想临时指定模型时，使用启动参数更合适。</p>
+      </section>
+      <section id="one-run">
+        <h2>只影响这次运行</h2>
+        <p>启动参数优先于个人配置。使用 <code>--model</code> 指定模型，<code>--reasoning-effort</code> 设置推理强度，或 <code>--no-thinking</code> 关闭推理；具体值需与模型支持的能力匹配。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL · 将 MODEL_ID 换成可用模型</div>
+          <pre><code>siada-cli --model MODEL_ID --reasoning-effort high
+siada-cli --model MODEL_ID --no-thinking</code></pre>
+        </div>
+      </section>
+      <section id="conf-yaml">
+        <h2>配置自己的模型服务</h2>
+        <p>在会话中输入 <code>/configure</code>，按提示选择服务并填写 API Key。也可以编辑 <code>~/.siada-cli/conf.yaml</code>，在 <code>llm_config</code> 中设置模型、服务地址与密钥。使用自备 API 服务时，Siada 的 <code>provider</code> 设为 <code>default</code>。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">~/.siada-cli/conf.yaml · 示例</div>
+          <pre><code>llm_config:
+  provider: default
+  model: "your-model-id"
+  base_url: "https://api.example.com/v1"
+  api_key: "YOUR_API_KEY"</code></pre>
+        </div>
+        <div class="docs-note">
+          <b>替换示例值</b>
+          <p>模型 ID、地址和密钥请使用服务商提供的实际值。密钥保存在个人配置或环境变量中，避免提交到项目版本库。</p>
+        </div>
+      </section>
+      <section id="other-settings">
+        <h2>推理和界面偏好</h2>
+        <p>这些偏好可以直接在会话里设置并保存到 <code>conf.yaml</code>，通常无需手动编辑配置。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>操作</th><th>配置项与含义</th></tr></thead>
+            <tbody>
+              <tr><td><code>/effort high</code></td><td><code>llm_config.reasoning_effort</code>：推理强度；不同模型的级别不同，输入 <code>/effort</code> 查看。</td></tr>
+              <tr><td><code>/thinking on</code> / <code>off</code></td><td><code>llm_config.enable_thinking</code>：推理总开关；关闭后优先于推理强度与 token 预算。</td></tr>
+              <tr><td><code>/theme auto</code></td><td><code>ui.theme</code>：跟随系统或终端；也可设为 <code>dark</code>、<code>light</code>。</td></tr>
+              <tr><td><code>/lang zh-CN</code></td><td><code>preferred_language</code>：回复语言；英文使用 <code>en</code>。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section id="vision">
+        <h2>图片与视觉模型</h2>
+        <p>主模型支持图片时，截图可以直接参与任务。如果主模型无法读取图片，可设置 <code>llm_config.vision_model</code>，让视觉模型先提取文字证据，再交给主模型处理。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">conf.yaml · 为 llm_config 补充</div>
+          <pre><code>llm_config:
+  model: "your-main-model"
+  vision_model: "your-vision-model"
+  vision_provider: default</code></pre>
+        </div>
+        <p>这里仅展示视觉相关字段，添加到已有 <code>llm_config</code> 中即可。视觉模型必须是你已配置、可访问且支持图片的模型。</p>
+      </section>
+      <section id="runtime-settings">
+        <h2>常用运行设置</h2>
+        <p>没有对应命令的设置，可直接编辑 <code>conf.yaml</code>，或使用 <code>/siada-help</code> 请 Siada 帮你调整并检查类型。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>配置项</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>code_agent.max_turns</code></td><td>一次 Agent 执行的最大轮数，使用整数。</td></tr>
+              <tr><td><code>command_timeout</code></td><td>Shell 命令超时秒数，使用整数。</td></tr>
+              <tr><td><code>goal.max_turns</code></td><td>目标验证连续失败时允许自动续跑的轮数，默认 <code>6</code>。</td></tr>
+              <tr><td><code>checkpoint_config.enable</code></td><td>交互模式的文件检查点开关，见 <a href="sessions.html#checkpoints">检查点</a>。</td></tr>
+              <tr><td><code>memory.enabled</code></td><td>记忆总开关；可用 <code>user_profile_enabled</code>、<code>memory_facts_enabled</code> 控制记忆内容。</td></tr>
+              <tr><td><code>memory.holographic.enabled</code></td><td>结构化事实记忆开关，受 <code>memory.enabled</code> 总开关控制。</td></tr>
+              <tr><td><code>web.enabled</code></td><td>联网工具开关：<code>true</code> 开启，<code>false</code> 关闭。</td></tr>
+              <tr><td><code>sub_agent.enabled</code></td><td>子 Agent 派发开关；关闭后任务由主 Agent 完成。</td></tr>
+              <tr><td><code>sub_agent.llm_config</code></td><td>为子 Agent 配置模型；未设置时沿用父会话模型。</td></tr>
+              <tr><td><code>proactive.llm_config</code></td><td>后台与定时任务的专用模型，见 <a href="automation.html#settings">后台设置</a>。</td></tr>
+              <tr><td><code>compaction_strategy</code></td><td>上下文压缩策略；省略时自动选择，支持 <code>header_summary</code>、<code>turn_prune_summary</code>。</td></tr>
+              <tr><td><code>enable_notification</code></td><td>任务结束后的系统通知开关。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section id="config-files">
+        <h2>各类配置放在哪里</h2>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>文件</th><th>内容</th></tr></thead>
+            <tbody>
+              <tr><td><code>~/.siada-cli/conf.yaml</code></td><td>模型、界面、记忆、子 Agent 和后台等主要偏好。</td></tr>
+              <tr><td><code>~/.siada-cli/models.json</code></td><td>单个模型的上下文窗口、价格与推理等覆盖设置。</td></tr>
+              <tr><td><code>~/.siada-cli/mcp_config.json</code></td><td>MCP 服务器；项目可用 <code>siada_mcp_config.json</code>。</td></tr>
+              <tr><td><code>~/.siada-cli/commands/</code></td><td>自定义命令的 TOML 文件。</td></tr>
+              <tr><td><code>~/.siada-cli/workspace/cron_tasks.json</code></td><td>由定时任务技能维护的周期任务。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section id="apply-config">
+        <h2>让手动配置生效</h2>
+        <p>手动修改 <code>conf.yaml</code> 后，重启后台并重新启动会话，使各组件重新读取配置。随后用 <code>/status</code> 核对当前模型与工作区。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-cli --stop-daemon
+siada-cli</code></pre>
+        </div>
+        <p>如果不确定配置是否有效，输入 <code>/siada-help 帮我检查 conf.yaml 的语法与配置项</code>。模型连接问题见 <a href="troubleshooting.html">常见问题</a>。</p>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="commands.html"><small>← 上一章</small>命令与快捷输入</a>
+        <a href="sessions.html"><small>下一章 →</small>会话、上下文与记忆</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#choose-model">在会话中选择模型</a>
+    <a href="#one-run">只影响这次运行</a>
+    <a href="#conf-yaml">配置自己的模型服务</a>
+    <a href="#other-settings">推理和界面偏好</a>
+    <a href="#vision">图片与视觉模型</a>
+    <a href="#runtime-settings">常用运行设置</a>
+    <a href="#config-files">各类配置文件</a>
+    <a href="#apply-config">让手动配置生效</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

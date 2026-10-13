@@ -12,7 +12,7 @@
 
 [![预览：从终端对话到浏览器中的实际操作](../assets/demos/siada-chrome-home-desktop-v2-preview.gif)](../assets/demos/siada-chrome-home-desktop-v2.mp4?raw=1)
 
-[浏览器协作展示页与使用手册 · 本地预览](http://127.0.0.1:8765/index.html)。展示页也提供返回 GitHub 仓库的入口。此预览地址需在运行网页服务的电脑上打开。
+[浏览器协作展示页与使用手册](https://liauto-siada.github.io/siada-cli/)。展示页也提供返回 GitHub 仓库的入口。
 
 ## News
 

@@ -12,7 +12,7 @@
 
 [![Preview: from terminal conversation to browser action in Siada CLI](./docs/assets/demos/siada-chrome-home-desktop-v2-preview.gif)](./docs/assets/demos/siada-chrome-home-desktop-v2.mp4?raw=1)
 
-[Explore the browser collaboration showcase and user guide — local preview](http://127.0.0.1:8765/index.html). The showcase links back to this GitHub repository. This preview address opens on the computer running the site.
+[Explore the browser collaboration showcase and user guide](https://liauto-siada.github.io/siada-cli/). The showcase links back to this GitHub repository.
 
 ## News
 

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>浏览器协作 · Siada CLI 使用手册</title>
+<meta name="description" content="连接 Chrome 侧边栏，用 Siada 阅读、解释和操作当前网页，接手任务并通过 /share 分享会话。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html" aria-current="page">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>浏览器协作</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">06 / BROWSER</div>
+      <h1>浏览器协作</h1>
+      <p class="docs-intro">在你正在使用的 Chrome 里，把阅读、点击和选择变成任务上下文。Siada 从当前页面理解意图，就地解释内容、整理资料，与你交接操作。</p>
+      <hr class="docs-rule">
+      <section id="setup">
+        <h2>连接你的 Chrome</h2>
+        <p>准备好 Chrome 和已完成模型配置的 Siada，然后安装浏览器协作组件并启动本机代理。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-browser setup
+siada-browser status</code></pre>
+        </div>
+        <div class="docs-note">
+          <b>平台组件包尚未发布</b>
+          <p>匹配当前平台的组件包尚未发布，现在还无法远程安装。请先按 <a href="https://github.com/liauto-siada/siada-cli/blob/main/docs/browser-installation.md" target="_blank" rel="noopener noreferrer">浏览器安装与发布</a> 指南从源码构建并安装；组件包发布后，运行 <code>siada-browser setup</code> 即可从 GitHub Releases 下载并安装。</p>
+        </div>
+        <ol>
+          <li>按安装输出打开 <code>chrome://extensions</code>，启用开发者模式，加载输出指定目录中的扩展。</li>
+          <li>按安装提示设置代理地址与连接 token。使用安装输出中的值。</li>
+          <li>点击 Chrome 工具栏中的 Siada 图标，打开侧边栏并连接，然后选择或新建会话。</li>
+        </ol>
+        <p>首次使用前，在终端启动一次 <code>siada-cli</code> 并完成登录或 API Key 设置。侧边栏会使用本机的模型配置。</p>
+      </section>
+      <section id="connection">
+        <h2>先检查浏览器连接</h2>
+        <p>如果已经配置好浏览器扩展，运行 <code>siada-browser status</code> 查看本机代理状态。输出中的 <code>running</code> 表示代理是否运行；代理运行时，<code>extensionConnected</code> 表示扩展是否连上代理。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-browser status
+siada-browser start
+siada-browser restart</code></pre>
+        </div>
+        <p>用 <code>siada-browser start</code> 启动已有安装，<code>siada-browser stop</code> 停止，<code>siada-browser restart</code> 重启。代理正常而扩展未连接时，检查 Chrome 中的扩展加载状态和连接设置。</p>
+      </section>
+      <section id="reading">
+        <h2>把眼前的信息继续变成作品</h2>
+        <p>可以直接说清当前页面、要参考的资料与结果放在哪里。几种适合从当前浏览继续的任务：</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>场景</th><th>对话示例</th></tr></thead>
+            <tbody>
+              <tr><td>就地阅读</td><td>“翻译当前段落，保留原文，在下面解释图中的几个概念。”</td></tr>
+              <tr><td>历史资料对照</td><td>“找出我近期浏览过的相关论文和项目，对照这篇 survey 的结论，在对应段落解释。”</td></tr>
+              <tr><td>整理与分享</td><td>“整理刚刚看过的文章，分类并保留原文链接。”需要发布时再指定平台与接收方。</td></tr>
+              <tr><td>从网页创作</td><td>“根据这篇网页的要点，做成一个可演示的网页，并保留来源。”</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>连接相应工具并具备访问权限后，可继续把结果写入飞书文档或消息。示例视频见 <a href="../index.html#top">阅读整理与分享</a> 和 <a href="../index.html#case-1">历史资料对照</a>。</p>
+      </section>
+      <section id="task">
+        <h2>告诉 Agent 要操作什么、怎样算完成</h2>
+        <p>描述目标页面、筛选条件、要交付的文件和核验方式。需要你在页面上示范或修正时，可以在同一标签页操作，然后继续让 Agent 完成后续步骤。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">侧边栏输入示例</div>
+          <pre><code>在当前网站搜索“发布说明”，遍历全部结果页。
+导出标题、日期和链接到 results.csv；
+最后用页面显示的总条数核对文件行数。</code></pre>
+        </div>
+        <p>导出完成后，要求回读文件并核对列名、行数和来源链接；操作网页时，检查最终页面是否符合条件。</p>
+      </section>
+      <section id="handoff">
+        <h2>在同一页面交接操作</h2>
+        <p>你可以在同一标签页里修改筛选条件、选择一段文字或示范一步，然后说“按我刚刚的选择继续”。Siada 重新观察当前页面，再推进后续步骤。</p>
+        <div class="docs-note">
+          <b>把结果作为完成依据</b>
+          <p>明确的验收条件有助于区分成功、失败与尚未验证的结果。导出文件应回读核对，网页操作也应检查目标页面的最终状态。</p>
+        </div>
+      </section>
+      <section id="share">
+        <h2>通过浏览器分享会话</h2>
+        <p>用 <code>/share</code> 生成当前会话的网页链接。接收方可以在浏览器里查看并参与这段对话；本机代理需要对接收方可达。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL · 允许局域网设备连接</div>
+          <pre><code>siada-browser setup --host 0.0.0.0</code></pre>
+        </div>
+        <div class="docs-code">
+          <div class="docs-code-label">Siada 会话输入</div>
+          <pre><code>/share</code></pre>
+        </div>
+        <p>链接会自动复制到剪贴板。接收方打开链接后可载入会话；自签名证书环境首次访问时，按提示确认你自己的代理地址。</p>
+        <div class="docs-note">
+          <b>链接也包含操作权限</b>
+          <p>分享链接中的 token 授予完整 Agent 控制权，请只交给可信任的人。仅绑定本机 <code>127.0.0.1</code> 时，<code>/share</code> 会提示不能远程分享。</p>
+        </div>
+      </section>
+      <section id="reuse">
+        <h2>让可验证的经验用于下次任务</h2>
+        <p>完成一套稳定流程后，可以要求 Siada：“把刚才的步骤整理成 Skill，写清适用网站、前提和每一步的检查方法。”下次指定技能名称，就可以从已有方法开始。</p>
+        <p>页面改版时仍需重新核对元素和结果。Skill 的目录与调用方式见 <a href="extensions.html#skills">技能管理</a>。</p>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="extensions.html"><small>← 上一章</small>Skills、Agent 与插件</a>
+        <a href="automation.html"><small>下一章 →</small>后台与定时任务</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#setup">连接你的 Chrome</a>
+    <a href="#connection">检查浏览器连接</a>
+    <a href="#reading">阅读、整理与创作</a>
+    <a href="#task">写清网页任务</a>
+    <a href="#handoff">在同一页面交接</a>
+    <a href="#share">分享会话</a>
+    <a href="#reuse">经验复用</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

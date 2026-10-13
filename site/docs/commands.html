@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>命令与快捷输入 · Siada CLI 使用手册</title>
+<meta name="description" content="Siada CLI 的常用斜杠命令、启动参数、文件引用与 Shell 输入方式。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html" aria-current="page">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>命令与快捷输入</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">02 / REFERENCE</div>
+      <h1>命令与快捷输入</h1>
+      <p class="docs-intro">输入 <code>/</code> 查找会话命令，用 <code>@</code> 引用文件，用 <code>!</code> 运行本地命令。启动参数则在终端运行 <code>siada-cli</code> 时传入。</p>
+      <hr class="docs-rule">
+      <section id="slash-commands">
+        <h2>交互会话里的命令</h2>
+        <p>斜杠命令由当前会话处理。输入命令名前缀时，界面会给出补全；输入 <code>/help</code> 可查看当前版本的完整命令列表。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>命令</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>/help</code></td><td>查看命令和用法。</td></tr>
+              <tr><td><code>/status</code></td><td>查看当前模型、Agent、会话 ID 与工作区。</td></tr>
+              <tr><td><code>/model</code></td><td>打开模型选择器；也可用 <code>/model 名称</code> 指定模型。</td></tr>
+              <tr><td><code>/effort [级别]</code></td><td>查看或设置当前模型的推理强度，保存到个人配置。</td></tr>
+              <tr><td><code>/thinking [on|off]</code></td><td>查看、开启或关闭推理；<code>off</code> 优先于推理强度设置。</td></tr>
+              <tr><td><code>/theme [auto|dark|light]</code></td><td>查看或切换终端主题。</td></tr>
+              <tr><td><code>/lang zh-CN</code> / <code>/lang en</code></td><td>设置回复语言。</td></tr>
+              <tr><td><code>/resume</code></td><td>浏览并恢复已有会话。</td></tr>
+              <tr><td><code>/clear</code></td><td>开启新会话，清空当前对话上下文。</td></tr>
+              <tr><td><code>/compact</code></td><td>手动压缩当前会话的对话历史。</td></tr>
+              <tr><td><code>/btw 问题</code></td><td>临时提问，回答不写入主对话历史。</td></tr>
+              <tr><td><code>/editor</code></td><td>选择外部编辑器编写长提示词。</td></tr>
+              <tr><td><code>/export [文件名]</code></td><td>在终端 UI 中将当前会话导出为 <code>.txt</code> 文件。</td></tr>
+              <tr><td><code>/share</code></td><td>生成可在浏览器访问的会话链接，见 <a href="browser.html#share">会话分享</a>。</td></tr>
+              <tr><td><code>/statusbar</code></td><td>调整终端 UI 状态栏中各项信息的显示。</td></tr>
+              <tr><td><code>/configure</code></td><td>重新配置 API Key 或切换登录方式。</td></tr>
+              <tr><td><code>/logout</code></td><td>退出登录并清除已保存的凭据。</td></tr>
+              <tr><td><code>/exit</code></td><td>退出交互界面。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section id="workflow-commands">
+        <h2>目标、记忆与项目规则</h2>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>命令</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>/goal 目标</code></td><td>立即开始推进目标，每轮结束由验证器检查是否完成。</td></tr>
+              <tr><td><code>/goal clear</code></td><td>移除当前目标。</td></tr>
+              <tr><td><code>/task-list</code></td><td>查看后台发现的待执行任务。</td></tr>
+              <tr><td><code>/memory [enable|disable]</code></td><td>查看或调整记忆总开关，保存到个人配置。</td></tr>
+              <tr><td><code>/web [enable|disable]</code></td><td>查看或调整联网搜索和网页读取工具。</td></tr>
+              <tr><td><code>/init</code></td><td>分析项目并生成 <code>SIADA.md</code>。</td></tr>
+              <tr><td><code>/context-file-refresh</code></td><td>刷新 <code>SIADA.md</code>、<code>AGENTS.md</code> 等项目说明。</td></tr>
+              <tr><td><code>/rule-init</code></td><td>创建空的 <code>siada_rule.md</code> 规则文件。</td></tr>
+              <tr><td><code>/rule-list</code> / <code>/rule-show</code></td><td>列出已加载的规则文件，或查看合并内容。</td></tr>
+              <tr><td><code>/rule-refresh</code> / <code>/rule-status</code></td><td>刷新规则，或查看规则加载状态。</td></tr>
+              <tr><td><code>/rule-global-add 内容</code></td><td>向全局规则文件添加一条约定。</td></tr>
+              <tr><td><code>/compare</code> / <code>/undo</code> / <code>/restore</code></td><td>比较或恢复检查点，见 <a href="sessions.html#checkpoints">文件检查点</a>。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section id="extension-commands">
+        <h2>技能、插件与外部工具</h2>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>命令</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>/skill-list</code></td><td>查看当前可用技能；可通过 <code>/技能名</code> 直接调用。</td></tr>
+              <tr><td><code>/skill-reload</code></td><td>清除缓存并重新发现技能。</td></tr>
+              <tr><td><code>/plugin</code></td><td>发现、安装、禁用或移除插件，浏览市场并校验配置。</td></tr>
+              <tr><td><code>/mcp-server</code></td><td>查看 MCP 服务器与连接状态。</td></tr>
+              <tr><td><code>/mcp-list</code></td><td>查看各 MCP 服务器提供的工具。</td></tr>
+              <tr><td><code>/lark-auth</code> / <code>/lark-status</code></td><td>为飞书 MCP 工具授权，或查看授权状态。</td></tr>
+              <tr><td><code>/lark-refresh</code></td><td>刷新飞书 MCP 访问令牌。</td></tr>
+              <tr><td><code>/migrate-detect</code></td><td>检测 Claude Code、Codex 中可迁移的配置、技能与项目上下文。</td></tr>
+              <tr><td><code>/migrate-import</code></td><td>导入检测到的配置。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>想创建自己的斜杠命令，见 <a href="extensions.html#custom-commands">自定义命令</a>。飞书聊天入口支持的命令范围见 <a href="integrations.html#im-commands">飞书中的命令</a>。</p>
+      </section>
+      <section id="cli-options">
+        <h2>启动时传入参数</h2>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>参数</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>--prompt</code> / <code>-p</code></td><td>以非交互模式执行一条提示词后退出。</td></tr>
+              <tr><td><code>--model</code></td><td>为这次运行指定模型。</td></tr>
+              <tr><td><code>--provider default</code></td><td>使用自备模型服务，连接信息见 <a href="configuration.html#conf-yaml">个人配置</a>。</td></tr>
+              <tr><td><code>--list-models</code></td><td>列出可用模型。</td></tr>
+              <tr><td><code>--resume</code></td><td>交互模式打开会话浏览器；加会话 ID 可直接恢复。</td></tr>
+              <tr><td><code>--reasoning-effort</code></td><td>为这次运行指定模型支持的推理级别。</td></tr>
+              <tr><td><code>--thinking</code> / <code>--no-thinking</code></td><td>开启或关闭模型推理。</td></tr>
+              <tr><td><code>--parallel-tool-calls</code></td><td>开启并行工具调用；用 <code>--no-parallel-tool-calls</code> 关闭。</td></tr>
+              <tr><td><code>--env-file</code> / <code>--set-env</code></td><td>加载环境文件，或设置本次进程的环境变量。</td></tr>
+              <tr><td><code>--checkpointing</code></td><td>在交互模式开启检查点；用 <code>--no-checkpointing</code> 关闭。</td></tr>
+              <tr><td><code>siada-browser setup</code> / <code>siada-browser status</code></td><td>安装浏览器协作组件，或检查连接。</td></tr>
+              <tr><td><code>--daemon-status</code> / <code>--stop-daemon</code></td><td>检查或停止后台进程。</td></tr>
+              <tr><td><code>--acp</code></td><td>作为标准 ACP stdio 服务，由兼容客户端启动。</td></tr>
+              <tr><td><code>--version</code> / <code>--help</code></td><td>查看版本号或完整启动参数。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-cli --list-models
+siada-cli --prompt "总结这个目录中的测试结构"</code></pre>
+        </div>
+        <p><code>--prompt</code> 不处理 <code>/model</code>、<code>/resume</code> 等内置会话命令，请改用对应启动参数。非交互模式可在任务文本中明确指定技能，例如 <code>siada-cli -p "使用 review-checklist 检查这次改动"</code>。</p>
+      </section>
+      <section id="input">
+        <h2>文件引用与本地命令</h2>
+        <p>在普通输入中使用 <code>@路径</code> 引用项目文件或目录。需要亲自执行一条本地命令时，以半角 <code>!</code> 开头输入；空输入框按 <code>!</code> 也可以切到 Shell 输入模式。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">交互输入示例</div>
+          <pre><code>@src/main.py 解释程序入口
+!git status</code></pre>
+        </div>
+        <div class="docs-note">
+          <b>本地 Shell 会执行输入的命令</b>
+          <p><code>!git status</code> 在当前工作目录执行。Shell 输入模式可按 Esc 退出；当前版本没有启用 <code>/shell</code> 命令，请使用 <code>!</code> 入口。</p>
+        </div>
+      </section>
+      <section id="keys">
+        <h2>输入与快捷键</h2>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>快捷键</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>Enter</code></td><td>发送消息。</td></tr>
+              <tr><td><code>Ctrl+J</code></td><td>插入换行，适合各种终端。</td></tr>
+              <tr><td><code>Shift+Enter</code> / <code>Alt+Enter</code></td><td>终端支持相应按键协议时插入换行；也支持 <code>Ctrl+Enter</code>。</td></tr>
+              <tr><td><code>Esc</code></td><td>中断当前回答，关闭补全，或退出 Shell 输入模式。</td></tr>
+              <tr><td><code>Ctrl+C</code></td><td>中断当前回答；连续按两次退出 Siada。</td></tr>
+              <tr><td><code>Ctrl+O</code></td><td>切换紧凑与展开的输出显示。</td></tr>
+              <tr><td><code>Ctrl+A</code> / <code>Ctrl+E</code></td><td>移动到行首或行尾。</td></tr>
+              <tr><td><code>Ctrl+W</code></td><td>删除光标左侧的一个词。</td></tr>
+              <tr><td><code>Ctrl+U</code> / <code>Ctrl+K</code></td><td>删除光标左侧到行首，或右侧到行尾。</td></tr>
+              <tr><td><code>Alt+←</code> / <code>Alt+→</code></td><td>按词左右移动光标。</td></tr>
+              <tr><td><code>Ctrl+X</code></td><td>在选定的外部编辑器中编辑输入。</td></tr>
+              <tr><td><code>Ctrl+B</code></td><td>复制输入框内容到剪贴板。</td></tr>
+              <tr><td><code>Ctrl+D</code></td><td>清空当前输入。</td></tr>
+              <tr><td><code>Ctrl+V</code></td><td>从系统剪贴板粘贴图片或文字。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="quickstart.html"><small>← 上一章</small>开始使用</a>
+        <a href="configuration.html"><small>下一章 →</small>模型与配置</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#slash-commands">交互会话里的命令</a>
+    <a href="#workflow-commands">目标、记忆与规则</a>
+    <a href="#extension-commands">技能与外部工具</a>
+    <a href="#cli-options">启动时传入参数</a>
+    <a href="#input">文件引用与本地命令</a>
+    <a href="#keys">输入与快捷键</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

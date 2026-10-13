@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>常见问题 · Siada CLI 使用手册</title>
+<meta name="description" content="按症状排查 Siada CLI 的启动、模型连接、浏览器扩展、配置生效、会话恢复与检查点问题。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html" aria-current="page">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>常见问题</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">09 / HELP</div>
+      <h1>常见问题</h1>
+      <p class="docs-intro">按症状查找处理方式。多数情况可以先用 <code>/status</code> 或 <code>siada-cli --daemon-status</code> 确认当前状态，再按步骤排查；拿不准时，也可以直接在会话里输入 <code>/siada-help</code> 描述问题。</p>
+      <hr class="docs-rule">
+      <section id="startup">
+        <h2>启动与安装</h2>
+        <details class="docs-faq">
+          <summary>输入 siada-cli 提示 command not found</summary>
+          <p>安装后命令目录可能还没有进入当前终端的环境变量。让 uv 更新 shell 配置，然后重新打开一个终端窗口再试。</p>
+          <div class="docs-code">
+            <div class="docs-code-label">TERMINAL</div>
+            <pre><code>uv tool update-shell
+siada-cli --version</code></pre>
+          </div>
+          <p>仍然找不到时，确认安装目录（通常是 <code>~/.local/bin</code>）已加入 <code>PATH</code>。改动 shell 配置后重新打开终端；需要重新安装时参考 <a href="https://github.com/liauto-siada/siada-cli#installation--update" target="_blank" rel="noopener noreferrer">项目仓库的说明</a>。</p>
+        </details>
+        <details class="docs-faq">
+          <summary>想确认有没有新版本</summary>
+          <p>用 <code>siada-cli --just-check-update</code> 只做一次检查并返回结果，不会安装；需要立即升级时执行 <code>uv tool upgrade siada-cli</code>，或使用 <code>siada-cli --upgrade</code>。后台自动更新的开关见 <a href="automation.html#update">版本自动更新</a>。</p>
+        </details>
+      </section>
+      <section id="model">
+        <h2>模型与登录</h2>
+        <details class="docs-faq">
+          <summary>回答中断、提示模型不可用或请求被拒绝</summary>
+          <p>先确认当前会话用的是哪个模型和哪个工作区，再逐步排除：</p>
+          <ol>
+            <li>输入 <code>/status</code> 查看当前模型、Agent、会话 ID 与工作区。</li>
+            <li>输入 <code>/model</code> 切换到已经配置好、确认可用的模型。</li>
+            <li>提示未登录或密钥无效时，输入 <code>/configure</code> 重新选择服务并填写 API Key。</li>
+            <li>使用自备服务时，检查 <code>~/.siada-cli/conf.yaml</code> 的 <code>llm_config</code>：模型名称、服务地址与密钥要与服务商提供的一致。</li>
+          </ol>
+          <div class="docs-code">
+            <div class="docs-code-label">交互输入</div>
+            <pre><code>/status
+/model
+/configure</code></pre>
+          </div>
+          <p>模型名称、地址与可用范围取决于你的服务配置，可选项以 <code>/model</code> 列表和 <code>siada-cli --list-models</code> 的输出为准。配置项的写法见 <a href="configuration.html#conf-yaml">配置自己的模型服务</a>。</p>
+        </details>
+      </section>
+      <section id="browser">
+        <h2>浏览器连接</h2>
+        <details class="docs-faq">
+          <summary>siada-browser status 显示代理在运行，但扩展没有连上</summary>
+          <p>状态输出里 <code>running</code> 表示本机代理是否运行，<code>extensionConnected</code> 表示扩展是否已经连上。代理在运行而扩展未连接时，按顺序检查：</p>
+          <ol>
+            <li>在 <code>chrome://extensions</code> 确认 Siada 扩展已启用；刚更新过扩展时，点一次重新加载。</li>
+            <li>打开扩展侧边栏的设置，确认连接地址与端口和本机一致，并粘贴安装时输出的 token。安装命令会打印 token 并自动复制到剪贴板；需要再次查看时，重新运行同一条安装命令会打印同一个 token（不会变化）。</li>
+            <li>重启代理后再看一次状态：</li>
+          </ol>
+          <div class="docs-code">
+            <div class="docs-code-label">TERMINAL</div>
+            <pre><code>siada-browser status
+siada-browser restart
+siada-browser status</code></pre>
+          </div>
+          <p>确认扩展与命令使用的是同一个 Chrome 用户。连接正常后，页面任务的操作方式见 <a href="browser.html">浏览器协作</a>。</p>
+        </details>
+      </section>
+      <section id="cli">
+        <h2>命令行与非交互任务</h2>
+        <details class="docs-faq">
+          <summary>--prompt 里写 /model 这类命令没有反应</summary>
+          <p><code>--prompt</code> 的文本会直接交给 Agent 执行，不解析交互界面的内置斜杠命令。需要切换模型等效果时，改用对应的启动参数：</p>
+          <div class="docs-code">
+            <div class="docs-code-label">TERMINAL</div>
+            <pre><code>siada-cli --model MODEL_ID -p "梳理这个目录的测试入口"
+siada-cli -p "使用 siada-help 说明如何设置定时任务"</code></pre>
+          </div>
+          <p>技能不同：把技能名写进提示内容可以直接调用，因为技能由 Agent 按描述执行。命令与参数的完整对照见 <a href="commands.html#cli-options">启动时传入参数</a>。</p>
+        </details>
+        <details class="docs-faq">
+          <summary>改了 conf.yaml，但配置没有生效</summary>
+          <p>配置在进程启动时读取，后台守护进程也需要重启：先停止守护进程，再重新启动 Siada。想知道后台进程当前的运行状态，用 <code>--daemon-status</code> 查看。</p>
+          <div class="docs-code">
+            <div class="docs-code-label">TERMINAL</div>
+            <pre><code>siada-cli --stop-daemon
+siada-cli --daemon-status
+siada-cli</code></pre>
+          </div>
+          <p>不确定配置项是否写对时，可以输入 <code>/siada-help 帮我检查 conf.yaml 的语法与配置项</code>，让它先核对再生效。</p>
+        </details>
+      </section>
+      <section id="sessions">
+        <h2>会话与输入</h2>
+        <details class="docs-faq">
+          <summary>想在另一个目录继续之前的会话</summary>
+          <p>在会话里输入 <code>/resume --all</code> 查看所有项目的会话。选中另一项目的会话时，Siada 会提示其原始目录；先切回该目录再恢复。</p>
+          <div class="docs-code">
+            <div class="docs-code-label">交互输入 · 查看所有项目会话</div>
+            <pre><code>/resume --all</code></pre>
+          </div>
+          <p>斜杠命令和启动参数恢复都有目录要求：当前目录需要与该会话所属项目一致。</p>
+          <div class="docs-code">
+            <div class="docs-code-label">TERMINAL · 目录不符时按提示切换</div>
+            <pre><code>cd ~/projects/my-project
+siada-cli --resume SESSION_ID -p "继续上次的任务"</code></pre>
+          </div>
+          <p>更多说明见 <a href="sessions.html#resume">会话恢复</a>。</p>
+        </details>
+        <details class="docs-faq">
+          <summary>输入多行内容时，换行按键没有反应</summary>
+          <p>换行是否可用取决于终端对按键的解析方式：<code>Ctrl+J</code> 在多数终端都能插入换行，最稳妥；<code>Shift+Enter</code> 需要终端支持相应的按键协议（如 iTerm2 等），<code>Alt+Enter</code> 在部分终端有效，行为可能不一致。</p>
+          <p>内容较长时，也可以先粘贴多行文本，或按 <code>Ctrl+X</code> 在外部编辑器里写好再回到 Siada。完整快捷键列表见 <a href="commands.html#keys">输入与快捷键</a>。</p>
+        </details>
+      </section>
+      <section id="checkpoint">
+        <h2>文件检查点</h2>
+        <details class="docs-faq">
+          <summary>/undo、/restore 提示没有可用的检查点</summary>
+          <p>文件检查点默认关闭，需要显式开启：交互模式用 <code>siada-cli --checkpointing</code> 启动，或在 <code>~/.siada-cli/conf.yaml</code> 中设置 <code>checkpoint_config.enable: true</code>。开启后，Agent 在修改文件和执行命令时会自动记录检查点。</p>
+          <div class="docs-code">
+            <div class="docs-code-label">~/.siada-cli/conf.yaml · 示例</div>
+            <pre><code>checkpoint_config:
+  enable: true</code></pre>
+          </div>
+          <div class="docs-code">
+            <div class="docs-code-label">TERMINAL · 临时开启</div>
+            <pre><code>siada-cli --checkpointing</code></pre>
+          </div>
+          <p>两点限制：非交互的 <code>--prompt</code> 运行不支持检查点；工作区是主目录时会自动关闭检查点，以保证安全。另外，恢复对话本身用的是 <code>/resume</code>，不需要检查点；检查点用于回滚文件改动。用法见 <a href="sessions.html#checkpoints">文件检查点</a>。</p>
+        </details>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="integrations.html"><small>← 上一章</small>飞书与 ACP 接入</a>
+        <a href="index.html"><small>下一章 →</small>手册概览</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#startup">启动与安装</a>
+    <a href="#model">模型与登录</a>
+    <a href="#browser">浏览器连接</a>
+    <a href="#cli">命令行与非交互任务</a>
+    <a href="#sessions">会话与输入</a>
+    <a href="#checkpoint">文件检查点</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>
