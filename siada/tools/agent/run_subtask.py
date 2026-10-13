@@ -23,13 +23,13 @@ Two independent boolean parameters control how the sub-agent is launched:
   ``siada.tools.agent.subagent_async`` for the background-task registry and
   parent-notification mechanism.
 """
-from typing import Optional
+from typing import Any, AsyncIterator, Optional
 
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, aclosing
 from pathlib import Path
 
-from agents import RunContextWrapper, Runner, RunConfig, function_tool, RunItemStreamEvent, RawResponsesStreamEvent, ToolOutputText, ToolOutputImage
-from agents.items import ToolCallItem, ToolCallOutputItem, MessageOutputItem
+from agents import RunContextWrapper, Runner, RunConfig, RunResultStreaming, function_tool, RunItemStreamEvent, RawResponsesStreamEvent, ToolOutputText, ToolOutputImage
+from agents.items import ToolCallItem, ToolCallOutputItem, MessageOutputItem, ReasoningItem
 from agents.tracing import trace as agent_trace
 from pydantic import Field
 
@@ -153,6 +153,47 @@ def unknown_agent_message(agent_name: str, agent_context: Optional[CodeAgentCont
 
 
 # ---- Helper functions --------------------------------
+
+_REASONING_ONLY_MAX_RETRIES = 2
+_REASONING_ONLY_RETRY_INPUT = (
+    "Your previous response ended with reasoning and no final answer. "
+    "Continue the assigned task from the existing session and completed tool "
+    "results. Return a final answer when finished."
+)
+
+
+def _is_empty_reasoning_result(result: RunResultStreaming) -> bool:
+    """Identify a possibly truncated completion without assuming a network fault."""
+    output = result.final_output
+    empty = output is None or (isinstance(output, str) and not output.strip())
+    items = getattr(result, "new_items", None)
+    return bool(empty and items and isinstance(items[-1], ReasoningItem))
+
+
+async def _run_subtask_attempts(
+    **run_kwargs: Any,
+) -> AsyncIterator[RunResultStreaming]:
+    """Retry reasoning-only completions while retaining the existing session.
+
+    The caller must consume each result's stream before requesting the next
+    attempt. Completed tool work remains in the session; the original task is
+    not submitted again.
+    """
+    for attempt in range(_REASONING_ONLY_MAX_RETRIES + 1):
+        result = Runner.run_streamed(**run_kwargs)
+        yield result
+        if not _is_empty_reasoning_result(result):
+            return
+        if attempt == _REASONING_ONLY_MAX_RETRIES:
+            raise RuntimeError(
+                "Sub-agent returned an empty reasoning-only result after "
+                f"{attempt + 1} attempts."
+            )
+        logging.warning(
+            "[run_subtask] Empty reasoning-only result; retrying (%d/%d).",
+            attempt + 1, _REASONING_ONLY_MAX_RETRIES,
+        )
+        run_kwargs["input"] = _REASONING_ONLY_RETRY_INPUT
 
 
 def _tool_output_to_text(output) -> str:
@@ -483,7 +524,7 @@ async def run_subtask_impl(
                 else []
             )
 
-            result = Runner.run_streamed(
+            run_kwargs = dict(
                 starting_agent=SubTaskAgent(
                     web_tools_enabled=sub_web_enabled,
                     fork_tools=fork_tools,
@@ -506,8 +547,18 @@ async def run_subtask_impl(
                 session=in_memory_session,
             )
 
+            result = None
+
+            async def stream_events():
+                nonlocal result
+                async with aclosing(_run_subtask_attempts(**run_kwargs)) as attempts:
+                    async for result in attempts:
+                        async with aclosing(result.stream_events()) as events:
+                            async for event in events:
+                                yield event
+
             native_patch_calls: dict[str, object] = {}
-            async for event in result.stream_events():
+            async for event in stream_events():
                 if not isinstance(event, RunItemStreamEvent):
                     continue
 

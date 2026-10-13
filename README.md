@@ -135,6 +135,11 @@ uv tool uninstall siada-cli
 
 ## Usage Modes
 
+Sub-agents retry up to twice when a response ends with reasoning and an empty
+final answer. Retries continue the existing session with completed tool results.
+If all three attempts return this result, the task is marked failed. This check
+detects a potentially incomplete response; it does not establish a network fault.
+
 | Entry point | Usage |
 | --- | --- |
 | Interactive terminal | Run `siada-cli` for a continuous conversation in the terminal UI. |
