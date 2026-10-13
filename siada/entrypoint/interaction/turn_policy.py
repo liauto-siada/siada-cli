@@ -438,12 +438,7 @@ class TurnPolicy:
         SwitchEvent auto-turn, so the same note isn't delivered twice.
         """
         from siada.services.siada_runner import SiadaRunner
-        workspace = getattr(getattr(session, "siada_config", None), "workspace", None)
-        context = None
-        for (_, ws), ctx in SiadaRunner._context_cache.items():
-            if ws == workspace:
-                context = ctx
-                break
+        context = SiadaRunner.find_session_context(session)
         if context is None or not context.hook_pending_contexts:
             return []
         notes = list(context.hook_pending_contexts)

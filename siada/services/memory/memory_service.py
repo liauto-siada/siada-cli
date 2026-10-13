@@ -159,6 +159,10 @@ class MemoryService:
             )
             if not memory_file:
                 return None
+            logger.info(
+                "[memory-source][export] session=%s messages=%d truncated=%s",
+                file_session.session_id, len(all_messages), was_truncated,
+            )
             
             # Step 4: Post-save operations (indexing and derived memory)
             self._post_save_operations(memory_file, all_messages)
@@ -450,26 +454,44 @@ class MemoryService:
     async def _fetch_effective_items(
         self, file_session: FileSession
     ) -> List[Any]:
-        """Fetch the effective item list, with safe fallbacks for test mocks.
+        """Read authoritative runtime items without reviving discarded history.
 
-        Resolution:
-          1. ``file_session.get_effective_messages()`` if available — this is
-             the canonical view (compressed snapshot + delta tail, with raw
-             history fallback baked in at the storage layer).
-          2. Otherwise ``file_session.get_items()`` — covers MockFileSession
-             objects in unit tests that only implement the bare ``get_items``
-             interface.
+        FileSessions select prepared context or the unmigrated legacy view.
+        In-memory snapshot adapters keep their effective getter; lightweight
+        legacy test doubles may expose only get_items. Prepared read failures
+        propagate instead of falling back to the full conversation log.
         """
+        if isinstance(file_session, FileSession):
+            items = list(await file_session.get_runtime_items())
+            logger.info(
+                "[memory-source][read] session=%s source=runtime_items items=%d",
+                file_session.session_id, len(items),
+            )
+            return items
         getter = getattr(file_session, "get_effective_messages", None)
         if callable(getter):
             try:
-                return list(await getter())
+                items = list(await getter())
             except Exception as e:
                 logger.warning(
                     f"[memory-service] get_effective_messages failed, "
-                    f"falling back to api_history: {e}"
+                    f"falling back to adapter get_items: {e}"
                 )
-        return list(await file_session.get_items() or [])
+            else:
+                from siada.services.memory.memory_update.snapshot_view import _SnapshotSessionView
+
+                source = "in_memory_snapshot" if isinstance(file_session, _SnapshotSessionView) else "effective_adapter"
+                logger.info(
+                    "[memory-source][read] session=%s source=%s items=%d",
+                    getattr(file_session, "session_id", None), source, len(items),
+                )
+                return items
+        items = list(await file_session.get_items() or [])
+        logger.info(
+            "[memory-source][read] session=%s source=items_adapter items=%d",
+            getattr(file_session, "session_id", None), len(items),
+        )
+        return items
     
     def _truncate_messages(
         self, messages: List[Dict[str, str]]

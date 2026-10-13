@@ -26,7 +26,7 @@ Siada CLI 包含并改编了以下开源项目。我们对它们对开源社区�
 ### [ZCode](https://github.com/zai-org/ZCode)
 - **开源协议**: Apache 2.0（见 [LICENSE](https://github.com/zai-org/ZCode/blob/main/LICENSE)；该仓库在 [NOTICE.md](https://github.com/zai-org/ZCode/blob/main/NOTICE.md) 的“第三方许可与版权声明”一节中说明其第一方代码采用 Apache-2.0）。
 - **归属声明**: Copyright 2026 Z.AI Co., Ltd，来自 commit `29628c9acdb81b703bbd4080c207a0e7ce5e276e` 的 LICENSE；下方 Apache-2.0 许可原文适用于该部分。
-- **贡献&修改内容**: 参考了公开 ZCode CLI 在 commit 29628c9（`apps/zcode-cli/packages/core/src/context/sections/cli-prefix.ts`、`.../sections/identity.ts`、`.../context/dynamic-sections.ts`）中的身份/运行时与沟通结构，用于 GLM-5.2 及后续版本的提示词配置。文案已按 Siada 的工具、权限模型和安全规则重写，并移除了 ZCode 的产品标识。
+- **贡献&修改内容**: GLM-5.2 及后续版本的系统提示词模板（`siada/agent_hub/coder/prompt/models/glm/templates/system.md`）复制了公开 ZCode CLI 在 commit 29628c9 中 `apps/zcode-cli/packages/core/src/context/sections/identity.ts` 的身份与 Harness 文案（含安全声明）以及 `.../context/dynamic-sections.ts` 的沟通与上下文管理段落，并按 `.../context/sections/env-info.ts` 的环境段落布局渲染；产品身份替换为 Siada，ZCode 的环境字段替换为 Siada 自身的运行时信息（主工作目录、平台、主目录、用户名）。单行 CLI 前缀消息（`.../context/sections/cli-prefix.ts`）、Git 状态快照、持久记忆与工具专属段落未被复制，改用 Siada 自身的能力说明、安全规则和目录。
 - **待办提醒**: 改编自同一 commit 的 `apps/zcode-cli/packages/core/src/runtime/helpers/runtime-reminders.ts`，工具名称和提醒的呈现方式已适配 Siada。
 
 ### [Kimi Code](https://github.com/MoonshotAI/kimi-code)

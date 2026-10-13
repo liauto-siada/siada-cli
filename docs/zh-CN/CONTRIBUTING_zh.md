@@ -92,6 +92,16 @@ pytest tests/ -v
 pytest tests/tools/test_example.py
 ```
 
+#### 离线会话基准
+
+修改会话／上下文代码时，先执行已审查的[会话测试基准](./SESSION_TEST_BASELINE_zh.md)。
+它不调用真实模型，并区分正常行为与严格标记的已知缺口：
+
+```bash
+export REPO_ROOT="$(git rev-parse --show-toplevel)"
+poetry -C "$REPO_ROOT" run python "$REPO_ROOT/tests/run_session_baseline.py"
+```
+
 #### 测试文件命名规范
 所有测试文件必须遵循 `test_*.py` 的命名规范，以便测试运行器自动发现。例如：
 - ✅ `test_file_operator.py`

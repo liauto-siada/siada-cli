@@ -269,10 +269,8 @@ async def _build_fork_materials(run_ctx: RunContextWrapper[CodeAgentContext]):
       used verbatim so the tool-schema prefix layer is byte-identical.
     - ``instructions``: the parent's system prompt for this turn, recomputed via
       ``agent.get_system_prompt(run_ctx)`` (same context -> same rendered text).
-    - ``history``: the parent's real (post-compaction) API message history —
-      i.e. exactly what was actually sent to the model — read via
-      ``context.task_message_state.get_real_messages()``. This (not the raw
-      session log) is what determines the model-facing prefix.
+    - ``history``: a detached copy of the parent's authoritative effective
+      context, read through FileSession rather than a captured UI mirror.
 
     Falls back to ``(None, None, [])`` per-field when the parent agent isn't
     reachable (e.g. ``run_ctx`` is a bare ``RunContextWrapper`` in tests) so
@@ -290,10 +288,8 @@ async def _build_fork_materials(run_ctx: RunContextWrapper[CodeAgentContext]):
     history = []
     agent_context = run_ctx.context
     if agent_context is not None and agent_context.session is not None:
-        try:
-            history = list(agent_context.task_message_state.get_real_messages())
-        except Exception as e:
-            logging.warning(f"[run_subtask][fork] failed to read parent real messages: {e}")
+        store = agent_context.session.openai_session
+        history = list(await store.get_runtime_items()) if store is not None else []
 
     return tools, instructions, history
 

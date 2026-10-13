@@ -56,6 +56,29 @@ function render(content: string, isCollapsed = true): string {
 }
 
 describe('file edit tool diffs', () => {
+  it.each([true, false])('renders legacy and fenced Markdown edits with compact mode %s', collapsed => {
+    for (const content of [
+      'In the file `docs/notes.md``, replace the string:\nold\nwith:\nnew',
+      'In the file `docs/notes.md``, replace the string:\n```markdown\nold\n```\nwith:\n```markdown\nnew\n```',
+    ]) {
+      const output = render(content, collapsed);
+      expect(output).toContain('● Update docs/notes.md (+1 -1)');
+      expect(output).toContain('old');
+      expect(output).toContain('new');
+      expect(output).not.toContain('replace the string:');
+      expect(output).not.toContain('with:');
+      expect(output).not.toContain('ctrl+o to expand');
+    }
+  });
+
+  it('keeps unfinished Markdown replacements out of the diff view', () => {
+    const message = toolMessage('In the file `docs/notes.md``, replace the string:\nold\nwith:\nnew');
+    message.metadata = { subtype: 'tool_use', streamEnd: false, isStreaming: true };
+    const output = renderToStaticMarkup(<MessageList messages={[message]} isCollapsed />);
+    expect(output).not.toContain('● Update docs/notes.md (+1 -1)');
+    expect(output).toContain('replace the string:');
+  });
+
   it('keeps resumed patches in Static without an extra history-preview notice', () => {
     const output = render(historyPreview);
 

@@ -1,17 +1,28 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import hashlib
 import json
 import os
-import threading
 import time
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable
+from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable, Iterator
 from datetime import datetime
 
 from agents.memory.session import SessionABC
 from siada.foundation.logging import logger
 from siada.services.session_signature import compute_last_item_signature
+from siada.services.session_storage import (
+    ContextVersionConflict,
+    SessionStorageError,
+    invalidate_prepared_context,
+    recover_transaction,
+    session_storage_lock,
+    storage_transaction,
+    write_json,
+)
 
 if TYPE_CHECKING:
     from agents.items import TResponseInputItem
@@ -24,9 +35,13 @@ class FileSession(SessionABC):
     Each session is stored as a separate file in the specified directory.
     
     File structure:
-    - sessions_dir/<session_id>/api_history.json      # full conversation history
-    - sessions_dir/<session_id>/api_messages.json     # compacted messages (managed by ApiMessageTransferFilter)
-    - sessions_dir/<session_id>/metadata.json         # session metadata
+    - sessions_dir/<session_id>/api_history.json: complete UI and telemetry history
+    - sessions_dir/<session_id>/api_messages.json: legacy migration source only
+    - sessions_dir/<session_id>/api_message.json: authoritative versioned context
+    - sessions_dir/<session_id>/metadata.json: session metadata
+
+    The default agent entry points use a per-run EffectiveContextSession bridge.
+    Unprepared legacy storage is retained only for migration compatibility.
     """
 
     def __init__(
@@ -46,7 +61,6 @@ class FileSession(SessionABC):
         """
         self.session_id = session_id
         self.sessions_dir = Path(sessions_dir)
-        self._lock = threading.Lock()
         self.on_items_added = on_items_added
         self.project_root = project_root
 
@@ -56,6 +70,8 @@ class FileSession(SessionABC):
         
         # File paths
         self.session_file = self.session_folder / "api_history.json"
+        self.history_file = self.session_file
+        self.context_file = self.session_folder / "api_message.json"
         self.metadata_file = self.session_folder / "metadata.json"
         # Tracks the pending IPC injection for cross-session routing.
         # Written by inject_items(), cleared by clear_inject_info().
@@ -63,8 +79,9 @@ class FileSession(SessionABC):
         self._inject_info_file = self.session_folder / "inject_info.json"
         
         # Initialize session file and metadata if not exists
-        self._init_session_file()
-        self._init_metadata()
+        with self._mutation():
+            self._init_session_file()
+            self._init_metadata()
         
         # Save project metadata if project_root is provided
         if project_root:
@@ -90,7 +107,7 @@ class FileSession(SessionABC):
                 'message_count': 0,
                 'first_user_message': None,
                 'model_name': None,
-                'project_root': None
+                'project_root': self.project_root
             }
             self._write_metadata(metadata)
     
@@ -113,6 +130,15 @@ class FileSession(SessionABC):
     
     def _write_metadata(self, metadata: dict) -> None:
         """Write metadata to file."""
+        # Ownership/source have their own writer; do not overwrite a nested update.
+        if self.metadata_file.exists():
+            latest = json.loads(self.metadata_file.read_bytes())
+            metadata = dict(metadata)
+            for key in ("active_owner", "session_source"):
+                if key in latest:
+                    metadata[key] = latest[key]
+                else:
+                    metadata.pop(key, None)
         temp_file = self.metadata_file.with_suffix('.tmp')
         try:
             with open(temp_file, 'w', encoding='utf-8') as f:
@@ -213,6 +239,9 @@ class FileSession(SessionABC):
             ValueError: If the session file is not api_history.json or missing session_id
         """
         session_file = Path(session_file)
+        if session_file.parent.is_dir():
+            with session_storage_lock(session_file.parent):
+                recover_transaction(session_file.parent)
         if not session_file.exists():
             raise FileNotFoundError(f"Session file not found: {session_file}")
         
@@ -224,11 +253,12 @@ class FileSession(SessionABC):
         
         # Try to read session_id from file content as verification
         try:
-            with open(session_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                file_session_id = data.get('session_id')
-                if file_session_id and file_session_id != session_id:
-                    raise ValueError(f"Session ID mismatch: folder={session_id}, file={file_session_id}")
+            with session_storage_lock(session_file.parent):
+                with open(session_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    file_session_id = data.get('session_id')
+                    if file_session_id and file_session_id != session_id:
+                        raise ValueError(f"Session ID mismatch: folder={session_id}, file={file_session_id}")
         except (json.JSONDecodeError, IOError):
             # File might be corrupted, but we can still use folder name
             pass
@@ -239,11 +269,383 @@ class FileSession(SessionABC):
         instance.session_folder = session_file.parent
         instance.sessions_dir = session_file.parent.parent
         instance.session_file = session_file
+        instance.history_file = session_file
+        instance.context_file = session_file.parent / "api_message.json"
         instance.metadata_file = session_file.parent / "metadata.json"
-        instance._lock = threading.Lock()
         instance.on_items_added = None
+        instance.project_root = None
+        instance._inject_info_file = session_file.parent / "inject_info.json"
+        with instance._storage_guard():
+            pass
         
         return instance
+
+    @contextmanager
+    def _storage_guard(self) -> Iterator[None]:
+        """Readers share the mutation/ownership lock and recover interrupted writes."""
+        with session_storage_lock(self.session_folder):
+            recover_transaction(self.session_folder)
+            yield
+
+    def _mutation(self, *files: str) -> AbstractContextManager[None]:
+        if files:
+            return storage_transaction(self.session_folder, files)
+        return storage_transaction(self.session_folder)
+
+    def _invalidate_prepared_context(self) -> None:
+        """Legacy writes invalidate preparation until the atomic reader cutover.
+
+        A prepared context must not look authoritative after an old writer
+        changes history. The later request-chain migration will replace this
+        guard with identity-aware runtime/UI admission.
+        """
+        invalidate_prepared_context(self.session_folder, self.session_id)
+
+    @staticmethod
+    def _limit_items(items: list, limit: int | None) -> list:
+        if limit is None:
+            return items
+        if limit < 0:
+            raise ValueError("Message limit must be nonnegative")
+        return [] if limit == 0 else items[-limit:]
+
+    async def get_history_items(
+        self, limit: int | None = None, *, include_injected: bool = True,
+    ) -> list[TResponseInputItem]:
+        """Read full history explicitly for UI or existing history telemetry."""
+        return await asyncio.to_thread(
+            self.get_history_items_sync, limit, include_injected=include_injected,
+        )
+
+    def get_history_items_sync(
+        self, limit: int | None = None, *, include_injected: bool = True,
+    ) -> list[TResponseInputItem]:
+        """Read UI history from synchronous presentation entry points."""
+        with self._storage_guard():
+            items = self._read_session_data()
+            if not include_injected:
+                items = [item for item in items if not self._is_injected(item)]
+            return self._limit_items(items, limit)
+
+    def _read_context_snapshot(self) -> dict:
+        """Read only versioned context; never reconstruct from UI history."""
+        try:
+            data = json.loads(self.context_file.read_bytes())
+        except (OSError, ValueError) as error:
+            raise SessionStorageError("Effective context is unavailable; explicit migration is required") from error
+        return self._validate_context_snapshot(data)
+
+    def _validate_context_snapshot(self, data: dict) -> dict:
+        """Validate detached checkpoint data with the live storage contract."""
+        if (
+            not isinstance(data, dict)
+            or type(data.get("format_version")) is not int
+            or data["format_version"] != 1
+            or data.get("session_id") != self.session_id
+            or type(data.get("context_version")) is not int
+            or data["context_version"] < 0
+            or type(data.get("restore_generation", 0)) is not int
+            or data.get("restore_generation", 0) < 0
+            or not isinstance(data.get("items"), list)
+            or not isinstance(data.get("routed_items"), list)
+            or not all(isinstance(item, dict) and not self._is_injected(item) for item in data["items"])
+            or not all(isinstance(item, dict) and self._is_injected(item) for item in data["routed_items"])
+        ):
+            raise SessionStorageError("Invalid effective context format or identity")
+        if data.get("preparation_invalidated"):
+            raise ContextVersionConflict("Prepared context was invalidated by a legacy writer")
+        receipts = data.get("message_receipts", {})
+        if not isinstance(receipts, dict) or any(
+            not isinstance(identity, str) or not identity
+            or not isinstance(digest, str) or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+            for identity, digest in receipts.items()
+        ):
+            raise SessionStorageError("Invalid message admission receipts")
+        return data
+
+    def get_checkpoint_snapshot_sync(self) -> dict:
+        """Capture both durable views under one lock after SDK persistence."""
+        with self._storage_guard():
+            context = self._read_context_snapshot()
+            try:
+                history = json.loads(self.history_file.read_bytes())
+                if (
+                    not isinstance(history, dict)
+                    or history.get("session_id") != self.session_id
+                    or not isinstance(history.get("items"), list)
+                    or not all(isinstance(item, dict) for item in history["items"])
+                ):
+                    raise ValueError("invalid history format or identity")
+            except (OSError, ValueError) as error:
+                raise SessionStorageError("Cannot capture damaged checkpoint history") from error
+            from siada.services.session_runtime_state import load_state
+            from siada.services.goal import goal_storage
+
+            runtime_state = load_state(self.session_folder, self.session_id)
+            if runtime_state is not None:
+                goal = goal_storage.load_goal(self.session_folder)
+                runtime_state["goal"] = goal.model_dump() if goal is not None else None
+            return {"history_items": history["items"], "context_snapshot": context,
+                    "runtime_state": runtime_state}
+
+    def restore_checkpoint_sync(
+        self, history_items: list[dict], context_snapshot: dict, *,
+        expected_version: int, before_commit: Callable[[], None],
+        rollback_project: Callable[[], None] | None = None,
+        structured_state: dict | None = None,
+    ) -> int:
+        """Restore both views with a version fence and compensated file writes.
+
+        The callback restores project files only after storage writes succeed.
+        Storage is rolled back if it fails; the optional rollback callback
+        compensates project changes on ordinary failures. This is not a durable
+        transaction across Git and session storage on process interruption.
+        Admission receipts remain monotonic so abandoned retries cannot resurrect
+        messages discarded by the restore.
+        """
+        history_items = copy.deepcopy(history_items)
+        saved = self._validate_context_snapshot(copy.deepcopy(context_snapshot))
+        if not isinstance(history_items, list) or not all(isinstance(item, dict) for item in history_items):
+            raise SessionStorageError("Checkpoint history must contain message dictionaries")
+        with self._storage_guard():
+            project_started = False
+            try:
+                with self._mutation():
+                    current = self._read_context_snapshot()
+                    if type(expected_version) is not int or current["context_version"] != expected_version:
+                        raise ContextVersionConflict("Effective context changed before checkpoint restore")
+                    receipts = current.setdefault("message_receipts", {})
+                    for identity, digest in saved.get("message_receipts", {}).items():
+                        if identity in receipts and receipts[identity] != digest:
+                            raise SessionStorageError("Checkpoint admission receipt conflicts with live storage")
+                        receipts[identity] = digest
+                    current["items"] = saved["items"]
+                    current["routed_items"] = saved["routed_items"]
+                    current["context_version"] += 1
+                    current["restore_generation"] = current.get("restore_generation", 0) + 1
+                    write_json(self.context_file, current)
+                    self._write_session_data(history_items)
+                    self._update_metadata(history_items)
+                    self._sync_inject_info_with_last_unlocked(history_items)
+                    if structured_state is not None:
+                        from siada.services.session_runtime_state import restore_state
+
+                        restore_state(self.session_folder, self.session_id, structured_state)
+                    project_started = True
+                    before_commit()
+                return current["context_version"]
+            except BaseException:
+                if project_started and rollback_project is not None:
+                    try:
+                        rollback_project()
+                    except Exception as error:
+                        raise SessionStorageError("Checkpoint restore failed and project rollback failed") from error
+                raise
+
+    def get_context_snapshot_sync(self) -> dict:
+        """Capture a detached, versioned context for a future replacement."""
+        with self._storage_guard():
+            return self._read_context_snapshot()
+
+    async def get_context_snapshot(self) -> dict:
+        return await asyncio.to_thread(self.get_context_snapshot_sync)
+
+    async def get_context_items(self, limit: int | None = None) -> list[TResponseInputItem]:
+        """Read prepared runtime context without reconstructing it from history."""
+        snapshot = await self.get_context_snapshot()
+        items = self._limit_items(snapshot["items"], limit)
+        logger.info(
+            "[effective-context][read] session=%s mode=prepared source=api_message.json version=%d items=%d",
+            self.session_id, snapshot["context_version"], len(items),
+        )
+        return items
+
+    @property
+    def has_prepared_context(self) -> bool:
+        """Detect the versioned format without treating corruption as absence."""
+        with self._storage_guard():
+            return self.context_file.exists()
+
+    async def get_runtime_items(self) -> list[TResponseInputItem]:
+        """Select versioned context, retaining legacy reads only before migration."""
+        def prepared_snapshot():
+            with self._storage_guard():
+                if self.context_file.exists():
+                    return self._read_context_snapshot()
+                return None
+
+        snapshot = await asyncio.to_thread(prepared_snapshot)
+        if snapshot is not None:
+            logger.info(
+                "[effective-context][read] session=%s mode=prepared source=api_message.json version=%d items=%d",
+                self.session_id, snapshot["context_version"], len(snapshot["items"]),
+            )
+            return snapshot["items"]
+        return await self.get_effective_messages()
+
+    def append_context_items_sync(
+        self, items: list[dict], *, message_ids: list[str], expected_version: int | None = None,
+        expected_restore_generation: int | None = None,
+    ) -> list[dict]:
+        """Admit identified native messages into both views in one transaction.
+
+        Receipts survive compaction: an SDK retry must not resurrect messages
+        removed from effective context. Identical content with distinct IDs is
+        deliberately not deduplicated. IDs never become provider-visible fields.
+        """
+        items = copy.deepcopy(items)
+        message_ids = copy.deepcopy(message_ids)
+        if (
+            not isinstance(items, list)
+            or not isinstance(message_ids, list)
+            or len(items) != len(message_ids)
+            or any(not isinstance(item, dict) or self._is_injected(item) for item in items)
+            or any(not isinstance(identity, str) or not identity for identity in message_ids)
+        ):
+            raise ValueError("Admission requires native messages and matching nonempty identities")
+        with self._mutation():
+            current = self._read_context_snapshot()
+            if expected_restore_generation is not None and (
+                type(expected_restore_generation) is not int
+                or current.get("restore_generation", 0) != expected_restore_generation
+            ):
+                raise ContextVersionConflict("Effective context was restored during the SDK run")
+            if expected_version is not None and (
+                type(expected_version) is not int or current["context_version"] != expected_version
+            ):
+                raise ContextVersionConflict("Effective context changed; retry from a fresh snapshot")
+            receipts = current.setdefault("message_receipts", {})
+            added = []
+            for identity, item in zip(message_ids, items, strict=True):
+                digest = hashlib.sha256(json.dumps(
+                    item, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+                ).encode("utf-8")).hexdigest()
+                if identity in receipts:
+                    if receipts[identity] != digest:
+                        raise SessionStorageError("Message admission identity was reused with different content")
+                else:
+                    receipts[identity] = digest
+                    added.append(item)
+            if not added:
+                return []
+            try:
+                history = json.loads(self.history_file.read_bytes())
+                if (
+                    not isinstance(history, dict)
+                    or history.get("session_id") != self.session_id
+                    or not isinstance(history.get("items"), list)
+                    or not all(isinstance(item, dict) for item in history["items"])
+                ):
+                    raise ValueError("invalid history format or identity")
+            except (OSError, ValueError) as error:
+                raise SessionStorageError("Cannot admit messages into damaged UI history") from error
+            current["items"].extend(added)
+            current["context_version"] += 1
+            write_json(self.context_file, current)
+            history["items"].extend(added)
+            self._write_session_data(history["items"])
+            self._update_metadata(history["items"])
+            self._sync_inject_info_with_last_unlocked(history["items"])
+            return added
+
+    async def append_context_items(
+        self, items: list[dict], *, message_ids: list[str], expected_version: int | None = None,
+        expected_restore_generation: int | None = None,
+    ) -> list[dict]:
+        """Notify history consumers only for messages newly committed to both views."""
+        added = await asyncio.to_thread(
+            self.append_context_items_sync, items, message_ids=message_ids, expected_version=expected_version,
+            expected_restore_generation=expected_restore_generation,
+        )
+        if added and self.on_items_added:
+            try:
+                await self.on_items_added(copy.deepcopy(added))
+            except Exception as error:
+                logger.debug("Error in on_items_added hook: %s", error)
+        return added
+
+    def replace_context_items_sync(self, items: list, *, expected_version: int) -> int:
+        """Compare-and-swap runtime context, preserving UI and routing records."""
+        items = copy.deepcopy(items)
+        if not isinstance(items, list) or any(
+            not isinstance(item, dict) or self._is_injected(item) for item in items
+        ):
+            raise ValueError("Context replacement requires native message dictionaries")
+        with self._mutation("api_message.json"):
+            current = self._read_context_snapshot()
+            if type(expected_version) is not int or current["context_version"] != expected_version:
+                raise ContextVersionConflict("Effective context changed; retry from a fresh snapshot")
+            current["items"] = items
+            current["context_version"] += 1
+            write_json(self.context_file, current)
+            return current["context_version"]
+
+    async def replace_context_items(self, items: list, *, expected_version: int) -> int:
+        return await asyncio.to_thread(
+            self.replace_context_items_sync, items, expected_version=expected_version,
+        )
+
+    def migrate_legacy_context_sync(self, *, allow_history_only: bool = False) -> dict:
+        """Prepare versioned context once and activate authoritative SDK reads.
+
+        A valid snapshot may end in a summary without a native anchor of its
+        own. Its persisted history boundary, not matching summary contents,
+        controls the one-time delta. Legacy files are retained untouched.
+        """
+        with self._mutation("api_message.json"):
+            if self.context_file.exists():
+                return self._read_context_snapshot()
+            try:
+                history = json.loads(self.history_file.read_bytes())
+                if not isinstance(history, dict) or history.get("session_id", self.session_id) != self.session_id:
+                    raise ValueError("invalid history identity")
+                records = history["items"]
+                if not isinstance(records, list) or not all(isinstance(item, dict) for item in records):
+                    raise ValueError("invalid history items")
+                native = [item for item in records if not self._is_injected(item)]
+                legacy_file = self.session_folder / "api_messages.json"
+                if legacy_file.exists():
+                    snapshot = json.loads(legacy_file.read_bytes())
+                    if not isinstance(snapshot, dict) or snapshot.get("session_id") != self.session_id:
+                        raise ValueError("invalid snapshot identity")
+                    items = snapshot["api_messages"]
+                    index = snapshot["last_index"]
+                    if not isinstance(items, list) or not all(
+                        isinstance(item, dict) and not self._is_injected(item) for item in items
+                    ):
+                        raise ValueError("invalid snapshot items")
+                    if type(index) is not int or not -1 <= index < len(native):
+                        raise ValueError("invalid snapshot boundary")
+                    if index == -1:
+                        if native or snapshot.get("last_signature", ""):
+                            raise ValueError("snapshot has no trustworthy history boundary")
+                    elif snapshot.get("last_signature") != compute_last_item_signature(native[:index + 1]):
+                        raise ValueError("snapshot history boundary signature mismatch")
+                    items = items + native[index + 1:]
+                    source = "legacy_snapshot"
+                elif allow_history_only:
+                    items = native
+                    source = "explicit_history_only"
+                else:
+                    raise ValueError("history-only migration requires explicit approval")
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                raise SessionStorageError(f"Cannot migrate legacy context: {error}") from error
+            data = {
+                "format_version": 1,
+                "session_id": self.session_id,
+                "context_version": 0,
+                "items": items,
+                "routed_items": [item for item in records if self._is_injected(item)],
+                "migration_source": source,
+            }
+            write_json(self.context_file, data)
+            return copy.deepcopy(data)
+
+    async def migrate_legacy_context(self, *, allow_history_only: bool = False) -> dict:
+        return await asyncio.to_thread(
+            self.migrate_legacy_context_sync, allow_history_only=allow_history_only,
+        )
 
     def _read_session_data(self) -> list[TResponseInputItem]:
         """Read session data from file."""
@@ -295,6 +697,7 @@ class FileSession(SessionABC):
         except Exception:
             if temp_file.exists():
                 temp_file.unlink()
+            raise
 
     def _read_signature_file(self) -> dict:
         """Read persisted signature from sidecar file.
@@ -315,15 +718,17 @@ class FileSession(SessionABC):
     @property
     def last_signature(self) -> str:
         """MD5 signature of the last native item, read from disk."""
-        return self._read_signature_file()["signature"]
+        with self._storage_guard():
+            return self._read_signature_file()["signature"]
 
     @property
     def native_item_count(self) -> int:
         """Count of native (non-injected) items, read from disk."""
-        return self._read_signature_file()["native_item_count"]
+        with self._storage_guard():
+            return self._read_signature_file()["native_item_count"]
 
     async def get_items(self, limit: int | None = None) -> list[TResponseInputItem]:
-        """Retrieve the conversation history for this session.
+        """Retrieve authoritative context, or legacy items before preparation.
 
         Injected messages (from cross-session injection) are filtered out.
         Use get_all_items() to include injected messages.
@@ -336,7 +741,9 @@ class FileSession(SessionABC):
             List of native input items (excluding injected messages)
         """
         def _get_items_sync():
-            with self._lock:
+            with self._storage_guard():
+                if self.context_file.exists():
+                    return self._limit_items(self._read_context_snapshot()["items"], limit)
                 _t_start = time.perf_counter()
                 items = self._read_session_data()
                 _t_read = time.perf_counter()
@@ -354,10 +761,7 @@ class FileSession(SessionABC):
                     (_t_filter - _t_read) * 1000,
                     (_t_filter - _t_start) * 1000,
                 )
-                if limit is None:
-                    return native_items
-                else:
-                    return native_items[-limit:] if len(native_items) > limit else native_items
+                return self._limit_items(native_items, limit)
 
         return await asyncio.to_thread(_get_items_sync)
 
@@ -380,7 +784,7 @@ class FileSession(SessionABC):
               * ``last_index`` — last sync'd index in api_history, ``-1`` if
                 unknown or unavailable.
         """
-        def _read_sync() -> tuple[list[TResponseInputItem] | None, int]:
+        def _read_snapshot_unlocked() -> tuple[list[TResponseInputItem] | None, int]:
             api_messages_file = self.session_folder / "api_messages.json"
             if not api_messages_file.exists():
                 return None, -1
@@ -403,6 +807,10 @@ class FileSession(SessionABC):
             except (TypeError, ValueError):
                 last_index = -1
             return messages, last_index
+
+        def _read_sync() -> tuple[list[TResponseInputItem] | None, int]:
+            with self._storage_guard():
+                return _read_snapshot_unlocked()
 
         return await asyncio.to_thread(_read_sync)
 
@@ -437,23 +845,38 @@ class FileSession(SessionABC):
             Combined list of native input items, ready for downstream
             consumers (memory persistence, replay, debug views, ...).
         """
+        if self.has_prepared_context:
+            return await self.get_context_items()
         history_items = await self.get_items()
         snapshot, last_index = await self.get_api_messages()
 
         # No snapshot OR empty snapshot → raw history is the best view.
         if not snapshot:
+            logger.info(
+                "[effective-context][read] session=%s mode=legacy source=api_history.json items=%d "
+                "reason=no_nonempty_snapshot",
+                self.session_id, len(history_items),
+            )
             return list(history_items)
 
         n_history = len(history_items)
         # Stale / invalid checkpoint → cannot safely splice.
         if last_index < 0 or last_index >= n_history:
+            logger.info(
+                "[effective-context][read] session=%s mode=legacy source=api_messages.json items=%d "
+                "last_index=%d reason=unaligned_last_index",
+                self.session_id, len(snapshot), last_index,
+            )
             return list(snapshot)
 
         delta = history_items[last_index + 1:]
-        if not delta:
-            return list(snapshot)
-
-        return list(snapshot) + list(delta)
+        items = list(snapshot) + list(delta)
+        logger.info(
+            "[effective-context][read] session=%s mode=legacy source=%s items=%d last_index=%d delta_items=%d",
+            self.session_id, "api_messages.json+delta" if delta else "api_messages.json",
+            len(items), last_index, len(delta),
+        )
+        return items
 
     async def get_all_items(self, limit: int | None = None) -> list[TResponseInputItem]:
         """Retrieve the full conversation history including injected messages.
@@ -469,12 +892,12 @@ class FileSession(SessionABC):
             List of all input items including injected messages
         """
         def _get_all_items_sync():
-            with self._lock:
+            with self._storage_guard():
+                if self.context_file.exists():
+                    snapshot = self._read_context_snapshot()
+                    return self._limit_items(snapshot["items"] + snapshot["routed_items"], limit)
                 items = self._read_session_data()
-                if limit is None:
-                    return items
-                else:
-                    return items[-limit:] if len(items) > limit else items
+                return self._limit_items(items, limit)
 
         return await asyncio.to_thread(_get_all_items_sync)
 
@@ -501,8 +924,9 @@ class FileSession(SessionABC):
         if not items:
             return
 
-        with self._lock:
+        with self._mutation():
             current_items = self._read_session_data()
+            context = self._read_context_snapshot() if self.context_file.exists() else None
             now_iso = datetime.now().isoformat()
 
             tagged_items = []
@@ -516,7 +940,8 @@ class FileSession(SessionABC):
                 if position == "prepend":
                     seq = len(tagged_items)
                 else:
-                    seq = len(current_items) + len(tagged_items)
+                    seq = (len(context["items"]) + len(context["routed_items"])
+                           if context is not None else len(current_items)) + len(tagged_items)
 
                 item['_injected'] = True
                 item['_source_session_id'] = source_session_id
@@ -535,6 +960,11 @@ class FileSession(SessionABC):
                 merged = current_items + tagged_items
 
             self._write_session_data(merged)
+            if context is not None:
+                context["routed_items"] = (tagged_items + context["routed_items"] if position == "prepend"
+                                           else context["routed_items"] + tagged_items)
+                context["context_version"] += 1
+                write_json(self.context_file, context)
             self._update_metadata(merged)
 
             # Persist inject_info so cross-session routing survives restarts.
@@ -551,7 +981,7 @@ class FileSession(SessionABC):
 
         Uses tmp-file + os.replace for crash safety; falls back to default=str
         when content contains non JSON-serializable objects. Caller is expected
-        to already hold ``self._lock``.
+        to already hold the shared storage lock.
         """
         tmp = self._inject_info_file.with_suffix(".json.tmp")
         try:
@@ -587,6 +1017,10 @@ class FileSession(SessionABC):
         as "no pending info" and silently self-heals by being overwritten
         on the next successful write.
         """
+        with self._storage_guard():
+            return self._read_inject_info()
+
+    def _read_inject_info(self) -> Optional[tuple[str, Any]]:
         if not self._inject_info_file.exists():
             return None
         try:
@@ -604,7 +1038,7 @@ class FileSession(SessionABC):
             return None
 
     def _clear_inject_info_unlocked(self) -> None:
-        """Internal helper — caller must hold ``self._lock``."""
+        """Internal helper; the caller must hold the shared storage lock."""
         try:
             if self._inject_info_file.exists():
                 self._inject_info_file.unlink()
@@ -625,7 +1059,7 @@ class FileSession(SessionABC):
             reflect that item (source_session_id may have changed);
           * otherwise → clear inject_info (tail is no longer an injection).
 
-        Caller must hold ``self._lock``.
+        The caller must hold the shared storage lock.
         """
         if (
             items
@@ -652,7 +1086,7 @@ class FileSession(SessionABC):
           3. After api_history has been mutated via add/pop/clear/reset
              ("data is now stale").
         """
-        with self._lock:
+        with self._mutation():
             self._clear_inject_info_unlocked()
 
 
@@ -660,13 +1094,20 @@ class FileSession(SessionABC):
         if not items:
             return
 
-        with self._lock:
+        with self._mutation():
+            if self.context_file.exists():
+                import uuid
+
+                batch = uuid.uuid4().hex
+                self.append_context_items_sync(items, message_ids=[f"append:{batch}:{index}" for index in range(len(items))])
+                return
             _t_start = time.perf_counter()
             current_items = self._read_session_data()
             _t_read = time.perf_counter()
             current_items.extend(items)
             _t_filter = time.perf_counter()
             self._write_session_data(current_items)
+            self._invalidate_prepared_context()
             _t_write = time.perf_counter()
             self._update_metadata(current_items)
             _t_metadata = time.perf_counter()
@@ -716,7 +1157,9 @@ class FileSession(SessionABC):
             The most recent item if it exists, None if the session is empty
         """
         def _pop_item_sync():
-            with self._lock:
+            with self._mutation():
+                if self.context_file.exists():
+                    raise SessionStorageError("Prepared context rewind requires an explicit checkpoint restore")
                 items = self._read_session_data()
                 
                 if not items:
@@ -725,6 +1168,7 @@ class FileSession(SessionABC):
                 # Remove and return the last item
                 popped_item = items.pop()
                 self._write_session_data(items)
+                self._invalidate_prepared_context()
                 # After pop, a previously-hidden injected item may now be
                 # the new tail — re-sync accordingly.
                 self._sync_inject_info_with_last_unlocked(items)
@@ -735,9 +1179,21 @@ class FileSession(SessionABC):
     async def clear_session(self) -> None:
         """Clear all items for this session."""
         def _clear_session_sync():
-            with self._lock:
-                if self.session_file.exists():
-                    self.session_file.unlink()
+            with self._mutation():
+                if self.context_file.exists():
+                    context = self._read_context_snapshot()
+                    context["items"] = []
+                    context["routed_items"] = []
+                    context["context_version"] += 1
+                    context["restore_generation"] = context.get("restore_generation", 0) + 1
+                    write_json(self.context_file, context)
+                if self.context_file.exists():
+                    self._write_session_data([])
+                else:
+                    self.session_file.unlink(missing_ok=True)
+                    self._write_signature_file("", 0)
+                self._update_metadata([])
+                (self.session_folder / "api_messages.json").unlink(missing_ok=True)
                 # History wiped — any pending inject_info is stale.
                 self._clear_inject_info_unlocked()
 
@@ -756,7 +1212,9 @@ class FileSession(SessionABC):
             items: List of input items to set as the new conversation history
         """
         def _reset_items_sync():
-            with self._lock:
+            with self._mutation():
+                if self.context_file.exists():
+                    raise SessionStorageError("Prepared context reset requires explicit dual-view checkpoint data")
                 # Preserve injected messages from the current file
                 existing_items = self._read_session_data()
                 injected_items = [
@@ -766,6 +1224,7 @@ class FileSession(SessionABC):
 
                 if not injected_items:
                     self._write_session_data(items)
+                    self._invalidate_prepared_context()
                     self._update_metadata(items)
                     # No injected items preserved — tail cannot be injected.
                     self._sync_inject_info_with_last_unlocked(items)
@@ -779,6 +1238,7 @@ class FileSession(SessionABC):
                     merged.insert(insert_pos, inj)
 
                 self._write_session_data(merged)
+                self._invalidate_prepared_context()
                 self._update_metadata(merged)
                 # Re-sync with the new tail — if an injected item ended up
                 # at the end after re-insertion, inject_info is refreshed

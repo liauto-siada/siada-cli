@@ -122,8 +122,8 @@ describe('completed tool diff placement', () => {
   });
 });
 
-describe('one-shot diff metadata', () => {
-  it('marks completed diffs without changing read or edit streaming behavior', () => {
+describe('completed tool diff metadata', () => {
+  it('marks completed one-shot and chunked diffs while keeping reads unchanged', () => {
     let messages: MessageType[] = [];
     let handleToolUse: ReturnType<typeof useStreamingMessages>['handleToolUse'] | undefined;
     const setMessages = (update: SetStateAction<MessageType[]>) => {
@@ -163,7 +163,7 @@ describe('one-shot diff metadata', () => {
     expect(messages[3]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 0 });
     handleToolUse!({ content: 'the string:\n```ts\nold\n```\nwith:\n```ts\nnew\n```', metadata: { chunkIndex: 1, streamEnd: true } });
     expect(messages[3]?.content).toBe(EDIT);
-    expect(messages[3]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1 });
+    expect(messages[3]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1, streamEnd: true, isStreaming: false });
 
     handleToolUse!({ content: CREATE, metadata: { chunkIndex: 0, streamEnd: true } });
     expect(messages[4]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 0, streamEnd: true });
@@ -178,5 +178,17 @@ describe('one-shot diff metadata', () => {
     handleToolUse!({ content: 'Read the file `', metadata: { chunkIndex: 0, streamEnd: false } });
     handleToolUse!({ content: 'src/a.ts`', metadata: { chunkIndex: 1, streamEnd: true } });
     expect(messages[6]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1 });
+
+    const markdownEdit = 'In the file `docs/notes.md``, replace the string:\nold\nwith:\nnew';
+    handleToolUse!({ content: markdownEdit, metadata: { chunkIndex: 0, streamEnd: true } });
+    expect(messages[7]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 0, streamEnd: true });
+    expect(renderList(messages.slice(7))).toMatch(/data-area="static"[\s\S]*data-id=/);
+
+    handleToolUse!({ content: 'In the file `docs/notes.md``, replace the string:\nold', metadata: { chunkIndex: 0, streamEnd: false } });
+    expect(renderList(messages.slice(8), false, true)).toMatch(/<\/section><p data-id=/);
+    handleToolUse!({ content: '\nwith:\nnew\n\n', metadata: { chunkIndex: 1, streamEnd: true } });
+    expect(messages[8]?.content).toBe(`${markdownEdit}\n\n`);
+    expect(messages[8]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1, streamEnd: true, isStreaming: false });
+    expect(renderList(messages.slice(8), false, true)).toMatch(/data-area="static"[\s\S]*data-id=/);
   });
 });

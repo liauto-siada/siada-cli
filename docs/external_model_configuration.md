@@ -111,6 +111,19 @@ An array of model configurations, each model contains the following fields:
 - **Default**: `false`
 - **Example**: `true`, `false`
 
+This capability controls both user-attached images and image reads through
+`edit_file`. For Chat Completions conversions, including the `default` provider,
+already-produced tool-result images are always preserved for every model.
+Conversion does not check `supports_images` or require request context, so a
+false or missing capability cannot discard images from tool results. The stored
+history is unchanged.
+
+The Chat Completions endpoint must accept image content in `role: tool`
+messages. Supporting images in user messages alone does not ensure support for
+tool-result images; the standard OpenAI Chat Completions protocol does not
+support them. An incompatible endpoint needs a separate message-protocol
+adaptation. Existing vision-bridge behavior for text-only models is unchanged.
+
 #### supports_prompt_cache (Optional)
 - **Type**: Boolean
 - **Description**: Whether the model supports prompt caching
@@ -250,8 +263,9 @@ For all models, the main coding agent appends a bounded Git snapshot (branch,
 HEAD, worktree summary and capture time) as a hidden `<system-reminder>`-wrapped
 `input_text` content part on the first user request in a Git workspace. It is
 stored in the session's `api_history.json`, reused on later turns and after
-`/resume`, and refreshed in the model-visible `api_messages.json` after
-compaction. Older sessions with a standalone snapshot message remain supported.
+`/resume`, and refreshed in the prepared model context (`api_message.json`)
+after compaction. Legacy sessions use `api_messages.json` until migration.
+Older sessions with a standalone snapshot message remain supported.
 If the workspace is not a Git repository or capture fails, no snapshot is added.
 The snapshot is context data, not additional authorization; it is never sent as
 a mid-conversation system message or shown in chat history. Set
@@ -273,10 +287,12 @@ an explicit default, the gateway determines the default reasoning behavior.
 API-key provider models without a matching built-in entry also leave these
 settings unset.
 
-On GLM-5.2 and later, the main coding agent uses a GLM-specific identity and
-behavior section. Shared capabilities, skills, agents and memory remain
-available. After three consecutive tool calls with identical arguments, a
-hidden user-role reminder asks the model to use the results or change approach.
+On GLM-5.2 and later, the main coding agent builds the system prompt from the
+ZCode CLI system prompt template (identity renamed to Siada), while preserving
+Siada's `edit_file` tools, Git safety, non-interactive approval rules, skill and
+agent catalogs, and combined memory. After three consecutive tool calls with
+identical arguments, a hidden user-role reminder asks the model to use the
+results or change approach.
 The GLM prompt and repeated-call reminder have no separate opt-out switches.
 
 GLM models of any generation can receive an empty-list reminder after at least

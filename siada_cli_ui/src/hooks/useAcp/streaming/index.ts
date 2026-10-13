@@ -13,7 +13,7 @@ import {
   isRepetitionGuardModel,
 } from '../../../utils/streamRepetition.js';
 import { COMPACTION_CONTENT_PATTERN, COMPACTION_COMPLETE_PATTERN, ThinkingStep } from '../../../constants/phrases.js';
-import { isRenderableToolDiff, parseFileCreateContent } from '../../../utils/diff.js';
+import { isRenderableToolDiff } from '../../../utils/diff.js';
 import { parseTodoWriteContent } from '../../../utils/todoWrite.js';
 
 // Throttle interval for streaming message flushes.
@@ -506,16 +506,14 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           if (m.type === 'agent' && m.metadata?.subtype === 'tool_use') {
             const updated = [...prev];
             const nextContent = (m.content || '') + content;
-            const createInfo = isFinal ? parseFileCreateContent(nextContent) : null;
-            const completedCreate = createInfo?.isComplete === true && createInfo.newString.length > 0 &&
-              isRenderableToolDiff(nextContent);
+            const completedDiff = isFinal && isRenderableToolDiff(nextContent);
             updated[i] = {
               ...m,
               content: nextContent,
               metadata: {
                 ...m.metadata,
                 chunkIndex,
-                ...(completedCreate ? { streamEnd: true, isStreaming: false } : {}),
+                ...(completedDiff ? { streamEnd: true, isStreaming: false } : {}),
               },
             };
             return updated;

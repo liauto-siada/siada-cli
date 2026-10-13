@@ -191,6 +191,12 @@ def set_agent_running(running: bool) -> None:
 
 
 
+def restore_pending_injections(items: list) -> None:
+    """Return an uncommitted batch ahead of messages arriving during admission."""
+    with _pending_injections_lock:
+        _pending_injections.extendleft(reversed(items))
+
+
 def drain_pending_injections() -> list:
     """Drain all pending injection items.
 

@@ -94,6 +94,17 @@ pytest tests/ -v
 pytest tests/tools/test_example.py
 ```
 
+#### Offline Session Baseline
+
+For session/context changes, start with the reviewed
+[session test baseline](./SESSION_TEST_BASELINE.md). It runs without live model
+calls and distinguishes passing behavior from strict expected-failure gaps:
+
+```bash
+export REPO_ROOT="$(git rev-parse --show-toplevel)"
+poetry -C "$REPO_ROOT" run python "$REPO_ROOT/tests/run_session_baseline.py"
+```
+
 #### Test File Naming Convention
 All test files must follow the naming convention `test_*.py` to be automatically discovered by the test runner. For example:
 - ✅ `test_file_operator.py`

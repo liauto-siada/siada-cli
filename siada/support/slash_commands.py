@@ -293,11 +293,7 @@ class SlashCommands:
         # 1. Look up the cached CodeAgentContext for the current workspace
         from siada.services.siada_runner import SiadaRunner
         workspace = session.siada_config.workspace
-        context = None
-        for (_, ws), ctx in SiadaRunner._context_cache.items():
-            if ws == workspace:
-                context = ctx
-                break
+        context = SiadaRunner.find_session_context(session)
 
         if context is None:
             self.io.print_error(
@@ -309,7 +305,10 @@ class SlashCommands:
         context.session = session
 
         # 3. Gather current real API messages
-        real_api_messages = session.task_message_state.get_real_messages()
+        store = session.openai_session
+        prepared = getattr(store, "has_prepared_context", False) is True
+        snapshot = store.get_context_snapshot_sync() if prepared else None
+        real_api_messages = snapshot["items"] if snapshot is not None else session.task_message_state.get_real_messages()
         if not real_api_messages:
             self.io.print_info("No conversation history to compact.")
             return
@@ -386,6 +385,18 @@ class SlashCommands:
             context, real_api_messages, new_messages,
         )
         after_count = len(new_messages)
+
+        if snapshot is not None:
+            try:
+                store.replace_context_items_sync(new_messages, expected_version=snapshot["context_version"])
+            except Exception as exc:
+                self.io.print_error(f"Compaction failed: {exc}")
+                return
+            self.io.print_info(
+                f"Compacted: {before_count} → {after_count} messages "
+                f"({before_count - after_count} removed)"
+            )
+            return
 
         # 5. Compute tracking info anchored to the current end of the original
         # message history so the next LLM call uses an incremental update
@@ -564,11 +575,7 @@ class SlashCommands:
         # Locate the cached CodeAgentContext for this workspace
         from siada.services.siada_runner import SiadaRunner
         workspace = session.siada_config.workspace
-        context = None
-        for (_, ws), ctx in SiadaRunner._context_cache.items():
-            if ws == workspace:
-                context = ctx
-                break
+        context = SiadaRunner.find_session_context(session)
 
         if not sub:
             # Show current status
@@ -670,11 +677,7 @@ class SlashCommands:
         # Locate the cached CodeAgentContext for this workspace
         from siada.services.siada_runner import SiadaRunner
         workspace = session.siada_config.workspace
-        context = None
-        for (_, ws), ctx in SiadaRunner._context_cache.items():
-            if ws == workspace:
-                context = ctx
-                break
+        context = SiadaRunner.find_session_context(session)
 
         # Current configured mode (None=auto/off-by-default, True=on, False=off)
         if context is not None:
@@ -789,11 +792,7 @@ class SlashCommands:
 
         from siada.services.siada_runner import SiadaRunner
         workspace = session.siada_config.workspace
-        context = None
-        for (_, ws), ctx in SiadaRunner._context_cache.items():
-            if ws == workspace:
-                context = ctx
-                break
+        context = SiadaRunner.find_session_context(session)
 
         current_goal = getattr(context, 'goal', None) if context is not None else None
         if current_goal is None and session_dir is not None:
@@ -1353,11 +1352,10 @@ class SlashCommands:
             # Reset real API messages to force fresh context with new model
             # This avoids stale context issues when switching models
             session.state.task_message_state.reset_real_messages()
-            # Also reset the persisted tracking in api_messages.json so that
-            # _needs_full_refresh returns True on the next LLM call. Without
-            # this, the stale last_index/last_signature in the file causes
-            # _try_incremental_update to use an empty base list, losing all history.
-            if session.state.openai_session and session.state.openai_session.session_folder:
+            # Prepared context survives model switches; only the legacy adapter
+            # needs tracking reset before its next full refresh.
+            if (session.state.openai_session and session.state.openai_session.session_folder
+                    and getattr(session.state.openai_session, "has_prepared_context", False) is not True):
                 from siada.services.session_management import SessionManager
                 SessionManager.update_api_messages_tracking(
                     session.state.openai_session.session_folder, -1, ""
@@ -1391,7 +1389,11 @@ class SlashCommands:
 
             # In ACP mode, send history to UI to refresh display with new model in banner
             if hasattr(self.io, 'acp_adapter') and self.io.acp_adapter is not None:
-                items = session.state.task_message_state.get_messages()
+                from siada.services.file_session import FileSession
+
+                items = (session.openai_session.get_history_items_sync(include_injected=True)
+                         if isinstance(session.openai_session, FileSession)
+                         else session.state.task_message_state.get_messages())
                 if items:
                     self._send_history_to_ui(items)
 
@@ -1408,8 +1410,22 @@ class SlashCommands:
         """
         from siada.tools.todo.recovery import extract_todos_from_messages
 
-        messages = session.task_message_state.get_messages()
-        todos = extract_todos_from_messages(messages)
+        from siada.services.siada_runner import SiadaRunner
+        from siada.services.file_session import FileSession
+        from siada.services.session_runtime_state import load_state
+        from siada.tools.todo.models import TodoItem
+
+        context = SiadaRunner.find_session_context(session)
+        store = session.openai_session
+        state = load_state(store.session_folder, session.session_id) if isinstance(store, FileSession) else None
+        if context is not None:
+            todos = context.todos
+        elif state is not None:
+            todos = [TodoItem.model_validate(item) for item in state["todos"]]
+        elif getattr(store, "has_prepared_context", False) is True:
+            todos = []
+        else:
+            todos = extract_todos_from_messages(session.task_message_state.get_messages())
 
         if not todos:
             self.io.print_info("No todo_write call found in current session history.")
@@ -3007,8 +3023,10 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             else:
                 if operation_type == "undo":
                     # if operation_type = undo, add a user message indicating undo
-                    last_message = restored_history[-2]
-                    function = last_message.get("name", "unknown_function")
+                    call_id = last_message.get("call_id")
+                    call = next((item for item in reversed(restored_history)
+                                 if item.get("type") == "function_call" and item.get("call_id") == call_id), {})
+                    function = call.get("name", "unknown_function")
                     restored_history.append(
                         {
                             "role": "user",
@@ -3073,6 +3091,76 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             True if successful, False otherwise
         """
         import asyncio
+
+        from siada.services.file_session import FileSession
+        from siada.services.session_storage import SessionStorageError
+
+        store = session.state.openai_session
+        saved_context = getattr(checkpoint_data, "context_snapshot", None)
+        if isinstance(store, FileSession) and (store.has_prepared_context or saved_context is not None):
+            try:
+                if saved_context is None:
+                    raise SessionStorageError("Legacy checkpoint requires explicit effective-context migration")
+                live = store.get_context_snapshot_sync()
+                import copy
+
+                restored_context = copy.deepcopy(saved_context)
+                # Undo adds a new user notice, not a replay of discarded history.
+                if restore_history[:len(checkpoint_data.history)] != checkpoint_data.history:
+                    raise SessionStorageError("Checkpoint restore cannot rewrite its saved history")
+                extra_items = restore_history[len(checkpoint_data.history):]
+                restored_context["items"].extend(copy.deepcopy(extra_items))
+                restored_usage = deserialize_usage(checkpoint_data.usage)
+                from siada.services.git_service import GitService
+                from siada.services.siada_runner import SiadaRunner
+                from siada.services.session_runtime_state import apply_state, load_state, validate_state
+
+                if checkpoint_data.data is None:
+                    raise SessionStorageError("Checkpoint has no structured state; explicit migration is required")
+                validate_state(checkpoint_data.data, session.session_id)
+                git_service = session.checkpoint_tracker.git_service
+                rollback_hash = None
+
+                def restore_project() -> None:
+                    nonlocal rollback_hash
+                    # Preserve uncommitted project files before destructive restore.
+                    rollback_hash = git_service.create_snapshot(
+                        f"rollback before checkpoint restore for session: {session.session_id}"
+                    )
+                    from siada.services.session_storage import enlist_project_restore
+
+                    if isinstance(git_service, GitService):
+                        enlist_project_restore(store.session_folder, git_service, rollback_hash)
+                    git_service.restore_project_from_snapshot(target_commit_hash)
+
+                def rollback_project() -> None:
+                    if rollback_hash is not None:
+                        git_service.restore_project_from_snapshot(rollback_hash)
+
+                store.restore_checkpoint_sync(
+                    restore_history, restored_context, expected_version=live["context_version"],
+                    before_commit=restore_project,
+                    rollback_project=rollback_project if not isinstance(git_service, GitService) else None,
+                    structured_state=checkpoint_data.data,
+                )
+                session.task_message_state.reset_message_history([])
+                session.task_message_state.reset_real_messages()
+                session.state.usage = restored_usage
+                restored_state = load_state(store.session_folder, session.session_id)
+                context = SiadaRunner.find_session_context(session)
+                from siada.services.goal import goal_storage
+
+                if context is not None:
+                    apply_state(context, restored_state)
+                    context.goal = goal_storage.load_goal(store.session_folder)
+                else:
+                    session.state.pending_runtime_state = restored_state
+                    session.state.pending_goal = goal_storage.load_goal(store.session_folder)
+                    session.state.pending_goal_loaded = True
+                return True
+            except Exception as error:
+                self.io.print_error(f"Failed to restore prepared checkpoint: {error}")
+                return False
 
         async def async_operations():
             # Save old messages and usage for rollback

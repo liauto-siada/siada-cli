@@ -164,6 +164,8 @@ class TestSiadaRunnerConsumesSubagentResumeNote:
         running_session.state.pending_skill_names = []
         running_session.state.pending_todos = None
         running_session.state.pending_goal = None
+        running_session.state.pending_goal_loaded = False
+        running_session.state.pending_runtime_state = None
         running_session.state.pending_subagent_resume_note = "[Sub-agent resume notice] ..."
 
         context = CodeAgentContext(root_dir="/tmp")

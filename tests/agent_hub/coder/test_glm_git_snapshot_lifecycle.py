@@ -52,6 +52,7 @@ def _fake_git(monkeypatch):
     monkeypatch.delenv(GIT_SNAPSHOT_ENV, raising=False)
     capture = MagicMock(return_value=_snapshot())
     monkeypatch.setattr(git_snapshot, "capture_git_snapshot", capture)
+    monkeypatch.setattr("siada.agent_hub.coder.code_gen_agent.get_available_lark_tools", lambda: [])
     return capture
 
 
@@ -161,7 +162,7 @@ async def test_later_turns_reuse_the_snapshot_in_history(_fake_git):
     history = [build_git_snapshot_item(_snapshot()), {"role": "user", "content": "first"}]
 
     result = await CodeGenAgent()._maybe_prepend_git_snapshot(
-        "next turn", _context(real_messages=history), _session()
+        "next turn", _context(), _session(history)
     )
 
     assert result == "next turn"
@@ -169,11 +170,11 @@ async def test_later_turns_reuse_the_snapshot_in_history(_fake_git):
 
 
 @pytest.mark.asyncio
-async def test_later_turns_detect_a_merged_snapshot_in_real_history(_fake_git):
+async def test_later_turns_detect_a_merged_snapshot_in_effective_history(_fake_git):
     history = git_snapshot.merge_git_snapshot_into_input("first", build_git_snapshot_item(_snapshot()))
 
     result = await CodeGenAgent()._maybe_prepend_git_snapshot(
-        "next turn", _context(real_messages=history), _session()
+        "next turn", _context(), _session(history)
     )
 
     assert result == "next turn"

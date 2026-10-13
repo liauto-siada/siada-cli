@@ -1051,6 +1051,10 @@ class ProactiveScheduler:
         logger.info("ProactiveScheduler -- Analyzing session file: %s", f.name)
         try:
             content = f.read_text(encoding="utf-8")
+            logger.info(
+                "[memory-source][analyze] trigger=periodic source=session_markdown file=%s chars=%d status=starting",
+                f.name, len(content),
+            )
             result = await analyze_and_update_memory(session_content=content)
             if result.get("success"):
                 logger.info(
@@ -1063,6 +1067,10 @@ class ProactiveScheduler:
                     f.name, result.get("error"),
                 )
             # Serial: inline memory review runs after MemoryAgent pipeline completes
+            logger.info(
+                "[memory-source][review] trigger=periodic source=session_markdown file=%s chars=%d status=starting",
+                f.name, len(content),
+            )
             review_result = await review_and_update_inline_memory(content)
             if review_result.get("success"):
                 logger.info(

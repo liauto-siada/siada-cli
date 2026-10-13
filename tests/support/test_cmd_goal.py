@@ -30,6 +30,8 @@ from siada.services.goal import goal_storage
 from siada.services.goal.models import Goal
 from siada.services.file_session import FileSession
 from siada.services.siada_runner import SiadaRunner
+from siada.foundation.code_agent_context import CodeAgentContext
+from siada.session.session_models import RunningSession
 from siada.support.message_classifier import format_native_items_for_display
 
 
@@ -41,6 +43,7 @@ def _make_slash_commands() -> SlashCommands:
 
 def _make_session(session_dir: Path, workspace: str = "/tmp/ws") -> MagicMock:
     session = MagicMock()
+    session.session_id = "goal-session"
     session.siada_config.workspace = workspace
     session.state.openai_session.session_folder = session_dir
     return session
@@ -177,7 +180,8 @@ class TestCmdGoalLifecycle:
             session = _make_session(session_dir)
             context = MagicMock()
             context.goal = Goal.create("to be cleared")
-            fake_cache = {("agent", "/tmp/ws"): context}
+            context.session = session
+            fake_cache = {("agent", "/tmp/ws", session.session_id): context}
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
                 sc.cmd_goal(session, "clear")
             assert context.goal is None
@@ -189,7 +193,8 @@ class TestCmdGoalLifecycle:
             session = _make_session(session_dir)
             context = MagicMock()
             context.goal = None
-            fake_cache = {("agent", "/tmp/ws"): context}
+            context.session = session
+            fake_cache = {("agent", "/tmp/ws", session.session_id): context}
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
                 sc.cmd_goal(session, "new objective")
             assert context.goal is not None
@@ -209,7 +214,8 @@ class TestCmdGoalLifecycle:
             old_goal.reminder_injected = True  # simulate: already reminded once
             context = MagicMock()
             context.goal = old_goal
-            fake_cache = {("agent", "/tmp/ws"): context}
+            context.session = session
+            fake_cache = {("agent", "/tmp/ws", session.session_id): context}
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
                 sc.cmd_goal(session, "second goal")
 
@@ -231,7 +237,8 @@ class TestCmdGoalLifecycle:
             goal.reminder_injected = True
             context = MagicMock()
             context.goal = goal
-            fake_cache = {("agent", "/tmp/ws"): context}
+            context.session = session
+            fake_cache = {("agent", "/tmp/ws", session.session_id): context}
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
                 sc.cmd_goal(session, "clear")
 
@@ -247,17 +254,17 @@ class TestCmdGoalLifecycle:
         with tempfile.TemporaryDirectory() as d:
             file_session = FileSession(session_id="goal-clear", sessions_dir=Path(d))
             session_dir = file_session.session_folder
-            session = _make_session(session_dir)
+            session = RunningSession(siada_config=MagicMock(), session_id=file_session.session_id)
+            session.siada_config.workspace = "/tmp/ws"
             session.state.openai_session = file_session
             old_goal = Goal.create("finish the old task")
             goal_storage.save_goal(session_dir, old_goal)
             session.state.pending_goal = old_goal
-            context = MagicMock()
-            context.goal = old_goal
+            context = CodeAgentContext(session=session, root_dir="/tmp/ws", goal=old_goal)
 
             with patch(
                 "siada.services.siada_runner.SiadaRunner._context_cache",
-                {("agent", "/tmp/ws"): context},
+                {("agent", "/tmp/ws", session.session_id): context},
             ):
                 sc.cmd_goal(session, "clear")
 
@@ -288,9 +295,12 @@ class TestCmdGoalLifecycle:
                 {"role": "user", "content": "start a different task"}
             ]
 
-            context.todos = []
+            context = CodeAgentContext(session=session, root_dir="/tmp/ws")
+            session.state.usage = None
             session.state.pending_skill_names = []
+            session.state.pending_runtime_state = None
             session.state.pending_todos = None
+            session.state.pending_goal_loaded = False
             session.state.pending_subagent_resume_note = None
             with patch(
                 "siada.services.siada_runner.SiadaRunner._prepare_checkpoint_with_timeout",
@@ -375,10 +385,11 @@ class TestCmdGoalLifecycle:
             goal_storage.save_goal(file_session.session_folder, goal)
             session.state.pending_goal = goal
             context = MagicMock(goal=goal)
+            context.session = session
 
             with patch(
                 "siada.services.siada_runner.SiadaRunner._context_cache",
-                {("agent", "/tmp/ws"): context},
+                {("agent", "/tmp/ws", session.session_id): context},
             ), patch.object(file_session, "_write_session_data", side_effect=OSError("disk full")):
                 sc.cmd_goal(session, "clear")
 

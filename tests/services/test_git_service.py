@@ -40,6 +40,9 @@ class TestGitService(unittest.TestCase):
         (self.project_root / ".gitignore").write_text("*.log\n__pycache__/\n")
         
         self.git_service = GitService(str(self.project_root), str(self.shadow_repo_dir))
+        cache_patch = patch.object(GitService, "_git_available_cache", None)
+        cache_patch.start()
+        self.addCleanup(cache_patch.stop)
     
     def tearDown(self):
         """Clean up test fixtures"""
@@ -52,38 +55,29 @@ class TestGitService(unittest.TestCase):
         self.assertEqual(self.git_service.shadow_repo_dir, self.shadow_repo_dir.resolve())
         self.assertIsNone(self.git_service._repo)
     
-    @patch('siada.services.git_service.subprocess.run')
-    def test_verify_git_availability_success(self, mock_run):
+    @patch('siada.services.git_service.shutil.which', return_value="/mock/bin/git")
+    def test_verify_git_availability_success(self, mock_which):
         """Test git availability verification when git is available"""
-        mock_run.return_value.returncode = 0
-        
         result = self.git_service.verify_git_availability()
         
         self.assertTrue(result)
-        mock_run.assert_called_once_with(
-            ["git", "--version"], 
-            capture_output=True, 
-            text=True, 
-            timeout=10
-        )
+        mock_which.assert_called_once_with("git")
     
-    @patch('siada.services.git_service.subprocess.run')
-    def test_verify_git_availability_failure(self, mock_run):
+    @patch('siada.services.git_service.shutil.which', return_value=None)
+    def test_verify_git_availability_failure(self, mock_which):
         """Test git availability verification when git is not available"""
-        mock_run.side_effect = FileNotFoundError()
-        
         result = self.git_service.verify_git_availability()
         
         self.assertFalse(result)
+        mock_which.assert_called_once_with("git")
     
-    @patch('siada.services.git_service.subprocess.run')
-    def test_verify_git_availability_command_failure(self, mock_run):
-        """Test git availability verification when git command fails"""
-        mock_run.return_value.returncode = 1
-        
-        result = self.git_service.verify_git_availability()
-        
-        self.assertFalse(result)
+    @patch('siada.services.git_service.shutil.which', return_value=None)
+    def test_verify_git_availability_caches_missing_executable(self, mock_which):
+        """Cache a failed PATH lookup across service instances without subprocesses."""
+        self.assertFalse(self.git_service.verify_git_availability())
+        other = GitService(str(self.project_root), str(self.shadow_repo_dir))
+        self.assertFalse(other.verify_git_availability())
+        mock_which.assert_called_once_with("git")
     
     @patch('siada.services.git_service.GIT_AVAILABLE', False)
     def test_verify_git_availability_no_gitpython(self):
@@ -156,15 +150,17 @@ class TestGitService(unittest.TestCase):
     
     def test_shadow_git_repository_property(self):
         """Test shadow_git_repository property"""
-        # Before setup
-        self.assertIsNone(self.git_service.shadow_git_repository)
-        
-        # After setup
-        self.git_service.setup_shadow_git_repository()
+        # Construction is cheap; the first repository access initializes it.
+        self.assertIsNone(self.git_service._repo)
+        self.assertFalse(self.git_service._initialized)
         shadow_repo = self.git_service.shadow_git_repository
         
         self.assertIsNotNone(shadow_repo)
         self.assertIsInstance(shadow_repo, Repo)
+        self.assertTrue(self.git_service._initialized)
+        with patch.object(self.git_service, "setup_shadow_git_repository") as setup:
+            self.assertIsNotNone(self.git_service.shadow_git_repository)
+            setup.assert_not_called()
     
     def test_get_current_commit_hash(self):
         """Test getting current commit hash"""
@@ -179,12 +175,10 @@ class TestGitService(unittest.TestCase):
         self.assertEqual(current_hash, commit_hash)
         self.assertEqual(len(current_hash), 40)  # SHA-1 hash length
     
-    def test_get_current_commit_hash_not_initialized(self):
-        """Test getting current commit hash when not initialized"""
-        with self.assertRaises(RuntimeError) as context:
-            self.git_service.get_current_commit_hash()
-        
-        self.assertIn("Repository not initialized", str(context.exception))
+    def test_get_current_commit_hash_initializes_on_demand(self):
+        """The first hash read creates the initial empty commit."""
+        self.assertEqual(len(self.git_service.get_current_commit_hash()), 40)
+        self.assertTrue(self.git_service._initialized)
     
     def test_create_snapshot(self):
         """Test creating a snapshot"""
@@ -198,12 +192,12 @@ class TestGitService(unittest.TestCase):
         # Verify commit exists
         self.assertTrue(self.git_service.snapshot_exists(commit_hash))
     
-    def test_create_snapshot_not_initialized(self):
-        """Test creating snapshot when not initialized"""
-        with self.assertRaises(RuntimeError) as context:
-            self.git_service.create_snapshot("Test")
-        
-        self.assertIn("Repository not initialized", str(context.exception))
+    def test_create_snapshot_initializes_on_demand(self):
+        """Snapshot creation performs lazy setup and captures project files."""
+        commit_hash = self.git_service.create_snapshot("Test")
+        self.assertEqual(len(commit_hash), 40)
+        self.assertTrue(self.git_service.snapshot_exists(commit_hash))
+        self.assertTrue(self.git_service._initialized)
     
     def test_restore_project_from_snapshot(self):
         """Test restoring project from a snapshot"""
@@ -224,12 +218,13 @@ class TestGitService(unittest.TestCase):
         restored_content = (self.project_root / "test_file.txt").read_text()
         self.assertEqual(restored_content, initial_content)
     
-    def test_restore_project_from_snapshot_not_initialized(self):
-        """Test restoring snapshot when not initialized"""
+    def test_restore_project_from_snapshot_rejects_invalid_hash_after_lazy_setup(self):
+        """Lazy setup does not turn an invalid restore target into success."""
         with self.assertRaises(RuntimeError) as context:
             self.git_service.restore_project_from_snapshot("abc123")
         
-        self.assertIn("Repository not initialized", str(context.exception))
+        self.assertIn("Failed to restore snapshot abc123", str(context.exception))
+        self.assertTrue(self.git_service._initialized)
     
     def test_list_snapshots(self):
         """Test listing snapshots"""
@@ -268,12 +263,12 @@ class TestGitService(unittest.TestCase):
         
         self.assertEqual(len(snapshots), 3)
     
-    def test_list_snapshots_not_initialized(self):
-        """Test listing snapshots when not initialized"""
-        with self.assertRaises(RuntimeError) as context:
-            self.git_service.list_snapshots()
-        
-        self.assertIn("Repository not initialized", str(context.exception))
+    def test_list_snapshots_initializes_on_demand(self):
+        """A fresh service lists its initial empty commit."""
+        snapshots = self.git_service.list_snapshots()
+        self.assertEqual(len(snapshots), 1)
+        self.assertEqual(snapshots[0]["message"], "Initial commit")
+        self.assertTrue(self.git_service._initialized)
     
     def test_get_snapshot_diff(self):
         """Test getting snapshot diff"""
@@ -328,12 +323,10 @@ class TestGitService(unittest.TestCase):
         # Test non-existing snapshot
         self.assertFalse(self.git_service.snapshot_exists("nonexistent123"))
     
-    def test_snapshot_exists_not_initialized(self):
-        """Test checking snapshot exists when not initialized"""
-        with self.assertRaises(RuntimeError) as context:
-            self.git_service.snapshot_exists("abc123")
-        
-        self.assertIn("Repository not initialized", str(context.exception))
+    def test_snapshot_exists_initializes_on_demand(self):
+        """An unknown snapshot stays absent after lazy initialization."""
+        self.assertFalse(self.git_service.snapshot_exists("abc123"))
+        self.assertTrue(self.git_service._initialized)
     
     def test_get_modified_files(self):
         """Test getting list of modified files"""
@@ -373,12 +366,10 @@ class TestGitService(unittest.TestCase):
         
         self.assertEqual(modified_files, [])
     
-    def test_get_modified_files_not_initialized(self):
-        """Test getting modified files when not initialized"""
-        with self.assertRaises(RuntimeError) as context:
-            self.git_service.get_modified_files()
-        
-        self.assertIn("Repository not initialized", str(context.exception))
+    def test_get_modified_files_initializes_on_demand(self):
+        """The first status query reports the untracked project files."""
+        self.assertIn("test_file.txt", self.git_service.get_modified_files())
+        self.assertTrue(self.git_service._initialized)
 
 
 class TestGitServiceMocked(unittest.TestCase):

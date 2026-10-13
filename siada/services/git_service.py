@@ -5,6 +5,7 @@ This service provides git-based checkpointing capabilities for tracking file cha
 and creating/restoring snapshots during agent execution.
 """
 
+import os
 import shutil
 from pathlib import Path
 from typing import ClassVar, Optional
@@ -276,7 +277,7 @@ class GitService:
 
         try:
             # Add all files to staging using the shadow repository
-            repo.git.add(".", "--ignore-errors")
+            repo.git.add(*self._project_pathspec(), "--ignore-errors")
 
             # Create commit with --no-verify and --allow-empty
             repo.git.commit("--no-verify", "--allow-empty", "-m", message)
@@ -300,17 +301,49 @@ class GitService:
 
         try:
             # Restore files from the specified commit using restore
-            repo.git.restore(["--source", commit_hash, "."])
+            repo.git.restore(["--source", commit_hash, "--staged", "--worktree", "--", *self._project_pathspec()])
 
             # Remove any untracked files that were introduced after the snapshot
-            try:
-                repo.git.clean("-f", "-d")
-            except GitCommandError:
-                # Don't fail if no files to clean
-                pass
+            exclusions = [argument for path in self._protected_project_paths()
+                          for argument in ("-e", f"/{path}/")]
+            repo.git.clean("-f", "-d", *exclusions)
+            # Flush restored files before publishing the session commit point.
+            from siada.services.session_storage import sync_directory
+
+            for name in repo.git.ls_files("-z").split("\0"):
+                path = self.project_root / name
+                if name and path.is_file() and not path.is_symlink():
+                    # "r+b" instead of "rb": Windows requires a writable handle
+                    # before os.fsync, while POSIX accepts both.
+                    with path.open("r+b") as stream:
+                        os.fsync(stream.fileno())
+                    sync_directory(path.parent)
+            sync_directory(self.project_root)
 
         except (GitCommandError, BadName) as e:
             raise RuntimeError(f"Failed to restore snapshot {commit_hash}: {e}")
+
+    def _protected_project_paths(self) -> list[str]:
+        """Keep managed storage out of snapshots and destructive project operations."""
+        from siada.utils import DirectoryUtils
+
+        directories = (
+            Path(DirectoryUtils.get_global_sessions_dir(str(self.project_root))),
+            Path(DirectoryUtils.get_project_checkpoint_dir(str(self.project_root))),
+            self.shadow_repo_dir,
+        )
+        protected = []
+        for directory in directories:
+            try:
+                relative = directory.resolve().relative_to(self.project_root)
+            except ValueError:
+                continue
+            if relative.parts:
+                protected.append(relative.as_posix())
+        return protected
+
+    def _project_pathspec(self) -> list[str]:
+        return [".", *(f":(exclude,literal){path}" for path in self._protected_project_paths())]
 
     def list_snapshots(self, limit: int = 10) -> list[dict]:
         """

@@ -76,6 +76,10 @@ async def context_capture_filter(data: CallModelData['CodeAgentContext']) -> Mod
     _t_deepcopy = time.perf_counter() - _t0
 
     input_len = len(model_data_copy.input) if isinstance(model_data_copy.input, list) else 0
+    logging.info(
+        "[effective-context][filter] session=%s mode=legacy filter=context_capture_filter input_items=%d",
+        getattr(data.context, "session_id", None), input_len,
+    )
 
     # Get filters (lazy loaded on first use)
     filters = get_context_filters()

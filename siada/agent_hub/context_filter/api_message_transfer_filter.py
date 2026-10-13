@@ -973,25 +973,16 @@ class ApiMessageTransferFilter:
             last_index: Last processed message index for incremental tracking
             last_signature: Last processed message signature for incremental tracking
         """
-        import json
         _t0 = time.perf_counter()
         try:
             api_messages_path = self._get_api_messages_path(context)
-            api_messages_path.parent.mkdir(parents=True, exist_ok=True)
+            from siada.services.session_management import SessionManager
 
-            with open(str(api_messages_path), "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "session_id": context.session.session_id,
-                        "tokens_count": tokens_count,
-                        "last_index": last_index,
-                        "last_signature": last_signature,
-                        "api_messages": real_message_list,
-                    },
-                    f,
-                    ensure_ascii=False,
-                    indent=4,
-                )
+            SessionManager.sync_api_messages(
+                api_messages_path.parent, context.session.session_id,
+                real_message_list, tokens_count=tokens_count,
+                last_index=last_index, last_signature=last_signature,
+            )
 
         except OSError as e:
             logger.error(f"Failed to sync API messages to file: {e}")

@@ -147,7 +147,7 @@ class SiadaRunner:
         # Resolve session first — it's a prerequisite for both context and run_config
         running_session = session or RunningSessionManager.get_default_session()
 
-        # Build context — cached per (agent_name, workspace) to avoid repeated heavy I/O
+        # Cache mutable context only within the owning session.
         context = await SiadaRunner.get_context(agent, running_session, workspace)
 
         await SiadaRunner._prepare_context_for_run(context, running_session, runtime_source)
@@ -160,13 +160,51 @@ class SiadaRunner:
     @staticmethod
     async def get_context(agent: SiadaAgent, running_session: RunningSession | None, workspace: str | None) :
         workspace_path = workspace or (running_session.siada_config.workspace if running_session else None)
-        cache_key = (agent.name, workspace_path)
+        session_id = running_session.session_id if running_session else None
+        cache_key = (agent.name, workspace_path, session_id)
         if cache_key not in SiadaRunner._context_cache:
+            previous = getattr(getattr(running_session, "state", None), "agent_context", None)
+            if previous is not None and getattr(previous, "session", None) is running_session:
+                from siada.services.session_runtime_state import save_context
+
+                await asyncio.to_thread(save_context, previous)
             context = await SiadaRunner._build_agent_context(agent, workspace, running_session)
+            if previous is not None:
+                from siada.services.session_runtime_state import apply_state, load_state
+
+                store = running_session.state.openai_session
+                persisted = await asyncio.to_thread(load_state, store.session_folder, session_id)
+                if persisted is not None:
+                    context.session = running_session
+                    apply_state(context, persisted)
+                    context.goal = copy.deepcopy(previous.goal)
             SiadaRunner._context_cache[cache_key] = context
         else:
             context = SiadaRunner._context_cache[cache_key]
+        if running_session is not None and hasattr(running_session, "state"):
+            running_session.state.agent_context = context
         return context
+
+    @staticmethod
+    def find_session_context(running_session, *, agent_name: str | None = None):
+        """Select an owned context, never an unrelated workspace cache entry."""
+        config = getattr(running_session, "siada_config", None)
+        workspace = getattr(config, "workspace", None)
+        session_id = getattr(running_session, "session_id", None)
+        active = getattr(getattr(running_session, "state", None), "agent_context", None)
+        candidates = []
+        for key, context in SiadaRunner._context_cache.items():
+            if len(key) != 3 or key[1:] != (workspace, session_id):
+                continue
+            if agent_name is not None and key[0] != agent_name:
+                continue
+            owner = getattr(context, "session", None)
+            if owner is not None and getattr(owner, "session_id", None) != session_id:
+                continue
+            if context is active:
+                return context
+            candidates.append(context)
+        return candidates[-1] if candidates else None
 
     @staticmethod
     async def _prepare_context_for_run(
@@ -185,6 +223,8 @@ class SiadaRunner:
             running_session: The current running session.
         """
         context.session = running_session
+        context.bound_session_id = running_session.session_id
+        context.runtime_session = None
         context.runtime_source = runtime_source
         # Main agent's own context is the root of its sub-agent tree; used as
         # the tracking key for the concurrency cap and the on-disk
@@ -199,15 +239,21 @@ class SiadaRunner:
         await SiadaRunner._prepare_checkpoint_with_timeout(running_session)
 
         # Consume pending_todos staged by ResumeService after session restore
-        if running_session.state.pending_todos and not context.todos:
+        if running_session.state.pending_runtime_state is not None:
+            from siada.services.session_runtime_state import apply_state
+
+            apply_state(context, running_session.state.pending_runtime_state)
+            running_session.state.pending_runtime_state = None
+        if running_session.state.pending_todos is not None:
             context.todos = running_session.state.pending_todos
             running_session.state.pending_todos = None
             logging.debug(f"[todo] Applied {len(context.todos)} recovered todos to context")
 
         # Consume pending_goal staged by ResumeService after session restore
-        if running_session.state.pending_goal is not None and context.goal is None:
+        if running_session.state.pending_goal_loaded or running_session.state.pending_goal is not None:
             context.goal = running_session.state.pending_goal
             running_session.state.pending_goal = None
+            running_session.state.pending_goal_loaded = False
             logging.debug("[goal] Applied recovered goal to context")
 
         # Consume pending_subagent_resume_note staged by ResumeService after
@@ -218,11 +264,21 @@ class SiadaRunner:
         # surfaces as a system message before the main agent's next real
         # LLM call.
         if running_session.state.pending_subagent_resume_note is not None:
-            context.hook_pending_contexts.append(
-                running_session.state.pending_subagent_resume_note
-            )
+            note = running_session.state.pending_subagent_resume_note
+            from siada.services.session_runtime_state import load_state, notification_identity
+            from siada.services.file_session import FileSession
+
+            store = running_session.state.openai_session
+            persisted = (await asyncio.to_thread(load_state, store.session_folder, store.session_id)
+                         if isinstance(store, FileSession) else None)
+            delivered = persisted["delivered_notifications"] if persisted is not None else []
+            if note not in context.hook_pending_contexts and notification_identity(note) not in delivered:
+                context.hook_pending_contexts.append(note)
             running_session.state.pending_subagent_resume_note = None
             logging.debug("[subagent] Applied recovered sub-agent resume note to context")
+        from siada.services.session_runtime_state import save_context
+
+        await asyncio.to_thread(save_context, context)
 
     @staticmethod
     async def _build_agent_context(

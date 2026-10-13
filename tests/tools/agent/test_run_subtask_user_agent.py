@@ -205,6 +205,7 @@ class TestRunSubtaskImplWithUserAgent(unittest.IsolatedAsyncioTestCase):
         # resolve exactly like they do in production; the session itself is a
         # spec'd mock since no real model call happens in these tests.
         session = MagicMock(spec=RunningSession)
+        session.session_id = "user-agent-parent"
         session.siada_config = MagicMock()
         # A concrete model name: run_subtask_impl classifies it to pick the
         # model-family-specific file-tool surface.
@@ -352,6 +353,7 @@ class TestSubAgentEffort(unittest.TestCase):
 
     def _context(self, llm_config):
         session = MagicMock(spec=RunningSession)
+        session.session_id = "effort-parent"
         session.siada_config = MagicMock()
         session.siada_config.llm_config = llm_config
         session.siada_config.tracing_disabled = True

@@ -62,14 +62,20 @@ OpenAI Codex - Apache License 2.0 - https://github.com/openai/codex
 
 ZCode - Apache License 2.0 - https://github.com/zai-org/ZCode
     Copyright 2026 Z.AI Co., Ltd (upstream LICENSE at the commit below).
-    The identity/harness and communication structure of the public ZCode CLI at
+    The GLM-5.2-and-later prompt template
+    (siada/agent_hub/coder/prompt/models/glm/templates/system.md) copies the
+    identity and harness text (including the security notice) and the
+    communication and context-management sections of the public ZCode CLI at
     commit 29628c9acdb81b703bbd4080c207a0e7ce5e276e
-    (apps/zcode-cli/packages/core/src/context/sections/cli-prefix.ts,
-    .../context/sections/identity.ts and .../context/dynamic-sections.ts) is
-    adapted for Siada's GLM-5.2-and-later prompt profile. The wording is
-    rewritten for Siada's tools, permission model and safety rules, and ZCode
-    product identifiers are removed; this entry is also the notice that the
-    adapted files were changed, as Apache License 2.0 section 4(b) requires.
+    (apps/zcode-cli/packages/core/src/context/sections/identity.ts and
+    .../context/dynamic-sections.ts), and follows the environment-section layout
+    of .../context/sections/env-info.ts, with the product identity renamed to
+    Siada and Siada's own runtime facts, capabilities, safety rules and catalogs
+    rendered in place of ZCode's environment fields and tool sections. The CLI
+    prefix message (.../context/sections/cli-prefix.ts), the git-status snapshot
+    and the persistent-memory sections are not copied. This entry is also the
+    notice that the adapted files were changed, as Apache License 2.0 section
+    4(b) requires.
     The todo reminder also adapts runtime/helpers/runtime-reminders.ts at
     that commit; tool names and the reminder's presentation are changed for Siada.
     The Apache-2.0 license is reproduced in docs/CREDITS.md, which ships in

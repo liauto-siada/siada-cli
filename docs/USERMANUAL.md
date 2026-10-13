@@ -583,6 +583,10 @@ If running `siada-cli` directly shows command not found:
 - Verify the agent class path is correct
 - Use `--verbose` flag to see detailed output
 
+**Markdown file-edit display:**
+
+Completed Markdown string replacements display as line diffs in both compact and expanded views, including resumed sessions. Embedded code blocks and blank lines are preserved. Incomplete edits remain in the tool text view until the stream finishes. Older unfenced display text with ambiguous `with:` separators falls back to the text view instead of showing a guessed diff.
+
 **Patch context mismatch (`Invalid Context` / `Invalid EOF Context`):**
 
 Native patch failures return recovery guidance:

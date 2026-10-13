@@ -503,7 +503,8 @@ class SiadaTurnRunner:
         optionally subtype.
         """
         runtime_session = self._sessions[session_id]
-        items = runtime_session.session.state.task_message_state.get_messages()
+        storage = runtime_session.session.openai_session
+        items = storage.get_history_items_sync(include_injected=False) if storage is not None else []
         if not items:
             return []
         from siada.support.message_classifier import format_native_items_for_display

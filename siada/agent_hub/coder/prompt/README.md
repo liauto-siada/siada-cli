@@ -1,7 +1,7 @@
 # Coding System Prompt Layout
 
 `code_gen_prompt.py` is the coding agent's stable entry point. It selects one
-profile and collects runtime facts. Default, GPT-5, and GLM profiles keep the
+profile and collects runtime facts. Default and GPT-5 profiles keep the
 historical section builder. GPT-6 uses `assembly/codex.py`: a complete per-model
 template first, followed by capabilities, runtime instructions, environment,
 language, the skills catalog, available agents, and memory. The old GPT-6 intro
@@ -13,6 +13,13 @@ Kimi K3 and later use `assembly/kimi.py` and a Kimi Code-based Markdown template
 risk, delivery, context management, environment, and project information
 sections follow Kimi Code's template. Runtime facts and the available tools
 are adapted to Siada; the existing `edit_file` tool remains in use.
+
+GLM-5.2 and later use `assembly/glm.py` and the ZCode-based Markdown template
+in `models/glm/templates/system.md`. GLM and Kimi share the one-pass renderer
+in `assembly/markdown_template.py`, while keeping their own template content.
+Siada supplies the runtime facts, tool capabilities, safety rules, catalogs,
+and framed memory. See the repository's `NOTICE` and `docs/CREDITS.md` for
+upstream attribution and adaptation details.
 
 | Directory | Responsibility |
 | --- | --- |

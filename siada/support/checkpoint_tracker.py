@@ -36,6 +36,7 @@ class CheckPointData:
     real_api_message: Optional[dict] = None
     usage: Optional[dict] = None
     data: Optional[dict] = None
+    context_snapshot: Optional[dict] = None
     
     def to_dict(self) -> dict:
         """Convert checkpoint data to dictionary for JSON serialization"""
@@ -51,6 +52,8 @@ class CheckPointData:
             result['real_api_message'] = self.real_api_message
         if self.usage is not None:
             result['usage'] = self.usage
+        if self.context_snapshot is not None:
+            result['context_snapshot'] = self.context_snapshot
         return result
     
     @classmethod
@@ -64,7 +67,8 @@ class CheckPointData:
             modified_file_names=data['modified_file_names'],
             real_api_message=data.get('real_api_message'),
             usage=data.get('usage'),
-            data=data.get('data')
+            data=data.get('data'),
+            context_snapshot=data.get('context_snapshot'),
         )
 
 
@@ -337,7 +341,11 @@ class CheckPointTracker:
         except Exception as e:
             logger.error(f"Error during checkpoint cleanup: {e}")
 
-    def save_checkpoints(self, session_id: str, task_message_state: TaskMessageState, usage=None):
+    def save_checkpoints(
+        self, session_id: str, task_message_state: TaskMessageState | None, usage=None, *,
+        file_snapshot: dict | None = None, tool_call_id: str | None = None,
+        structured_state: dict | None = None,
+    ):
         """
         Save checkpoint with comprehensive error handling
         
@@ -345,13 +353,28 @@ class CheckPointTracker:
             session_id: Session identifier
             task_message_state: Task message state containing conversation history
             usage: Optional Usage object to save with checkpoint
+            file_snapshot: Detached durable views for a prepared session
+            tool_call_id: Completed tool call selected from the durable batch
         """
 
-        # Create a copy of task_message_state to avoid modifying the original
-        task_message_state_copy = copy.deepcopy(task_message_state)
-
-        # Extract tool name and arguments from the copied message state
-        function_tool_name, arguments = self._extract_tool_info_from_message(task_message_state_copy)
+        if file_snapshot is not None:
+            snapshot = copy.deepcopy(file_snapshot)
+            history = snapshot["history_items"]
+            context_snapshot = snapshot["context_snapshot"]
+            call = next((item for item in reversed(history)
+                         if item.get("type") == "function_call" and item.get("call_id") == tool_call_id), None)
+            if call is None or not any(item.get("type") == "function_call_output"
+                                       and item.get("call_id") == tool_call_id for item in history):
+                raise ValueError("Checkpoint capture requires a durable tool call and result")
+            function_tool_name, arguments = call["name"], call["arguments"]
+            real_api_msg_dict = None
+        else:
+            task_message_state_copy = copy.deepcopy(task_message_state)
+            function_tool_name, arguments = self._extract_tool_info_from_message(task_message_state_copy)
+            history = task_message_state_copy.get_messages()
+            real_api_msg = task_message_state_copy._real_messages
+            real_api_msg_dict = real_api_msg.to_dict() if real_api_msg else None
+            context_snapshot = None
 
         # Check if we should save checkpoint
         if not self._should_save_checkpoint(function_tool_name, arguments):
@@ -390,10 +413,6 @@ class CheckPointTracker:
             logger.error(f"Failed to create git snapshot: {e}")
             return
 
-        # Get RealApiMessage object and serialize it
-        real_api_msg = task_message_state_copy._real_messages
-        real_api_msg_dict = real_api_msg.to_dict() if real_api_msg else None
-        
         # Serialize usage if provided using utility function
         usage_dict = serialize_usage(usage)
 
@@ -401,11 +420,13 @@ class CheckPointTracker:
         checkpoint_data = CheckPointData(
             timestamp=timestamp,
             last_commit_hash=last_commit_hash,
-            history=task_message_state_copy.get_messages(),
+            history=history,
             use_tool_name=function_tool_name,
             modified_file_names=modified_file_names,
             real_api_message=real_api_msg_dict,
             usage=usage_dict,
+            context_snapshot=context_snapshot,
+            data=copy.deepcopy(structured_state),
         )
 
         # Sanitize and limit file names for the filename
@@ -419,6 +440,11 @@ class CheckPointTracker:
 
         # Build checkpoint file directory and name
         checkpoint_file_name = f"{timestamp.strftime('%Y_%m_%d_%H%M%S')}__{tool_place_holder.upper()}__{modified_file_names_placeholder}.json"
+        if context_snapshot is not None:
+            # Parallel calls share a batch and timestamp but need distinct files.
+            import uuid
+
+            checkpoint_file_name = f"{Path(checkpoint_file_name).stem}__{uuid.uuid4().hex}.json"
 
         checkpoint_file = checkpoint_dir_path / checkpoint_file_name
 

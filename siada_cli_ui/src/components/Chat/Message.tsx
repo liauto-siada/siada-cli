@@ -257,10 +257,10 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
       ? parseApplyPatchContent(fullContent)
       : null;
     const editInfo = (!isCollapsed || fullContent.startsWith('In the file '))
-      ? parseFileEditContent(fullContent)
+      ? parseFileEditContent(originalContent)
       : null;
     const createInfo = parseFileCreateContent(originalContent);
-    const editHunks = editInfo?.isComplete
+    const editHunks = (message.metadata?.streamEnd || disableTruncation) && editInfo?.isComplete
       ? getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString)
       : [];
     const createHunks = (message.metadata?.streamEnd || disableTruncation) &&

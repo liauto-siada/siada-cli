@@ -2,10 +2,35 @@
 
 from __future__ import annotations
 
+from functools import wraps
+from inspect import signature
 from typing import Any
 
+from agents.models.chatcmpl_converter import Converter
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI
+
+
+def _install_tool_output_image_adapter() -> None:
+    """Preserve tool-result images for every model, installing once across reloads."""
+    current_converter = Converter.items_to_messages
+    if getattr(current_converter, "_siada_tool_output_image_adapter", False):
+        return
+
+    original_converter = current_converter.__func__
+    converter_signature = signature(original_converter)
+
+    @wraps(original_converter)
+    def items_to_messages(cls: type[Converter], *args: Any, **kwargs: Any) -> list[Any]:
+        bound = converter_signature.bind(cls, *args, **kwargs)
+        bound.arguments["preserve_tool_output_all_content"] = True
+        return original_converter(*bound.args, **bound.kwargs)
+
+    setattr(items_to_messages, "_siada_tool_output_image_adapter", True)
+    Converter.items_to_messages = classmethod(items_to_messages)
+
+
+_install_tool_output_image_adapter()
 
 
 def _item_field(item: Any, field: str) -> Any:

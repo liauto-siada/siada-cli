@@ -98,14 +98,10 @@ async def build_verifier_input(
     """Assemble the fork input: the full effective session history, verbatim,
     plus one verification request appended at the end.
 
-    Uses ``FileSession.get_effective_messages()``, which splices the
-    compacted ``api_messages.json`` snapshot with the ``api_history.json``
-    delta tail — exactly the view the main model itself last saw (plus the
-    turn that just completed). By the time this runs (after
-    ``turn.execute()`` has returned), the current turn's assistant response
-    is already durable in ``api_history.json`` — session persistence happens
-    synchronously inside ``Runner.run_streamed()`` before control returns to
-    the caller — so the effective view already includes it.
+    Prepared FileSessions read the authoritative versioned context, including
+    an explicitly empty view. Legacy sessions retain snapshot-plus-delta reads.
+    SDK persistence has completed before this post-turn fork is assembled.
+    Damaged prepared context is an error, never a full-history fallback.
 
     Deliberately does NOT reformat, filter, or truncate any message (no more
     ``format_transcript_for_verifier``): the verifier needs to see exactly
@@ -116,7 +112,12 @@ async def build_verifier_input(
     varies call to call, so this request is no longer byte-identical the
     way the old <system-reminder>-only version was).
     """
-    items = await file_session.get_effective_messages()
+    from siada.services.file_session import FileSession
+
+    items = await (
+        file_session.get_runtime_items() if isinstance(file_session, FileSession)
+        else file_session.get_effective_messages()
+    )
     message = build_verifier_request_message(
         goal.objective,
         status=goal.status,

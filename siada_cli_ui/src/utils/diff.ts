@@ -172,20 +172,38 @@ function parseApplyPatchHeading(
 }
 
 export function parseFileEditContent(content: string): FileEditInfo | null {
-  // Full match: In the file `path``, replace the string:\n```lang\nold\n```\nwith:\n```lang\nnew\n```
-  // Note: Python formatter produces double backtick after path (`path``, replace...)
-  const fullMatch = content.match(
-    /^In the file `([^`]+)`+, replace the string:\n```[^\n]*\n([\s\S]*?)\n```\nwith:\n```[^\n]*\n([\s\S]*?)\n```/,
+  const editMatch = content.trimStart().replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').match(
+    /^In the file `([^`]+)`+, replace the string:\r?\n([\s\S]*)$/,
   );
-  if (fullMatch) {
+  if (!editMatch) return null;
+
+  const filePath = editMatch[1]!;
+  const body = editMatch[2]!;
+  const isMarkdownFile = /\.(?:md|markdown|mdown|mkd)$/i.test(filePath);
+  const hasProtocolFence = !isMarkdownFile || /^`{3,}(?:md|markdown)\r?\n/i.test(body);
+  const fencedMatch = hasProtocolFence ? body.match(
+    /^(`{3,})[^\r\n]*\r?\n([\s\S]*?)\r?\n\1\r?\nwith:\r?\n\1[^\r\n]*\r?\n([\s\S]*?)\r?\n\1(?:\r?\n)?$/,
+  ) : null;
+  if (fencedMatch) {
     return {
-      filePath: fullMatch[1],
-      oldString: fullMatch[2],
-      newString: fullMatch[3],
+      filePath,
+      oldString: fencedMatch[2]!,
+      newString: fencedMatch[3]!,
       isComplete: true,
     };
   }
-  return null;
+  if (!isMarkdownFile || hasProtocolFence) return null;
+
+  const separators = [...body.matchAll(/(?<!\r)(?=(\r?\nwith:\r?\n))/g)];
+  if (separators.length !== 1) return null;
+  const separator = separators[0]!;
+  const oldString = body.slice(0, separator.index);
+  return {
+    filePath,
+    oldString: oldString === '```\n\n```' || oldString === '```\r\n\r\n```' ? '' : oldString,
+    newString: body.slice(separator.index! + separator[1]!.length),
+    isComplete: true,
+  };
 }
 
 export function parseFileCreateContent(content: string): FileCreateInfo | null {
@@ -213,7 +231,7 @@ export function isRenderableToolDiff(content: string): boolean {
   const cleanContent = content.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
   if (parseApplyPatchContent(cleanContent)) return true;
 
-  const edit = parseFileEditContent(cleanContent);
+  const edit = parseFileEditContent(content);
   if (edit?.isComplete === true &&
       getSimplePatch(edit.filePath, edit.oldString, edit.newString).length > 0) {
     return true;

@@ -109,6 +109,7 @@ class _BtwReadonlySession:
         # Append a process-level, ever-incrementing suffix (0, 1, 2, ...) so each
         # /btw fork gets a unique session id within the process.
         self.session_id = f"{real_session.session_id}-btw-{_next_btw_seq()}"
+        self.parent_session_id = real_session.session_id
 
 
 
@@ -310,7 +311,11 @@ async def _run_async(
     agent = await SiadaRunner.get_agent(agent_name)
 
     # 2. Get the main CodeAgentContext (hits _context_cache, read-only, reproduces the fields system_prompt depends on)
-    parent_ctx = await SiadaRunner.get_context(agent, stub_session, workspace)
+    parent_key = (agent.name, workspace, stub_session.parent_session_id)
+    parent_ctx = SiadaRunner._context_cache.get(parent_key)
+    if parent_ctx is None:
+        # A cold read-only fork must not occupy a mutable session cache entry.
+        parent_ctx = await SiadaRunner._build_agent_context(agent, workspace, stub_session)
 
     # 3. Build fork_ctx: copy read-only fields needed for system_prompt, block all
     #    side-effect channels (memory scheduler, holographic prefetch, etc.).
@@ -491,11 +496,15 @@ def run_side_question(session, question: str) -> str:
     agent_name   = session.siada_config.agent_name
     stub_session = _BtwReadonlySession(session)
 
-    # Prefer _real_messages (byte-for-byte identical to the previous LLM call, maximizing cache hits)
-    # Fall back to _message_history (finer-grained capture, works even before a full LLM round trip completes)
-    snapshot = list(session.task_message_state.get_real_messages() or [])
-    if not snapshot:
-        snapshot = list(session.task_message_state.get_messages() or [])
+    from siada.services.file_session import FileSession
+
+    store = getattr(session, "openai_session", None)
+    if isinstance(store, FileSession) and store.has_prepared_context:
+        snapshot = store.get_context_snapshot_sync()["items"]
+    else:
+        snapshot = list(session.task_message_state.get_real_messages() or [])
+        if not snapshot:
+            snapshot = list(session.task_message_state.get_messages() or [])
 
     box: list = [None]
     err: list = [None]

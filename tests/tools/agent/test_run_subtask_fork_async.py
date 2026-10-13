@@ -2,11 +2,11 @@
 Unit tests for the fork / async_mode additions to run_subtask.
 
 Covers:
-1. ``_build_fork_materials`` correctly reads tools / system prompt / real
-   message history off a live parent RunContextWrapper.
+1. ``_build_fork_materials`` correctly reads tools / system prompt / effective
+   context off a live parent RunContextWrapper and propagates storage errors.
 2. ``run_subtask_impl(fork=True, ...)`` passes the aligned materials through
    to ``SubTaskAgent`` and seeds the sub-agent's session with the parent's
-   real messages.
+   effective messages.
 3. The ``run_subtask`` tool function's recursion guard rejects execution
    when ``CodeAgentContext.is_subagent`` is True.
 4. The ``run_subtask`` tool function's ``async_mode`` path schedules a
@@ -38,7 +38,7 @@ from siada.tools.agent.run_subtask import (
 # ---------------------------------------------------------------------------
 
 class TestBuildForkMaterials(unittest.IsolatedAsyncioTestCase):
-    async def test_reads_parent_tools_instructions_and_history(self):
+    async def test_reads_parent_tools_instructions_and_effective_context(self):
         parent_agent = Agent(
             name="ParentAgent",
             instructions="PARENT SYSTEM PROMPT",
@@ -47,10 +47,10 @@ class TestBuildForkMaterials(unittest.IsolatedAsyncioTestCase):
 
         code_ctx = MagicMock(spec=CodeAgentContext)
         code_ctx.session = MagicMock()
-        code_ctx.task_message_state.get_real_messages.return_value = [
+        code_ctx.session.openai_session.get_runtime_items = AsyncMock(return_value=[
             {"role": "user", "content": "hello"},
             {"role": "assistant", "content": "hi"},
-        ]
+        ])
 
         run_ctx = RunContextWrapper(context=code_ctx)
         # Simulate what ToolContext.from_agent_context sets: an .agent attribute.
@@ -61,6 +61,8 @@ class TestBuildForkMaterials(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tools, ["tool_a", "tool_b"])
         self.assertEqual(instructions, "PARENT SYSTEM PROMPT")
         self.assertEqual(len(history), 2)
+        code_ctx.session.openai_session.get_runtime_items.assert_awaited_once_with()
+        code_ctx.task_message_state.get_real_messages.assert_not_called()
 
     async def test_falls_back_when_agent_not_reachable(self):
         code_ctx = MagicMock(spec=CodeAgentContext)
@@ -74,21 +76,18 @@ class TestBuildForkMaterials(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(instructions)
         self.assertEqual(history, [])
 
-    async def test_history_read_failure_is_swallowed(self):
+    async def test_context_read_failure_is_propagated(self):
         parent_agent = Agent(name="ParentAgent", instructions="X", tools=[])
         code_ctx = MagicMock(spec=CodeAgentContext)
         code_ctx.session = MagicMock()
-        code_ctx.task_message_state.get_real_messages.side_effect = RuntimeError("boom")
+        code_ctx.session.openai_session.get_runtime_items = AsyncMock(side_effect=RuntimeError("boom"))
 
         run_ctx = RunContextWrapper(context=code_ctx)
         run_ctx.agent = parent_agent
 
-        tools, instructions, history = await _build_fork_materials(run_ctx)
-
-        # Tools/instructions still resolved; history degrades to empty list.
-        self.assertEqual(tools, [])
-        self.assertEqual(instructions, "X")
-        self.assertEqual(history, [])
+        with self.assertRaisesRegex(RuntimeError, "boom"):
+            await _build_fork_materials(run_ctx)
+        code_ctx.task_message_state.get_real_messages.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -124,9 +123,9 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         code_ctx.allow_recursive_subagents = False
         code_ctx.root_session_id = None
         code_ctx.subagent_self_id = None
-        code_ctx.task_message_state.get_real_messages.return_value = [
+        code_ctx.session.openai_session.get_runtime_items = AsyncMock(return_value=[
             {"role": "user", "content": "past message"},
-        ]
+        ])
 
         run_ctx = RunContextWrapper(context=code_ctx)
         run_ctx.agent = parent_agent
@@ -157,9 +156,11 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["fork_tools"], ["real_tool"])
         self.assertEqual(kwargs["fork_instructions"], "PARENT PROMPT")
 
-        # The parent's real message history must have been seeded into the
+        # The parent's effective context must have been seeded into the
         # session object passed to Runner.run_streamed.
         _, run_streamed_kwargs = mock_run_streamed.call_args
+        # This distribution runs sub-agent contexts in non-interactive mode.
+        self.assertFalse(run_streamed_kwargs["context"].interactive_mode)
         seeded_session = run_streamed_kwargs["session"]
         items = await seeded_session.get_items()
         self.assertEqual(items, [{"role": "user", "content": "past message"}])
@@ -196,6 +197,8 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         _, kwargs = mock_subtask_agent_cls.call_args
         self.assertIsNone(kwargs["fork_tools"])
         self.assertIsNone(kwargs["fork_instructions"])
+        # Sub-agent runs stay non-interactive with or without a fork payload.
+        self.assertFalse(mock_run_streamed.call_args.kwargs["context"].interactive_mode)
 
 
 class TestCloneContextForSubagent(unittest.TestCase):
@@ -203,9 +206,11 @@ class TestCloneContextForSubagent(unittest.TestCase):
         parent_ctx = CodeAgentContext(root_dir="/tmp", is_subagent=False)
         clone = _clone_context_for_subagent(parent_ctx)
         self.assertTrue(clone.is_subagent)
+        # Sub-agent contexts stay non-interactive in this distribution.
         self.assertFalse(clone.interactive_mode)
         self.assertTrue(parent_ctx.interactive_mode)
         self.assertEqual(clone.root_dir, "/tmp")
+        self.assertIsNone(clone.bound_session_id)
 
     def test_clone_defaults_to_depth_1_with_no_self_id(self):
         parent_ctx = CodeAgentContext(root_dir="/tmp")
@@ -239,6 +244,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
         # LLM config. Without this, nested spawning fails at runtime with
         # "[build_sub_agent_run_config] An active session is required."
         fake_session = MagicMock(spec=RunningSession)
+        fake_session.session_id = "parent-session"
         parent_ctx = CodeAgentContext(
             root_dir="/tmp",
             session=fake_session,
@@ -246,6 +252,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
         )
         clone = _clone_context_for_subagent(parent_ctx, depth=1, self_id="sa_parent")
         self.assertIs(clone.session, fake_session)
+        self.assertEqual(clone.bound_session_id, fake_session.session_id)
         self.assertFalse(clone.interactive_mode)
 
     def test_clone_does_not_propagate_session_when_recursion_disabled(self):
@@ -253,6 +260,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
         # pre-existing behaviour: the cloned sub-agent context never carries
         # a live session.
         fake_session = MagicMock(spec=RunningSession)
+        fake_session.session_id = "parent-session"
         parent_ctx = CodeAgentContext(
             root_dir="/tmp",
             session=fake_session,
@@ -260,6 +268,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
         )
         clone = _clone_context_for_subagent(parent_ctx)
         self.assertIsNone(clone.session)
+        self.assertIsNone(clone.bound_session_id)
 
 
 # ---------------------------------------------------------------------------

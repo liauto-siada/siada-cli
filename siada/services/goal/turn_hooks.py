@@ -87,12 +87,7 @@ def maybe_reset_goal_on_new_turn(
         return
 
     from siada.services.siada_runner import SiadaRunner
-    workspace = getattr(getattr(session, "siada_config", None), "workspace", None)
-    context = None
-    for (_, ws), ctx in SiadaRunner._context_cache.items():
-        if ws == workspace:
-            context = ctx
-            break
+    context = SiadaRunner.find_session_context(session)
 
     goal = getattr(context, "goal", None) if context is not None else None
     if goal is None:
@@ -200,12 +195,7 @@ def maybe_run_goal_verifier(
         return result
 
     from siada.services.siada_runner import SiadaRunner
-    workspace = getattr(getattr(session, "siada_config", None), "workspace", None)
-    context = None
-    for (_, ws), ctx in SiadaRunner._context_cache.items():
-        if ws == workspace:
-            context = ctx
-            break
+    context = SiadaRunner.find_session_context(session)
 
     goal = getattr(context, "goal", None) if context is not None else None
     if goal is None or getattr(goal, "status", None) != "active":

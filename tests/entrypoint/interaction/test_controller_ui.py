@@ -109,7 +109,7 @@ def _make_session(session_id="sess-1", file_session=None):
 
 
 def _make_file_session(signature, items):
-    return SimpleNamespace(last_signature=signature, get_items=AsyncMock(return_value=items))
+    return SimpleNamespace(last_signature=signature, get_history_items=AsyncMock(return_value=items))
 
 
 def _messages_with_reason(sent, reason):
@@ -268,6 +268,7 @@ class TestHistoryState:
         done = ctx.sent[-1]
         assert done.method == "session/pullHistoryDone"
         assert done.params == {"messages": [{"role": "user", "content": "new message"}]}
+        session.openai_session.get_history_items.assert_awaited_once_with(include_injected=False)
 
     def test_sync_without_session_acknowledges_immediately(self):
         ctx = _build_ui()

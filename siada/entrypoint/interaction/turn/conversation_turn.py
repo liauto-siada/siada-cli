@@ -1499,10 +1499,9 @@ class ConversationTurn(RunTurn):
         """
         try:
             from siada.services.siada_runner import SiadaRunner
-            workspace = self.config.workspace
-            for (_, ws), ctx in SiadaRunner._context_cache.items():
-                if ws == workspace:
-                    return bool(getattr(ctx, "memory_tools_enabled", True))
+            context = SiadaRunner.find_session_context(self.session)
+            if context is not None:
+                return bool(getattr(context, "memory_tools_enabled", True))
         except Exception as e:
             logger.debug(f"[ConversationTurn] Failed to resolve live memory switch: {e}")
         # Fall back to the startup mirror on RunningConfig.
@@ -1520,11 +1519,10 @@ class ConversationTurn(RunTurn):
         """
         try:
             from siada.services.siada_runner import SiadaRunner
-            workspace = self.config.workspace
-            for (_, ws), ctx in SiadaRunner._context_cache.items():
-                if ws == workspace:
-                    goal = getattr(ctx, "goal", None)
-                    return goal is not None and getattr(goal, "status", None) == "active"
+            context = SiadaRunner.find_session_context(self.session)
+            if context is not None:
+                goal = getattr(context, "goal", None)
+                return goal is not None and getattr(goal, "status", None) == "active"
         except Exception as e:
             logger.debug(f"[ConversationTurn] Failed to resolve active goal state: {e}")
         return False

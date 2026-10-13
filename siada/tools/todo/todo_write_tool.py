@@ -87,6 +87,9 @@ def todo_write_impl(context: CodeAgentContext, todos: List[TodoItem]) -> str:
     context.todos = [] if all_done else list(todos)
     context.todo_turns_since_write = 0
     context.todo_turns_since_reminder = 0
+    from siada.services.session_runtime_state import save_context
+
+    save_context(context)
     _push_todo_state_via_acp(context.todos)
     return _SUCCESS_TEXT
 

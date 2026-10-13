@@ -49,14 +49,15 @@ def get_capabilities_for_profile(
     profile: PromptProfile, subagent_enabled: bool = True
 ) -> str:
     """Describe the file tools selected for this run without reclassifying the model."""
-    if profile.family is PromptFamily.KIMI_K3:
-        return _get_kimi_capabilities_section(subagent_enabled=subagent_enabled)
+    if profile.family in (PromptFamily.KIMI_K3, PromptFamily.GLM):
+        return _get_edit_file_capabilities_section(subagent_enabled=subagent_enabled)
     if profile.native_patch_file_tools:
         return _get_native_patch_capabilities_section(subagent_enabled=subagent_enabled)
     return _get_default_capabilities_section(subagent_enabled=subagent_enabled)
 
 
-def _get_kimi_capabilities_section(subagent_enabled: bool = True) -> str:
+def _get_edit_file_capabilities_section(subagent_enabled: bool = True) -> str:
+    """Concise edit_file tool surface for full-template families."""
     return f"""===
 
 # CAPABILITIES

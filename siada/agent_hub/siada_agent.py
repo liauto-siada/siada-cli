@@ -235,6 +235,11 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         from siada.foundation.sdk_patches import configure_sdk_run_config
         run_config = configure_sdk_run_config(run_config)
 
+        from siada.services.effective_context_session import configure_effective_run
+        openai_session, run_config = await configure_effective_run(
+            openai_session, run_config, agent=starting_agent,
+        )
+
         return await Runner.run(
             starting_agent=starting_agent,
             input=input,
@@ -281,6 +286,11 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
 
         from siada.foundation.sdk_patches import configure_sdk_run_config
         run_config = configure_sdk_run_config(run_config)
+
+        from siada.services.effective_context_session import configure_effective_run
+        openai_session, run_config = await configure_effective_run(
+            openai_session, run_config, agent=starting_agent,
+        )
 
         return Runner.run_streamed(
             starting_agent=starting_agent,

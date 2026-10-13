@@ -111,6 +111,16 @@
 - **默认值**：`false`
 - **示例**：`true`, `false`
 
+此能力同时控制用户附图和通过 `edit_file` 读取图片。Chat Completions 转换路径
+（包括 `default` 供应商）对所有模型统一保留已经产生的工具结果图片。
+转换时不检查 `supports_images`，也不依赖请求上下文，因此能力为 `false`
+或缺失不会导致工具结果图片被丢弃。已保存的会话历史保持不变。
+
+Chat Completions endpoint 需要接受 `role: tool` 消息中的图片内容。
+支持用户消息中的图片并不意味着支持工具结果图片；标准 OpenAI Chat Completions
+协议不支持这种格式。不兼容的 endpoint 需要另行适配消息协议。
+文本模型现有的 vision bridge 行为保持不变。
+
 #### supports_prompt_cache（可选）
 - **类型**：布尔值
 - **说明**：模型是否支持提示缓存功能
@@ -249,7 +259,8 @@ siada
 主编码 Agent 会为所有模型在 Git 工作区的首次用户请求中，追加一项有界的 Git 快照，
 包含分支、HEAD、工作树摘要及采集时间。快照以 `<system-reminder>` 包裹的隐藏
 `input_text` 内容项保存到同一条用户消息中，并写入会话的 `api_history.json`。
-后续轮次和 `/resume` 会复用快照，压缩后在模型可见的 `api_messages.json` 中刷新。
+后续轮次和 `/resume` 会复用快照，压缩后在模型使用的已准备上下文
+`api_message.json` 中刷新；旧会话迁移前使用 `api_messages.json`。
 仍兼容旧会话中的独立快照消息。非 Git 工作区或采集失败时不添加快照。
 快照是上下文数据，不扩大授权，不作为会话中途的 system 消息发送，也不显示在聊天历史中。
 设置 `SIADA_GIT_SNAPSHOT=0`（或 `false` / `off`）可关闭快照。
@@ -265,9 +276,11 @@ Siada 识别 GLM-5.2 及后续版本，例如 `glm-5.2`、`glm-5.2-flash`、`glm
 `/effort`，通过 `default_reasoning_effort` 指定默认级别。未显式指定时由网关决定默认
 推理行为。API Key 供应商提供、但没有匹配内置条目的模型也不会自动填充这些设置。
 
-主编码 Agent 在 GLM-5.2 及后续模型上使用专属身份和行为段落，仍提供共用能力说明、
-技能、代理及记忆。连续三次调用同一工具且参数相同后，会加入一条隐藏 user-role 提醒，
-要求使用已有结果或改变做法。GLM 提示词和重复调用提醒没有单独的关闭开关。
+主编码 Agent 在 GLM-5.2 及后续模型上基于 ZCode CLI 系统提示词模板构建系统提示
+（产品身份替换为 Siada），同时保留 Siada 的 `edit_file` 工具、Git 安全、非交互模式下
+的审批规则、技能与代理目录和组合记忆。连续三次调用同一工具且参数相同后，会加入一条
+隐藏 user-role 提醒，要求使用已有结果或改变做法。GLM 提示词和重复调用提醒没有单独的
+关闭开关。
 
 GLM 全系列模型连续至少十个 assistant 轮次未调用 `todo_write` 时，还可收到空列表提醒，
 两次提醒至少相隔十轮。设置 `SIADA_TODO_EMPTY_LIST_REMINDER=0`（或 `false` / `off`）

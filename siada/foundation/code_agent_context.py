@@ -16,6 +16,14 @@ class CodeAgentContext(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     session: Optional[RunningSession] = None
+    bound_session_id: Optional[str] = Field(default=None, exclude=True)
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.session is not None:
+            self.bound_session_id = self.session.session_id
+
+    # Per-run admission owner; not a history mirror or persisted session state.
+    runtime_session: Optional[Any] = Field(default=None, exclude=True, repr=False)
 
     # Runtime source of the current agent execution.
     runtime_source: str = RuntimeSource.CLI
@@ -185,10 +193,13 @@ class CodeAgentContext(BaseModel):
     def save_checkpoints(self):
         if self.session and self.session.checkpoint_tracker:
             try:
+                from siada.services.session_runtime_state import capture_context
+
                 self.session.checkpoint_tracker.save_checkpoints(
                     session_id=self.session.session_id,
                     task_message_state=self.session.state.task_message_state,
                     usage=self.session.state.usage,
+                    structured_state=capture_context(self),
                 )
             except Exception as e:
                 logging.error(f"Error saving checkpoints: {e}")

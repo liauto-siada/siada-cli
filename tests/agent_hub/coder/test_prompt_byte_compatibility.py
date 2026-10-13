@@ -52,8 +52,8 @@ EXPECTED_SHA256 = {
         "559f518598a0d3837a1bc5de4878961a1921bb359caf63be754c48a9e96766df",
     ),
     "glm": (
-        "d07c8f74f2e79c0ad1ecac0421ad2e3bb5005a4382edafacb44deea44ea556c6",
-        "c18188a461d384b6104b5742469fecbe493b8f65bc377828d2e44b47a5ce2c87",
+        "7ace41a877dc1f88b697c9dcb617e01fb9a556ea567a5cd32e3221a31b3f9550",
+        "a9ece776aa27221e742f6ee28030887e6781aff22427a68359ff6d8504b38374",
     ),
     "future_gpt": (
         "550364d1b6e818082874d070b9e8d54886ff23fb95fe685cd4966205291b413f",
@@ -184,7 +184,7 @@ def test_snapshot_failure_identifies_changed_lines(render_prompt, monkeypatch):
         ("gpt-5.4", {"extra_capabilities": ["- Extra one.", "- Extra two."]},
          "8d0fccdc6950187d76279093d4ed5db526ce2e2c9a038cbb872413b7fe85e524"),
         ("zhipuai/glm-5.3", {"subagent_enabled": False},
-         "94a8a97a4d5c4ce82af58cf6f56079c6dd4f4ce83eb13e6b1edfa2524e22ab70"),
+         "c1154ec504471786dedd30878e70cda92ad4578409fadcc37acdda2d884ca5ba"),
         ("claude-sonnet-5", {"preferred_language": None},
          "f86f308585157725e1f0b4536b785748d6fec3c94ac01efa873baa60cf302ce9"),
         ("gpt-6-astra", {"user_memory": None},
@@ -250,7 +250,6 @@ def test_rule_dispatcher_keeps_family_renderers_in_separate_modules():
         ("models/default/rules.py", "_get_default_rules_section"),
         ("models/gpt5/rules.py", "_get_gpt5_rules_section"),
         ("models/gpt6/rules.py", "_get_gpt6_rules_section"),
-        ("models/glm/rules.py", "_get_glm_rules_section"),
     ):
         assert renderer in functions_in(root / module)
 
@@ -289,7 +288,9 @@ def test_profile_keeps_prompt_family_separate_from_tool_surface(
     assert profile.native_patch_file_tools is native_patch
 
 
-@pytest.mark.parametrize("model_name", ["gpt-5.4", "kimi-k3", "k3.1", "vendor-kimi-k3.5", "kimi-k4"])
+@pytest.mark.parametrize("model_name", [
+    "gpt-5.4", "kimi-k3", "k3.1", "vendor-kimi-k3.5", "kimi-k4", "glm-5.2", "glm-5.3", "glm-6",
+])
 def test_main_path_resolves_profile_once(monkeypatch, render_prompt, model_name):
     resolved_models = []
 

@@ -13,6 +13,7 @@ include = [
     {path = "siada/agent_hub/coder/prompt/models/gpt6/templates/**/*.md", format = ["sdist", "wheel"]},
     {path = "siada/agent_hub/coder/prompt/models/gpt6/templates/*.toml", format = ["sdist", "wheel"]},
     {path = "siada/agent_hub/coder/prompt/models/kimi_k3/templates/*.md", format = ["sdist", "wheel"]},
+    {path = "siada/agent_hub/coder/prompt/models/glm/templates/*.md", format = ["sdist", "wheel"]},
     {path = "siada_cli_ui/bundle/siada-ui.js", format = ["sdist", "wheel"]},
     {path = "siada_cli_ui/bundle/*.LEGAL.txt", format = ["sdist", "wheel"]},
     {path = "siada_cli_ui/package.json", format = ["sdist", "wheel"]},

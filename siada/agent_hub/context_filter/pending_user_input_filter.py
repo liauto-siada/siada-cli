@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional
+import uuid
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
 if TYPE_CHECKING:
     from agents.run import ModelInputData
@@ -46,15 +47,19 @@ class PendingUserInputInjector:
     """
 
     async def filter(
-        self, model_data: ModelInputData, agent: Any, context: CodeAgentContext
+        self, model_data: ModelInputData, agent: Any, context: CodeAgentContext,
+        *, persist_items: Callable[[list, list[str]], Awaitable[None]] | None = None,
     ) -> None:
-        from siada.io.stdin_interrupt_monitor import drain_pending_injections, _send_queue_notification
+        from siada.io.stdin_interrupt_monitor import (
+            drain_pending_injections, restore_pending_injections, _send_queue_notification,
+        )
 
         pending = drain_pending_injections()  # list of (id, content, image_paths)
         if not pending:
             return
 
         new_items = []
+        admission_ids = []
         # Track (id, content) pairs so the consume notification can carry the
         # original prompt text. The frontend uses this as a fallback to render
         # the user bubble even if its local preview queue was already cleared
@@ -69,6 +74,7 @@ class PendingUserInputInjector:
         from siada.services.memory.holographic.marker import wrap_user_input
 
         for item_id, content, image_paths in pending:   # unpack 3-tuple
+            identity = f"queued:{item_id or uuid.uuid4().hex}"
             # Defensive normalization: image_paths must be a list. A malformed
             # frontend payload could deliver a bare string (e.g. "a/b.png"),
             # which _build_multimodal_input would iterate character-by-character,
@@ -123,6 +129,7 @@ class PendingUserInputInjector:
                             wrapped_content = wrap_user_input(content) if content else content
                             bridged = f"{wrapped_content}\n\n{evidence}" if wrapped_content else evidence
                             new_items.append({"role": "user", "content": bridged})
+                            admission_ids.append(f"{identity}:0")
                             if item_id:
                                 consumed_items.append((item_id, content))
                             continue
@@ -159,13 +166,14 @@ class PendingUserInputInjector:
             if not content and not image_paths:
                 continue
             if image_paths:
-                new_items.extend(
-                    _build_multimodal_input(
-                        wrap_user_input(content) if content else content, image_paths
-                    )
+                multimodal = _build_multimodal_input(
+                    wrap_user_input(content) if content else content, image_paths,
                 )
+                new_items.extend(multimodal)
+                admission_ids.extend(f"{identity}:{index}" for index in range(len(multimodal)))
             else:
                 new_items.append({"role": "user", "content": wrap_user_input(content)})
+                admission_ids.append(f"{identity}:0")
 
 
             if item_id:
@@ -173,6 +181,20 @@ class PendingUserInputInjector:
 
 
         if not new_items:
+            if persist_items is not None:
+                for item_id, content in consumed_items:
+                    _send_queue_notification("queue_item_consumed", {"id": item_id, "content": content})
+            return
+
+        if persist_items is not None:
+            try:
+                await persist_items(new_items, admission_ids)
+            except BaseException:
+                restore_pending_injections(pending)
+                raise
+            model_data.input = list(model_data.input) + new_items
+            for item_id, content in consumed_items:
+                _send_queue_notification("queue_item_consumed", {"id": item_id, "content": content})
             return
 
         # Append to model input (will be seen by subsequent filters and LLM call).

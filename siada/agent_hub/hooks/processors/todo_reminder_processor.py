@@ -56,6 +56,7 @@ from agents import Agent, ModelResponse, AgentHooks, TContext, RunContextWrapper
 from siada.agent_hub.context_filter.utils import _normalize_to_responses_items
 from siada.agent_hub.hooks.processors.reminder_persistence_utils import (
     persist_pending_reminder_items,
+    replay_uncommitted_reminder,
 )
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.models.model_base_config import get_glm_version
@@ -202,6 +203,8 @@ class TodoReminderProcessor(AgentHooks):
         """Inject the hidden todo reminder directly into the real model input."""
         try:
             siada_context = context.context
+            if replay_uncommitted_reminder(siada_context, input_items, "pending_reminder_items"):
+                return
             # A failed attempt may leave a pending reminder behind. Only the
             # current call's injection may be persisted by on_llm_end.
             if hasattr(siada_context, "pending_reminder_items"):
@@ -328,6 +331,9 @@ class TodoReminderProcessor(AgentHooks):
         response: ModelResponse,
     ) -> None:
         siada_context = context.context
+        # Request admission owns both persistence and committed-queue cleanup.
+        if getattr(siada_context, "runtime_session", None) is not None:
+            return
         pending: List[Any] = getattr(siada_context, "pending_reminder_items", None) or []
         try:
             await persist_pending_reminder_items(

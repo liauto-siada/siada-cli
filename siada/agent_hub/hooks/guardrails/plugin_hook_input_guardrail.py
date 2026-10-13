@@ -86,7 +86,10 @@ async def _plugin_hook_input_fn(
             io = InputOutput.get_instance()
             if io:
                 io.print_error(resp.additional_context)
-            data.context.context.hook_pending_contexts.append(resp.additional_context)
+            import asyncio
+            from siada.services.session_runtime_state import stage_notification
+
+            await asyncio.to_thread(stage_notification, data.context.context, resp.additional_context)
 
     return ToolGuardrailFunctionOutput.allow()
 

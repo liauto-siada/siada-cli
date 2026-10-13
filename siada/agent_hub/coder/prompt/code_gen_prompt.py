@@ -3,9 +3,9 @@ import platform
 from typing import List, Optional
 from .assembly.builder import render_system_prompt
 from .assembly.codex import render_codex_system_prompt
+from .assembly.glm import render_glm_system_prompt
 from .assembly.kimi import render_kimi_system_prompt
 from .models.default.instructions import INTRO, _build_objective
-from .models.glm.instructions import get_glm_intro
 from .models.gpt5.instructions import get_gpt5_intro
 from .models.gpt6.instructions import get_gpt6_intro
 from .selection.model_features import uses_gpt6_scannable_writing_style
@@ -27,9 +27,6 @@ def _get_intro_and_objective(profile: PromptProfile) -> tuple[str, str]:
         return get_gpt6_intro(personality=personality), GPT5_OBJECTIVE
     if profile.family is PromptFamily.GPT5:
         return get_gpt5_intro(personality="pragmatic"), GPT5_OBJECTIVE
-    if profile.family is PromptFamily.GLM:
-        # GLM's execution flow lives in its intro; omit the generic objective.
-        return get_glm_intro(), ""
     return INTRO, _build_objective()
 
 
@@ -109,6 +106,14 @@ def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True,
 
     if profile.family is PromptFamily.KIMI_K3:
         return render_kimi_system_prompt(
+            cwd=cwd, os_name=os_name, home_dir=home_dir, capabilities=capabilities,
+            interactive_mode=interactive_mode, username=username,
+            preferred_language=preferred_language, skills_section=skills_section,
+            agents_section=agents_section, user_memory=user_memory,
+        )
+
+    if profile.family is PromptFamily.GLM:
+        return render_glm_system_prompt(
             cwd=cwd, os_name=os_name, home_dir=home_dir, capabilities=capabilities,
             interactive_mode=interactive_mode, username=username,
             preferred_language=preferred_language, skills_section=skills_section,

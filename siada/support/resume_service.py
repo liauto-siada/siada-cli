@@ -102,10 +102,32 @@ class ResumeService:
     def restore_to_running_session(self, session_data: SessionData, running_session) -> None:
         """Restore session_data into a live session, reusing the original session_id and storage path."""
         try:
-            # Step 1: adopt the restored session's ID
-            running_session.session_id = session_data.session_id
+            from siada.services.session_runtime_state import load_state
 
-            # Step 2: redirect FileSession to the original session directory
+            runtime_state = (load_state(session_data.session_path, session_data.session_id)
+                             if session_data.session_path else session_data.runtime_state)
+            prepared_context = None
+            if session_data.session_path and (
+                running_session.state.openai_session
+                or session_data.context_snapshot is not None
+                or (session_data.session_path / "api_message.json").exists()
+            ):
+                from siada.services.file_session import FileSession
+
+                restored_store = FileSession.from_file(session_data.session_path / "api_history.json")
+                if restored_store.session_id != session_data.session_id:
+                    from siada.services.session_storage import SessionStorageError
+
+                    raise SessionStorageError("Restored session identity does not match its storage")
+                if restored_store.has_prepared_context:
+                    prepared_context = restored_store.get_context_snapshot_sync()
+                elif session_data.context_snapshot is not None:
+                    from siada.services.session_storage import SessionStorageError
+
+                    raise SessionStorageError("Prepared context disappeared before session restore")
+
+            # Construct storage before mutating the live session.
+            new_file_session = None
             if session_data.session_path and running_session.state.openai_session:
                 from siada.services.file_session import FileSession
                 old_session = running_session.state.openai_session
@@ -113,8 +135,18 @@ class ResumeService:
                     session_id=session_data.session_id,
                     sessions_dir=session_data.session_path.parent,
                     on_items_added=old_session.on_items_added,
-                    project_root=str(session_data.session_path.parent.parent),
+                    project_root=session_data.project_root or self.project_root,
                 )
+            # Step 1: adopt the restored session's ID
+            running_session.session_id = session_data.session_id
+            if session_data.project_root:
+                running_session.siada_config.workspace = session_data.project_root
+            running_session.state.agent_context = None
+            running_session.state.session_title = session_data.metadata.get("title")
+            running_session.state.pending_runtime_state = runtime_state
+
+            # Step 2: redirect FileSession to the original session directory
+            if new_file_session is not None:
                 running_session.state.openai_session = new_file_session
 
             # Step 3: restore message history, dropping any function_call items with
@@ -138,7 +170,7 @@ class ResumeService:
                         break
                 filtered_items.append(item)
             running_session.state.task_message_state.reset_message_history(
-                message_history=filtered_items
+                message_history=[] if prepared_context is not None else filtered_items
             )
 
             # Recover todo list from the restored message history.
@@ -146,10 +178,16 @@ class ResumeService:
             # to context.todos once the context is available.
             try:
                 from siada.tools.todo.recovery import extract_todos_from_messages
-                recovered = extract_todos_from_messages(filtered_items)
-                if recovered:
-                    running_session.state.pending_todos = recovered
-                    logger.debug(f"[todo] Staged {len(recovered)} recovered todos in pending_todos")
+                if runtime_state is not None:
+                    from siada.tools.todo.models import TodoItem
+
+                    recovered = [TodoItem.model_validate(item) for item in runtime_state["todos"]]
+                else:
+                    recovered = extract_todos_from_messages(filtered_items)
+                    if recovered and all(item.status == "completed" for item in recovered):
+                        recovered = []
+                running_session.state.pending_todos = recovered or []
+                logger.debug(f"[todo] Staged {len(recovered or [])} recovered todos in pending_todos")
             except Exception as e:
                 logger.debug(f"[todo] Failed to recover todos on resume: {e}")
 
@@ -170,6 +208,7 @@ class ResumeService:
             # ``/goal clear`` before disconnecting, or resumes a different,
             # goal-less session next).
             running_session.state.pending_goal = None
+            running_session.state.pending_goal_loaded = True
             try:
                 if session_data.session_path:
                     from siada.services.goal import goal_storage
@@ -207,6 +246,16 @@ class ResumeService:
             except Exception as e:
                 logger.debug(f"[subagent] Failed to scan unfinished sub-agents on resume: {e}")
 
+
+            if runtime_state is not None:
+                from siada.support.usage_utils import deserialize_usage
+
+                running_session.state.usage = deserialize_usage(runtime_state["usage"])
+            if prepared_context is not None:
+                # Never rebuild runtime input or legacy tracking from UI history.
+                running_session.state.task_message_state.reset_real_messages()
+                logger.info(f"Prepared context restored (reusing session_id): {session_data.session_id}")
+                return
 
             # Step 4: restore RealApiMessage from api_messages.json.
             # (see _align_last_index for how the tracking anchor is derived)
@@ -273,7 +322,7 @@ class ResumeService:
                 )
                 # Restore the saved token count so _try_incremental_update only
                 # accounts for the delta on the next turn.
-                if session_data.api_messages_tokens:
+                if session_data.api_messages_tokens and runtime_state is None:
                     from agents.usage import Usage
                     running_session.state.usage = Usage(
                         input_tokens=session_data.api_messages_tokens,

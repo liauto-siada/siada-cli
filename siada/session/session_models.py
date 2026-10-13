@@ -32,6 +32,9 @@ class SessionState:
     current_agent: Optional[str] = None
     """Currently active Agent name"""
 
+    agent_context: Optional[Any] = field(default=None, repr=False)
+    """Live context owned by this session; never serialized or transferred on resume."""
+
     # FileSession is created lazily on first access to avoid importing agents SDK
     # (~710ms) on the critical startup path.  Use the property below; do NOT access
     # _openai_session / _openai_session_factory directly.
@@ -61,6 +64,8 @@ class SessionState:
     # Recovered goal after session resume; consumed once by SiadaRunner to populate context.goal.
     # Actual type is Optional[Goal]; typed as Any to avoid circular imports.
     pending_goal: Optional[Any] = field(default=None)
+    pending_goal_loaded: bool = False
+    pending_runtime_state: Optional[dict] = None
 
     # Skill names staged by a slash command and consumed by the next agent run.
     pending_skill_names: List[str] = field(default_factory=list)

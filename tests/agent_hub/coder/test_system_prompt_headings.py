@@ -51,13 +51,18 @@ def test_coding_prompt_generated_sections_have_markdown_headings(
     ]
     if model_name == "kimi-k3":
         headings.extend(["# Runtime instructions", "# Environment", "# Project information", "# Skills"])
+    elif model_name == "glm-5.3":
+        headings.extend([
+            "# Harness", "# Communicating with the user", "# Runtime instructions",
+            "# Environment", "# Context management", "# Skills",
+        ])
     elif model_name == "gpt-6-astra":
         headings.extend(["# SYSTEM INFORMATION", "## Skills"])
         headings.extend(["# Runtime instructions", "## Verification"])
     else:
         headings.extend(["# SYSTEM INFORMATION", "## Skills"])
-        headings.append("## IMPLEMENTATION MODE" if model_name == "glm-5.3" else "# OBJECTIVE")
-    if model_name not in ("gpt-6-astra", "kimi-k3"):
+        headings.append("# OBJECTIVE")
+    if model_name not in ("gpt-6-astra", "kimi-k3", "glm-5.3"):
         headings.extend(["# RULES", "## Completion Discipline"])
     assert prompt.rstrip().endswith("====")
 
@@ -67,7 +72,7 @@ def test_coding_prompt_generated_sections_have_markdown_headings(
 
     assert ("# OBJECTIVE" in lines) == (model_name not in ("glm-5.3", "gpt-6-astra", "kimi-k3"))
     assert "# Workspace" not in lines
-    runtime_heading = "# Runtime instructions" if model_name in ("gpt-6-astra", "kimi-k3") else "# RULES"
+    runtime_heading = "# Runtime instructions" if model_name in ("gpt-6-astra", "kimi-k3", "glm-5.3") else "# RULES"
     assert lines.index("# CAPABILITIES") < lines.index(runtime_heading) < lines.index("# Combined Memory")
 
 

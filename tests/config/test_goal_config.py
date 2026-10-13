@@ -69,7 +69,7 @@ def test_configured_limit_reaches_runtime_verifier(tmp_path, monkeypatch):
     result = TurnOutput(output="not done", metadata={}, next_action=None)
     notifications = []
     verdict = GoalVerdict(passed=False, reason="work remaining", nextAction="keep working")
-    with patch("siada.services.siada_runner.SiadaRunner._context_cache", {("coder", workspace): context}), patch(
+    with patch("siada.services.siada_runner.SiadaRunner._context_cache", {("coder", workspace, session.session_id): context}), patch(
         "siada.services.goal.verifier.run_goal_verification",
         new=AsyncMock(return_value=verdict),
     ):

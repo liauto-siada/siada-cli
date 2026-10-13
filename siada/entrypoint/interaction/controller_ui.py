@@ -222,7 +222,7 @@ class ControllerUI:
             # Read current disk state (may have been updated by another process).
             loop = asyncio.new_event_loop()
             try:
-                disk_items = loop.run_until_complete(file_session.get_items())
+                disk_items = loop.run_until_complete(file_session.get_history_items(include_injected=False))
             finally:
                 loop.close()
 

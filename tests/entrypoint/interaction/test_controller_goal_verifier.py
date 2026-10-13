@@ -45,6 +45,7 @@ def _make_turn(turn_type=TurnType.CONVERSATION):
 def _make_session(workspace="/ws"):
     file_session = SimpleNamespace()
     return SimpleNamespace(
+        session_id="goal-session",
         openai_session=file_session,
         siada_config=SimpleNamespace(workspace=workspace),
     )
@@ -54,7 +55,7 @@ def _context_cache_with(workspace, goal, goal_max_turns=None):
     context = SimpleNamespace(goal=goal)
     if goal_max_turns is not None:
         context.goal_max_turns = goal_max_turns
-    return {("agent", workspace): context}, context
+    return {("agent", workspace, "goal-session"): context}, context
 
 
 @pytest.fixture

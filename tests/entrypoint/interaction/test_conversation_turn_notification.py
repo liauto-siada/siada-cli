@@ -12,12 +12,13 @@ from siada.entrypoint.interaction.turn.conversation_turn import ConversationTurn
 def _make_turn(workspace="/ws"):
     turn = ConversationTurn.__new__(ConversationTurn)
     turn.config = SimpleNamespace(workspace=workspace)
+    turn.session = SimpleNamespace(session_id="goal-session", siada_config=turn.config)
     return turn
 
 
 def _context_cache_with(workspace, goal):
     context = SimpleNamespace(goal=goal)
-    return {("agent", workspace): context}
+    return {("agent", workspace, "goal-session"): context}
 
 
 class TestHasActiveGoal:

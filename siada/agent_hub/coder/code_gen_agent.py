@@ -458,16 +458,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
     async def _effective_history_has_git_snapshot(
         context: CodeAgentContext, openai_session=None,
     ) -> bool:
-        """Whether the history the next model call will see already has a snapshot.
-
-        The model-visible history is the (possibly compacted) real API
-        message list; right after a resume that needs a full refresh it is
-        empty until the next call rebuilds it from the SDK session, so the
-        session items are consulted in that case instead.
-        """
-        real_messages = context.task_message_state.get_real_messages()
-        if real_messages:
-            return git_snapshot.has_git_snapshot(real_messages)
+        """Check the authoritative model context, never a captured history mirror."""
         if openai_session is not None:
             return git_snapshot.has_git_snapshot(await openai_session.get_items())
         return False

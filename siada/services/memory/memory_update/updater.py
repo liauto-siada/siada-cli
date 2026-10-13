@@ -129,9 +129,19 @@ class PreCompactionMemoryUpdater(MemoryUpdater):
                 "[memory-update] async stage: no messages in snapshot, "
                 "skipping review"
             )
+            logger.info(
+                "[memory-source][review] session=%s trigger=pre_compaction source=in_memory_snapshot "
+                "raw_items=%d messages=0 status=skipped reason=no_text_messages",
+                view.session_id, len(snapshot),
+            )
             return
 
         session_content = self._memory_service._format_session_content(messages)
+        logger.info(
+            "[memory-source][review] session=%s trigger=pre_compaction source=in_memory_snapshot "
+            "raw_items=%d messages=%d chars=%d status=starting",
+            view.session_id, len(snapshot), len(messages), len(session_content),
+        )
         await review_and_update_inline_memory(session_content)
 
     # ---- helpers --------------------------------------------------------

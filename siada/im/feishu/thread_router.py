@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Callable, Optional
+from siada.services.session_storage import SessionStorageError
 
 if TYPE_CHECKING:
     from siada.im.models import IMMessage
@@ -177,6 +178,13 @@ class ThreadSessionRouter:
 
             source_session_id, content = info
 
+            if getattr(file_session, "has_prepared_context", False) is True:
+                # Prepared routing has its own durable pending marker; native
+                # context positions change during compaction and are unrelated.
+                file_session.get_context_snapshot_sync()
+                file_session.clear_inject_info()
+                return source_session_id, content
+
             # Verify the injection is still the last item in history.
             all_items = await file_session.get_all_items()
             if not all_items:
@@ -197,6 +205,8 @@ class ThreadSessionRouter:
 
             # History has moved past the injection — stale, self-correct.
             file_session.clear_inject_info()
+        except SessionStorageError:
+            raise
         except Exception as e:
             logger.debug("Failed to check session injected content: %s", e)
         return None
@@ -229,6 +239,8 @@ class ThreadSessionRouter:
                         if source_session_id:
                             return source_session_id, item.get("content")
                     return None  # found but not injected
+        except SessionStorageError:
+            raise
         except Exception as e:
             logger.debug("Failed to find injected by message_id=%s: %s", target_message_id, e)
         return None

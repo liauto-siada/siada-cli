@@ -137,7 +137,14 @@ def register_background_subtask(
         # effort: a context that has since been torn down (e.g. process
         # exiting) must not raise out of the background task.
         try:
-            agent_context.hook_pending_contexts.append(note)
+            if (agent_context.session_id or "unknown-session") != session_id:
+                logger.warning("[subagent_async] completion belongs to a replaced session: %s", session_id)
+                return
+            from siada.services.session_runtime_state import stage_notification
+            if agent_context.session is None:
+                stage_notification(agent_context, note)
+            else:
+                await asyncio.to_thread(stage_notification, agent_context, note)
         except Exception as e:
             logger.warning(
                 "[subagent_async] task=%s failed to stage completion note: %s",

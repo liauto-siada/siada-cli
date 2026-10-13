@@ -160,6 +160,41 @@ and include them only when required by the task or packaging workflow.
   it. Report unavailable or misconfigured checks rather than silently skipping
   them or inventing a new project-wide toolchain.
 
+### Reminder persistence ownership
+
+When changing reminder processors or effective-context admission, inspect
+`${REPO_ROOT}/siada/services/effective_context_session.py`,
+`${REPO_ROOT}/siada/services/session_runtime_state.py`, and
+`${REPO_ROOT}/siada/agent_hub/hooks/processors/reminder_persistence_utils.py` together.
+
+- The current bridge persists post-filter hook additions in
+  `EffectiveContextSession.finalize_request_input()` before calling the model,
+  then clears the committed reminder queues. Processors retain their legacy
+  `on_llm_end()` persistence only for contexts without an active
+  `runtime_session`; bridge runs skip both the legacy write and its cleanup.
+- A new queue omitted from `_REMINDER_QUEUES` can survive bridge admission and
+  be saved again by `on_llm_end()`. `FileSession.add_items()` allocates fresh
+  message identities, so identical content does not prevent duplicate writes.
+  Keep queue registration, structured-state fields/schema, replay, and
+  committed-queue cleanup consistent when adding or renaming a reminder.
+- Prefer explicit per-run ownership: an active effective-context bridge owns
+  request-time persistence; only non-bridge runs use legacy end-hook writes.
+  `has_prepared_context` detects a storage format, not the current run's owner.
+  Check both persistence and queue cleanup when introducing an ownership guard:
+  skipping a write inside an unconditional `finally` that clears the queue can
+  silently discard an uncommitted reminder.
+- Clear only reminders confirmed committed by the owning admission path.
+  Preserve uncommitted items for explicit retry and do not hide admission
+  failures behind best-effort legacy writes. Keep legacy behavior supported
+  for callers without the bridge, and distinguish request admission from a
+  successful model response in comments and documentation.
+- Validate streamed and non-streamed runs: one durable copy per reminder,
+  storage failure retains queues and prevents model calls, model failure after
+  admission does not duplicate reminders on retry, and legacy end-hook
+  persistence still works. Start with
+  `${REPO_ROOT}/tests/session/baseline/test_effective_context_session.py` and
+  the processor tests under `${REPO_ROOT}/tests/agent_hub/hooks/`.
+
 ## Testing and validation
 
 Start with the smallest relevant test selection. For example, the ACP stdio tests

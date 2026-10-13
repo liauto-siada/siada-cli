@@ -18,10 +18,22 @@ order between processors -- this helper only implements the shared
 "drain into session.add_items(), clear queue, never raise" mechanics.
 """
 
+import copy
 import logging
 from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def replay_uncommitted_reminder(context: Any, input_items: list, field: str) -> bool:
+    """Retry an effective-context reminder before recomputing its trigger."""
+    if getattr(context, "runtime_session", None) is None:
+        return False
+    pending = getattr(context, field, None)
+    if not pending or not isinstance(input_items, list):
+        return False
+    input_items.extend(copy.deepcopy(pending))
+    return True
 
 
 async def persist_pending_reminder_items(

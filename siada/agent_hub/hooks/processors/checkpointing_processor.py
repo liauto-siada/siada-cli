@@ -25,6 +25,10 @@ class CheckpointingProcessor(RunHooks):
         # add the function_call_out_to_the_task_message_state
         # logger.info(f"CheckpointingProcessor: on_tool_end called, saving checkpoint. output: {result}")
         if isinstance(context, ToolContext):
+            runtime_session = getattr(context.context, "runtime_session", None)
+            if runtime_session is not None:
+                runtime_session.queue_checkpoint(context.tool_call_id)
+                return
             context.context.session.state.task_message_state.add_message(
                 {
                     "call_id": context.tool_call_id,

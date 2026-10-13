@@ -18,6 +18,7 @@ from typing import Optional
 
 from filelock import FileLock
 from siada.foundation.logging import logger
+from siada.services.session_storage import recover_transaction, session_storage_lock
 
 
 
@@ -46,7 +47,7 @@ class SessionOwnershipManager:
     @staticmethod
     def _get_lock(session_dir: Path) -> FileLock:
         """Get a file lock for the session directory."""
-        return FileLock(session_dir / "metadata.lock", timeout=5)
+        return session_storage_lock(session_dir)
 
     @staticmethod
     def _get_metadata_path(session_dir: Path) -> Path:
@@ -77,29 +78,35 @@ class SessionOwnershipManager:
     @classmethod
     def get_active_owner(cls, session_dir: Path) -> Optional[str]:
         """Get the current active owner of a session."""
-        metadata_path = cls._get_metadata_path(session_dir)
-        metadata = cls._read_metadata(metadata_path)
-        return metadata.get(cls.FIELD_ACTIVE_OWNER)
+        with cls._get_lock(session_dir):
+            recover_transaction(session_dir)
+            metadata_path = cls._get_metadata_path(session_dir)
+            metadata = cls._read_metadata(metadata_path)
+            return metadata.get(cls.FIELD_ACTIVE_OWNER)
 
     @classmethod
     def set_active_owner(cls, session_dir: Path, owner: Optional[SessionOwner]) -> None:
         """Set the active owner of a session. Pass None to release ownership."""
-        metadata_path = cls._get_metadata_path(session_dir)
-        metadata = cls._read_metadata(metadata_path)
-        if owner is None:
-            metadata.pop(cls.FIELD_ACTIVE_OWNER, None)
-        else:
-            metadata[cls.FIELD_ACTIVE_OWNER] = owner.value
-        cls._write_metadata(metadata_path, metadata)
+        with cls._get_lock(session_dir):
+            recover_transaction(session_dir)
+            metadata_path = cls._get_metadata_path(session_dir)
+            metadata = cls._read_metadata(metadata_path)
+            if owner is None:
+                metadata.pop(cls.FIELD_ACTIVE_OWNER, None)
+            else:
+                metadata[cls.FIELD_ACTIVE_OWNER] = owner.value
+            cls._write_metadata(metadata_path, metadata)
         logger.debug(f"Session ownership set to {owner} for {session_dir.name}")
 
     @classmethod
     def set_session_source(cls, session_dir: Path, source: SessionOwner) -> None:
         """Record the original source that created this session."""
-        metadata_path = cls._get_metadata_path(session_dir)
-        metadata = cls._read_metadata(metadata_path)
-        metadata[cls.FIELD_SESSION_SOURCE] = source.value
-        cls._write_metadata(metadata_path, metadata)
+        with cls._get_lock(session_dir):
+            recover_transaction(session_dir)
+            metadata_path = cls._get_metadata_path(session_dir)
+            metadata = cls._read_metadata(metadata_path)
+            metadata[cls.FIELD_SESSION_SOURCE] = source.value
+            cls._write_metadata(metadata_path, metadata)
 
     @classmethod
     def acquire_ownership(

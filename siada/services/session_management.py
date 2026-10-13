@@ -11,6 +11,12 @@ from datetime import datetime
 
 from siada.utils import DirectoryUtils
 from siada.foundation.logging import logger
+from siada.services.session_storage import (
+    SessionStorageError,
+    recover_transaction,
+    session_storage_lock,
+    storage_transaction,
+)
 
 
 @dataclass
@@ -40,6 +46,8 @@ class SessionData:
     last_signature: str = ""  # last_signature for incremental update tracking
     session_path: Optional[Path] = None  # Session directory path
     project_root: Optional[str] = None  # Project root path that the session belongs to
+    context_snapshot: Optional[dict] = None  # Explicit versioned runtime context, including empty views
+    runtime_state: Optional[dict] = None
 
 
 class SessionManager:
@@ -272,6 +280,15 @@ class SessionManager:
             session_dir = session_path
         else:
             session_dir = self.sessions_dir / session_id
+
+        if not session_dir.exists():
+            raise FileNotFoundError(f"Session not found: {session_id}")
+        with session_storage_lock(session_dir):
+            recover_transaction(session_dir)
+            return self._load_session_data(session_id, session_dir)
+
+    def _load_session_data(self, session_id: str, session_dir: Path) -> SessionData:
+        """Load display history and validate prepared runtime data under one lock."""
         
         if not session_dir.exists():
             raise FileNotFoundError(f"Session not found: {session_id}")
@@ -298,10 +315,21 @@ class SessionManager:
                     history_data.get('items', [])
                 )
             
-            # Load compressed messages (if present)
+            # Validate versioned context before exposing any restore data.
+            context_snapshot = None
+            if (session_dir / "api_message.json").exists():
+                from siada.services.file_session import FileSession
+
+                context_snapshot = FileSession.from_file(api_history_file).get_context_snapshot_sync()
+
+            # Legacy snapshots must not override or invalidate prepared context.
+            from siada.services.session_runtime_state import load_state
+
+            runtime_state = load_state(session_dir, session_id)
             api_messages = None
             api_messages_tokens = None
-            if api_messages_file.exists():
+            api_messages_data = {}
+            if context_snapshot is None and api_messages_file.exists():
                 with open(api_messages_file, 'r', encoding='utf-8') as f:
                     api_messages_data = json.load(f)
                     api_messages = api_messages_data.get('api_messages', [])
@@ -313,9 +341,12 @@ class SessionManager:
                 metadata=metadata,
                 api_messages=api_messages,
                 api_messages_tokens=api_messages_tokens,
-                last_index=api_messages_data.get('last_index', -1) if api_messages_file.exists() else -1,
-                last_signature=api_messages_data.get('last_signature', '') if api_messages_file.exists() else '',
+                last_index=api_messages_data.get('last_index', -1),
+                last_signature=api_messages_data.get('last_signature', ''),
                 session_path=session_dir,
+                context_snapshot=context_snapshot,
+                runtime_state=runtime_state,
+                project_root=metadata.get("project_root") or self.project_root,
             )
             
             logger.info(f"Loaded session {session_id} with {len(session_data.items)} items")
@@ -365,19 +396,22 @@ class SessionManager:
         api_messages_file = session_path / "api_messages.json"
         api_messages_file.parent.mkdir(parents=True, exist_ok=True)
         try:
-            with open(api_messages_file, "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "session_id": session_id,
-                        "tokens_count": tokens_count,
-                        "last_index": last_index,
-                        "last_signature": last_signature,
-                        "api_messages": api_messages,
-                    },
-                    f,
-                    ensure_ascii=False,
-                    indent=4,
-                )
+            with storage_transaction(session_path, ("api_messages.json", "api_message.json")):
+                if (session_path / "api_message.json").exists():
+                    raise SessionStorageError("Prepared context rejects legacy snapshot writes")
+                with open(api_messages_file, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {
+                            "session_id": session_id,
+                            "tokens_count": tokens_count,
+                            "last_index": last_index,
+                            "last_signature": last_signature,
+                            "api_messages": api_messages,
+                        },
+                        f,
+                        ensure_ascii=False,
+                        indent=4,
+                    )
             logger.info(f"Synced api_messages.json for session {session_id}")
         except OSError as e:
             logger.error(f"Failed to sync api_messages.json for session {session_id}: {e}")
@@ -390,13 +424,18 @@ class SessionManager:
         if not api_messages_file.exists():
             return
         try:
-            with open(api_messages_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            data['last_index'] = last_index
-            data['last_signature'] = last_signature
-            with open(api_messages_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False)
+            with storage_transaction(session_path, ("api_messages.json", "api_message.json")):
+                if (session_path / "api_message.json").exists():
+                    raise SessionStorageError("Prepared context rejects legacy snapshot tracking writes")
+                with open(api_messages_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                data['last_index'] = last_index
+                data['last_signature'] = last_signature
+                with open(api_messages_file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False)
             logger.info(f"Updated api_messages.json: last_index={last_index}")
+        except SessionStorageError:
+            raise
         except Exception as e:
             logger.warning(f"Failed to update api_messages.json: {e}")
 

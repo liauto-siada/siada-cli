@@ -48,6 +48,7 @@ from siada.agent_hub.coder.prompt.selection.model_features import (
 from siada.agent_hub.context_filter.utils import _normalize_to_responses_items
 from siada.agent_hub.hooks.processors.reminder_persistence_utils import (
     persist_pending_reminder_items,
+    replay_uncommitted_reminder,
 )
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.logging import logger
@@ -211,6 +212,10 @@ class RepeatedToolReminderProcessor(AgentHooks):
     ) -> None:
         siada_context = context.context
         try:
+            if replay_uncommitted_reminder(
+                siada_context, input_items, "pending_repeated_tool_reminder_items",
+            ):
+                return
             # The pending item always belongs to the call being started: a
             # call that never reached on_llm_end must not leak its reminder
             # into a later call's persistence.
@@ -255,6 +260,8 @@ class RepeatedToolReminderProcessor(AgentHooks):
     ) -> None:
         """Persist the delivered reminder into the Session, then clear the queue."""
         siada_context = context.context
+        if getattr(siada_context, "runtime_session", None) is not None:
+            return
         pending = getattr(siada_context, "pending_repeated_tool_reminder_items", None) or []
         try:
             await persist_pending_reminder_items(

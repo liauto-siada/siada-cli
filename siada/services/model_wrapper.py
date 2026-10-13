@@ -9,7 +9,7 @@ and transparent to the agents framework.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 from agents import Model, TResponseInputItem, ModelSettings, AgentOutputSchemaBase, Handoff, ModelTracing, \
     ModelResponse, ModelProvider
@@ -45,6 +45,8 @@ class ModelWrapper(Model):
         self,
         wrapped_model: Model,
         input_processor: Callable[[list[TResponseInputItem]], list[TResponseInputItem]] | None = None,
+        *,
+        before_request: Callable[[list[TResponseInputItem]], Awaitable[None]] | None = None,
     ):
         """
         Initialize the context trimming model wrapper.
@@ -54,9 +56,13 @@ class ModelWrapper(Model):
             input_processor: Optional function to process/trim input items.
                            If None, input will be passed through unchanged.
                            Function signature: (input_items: list[TResponseInputItem]) -> list[TResponseInputItem]
+            before_request: Optional async admission boundary before provider normalization.
+                            Unlike input_processor, its failures abort the request.
         """
         self.wrapped_model = wrapped_model
         self.input_processor = input_processor
+        self.before_request = before_request
+        self.supports_native_responses_items = getattr(wrapped_model, "supports_native_responses_items", False)
         
         # Store metadata about the wrapped model for debugging
         self._wrapped_model_type = type(wrapped_model).__name__
@@ -167,6 +173,8 @@ class ModelWrapper(Model):
         before passing it to the underlying model.
         """
         # Process the input
+        if self.before_request is not None:
+            await self.before_request(input)
         processed_input = self._process_input(input)
         
         # Call the wrapped model with processed input
@@ -203,6 +211,30 @@ class ModelWrapper(Model):
         This method processes the input using the configured input_processor
         before passing it to the underlying model.
         """
+        if self.before_request is not None:
+            async def admitted_stream():
+                await self.before_request(input)
+                stream = self.wrapped_model.stream_response(
+                    system_instructions=system_instructions,
+                    input=self._process_input(input),
+                    model_settings=model_settings,
+                    tools=tools,
+                    output_schema=output_schema,
+                    handoffs=handoffs,
+                    tracing=tracing,
+                    previous_response_id=previous_response_id,
+                    conversation_id=conversation_id,
+                    prompt=prompt,
+                )
+                try:
+                    async for event in stream:
+                        yield event
+                finally:
+                    close = getattr(stream, "aclose", None)
+                    if close is not None:
+                        await close()
+
+            return admitted_stream()
         # Process the input
         processed_input = self._process_input(input)
         
@@ -252,6 +284,8 @@ class ModelProviderWrapper(ModelProvider):
             self,
             base_provider: ModelProvider,
             input_processor: Callable[[list[TResponseInputItem]], list[TResponseInputItem]] | None = None,
+            *,
+            before_request: Callable[[list[TResponseInputItem]], Awaitable[None]] | None = None,
     ):
         """
         Initialize the context trimming model provider.
@@ -263,6 +297,7 @@ class ModelProviderWrapper(ModelProvider):
         """
         self.base_provider = base_provider
         self.input_processor = input_processor
+        self.before_request = before_request
 
     def get_model(self, model_name: str | None) -> Model:
         """
@@ -278,11 +313,11 @@ class ModelProviderWrapper(ModelProvider):
         base_model = self.base_provider.get_model(model_name)
 
         # If no processor is configured, return the base model unchanged
-        if self.input_processor is None:
+        if self.input_processor is None and self.before_request is None:
             return base_model
 
         # Wrap with context trimming
-        return ModelWrapper(base_model, self.input_processor)
+        return ModelWrapper(base_model, self.input_processor, before_request=self.before_request)
 
     def __str__(self) -> str:
         """String representation for debugging."""

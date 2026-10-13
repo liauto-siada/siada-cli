@@ -26,6 +26,7 @@ from agents import (
 
 from siada.agent_hub.hooks.processors.reminder_persistence_utils import (
     persist_pending_reminder_items,
+    replay_uncommitted_reminder,
 )
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.logging import logger
@@ -65,6 +66,10 @@ class ModelHallucinationSuppressionProcessor(AgentHooks):
         input_items: list[TResponseInputItem],
     ) -> None:
         try:
+            if replay_uncommitted_reminder(
+                context.context, input_items, "pending_hallucination_reminder_items",
+            ):
+                return
             if self._current_model_name(context) not in _TARGET_MODELS:
                 return
             if not isinstance(input_items, list):
@@ -110,6 +115,9 @@ class ModelHallucinationSuppressionProcessor(AgentHooks):
         any other processor's hook registration / ordering.
         """
         siada_context = context.context
+        # Uncommitted reminders must remain available to the bridge on retry.
+        if getattr(siada_context, "runtime_session", None) is not None:
+            return
         pending = getattr(siada_context, "pending_hallucination_reminder_items", None) or []
         try:
             await persist_pending_reminder_items(

@@ -69,6 +69,7 @@ def _make_turn(turn_type=TurnType.CONVERSATION):
 def _make_session(workspace="/ws"):
     file_session = SimpleNamespace()
     return SimpleNamespace(
+        session_id="goal-session",
         openai_session=file_session,
         siada_config=SimpleNamespace(workspace=workspace),
     )
@@ -76,7 +77,7 @@ def _make_session(workspace="/ws"):
 
 def _context_cache_with(workspace, goal):
     context = SimpleNamespace(goal=goal)
-    return {("agent", workspace): context}, context
+    return {("agent", workspace, "goal-session"): context}, context
 
 
 @pytest.fixture

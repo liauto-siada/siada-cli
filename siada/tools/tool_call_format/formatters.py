@@ -131,15 +131,12 @@ class FileEditFormatter(ToolCallFormatter):
                     content = f"In the file `{path}`"
                     if old_str is not None:
                         if new_str is not None:
-                            if fence.lower() in ['md', 'markdown']:
-                                old_str = old_str if old_str else f"```\n{old_str}\n```"
-                                content += f"`, replace the string:\n{old_str}"
-                                if complete:
-                                    content += f"\nwith:\n{new_str}"
-                            else:
-                                content += f"`, replace the string:\n```{fence}\n{old_str}\n```"
-                                if complete:
-                                    content += f"\nwith:\n```{fence}\n{new_str}\n```"
+                            ticks = "```"
+                            while ticks in old_str or ticks in new_str:
+                                ticks += "`"
+                            content += f"`, replace the string:\n{ticks}{fence}\n{old_str}\n{ticks}"
+                            if complete:
+                                content += f"\nwith:\n{ticks}{fence}\n{new_str}\n{ticks}"
             elif command == "insert":
 
                 if path:
