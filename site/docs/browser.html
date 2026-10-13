@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="docs.css?v=3">
 <script src="i18n-start.js?v=1" defer></script>
 <script src="i18n-daily.js?v=1" defer></script>
-<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=2" defer></script>
 <script src="i18n-integrations.js?v=1" defer></script>
 <script src="docs-i18n.js?v=1" defer></script>
 <script src="docs.js?v=3" defer></script>
@@ -71,11 +71,11 @@
 siada-browser status</code></pre>
         </div>
         <div class="docs-note">
-          <b>平台组件包尚未发布</b>
-          <p>匹配当前平台的组件包尚未发布，现在还无法远程安装。请在 <a href="https://github.com/liauto-siada/siada-cli/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 查看发布状态；组件包发布后，运行 <code>siada-browser setup</code> 即可从 GitHub Releases 下载并安装。</p>
+          <b>1.7.32b1 浏览器组件</b>
+          <p>macOS Apple Silicon（M 系列芯片）的组件包已发布并完成安装验证。其他平台请查看 <a href="https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.32b1" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 中的附件；只有发布了匹配平台的组件包，才能运行远程安装。安装包包含 Node.js 运行时、代理和 Chrome 扩展。</p>
         </div>
         <ol>
-          <li>按安装输出打开 <code>chrome://extensions</code>，启用开发者模式，加载输出指定目录中的扩展。</li>
+          <li>按安装输出打开 <code>chrome://extensions</code>，启用开发者模式，点击“加载已解压的扩展程序”，选择 <code>~/.siada-cli/browser/extension</code> 或安装输出指定的目录。</li>
           <li>按安装提示设置代理地址与连接 token。使用安装输出中的值。</li>
           <li>点击 Chrome 工具栏中的 Siada 图标，打开侧边栏并连接，然后选择或新建会话。</li>
         </ol>
