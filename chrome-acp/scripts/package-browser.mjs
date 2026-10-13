@@ -25,9 +25,9 @@ function python(args) {
   run(process.env.PYTHON || (process.platform === "win32" ? "python" : "python3"), args);
 }
 
-export function cliVersion() {
-  const match = readFileSync(join(repo, "pyproject.toml"), "utf8").match(/^version = "([^"]+)"$/m);
-  if (!match || !/^\d+\.\d+\.\d+$/.test(match[1])) throw new Error("Invalid CLI release version");
+export function cliVersion(projectFile = join(repo, "pyproject.toml")) {
+  const match = readFileSync(projectFile, "utf8").match(/^version = "([^"]+)"$/m);
+  if (!match || !/^\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?$/.test(match[1])) throw new Error("Invalid CLI release version");
   return match[1];
 }
 

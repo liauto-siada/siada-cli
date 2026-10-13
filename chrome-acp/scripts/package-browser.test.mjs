@@ -6,6 +6,23 @@ import {join} from "node:path";
 import {createHash} from "node:crypto";
 import {cliVersion, NODE_VERSION, mergeManifest} from "./package-browser.mjs";
 
+test("CLI versions accept releases and Python prereleases", () => {
+  const directory = mkdtempSync(join(tmpdir(), "browser-version-test-"));
+  const projectFile = join(directory, "pyproject.toml");
+  try {
+    for (const version of ["1.7.32", "1.7.32a1", "1.7.32b1", "1.7.32rc2"]) {
+      writeFileSync(projectFile, `version = "${version}"\n`);
+      assert.equal(cliVersion(projectFile), version);
+    }
+    for (const version of ["1_7_32_beta", "1.7.32b", "../1.7.32", "1.7.32/escape"]) {
+      writeFileSync(projectFile, `version = "${version}"\n`);
+      assert.throws(() => cliVersion(projectFile), /Invalid CLI release version/);
+    }
+  } finally {
+    rmSync(directory, {recursive: true, force: true});
+  }
+});
+
 test("manifest merge verifies artifact hashes and rejects duplicate platforms", () => {
   const directory = mkdtempSync(join(tmpdir(), "browser-manifest-test-"));
   try {
