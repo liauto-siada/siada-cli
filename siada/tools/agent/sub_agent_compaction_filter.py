@@ -4,8 +4,7 @@ In-memory session and compaction callback for sub-agents (run_subtask).
 Design
 ------
 ``InMemorySession`` - lightweight ``Session``-protocol implementation backed by
-a plain list.  ``add_items`` deduplicates entries by content fingerprint to
-handle the write-back overlap described below.
+a plain list, with run-scoped input admission records kept outside that list.
 
 Two cooperating hooks
 ---------------------
@@ -15,9 +14,9 @@ Two cooperating hooks
 1. ``session_input_callback(history_items, new_items)``
    The framework invokes this once per run, with history and the new-turn input
    *already separated*.  Its only job is to **persist ``new_items`` into the
-   session immediately** (``session.add_items(new_items)``).  This matters
-   because the compaction filter reads ``session.get_items()`` *before* the
-   framework's ``save_result_to_session`` has run; without seeding the new input
+   session immediately** via ``session.admit_input(admission_id, new_items)``.
+   This matters because the streamed filter reads ``session.get_items()`` before
+   the framework's initial save; without seeding the new input
    here, the first model call of a (re-)run would not see the new input.  The
    callback returns ``history_items + new_items`` for the framework's bookkeeping
    but performs no compaction.
@@ -38,13 +37,16 @@ and write back, that list diverges from the (shorter) session.  Reading from
 keeps the filter aligned with the compacted history without any fragile boundary
 reconstruction (length slices, fingerprint sets, last-item anchors).
 
-Deduplication in ``add_items``
-------------------------------
-After the filter writes ``compacted`` to the session, the framework's
-``save_result_to_session`` re-persists the turn's items, which may overlap with
-the tail of ``compacted``.  ``InMemorySession.add_items`` silently skips any item
-whose content fingerprint is already present, preventing duplicates without
-requiring knowledge of the runner's internal bookkeeping.
+Input admission in ``add_items``
+-------------------------------
+The SDK still saves the original run input after the callback has admitted it.
+``add_items`` suppresses only that pending input prefix, then appends the rest
+of the batch. Compaction replaces context without clearing admission records,
+so the SDK cannot resurrect input that has been summarized away. Ordinary
+messages are never deduplicated by content; repeated messages in fork history
+and distinct runs remain intact. The SDK owns per-turn output bookkeeping.
+Create a fresh callback for each new logical run; reuse it only for retries of
+the same input. Concurrent runs sharing one session are not supported.
 
 Debug dump mode
 ---------------
@@ -56,7 +58,7 @@ when diagnosing problems.  Dumping is a no-op (and never raises) when disabled.
 """
 from __future__ import annotations
 
-import hashlib
+import copy
 import json
 import os
 import uuid
@@ -172,18 +174,17 @@ def _dump_session_items(
 
 
 # ---------------------------------------------------------------------------
-# Content fingerprint helper
+# Input admission normalization
 # ---------------------------------------------------------------------------
 
-def _item_fingerprint(item: Any) -> str:
-    """Return a stable MD5 hex digest of the serialised item content."""
-    try:
-        return hashlib.md5(
-            json.dumps(item, sort_keys=True, ensure_ascii=False, default=str).encode()
-        ).hexdigest()
-    except Exception:
-        # Fallback: use repr, which is stable within a process.
-        return repr(item)
+def _native_input_items(items: list) -> list:
+    """Ignore SDK display-only metadata when matching admitted input."""
+    native = copy.deepcopy(items)
+    for item in native:
+        if isinstance(item, dict):
+            item.pop("_agents_tool_description", None)
+            item.pop("_agents_tool_title", None)
+    return native
 
 
 # ---------------------------------------------------------------------------
@@ -194,9 +195,9 @@ class InMemorySession:
     """Lightweight in-memory Session-protocol implementation for sub-agents.
 
     All conversation history lives in a plain Python list - no disk I/O.
-    ``add_items`` deduplicates by content fingerprint so that, after compaction
-    write-back, items already in the session are not re-added by
-    ``save_result_to_session``.
+    Input admission records survive context replacement. ``add_items`` skips
+    only an already admitted run-input prefix, never equal-content messages
+    from unrelated writes. One logical run owns the session at a time.
     """
 
     # Satisfy the Session protocol (SessionSettings | None); not used at runtime.
@@ -205,36 +206,67 @@ class InMemorySession:
     def __init__(self) -> None:
         self.session_id: str = f"sub-agent-{uuid.uuid4().hex[:8]}"
         self._items: List[Any] = []
-        self._fingerprints: set[str] = set()
+        self._admitted_inputs: dict[str, list] = {}
+        self._pending_input_admission_id: str | None = None
 
     # -- Session protocol ---------------------------------------------------
 
     async def get_items(self, limit: int | None = None) -> list:
         """Return stored items, optionally capped to the latest *limit* entries."""
         if limit is not None:
-            return list(self._items[-limit:])
-        return list(self._items)
+            return copy.deepcopy(self._items[-limit:])
+        return copy.deepcopy(self._items)
 
     async def add_items(self, items: list) -> None:
-        """Append items, skipping those already present (content deduplication)."""
-        for item in items:
-            fp = _item_fingerprint(item)
-            if fp not in self._fingerprints:
-                self._fingerprints.add(fp)
-                self._items.append(item)
+        """Accept an SDK save, skipping only its already admitted input prefix."""
+        remaining = copy.deepcopy(items)
+        admission_id = self._pending_input_admission_id
+        consumed_input = False
+        if admission_id is not None:
+            admitted = self._admitted_inputs[admission_id]
+            prefix = _native_input_items(remaining[:len(admitted)])
+            if prefix == admitted:
+                remaining = remaining[len(admitted):]
+                consumed_input = True
+            elif prefix and prefix[0] == admitted[0]:
+                raise ValueError("SDK input persistence does not match admitted input")
+        self._items.extend(remaining)
+        if consumed_input:
+            self._pending_input_admission_id = None
 
     async def pop_item(self) -> Any:
         """Remove and return the most recent item, or None if empty."""
         if not self._items:
             return None
-        item = self._items.pop()
-        self._fingerprints.discard(_item_fingerprint(item))
-        return item
+        return self._items.pop()
 
     async def clear_session(self) -> None:
-        """Remove all items from the session."""
+        """Reset context and input admissions; do not use this for compaction."""
         self._items.clear()
-        self._fingerprints.clear()
+        self._admitted_inputs.clear()
+        self._pending_input_admission_id = None
+
+    # -- Run input admission and compaction ---------------------------------
+
+    async def admit_input(self, admission_id: str, items: list) -> None:
+        """Admit input once per logical run and await its SDK persistence save."""
+        if not admission_id:
+            raise ValueError("Input admission ID must be nonempty")
+        if self._pending_input_admission_id not in (None, admission_id):
+            raise ValueError("A different run input is awaiting SDK persistence")
+        native = _native_input_items(items)
+        if admission_id in self._admitted_inputs:
+            if self._admitted_inputs[admission_id] != native:
+                raise ValueError("Input admission ID cannot be reused for different input")
+        else:
+            stored = copy.deepcopy(items)
+            self._items.extend(stored)
+            self._admitted_inputs[admission_id] = native
+        self._pending_input_admission_id = admission_id if native else None
+
+    async def replace_context_items(self, items: list) -> None:
+        """Replace effective context without resetting input admission records."""
+        self._items = copy.deepcopy(items)
 
     # -- Debugging ----------------------------------------------------------
 
@@ -274,12 +306,13 @@ def make_sub_agent_session_input_callback(session: InMemorySession):
     The framework invokes the callback once per run as
     ``callback(history_items, new_items)`` with the two lists already separated.
     Its sole responsibility is to persist ``new_items`` into the session right
-    away, so the compaction filter's ``session.get_items()`` (which runs before
-    the framework's ``save_result_to_session``) already includes this run's new
-    input and does not lose it.
+    away, so the streamed filter's ``session.get_items()`` already includes this
+    run's input before the SDK's initial save. Nonstreamed runs may save input
+    before the filter; the same admission guard suppresses that duplicate save.
 
-    No compaction happens here - that is the filter's job.  ``add_items`` dedups
-    by fingerprint, so re-seeding the same input across retries is harmless.
+    No compaction happens here - that is the filter's job. Each factory call
+    creates a logical-run identity. Reuse this callback only for retries of the
+    same input; create a fresh one for a new run, even if its input is identical.
 
     Args:
         session: The ``InMemorySession`` tied to this sub-agent run.
@@ -288,12 +321,14 @@ def make_sub_agent_session_input_callback(session: InMemorySession):
         An async callable compatible with ``RunConfig.session_input_callback``.
     """
 
+    admission_id = uuid.uuid4().hex
+
     async def _session_input_callback(
         history_items: list[TResponseInputItem],
         new_items: list[TResponseInputItem],
     ) -> list[TResponseInputItem]:
         # Seed this run's new input into the session so the filter sees it.
-        await session.add_items(list(new_items))
+        await session.admit_input(admission_id, list(new_items))
         # Snapshot the seeded session state for debugging.
         await session.dump_items("session-input-callback")
         # Return the combined list for the framework's input bookkeeping.
@@ -394,12 +429,9 @@ def make_sub_agent_compaction_filter(
 
         compacted = result.messages
 
-        # Write the compacted history back so subsequent model calls start from
-        # the compressed baseline.  InMemorySession.add_items deduplicates by
-        # fingerprint, so items the framework re-persists after the turn (already
-        # present in compacted's history_to_keep) are silently skipped.
-        await session.clear_session()
-        await session.add_items(compacted)
+        # Preserve input admission records so a later SDK save cannot resurrect
+        # original input that this compaction removed or summarized.
+        await session.replace_context_items(compacted)
 
         # Snapshot the compacted session state.
         await session.dump_items("after-compaction")

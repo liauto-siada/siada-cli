@@ -22,6 +22,7 @@ stubbed; the session, the hooks, the threshold decision and the whole Runner
 pipeline are exercised for real.
 """
 
+import copy
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -30,6 +31,8 @@ from agents.items import ModelResponse
 from agents.models.interface import Model
 from agents.usage import Usage
 from openai.types.responses import (
+    Response,
+    ResponseCompletedEvent,
     ResponseFunctionToolCall,
     ResponseOutputMessage,
     ResponseOutputText,
@@ -72,9 +75,9 @@ def _tool_call(call_id: str, note: str) -> ResponseFunctionToolCall:
     )
 
 
-def _text(text: str) -> ResponseOutputMessage:
+def _text(text: str, message_id: str = "msg_final") -> ResponseOutputMessage:
     return ResponseOutputMessage(
-        id="msg_final",
+        id=message_id,
         type="message",
         role="assistant",
         status="completed",
@@ -93,14 +96,24 @@ class _ScriptedModel(Model):
     async def get_response(self, system_instructions, input, *args, **kwargs) -> ModelResponse:
         # ``input`` here is exactly what the runner sends after the
         # call_model_input_filter has run, so it reflects compaction.
-        self.received_inputs.append(list(input) if isinstance(input, list) else input)
+        self.received_inputs.append(copy.deepcopy(input))
         idx = min(self._turn, len(self._scripted) - 1)
         output = self._scripted[idx]
         self._turn += 1
+        if isinstance(output, Exception):
+            raise output
         return ModelResponse(output=output, usage=Usage(), response_id=None)
 
-    def stream_response(self, *args, **kwargs):  # pragma: no cover - unused
-        raise NotImplementedError
+    async def stream_response(self, system_instructions, input, *args, **kwargs):
+        result = await self.get_response(system_instructions, input, *args, **kwargs)
+        yield ResponseCompletedEvent(
+            type="response.completed", sequence_number=0,
+            response=Response(
+                id=f"response-{self._turn}", created_at=0, model="scripted-model",
+                object="response", output=result.output, parallel_tool_calls=False,
+                tool_choice="auto", tools=[],
+            ),
+        )
 
 
 def _make_model_run_config(context_window: int = 1000) -> MagicMock:
@@ -116,6 +129,20 @@ def _build_run_config(session: InMemorySession, cfg) -> RunConfig:
         tracing_disabled=True,
         session_input_callback=make_sub_agent_session_input_callback(session),
         call_model_input_filter=make_sub_agent_compaction_filter(cfg, session),
+    )
+
+
+async def _run_agent(agent, session, run_config, *, streamed, input="start", max_turns=6):
+    """Consume the real SDK loop without making network calls."""
+    if streamed:
+        result = Runner.run_streamed(
+            agent, input=input, run_config=run_config, max_turns=max_turns, session=session
+        )
+        async for _ in result.stream_events():
+            pass
+        return result
+    return await Runner.run(
+        agent, input=input, run_config=run_config, max_turns=max_turns, session=session
     )
 
 

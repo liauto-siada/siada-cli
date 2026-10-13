@@ -476,6 +476,11 @@ General-purpose code development agent for creating new features, fixing bugs, r
 ### Custom Agents (`.agents/agents/`)
 In addition to the built-in agent types, you can define your own named sub-agents in Markdown files under `.agents/agents/` (or `~/.siada-cli/agents/`). Each definition carries its own system prompt plus `tools`, `skills`, `mcpServers`, `background` and `effort` settings, and the main agent delegates to it through `run_subtask`. See the [Custom Agents Guide](./USER_AGENTS.md) for the file format, field reference, priority rules and examples.
 
+Each `run_subtask` execution uses an isolated in-memory context that can be
+compacted as it grows. Later SDK saves do not restore summarized task input.
+Identical messages remain distinct, including repeated messages in inherited
+(`fork`) history.
+
 ## Examples
 
 ### Activate Virtual Environment (Developer Mode Only)

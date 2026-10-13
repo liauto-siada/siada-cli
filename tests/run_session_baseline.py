@@ -45,6 +45,7 @@ REGRESSION_TESTS = (
     "tests/agent_hub/context_filter/test_pending_user_input_image_guard.py",
     "tests/tools/agent/test_sub_agent_compaction_filter.py",
     "tests/tools/agent/test_sub_agent_compaction_e2e.py",
+    "tests/tools/agent/test_run_subtask_compaction_simulation.py",
     "tests/tools/agent/test_sub_agent_notifier.py",
     "tests/tools/agent/test_subagent_async.py",
     "tests/tools/agent/test_subagent_persistence.py",
@@ -111,6 +112,7 @@ def main() -> int:
             "SIADA_CLI_LOG_DIR": str(Path(sandbox) / "logs"),
             "XDG_CACHE_HOME": str(Path(sandbox) / "cache"),
             "SIADA_REMOTE_MODEL_CONFIG": "0",
+            "LITELLM_LOCAL_MODEL_COST_MAP": "True",
         })
         previous_path = list(sys.path)
         try:

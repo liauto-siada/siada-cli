@@ -461,6 +461,10 @@ siada-cli --check-update       # 启动时检查并提示更新（默认开启�
 ### 自定义代理（`.agents/agents/`）
 除内置代理类型外，你还可以在 `.agents/agents/`（或 `~/.siada-cli/agents/`）下用 Markdown 文件定义自己的命名子代理。每个定义自带系统提示词，并支持 `tools`、`skills`、`mcpServers`、`background`、`effort` 配置，主代理通过 `run_subtask` 把任务派给它。文件格式、字段说明、优先级规则与示例见 [自定义代理指南](./USER_AGENTS_zh.md)。
 
+每次 `run_subtask` 执行使用独立的内存上下文，并可在上下文增长时进行压缩。
+后续 SDK 保存不会重新加入压缩掉的原始任务输入；内容相同的消息会保留，
+包括继承（`fork`）历史中的重复消息。
+
 ## 示例
 
 ### 激活虚拟环境（仅开发者模式需要）

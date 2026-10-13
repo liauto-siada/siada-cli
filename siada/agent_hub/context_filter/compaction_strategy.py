@@ -357,11 +357,14 @@ class CompactionStrategy(ABC):
                 # Find the start of this tool call sequence
                 # We need to include: function_response, function_call (assistant), and all assistant messages before
 
-                # Look for the function call (assistant message with tool call)
-                if idx >= 1 and self.is_assistant_message(messages[idx - 1]):
+                # Parallel results belong to the same assistant response group.
+                result_start = idx
+                while result_start > 0 and self.is_function_response(messages[result_start - 1]):
+                    result_start -= 1
+                if result_start >= 1 and self.is_assistant_message(messages[result_start - 1]):
                     # Continue looking backwards for all consecutive assistant messages (reasoning, response, etc.)
                     # until we hit a non-assistant message (usually a user message)
-                    start_idx = idx - 1
+                    start_idx = result_start - 1
                     while start_idx > 0 and self.is_assistant_message(messages[start_idx - 1]):
                         start_idx -= 1
 
@@ -574,7 +577,7 @@ class CompactionStrategy(ABC):
                 ids.add(val)
         return ids
 
-    def _repair_tool_pairs(self, messages: List) -> List:
+    def _repair_tool_pairs(self, messages: List, *, require_user_start: bool = True) -> List:
         """
         Fix orphan tool_use / tool_result after truncation.
 
@@ -583,6 +586,8 @@ class CompactionStrategy(ABC):
             [reasoning] -> [output_message] -> function_call -> function_call_output
         When an orphan function_call is removed, its preceding reasoning and
         output_message from the same response group must also be removed.
+        Kept tails may start with assistant/tool items because their user header
+        and summary are supplied separately by the compaction assembler.
         """
         if not messages:
             return messages
@@ -632,7 +637,7 @@ class CompactionStrategy(ABC):
         result = [msg for i, msg in enumerate(messages) if i not in remove_indices]
 
         # Ensure first message is user
-        while result and not self.is_user_message(result[0]):
+        while require_user_start and result and not self.is_user_message(result[0]):
             result.pop(0)
 
         return result
@@ -822,7 +827,7 @@ class CompactionStrategy(ABC):
         # Step 3: within the last user turn, remove oldest tool call groups
         # one by one until within budget.
         #
-        # A tool call group = [reasoning?] [output_message?] [function_call] [function_call_output]
+        # A group includes every parallel call and result from one response.
         # Groups are ordered oldest → newest.
         # We remove from the oldest side first, since newest groups are more relevant.
         tool_groups = self._identify_tool_call_groups(messages)
@@ -872,7 +877,7 @@ class CompactionStrategy(ABC):
 
         # Repair any orphan pairs
         before_repair = len(messages)
-        messages = self._repair_tool_pairs(messages)
+        messages = self._repair_tool_pairs(messages, require_user_start=False)
         if before_repair != len(messages):
             logger.info(
                 "[_trim_kept_history] Repaired orphan tool pairs: messages %d -> %d",
@@ -893,15 +898,16 @@ class CompactionStrategy(ABC):
         """
         Identify tool call groups within a single user turn.
 
-        A group is: [reasoning?] [output_message?] [function_call] [function_call_output]
-        Starts scanning from index 1 (skipping the leading user message).
+        A group is: [reasoning?] [output_message?] [function_call]+ [function_call_output]+.
+        Consecutive parallel calls and their results must be removed together.
+        A kept tail may start directly with assistant items, without a user.
 
         Returns:
             List of (start_index, end_index_exclusive) tuples for each group,
             ordered from oldest to newest.
         """
         groups: list[tuple[int, int]] = []
-        i = 1  # skip the first user message
+        i = 0
         while i < len(messages):
             # Skip user messages (shouldn't happen within a single turn, but be safe)
             if self.is_user_message(messages[i]):
@@ -917,7 +923,8 @@ class CompactionStrategy(ABC):
 
             # Check for function_call_output following the assistant messages
             if i < len(messages) and self.is_function_response(messages[i]):
-                i += 1  # include the function_call_output
+                while i < len(messages) and self.is_function_response(messages[i]):
+                    i += 1
                 groups.append((group_start, i))
             else:
                 # No function_call_output — this is a trailing assistant block

@@ -123,9 +123,12 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         code_ctx.allow_recursive_subagents = False
         code_ctx.root_session_id = None
         code_ctx.subagent_self_id = None
-        code_ctx.session.openai_session.get_runtime_items = AsyncMock(return_value=[
+        history = [
             {"role": "user", "content": "past message"},
-        ])
+            {"role": "assistant", "content": "past answer"},
+            {"role": "user", "content": "past message"},
+        ]
+        code_ctx.session.openai_session.get_runtime_items = AsyncMock(return_value=history)
 
         run_ctx = RunContextWrapper(context=code_ctx)
         run_ctx.agent = parent_agent
@@ -163,7 +166,7 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(run_streamed_kwargs["context"].interactive_mode)
         seeded_session = run_streamed_kwargs["session"]
         items = await seeded_session.get_items()
-        self.assertEqual(items, [{"role": "user", "content": "past message"}])
+        self.assertEqual(items, history)
 
     async def test_fork_true_without_run_ctx_falls_back_to_non_fork(self):
         code_ctx = MagicMock(spec=CodeAgentContext)

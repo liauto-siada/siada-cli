@@ -2,7 +2,7 @@
 Tests for the sub-agent in-memory session + two cooperating compaction hooks.
 
 Covers:
-1. InMemorySession - get/add/pop/clear and fingerprint-based deduplication.
+1. InMemorySession - get/add/pop/clear and logical-run input admission.
 2. session_input_callback - seeds new_items into the session and returns the
    combined history + new list without performing compaction.
 3. call_model_input_filter - reads the session as the source of truth, compacts
@@ -90,14 +90,14 @@ class TestInMemorySession(unittest.TestCase):
         got = self._run(session.get_items(limit=2))
         self.assertEqual(got, items[-2:])
 
-    def test_add_items_deduplicates_by_fingerprint(self):
+    def test_add_items_preserves_identical_messages(self):
         session = InMemorySession()
         dup = _msg("user", "same")
 
         self._run(session.add_items([dup]))
-        self._run(session.add_items([dup]))  # identical content -> skipped
+        self._run(session.add_items([dup]))
 
-        self.assertEqual(len(self._run(session.get_items())), 1)
+        self.assertEqual(self._run(session.get_items()), [dup, dup])
 
     def test_pop_item_removes_and_allows_readd(self):
         session = InMemorySession()
@@ -108,7 +108,7 @@ class TestInMemorySession(unittest.TestCase):
         self.assertEqual(popped, a)
         self.assertEqual(self._run(session.get_items()), [])
 
-        # After pop, fingerprint must be cleared so the same item can be re-added.
+        # A popped item can be appended again.
         self._run(session.add_items([a]))
         self.assertEqual(self._run(session.get_items()), [a])
 
@@ -116,7 +116,7 @@ class TestInMemorySession(unittest.TestCase):
         session = InMemorySession()
         self.assertIsNone(self._run(session.pop_item()))
 
-    def test_clear_session_resets_items_and_fingerprints(self):
+    def test_clear_session_resets_items_and_admissions(self):
         session = InMemorySession()
         a = _msg("user", "a")
         self._run(session.add_items([a]))
@@ -124,12 +124,51 @@ class TestInMemorySession(unittest.TestCase):
         self._run(session.clear_session())
         self.assertEqual(self._run(session.get_items()), [])
 
-        # Fingerprints cleared too -> the same item can be added again.
+        # A full reset allows the same item to be added again.
         self._run(session.add_items([a]))
         self.assertEqual(self._run(session.get_items()), [a])
 
     def test_unique_session_ids(self):
         self.assertNotEqual(InMemorySession().session_id, InMemorySession().session_id)
+
+    def test_admission_guard_survives_compaction_and_consumes_only_input(self):
+        session = InMemorySession()
+        new = [_msg("user", "a"), _msg("user", "b")]
+        summary = [_msg("user", "summary")] * 2
+        output = [_msg("assistant", "result")] * 2
+        self._run(session.admit_input("run", new))
+        self._run(session.replace_context_items(summary))
+        self._run(session.add_items(output))
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            self._run(session.add_items(new[:1]))
+        self.assertEqual(self._run(session.get_items()), summary + output)
+        self._run(session.add_items(new + output))
+        self.assertEqual(self._run(session.get_items()), summary + output * 2)
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), summary + output * 2 + new)
+
+    def test_admission_matches_native_input_and_detaches_nested_items(self):
+        session = InMemorySession()
+        native = {"role": "user", "content": [{"type": "input_text", "text": "task"}]}
+        decorated = {**native, "_agents_tool_title": "Title",
+                     "_agents_tool_description": "Description"}
+        self._run(session.admit_input("run", [decorated]))
+        self._run(session.add_items([native]))
+        native["content"][0]["text"] = "mutated"
+        returned = self._run(session.get_items())
+        self.assertEqual(returned[0]["content"][0]["text"], "task")
+        returned[0]["content"][0]["text"] = "mutated again"
+        self.assertEqual(self._run(session.get_items())[0]["content"][0]["text"], "task")
+
+    def test_replacement_failure_keeps_admission_and_context(self):
+        session = InMemorySession()
+        new = [_msg("user", "task")]
+        self._run(session.admit_input("run", new))
+        with patch.object(mod.copy, "deepcopy", side_effect=RuntimeError("copy failed")):
+            with self.assertRaisesRegex(RuntimeError, "copy failed"):
+                self._run(session.replace_context_items([_msg("user", "summary")]))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), new)
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +216,41 @@ class TestSessionInputCallback(unittest.TestCase):
         self._run(callback([], new))
 
         self.assertEqual(self._run(session.get_items()), new)
+
+    def test_new_run_requires_confirmed_input_and_preserves_repeats(self):
+        session = InMemorySession()
+        new = [_msg("user", "task")]
+        first = make_sub_agent_session_input_callback(session)
+        second = make_sub_agent_session_input_callback(session)
+        self._run(first([], new))
+        with self.assertRaisesRegex(ValueError, "awaiting SDK persistence"):
+            self._run(second(new, new))
+        with self.assertRaisesRegex(ValueError, "different input"):
+            self._run(first(new, [_msg("user", "changed")]))
+        self._run(session.add_items(new))
+        self._run(second(new, new))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), new * 2)
+
+    def test_retry_after_replacement_does_not_readmit_input(self):
+        session = InMemorySession()
+        callback = make_sub_agent_session_input_callback(session)
+        new = [_msg("user", "task")]
+        summary = [_msg("user", "summary")]
+        self._run(callback([], new))
+        self._run(session.replace_context_items(summary))
+        self._run(session.add_items(new))
+        self._run(callback(summary, new))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), summary)
+
+    def test_empty_admission_preserves_duplicate_outputs(self):
+        session = InMemorySession()
+        callback = make_sub_agent_session_input_callback(session)
+        self._run(callback([], []))
+        outputs = [_msg("assistant", "result")] * 2
+        self._run(session.add_items(outputs))
+        self.assertEqual(self._run(session.get_items()), outputs)
 
 
 # ---------------------------------------------------------------------------

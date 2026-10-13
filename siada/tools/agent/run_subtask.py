@@ -438,8 +438,8 @@ async def run_subtask_impl(
         # Seed the fork's own in-memory session with the parent's real
         # (post-compaction) message history BEFORE the run starts, so the
         # first model call's history-layer prefix matches the parent's.
-        # add_items dedups by content fingerprint, which is a no-op here
-        # since the session starts empty.
+        # Preserve repeated messages: inherited history is not a new-run input
+        # admission and must not be deduplicated by content.
         await in_memory_session.add_items(seeded_history)
 
     sa_item = start_sub_agent(agent_context, instruction)
