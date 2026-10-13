@@ -597,7 +597,11 @@ async def test_fast_completion_override_never_mutates_process_credentials(
             model=fast_model, messages=[{"role": "user", "content": "hi"}]
         )
 
-    assert captured[0]["model"] == fast_model
+    expected_model = {
+        "deepseek-chat": "deepseek/deepseek-chat",
+        "kimi-k2.5": "moonshot/kimi-k2.5",
+    }[fast_model]
+    assert captured[0]["model"] == expected_model
     assert captured[0]["api_base"] == _FAST_BASE_URL
     assert captured[0]["api_key"] == _FAST_API_KEY
     assert captured[1]["api_base"] == _MAIN_BASE_URL

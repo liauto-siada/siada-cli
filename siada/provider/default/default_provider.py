@@ -323,6 +323,10 @@ class DefaultClient(LLMClient):
         Returns:
             LitellmModelResponse: The completion response
 
+        When custom_llm_provider is omitted, known model families are normalized
+        for LiteLLM, OpenRouter endpoints use OpenRouter routing, and bare custom
+        aliases use the OpenAI-compatible protocol with their model ID preserved.
+
         Credential precedence: explicit per-call kwargs win over the process
         environment. The environment (BASE_URL / API_KEY) only fills in the
         values the caller did not pass — otherwise the ``fast_llm_config``
@@ -343,6 +347,19 @@ class DefaultClient(LLMClient):
             kwargs["api_base"] = self.base_url
         if self.api_key and not kwargs.get("api_key"):
             kwargs["api_key"] = self.api_key
+
+        # LiteLLM cannot infer a provider from arbitrary gateway model aliases.
+        # Preserve explicit routing; otherwise normalize known model families
+        # and send bare aliases through the configured OpenAI-compatible API.
+        model_name = kwargs.get("model")
+        if model_name and not kwargs.get("custom_llm_provider"):
+            model_name = covert_to_litellm_model_name(model_name)
+            if "openrouter.ai" in (kwargs.get("api_base") or ""):
+                if not model_name.startswith("openrouter/"):
+                    model_name = f"openrouter/{model_name}"
+            elif "/" not in model_name:
+                kwargs["custom_llm_provider"] = "openai"
+            kwargs["model"] = model_name
 
         import litellm
         # Use litellm's native async method for better performance

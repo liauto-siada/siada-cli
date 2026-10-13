@@ -27,3 +27,12 @@ compaction_strategy: null
 ```yaml
 compaction_strategy: "turn_prune_summary"
 ```
+
+## 压缩模型
+
+摘要默认使用主模型。可通过环境变量 `SIADA_COMPACT_MODEL` 指定同一 provider
+和端点提供的其他模型。
+
+使用 `default` provider 时，无 provider 前缀的自定义模型 ID 通过配置的
+OpenAI 兼容端点（`BASE_URL` 和 `API_KEY`）调用。带 provider 前缀的模型 ID
+保留显式路由；OpenRouter 端点使用 OpenRouter 路由。

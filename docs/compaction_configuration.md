@@ -27,3 +27,12 @@ Force IM strategy in CLI mode:
 ```yaml
 compaction_strategy: "turn_prune_summary"
 ```
+
+## Compaction Model
+
+Summaries use the main model by default. Set `SIADA_COMPACT_MODEL` to use a
+different model available through the same provider and endpoint.
+
+With the `default` provider, bare custom model IDs use the configured
+OpenAI-compatible endpoint (`BASE_URL` and `API_KEY`). Provider-prefixed model
+IDs retain their explicit routing; OpenRouter endpoints use OpenRouter routing.
