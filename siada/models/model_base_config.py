@@ -28,7 +28,13 @@ class ModelBaseConfig:
     model_name: str
     context_window: int
     max_tokens: Optional[int] = None
-    supports_images: bool = False
+    # Tri-state (see supports_image_input): True = the model takes image
+    # input; False = an explicit denial; None = capabilities UNDECLARED —
+    # the model could not be resolved in any catalogue (see
+    # siada.provider.models_dev), so the gateway decides and callers must
+    # NOT treat None as a denial. The default stays False so a built-in
+    # entry that omits the field keeps declaring "no images".
+    supports_images: Optional[bool] = False
     # Bridged vision (modlens-style): the model itself is text-only — the
     # gateway silently drops image parts, so native multimodal input must stay
     # OFF (supports_images=False). Instead, attached images are transcribed
@@ -547,6 +553,28 @@ def supports_extra_param(
     if supports is None:
         return None
     return param in supports
+
+
+def supports_image_input(supports: Optional[bool]) -> Optional[bool]:
+    """Tri-state check for a model's support of native image input.
+
+    ``supports_images`` is the catalogue's DECLARATION of whether a model
+    accepts image input. Its absence (``None``) means the model's
+    capabilities are undeclared — e.g. a name missing from every catalogue,
+    synthesized by the provider-catalogue fallback (see
+    :func:`siada.provider.models_dev.get_provider_model_configs`) — which is
+    NOT the same as "unsupported": the gateway decides. Only ``False`` is an
+    explicit denial.
+
+    Returns:
+        True  — the model declares native image input support;
+        False — the model declares its capabilities and rejects images;
+        None  — capabilities undeclared/unknown; callers must NOT treat this
+                as a denial — send the image and let the gateway judge.
+    """
+    if supports is None:
+        return None
+    return bool(supports)
 
 
 # Ordinal strength of every known effort level; drives the cross-model

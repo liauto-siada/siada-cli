@@ -265,7 +265,8 @@ def _read_image_for_model(
 ) -> FunctionCallResult | ToolOutputImage:
     """Read an image file in the form the bound model can consume.
 
-    * Vision-capable models (``supports_images``) get the image itself as a
+    * Vision-capable models (``supports_images`` not explicitly ``False``;
+      an undeclared ``None`` counts as capable) get the image itself as a
       base64 ``ToolOutputImage``.
     * Text-only models with ``supports_vision_bridge`` (deepseek-v4 family)
       cannot see images — the gateway silently drops image parts — so the
@@ -275,7 +276,10 @@ def _read_image_for_model(
       stops retrying instead of hallucinating over a dropped image.
     """
     mrc = getattr(context.context, "model_run_config", None)
-    if bool(getattr(mrc, "supports_images", True)):
+    # Tri-state (see model_base_config.supports_image_input): only an explicit
+    # denial falls through to the bridge/unsupported paths; an undeclared
+    # model (None) gets the image and the gateway judges.
+    if getattr(mrc, "supports_images", None) is not False:
         return read_image(path, effective_root)
 
     if mrc is not None:

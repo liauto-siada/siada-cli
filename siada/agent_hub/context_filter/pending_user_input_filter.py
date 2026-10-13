@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from agents.run import ModelInputData
@@ -86,15 +86,23 @@ class PendingUserInputInjector:
             # frontend and skip. When there IS text, strip the images so the
             # agent still receives the text content.
             if image_paths:
-                supports_images = True
+                # Tri-state image support (see
+                # model_base_config.supports_image_input): the guard acts only
+                # on an explicit denial (False). Undeclared (None) behaves
+                # like True — the image is sent and the gateway judges.
+                supports_images: Optional[bool] = None
                 vision_bridge_cfg = None
                 try:
                     siada_config = getattr(
                         getattr(context, "session", None), "siada_config", None
                     )
                     if siada_config is not None:
-                        supports_images = bool(
-                            getattr(siada_config.llm_config, "supports_images", True)
+                        from siada.models.model_base_config import (
+                            supports_image_input,
+                        )
+
+                        supports_images = supports_image_input(
+                            getattr(siada_config.llm_config, "supports_images", None)
                         )
                         vision_bridge_cfg = siada_config.llm_config
                 except Exception:
@@ -103,7 +111,7 @@ class PendingUserInputInjector:
                 # modlens-style vision bridge: transcribe images into text
                 # evidence for text-only models (deepseek-v4 family) instead
                 # of stripping them.
-                if not supports_images and vision_bridge_cfg is not None:
+                if supports_images is False and vision_bridge_cfg is not None:
                     from siada.services import vision_bridge
 
                     if vision_bridge.supports_vision_bridge(vision_bridge_cfg):
@@ -123,7 +131,7 @@ class PendingUserInputInjector:
                             "unavailable/failed; falling back to strip/reject"
                         )
 
-                if not supports_images:
+                if supports_images is False:
                     # The frontend sends placeholder text like "[Image #1]"
                     # when the user pastes only images. Strip these and check
                     # if any real text remains.

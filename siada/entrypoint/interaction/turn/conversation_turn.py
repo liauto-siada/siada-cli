@@ -28,6 +28,7 @@ from agents.exceptions import (
 from siada.io.stream_utils import render_tool_call_output
 from siada.tools.coder.apply_patch_presentation import render_apply_patch_display
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
+from siada.models.model_base_config import supports_image_input
 # BrowserOperateResult is lazy-imported inside _display_browser_operate_result()
 # to avoid pulling in gymnasium/numpy at module load time (very slow on Windows).
 
@@ -964,6 +965,11 @@ class ConversationTurn(RunTurn):
 
         When the model supports images, builds a multimodal input list.
 
+        Only an explicit ``supports_images=False`` declaration counts as
+        "cannot process images"; an undeclared model (``None``, see
+        :func:`siada.models.model_base_config.supports_image_input`) is
+        treated as capable and the gateway decides.
+
         Args:
             user_input: The raw text input from the user.
             pending_images: List of image file paths from the IO layer.
@@ -980,8 +986,10 @@ class ConversationTurn(RunTurn):
         io = getattr(self.config, "io", None)
         io._pending_image_paths = None  # always clear the pending slot
 
-        supports_images = getattr(self.config.llm_config, "supports_images", True)
-        if not supports_images:
+        supports_images = supports_image_input(
+            getattr(self.config.llm_config, "supports_images", None)
+        )
+        if supports_images is False:
             # modlens-style vision bridge: text-only models (deepseek-v4
             # family) get image content as transcribed text evidence instead
             # of native image parts (the gateway silently drops those).

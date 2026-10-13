@@ -375,11 +375,14 @@ class LarkAgentExecutor:
         """Whether the bound model can accept image input.
 
         Reads ``supports_images`` from the session's llm_config (a
-        ``ModelRunConfig``). Defaults to ``True`` on any access error so
-        that a misconfigured model never causes a false rejection.
+        ``ModelRunConfig``). The value is tri-state (see
+        ``model_base_config.supports_image_input``): only an explicit
+        ``False`` denies images, while an undeclared model (``None``) counts
+        as capable. Defaults to ``True`` on any access error so that a
+        misconfigured model never causes a false rejection.
         """
         try:
-            return bool(session.siada_config.llm_config.supports_images)
+            supports = session.siada_config.llm_config.supports_images
         except Exception:
             logger.error(
                 "Failed to read supports_images from session config; "
@@ -387,6 +390,7 @@ class LarkAgentExecutor:
                 exc_info=True,
             )
             return True
+        return supports is not False
 
     @staticmethod
     def _model_supports_vision_bridge(session: "RunningSession") -> bool:
