@@ -12,6 +12,8 @@ Flow:
   3. Background refresh result takes effect on the next call.
 """
 
+from typing import List, Optional
+
 MODELS_DEV_URL = "https://models.dev/api.json"
 _CACHE_MAX_AGE = 86400  # 24 hours
 
@@ -90,6 +92,24 @@ def _fetch() -> dict | None:
         return None
 
 
+def _image_capability(mdata: dict) -> Optional[bool]:
+    """models.dev's declaration of image input support for one model entry.
+
+    models.dev lists the accepted input kinds under ``modalities.input`` and
+    also carries an ``attachment`` boolean; ``modalities`` is preferred
+    because ``attachment`` also covers non-image files. Returns ``None`` when
+    the entry declares neither, so "unknown" stays UNDECLARED instead of
+    becoming an explicit denial.
+    """
+    modalities = (mdata.get('modalities') or {}).get('input')
+    if isinstance(modalities, list):
+        return 'image' in modalities
+    attachment = mdata.get('attachment')
+    if isinstance(attachment, bool):
+        return attachment
+    return None
+
+
 def _curate(raw: dict) -> list:
     """Extract and curate provider/model data from raw models.dev JSON."""
     result = []
@@ -116,6 +136,10 @@ def _curate(raw: dict) -> list:
                 'id': mid,
                 'name': mdata.get('name', mid),
                 'context': ctx,
+                # True/False when models.dev declares it, None when undeclared.
+                # Carried through so _build() can keep the tri-state instead
+                # of turning "unknown" into an explicit image denial.
+                'image': _image_capability(mdata),
                 '_date': mdata.get('release_date', '0000-00-00'),
             })
         models.sort(key=lambda m: m['_date'], reverse=True)
@@ -166,6 +190,66 @@ def get_providers_for_ui() -> list:
     return []
 
 
+# Vendor prefixes the internal gateway puts in front of the catalogue name,
+# e.g. the gateway model id "azure-gpt-6_1-sol" is models.dev's "gpt-6.1-sol"
+# served by the azure provider. Only applied after the exact name misses, so
+# a name that is itself a catalogue entry is never rewritten.
+_GATEWAY_NAME_PREFIXES = (
+    'azure-', 'openai-', 'kivy-', 'lpai-',
+    'baidu-', 'bailian-', 'moonshot-', 'zhipu-', 'zai-',
+)
+
+
+def _catalogue_name_candidates(model_name: str) -> List[str]:
+    """Best-effort catalogue lookups for a gateway model id.
+
+    Gateway ids and catalogue names differ in two ways: the internal gateway
+    prefixes the vendor onto the catalogue name ("azure-gpt-6_1-sol" vs
+    "gpt-6.1-sol"), and it writes ``_`` where the catalogue uses ``.``
+    ("gpt-6_1-sol" vs "gpt-6.1-sol").
+
+    Only that single transformation is attempted, and only after the exact
+    name misses, so a name that is itself a catalogue entry is never
+    rewritten. A "vendor/name" spelling is deliberately left alone: it is a
+    different namespace (a user-defined id), never a catalogue name — the
+    contract asserted by tests/models/test_glm_capability_defaults.py.
+    """
+    candidates: List[str] = []
+
+    def _add(value: str) -> None:
+        value = value.strip()
+        if not value:
+            return
+        for variant in (value, value.replace('_', '.')):
+            if variant not in candidates:
+                candidates.append(variant)
+
+    model_name = str(model_name or '').strip()
+    _add(model_name)
+
+    lowered = model_name.lower()
+    prefix = next((p for p in _GATEWAY_NAME_PREFIXES if lowered.startswith(p)), None)
+    if prefix is not None:
+        _add(model_name[len(prefix):])
+    return candidates
+
+
+def _find_builtin_model(model_name: str, builtin_by_name: dict):
+    """Built-in ``MODEL_SETTING`` entry for a model, tolerating gateway ids.
+
+    An exact name wins; otherwise the gateway-style variants are tried (see
+    :func:`_catalogue_name_candidates`), so an id such as
+    ``azure-gpt-6_1-sol`` still inherits the capabilities declared for
+    ``gpt-6.1-sol`` instead of being treated as an unknown text-only model.
+    Returns ``None`` when no catalogue name resolves.
+    """
+    for candidate in _catalogue_name_candidates(model_name):
+        builtin = builtin_by_name.get(candidate)
+        if builtin is not None:
+            return builtin
+    return None
+
+
 def get_provider_model_configs(provider_id: str, selected_model: str, base_url: str = '') -> list:
     """Return a ModelBaseConfig list for the given provider from the cache.
     Matches by provider_id first, then by base_url. Falls back to a single-entry
@@ -173,21 +257,29 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
     from siada.models.model_base_config import MODEL_SETTING, ModelBaseConfig
     builtin_by_name = {m.model_name: m for m in MODEL_SETTING}
 
-    def _build(model_name: str, context_window: int, max_tokens: int) -> ModelBaseConfig:
+    def _build(
+        model_name: str,
+        context_window: int,
+        max_tokens: int,
+        image: Optional[bool] = None,
+    ) -> ModelBaseConfig:
         # Capability fields (supports_extra_params, default_reasoning_effort,
         # thinking, images, etc.) are not present in the models.dev cache, so
         # inherit them from the built-in MODEL_SETTING when the model is known.
+        # The lookup tolerates gateway-style ids (see _find_builtin_model).
         # Unknown names get None = capabilities UNDECLARED (not "unsupported"):
         # the gateway determines reasoning behavior unless the user configures
         # it explicitly, and callers must not treat None as a denial (see
-        # model_base_config.supports_extra_param).
-        builtin = builtin_by_name.get(model_name)
+        # model_base_config.supports_extra_param / supports_image_input).
+        builtin = _find_builtin_model(model_name, builtin_by_name)
         return ModelBaseConfig(
             model_name=model_name,
             context_window=context_window,
             max_tokens=max_tokens,
             parallel_tool_calls=True,
-            supports_images=builtin.supports_images if builtin else False,
+            supports_images=(
+                builtin.supports_images if builtin is not None else image
+            ),
             supports_vision_bridge=builtin.supports_vision_bridge if builtin else False,
             supports_prompt_cache=builtin.supports_prompt_cache if builtin else False,
             supports_extra_params=builtin.supports_extra_params if builtin else None,
@@ -211,9 +303,13 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
         models = matched.get('models', [])
         if models:
             return [
-                _build(m['id'], m.get('context', 128) * 1000, 8192)
+                _build(m['id'], m.get('context', 128) * 1000, 8192, m.get('image'))
                 for m in models
             ]
     if selected_model:
+        # No provider catalogue entry: the id may still be a known gateway
+        # model with a vendor prefix (e.g. "azure-gpt-6_1-sol" for
+        # "gpt-6.1-sol"), which _find_builtin_model resolves. Image support
+        # stays tri-state: None = undeclared for ids nothing can resolve.
         return [_build(selected_model, 128_000, 8192)]
     return []
