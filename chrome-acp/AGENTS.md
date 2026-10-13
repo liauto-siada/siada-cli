@@ -75,9 +75,11 @@ Packages reference each other via the `@chrome-acp/*` namespace:
 # Build all packages
 bun run build
 
-# Release a new version (updates manifest.json + package.json, tags, and pushes)
-just release <version>
-# Example: just release 1.0.30
+# Package the current platform (does not publish or change Git)
+just pack
 ```
 
-After release, GitHub Actions automatically builds and uploads release artifacts.
+The root `.github/workflows/browser-release.yml` builds platform packages from
+an existing Siada tag when manually dispatched. Publishing requires its explicit
+`publish` input. Browser packages use the CLI version from `../pyproject.toml`;
+component versions remain internal metadata. Do not publish a separate npm proxy.

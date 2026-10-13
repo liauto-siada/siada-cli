@@ -38,6 +38,11 @@ bun run build
 
 For a Siada CLI installation, select `~/.siada-cli/browser/extension` instead — that is the copy `siada-browser setup` installs and keeps up to date.
 
+Published browser platform ZIPs include this extension together with Node.js
+and the proxy. After upgrading the CLI, run `siada-browser setup` and reload
+the extension in Chrome. The new platform packages have not yet been published;
+see [Browser installation](../../../docs/browser-installation.md).
+
 ### Development Mode
 
 ```bash

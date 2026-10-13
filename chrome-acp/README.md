@@ -49,9 +49,12 @@ to the clipboard) two things you need once:
    (keep it private: it is the credential Chrome uses to reach your local
    siada-cli).
 
-Prebuilt artifacts can be installed from an artifact host with
-`siada-browser setup --base-url <url>`; there is no default host in this build,
-so without `--base-url` install from a local checkout as above.
+Once the matching Siada release has browser assets, `siada-browser setup`
+downloads its `browser-manifest.json` from GitHub Releases and installs one
+platform ZIP containing Node.js, the proxy, production dependencies, the web
+client, and the extension. These new packages have not yet been published.
+For candidate testing, `--base-url <https-directory>` overrides the release
+directory. See [Browser installation](../docs/browser-installation.md).
 
 ### From source
 
@@ -65,10 +68,13 @@ bun run dev              # extension with hot reload
 node packages/proxy-server/dist/cli/bin.js --no-auth <agent-command>
 ```
 
-`just pack` produces the same artifacts the CLI installs: a self-contained
-proxy tarball (`chrome-acp-proxy-<version>.tar.gz`, dist + public + production
-`node_modules`) and the extension zip (`chrome-acp-extension-<version>.zip`),
-each with a `.sha256` file.
+`just pack` builds and produces `siada-browser-<cli-version>-<platform>.zip`
+and `browser-manifest.json`. With components already built, run
+`node scripts/package-browser.mjs pack [output-directory]`. The packer downloads
+Node.js 24.13.0, verifies its official checksum, installs locked production
+dependencies, and checks the staged proxy CLI. The manifest carries the ZIP's
+SHA-256. The root browser release workflow builds each configured platform;
+those remote builds still require validation.
 
 ## Browser tools
 

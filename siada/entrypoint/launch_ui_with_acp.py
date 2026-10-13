@@ -54,7 +54,7 @@ from siada.foundation.logging import logger, remove_console_handler  # noqa: E40
 
 
 
-_NODE_VERSION = "24.21.0"
+from siada.foundation.node_runtime import NODE_VERSION as _NODE_VERSION
 
 
 class UILauncher:
@@ -173,24 +173,13 @@ class UILauncher:
 
 
     def _find_local_node(self) -> str:
-        """Return the Node.js binary to launch the UI with.
+        """Resolve an installed runtime without downloading at UI startup."""
+        from siada.foundation.node_runtime import find_node
 
-        Resolution order (never downloads anything):
-        1. the Node.js installed by the siada install script inside the venv
-           (``venv/node/bin/node`` or the nvm layout);
-        2. a usable ``node`` already on ``PATH`` — the user's own install;
-        3. the actionable install guidance raised by ``_raise_missing_node()``.
-        """
-        expected = _expected_node_path()
-        if expected.exists():
-            return str(expected)
-
-        import shutil
-
-        path_node = shutil.which("node")
-        if path_node:
-            return path_node
-        return _raise_missing_node()
+        try:
+            return find_node(_expected_node_path())
+        except FileNotFoundError as exc:
+            raise RuntimeError(str(exc)) from exc
 
     def _setup_node_env(self) -> Dict[str, str]:
         """Setup environment variables for Node.js execution."""
@@ -375,25 +364,10 @@ def _check_ui_bundle() -> None:
 
 
 def _expected_node_path() -> Path:
-    """Return the expected Node.js binary path inside the siada venv.
+    """Return the legacy runtime location for existing installations."""
+    from siada.foundation.node_runtime import legacy_node
 
-    Two layouts are supported:
-    1. Prebuilt tarball: ``venv/node/bin/node``  (bundled by build_venv_tarball.sh)
-    2. nvm-installed:    ``venv/nvm/versions/node/v{ver}/bin/node``  (runtime fallback)
-    """
-    venv_dir = Path(sys.executable).parent.parent
-    if sys.platform == "win32":
-        # tarball layout
-        p = venv_dir / "node" / "node.exe"
-        if p.exists():
-            return p
-        return venv_dir / "nvm" / "versions" / "node" / f"v{_NODE_VERSION}" / "node.exe"
-    # tarball layout first
-    p = venv_dir / "node" / "bin" / "node"
-    if p.exists():
-        return p
-    # nvm layout fallback
-    return venv_dir / "nvm" / "versions" / "node" / f"v{_NODE_VERSION}" / "bin" / "node"
+    return legacy_node()
 
 
 def _run_first_time_setup_if_needed() -> None:

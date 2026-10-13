@@ -19,7 +19,7 @@ import sys
 import time
 from pathlib import Path
 
-from siada.browser_addon import installer, manager, paths
+from siada.browser_addon import installer, manager, paths, release_install
 
 
 def _print(msg: str = "") -> None:
@@ -64,21 +64,16 @@ def cmd_setup(args: argparse.Namespace) -> int:
         installer.install_extension(Path(args.repo))
         _print(f"    ✓ {paths.extension_dir()}")
     else:
-        base = args.base_url or installer.DEFAULT_BOS_BASE
-        if not base:
-            _print(
-                "error: No browser artifact host is configured. Build chrome-acp "
-                "and run `siada-browser setup <chrome-acp-directory>`, "
-                "or pass --base-url <url>."
-            )
-            return 1
-        installer.install_proxy_from_bos(base)
-        installer.install_extension_from_bos(base)
+        _print("==> Installing the browser platform package...")
+        release_install.install_release(args.base_url)
 
     state = manager.init_state(args.port, args.host)
 
     _print("==> Launch proxy ...")
-    _print(f"    {manager.restart()}")
+    result = manager.restart()
+    _print(f"    {result}")
+    if str(result).startswith("error"):
+        return 1
 
     # ---- Guided extension loading (manual user action, done once) ----
     _print()
@@ -146,12 +141,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("setup", help="Install a built checkout or download from --base-url")
+    p = sub.add_parser("setup", help="Install the matching GitHub release or a built checkout")
     p.add_argument("repo", nargs="?", default=None, help="Path to the built chrome-acp repo; omit when using --base-url")
     p.add_argument("--port", type=int, default=paths.DEFAULT_PORT)
     p.add_argument("--host", default="127.0.0.1",
                    help="Proxy listen address; set to 0.0.0.0 to let other LAN devices connect remotely (enables wss/https)")
-    p.add_argument("--base-url", default=None, help="Artifact host URL; public builds have no default host")
+    p.add_argument("--base-url", default=None, help="Override the HTTPS release directory containing browser-manifest.json")
     p.add_argument("--no-wait", action="store_true", help="Do not poll for the extension connection (used by installer scripts)")
     p.set_defaults(func=cmd_setup)
 
@@ -168,7 +163,11 @@ def main(argv: list[str] | None = None) -> int:
             sp.set_defaults(func=cmd_status)
 
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        _print(f"error: {exc}")
+        return 1
 
 
 if __name__ == "__main__":

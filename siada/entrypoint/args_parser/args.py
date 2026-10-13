@@ -380,7 +380,7 @@ def get_parser(default_config_files, git_root):
         metavar="REPO",
         help="Install the chrome-acp browser proxy + Chrome extension and start the proxy. "
              "Optional value: chrome-acp repo path (already built); omit to download the "
-             "prebuilt artifacts from BOS. Same as `siada-browser setup [repo]`.",
+             "matching platform package from GitHub Releases. Same as `siada-browser setup [repo]`.",
     )
 
     group.add_argument(
@@ -431,7 +431,7 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--browser-base-url",
         metavar="URL",
-        help="Override the BOS base URL used by --browser-setup when downloading artifacts",
+        help="Override the HTTPS release directory used by --browser-setup (contains browser-manifest.json)",
         default=None,
     )
 

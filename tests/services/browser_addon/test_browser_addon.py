@@ -134,238 +134,6 @@ class TestInstaller:
         assert calls[0][1]["cwd"] == str(home / "proxy.staging")
 
 
-class TestBosInstall:
-    """BOS download path with the three network seams monkeypatched."""
-
-    @staticmethod
-    def _make_proxy_tgz(bos: Path, build_dir: Path, name: str, marker: str) -> Path:
-        """Build a fake proxy tarball: root dir <name>/dist/cli/bin.js."""
-        import hashlib
-        import tarfile as tarfile_mod
-
-        pkg = build_dir / name
-        (pkg / "dist" / "cli").mkdir(parents=True)
-        (pkg / "dist" / "cli" / "bin.js").write_text(marker)
-        (pkg / "package.json").write_text("{}")
-        (pkg / "package-lock.json").write_text('{"lockfileVersion": 3}')
-        (pkg / "public").mkdir()
-        (pkg / "public" / "index.html").write_text("<html>")
-        (pkg / "LICENSE").write_text("Synthetic upstream license fixture")
-        (pkg / "THIRD_PARTY_NOTICES.md").write_text("Synthetic dependency notices")
-        tgz = bos / f"{name}.tar.gz"
-        with tarfile_mod.open(tgz, "w:gz") as tar:
-            tar.add(pkg, arcname=pkg.name)
-        digest = hashlib.sha256(tgz.read_bytes()).hexdigest()
-        Path(str(tgz) + ".sha256").write_text(f"{digest}  {tgz.name}\n")
-        return tgz
-
-    @pytest.fixture
-    def bos_dir(self, tmp_path, home):
-        import hashlib
-        import zipfile as zipfile_mod
-
-        version = "9.9.9"
-        bos = tmp_path / "bos"
-        bos.mkdir()
-
-        # noarch proxy tarball (fallback name, no platform suffix)
-        self._make_proxy_tgz(
-            bos, tmp_path / "pkg-build", f"chrome-acp-proxy-{version}", "// bos"
-        )
-
-        # extension zip: entries at root
-        ext_stage = tmp_path / "ext-build"
-        (ext_stage / "dist").mkdir(parents=True)
-        (ext_stage / "dist" / "background.js").write_text("// bos")
-        (ext_stage / "manifest.json").write_text('{"version": "%s"}' % version)
-        (ext_stage / "LICENSE").write_text("Synthetic upstream license fixture")
-        (ext_stage / "THIRD_PARTY_NOTICES.md").write_text("Synthetic dependency notices")
-        ext_zip = bos / f"chrome-acp-extension-{version}.zip"
-        with zipfile_mod.ZipFile(ext_zip, "w") as zf:
-            for p in ext_stage.rglob("*"):
-                zf.write(p, p.relative_to(ext_stage))
-
-        digest = hashlib.sha256(ext_zip.read_bytes()).hexdigest()
-        Path(str(ext_zip) + ".sha256").write_text(f"{digest}  {ext_zip.name}\n")
-        (bos / "latest_version").write_text(version)
-        return bos
-
-    @pytest.fixture
-    def fake_net(self, bos_dir, monkeypatch):
-        def fetch_text(url):
-            p = Path(url.replace("fake://bos/", str(bos_dir) + "/"))
-            return p.read_text()
-
-        def download(url, dest):
-            p = Path(url.replace("fake://bos/", str(bos_dir) + "/"))
-            shutil_copy(p, dest)
-
-        def shutil_copy(src, dest):
-            Path(dest).write_bytes(Path(src).read_bytes())
-
-        monkeypatch.setattr(installer, "_fetch_text", fetch_text)
-        monkeypatch.setattr(installer, "_download_file", lambda url, dest: download(url, dest))
-
-    def test_bos_install(self, home, bos_dir, fake_net):
-        # Only the noarch tarball exists → exercises the fallback path.
-        v = installer.install_proxy_from_bos("fake://bos")
-        assert v == "9.9.9"
-        assert paths.proxy_entry() is not None
-        assert (paths.proxy_dir() / "dist" / "cli" / "bin.js").read_text() == "// bos"
-
-        ev = installer.install_extension_from_bos("fake://bos")
-        assert ev == "9.9.9"
-        assert (paths.extension_dir() / "manifest.json").is_file()
-        assert (paths.extension_dir() / "dist" / "background.js").is_file()
-        for package in (paths.proxy_dir(), paths.extension_dir()):
-            assert (package / "LICENSE").read_text() == "Synthetic upstream license fixture"
-            assert (package / "THIRD_PARTY_NOTICES.md").read_text() == "Synthetic dependency notices"
-
-    @pytest.mark.parametrize("name", ["LICENSE", "THIRD_PARTY_NOTICES.md"])
-    @pytest.mark.parametrize("contents", [None, ""])
-    @pytest.mark.parametrize("kind", ["proxy", "extension"])
-    @pytest.mark.parametrize("existing_install", [False, True])
-    def test_archives_reject_missing_or_empty_notices(
-        self, home, bos_dir, fake_net, monkeypatch, tmp_path, name, contents, kind,
-        existing_install
-    ):
-        import hashlib
-        import tarfile
-        import zipfile
-
-        if kind == "proxy":
-            archive = bos_dir / "chrome-acp-proxy-9.9.9.tar.gz"
-            build = tmp_path / "broken-proxy"
-            with tarfile.open(archive) as tar:
-                tar.extractall(build, filter="data")
-            package = build / "chrome-acp-proxy-9.9.9"
-        else:
-            archive = bos_dir / "chrome-acp-extension-9.9.9.zip"
-            package = tmp_path / "broken-extension"
-            with zipfile.ZipFile(archive) as zf:
-                zf.extractall(package)
-
-        if contents is None:
-            (package / name).unlink()
-        else:
-            (package / name).write_text(contents)
-        if kind == "proxy":
-            with tarfile.open(archive, "w:gz") as tar:
-                tar.add(package, arcname=package.name)
-            monkeypatch.setattr(installer, "proxy_platform_tag", lambda: None)
-            install = installer.install_proxy_from_bos
-        else:
-            with zipfile.ZipFile(archive, "w") as zf:
-                for entry in package.rglob("*"):
-                    zf.write(entry, entry.relative_to(package))
-            install = installer.install_extension_from_bos
-        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-        Path(str(archive) + ".sha256").write_text(f"{digest}  {archive.name}\n")
-        target = paths.proxy_dir() if kind == "proxy" else paths.extension_dir()
-        if existing_install:
-            target.mkdir(parents=True)
-            (target / "existing.txt").write_bytes(b"existing installation")
-
-        with pytest.raises(RuntimeError, match=f"missing or empty {name}"):
-            install("fake://bos")
-
-        if existing_install:
-            assert list(target.iterdir()) == [target / "existing.txt"]
-            assert (target / "existing.txt").read_bytes() == b"existing installation"
-        else:
-            assert not target.exists()
-
-    @pytest.mark.parametrize("name", ["package-lock.json", "public/index.html"])
-    def test_proxy_archive_requires_runtime_layout_and_preserves_existing_install(
-        self, home, bos_dir, fake_net, monkeypatch, tmp_path, name
-    ):
-        import hashlib
-        import tarfile
-
-        archive = bos_dir / "chrome-acp-proxy-9.9.9.tar.gz"
-        build = tmp_path / "incomplete-proxy"
-        with tarfile.open(archive) as tar:
-            tar.extractall(build, filter="data")
-        package = build / "chrome-acp-proxy-9.9.9"
-        (package / name).unlink()
-        with tarfile.open(archive, "w:gz") as tar:
-            tar.add(package, arcname=package.name)
-        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-        Path(str(archive) + ".sha256").write_text(f"{digest}  {archive.name}\n")
-        monkeypatch.setattr(installer, "proxy_platform_tag", lambda: None)
-        target = paths.proxy_dir()
-        target.mkdir(parents=True)
-        (target / "existing.txt").write_bytes(b"existing installation")
-
-        with pytest.raises(RuntimeError, match=f"no {name}"):
-            installer.install_proxy_from_bos("fake://bos")
-
-        assert list(target.iterdir()) == [target / "existing.txt"]
-        assert (target / "existing.txt").read_bytes() == b"existing installation"
-
-    @pytest.mark.parametrize(
-        "install", [installer.install_proxy_from_bos, installer.install_extension_from_bos]
-    )
-    def test_public_download_requires_explicit_artifact_host(self, monkeypatch, install):
-        monkeypatch.setattr(installer, "DEFAULT_BOS_BASE", "")
-        monkeypatch.setattr(
-            installer, "_fetch_text",
-            lambda url: pytest.fail("missing host must fail before downloading"),
-        )
-
-        with pytest.raises(ValueError, match="--base-url"):
-            install()
-
-    def test_bos_prefers_platform_tarball(self, home, bos_dir, fake_net, monkeypatch, tmp_path):
-        monkeypatch.setattr(installer, "proxy_platform_tag", lambda: "linux-x64")
-        self._make_proxy_tgz(
-            bos_dir, tmp_path / "pkg-build-linux", "chrome-acp-proxy-9.9.9-linux-x64", "// linux"
-        )
-        v = installer.install_proxy_from_bos("fake://bos")
-        assert v == "9.9.9"
-        assert (paths.proxy_dir() / "dist" / "cli" / "bin.js").read_text() == "// linux"
-
-    def test_bos_platform_sha_mismatch_not_downgraded(self, home, bos_dir, fake_net, monkeypatch, tmp_path):
-        # Platform tarball exists but its hash is corrupted: must fail loudly
-        # instead of silently downgrading to the noarch fallback.
-        monkeypatch.setattr(installer, "proxy_platform_tag", lambda: "linux-x64")
-        tgz = self._make_proxy_tgz(
-            bos_dir, tmp_path / "pkg-build-linux", "chrome-acp-proxy-9.9.9-linux-x64", "// linux"
-        )
-        Path(str(tgz) + ".sha256").write_text(f"{'0' * 64}  {tgz.name}\n")
-        with pytest.raises(RuntimeError, match="SHA256 mismatch"):
-            installer.install_proxy_from_bos("fake://bos")
-        assert not paths.proxy_dir().exists()
-
-    def test_bos_sha256_mismatch(self, home, bos_dir, fake_net, monkeypatch):
-        # Corrupt the expected hash → install must fail without touching proxy/
-        monkeypatch.setattr(
-            installer, "_fetch_text",
-            lambda url: "deadbeef" if url.endswith(".sha256") else "9.9.9",
-        )
-        with pytest.raises(RuntimeError, match="SHA256 mismatch"):
-            installer.install_proxy_from_bos("fake://bos")
-        assert not paths.proxy_dir().exists()
-
-    def test_bos_temp_cleanup_errors_ignored(self, home, bos_dir, fake_net, monkeypatch):
-        # WinError 32 regression: AV scanners on Windows may briefly lock the
-        # freshly downloaded archive in %TEMP%, so temp-dir cleanup can fail.
-        # With ignore_cleanup_errors=True (Python 3.10+) that must not fail an
-        # otherwise successful install; leftover dirs go to the OS temp cleaner.
-        seen = []
-        real_td = installer.tempfile.TemporaryDirectory
-
-        def spy(*args, **kwargs):
-            seen.append(kwargs)
-            return real_td(*args, **kwargs)
-
-        monkeypatch.setattr(installer.tempfile, "TemporaryDirectory", spy)
-        installer.install_proxy_from_bos("fake://bos")
-        installer.install_extension_from_bos("fake://bos")
-        assert seen, "expected TemporaryDirectory usage to be recorded"
-        assert all(kw.get("ignore_cleanup_errors") for kw in seen)
-
-
 class TestProxyPlatformTag:
     @pytest.mark.parametrize(
         "sys_platform, machine, expected",
@@ -558,17 +326,26 @@ class TestCli:
         assert "wss://" not in out
         assert manager.load_state()["host"] == "127.0.0.1"
 
-    def test_setup_without_host_reports_source_install_path(
+    def test_setup_without_host_downloads_matching_release(
         self, home, fake_setup, monkeypatch, capsys
     ):
-        monkeypatch.setattr(installer, "DEFAULT_BOS_BASE", "")
+        calls = []
         monkeypatch.setattr(
-            installer, "install_proxy_from_bos",
-            lambda base: pytest.fail("setup must not download without a host"),
+            cli.release_install, "install_release",
+            lambda base: calls.append(base) or "1.7.32",
         )
 
+        assert cli.main(["setup"]) == 0
+        assert calls == [None]
+        assert paths.state_path().exists()
+
+    def test_setup_download_failure_does_not_initialize_state(
+        self, home, fake_setup, monkeypatch, capsys
+    ):
+        def fail(base):
+            raise RuntimeError("Browser package SHA256 mismatch")
+
+        monkeypatch.setattr(cli.release_install, "install_release", fail)
         assert cli.main(["setup"]) == 1
-        output = capsys.readouterr().out
-        assert "siada-browser setup <chrome-acp-directory>" in output
-        assert "--base-url" in output
+        assert "SHA256 mismatch" in capsys.readouterr().out
         assert not paths.state_path().exists()

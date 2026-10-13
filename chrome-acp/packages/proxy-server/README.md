@@ -21,7 +21,10 @@ The proxy ends up in `~/.siada-cli/browser/proxy/`, is started detached, and is 
 node ~/.siada-cli/browser/proxy/dist/cli/bin.js --host 127.0.0.1 --port 9315 siada-cli -- --acp
 ```
 
-Prebuilt artifacts can be installed instead with `siada-browser setup --base-url <artifact-host>/chrome-acp`.
+Once the matching GitHub release has assets, `siada-browser setup` installs a
+single platform ZIP containing Node.js, the proxy and extension. Use
+`--base-url <https-directory>` for a candidate manifest and ZIP. These new
+packages have not yet been published. See [the installation guide](../../../docs/browser-installation.md).
 
 ### From source
 

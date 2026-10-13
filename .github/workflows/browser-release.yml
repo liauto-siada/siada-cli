@@ -1,0 +1,119 @@
+name: Build browser platform packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Siada release tag (for example v1.7.32)
+        required: true
+        type: string
+      publish:
+        description: Upload verified packages to the GitHub Release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            platform: macos-arm64
+          - runner: macos-15-intel
+            platform: macos-x64
+          - runner: ubuntu-24.04
+            platform: linux-x64
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+          - runner: windows-2022
+            platform: windows-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
+      - name: Verify tag and CLI version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node --input-type=module -e 'import {cliVersion} from "./chrome-acp/scripts/package-browser.mjs"; if (process.env.RELEASE_TAG !== `v${cliVersion()}`) throw new Error("Tag/version mismatch");'
+      - name: Install locked browser dependencies
+        working-directory: chrome-acp
+        run: bun install --frozen-lockfile
+      - name: Test browser components
+        working-directory: chrome-acp
+        run: bun run test
+      - name: Test release manifest validation
+        working-directory: chrome-acp
+        run: node --test scripts/package-browser.test.mjs
+      - name: Build browser components
+        working-directory: chrome-acp
+        run: bun run build
+      - name: Package current platform and check runtime
+        working-directory: chrome-acp
+        run: node scripts/package-browser.mjs pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-${{ matrix.platform }}
+          path: |
+            chrome-acp/release/siada-browser-*.zip
+            chrome-acp/release/browser-manifest-${{ matrix.platform }}.json
+          if-no-files-found: error
+
+  manifest:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: browser-*
+          path: browser-release
+          merge-multiple: true
+      - name: Merge and verify platform manifests
+        run: node chrome-acp/scripts/package-browser.mjs manifest browser-release/browser-manifest.json browser-release/browser-manifest-*.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-release
+          path: |
+            browser-release/siada-browser-*.zip
+            browser-release/browser-manifest.json
+
+  publish:
+    if: ${{ inputs.publish }}
+    needs: manifest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    environment: browser-release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: browser-release
+          path: browser-release
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: |
+            browser-release/siada-browser-*.zip
+            browser-release/browser-manifest.json
+          fail_on_unmatched_files: true

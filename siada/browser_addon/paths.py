@@ -50,21 +50,10 @@ def log_path() -> Path:
 
 
 def node_binary() -> str:
-    """Node.js: env override → the one bundled in the siada venv → PATH."""
-    env = os.environ.get("SIADA_BROWSER_NODE")
-    if env:
-        return env
-    exe = "node.exe" if sys.platform.startswith("win") else "node"
-    for candidate in (Path(sys.prefix) / "node" / "bin" / exe, Path(sys.prefix) / "node" / exe):
-        if candidate.is_file():
-            return str(candidate)
-    found = shutil.which("node")
-    if found:
-        return found
-    raise FileNotFoundError(
-        "Node.js not found (no bundled node in the siada venv, none on PATH). "
-        "Reinstall siada-cli or set SIADA_BROWSER_NODE."
-    )
+    """Resolve the same runtime used by the terminal UI."""
+    from siada.foundation.node_runtime import find_node
+
+    return find_node()
 
 
 def npm_argv() -> list[str] | None:
@@ -72,6 +61,8 @@ def npm_argv() -> list[str] | None:
     node = node_binary()
     prefix = Path(sys.prefix)
     candidates = [
+        browser_home() / "runtime" / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js",
+        browser_home() / "runtime" / "node_modules" / "npm" / "bin" / "npm-cli.js",
         prefix / "node" / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js",
         prefix / "node" / "node_modules" / "npm" / "bin" / "npm-cli.js",
     ]
