@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="../landing.css?v=15">
 <link rel="stylesheet" href="docs.css?v=3">
 <script src="i18n-start.js?v=1" defer></script>
-<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-daily.js?v=2" defer></script>
 <script src="i18n-workflows.js?v=1" defer></script>
 <script src="i18n-integrations.js?v=1" defer></script>
 <script src="docs-i18n.js?v=1" defer></script>
@@ -82,20 +82,66 @@ siada-cli --model MODEL_ID --no-thinking</code></pre>
         </div>
       </section>
       <section id="conf-yaml">
-        <h2>配置自己的模型服务</h2>
-        <p>在会话中输入 <code>/configure</code>，按提示选择服务并填写 API Key。也可以编辑 <code>~/.siada-cli/conf.yaml</code>，在 <code>llm_config</code> 中设置模型、服务地址与密钥。使用自备 API 服务时，Siada 的 <code>provider</code> 设为 <code>default</code>。</p>
+        <h2>配置 API Key 与模型服务</h2>
+        <p>准备服务商提供的 API Key、API 地址和模型 ID。首次运行时选择 API Key 配置；已有配置时，在会话中输入 <code>/configure</code> 重新打开设置。</p>
+        <h3>方式一：交互式配置</h3>
+        <ol>
+          <li>选择服务商；使用自建或第三方网关时，选择 Custom Provider。</li>
+          <li>选择模型。Custom Provider 需要填写 API 地址和该地址接受的模型 ID。</li>
+          <li>填写 API Key 并提交。输入时密钥会被遮挡，配置保存到个人目录。</li>
+          <li>进入会话后输入 <code>/status</code> 核对模型，再发送一条简短消息确认连接。</li>
+        </ol>
+        <h3>方式二：手动编辑连接配置</h3>
+        <p>编辑 <code>~/.siada-cli/conf.yaml</code>，把下面示例值换成自己的服务信息。自备 API 服务使用 <code>provider: default</code>；<code>provider_id: custom</code> 标记自定义服务，协议由模型路由和 API 地址决定。</p>
         <div class="docs-code">
           <div class="docs-code-label">~/.siada-cli/conf.yaml · 示例</div>
           <pre><code>llm_config:
   provider: default
+  provider_id: custom
   model: "your-model-id"
   base_url: "https://api.example.com/v1"
   api_key: "YOUR_API_KEY"</code></pre>
         </div>
         <div class="docs-note">
-          <b>替换示例值</b>
-          <p>模型 ID、地址和密钥请使用服务商提供的实际值。密钥保存在个人配置或环境变量中，避免提交到项目版本库。</p>
+          <b>合并已有配置</b>
+          <p>如果文件里已有 llm_config，请修改同一段，避免重复添加。API Key 只填写在自己的电脑上，不要提交到项目版本库或发送给他人。</p>
         </div>
+      </section>
+      <section id="api-protocol">
+        <h2>让模型与 API 协议匹配</h2>
+        <p>同一模型可能由不同网关提供。请按服务商文档填写地址和模型 ID；下面的地址只用于说明协议格式。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>服务协议</th><th>API 地址示例</th><th>模型与连接要求</th></tr></thead>
+            <tbody>
+              <tr><td>OpenAI Chat Completions</td><td><code>https://api.example.com/v1</code></td><td>服务须支持 POST /chat/completions。自定义别名使用服务商给出的模型 ID。</td></tr>
+              <tr><td>Anthropic Messages</td><td><code>https://api.anthropic.com</code></td><td>模型可使用 anthropic/claude-sonnet-4-6；原生协议网关也可提供完整的 /v1/messages 地址。</td></tr>
+              <tr><td>OpenAI Responses</td><td><code>https://api.openai.com/v1</code></td><td>GPT-5 及更新的 GPT 模型使用 Responses API，服务须支持 POST /responses。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>API 地址通常填写服务根路径，例如 /v1；Chat Completions 和 Responses 不要填写具体请求路径。Anthropic Messages 可使用服务根地址或完整 Messages 地址。</p>
+      </section>
+      <section id="custom-models">
+        <h2>登记自定义模型能力</h2>
+        <p>自定义网关模型可在 <code>~/.siada-cli/models.json</code> 登记上下文窗口、输出上限和图片能力。模型名称要与 conf.yaml 中一致；已有 models.json 时，将模型合并到 models 数组。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">~/.siada-cli/models.json · 示例</div>
+          <pre><code>{
+  "default_model": "your-model-id",
+  "models": [
+    {
+      "model_name": "your-model-id",
+      "context_window": 128000,
+      "max_tokens": 8192,
+      "supports_images": false,
+      "supports_prompt_cache": false
+    }
+  ]
+}</code></pre>
+        </div>
+        <p>示例能力数值需按服务商文档调整。models.json 定义模型能力，conf.yaml 保存连接信息和 API Key。自定义模型列表会替换内置列表，请保留自己需要的模型。</p>
+        <p>若输出经常被截断，检查 max_tokens 是否足够，并在服务支持的上限内调整；支持图片或推理参数时，再添加相应能力字段。</p>
       </section>
       <section id="other-settings">
         <h2>推理和界面偏好</h2>
@@ -154,7 +200,7 @@ siada-cli --model MODEL_ID --no-thinking</code></pre>
             <thead><tr><th>文件</th><th>内容</th></tr></thead>
             <tbody>
               <tr><td><code>~/.siada-cli/conf.yaml</code></td><td>模型、界面、记忆、子 Agent 和后台等主要偏好。</td></tr>
-              <tr><td><code>~/.siada-cli/models.json</code></td><td>单个模型的上下文窗口、价格与推理等覆盖设置。</td></tr>
+              <tr><td><code>~/.siada-cli/models.json</code></td><td>自定义模型列表、上下文窗口、输出上限与能力设置。</td></tr>
               <tr><td><code>~/.siada-cli/mcp_config.json</code></td><td>MCP 服务器；项目可用 <code>siada_mcp_config.json</code>。</td></tr>
               <tr><td><code>~/.siada-cli/commands/</code></td><td>自定义命令的 TOML 文件。</td></tr>
               <tr><td><code>~/.siada-cli/workspace/cron_tasks.json</code></td><td>由定时任务技能维护的周期任务。</td></tr>
@@ -182,7 +228,9 @@ siada-cli</code></pre>
     <div class="docs-toc-title">本页内容</div>
     <a href="#choose-model">在会话中选择模型</a>
     <a href="#one-run">只影响这次运行</a>
-    <a href="#conf-yaml">配置自己的模型服务</a>
+    <a href="#conf-yaml">配置 API Key 与模型服务</a>
+    <a href="#api-protocol">API 协议与地址</a>
+    <a href="#custom-models">自定义模型能力</a>
     <a href="#other-settings">推理和界面偏好</a>
     <a href="#vision">图片与视觉模型</a>
     <a href="#runtime-settings">常用运行设置</a>
