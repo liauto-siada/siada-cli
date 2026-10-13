@@ -6,6 +6,7 @@ printed to the frontend, and text+image messages have their images stripped.
 """
 
 import asyncio
+from typing import Optional
 from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
 
@@ -20,7 +21,7 @@ from siada.agent_hub.context_filter.pending_user_input_filter import (
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
-def _make_context(supports_images: bool):
+def _make_context(supports_images: Optional[bool]):
     """Build a minimal CodeAgentContext-like mock for the filter."""
     llm_config = SimpleNamespace(supports_images=supports_images)
     siada_config = SimpleNamespace(llm_config=llm_config)
@@ -231,6 +232,71 @@ class TestImageSupported:
         # Multimodal builder was called with empty text
         mock_build.assert_called_once_with("", ["/tmp/img1.png"])
         assert len(model_data.input) == 1
+
+
+# ── Tests: undeclared image support is not a denial ──────────────────
+
+
+class TestUndeclaredImageSupport:
+    """``supports_images=None`` means undeclared, so the image is forwarded.
+
+    Only an explicit False is a denial (see
+    ``model_base_config.supports_image_input``); an unresolvable provider
+    model must not have its images stripped or rejected.
+    """
+
+    @pytest.mark.asyncio
+    async def test_undeclared_support_goes_multimodal(self):
+        context = _make_context(supports_images=None)
+        model_data = _make_model_data()
+
+        pending = [("id1", "describe this", ["/tmp/img1.png"])]
+        with patch(
+            "siada.io.stdin_interrupt_monitor.drain_pending_injections",
+            side_effect=_drain_side_effect(pending),
+        ), patch(
+            "siada.io.stdin_interrupt_monitor._send_queue_notification"
+        ), patch(
+            "siada.agent_hub.context_filter.pending_user_input_filter._print_image_not_supported_error"
+        ) as mock_print_err, patch(
+            "siada.entrypoint.interaction.turn.conversation_turn._build_multimodal_input"
+        ) as mock_build:
+            mock_build.return_value = [{"role": "user", "content": [
+                {"type": "input_text", "text": "describe this"},
+                {"type": "input_image", "image_url": "data:image/png;base64,xxx"},
+            ]}]
+            injector = PendingUserInputInjector()
+            await injector.filter(model_data, MagicMock(), context)
+
+        mock_print_err.assert_not_called()
+        mock_build.assert_called_once_with(
+            "<user_input>describe this</user_input>", ["/tmp/img1.png"]
+        )
+        assert len(model_data.input) == 1
+
+    @pytest.mark.asyncio
+    async def test_undeclared_support_never_calls_the_bridge(self):
+        """A model with undeclared image support is not routed to the bridge."""
+        context = _make_context(supports_images=None)
+        model_data = _make_model_data()
+
+        pending = [("id1", "describe this", ["/tmp/img1.png"])]
+        with patch(
+            "siada.io.stdin_interrupt_monitor.drain_pending_injections",
+            side_effect=_drain_side_effect(pending),
+        ), patch(
+            "siada.io.stdin_interrupt_monitor._send_queue_notification"
+        ), patch(
+            "siada.services.vision_bridge.supports_vision_bridge", return_value=True
+        ) as mock_bridge, patch(
+            "siada.entrypoint.interaction.turn.conversation_turn._build_multimodal_input"
+        ) as mock_build:
+            mock_build.return_value = [{"role": "user", "content": []}]
+            injector = PendingUserInputInjector()
+            await injector.filter(model_data, MagicMock(), context)
+
+        mock_bridge.assert_not_called()
+        mock_build.assert_called_once()
 
 
 # ── Tests: error helper ──────────────────────────────────────────────

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import Optional
 
 import pytest
 
@@ -64,7 +65,7 @@ def _make_msg(**kwargs) -> IMMessage:
     return IMMessage(**defaults)
 
 
-def _make_session(supports_images: bool):
+def _make_session(supports_images: Optional[bool]):
     """Build a minimal fake RunningSession with an llm_config."""
     llm_config = SimpleNamespace(supports_images=supports_images)
     siada_config = SimpleNamespace(llm_config=llm_config)
@@ -82,6 +83,13 @@ class TestModelSupportsImages:
     def test_supports_images_false(self):
         session = _make_session(supports_images=False)
         assert LarkAgentExecutor._model_supports_images(session) is False
+
+    def test_supports_images_undeclared_counts_as_capable(self):
+        # None means the capability is undeclared (see
+        # model_base_config.supports_image_input), which is NOT a denial —
+        # the guard must not strip or reject the image.
+        session = _make_session(supports_images=None)
+        assert LarkAgentExecutor._model_supports_images(session) is True
 
     def test_defaults_to_true_on_error(self):
         # A session whose attribute chain is broken should not cause a
