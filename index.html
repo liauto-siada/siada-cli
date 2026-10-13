@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#ffffff">
+  <title>Siada: Human in browser use</title>
+  <meta name="description" content="AI 的价值不是取代，而是营造创造的环境。Siada 从当前阅读、浏览历史与动作理解意图，整理和分享内容，在当前网页解释信息、创造产品，并高效完成浏览器操作。">
+  <link rel="stylesheet" href="landing.css?v=15">
+  <script src="landing-i18n.js?v=1" defer></script>
+  <script src="landing.js?v=11" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳转到正文</a>
+  <header class="site-header">
+    <nav class="container header-inner" aria-label="主导航">
+      <a class="brand" href="#top" aria-label="Siada 首页">
+        <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/>
+            </linearGradient>
+          </defs>
+          <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+        </svg>
+        <span>Siada</span>
+      </a>
+      <div class="header-links">
+        <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="docs/index.html">使用手册</a>
+        <div class="language-switch" role="group" aria-label="切换语言" hidden>
+          <button type="button" data-language="zh-CN" lang="zh-CN" aria-pressed="true">中文</button>
+          <button type="button" data-language="en" lang="en" aria-pressed="false">EN</button>
+        </div>
+        <a class="button button-small" href="docs/quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero container" id="top" aria-labelledby="hero-title">
+      <h1 id="hero-title"><span class="gradient-text">Siada:</span> Human in browser use</h1>
+      <p class="hero-statement">AI 的价值不是取代，<br class="mobile-break">而是营造创造的环境</p>
+      <p class="hero-description">从当前阅读、浏览历史与动作理解意图，<br>一起整理、分享，让眼前的信息继续成为作品。</p>
+      <div class="hero-actions">
+        <a class="button" href="#intent">从你的意图开始 <span aria-hidden="true">↓</span></a>
+        <a class="text-link" href="docs/browser.html">了解浏览器协作 <span aria-hidden="true">↗</span></a>
+      </div>
+
+      <figure class="hero-visual">
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="hero-preview">
+          <div class="browser hero-browser">
+            <div class="browser-bar">
+              <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="browser-location">Gmail · Medium 每日精选</span>
+              <span class="visual-label">交互示意</span>
+            </div>
+            <div class="hero-browser-content">
+              <div class="hero-document">
+                <span class="document-kicker">READ · ORGANIZE · SHARE</span>
+                <h2>刚刚读过的，整理分享。</h2>
+                <div class="text-lines" aria-hidden="true"><i></i><i></i><i></i></div>
+                <p class="selected-passage">一封每日精选，15 篇值得整理的文章。</p>
+                <div class="hero-annotation">
+                  <span class="annotation-label"><span class="small-spark" aria-hidden="true">✳</span> Siada · 整理与分享</span>
+                  <p>展开头条、分类其余条目，保留每篇文章的原文链接。</p>
+                </div>
+              </div>
+              <aside class="hero-sidebar" aria-label="协作示意">
+                <div class="sidebar-title"><span class="status-dot" aria-hidden="true"></span> Siada</div>
+                <div class="human-message"><span class="actor-label">HUMAN</span><p>把我刚刚看的内容整理下，<br>分享到 siada 学习群。</p></div>
+                <div class="agent-message"><span class="actor-label">AGENT</span><p>整理 15 篇文章，<br>保留来源并分享到飞书。</p></div>
+                <div class="sidebar-compose">接着你刚刚读过的内容 <span aria-hidden="true">↑</span></div>
+              </aside>
+            </div>
+          </div>
+          <button class="hero-play-trigger" type="button" aria-controls="hero-case-player" aria-expanded="false" aria-label="播放阅读整理与飞书分享视频">
+            <span class="hero-play-content">
+              <span class="hero-play-prompt">
+                <span class="hero-play-prompt-role">input</span>
+                <span class="hero-play-prompt-text">“把我刚刚看的内容整理下，分享到 siada 学习群。”</span>
+              </span>
+              <span class="hero-play-row">
+                <span class="hero-play-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5z"/></svg></span>
+                <span class="hero-play-label">播放案例</span>
+              </span>
+            </span>
+          </button>
+          <div class="hero-case-player" id="hero-case-player" role="region" aria-label="Siada 阅读整理与飞书分享演示" hidden>
+            <video class="hero-case-video" id="hero-case-video" controls playsinline preload="none" poster="assets/siada-reading-to-feishu-poster.jpg" tabindex="0" aria-label="Siada 从阅读到飞书分享的完整演示">
+              <source src="assets/siada-reading-to-feishu.mp4" type="video/mp4">
+              浏览器无法播放该视频。<a href="assets/siada-reading-to-feishu.mp4">下载视频</a>
+            </video>
+            <button class="hero-case-back" type="button" aria-label="收起视频" title="收起视频">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+            <p class="hero-video-status" role="status" hidden></p>
+          </div>
+        </div>
+        <figcaption>Human 阅读 → Siada 整理 → 飞书分享</figcaption>
+      </figure>
+    </section>
+
+    <section class="capability container" id="intent" aria-labelledby="intent-title">
+      <div class="section-heading">
+        <span class="section-kicker">UNDERSTAND YOUR INTENT</span>
+        <h2 id="intent-title">用户意图感知</h2>
+        <p>刚刚阅读的内容、积累的浏览历史和眼前的操作，都能成为下一步的上下文。</p>
+      </div>
+
+      <article class="case-row" id="case-1" aria-labelledby="case-1-title">
+        <div class="case-copy">
+          <span class="case-number">CASE 01</span>
+          <h3 id="case-1-title">感知 Human 的历史行为</h3>
+          <p>找回你浏览过的论文、GitHub 项目与文章，对照 survey 文章的五条关键结论，把相关工作的解释与对比放回原文对应位置。</p>
+          <blockquote><span class="case-input-role">input</span>“检索我的浏览历史，找出近期看过的 Browser Agent 相关论文、GitHub 项目与文章，逐条对照 survey 文章的五条关键结论，并在原文对应位置解释与比较。”</blockquote>
+        </div>
+        <figure class="case-visual recording-visual">
+          <div class="recording-surface">
+            <video id="research-film" controls playsinline preload="none" poster="assets/siada-history-to-paper-poster.jpg" tabindex="0" aria-label="找回浏览资料、对照当前论文并在原文就地解释的完整演示">
+              <source src="assets/siada-history-to-paper.mp4" type="video/mp4">
+              浏览器无法播放该视频。<a href="assets/siada-history-to-paper.mp4">下载视频</a>
+            </video>
+          </div>
+          <figcaption>历史浏览 → 论文对照 · 28 秒</figcaption>
+        </figure>
+      </article>
+
+      <article class="case-row case-reverse" id="case-2" aria-labelledby="case-2-title">
+        <div class="case-copy">
+          <span class="case-number">CASE 02</span>
+          <h3 id="case-2-title">感知用户的即时动作</h3>
+          <p>问一句刚才做了什么，Siada 读取动作记录，把点击、滚动与页面跳转整理进回复。浏览与搜索也能按时间列出，串成可读的浏览路径。</p>
+          <blockquote><span class="case-input-role">input</span>“可以看见我刚才的动作轨迹吗”</blockquote>
+        </div>
+        <figure class="case-visual recording-visual">
+          <div class="recording-surface human-action-surface">
+            <video id="human-action-video" controls playsinline preload="none" poster="assets/siada-human-action-perception-poster.jpg" tabindex="0" aria-label="Siada 读取刚才的点击、滚动与浏览记录并整理成回复的两个问答示例">
+              <source src="assets/siada-human-action-perception.mp4" type="video/mp4">
+              浏览器无法播放该视频。<a href="assets/siada-human-action-perception.mp4">下载视频</a>
+            </video>
+          </div>
+          <figcaption>点击与滚动 → 动作记录 → 浏览路径 · 28 秒</figcaption>
+        </figure>
+      </article>
+    </section>
+
+    <section class="capability container" id="create" aria-labelledby="create-title">
+      <div class="section-heading">
+        <span class="section-kicker">MAKE ROOM TO CREATE</span>
+        <h2 id="create-title">利于创造的环境营造</h2>
+        <p>让理解留在现场，让信息继续生长成作品。</p>
+        <p class="section-description">把阅读变成作品。围绕页面里的信息，继续生成网页、演示稿或小工具；内容、交互与表达，都从你的意图出发。</p>
+      </div>
+
+      <article class="case-row" id="case-3" aria-labelledby="case-3-title">
+        <div class="case-copy">
+          <span class="case-number">CASE 03</span>
+          <h3 id="case-3-title">就地对当前网页进行渲染</h3>
+          <p>读到哪里，就在哪里解释。翻译、批注与对照直接出现在对应段落旁，让原文和你的思考保持在同一个页面。</p>
+          <blockquote>“就在这一段下面，解释反思为什么会影响 Agent 的鲁棒性。”</blockquote>
+        </div>
+        <figure class="case-visual recording-visual">
+          <div class="recording-surface">
+            <video id="page-render-video" controls playsinline preload="none" poster="assets/siada-history-to-paper-poster.jpg" tabindex="0" aria-label="对照论文并将解释渲染到原文对应位置的完整演示">
+              <source src="assets/siada-history-to-paper.mp4" type="video/mp4">
+              浏览器无法播放该视频。<a href="assets/siada-history-to-paper.mp4">下载视频</a>
+            </video>
+          </div>
+          <figcaption>论文对照 → 原文就地解释 · 28 秒</figcaption>
+        </figure>
+      </article>
+
+      <article class="case-row" id="case-5" aria-labelledby="case-5-title">
+        <div class="case-copy">
+          <span class="case-number">CASE 05</span>
+          <h3 id="case-5-title">经济财报分析，形成飞书报告</h3>
+          <p>从当前财报页出发，读取多个季度与年度报告，对照收入、毛利率和现金流，把分析、图表与原始来源整理成一份易读的飞书文档。</p>
+          <blockquote><span class="case-input-role">input</span>“分析该公司的季度业绩和财务报告，形成专业易懂的飞书文档。”</blockquote>
+        </div>
+        <figure class="case-visual recording-visual">
+          <div class="recording-surface financial-case-surface">
+            <video id="financial-case-video" controls playsinline preload="none" poster="assets/siada-financial-report-poster.jpg" tabindex="0" aria-label="读取财报、对比财务趋势并生成飞书分析报告的完整演示">
+              <source src="assets/siada-financial-report.mp4" type="video/mp4">
+              浏览器无法播放该视频。<a href="assets/siada-financial-report.mp4">下载视频</a>
+            </video>
+          </div>
+          <figcaption>财报资料 → Siada 分析 → 飞书报告 · 32 秒</figcaption>
+        </figure>
+      </article>
+
+      <article class="case-row case-reverse" id="case-6" aria-labelledby="case-6-title">
+        <div class="case-copy">
+          <span class="case-number">CASE 06</span>
+          <h3 id="case-6-title">电商信息分析，整理成 PPT</h3>
+          <p>从淘宝商品页出发，搜索百寸电视并收集图片与参数，把机型排行、价格和亮度对比、按需求整理的选购建议，做成 10 页飞书演示稿。</p>
+          <blockquote><span class="case-input-role">input</span>“搜索100寸电视机性价比排行榜，通过ppt的形式展示。”</blockquote>
+        </div>
+        <figure class="case-visual recording-visual">
+          <div class="recording-surface ecommerce-case-surface">
+            <video id="ecommerce-case-video" controls playsinline preload="none" poster="assets/siada-ecommerce-to-ppt-poster.jpg" tabindex="0" aria-label="搜索商品、整理参数与图表并生成飞书 PPT 的完整演示">
+              <source src="assets/siada-ecommerce-to-ppt.mp4" type="video/mp4">
+              浏览器无法播放该视频。<a href="assets/siada-ecommerce-to-ppt.mp4">下载视频</a>
+            </video>
+          </div>
+          <figcaption>电商网页 → 信息整理 → 飞书 PPT · 34 秒</figcaption>
+        </figure>
+      </article>
+    </section>
+
+    <section class="capability container" id="audit" aria-labelledby="audit-title">
+      <div class="section-heading">
+        <span class="section-kicker">BROWSE EFFICIENTLY</span>
+        <h2 id="audit-title">高效的浏览器操作</h2>
+        <p>从搜索、页面定位到信息提取，连续完成浏览器操作，并用动作记录回看过程。</p>
+      </div>
+
+      <article class="case-row" id="case-7" aria-labelledby="case-7-title">
+        <div class="case-copy">
+          <span class="case-number">CASE 07</span>
+          <h3 id="case-7-title">浏览器控制与 Trace</h3>
+          <p>通过 Google 找到 GitHub 项目，打开原始配置，整理 Agent 相关依赖、版本与来源。完成后在演示示例中回看 Trace 记录的 25 次动作，查看页面快照、每步工具执行耗时与调用间隔。</p>
+          <blockquote><span class="case-input-role">input</span>“通过 Google 搜索 Siada CLI GitHub 中 pyproject.toml 中 Agent 相关的依赖。”</blockquote>
+        </div>
+        <figure class="case-visual recording-visual">
+          <div class="recording-surface trace-case-surface">
+            <video id="trace-case-video" controls playsinline preload="none" poster="assets/siada-browser-control-trace-poster.jpg" tabindex="0" aria-label="浏览器检索依赖、查看结果并回看动作快照与耗时 Trace 的完整演示">
+              <source src="assets/siada-browser-control-trace.mp4" type="video/mp4">
+              浏览器无法播放该视频。<a href="assets/siada-browser-control-trace.mp4">下载视频</a>
+            </video>
+          </div>
+          <figcaption>浏览器执行 → 结果与依据 → 动作 Trace · 36 秒</figcaption>
+        </figure>
+      </article>
+    </section>
+
+    <section class="closing container">
+      <h2>创造，始于你的意图。</h2>
+      <a class="button" href="docs/quickstart.html">开始使用 Siada <span aria-hidden="true">→</span></a>
+    </section>
+  </main>
+
+  <footer class="site-footer container">
+    <a class="footer-brand" href="#top">Siada</a>
+    <span>Human in browser use</span>
+    <small>© 2026 Siada CLI</small>
+  </footer>
+</body>
+</html>

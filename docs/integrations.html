@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>飞书与 ACP 接入 · Siada CLI 使用手册</title>
+<meta name="description" content="把本机 Siada 接入飞书机器人远程协作，或通过 ACP 在支持该协议的编辑器中使用同一套能力。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html" aria-current="page">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>飞书与 ACP 接入</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">08 / CONNECT</div>
+      <h1>飞书与 ACP 接入</h1>
+      <p class="docs-intro">除了终端界面，你还可以从飞书与 Siada 协作，或把本机 Siada 接入支持 ACP 的编辑器。两种入口都连接同一台机器，任务仍然在本机的工作区里执行。</p>
+      <hr class="docs-rule">
+      <section id="feishu">
+        <h2>飞书作为远程入口</h2>
+        <p>配置好之后，在飞书里给机器人发消息（私聊，或在群里 @ 机器人），消息会转发到本机的 Siada 执行，过程和结果实时回到原来的会话。适合在手机上交代任务、查看进展，或在群里共享一份工作记录。</p>
+        <p>连接方式使用 <code>direct</code> 长连接：本机直接与飞书开放平台通信，不需要公网地址或额外的中转服务。因此机器人由你自己在开放平台创建，凭据也只保存在本机配置中。</p>
+        <div class="docs-note">
+          <b>先发布，再使用</b>
+          <p>机器人能收到消息的前提是应用已发布并通过审核。开发阶段可以把可用范围设为自己，先验证连接，再交给更多人使用。所需权限通常需要管理员在管理后台审批。</p>
+        </div>
+        <p>机器人权限与配置参考见 <a href="https://github.com/liauto-siada/siada-cli/blob/main/docs/zh-CN/remote_control_lark_zh.md" target="_blank" rel="noopener noreferrer">飞书远程接入指南</a>。</p>
+      </section>
+      <section id="setup">
+        <h2>创建机器人并写入配置</h2>
+        <ol>
+          <li>在飞书开放平台创建自建应用，填写名称与图标。</li>
+          <li>在凭据页面记录 <b>App ID</b> 与 <b>App Secret</b>；App Secret 只写入本机配置，不要提交到项目仓库。</li>
+          <li>在应用能力中启用机器人。</li>
+          <li>添加权限：读取与发送消息、读取私聊消息、群消息与群内 @ 消息、会话信息，以及通讯录基础信息与卡片读写（流式回复需要）。</li>
+          <li>在事件与回调中把事件接收方式设为<b>长连接</b>，并订阅接收消息事件（<code>im.message.receive_v1</code>）。</li>
+          <li>创建版本并发布，等待审核通过。</li>
+          <li>在 <code>~/.siada-cli/conf.yaml</code> 中写入 <code>lark</code> 段，然后重启守护进程。</li>
+        </ol>
+        <div class="docs-code">
+          <div class="docs-code-label">~/.siada-cli/conf.yaml · 示例</div>
+          <pre><code>lark:
+  mode: direct
+  workspace: ~/projects/my-project
+  direct:
+    app_id: "cli_xxxxxxxxxxxxxxxx"
+    app_secret: "YOUR_APP_SECRET"
+    domain: feishu
+  access:
+    dm_policy: allowlist
+    allow_from:
+      - "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"</code></pre>
+        </div>
+        <p>中国大陆的飞书使用 <code>domain: feishu</code>；国际版 Lark 保持默认的 <code>lark</code>。飞书会话固定使用 coder 能力与 <code>workspace</code> 指定的目录，把它指向你的项目，远程任务就会在该目录中工作。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL · 让配置生效</div>
+          <pre><code>siada-cli --stop-daemon
+siada-cli</code></pre>
+        </div>
+      </section>
+      <section id="access">
+        <h2>访问控制</h2>
+        <p>访问控制写在 <code>lark.access</code> 下，私聊与群聊分别控制。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>配置项</th><th>作用</th></tr></thead>
+            <tbody>
+              <tr><td><code>dm_policy</code></td><td>私聊策略：<code>allowlist</code>（默认，仅名单内可用）或 <code>open</code>（所有人可用）。</td></tr>
+              <tr><td><code>allow_from</code></td><td>私聊名单，使用用户的 <code>ou_</code> 开头 ID。</td></tr>
+              <tr><td><code>group_policy</code></td><td>群聊策略：<code>allowlist</code>（默认）、<code>open</code> 或 <code>disabled</code>。</td></tr>
+              <tr><td><code>group_allow_from</code></td><td>群聊名单，使用群会话的 <code>oc_</code> 开头 ID。</td></tr>
+              <tr><td><code>idle_session_timeout</code></td><td>会话空闲多久后自动开始新会话，单位秒；默认 <code>86400</code>，设为 <code>0</code> 关闭。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>两个策略默认都是 <code>allowlist</code>，名单为空时会拒绝请求。被拒绝时，机器人会回复 ID 提示：将用户的 <code>ou_</code> ID 加入 <code>allow_from</code>，群会话的 <code>oc_</code> ID 加入 <code>group_allow_from</code>，然后重启守护进程。</p>
+      </section>
+      <section id="im">
+        <h2>在飞书里协作</h2>
+        <p>私聊直接发消息即可。群里需要 @ 机器人触发，@ 所有人同样会触发；没有 @ 的群消息不会执行任务，但会作为上下文缓冲，在下次触发时带上最近的群聊内容，便于理解讨论背景。</p>
+        <p>一个群同时只运行一个任务：任务进行中新的 @ 会被提示等待，此时可以 @ 机器人发送 <code>pause</code> 或 <code>暂停</code> 中断当前任务，再交代新的要求。用 <code>/resume 会话ID</code> 可切回指定会话；私聊空闲超过设定时间后会自动开始新会话。</p>
+      </section>
+      <section id="im-commands">
+        <h2>飞书中的命令</h2>
+        <p>斜杠命令在飞书会话里同样可用，但只支持不依赖终端界面的一部分。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>命令</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>/help</code></td><td>查看当前可用的命令。</td></tr>
+              <tr><td><code>/status</code></td><td>查看当前模型、会话与工作区。</td></tr>
+              <tr><td><code>/model</code></td><td>查看或切换到已配置的模型。</td></tr>
+              <tr><td><code>/clear</code></td><td>清空当前会话历史，开始新会话。</td></tr>
+              <tr><td><code>/resume 会话ID</code></td><td>在当前私聊或群聊中切回指定会话。</td></tr>
+              <tr><td><code>/verbose</code></td><td>查看或调整私聊或群聊这一类会话的输出详细程度。</td></tr>
+              <tr><td><code>/lang</code></td><td>切换回复语言。</td></tr>
+              <tr><td><code>/mcp-list</code> / <code>/mcp-server</code></td><td>查看 MCP 工具与连接状态。</td></tr>
+              <tr><td><code>/skill-list</code> / <code>/skill-reload</code></td><td>查看或重新加载可用技能。</td></tr>
+              <tr><td><code>/plugin</code></td><td>以文本方式管理插件与市场。</td></tr>
+              <tr><td><code>/rule-*</code> / <code>/context-file-refresh</code></td><td>查看与刷新项目规则和上下文说明。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>以下命令需要在终端中使用：<code>/goal</code>、<code>/init</code>、<code>/task-list</code>、<code>/undo</code>、<code>/restore</code>、<code>/compare</code>、<code>/editor</code>、<code>/configure</code>、<code>/logout</code>、<code>/lark-auth</code>、<code>/migrate-detect</code>、<code>/migrate-import</code>、<code>/exit</code>。当前版本的实际可用列表以飞书里的 <code>/help</code> 为准。</p>
+      </section>
+      <section id="output">
+        <h2>输出详细程度</h2>
+        <p>私聊与群聊的默认详细程度不同：私聊展示思考、工具调用与最终回答，群聊只保留最终回答，减少刷屏。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>配置项</th><th>默认值</th><th>含义</th></tr></thead>
+            <tbody>
+              <tr><td><code>im.verbose.p2p</code></td><td><code>true</code></td><td>私聊输出思考、工具调用与回答。</td></tr>
+              <tr><td><code>im.verbose.group</code></td><td><code>false</code></td><td>群聊只输出最终回答。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>用 <code>/verbose on</code> 或 <code>/verbose off</code> 调整。在私聊里设置会影响所有私聊，群聊里设置会影响所有群聊；设置保存到 <code>conf.yaml</code>，重启后仍然有效。</p>
+      </section>
+      <section id="lark-auth">
+        <h2>给 Agent 授权飞书工具</h2>
+        <p>上面的机器人是一种<b>入口</b>：消息从飞书发来，任务在本机执行。而 <code>/lark-auth</code>、<code>/lark-status</code>、<code>/lark-refresh</code> 管理的是飞书 MCP 的 OAuth 授权，让 Agent 能把飞书文档、表格等当作工具读写。</p>
+        <p>飞书聊天入口和文档工具分别配置；需要读写文档时，仍按工具要求完成授权。MCP 的连接与检查方式见 <a href="extensions.html#mcp">MCP 与外部工具</a>。</p>
+      </section>
+      <section id="acp">
+        <h2>接入支持 ACP 的编辑器</h2>
+        <p>Siada 提供标准的 ACP（Agent Client Protocol）服务端，通过标准输入输出与客户端通信。以下两种方式等价，任选其一：</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-cli --acp
+siada-acp</code></pre>
+        </div>
+        <p>在编辑器里把上述命令之一配置为 Agent 的启动命令即可，下面以 Zed 的 <code>agent_servers</code> 为例：</p>
+        <div class="docs-code">
+          <div class="docs-code-label">编辑器设置 · JSON 示例</div>
+          <pre><code>{
+  "agent_servers": {
+    "siada": {
+      "type": "custom",
+      "command": "siada-cli",
+      "args": ["--acp"]
+    }
+  }
+}</code></pre>
+        </div>
+        <p>不同客户端的配置字段与位置不同，请以对应客户端的说明为准；接入方式与协议细节可参考 <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">项目仓库</a>、<a href="https://agentclientprotocol.com" target="_blank" rel="noopener noreferrer">ACP 协议文档</a> 与 <a href="https://zed.dev/docs/ai/external-agents" target="_blank" rel="noopener noreferrer">Zed 的外部 Agent 说明</a>。</p>
+        <div class="docs-note">
+          <b>ACP 客户端里没有终端界面</b>
+          <p>依赖交互界面的命令不会出现在 ACP 的命令列表中，例如 <code>/configure</code>、<code>/logout</code>、<code>/resume</code>、<code>/undo</code>；模型切换由客户端提供的选择项完成。需要这些命令时，回到终端使用 <code>siada-cli</code>。</p>
+        </div>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="automation.html"><small>← 上一章</small>后台与定时任务</a>
+        <a href="troubleshooting.html"><small>下一章 →</small>常见问题</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#feishu">飞书远程入口</a>
+    <a href="#setup">创建机器人</a>
+    <a href="#access">访问控制</a>
+    <a href="#im">在飞书里协作</a>
+    <a href="#im-commands">飞书中的命令</a>
+    <a href="#output">输出详细程度</a>
+    <a href="#lark-auth">飞书工具授权</a>
+    <a href="#acp">编辑器 ACP 接入</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

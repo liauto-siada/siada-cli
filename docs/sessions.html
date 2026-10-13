@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>会话、上下文与记忆 · Siada 使用手册</title>
+<meta name="description" content="恢复 Siada 会话、压缩上下文、比较文件检查点，用 /goal 推进目标，并管理跨会话记忆。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html" aria-current="page">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>会话、上下文与记忆</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">04 / CONTEXT</div>
+      <h1>会话、上下文与记忆</h1>
+      <p class="docs-intro">接着上次的工作，为长任务保留清楚的目标，再把持续适用的习惯和项目约定留给下一次协作。</p>
+      <hr class="docs-rule">
+      <section id="resume">
+        <h2>恢复已有会话</h2>
+        <p>在交互界面输入 <code>/resume</code>，浏览当前项目的会话并选择一条继续。也可以在终端传入会话 ID，直接恢复指定对话。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL · 将 SESSION_ID 换成会话 ID</div>
+          <pre><code>siada-cli --resume SESSION_ID
+siada-cli --resume SESSION_ID --prompt "继续运行相关测试并说明结果"</code></pre>
+        </div>
+        <p>不带 ID 的 <code>siada-cli --resume</code> 在交互模式下打开会话浏览器；与 <code>--prompt</code> 组合时恢复当前项目最近的会话。恢复时先进入原项目目录，跨工作区恢复会提示目录不匹配。可用 <code>/status</code> 查看当前会话 ID。</p>
+      </section>
+      <section id="new-session">
+        <h2>开启新任务或压缩历史</h2>
+        <p><code>/clear</code> 开始一段新的会话，适合换到无关任务；之前的会话仍可通过恢复入口找回。<code>/compact</code> 则压缩当前对话历史，保留继续工作的摘要。对话太短或已经压缩时，它可能提示无需处理。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">交互输入</div>
+          <pre><code>/clear
+/compact</code></pre>
+        </div>
+        <p><code>/clear</code> 不会撤销项目文件的修改。如果只是临时询问一个旁支问题，使用 <code>/btw 问题</code>，回答不会写入主对话历史。</p>
+      </section>
+      <section id="checkpoints">
+        <h2>比较与恢复文件检查点</h2>
+        <p>需要记录任务中的文件变化时，在交互启动时传入 <code>--checkpointing</code>。未显式开启时，检查点默认关闭；非交互 <code>--prompt</code> 模式不启用检查点。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-cli --checkpointing</code></pre>
+        </div>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>命令</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>/compare 检查点文件</code></td><td>查看工作目录与指定检查点的差异。</td></tr>
+              <tr><td><code>/undo 检查点文件</code></td><td>撤销该检查点中的修改，恢复到修改前的状态。</td></tr>
+              <tr><td><code>/restore 检查点文件</code></td><td>恢复指定检查点保存的状态。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>这些命令需要提供已经生成的检查点文件名；不带文件名时会提示用法。先比较差异，再选择要恢复的状态。长期默认值可在 <code>checkpoint_config.enable</code> 和 <code>checkpoint_config.max_checkpoint_files</code> 中设置。</p>
+      </section>
+      <section id="goal">
+        <h2>让任务保持一个明确目标</h2>
+        <p>对于需要多轮推进的工作，<code>/goal 目标</code> 会把目标交给 Agent 执行，并在每轮之后由验证器判断是否完成。验证器没有可执行的下一步、连续失败达到上限或遇到系统错误时，自动续跑会停止。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">交互输入示例</div>
+          <pre><code>/goal 修复登录测试并通过相关测试
+/goal clear</code></pre>
+        </div>
+        <p>新输入 <code>/goal 目标</code> 会替换旧目标，无需先清除。完成由验证器判断，没有 <code>/goal complete</code> 命令；用 <code>/goal clear</code> 移除当前目标。</p>
+        <p><code>goal.max_turns</code> 控制连续验证失败后自动停止的上限，默认 <code>6</code>。目标因连续失败停下后，发送新的自然语言消息可以补充信息并继续推进。把测试、文件格式或页面最终状态写进目标，便于核验。</p>
+      </section>
+      <section id="project-context">
+        <h2>给项目提供持续的上下文</h2>
+        <p>项目中的 <code>SIADA.md</code> 或 <code>AGENTS.md</code> 可写入长期适用的约定。<code>/init</code> 会分析项目并生成 <code>SIADA.md</code>；已有指令可通过 <code>/context-file-refresh</code> 刷新。项目规则与 Skills 的区别见 <a href="extensions.html#project-rules">扩展能力</a>。</p>
+      </section>
+      <section id="memory">
+        <h2>让习惯与经验延续到下一次</h2>
+        <p>记忆保存个人工作偏好、项目经验与适用的事实。相关文件位于 <code>~/.siada-cli/workspace/memory/</code>；个人偏好记录在 <code>USER.md</code>，经验与事实记录在 <code>MEMORY.md</code>。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">交互输入 · 查看或调整记忆开关</div>
+          <pre><code>/memory
+/memory enable
+/memory disable</code></pre>
+        </div>
+        <p>你可以明确说“记住：这个项目使用 npm，交付前运行现有测试”。<code>memory.enabled</code> 是总开关；个人偏好、事实记忆与结构化记忆的细分设置见 <a href="configuration.html#runtime-settings">运行设置</a>。</p>
+      </section>
+      <section id="ignore">
+        <h2>控制任务需要读取的文件</h2>
+        <p>在工作区根目录创建 <code>.siadaignore</code>，使用类似 <code>.gitignore</code> 的模式，让内置文件工具忽略指定路径。生成目录、大文件和不需要进入任务的内容都可以写在这里。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">.siadaignore · 示例</div>
+          <pre><code>.env
+.env.*
+node_modules/
+dist/
+*.log</code></pre>
+        </div>
+        <p>这用于文件读取与修改范围控制；直接运行的 Shell 命令仍按系统权限执行。</p>
+      </section>
+      <section id="export">
+        <h2>导出或分享这段工作</h2>
+        <p>在终端 UI 中输入 <code>/export</code> 导出文本，或用 <code>/export session-notes.txt</code> 指定文件名。需要在浏览器继续协作时，使用 <code>/share</code> 生成会话链接，前提与用法见 <a href="browser.html#share">会话分享</a>。</p>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="configuration.html"><small>← 上一章</small>模型与配置</a>
+        <a href="extensions.html"><small>下一章 →</small>Skills、Agent 与插件</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#resume">恢复已有会话</a>
+    <a href="#new-session">开启新任务或压缩历史</a>
+    <a href="#checkpoints">文件检查点</a>
+    <a href="#goal">让任务保持一个明确目标</a>
+    <a href="#project-context">给项目提供持续的上下文</a>
+    <a href="#memory">跨会话记忆</a>
+    <a href="#ignore">忽略文件</a>
+    <a href="#export">导出或分享</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>开始使用 · Siada 使用手册</title>
+<meta name="description" content="在项目中开始使用 Siada，对话、脚本任务、文件引用和图片输入。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html" aria-current="page">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html" aria-current="page">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>开始使用</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">01 / START</div>
+      <h1>开始使用</h1>
+      <p class="docs-intro">从一个项目目录开始你的第一段对话。交互模式适合连续协作；脚本模式适合把一个明确任务交给 Siada 执行。</p>
+      <hr class="docs-rule">
+      <section id="project">
+        <h2>在项目目录启动</h2>
+        <p>在终端进入你的项目，然后运行 <code>siada-cli</code>。工作目录决定它首先看到哪个项目，也决定会话恢复时使用的工作区。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL · 将 my-project 换成你的项目目录</div>
+          <pre><code>cd my-project
+siada-cli</code></pre>
+        </div>
+        <p>第一次启动时，按界面提示选择登录方式或配置模型服务。之后直接输入任务；在同一段会话中可以继续追问、修改文件和运行检查。</p>
+        <p>已有账号或服务配置需要调整时，在交互界面输入 <code>/configure</code>。模型选择与自备 API Key 的设置见 <a href="configuration.html">模型与配置</a>。</p>
+      </section>
+      <section id="first-prompt">
+        <h2>写清目标和验收方式</h2>
+        <p>把目标、范围和完成标准写在同一条消息里，便于 Siada 在执行后核对结果。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">对话输入示例</div>
+          <pre><code>找出登录页测试失败的原因，只修改相关代码。
+修复后运行对应的测试，并说明测试结果。</code></pre>
+        </div>
+        <p>如果任务还缺少路径或复现步骤，继续在会话里补充即可；对话会保留前面的上下文。</p>
+      </section>
+      <section id="one-shot">
+        <h2>执行一次性任务</h2>
+        <p>使用 <code>--prompt</code> 或 <code>-p</code> 传入任务，Siada 进入非交互模式，执行后退出。可以组合模型等启动参数，适合脚本或 CI 中的单次检查与生成任务。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-cli --prompt "梳理这个项目的测试入口，并列出需要关注的测试"
+siada-cli --model MODEL_ID -p "创建一个 REST API 端点并运行相关测试"</code></pre>
+        </div>
+        <div class="docs-note">
+          <b>继续上一段工作</b>
+          <p>需要继续指定会话时，组合 <code>--resume SESSION_ID</code> 与 <code>--prompt</code>。不带 ID 的 <code>--resume</code> 在非交互模式下恢复当前项目最近的一段会话。用法见 <a href="sessions.html#resume">会话恢复</a>。</p>
+        </div>
+      </section>
+      <section id="files">
+        <h2>引用文件和目录</h2>
+        <p>在对话中输入 <code>@</code> 加文件名或目录，让 Siada 把相应内容带入当前任务。路径以当前项目为基准；文件名也支持模糊匹配。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">对话输入示例</div>
+          <pre><code>@src/auth.py 解释这个文件里的登录校验流程
+@tests/ 看看与登录相关的测试覆盖了哪些场景</code></pre>
+        </div>
+      </section>
+      <section id="images">
+        <h2>把截图带进对话</h2>
+        <p>复制图片后，在 Siada 输入框按 <code>Ctrl+V</code>，或在 macOS 上按 <code>Cmd+V</code> 粘贴截图，并说明希望它检查的内容，例如“根据这张报错截图定位问题”。主模型支持图片时可直接理解；也可配置视觉模型辅助读取，见 <a href="configuration.html#vision">图片与视觉模型</a>。</p>
+        <p>Linux 剪贴板需要相应系统工具：Wayland 使用 <code>wl-clipboard</code>，X11 使用 <code>xclip</code>。发送、换行和中断的快捷键见 <a href="commands.html#keys">输入与快捷键</a>。</p>
+      </section>
+      <section id="next">
+        <h2>接下来读什么</h2>
+        <p>输入 <code>/help</code> 查看当前可用命令；需要切换模型可用 <code>/model</code>；任务跨多轮时可用 <code>/resume</code> 找回已有会话。各自的用法见 <a href="commands.html">命令参考</a> 与 <a href="sessions.html">会话管理</a>。</p>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="index.html"><small>← 上一章</small>手册概览</a>
+        <a href="commands.html"><small>下一章 →</small>命令与快捷输入</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#project">在项目目录启动</a>
+    <a href="#first-prompt">写清目标和验收方式</a>
+    <a href="#one-shot">执行一次性任务</a>
+    <a href="#files">引用文件和目录</a>
+    <a href="#images">把截图带进对话</a>
+    <a href="#next">接下来读什么</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

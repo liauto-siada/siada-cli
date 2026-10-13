@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>后台与定时任务 · Siada CLI 使用手册</title>
+<meta name="description" content="用守护进程与定时任务让 Siada 在后台工作：管理周期任务、每日摘要、主动建议，以及版本自动更新。">
+<link rel="stylesheet" href="../landing.css?v=15">
+<link rel="stylesheet" href="docs.css?v=3">
+<script src="i18n-start.js?v=1" defer></script>
+<script src="i18n-daily.js?v=1" defer></script>
+<script src="i18n-workflows.js?v=1" defer></script>
+<script src="i18n-integrations.js?v=1" defer></script>
+<script src="docs-i18n.js?v=1" defer></script>
+<script src="docs.js?v=3" defer></script>
+</head>
+<body class="docs-page">
+<a class="skip-link" href="#main-content">跳转到正文</a>
+<header class="site-header docs-header">
+  <nav class="container header-inner" aria-label="主导航">
+    <a class="brand" href="../index.html" aria-label="Siada 首页">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs><linearGradient id="brand-gradient" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#71a8fb"/><stop offset=".45" stop-color="#87D7FF"/><stop offset="1" stop-color="#7aebc5"/></linearGradient></defs>
+        <path d="M25 7H9a4 4 0 0 0 0 8h14a4 4 0 0 1 0 8H7" stroke="url(#brand-gradient)" stroke-width="5" stroke-linecap="square"/>
+      </svg>
+      <span>Siada</span>
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      <a href="index.html" aria-current="true">使用手册</a>
+      <a class="button button-small" href="quickstart.html">开始使用 <span aria-hidden="true">→</span></a>
+    </div>
+  </nav>
+</header>
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="手册目录">
+    <a class="docs-side-home" href="index.html"><span aria-hidden="true">S</span> Siada 使用手册</a>
+    <div class="docs-nav-label">开始使用</div>
+    <a class="docs-side-link" href="index.html">手册概览</a>
+    <a class="docs-side-link" href="quickstart.html">开始使用</a>
+    <div class="docs-nav-label">日常协作</div>
+    <a class="docs-side-link" href="commands.html">命令与快捷输入</a>
+    <a class="docs-side-link" href="configuration.html">模型与配置</a>
+    <a class="docs-side-link" href="sessions.html">会话、上下文与记忆</a>
+    <div class="docs-nav-label">拓展工作流</div>
+    <a class="docs-side-link" href="extensions.html">Skills、Agent 与插件</a>
+    <a class="docs-side-link" href="browser.html">浏览器协作</a>
+    <a class="docs-side-link" href="automation.html" aria-current="page">后台与定时任务</a>
+    <a class="docs-side-link" href="integrations.html">飞书与 ACP 接入</a>
+    <div class="docs-nav-label">遇到问题</div>
+    <a class="docs-side-link" href="troubleshooting.html">常见问题</a>
+  </aside>
+  <main class="docs-main" id="main-content">
+    <nav class="docs-breadcrumb" aria-label="面包屑">
+      <a href="../index.html">首页</a><span aria-hidden="true">/</span>
+      <a href="index.html">使用手册</a><span aria-hidden="true">/</span><span>后台与定时任务</span>
+    </nav>
+    <article class="docs-article">
+      <div class="docs-kicker">07 / AUTOMATION</div>
+      <h1>后台与定时任务</h1>
+      <p class="docs-intro">在交互模式启动 <code>siada-cli</code> 时，会同时拉起一个后台守护进程，用它执行定时任务、整理每日进展，并按需推送消息。这一章说明如何查看和停止它，以及把周期性的工作交给它。</p>
+      <hr class="docs-rule">
+      <section id="daemon">
+        <h2>守护进程</h2>
+        <p>守护进程是独立于当前会话的后台进程，有自己的运行状态与日志。它随交互会话启动；非交互的 <code>--prompt</code> 运行不会启动它。退出终端界面不会停止守护进程，需要显式结束。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-cli --daemon-status
+siada-cli --stop-daemon
+siada-cli --restart-daemon</code></pre>
+        </div>
+        <p><code>--daemon-status</code> 会显示进程是否运行；<code>--stop-daemon</code> 结束后台进程，<code>--restart-daemon</code> 先停止再启动。后台发现、等待你处理的任务可以在会话里输入 <code>/task-list</code> 查看。</p>
+        <p><code>siada-cli --no-daemon</code> 禁止本次启动自动拉起守护进程。它不会停止已经运行的后台进程；需要停止时，先执行 <code>siada-cli --stop-daemon</code>。</p>
+      </section>
+      <section id="cron">
+        <h2>用对话创建定时任务</h2>
+        <p>直接说清时间、项目目录和任务内容即可。Siada 使用 <code>manage-cron-task</code> 技能保存周期任务，由守护进程到点后在本机执行，并记录结果。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">对话输入示例</div>
+          <pre><code>每天早上九点半，按照 docs/release.md 编译并打包。
+每周五 18:00 汇总本周提交，生成一份周报草稿。
+每天凌晨两点执行测试用例，失败时说明原因。</code></pre>
+        </div>
+        <p>查看、修改、停用和删除同样用对话完成，例如“列出所有定时任务”“把周报改到周五 17:30”“先停用每天凌晨的测试任务”。改动通常在半分钟内生效，不需要重启守护进程。</p>
+        <div class="docs-note">
+          <b>任务依赖本机的守护进程</b>
+          <p>定时任务只在守护进程运行时触发。机器处于关机或休眠状态、或守护进程已经停止时，任务不会在这个时间段执行；重新启动 <code>siada-cli</code> 后再查看任务状态即可。</p>
+        </div>
+      </section>
+      <section id="daily">
+        <h2>每日摘要</h2>
+        <p>开启每日摘要后，后台会在设定时间根据当天的工作记录整理一份进展摘要。生成时间默认是 <code>06:00</code>，为了避免同时占用资源，实际开始时间会在一个时间窗内错开。</p>
+        <p>开启推送后，摘要会在 <code>08:30</code> 之后的错开窗口内发送到已配置的 IM（例如飞书），发送时间同样不是精确到分的一刻。飞书侧的接入方式见 <a href="integrations.html#feishu">飞书远程入口</a>。</p>
+        <div class="docs-note">
+          <b>生成与推送由同一个开关控制</b>
+          <p>只有 <code>proactive.send_daily_summary_to_im</code> 打开时，后台才会安排每日摘要任务；关闭时不会生成摘要文件，也就不会推送到 IM。</p>
+        </div>
+      </section>
+      <section id="settings">
+        <h2>后台设置</h2>
+        <p>后台行为写在个人配置 <code>~/.siada-cli/conf.yaml</code> 的 <code>proactive</code> 段中。没有对应命令的设置，可以编辑配置，或请 Siada 帮你改。</p>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>配置项</th><th>默认值</th><th>作用</th></tr></thead>
+            <tbody>
+              <tr><td><code>proactive.enabled</code></td><td><code>true</code></td><td>每日固定工作与主动分析开关；单独创建的周期任务按各任务开关运行。</td></tr>
+              <tr><td><code>proactive.daily_task_execution_time</code></td><td><code>"06:00"</code></td><td>每日摘要开始生成的时间，随后在时间窗内错开执行。</td></tr>
+              <tr><td><code>proactive.daily_im_send_time</code></td><td><code>"08:30"</code></td><td>摘要最早发送到 IM 的时间；实际发送会在之后的窗口内错开。</td></tr>
+              <tr><td><code>proactive.send_daily_summary_to_im</code></td><td><code>false</code></td><td>生成每日摘要并推送到已配置的 IM。</td></tr>
+              <tr><td><code>proactive.llm_config</code></td><td>未设置</td><td>为后台与定时任务单独指定模型，写法与顶层 <code>llm_config</code> 相同。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="docs-code">
+          <div class="docs-code-label">~/.siada-cli/conf.yaml · 示例</div>
+          <pre><code>proactive:
+  enabled: true
+  daily_task_execution_time: "06:00"
+  daily_im_send_time: "08:30"
+  send_daily_summary_to_im: true
+  llm_config:
+    model: "your-model-id"</code></pre>
+        </div>
+        <p>用 <code>/task-list</code> 查看后台发现的任务。你主动创建的周期任务会按计划触发，需要暂时停止时，停用该任务或停止守护进程。</p>
+        <p>修改 <code>proactive</code> 段后，重启守护进程让设置生效：</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-cli --stop-daemon
+siada-cli</code></pre>
+        </div>
+      </section>
+      <section id="update">
+        <h2>版本自动更新</h2>
+        <p>守护进程默认会在后台检查并安装新版本，相关设置位于 <code>auto_update</code> 段：<code>enabled</code>（默认 <code>true</code>）控制开关，<code>check_interval_minutes</code>（默认 <code>30</code>）控制检查间隔，<code>channel</code>（默认 <code>prod</code>）选择发布通道。</p>
+        <div class="docs-code">
+          <div class="docs-code-label">TERMINAL</div>
+          <pre><code>siada-cli --just-check-update
+siada-cli --upgrade</code></pre>
+        </div>
+        <p><code>--just-check-update</code> 只检查一次版本并返回结果，不会安装，适合放进脚本里判断；需要立刻升级时用 <code>--upgrade</code>。启动时的版本检查由 <code>--check-update</code> 控制，默认开启，也可以用 <code>--no-check-update</code> 关闭。</p>
+      </section>
+      <nav class="docs-pager" aria-label="章节导航">
+        <a href="browser.html"><small>← 上一章</small>浏览器协作</a>
+        <a href="integrations.html"><small>下一章 →</small>飞书与 ACP 接入</a>
+      </nav>
+    </article>
+  </main>
+  <aside class="docs-toc" aria-label="本页目录">
+    <div class="docs-toc-title">本页内容</div>
+    <a href="#daemon">守护进程</a>
+    <a href="#cron">定时任务</a>
+    <a href="#daily">每日摘要</a>
+    <a href="#settings">后台设置</a>
+    <a href="#update">版本自动更新</a>
+  </aside>
+</div>
+<footer class="docs-footer">
+  <div class="container">
+    <span>© 2026 Siada · 使用手册</span>
+    <span><a href="../index.html">返回首页</a> · <a href="https://github.com/liauto-siada/siada-cli" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>
