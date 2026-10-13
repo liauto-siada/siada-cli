@@ -9,11 +9,16 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from siada.config.config_loader import Config, LLMConfig, SubAgentConfig
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.models.model_run_config import ModelRunConfig
+from siada.provider import provider_factory
 from siada.services.sub_agent_run_config import (
     _model_override_llm_config,
     build_sub_agent_run_config,
+    resolve_sub_agent_llm_config,
 )
 from siada.session.session_models import RunningSession
 
@@ -94,3 +99,88 @@ class TestBuildSubAgentRunConfigModelOverride:
         run_config = _build(_llm_config())
 
         assert run_config.model == "claude-sonnet-5"
+
+
+@pytest.mark.parametrize(
+    "configured_provider, active_provider, parent_provider, expected_provider",
+    [
+        (None, None, "gateway", "gateway"),
+        ("missing-provider", "gateway", "default", "gateway"),
+        ("missing-provider", None, "gateway", "gateway"),
+        ("gateway", None, "default", "gateway"),
+        (None, None, None, "default"),
+        ("missing-provider", None, "missing-parent", "default"),
+    ],
+)
+def test_sub_agent_provider_resolution(
+    monkeypatch, configured_provider, active_provider, parent_provider,
+    expected_provider,
+):
+    parent = _llm_config(provider=parent_provider)
+    context = _context(parent)
+    context.provider = active_provider
+    conf = Config(
+        sub_agent_config=SubAgentConfig(
+            llm_config=LLMConfig(
+                model="gpt-6-luna", provider=configured_provider
+            )
+        )
+    )
+    providers = {"default": MagicMock(), "gateway": MagicMock()}
+    monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
+    monkeypatch.setattr(provider_factory, "provider_map", providers)
+
+    with patch("siada.config.config_loader.load_conf", return_value=conf):
+        resolved = resolve_sub_agent_llm_config(context)
+        run_config = build_sub_agent_run_config(context)
+
+    assert resolved.provider == (configured_provider or parent_provider)
+    assert run_config.model == "gpt-6-luna"
+    assert run_config.model_provider.base_provider is providers[expected_provider]
+    assert parent.model_name == "claude-sonnet-5"
+    assert parent.provider == parent_provider
+
+
+def test_sub_agent_reports_empty_registry(monkeypatch):
+    monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
+    monkeypatch.setattr(provider_factory, "provider_map", {})
+
+    with pytest.raises(ValueError, match="No model providers found or registered"):
+        _build(_llm_config())
+
+
+@pytest.mark.asyncio
+async def test_run_subtask_returns_hello_with_model_only_override(monkeypatch):
+    from siada.tools.agent.run_subtask import run_subtask_impl
+
+    context = _context(_llm_config())
+    conf = Config(
+        sub_agent_config=SubAgentConfig(
+            llm_config=LLMConfig(model="gpt-6-luna")
+        )
+    )
+    provider = MagicMock()
+    monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
+    monkeypatch.setattr(provider_factory, "provider_map", {"default": provider})
+
+    async def stream_events():
+        return
+        yield
+
+    result = MagicMock()
+    result.stream_events = stream_events
+    result.final_output = "hello"
+    with patch("siada.config.config_loader.load_conf", return_value=conf), patch(
+        "siada.tools.agent.run_subtask.SubTaskAgent", return_value=MagicMock()
+    ), patch(
+        "siada.tools.agent.run_subtask.Runner.run_streamed", return_value=result
+    ) as run_streamed:
+        output = await run_subtask_impl(
+            instruction="Reply with exactly hello.",
+            agent_context=context,
+        )
+
+    assert output == "hello"
+    run_config = run_streamed.call_args.kwargs["run_config"]
+    assert run_config.model == "gpt-6-luna"
+    assert run_config.model_provider.base_provider is provider

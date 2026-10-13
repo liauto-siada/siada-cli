@@ -43,7 +43,9 @@ def resolve_sub_agent_llm_config(context: CodeAgentContext):
         if sub_llm and sub_llm.model and sub_llm.model != parent_llm.model_name:
             from siada.models.model_run_config import ModelRunConfig
             mrc = ModelRunConfig(sub_llm.model)
-            mrc.provider = resolve_provider_by_model(sub_llm.model, sub_llm.provider)
+            mrc.provider = resolve_provider_by_model(
+                sub_llm.model, sub_llm.provider or parent_llm.provider
+            )
             llm_config = mrc
     except Exception as e:
         logger.warning("[resolve_sub_agent_llm_config] failed to read sub_agent conf: %s", e)
@@ -217,9 +219,31 @@ def build_sub_agent_run_config(
         llm_config = _with_reasoning_effort(llm_config, effort)
 
     model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
-    model_provider = get_provider(
-        resolve_provider_by_model(llm_config.model_name, llm_config.provider)
+    provider_name = resolve_provider_by_model(
+        llm_config.model_name, llm_config.provider
     )
+    # A model-only override inherits the parent's gateway. Older configurations
+    # may also reference a provider absent from this distribution; prefer the
+    # parent's active provider before using the public endpoint provider.
+    candidates = dict.fromkeys(
+        name for name in (
+            provider_name,
+            context.provider,
+            context.session.siada_config.llm_config.provider,
+            "default",
+        ) if name
+    )
+    for candidate in candidates:
+        try:
+            model_provider = get_provider(candidate)
+            break
+        except ValueError:
+            if candidate == "default":
+                raise
+            logger.warning(
+                "[build_sub_agent_run_config] provider unavailable; "
+                "trying the inherited provider or the default endpoint"
+            )
     provider_wrapper = ModelProviderWrapper(
         base_provider=model_provider,
         input_processor=process_input,

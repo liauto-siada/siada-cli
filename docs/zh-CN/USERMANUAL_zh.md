@@ -91,6 +91,22 @@ goal:
 - 协议映射说明
 - 配置示例
 
+### Sub agent 模型配置
+
+Sub agent 默认使用父会话的模型和 provider。若要选择其他模型，可在
+`~/.siada-cli/conf.yaml` 中添加：
+
+```yaml
+sub_agent:
+  enabled: true
+  llm_config:
+    model: "gpt-4o-mini"
+```
+
+省略 `provider` 时，sub agent 继承父会话的 provider。如果配置的 provider
+在当前发行版中不可用，会依次尝试父 agent 当前使用的 provider 和 `default`。
+`default` 使用你配置的 `BASE_URL` 和 `API_KEY`；可用的显式 provider 优先使用。
+
 ### 代理配置(开发者模式)
 
 编辑 `agent_config.yaml` 以自定义代理行为：

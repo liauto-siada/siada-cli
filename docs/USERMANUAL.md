@@ -97,6 +97,23 @@ If you need to configure custom external models (such as privately deployed mode
 - Protocol mapping explanation
 - Configuration examples
 
+### Sub-agent Model Configuration
+
+Sub-agents use the parent session's model and provider by default. To select
+a different model, add this section to `~/.siada-cli/conf.yaml`:
+
+```yaml
+sub_agent:
+  enabled: true
+  llm_config:
+    model: "gpt-4o-mini"
+```
+
+When `provider` is omitted, the sub-agent inherits the parent's provider.
+If a configured provider is unavailable in this distribution, it tries the
+parent's active provider and then `default`, which uses your configured
+`BASE_URL` and `API_KEY`. Available explicit providers retain priority.
+
 ### Agent Configuration (Developer Mode)
 
 Edit `agent_config.yaml` to customize agent behavior:
