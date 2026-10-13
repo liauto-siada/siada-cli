@@ -10,8 +10,15 @@ const input = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/hooks/useKeypress.js', () => ({
-  useKeypress: (handler: (key: Key) => void) => {
-    input.handleKey = handler;
+  // Mirror the real hook's subscription contract: a handler registered with
+  // `isActive: false` must not receive keypresses. LoginSelector registers a
+  // second, Escape-only handler while `submitting`; without this check the
+  // last-registered inactive handler shadows the wizard handler and every
+  // dispatched key becomes a no-op (the component never re-renders).
+  useKeypress: (handler: (key: Key) => void, options: { isActive?: boolean } = {}) => {
+    if (options.isActive !== false) {
+      input.handleKey = handler;
+    }
   },
 }));
 
