@@ -8,6 +8,7 @@ from typing import Optional, Any
 from abc import ABC, abstractmethod
 
 from agents import AgentsException
+from agents.exceptions import ModelBehaviorError
 
 
 # Import existing config and models
@@ -199,10 +200,23 @@ class RunTurn(ABC):
             )
         # Handle Agent-related errors
         elif isinstance(error, AgentsException):
+            from pathlib import Path
+            from siada.foundation.logging import log_dir
+            from siada.provider.retry import MissingFinalResponseError
+
+            detail_path = Path(log_dir).resolve() / "errors.log"
+            missing_final = isinstance(error, MissingFinalResponseError) or (
+                isinstance(error, ModelBehaviorError)
+                and error_str == "Model did not produce a final response!"
+            )
             self.config.io.print_error(
                 f"Agent Execution Error\n\n"
-                f"{error_str}\n\n"
-                f"Detailed Log: logs/errors.log"
+                + (
+                    "模型响应未完整结束。\n"
+                    "请检查已显示的内容和工具执行结果，然后重试。\n\n"
+                    if missing_final else f"{error_str}\n\n"
+                )
+                + f"Detailed Log: {detail_path}"
             )
         # Handle version too low errors
         elif "minimum required version" in error_str or "below the minimum required version" in error_str:

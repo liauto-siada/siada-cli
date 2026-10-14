@@ -68,6 +68,13 @@ Li 原有 429 和认证次数常量来自构建提供的模块；公开适配器
 
 来源：[retry.py](../../siada/provider/retry.py)、[model_wrapper.py](../../siada/services/model_wrapper.py)、[li/chat_completions.py](../../siada/provider/li/chat_completions.py)、[responses_transport.py](../../siada/provider/default/responses_transport.py)、[LiteLLM 启动配置](../../siada/entrypoint/__init__.py)。
 
+模型流正常 EOF 但缺少终止响应事件时，统一包装器与 `ResponsesModel` 会抛出
+`MissingFinalResponseError`，记录模型、response ID、最后事件和内容暴露状态。
+只收到 `response.created` / `response.in_progress` 或空流时沿用最多两次重试；
+已经交出正文、推理或工具事件时直接失败。明确的 `response.incomplete` /
+`response.failed` 保留原有失败处理，不归类为缺失终止事件。泛化的
+`ModelBehaviorError` 不自动重试。
+
 ## Timeout 与 midstream 的阶段边界
 
 ```mermaid

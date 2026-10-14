@@ -31,8 +31,9 @@ class CapturingModel:
     async def stream_response(self, **kwargs):
         self.requests.append(copy.deepcopy(kwargs["input"]))
         try:
-            yield "first"
-            yield "second"
+            yield SimpleNamespace(type="response.output_text.delta", delta="first")
+            yield SimpleNamespace(type="response.output_text.delta", delta="second")
+            yield SimpleNamespace(type="response.completed")
         finally:
             self.closed = True
 
@@ -65,7 +66,9 @@ async def test_admission_sees_native_items_before_provider_normalization(baselin
     if stream:
         iterator = wrapper.stream_response(**request_args(items))
         assert admitted == []
-        assert [event async for event in iterator] == ["first", "second"]
+        events = [event async for event in iterator]
+        assert [event.delta for event in events[:-1]] == ["first", "second"]
+        assert events[-1].type == "response.completed"
         assert model.closed
     else:
         assert await wrapper.get_response(**request_args(items)) == "synthetic response"
@@ -104,7 +107,7 @@ async def test_early_close_closes_the_owned_provider_iterator(baseline):
         pass
 
     stream = ModelWrapper(model, before_request=admit).stream_response(**request_args([]))
-    assert await anext(stream) == "first"
+    assert (await anext(stream)).delta == "first"
     assert not model.closed
     await stream.aclose()
     assert model.closed

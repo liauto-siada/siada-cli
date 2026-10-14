@@ -30,6 +30,7 @@ from openai.types.responses.response_reasoning_item import Summary as ReasoningS
 from openai.types.responses.response_usage import InputTokensDetails
 
 from siada.foundation.logging import logger
+from siada.provider.retry import MissingFinalResponseError
 from siada.provider.responses.sanitize import (
     ensure_reasoning_summary_nonempty,
     sanitize_input_reasoning_items,
@@ -425,6 +426,11 @@ class ResponsesModel(Model):
                 prompt=prompt,
             )
 
+            last_event_type = None
+            response_id = None
+            output_exposed = False
+            terminal_seen = False
+            stream = None
             try:
                 stream, _llm_request_body = await self._transport.create_stream(**request_params)
 
@@ -522,6 +528,11 @@ class ResponsesModel(Model):
 
                 async for event in stream:
                     event_type = getattr(event, "type", None)
+                    last_event_type = event_type
+                    event_response = getattr(event, "response", None)
+                    response_id = getattr(event_response, "id", None) or response_id
+                    if event_type in {"response.completed", "response.incomplete", "response.failed"}:
+                        terminal_seen = True
 
                     if event_type == "response.output_item.added":
                         item = getattr(event, "item", None)
@@ -702,11 +713,31 @@ class ResponsesModel(Model):
                         )
                     logger.debug(f"[SSE] {event_type} {_sse_extra}".rstrip())
 
+                    if event_type not in {"response.created", "response.in_progress"}:
+                        output_exposed = True
                     yield event
 
+                if not terminal_seen:
+                    raise MissingFinalResponseError(
+                        model=self.model, response_id=response_id,
+                        last_event=last_event_type, output_exposed=output_exposed,
+                    )
+
             except Exception as e:
-                logger.error(f"OpenAI Responses API streaming error: {e}")
+                if isinstance(e, MissingFinalResponseError):
+                    logger.error(
+                        "OpenAI Responses API streaming error: model=%s "
+                        "response_id=%s last_event=%s output_exposed=%s: %s",
+                        self.model, response_id, last_event_type, output_exposed, e,
+                    )
+                else:
+                    logger.error(f"OpenAI Responses API streaming error: {e}")
                 raise
+            finally:
+                if stream is not None:
+                    close = getattr(stream, "aclose", None) or getattr(stream, "close", None)
+                    if close is not None:
+                        await close()
 
     def _extract_usage(self, response: Response) -> Usage:
         """Extract usage information from Response object."""

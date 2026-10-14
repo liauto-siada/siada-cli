@@ -239,7 +239,9 @@ class ModelWrapper(Model):
 
             stream = (
                 create_stream() if isinstance(self.wrapped_model, ModelWrapper)
-                else retry_model_stream(create_stream)
+                else retry_model_stream(
+                    create_stream, model_name=getattr(self.wrapped_model, "model", None),
+                )
             )
             try:
                 async for event in stream:

@@ -597,6 +597,16 @@ If running `siada-cli` directly shows command not found:
 **Model API errors:**
 - Check your internet connection
 
+**Model response stream ended without a final response:**
+
+The stream ended without its terminal response event, even if some text was
+already displayed. Siada retries up to twice when only lifecycle events have
+arrived. Once text, reasoning, or tool events have been exposed, it reports the
+failure without replaying the request. Check displayed content and tool results
+before retrying. The error shows the actual log path (normally
+`~/.siada-cli/logs/errors.log`; `SIADA_CLI_LOG_DIR` can override the directory).
+Diagnostics include the model, response ID, last event, and output exposure.
+
 **Installation issues:**
 - Ensure you have Python 3.12+ installed
 - Install Poetry using the official installation method
