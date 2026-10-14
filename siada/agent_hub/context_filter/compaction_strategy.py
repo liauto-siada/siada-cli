@@ -28,8 +28,7 @@ from siada.agent_hub.context_filter.utils import (
     _convert_tools_to_openai_params,
     fix_tool_message_ordering,
 )
-from siada.provider.client_factory import get_client
-from siada.foundation.context import agent_name_scope
+from siada.provider.one_shot import extract_response_text, one_shot_completion
 from siada.foundation.logging import logger
 from siada.support.chat_compat_items import to_chat_compatible_items
 
@@ -443,11 +442,9 @@ class CompactionStrategy(ABC):
             )
 
         # Replayed history may contain native Responses apply_patch items,
-        # which the ChatCompletions converter rejects outright ("Unhandled
-        # item type or structure").  This summarization call always speaks
-        # chat completions (via ``get_client``), so rewrite those items into
-        # lossless function-call proxies first; the compacted result itself
-        # keeps the original native items.
+        # which the ChatCompletions token-count converter rejects outright.
+        # Rewrite those items only for token accounting; the SDK request keeps
+        # native history so ModelWrapper can normalize for the selected protocol.
         converted_messages = Converter.items_to_messages(
             to_chat_compatible_items(history_to_compact)
         )
@@ -459,7 +456,8 @@ class CompactionStrategy(ABC):
         # which strict Chat Completions providers reject (Moonshot:
         # "an assistant message with 'tool_calls' must be followed by tool
         # messages responding to each 'tool_call_id'"). Repair the ordering
-        # before sending; the normal streaming path applies the same repair.
+        # for token accounting. The standalone SDK boundary repairs tool pairs
+        # in item space for Chat models while preserving native Responses input.
         converted_messages = fix_tool_message_ordering(converted_messages)
         compact_messages = converted_messages + [
             {"role": "user", "content": self._get_compaction_user_prompt()}
@@ -477,29 +475,21 @@ class CompactionStrategy(ABC):
             len(compact_messages), compact_msg_tokens, model,
         )
 
-        llm_client = get_client(provider)
-
-        complete_kwargs = {
-            "model": model,
-            "messages": compact_messages,
-        }
-
-        # Only add empty tools list for Anthropic/Claude models to avoid litellm error
-        if "anthropic" in model.lower() or "claude" in model.lower():
-            complete_kwargs["tools"] = []
-
-        # Temporarily override AGENT_NAME so the X-Siada-Event-Type header on
-        # this LLM request is tagged as a compaction call. `agent_name_scope`
-        # restores the previous value (or removes the key if it was absent)
-        # on exit, preventing the override from leaking into subsequent
-        # requests that share the same asyncio task.
         _t0 = time.perf_counter()
-        with agent_name_scope(COMPACTION_AGENT_NAME):
-            response = await llm_client.completion(**complete_kwargs)
+        response = await one_shot_completion(
+            history_to_compact + [
+                {"role": "user", "content": self._get_compaction_user_prompt()}
+            ],
+            model=model,
+            provider=provider,
+            system_instructions=self._get_compaction_system_prompt(),
+            agent_name=COMPACTION_AGENT_NAME,
+            stream=True,
+        )
         _llm_elapsed_ms = (time.perf_counter() - _t0) * 1000
 
-        if response and response.choices and response.choices[0].message:
-            raw_content = response.choices[0].message.content
+        raw_content = extract_response_text(response)
+        if raw_content:
             summary = self._extract_summary(raw_content)
             logger.info(
                 "[PERF][call_llm_to_compact] model=%s input_tokens=%d "

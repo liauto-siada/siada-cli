@@ -7,10 +7,9 @@ from typing import Any
 
 from agents import RunContextWrapper, function_tool
 from agents.items import TResponseInputItem
-from openai.types.chat import ChatCompletionMessageParam
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.foundation.setting import settings
-from siada.provider.client_factory import get_client_with_kwargs
+from siada.provider.one_shot import extract_response_text, one_shot_completion
+from siada.provider.responses.responses_model import is_responses_only_model
 COMPRESS_DOCS = """Intelligently compress or summarize the conversation history within a specified range.
 
     This tool should be called when the following situations occur:
@@ -110,29 +109,22 @@ Please generate a summary based on the following conversation history:
 ---
 """
 
-    # Construct the request to be sent to the model
-    model_messages: list[ChatCompletionMessageParam] = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": "Please generate a summary based on the above conversation history and requirements."}
-    ]
-
-    # Call the model for a non-streaming request
-    default_kwargs = {
-        "model": settings.Claude_4_0_SONNET,
-        "messages": model_messages,
-        "stream": False,
-        "temperature": 0.2,  # Lower temperature to ensure the determinism and accuracy of the summary
-    }
-    
-    # Use get_client_with_kwargs to support context parameter overrides
-    client, complete_kwargs = get_client_with_kwargs(context.context, default_kwargs)
-    response = await client.completion(**complete_kwargs)
+    llm_config = context.context.session.siada_config.llm_config
+    # GPT-5+ Responses models reject temperature overrides.
+    temperature = None if is_responses_only_model(llm_config.model_name) else 0.2
+    response = await one_shot_completion(
+        "Please generate a summary based on the above conversation history and requirements.",
+        model=llm_config.model_name,
+        provider=llm_config.provider,
+        system_instructions=system_prompt,
+        temperature=temperature,
+        stream=True,
+    )
     
     # Extract the summary content from the response
-    if response and response.choices and response.choices[0].message:
-        summary = response.choices[0].message.content
-        if summary:
-            return summary.strip()
+    summary = extract_response_text(response).strip()
+    if summary:
+        return summary
 
     # If a valid summary cannot be obtained, return a default error message
     return f"[Smart Compression Summary]\nReason for compression: {reason}\nSummary generation failed: Unable to retrieve valid summary content from the model."
@@ -184,7 +176,7 @@ async def _compress_context_tool(
 
     # --- Compress using the model ---
     try:
-        compression_summary = await _compress_messages_with_model(messages_to_compress, reason)
+        compression_summary = await _compress_messages_with_model(messages_to_compress, reason, context)
     except Exception as e:
         return _create_failure_response(start_index, end_index, f"Error: Model compression failed - {str(e)}")
 

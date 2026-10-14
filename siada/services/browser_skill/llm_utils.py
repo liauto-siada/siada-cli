@@ -28,16 +28,12 @@ async def call_fast_llm(prompt: str, *, agent_name: str) -> str:
     real stuck record: bare call > 70 s vs 18.9 s with ``low``).
     """
     from siada.provider.fast_llm import fast_completion
+    from siada.provider.one_shot import extract_response_text
 
     learning = agent_name in ("browser_skill_reflector", "browser_skill_curator")
 
-    # NB: ``asyncio.timeout`` at the call sites cannot reliably interrupt
-    # litellm — its retry layer swallows the cancellation and the single-shot
-    # socket timeout defaults to LLM_API_POST_TIMEOUT (1200 s), so a slow
-    # gateway would hang this coroutine far beyond the caller's budget and
-    # the worker's lease. Pass an explicit short timeout so the failure
-    # surfaces at the socket layer instead: litellm aborts the connection
-    # and raises Timeout, which we swallow into "" as usual.
+    # Bound both the standalone coroutine and its provider socket attempt so
+    # the request cannot outlive the worker's lease.
     try:
         response = await fast_completion(
             prompt, agent_name=agent_name, timeout=50,
@@ -54,11 +50,7 @@ async def call_fast_llm(prompt: str, *, agent_name: str) -> str:
         logger.warning("[browser-skill] fast_completion failed (%s): %s", agent_name, e)
         return ""
 
-    if not response or not getattr(response, "choices", None):
-        return ""
-    choice = response.choices[0]
-    content = getattr(getattr(choice, "message", None), "content", None)
-    return content or ""
+    return extract_response_text(response)
 
 
 def parse_json_from_model(text: str) -> dict:

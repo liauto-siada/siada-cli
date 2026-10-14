@@ -532,15 +532,18 @@ async def test_fast_completion_precedence_explicit_over_override_over_env(
     monkeypatch.setenv("BASE_URL", _MAIN_BASE_URL)
     monkeypatch.setenv("API_KEY", _MAIN_API_KEY)
     _write_main_conf(temp_user_home, _full_override())
-    client = DefaultClient()
-    monkeypatch.setattr(client_factory, "get_client", lambda name=None: client)
+    captured = []
 
-    async with _captured_litellm_calls() as captured:
-        await fast_llm.fast_completion("write a slug")
-        await fast_llm.fast_completion("write a slug", api_key="sk-call")
-        await fast_llm.fast_completion(
-            "write a slug", api_base="https://call.example/v1", api_key="sk-call"
-        )
+    async def completion(prompt, **kwargs):
+        assert prompt == "write a slug"
+        captured.append(kwargs)
+
+    monkeypatch.setattr("siada.provider.one_shot.one_shot_completion", completion)
+    await fast_llm.fast_completion("write a slug")
+    await fast_llm.fast_completion("write a slug", api_key="sk-call")
+    await fast_llm.fast_completion(
+        "write a slug", api_base="https://call.example/v1", api_key="sk-call"
+    )
 
     # override only
     assert captured[0]["model"] == "fast-model"
@@ -588,6 +591,23 @@ async def test_fast_completion_override_never_mutates_process_credentials(
         },
     )
     before = _credential_env_snapshot()
+    fast_calls = []
+
+    async def completion(prompt, **kwargs):
+        provider = DefaultProvider()
+        try:
+            with provider.request_scope(base_url=kwargs["api_base"], api_key=kwargs["api_key"]):
+                model = provider.get_model(kwargs["model"])
+                client = provider._chat_client_factory.get_client()
+                fast_calls.append({
+                    "model": model.model,
+                    "api_base": str(client.base_url).rstrip("/"),
+                    "api_key": client.api_key,
+                })
+        finally:
+            await provider.aclose()
+
+    monkeypatch.setattr("siada.provider.one_shot.one_shot_completion", completion)
 
     async with _captured_litellm_calls() as captured:
         await fast_llm.fast_completion("write a slug")
@@ -597,15 +617,11 @@ async def test_fast_completion_override_never_mutates_process_credentials(
             model=fast_model, messages=[{"role": "user", "content": "hi"}]
         )
 
-    expected_model = {
-        "deepseek-chat": "deepseek/deepseek-chat",
-        "kimi-k2.5": "moonshot/kimi-k2.5",
-    }[fast_model]
-    assert captured[0]["model"] == expected_model
-    assert captured[0]["api_base"] == _FAST_BASE_URL
-    assert captured[0]["api_key"] == _FAST_API_KEY
-    assert captured[1]["api_base"] == _MAIN_BASE_URL
-    assert captured[1]["api_key"] == _MAIN_API_KEY
+    assert fast_calls[0]["model"] == fast_model
+    assert fast_calls[0]["api_base"] == _FAST_BASE_URL.rstrip("/")
+    assert fast_calls[0]["api_key"] == _FAST_API_KEY
+    assert captured[0]["api_base"] == _MAIN_BASE_URL
+    assert captured[0]["api_key"] == _MAIN_API_KEY
     # No credential env var was created, changed or removed…
     assert _credential_env_snapshot() == before
     # …in particular neither vendor var (both used to be set to the main key

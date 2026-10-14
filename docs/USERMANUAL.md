@@ -133,6 +133,51 @@ If a configured provider is unavailable in this distribution, it tries the
 parent's active provider and then `default`, which uses your configured
 `BASE_URL` and `API_KEY`. Available explicit providers retain priority.
 
+### Standalone Model Requests
+
+Session titles, memory slugs/summaries, browser-skill classification/matching,
+context compression, and image transcription use one Agents SDK model call
+through Siada's `ModelProviderWrapper`. These auxiliary requests do
+not start an Agent/Runner tool loop or write their prompts into the main session.
+Providers retain their model-specific Chat Completions/Responses/vendor routing.
+
+To select a separate model for fast helper requests, configure
+`~/.siada-cli/conf.yaml`:
+
+```yaml
+fast_llm_config:
+  model: "gpt-4o-mini"
+  provider: "default"
+  base_url: "https://gateway.example/v1"
+  api_key: "YOUR_API_KEY"
+  extra_headers:
+    X-Application: "siada-fast-helpers"
+```
+
+`model` is required for this override. `base_url`, `api_key`, and `extra_headers`
+are optional; omitted default-provider credentials use the normal runtime
+configuration. Independent endpoint overrides require the `default` provider;
+other providers must explicitly support request-local endpoint configuration.
+Credentials and headers remain local to each request and do not change the main
+model's configuration. Connections are reused and closed by the owning runtime,
+not after each helper call. Without this section, the existing fast-model
+selection policy is unchanged. This override applies to `fast_completion`
+helpers, not to the separate MemoryAgent Runner configuration.
+
+For Python integrations, `fast_completion` and `simple_completion` now return
+the SDK `ModelResponse`, not a LiteLLM `choices` response. Use
+`siada.provider.one_shot.extract_response_text(response)` for assistant text;
+reasoning, refusals, and tool-call items are excluded. `one_shot_completion`,
+`fast_completion`, and `simple_completion` use streaming transport by default
+while still returning only the final `ModelResponse`, not an iterator. Pass
+`stream=False` to explicitly use non-streaming transport. Standalone consumers,
+including automatic and explicit context compression, default to streaming to
+reduce long idle waits for a non-streaming body.
+Failure/incomplete SDK events or streams without a final SDK response raise an
+error instead of returning accumulated deltas. An explicit `timeout` still
+limits the entire request, including stream consumption; streaming does not
+guarantee that every timeout is avoided. Transport retries remain provider-specific.
+
 ### Agent Configuration (Developer Mode)
 
 Edit `agent_config.yaml` to customize agent behavior:

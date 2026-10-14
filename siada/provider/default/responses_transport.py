@@ -9,7 +9,6 @@ replacing the previous LiteLLM ``openai/responses/...`` bridge path.
 """
 from __future__ import annotations
 
-import os
 import threading
 from typing import Any, AsyncIterator, Dict
 
@@ -19,6 +18,7 @@ from openai.types.responses import Response
 from siada.foundation.logging import logger
 from siada.provider.lifecycle import EventLoopOwnership
 from siada.provider.responses.transport import ResponsesTransport
+from siada.provider.request_config import get_default_credentials, has_request_credentials
 
 # LiteLLM bridge prefixes that must not be sent to a native Responses endpoint.
 _BRIDGE_PREFIXES = ("openai/responses/", "responses/")
@@ -34,6 +34,7 @@ class DefaultResponsesTransport(ResponsesTransport):
         self._client: AsyncOpenAI | None = None
         self._client_key: tuple[str | None, str | None] | None = None
         self._retired_clients: list[AsyncOpenAI] = []
+        self._request_clients: dict[tuple[str | None, str | None], AsyncOpenAI] = {}
         self._lock = threading.Lock()
         self._closed = False
         self._loop_ownership = EventLoopOwnership()
@@ -53,8 +54,7 @@ class DefaultResponsesTransport(ResponsesTransport):
                 raise RuntimeError("DefaultResponsesTransport is closed")
             self._loop_ownership.check()
 
-            base_url = os.getenv("BASE_URL") or None
-            api_key = os.getenv("API_KEY") or None
+            base_url, api_key = get_default_credentials()
             if not api_key:
                 raise ValueError(
                     "API_KEY is required for Responses-API-only models (e.g. gpt-5.x) "
@@ -62,10 +62,16 @@ class DefaultResponsesTransport(ResponsesTransport):
                 )
 
             key = (base_url, api_key)
+            if has_request_credentials():
+                client = self._request_clients.get(key)
+                if client is None:
+                    client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
+                    self._request_clients[key] = client
+                return client
             if self._client is None or self._client_key != key:
                 if self._client is not None:
                     self._retired_clients.append(self._client)
-                self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+                self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
                 self._client_key = key
             return self._client
 
@@ -88,13 +94,14 @@ class DefaultResponsesTransport(ResponsesTransport):
         leaking them.
         """
         with self._lock:
-            if self._closed and self._client is None and not self._retired_clients:
+            if self._closed and self._client is None and not self._retired_clients and not self._request_clients:
                 return
             self._loop_ownership.check()
             self._closed = True
 
-            clients = list(self._retired_clients)
+            clients = [*self._retired_clients, *self._request_clients.values()]
             self._retired_clients.clear()
+            self._request_clients.clear()
             if self._client is not None:
                 clients.append(self._client)
                 self._client = None

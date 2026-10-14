@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING
 
 from agents import Model, ModelProvider
@@ -15,6 +16,10 @@ from siada.provider.default.kimi_tool_ordering import (
 )
 from siada.provider.llm_client import LLMClient
 from siada.provider.reasoning_replay import should_replay_reasoning_content
+from siada.provider.request_config import (
+    default_credentials_scope,
+    get_default_credentials,
+)
 
 if TYPE_CHECKING:
     from litellm.types.utils import ModelResponse as LitellmModelResponse
@@ -79,6 +84,12 @@ class DefaultProvider(ModelProvider):
         self.base_url = os.getenv("BASE_URL", None)
         self.api_key = os.getenv("API_KEY", None)
 
+    def request_scope(
+        self, *, base_url: str | None = None, api_key: str | None = None
+    ) -> AbstractContextManager[None]:
+        """Use isolated endpoint credentials while retaining runtime ownership."""
+        return default_credentials_scope(base_url=base_url, api_key=api_key)
+
     def _ensure_openrouter_prefix(self, model_name: str, base_url: str | None = None) -> str:
         """Route model ids through litellm's openrouter provider when BASE_URL is OpenRouter.
 
@@ -112,10 +123,11 @@ class DefaultProvider(ModelProvider):
             The model.
         """
         self._refresh_credentials()
+        base_url, api_key = get_default_credentials()
         return self._build_model(
             model_name,
-            base_url=self.base_url,
-            api_key=self.api_key,
+            base_url=base_url,
+            api_key=api_key,
             credentials_source=self._CREDENTIALS_ENV,
         )
 
@@ -177,14 +189,12 @@ class DefaultProvider(ModelProvider):
         raw_model_name = model_name or os.getenv("MODEL_NAME")
         from siada.provider.responses import ResponsesModel, is_responses_only_model
         if is_responses_only_model(raw_model_name):
-            # That transport reads BASE_URL / API_KEY from the environment and
-            # offers no per-call credential injection, so an override whose
-            # values differ from the environment cannot be honored. Fail loudly
-            # instead of silently sending the request to the main endpoint with
-            # the main key.
+            # A bare pinned model outlives a request scope. Its credentials
+            # must match the transport's active task-local configuration.
+            active_base_url, active_api_key = get_default_credentials()
             if credentials_source == self._CREDENTIALS_OVERRIDE and (
-                base_url != os.getenv("BASE_URL", None)
-                or api_key != os.getenv("API_KEY", None)
+                base_url != active_base_url
+                or api_key != active_api_key
             ):
                 raise ValueError(
                     "fast_llm_config credentials cannot be applied to the "

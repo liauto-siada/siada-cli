@@ -123,6 +123,44 @@ sub_agent:
 在当前发行版中不可用，会依次尝试父 agent 当前使用的 provider 和 `default`。
 `default` 使用你配置的 `BASE_URL` 和 `API_KEY`；可用的显式 provider 优先使用。
 
+### 一次性模型请求
+
+会话标题、记忆文件名与摘要、浏览器技能分类与匹配、上下文压缩和图片转写，
+通过 Siada 的 `ModelProviderWrapper` 发起一次 Agents SDK 模型调用。
+这些辅助请求不会启动 Agent/Runner 工具循环，也不会将提示词写入主会话。
+Provider 仍按模型选择 Chat Completions、Responses 或厂商专用协议。
+
+如果需要为快速辅助请求选择独立模型，可配置 `~/.siada-cli/conf.yaml`：
+
+```yaml
+fast_llm_config:
+  model: "gpt-4o-mini"
+  provider: "default"
+  base_url: "https://gateway.example/v1"
+  api_key: "YOUR_API_KEY"
+  extra_headers:
+    X-Application: "siada-fast-helpers"
+```
+
+此覆盖配置必须包含 `model`。`base_url`、`api_key` 和 `extra_headers` 可省略；
+default Provider 未覆盖的认证字段沿用正常运行时配置。
+独立地址与 API key 覆盖需要使用 `default` Provider；其他 Provider 必须明确支持
+请求局部的端点配置。认证信息和请求头仅作用于当前请求，不修改主模型配置。
+连接复用并由所属运行时统一关闭，不在每次辅助调用后关闭。
+未配置此节时，原有快速模型选择策略保持不变。
+此覆盖只适用于 `fast_completion` 辅助调用，不改变独立的 MemoryAgent Runner 配置。
+
+Python 集成中，`fast_completion` 和 `simple_completion` 现在返回 SDK
+`ModelResponse`，而非带有 LiteLLM `choices` 的响应。可通过
+`siada.provider.one_shot.extract_response_text(response)` 提取助手正文；
+推理、拒绝和工具调用项不会混入正文。`one_shot_completion`、`fast_completion`
+和 `simple_completion` 默认使用流式传输，但只返回最终的 `ModelResponse`，
+不会返回迭代器。显式传入 `stream=False` 仍可使用非流式传输。包括自动与显式
+上下文压缩在内的独立模型调用默认走流式，以减少等待完整非流式响应期间的长时间空闲。
+收到 SDK 失败/不完整事件，或流结束时没有最终 SDK 响应，会报错而非返回累积的增量文本。
+显式 `timeout` 仍限制整个请求（包括流消费）的总耗时；流式不能保证避免所有超时。
+传输层重试仍由各 Provider 决定。
+
 ### 代理配置(开发者模式)
 
 编辑 `agent_config.yaml` 以自定义代理行为：

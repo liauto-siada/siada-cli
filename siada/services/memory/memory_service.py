@@ -791,14 +791,12 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
         Returns:
             Cleaned slug, or None if extraction failed
         """
-        if not response or not hasattr(response, 'choices') or len(response.choices) == 0:
+        from siada.provider.one_shot import extract_response_text
+
+        raw_slug = extract_response_text(response).strip()
+        if not raw_slug:
             return None
         
-        choice = response.choices[0]
-        if not hasattr(choice, 'message') or not hasattr(choice.message, 'content'):
-            return None
-        
-        raw_slug = choice.message.content.strip()
         cleaned_slug = self._clean_slug(raw_slug)
         
         # Validate slug is not just the default

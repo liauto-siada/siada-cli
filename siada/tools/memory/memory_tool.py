@@ -392,6 +392,7 @@ async def _summarize_session(content: str, query: str, path: str, detail_level: 
     """Summarize a single session via fast_completion; on failure, fall back to
     the first 500 characters of the original text."""
     from siada.provider.fast_llm import fast_completion
+    from siada.provider.one_shot import extract_response_text
 
     date_str = _extract_date_from_path(path)
     user_prompt = (
@@ -412,8 +413,9 @@ async def _summarize_session(content: str, query: str, path: str, detail_level: 
             temperature=0.1,
             max_tokens=max_tokens,
         )
-        if response and hasattr(response, "choices") and response.choices:
-            return response.choices[0].message.content.strip()
+        summary = extract_response_text(response).strip()
+        if summary:
+            return summary
         raise ValueError("Empty response from LLM")
     except Exception as e:
         logger.warning(f"[search_memory] LLM summary failed for {path}: {e}")

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import threading
 from typing import Any
 
@@ -16,6 +15,7 @@ from siada.provider.chat_completions import (
 )
 from siada.provider.default.coverter import covert_to_litellm_model_name
 from siada.provider.lifecycle import EventLoopOwnership
+from siada.provider.request_config import get_default_credentials, has_request_credentials
 
 
 _LITELLM_ROUTING_PREFIXES = frozenset(
@@ -124,6 +124,7 @@ class DefaultChatClientFactory:
         self._client: AsyncOpenAI | None = None
         self._client_key: tuple[str | None, str | None] | None = None
         self._retired_clients: list[AsyncOpenAI] = []
+        self._request_clients: dict[tuple[str | None, str | None], AsyncOpenAI] = {}
         self._lock = threading.Lock()
         self._loop_ownership = EventLoopOwnership()
         self._closed = False
@@ -133,8 +134,7 @@ class DefaultChatClientFactory:
             base_url = self._pinned_base_url or None
             api_key = self._pinned_api_key
         else:
-            base_url = os.getenv("BASE_URL") or None
-            api_key = os.getenv("API_KEY") or None
+            base_url, api_key = get_default_credentials()
         if not api_key:
             raise ValueError(
                 "API_KEY is required for the default OpenAI Chat Completions "
@@ -147,6 +147,17 @@ class DefaultChatClientFactory:
             if self._closed:
                 raise RuntimeError("DefaultChatClientFactory is closed")
             self._loop_ownership.check()
+            if self._pinned_api_key is None and has_request_credentials():
+                client = self._request_clients.get(key)
+                if client is None:
+                    client = AsyncOpenAI(
+                        api_key=api_key,
+                        base_url=base_url,
+                        timeout=LLM_API_POST_TIMEOUT,
+                        max_retries=0,
+                    )
+                    self._request_clients[key] = client
+                return client
             if self._client is None or self._client_key != key:
                 if self._client is not None:
                     self._retired_clients.append(self._client)
@@ -177,12 +188,13 @@ class DefaultChatClientFactory:
         them instead of them being dropped beyond reach.
         """
         with self._lock:
-            if self._closed and self._client is None and not self._retired_clients:
+            if self._closed and self._client is None and not self._retired_clients and not self._request_clients:
                 return
             self._loop_ownership.check()
             self._closed = True
-            clients = [*self._retired_clients]
+            clients = [*self._retired_clients, *self._request_clients.values()]
             self._retired_clients.clear()
+            self._request_clients.clear()
             if self._client is not None:
                 clients.append(self._client)
                 self._client = None

@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock
 
 import litellm
 import pytest
+from agents import ModelResponse, Usage
+from openai.types.responses import ResponseOutputMessage, ResponseOutputText
 
 from siada.agent_hub.context_filter.header_summary_compaction_strategy import (
     SummarizeWithHeaderCompaction,
@@ -111,27 +113,22 @@ async def test_compaction_with_gateway_alias(monkeypatch, override_model):
         provider="default",
         model_name="gpt-4o-mini" if override_model else alias,
     )
-    response = SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(content="<context>summary</context>")
-            )
-        ]
+    response = ModelResponse(
+        output=[ResponseOutputMessage(
+            id="summary", role="assistant", type="message", status="completed",
+            content=[ResponseOutputText(type="output_text", text="<context>summary</context>", annotations=[])],
+        )],
+        usage=Usage(requests=1), response_id="summary",
     )
 
-    async def completion(**kwargs):
-        wire_model, provider, _, _ = litellm.get_llm_provider(
-            model=kwargs["model"],
-            custom_llm_provider=kwargs.get("custom_llm_provider"),
-            api_base=kwargs["api_base"],
-            api_key=kwargs["api_key"],
-        )
-        assert wire_model == alias
-        assert provider == "openai"
-        assert kwargs["messages"][0]["role"] == "system"
+    async def completion(input, **kwargs):
+        assert kwargs["model"] == alias
+        assert kwargs["provider"] == "default"
+        assert kwargs["system_instructions"]
+        assert input[0] == {"role": "user", "content": "Summarize this task."}
         return response
 
-    monkeypatch.setattr(litellm, "acompletion", completion)
+    monkeypatch.setattr("siada.agent_hub.context_filter.compaction_strategy.one_shot_completion", completion)
     strategy = SummarizeWithHeaderCompaction()
     monkeypatch.setattr(strategy, "_count_tokens", lambda *args: 10)
 

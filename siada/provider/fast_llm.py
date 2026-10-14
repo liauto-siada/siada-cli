@@ -4,7 +4,7 @@ Fast LLM helpers for memory-related LLM calls.
 Lightweight tasks (session naming, MemoryAgent, summaries…) don't need the main
 agent's flagship model.  This module wraps:
 
-* the provider ``LLMClient`` (used by ``MemoryService._generate_slug_via_llm``)
+* direct SDK model requests (used by ``MemoryService._generate_slug_via_llm``)
 * provider ``RunConfig`` (used by ``MemoryAgent``; with a ``fast_llm_config``
   override the fast Model instance travels on ``RunConfig.model`` instead of
   being resolved from ``RunConfig.model_provider`` at run time)
@@ -39,7 +39,7 @@ choice is untouched. Background runs built here also disable tracing (see
 
 from typing import Any, Dict, Optional, Tuple
 
-from agents import Model, RunConfig
+from agents import Model, ModelResponse, RunConfig
 
 from siada.foundation.logging import logger
 from siada.models.model_run_config import ModelRunConfig
@@ -302,30 +302,27 @@ async def fast_completion(
     *,
     agent_name: Optional[str] = None,
     **kwargs: Any,
-) -> Optional[Any]:
-    """One-shot completion through the fast provider's ``LLMClient``.
+) -> ModelResponse:
+    """One-shot SDK completion through the wrapped, loop-owned fast provider.
 
     Args:
         prompt: User prompt content.
         agent_name: Optional override for the AGENT_NAME context variable for
             the duration of this call only.
-        **kwargs: Optional overrides forwarded to LLMClient.completion
-                  (e.g. temperature, max_tokens, stream).
+        **kwargs: Request-local SDK settings and endpoint overrides
+                  (e.g. temperature, max_tokens, timeout, messages, stream).
 
     Returns:
-        The ``LitellmModelResponse`` returned by LLMClient.completion.
+        The final SDK ``ModelResponse``. Streaming transport is consumed
+        internally by default; pass stream=False for non-streaming transport.
     """
     # Lazy import so code paths that don't use this don't pay the cost.
-    from siada.foundation.context import agent_name_scope
-    from siada.provider.client_factory import get_client
+    from siada.provider.one_shot import one_shot_completion
 
     model_name, provider_name, override_kwargs = _get_fast_model_and_provider()
-    client = get_client(provider_name)
-
     call_kwargs = {
         "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
-        "stream": False,
+        "stream": True,
     }
     # Explicit per-call kwargs (kwargs) take precedence over the conf.yaml
     # fast_llm_config override (override_kwargs).
@@ -336,5 +333,6 @@ async def fast_completion(
         f"[fast-llm] fast_completion -> model={model_name} "
         f"provider={provider_name}"
     )
-    with agent_name_scope(agent_name):
-        return await client.completion(**call_kwargs)
+    return await one_shot_completion(
+        prompt, provider=provider_name, agent_name=agent_name, **call_kwargs
+    )

@@ -122,9 +122,11 @@ def _encode_image_data_url(path: str) -> Optional[str]:
 
 
 async def _transcribe_one(
-    client: object, engine_model: str, path: str, user_hint: str
+    provider_name: str, engine_model: str, path: str, user_hint: str
 ) -> Optional[str]:
     """Transcribe a single image through the vision engine."""
+    from siada.provider.one_shot import extract_response_text, one_shot_completion
+
     data_url = _encode_image_data_url(path)
     if data_url is None:
         return None
@@ -133,23 +135,23 @@ async def _transcribe_one(
     if user_hint and user_hint.strip():
         prompt += f"\n\nAdditional focus from the user:\n{user_hint.strip()}"
 
-    messages = [
+    input_items = [
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": data_url}},
+                {"type": "input_text", "text": prompt},
+                {"type": "input_image", "image_url": data_url, "detail": "auto"},
             ],
         }
     ]
     try:
-        response = await client.completion(
+        response = await one_shot_completion(
+            input_items,
             model=engine_model,
-            messages=messages,
+            provider=provider_name,
             max_tokens=32768,
-            stream=False,
         )
-        content = (response.choices[0].message.content or "").strip()
+        content = extract_response_text(response).strip()
         return content or None
     except Exception as exc:
         logger.warning(f"[vision-bridge] transcription failed for {path}: {exc}")
@@ -179,16 +181,6 @@ async def transcribe_images(
 
     engine_model, provider_name = engine
 
-    # Lazy import: client_factory performs dynamic client discovery at import
-    # time; keep it off the module import path.
-    from siada.provider.client_factory import get_client
-
-    try:
-        client = get_client(provider_name)
-    except ValueError as exc:
-        logger.warning(f"[vision-bridge] no client for provider {provider_name}: {exc}")
-        return None
-
     logger.info(
         f"[vision-bridge] transcribing {len(image_paths)} image(s) "
         f"via {engine_model} (provider={provider_name})"
@@ -198,7 +190,7 @@ async def transcribe_images(
     for path in image_paths:
         try:
             evidence = await asyncio.wait_for(
-                _transcribe_one(client, engine_model, path, user_hint),
+                _transcribe_one(provider_name, engine_model, path, user_hint),
                 timeout=_TRANSCRIBE_TIMEOUT_S,
             )
         except asyncio.TimeoutError:

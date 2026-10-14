@@ -47,14 +47,9 @@ Conversation:
 
 def _extract_title_from_response(response: Any) -> Optional[str]:
     """Extract and clean the title text from a fast LLM completion response."""
-    if not response or not hasattr(response, "choices") or len(response.choices) == 0:
-        return None
+    from siada.provider.one_shot import extract_response_text
 
-    choice = response.choices[0]
-    if not hasattr(choice, "message") or not hasattr(choice.message, "content"):
-        return None
-
-    content = choice.message.content
+    content = extract_response_text(response)
     if not content:
         return None
 

@@ -10,7 +10,7 @@ from siada.foundation.logging import logger
 from siada.provider.llm_client import LLMClient
 
 if TYPE_CHECKING:
-    from litellm.types.utils import ModelResponse as LitellmModelResponse
+    from agents import ModelResponse
 
 CLIENT_DIR = os.path.dirname(__file__)
 client_map: Dict[str, LLMClient] = {}
@@ -137,12 +137,12 @@ async def simple_completion(
     *,
     agent_name: Optional[str] = None,
     **kwargs
-) -> Optional[LitellmModelResponse]:
+) -> ModelResponse:
     """
     Simplified LLM completion interface - just pass context and prompt.
 
-    This is a convenience wrapper around get_client_with_kwargs that pre-configures
-    common parameters, making it easier to call LLM for simple tasks.
+    Resolves the active model configuration and makes one wrapped SDK model
+    request without Agent/Runner or the legacy client completion transport.
 
     Args:
         prompt: The user prompt to send to the LLM
@@ -153,11 +153,11 @@ async def simple_completion(
             instead of inheriting whatever the surrounding coroutine had set.
             The previous value is restored automatically, so the override never
             leaks into subsequent work on the same task.
-        **kwargs: Optional parameters like temperature, max_tokens, stream, etc.
+        **kwargs: Optional parameters like temperature, max_tokens, timeout, etc.
                   Will override defaults if provided.
 
     Returns:
-        LitellmModelResponse: The LLM response, or None if failed
+        ModelResponse: The SDK response. Errors propagate to the caller.
 
     Example:
         # Basic usage
@@ -171,26 +171,14 @@ async def simple_completion(
             agent_name="code_analysis",
         )
     """
-    from siada.foundation.setting import settings
-    from siada.foundation.context import agent_name_scope
+    from siada.provider.one_shot import one_shot_completion
 
-    # Prepare default kwargs with preset parameters
-    default_kwargs = {
-        'model': settings.DEFAULT_MODEL,
-        'messages': [
-            {'role': 'user', 'content': prompt}
-        ],
-        'stream': False
-    }
-    
-    # Merge with any additional kwargs provided
-    default_kwargs.update(kwargs)
-    
-    # Get client and complete kwargs from context
-    client, complete_kwargs = get_client_with_kwargs(default_kwargs)
-
-    # Scope AGENT_NAME override to this call only (no-op if not provided)
-    with agent_name_scope(agent_name):
-        response = await client.completion(**complete_kwargs)
-
-    return response
+    llm_config = get_context_var(LLM_CONFIG)
+    options = dict(kwargs)
+    options["model"] = llm_config.model_name
+    options["provider"] = llm_config.provider
+    return await one_shot_completion(
+        prompt,
+        agent_name=agent_name,
+        **options,
+    )

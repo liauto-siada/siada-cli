@@ -767,6 +767,8 @@ class ResponsesModel(Model):
                 )
                 raise
             finally:
+                # Closing an SDK generator must also release its request body,
+                # without closing the transport's runtime-owned HTTP client.
                 if stream is not None:
                     close = getattr(stream, "aclose", None) or getattr(stream, "close", None)
                     if close is not None:

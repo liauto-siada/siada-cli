@@ -212,17 +212,17 @@ async def test_fast_completion_calls_the_resolved_client(temp_user_home, monkeyp
         temp_user_home,
         {"llm_config": {"provider": "default", "model": "main-model"}},
     )
-    fake_client = MagicMock()
-    fake_client.completion = AsyncMock(return_value="response")
-    monkeypatch.setattr(client_factory, "get_client", lambda name=None: fake_client)
+    completion = AsyncMock(return_value="response")
+    monkeypatch.setattr("siada.provider.one_shot.one_shot_completion", completion)
 
     result = await fast_llm.fast_completion("write a slug", temperature=0.2)
 
     assert result == "response"
-    _, call_kwargs = fake_client.completion.call_args
+    call_args, call_kwargs = completion.call_args
     assert call_kwargs["model"] == "main-model"
-    assert call_kwargs["messages"] == [{"role": "user", "content": "write a slug"}]
-    assert call_kwargs["stream"] is False
+    assert call_kwargs["provider"] == "default"
+    assert call_args == ("write a slug",)
+    assert call_kwargs["stream"] is True
     assert call_kwargs["temperature"] == 0.2
 
 

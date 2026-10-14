@@ -1,8 +1,8 @@
 """Compaction summarization must accept native Responses apply_patch history.
 
-``call_llm_to_compact`` converts the history slice with the ChatCompletions
-``Converter`` (the summarization call is chat-shaped regardless of the main
-model).  Before the fix, any native ``apply_patch_call`` item in the slice
+``call_llm_to_compact`` sends native history to the wrapped SDK model, while
+token accounting still uses the ChatCompletions converter. Before the fix,
+any native ``apply_patch_call`` item in the slice
 raised ``UserError("Unhandled item type or structure")``, silently breaking
 compaction for GPT-5/Astra sessions.
 """
@@ -12,6 +12,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from agents import ModelResponse
+from agents.usage import Usage
+from openai.types.responses import ResponseOutputMessage
 
 from siada.agent_hub.context_filter.header_summary_compaction_strategy import (
     SummarizeWithHeaderCompaction,
@@ -67,26 +70,34 @@ class TestCallLlmToCompactWithNativePatchItems:
         strategy = SummarizeWithHeaderCompaction()
         model_config = _model_config()
 
-        message = SimpleNamespace(content="<context>summary</context>")
-        response = SimpleNamespace(choices=[SimpleNamespace(message=message)])
-        client = SimpleNamespace(completion=AsyncMock(return_value=response))
+        response = ModelResponse(
+            output=[ResponseOutputMessage.model_validate({
+                "id": "msg-synthetic", "type": "message", "role": "assistant", "status": "completed",
+                "content": [{"type": "output_text", "text": "<context>summary</context>", "annotations": []}],
+            })],
+            usage=Usage(), response_id="response-synthetic",
+        )
+        completion = AsyncMock(return_value=response)
 
         with patch(
-            "siada.agent_hub.context_filter.compaction_strategy.get_client",
-            return_value=client,
+            "siada.agent_hub.context_filter.compaction_strategy.one_shot_completion",
+            completion,
         ):
             summary = await strategy.call_llm_to_compact(model_config, _patch_history())
 
         assert summary == "<context>summary</context>"
 
-        sent = client.completion.await_args.kwargs["messages"]
-        # The summarization request carries the function-call-shaped proxy,
-        # paired exactly like the native call/output pair.
-        assistant_calls = [m for m in sent if m.get("tool_calls")]
-        assert assistant_calls, "expected an assistant message with tool_calls"
-        assert assistant_calls[0]["tool_calls"][0]["function"]["name"] == "apply_patch"
-        tool_messages = [m for m in sent if m.get("role") == "tool"]
-        assert tool_messages and tool_messages[0]["tool_call_id"] == "c1"
+        sent = completion.await_args.args[0]
+        # Native history reaches the shared boundary without losing operations;
+        # ModelWrapper selects native replay or function-call proxies by protocol.
+        calls = [item for item in sent if item.get("type") == "apply_patch_call"]
+        outputs = [item for item in sent if item.get("type") == "apply_patch_call_output"]
+        assert calls[0]["operation"]["path"] == "a.py"
+        assert calls[0]["call_id"] == outputs[0]["call_id"] == "c1"
+        assert sent[-1]["role"] == "user"
+        assert completion.await_args.kwargs["provider"] == "default"
+        assert completion.await_args.kwargs["agent_name"] == "context_compaction"
+        assert completion.await_args.kwargs["stream"] is True
 
     def test_raw_conversion_anchor(self):
         """Without the rewrite the SDK converter raises -- this is the bug."""
@@ -121,13 +132,17 @@ class TestCompactedHistoryChatReplay:
         strategy = SummarizeWithHeaderCompaction()
         model_config = _model_config()
 
-        message = SimpleNamespace(content="<context>second summary</context>")
-        response = SimpleNamespace(choices=[SimpleNamespace(message=message)])
-        client = SimpleNamespace(completion=AsyncMock(return_value=response))
+        response = ModelResponse(
+            output=[ResponseOutputMessage.model_validate({
+                "id": "msg-synthetic", "type": "message", "role": "assistant", "status": "completed",
+                "content": [{"type": "output_text", "text": "<context>second summary</context>", "annotations": []}],
+            })],
+            usage=Usage(), response_id="response-synthetic",
+        )
 
         with patch(
-            "siada.agent_hub.context_filter.compaction_strategy.get_client",
-            return_value=client,
+            "siada.agent_hub.context_filter.compaction_strategy.one_shot_completion",
+            AsyncMock(return_value=response),
         ):
             summary = await strategy.call_llm_to_compact(
                 model_config, self._compacted_history()
