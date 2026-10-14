@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing Siada release tag (for example v1.7.32)
+        description: Release tag, or source branch for a build without publishing
         required: true
         type: string
       publish:
@@ -49,8 +49,9 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_PUBLISH: ${{ inputs.publish }}
         run: |
-          node --input-type=module -e 'import {cliVersion} from "./chrome-acp/scripts/package-browser.mjs"; if (process.env.RELEASE_TAG !== `v${cliVersion()}`) throw new Error("Tag/version mismatch");'
+          node --input-type=module -e 'import {cliVersion} from "./chrome-acp/scripts/package-browser.mjs"; const ref = process.env.RELEASE_TAG; if ((process.env.RELEASE_PUBLISH === "true" || /^v\d/.test(ref)) && ref !== `v${cliVersion()}`) throw new Error("Tag/version mismatch");'
       - name: Install locked browser dependencies
         working-directory: chrome-acp
         run: bun install --frozen-lockfile

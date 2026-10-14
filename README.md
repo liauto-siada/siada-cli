@@ -20,7 +20,7 @@
 
 > AI's value is not in replacing people, but in making room for creativity.
 
-**Development preview:** the browser addon and Chrome extension are not yet included in public `main` or the published PyPI package. The workflows below come from the browser collaboration demos. Feishu outputs require the relevant skills and authorization.
+**Browser collaboration:** the PyPI package includes the browser installer. Node.js, the proxy, and the Chrome extension are distributed as matching platform packages through GitHub Releases. The workflows below come from the browser collaboration demos. Feishu outputs require the relevant skills and authorization.
 
 The browser collaboration preview brings Siada into the page you are reading. Your current reading, browsing history, and recent actions provide context for understanding, organizing, and creating.
 
@@ -175,7 +175,7 @@ Checkpoints are opt-in and are unavailable in non-interactive mode. See the [Use
 
 The preview connects a Chrome extension to a local proxy and the Siada ACP agent. ACP handles the agent conversation; MCP exposes browser tools for reading pages, navigating, capturing snapshots, and adding inline annotations. Browser actions and page snapshots can be reviewed in Trace.
 
-This checkout adds a browser platform package containing Node.js, the proxy, its production dependencies, the web client, and the Chrome extension. The packages have not yet been published or verified through the release workflow. Once the matching release is available, install with:
+Browser platform packages contain Node.js, the proxy, its production dependencies, the web client, and the Chrome extension. Install the package matching your CLI version and platform with:
 
 ```bash
 siada-browser setup

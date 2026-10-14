@@ -2,9 +2,10 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const __dirname = new URL(".", import.meta.url).pathname;
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const buildInputAudit: Plugin = {
   name: "chrome-acp-build-inputs",
