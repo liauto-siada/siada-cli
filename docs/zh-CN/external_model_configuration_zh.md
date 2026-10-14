@@ -6,6 +6,13 @@
 
 当使用 `--provider default` 时，Siada 支持从本地配置文件加载用户自定义的模型配置。这允许你配置自己的模型集合和默认模型。
 
+经 `ModelWrapper` 的 agent 调用会对传输超时、连接失败和 LiteLLM midstream
+异常最多重试两次，采用指数退避和随机抖动。重试同时覆盖创建流和消费流，
+前提是尚未把输出或工具事件交给下游；交出这些事件后异常会直接传播，
+避免重复输出或工具调用。上下文 admission 只执行一次，嵌套包装器共享
+同一传输重试预算。直接 completion 客户端仍使用自身策略。协议路由和异常矩阵
+详见 [Provider 路由与异常重试 wiki](../wiki/17_provider-routing-retries.md)。
+
 ## 配置文件位置
 
 模型配置文件位于：`~/.siada-cli/models.json`

@@ -6,6 +6,15 @@ User-Defined Model Configuration Guide
 
 When using `--provider default`, Siada supports loading user-defined model configurations from a local configuration file. This allows you to configure your own model collection and default model.
 
+Agent calls through `ModelWrapper` retry transport timeouts, connection failures,
+and LiteLLM midstream failures up to twice, with exponential backoff and jitter.
+This covers stream creation and consumption before any output or tool event is
+exposed. Once such an event reaches the caller, the error propagates to avoid
+duplicating output or tool calls. Context admission runs once; nested wrappers
+share one transport retry budget. Direct completion clients retain their own
+retry policies. See the [provider routing and retry wiki](wiki/17_provider-routing-retries.md)
+for the protocol routes and exception matrix.
+
 ## Configuration File Location
 
 The model configuration file is located at: `~/.siada-cli/models.json`

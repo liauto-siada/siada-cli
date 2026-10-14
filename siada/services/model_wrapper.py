@@ -9,6 +9,7 @@ and transparent to the agents framework.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from functools import partial
 from typing import Any, Awaitable, Callable
 
 from agents import Model, TResponseInputItem, ModelSettings, AgentOutputSchemaBase, Handoff, ModelTracing, \
@@ -19,6 +20,7 @@ from openai.types.responses.response_prompt_param import ResponsePromptParam
 from siada.models.agent import Tool
 from siada.models.model_base_config import is_claude_model
 from siada.foundation.logging import logger
+from siada.provider.retry import retry_model_call, retry_model_stream
 from siada.support.chat_compat_items import to_chat_compatible_items
 
 
@@ -178,7 +180,12 @@ class ModelWrapper(Model):
         processed_input = self._process_input(input)
         
         # Call the wrapped model with processed input
-        return await self.wrapped_model.get_response(
+        call = self.wrapped_model.get_response
+        # Admission can wrap an already filtered model. Only the innermost
+        # wrapper owns transport retries, keeping hooks and the budget single.
+        if not isinstance(self.wrapped_model, ModelWrapper):
+            call = partial(retry_model_call, call)
+        return await call(
             system_instructions=system_instructions,
             input=processed_input,
             model_settings=model_settings,
@@ -211,12 +218,15 @@ class ModelWrapper(Model):
         This method processes the input using the configured input_processor
         before passing it to the underlying model.
         """
-        if self.before_request is not None:
-            async def admitted_stream():
+        async def admitted_stream():
+            if self.before_request is not None:
                 await self.before_request(input)
-                stream = self.wrapped_model.stream_response(
+            processed_input = self._process_input(input)
+
+            def create_stream():
+                return self.wrapped_model.stream_response(
                     system_instructions=system_instructions,
-                    input=self._process_input(input),
+                    input=processed_input,
                     model_settings=model_settings,
                     tools=tools,
                     output_schema=output_schema,
@@ -226,31 +236,18 @@ class ModelWrapper(Model):
                     conversation_id=conversation_id,
                     prompt=prompt,
                 )
-                try:
-                    async for event in stream:
-                        yield event
-                finally:
-                    close = getattr(stream, "aclose", None)
-                    if close is not None:
-                        await close()
 
-            return admitted_stream()
-        # Process the input
-        processed_input = self._process_input(input)
-        
-        # Call the wrapped model with processed input
-        return self.wrapped_model.stream_response(
-            system_instructions=system_instructions,
-            input=processed_input,
-            model_settings=model_settings,
-            tools=tools,
-            output_schema=output_schema,
-            handoffs=handoffs,
-            tracing=tracing,
-            previous_response_id=previous_response_id,
-            conversation_id=conversation_id,
-            prompt=prompt,
-        )
+            stream = (
+                create_stream() if isinstance(self.wrapped_model, ModelWrapper)
+                else retry_model_stream(create_stream)
+            )
+            try:
+                async for event in stream:
+                    yield event
+            finally:
+                await stream.aclose()
+
+        return admitted_stream()
     
     def __str__(self) -> str:
         """String representation for debugging."""
