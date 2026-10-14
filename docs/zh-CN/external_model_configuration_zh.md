@@ -219,6 +219,10 @@ nano ~/.siada-cli/models.json
 
 ### 2. 配置 API 连接信息
 
+在 Siada UI 中运行 `/configure`，选择供应商、模型并输入 API Key。
+可以重复运行该命令来更新 Key 或切换供应商，无需重启。
+提交过程中也可以按 Esc 取消配置。
+
 在 `~/.siada-cli/conf.yaml` 中配置 `base_url` 和 `api_key`：
 
 ```yaml

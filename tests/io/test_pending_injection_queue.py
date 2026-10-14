@@ -210,6 +210,34 @@ class TestPendingInjectionQueue(unittest.TestCase):
         # Must NOT arrive in _queue
         self.assertTrue(self.monitor._queue.empty())
 
+    def test_login_choices_bypass_pending_injections(self):
+        """Login replies must reach the wizard even during a command turn."""
+        payloads = [
+            '__LOGIN_CHOICE__:3:{"provider_id":"kimi","api_key":"synthetic-key",'
+            '"base_url":"https://example.test/v1","model":"kimi-k3"}',
+            "__LOGIN_CHOICE__:1",
+            "__LOGIN_CHOICE__:2",
+            "__LOGIN_CHOICE__:cancel",
+            "__LOGIN_CHOICE__:skip",
+        ]
+        for running in (False, True):
+            for payload in payloads:
+                with self.subTest(running=running, payload=payload):
+                    _mod._agent_running = running
+                    self.monitor._queue = queue.Queue()
+                    _mod._pending_injections.clear()
+                    existing = ("qid-existing", "ordinary user prompt", None)
+                    _mod._pending_injections.append(existing)
+                    lines = _make_acp_lines(payload)
+
+                    self.monitor._dispatch_or_enqueue(lines)
+
+                    self.assertEqual(list(_mod._pending_injections), [existing])
+                    self.assertEqual(
+                        [self.monitor.readline() for _ in lines], lines,
+                    )
+                    self.assertTrue(self.monitor._queue.empty())
+
     def test_dispatch_json_envelope_extracted_when_running(self):
         """JSON-wrapped prompt is extracted cleanly into _pending_injections."""
         import json

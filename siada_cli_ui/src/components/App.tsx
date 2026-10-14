@@ -434,7 +434,8 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     // state is still null.  Use clientRef.current as fallback — it is set
     // immediately after SiadaACPClient is constructed, before waitForReady.
     const activeClient = client ?? clientRef.current;
-    if (!activeClient || isSubmittingLogin) {
+    const isCancelChoice = choice === 'cancel' || choice === 'skip';
+    if (!activeClient || (isSubmittingLogin && !isCancelChoice)) {
       logger.warn('[handleLoginSelect] no active client yet, ignoring login choice', {
         choice,
         clientNull: !client,

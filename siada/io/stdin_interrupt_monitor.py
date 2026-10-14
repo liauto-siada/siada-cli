@@ -336,6 +336,16 @@ class StdinInterruptMonitor:
         dispatch to the handler in a new thread (without enqueuing).
         Otherwise put all lines into _queue for get_input() to consume.
         """
+        # /configure runs inside an active turn and waits on this queue.
+        # Login replies are protocol input, so diverting them to the model's
+        # pending injections would deadlock the wizard and expose credentials.
+        if len(msg_lines) >= 3:
+            body = self._extract_message_body(msg_lines).strip()
+            if body.startswith("__LOGIN_CHOICE__:"):
+                for line in msg_lines:
+                    self._queue.put(line)
+                return
+
         # Handle queue/cancelPending before any other routing.
         if len(msg_lines) >= 3:
             body = self._extract_message_body(msg_lines)

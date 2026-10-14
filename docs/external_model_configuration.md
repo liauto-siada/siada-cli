@@ -224,6 +224,10 @@ nano ~/.siada-cli/models.json
 
 ### 2. Configure API Connection
 
+In the Siada UI, run `/configure` to choose a provider, model and API key.
+You can repeat the command to update the key or switch providers without
+restarting. Press Esc while submitting to cancel the configuration.
+
 Configure `base_url` and `api_key` in `~/.siada-cli/conf.yaml`:
 
 ```yaml
