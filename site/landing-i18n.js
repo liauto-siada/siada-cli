@@ -113,8 +113,9 @@
       button.setAttribute("aria-pressed", String(button.dataset.language === language));
     }
     // Dynamic playback messages use the same translations as static content.
-    const status = document.querySelector(".hero-video-status");
-    if (status?.dataset.message) status.textContent = translate(status.dataset.message);
+    for (const status of document.querySelectorAll(".hero-video-status, .video-load-status")) {
+      if (status.dataset.message) status.textContent = translate(status.dataset.message);
+    }
   };
   window.siadaLandingI18n = { translate };
   try {

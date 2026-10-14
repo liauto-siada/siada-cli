@@ -7,9 +7,9 @@
   <meta name="theme-color" content="#ffffff">
   <title>Siada: Human in browser use</title>
   <meta name="description" content="AI 的价值不是取代，而是营造创造的环境。Siada 从当前阅读、浏览历史与动作理解意图，整理和分享内容，在当前网页解释信息、创造产品，并高效完成浏览器操作。">
-  <link rel="stylesheet" href="landing.css?v=15">
-  <script src="landing-i18n.js?v=1" defer></script>
-  <script src="landing.js?v=11" defer></script>
+  <link rel="stylesheet" href="landing.css?v=16">
+  <script src="landing-i18n.js?v=2" defer></script>
+  <script src="landing.js?v=13" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">跳转到正文</a>
@@ -90,7 +90,7 @@
           </button>
           <div class="hero-case-player" id="hero-case-player" role="region" aria-label="Siada 阅读整理与飞书分享演示" hidden>
             <video class="hero-case-video" id="hero-case-video" controls playsinline preload="none" poster="assets/siada-reading-to-feishu-poster.jpg" tabindex="0" aria-label="Siada 从阅读到飞书分享的完整演示">
-              <source src="assets/siada-reading-to-feishu.mp4" type="video/mp4">
+              <source data-src="assets/siada-reading-to-feishu.mp4" type="video/mp4">
               浏览器无法播放该视频。<a href="assets/siada-reading-to-feishu.mp4">下载视频</a>
             </video>
             <button class="hero-case-back" type="button" aria-label="收起视频" title="收起视频">
@@ -100,6 +100,7 @@
           </div>
         </div>
         <figcaption>Human 阅读 → Siada 整理 → 飞书分享</figcaption>
+        <noscript><p><a href="assets/siada-reading-to-feishu.mp4">下载视频</a></p></noscript>
       </figure>
     </section>
 
@@ -120,10 +121,12 @@
         <figure class="case-visual recording-visual">
           <div class="recording-surface">
             <video id="research-film" controls playsinline preload="none" poster="assets/siada-history-to-paper-poster.jpg" tabindex="0" aria-label="找回浏览资料、对照当前论文并在原文就地解释的完整演示">
-              <source src="assets/siada-history-to-paper.mp4" type="video/mp4">
+              <source data-src="assets/siada-history-to-paper.mp4" type="video/mp4">
               浏览器无法播放该视频。<a href="assets/siada-history-to-paper.mp4">下载视频</a>
             </video>
+            <button class="video-play-trigger" type="button" aria-controls="research-film" hidden>播放案例</button>
           </div>
+          <noscript><p><a href="assets/siada-history-to-paper.mp4">下载视频</a></p></noscript>
           <figcaption>历史浏览 → 论文对照 · 28 秒</figcaption>
         </figure>
       </article>
@@ -138,10 +141,12 @@
         <figure class="case-visual recording-visual">
           <div class="recording-surface human-action-surface">
             <video id="human-action-video" controls playsinline preload="none" poster="assets/siada-human-action-perception-poster.jpg" tabindex="0" aria-label="Siada 读取刚才的点击、滚动与浏览记录并整理成回复的两个问答示例">
-              <source src="assets/siada-human-action-perception.mp4" type="video/mp4">
+              <source data-src="assets/siada-human-action-perception.mp4" type="video/mp4">
               浏览器无法播放该视频。<a href="assets/siada-human-action-perception.mp4">下载视频</a>
             </video>
+            <button class="video-play-trigger" type="button" aria-controls="human-action-video" hidden>播放案例</button>
           </div>
+          <noscript><p><a href="assets/siada-human-action-perception.mp4">下载视频</a></p></noscript>
           <figcaption>点击与滚动 → 动作记录 → 浏览路径 · 28 秒</figcaption>
         </figure>
       </article>
@@ -165,10 +170,12 @@
         <figure class="case-visual recording-visual">
           <div class="recording-surface">
             <video id="page-render-video" controls playsinline preload="none" poster="assets/siada-history-to-paper-poster.jpg" tabindex="0" aria-label="对照论文并将解释渲染到原文对应位置的完整演示">
-              <source src="assets/siada-history-to-paper.mp4" type="video/mp4">
+              <source data-src="assets/siada-history-to-paper.mp4" type="video/mp4">
               浏览器无法播放该视频。<a href="assets/siada-history-to-paper.mp4">下载视频</a>
             </video>
+            <button class="video-play-trigger" type="button" aria-controls="page-render-video" hidden>播放案例</button>
           </div>
+          <noscript><p><a href="assets/siada-history-to-paper.mp4">下载视频</a></p></noscript>
           <figcaption>论文对照 → 原文就地解释 · 28 秒</figcaption>
         </figure>
       </article>
@@ -183,10 +190,12 @@
         <figure class="case-visual recording-visual">
           <div class="recording-surface financial-case-surface">
             <video id="financial-case-video" controls playsinline preload="none" poster="assets/siada-financial-report-poster.jpg" tabindex="0" aria-label="读取财报、对比财务趋势并生成飞书分析报告的完整演示">
-              <source src="assets/siada-financial-report.mp4" type="video/mp4">
+              <source data-src="assets/siada-financial-report.mp4" type="video/mp4">
               浏览器无法播放该视频。<a href="assets/siada-financial-report.mp4">下载视频</a>
             </video>
+            <button class="video-play-trigger" type="button" aria-controls="financial-case-video" hidden>播放案例</button>
           </div>
+          <noscript><p><a href="assets/siada-financial-report.mp4">下载视频</a></p></noscript>
           <figcaption>财报资料 → Siada 分析 → 飞书报告 · 32 秒</figcaption>
         </figure>
       </article>
@@ -201,10 +210,12 @@
         <figure class="case-visual recording-visual">
           <div class="recording-surface ecommerce-case-surface">
             <video id="ecommerce-case-video" controls playsinline preload="none" poster="assets/siada-ecommerce-to-ppt-poster.jpg" tabindex="0" aria-label="搜索商品、整理参数与图表并生成飞书 PPT 的完整演示">
-              <source src="assets/siada-ecommerce-to-ppt.mp4" type="video/mp4">
+              <source data-src="assets/siada-ecommerce-to-ppt.mp4" type="video/mp4">
               浏览器无法播放该视频。<a href="assets/siada-ecommerce-to-ppt.mp4">下载视频</a>
             </video>
+            <button class="video-play-trigger" type="button" aria-controls="ecommerce-case-video" hidden>播放案例</button>
           </div>
+          <noscript><p><a href="assets/siada-ecommerce-to-ppt.mp4">下载视频</a></p></noscript>
           <figcaption>电商网页 → 信息整理 → 飞书 PPT · 34 秒</figcaption>
         </figure>
       </article>
@@ -227,10 +238,12 @@
         <figure class="case-visual recording-visual">
           <div class="recording-surface trace-case-surface">
             <video id="trace-case-video" controls playsinline preload="none" poster="assets/siada-browser-control-trace-poster.jpg" tabindex="0" aria-label="浏览器检索依赖、查看结果并回看动作快照与耗时 Trace 的完整演示">
-              <source src="assets/siada-browser-control-trace.mp4" type="video/mp4">
+              <source data-src="assets/siada-browser-control-trace.mp4" type="video/mp4">
               浏览器无法播放该视频。<a href="assets/siada-browser-control-trace.mp4">下载视频</a>
             </video>
+            <button class="video-play-trigger" type="button" aria-controls="trace-case-video" hidden>播放案例</button>
           </div>
+          <noscript><p><a href="assets/siada-browser-control-trace.mp4">下载视频</a></p></noscript>
           <figcaption>浏览器执行 → 结果与依据 → 动作 Trace · 36 秒</figcaption>
         </figure>
       </article>
