@@ -1,4 +1,4 @@
-"""Bounded transport retries around model calls and stream consumption."""
+"""Bounded retries for transport and transient API failures."""
 
 from __future__ import annotations
 
@@ -10,13 +10,18 @@ from typing import Any, TypeVar
 
 import httpx
 from agents.exceptions import ModelBehaviorError
-from openai import APIConnectionError
+from openai import APIConnectionError, APIError, APIStatusError
 
 from siada.foundation.logging import logger
 
 _MAX_RETRIES = 2
 _LIFECYCLE_EVENTS = frozenset({"response.created", "response.in_progress"})
 _Result = TypeVar("_Result")
+_TRANSIENT_API_ERRORS = frozenset({
+    "server_error", "internal_server_error", "server_is_overloaded",
+    "overloaded_error", "service_unavailable", "rate_limit_exceeded",
+    "rate_limit_error", "timeout", "request_timeout",
+})
 
 
 class MissingFinalResponseError(ModelBehaviorError):
@@ -37,11 +42,59 @@ class MissingFinalResponseError(ModelBehaviorError):
         self.output_exposed = output_exposed
 
 
+def api_error_details(error: Exception) -> dict[str, Any]:
+    """Extract bounded diagnostic fields without logging requests or full bodies."""
+    body = getattr(error, "body", None)
+    if isinstance(body, dict) and isinstance(body.get("error"), dict):
+        body = body["error"]
+    details: dict[str, Any] = {"exception": type(error).__name__}
+    for key in ("message", "code", "type", "param"):
+        value = body.get(key) if isinstance(body, dict) else None
+        if value is None and not (
+            key == "message" and isinstance(error, APIError) and body is not None
+        ):
+            value = getattr(error, key, None)
+        if isinstance(value, (str, int, float, bool)):
+            details[key] = value[:512] if isinstance(value, str) else value
+    details.setdefault(
+        "message",
+        "API error without a structured message"
+        if isinstance(error, APIError) and body is not None else str(error)[:512],
+    )
+    response = getattr(error, "response", None)
+    request = error.request if isinstance(error, APIError) else None
+    details["status_code"] = getattr(error, "status_code", None)
+    details["request_id"] = (
+        getattr(error, "request_id", None)
+        or (response.headers.get("x-request-id") if response is not None else None)
+    )
+    details["trace_id"] = (
+        request.headers.get("siada-trace-id") or request.headers.get("uuid")
+        if request is not None else None
+    )
+    return details
+
+
 def is_retryable_model_error(error: Exception) -> bool:
-    """Recognize missing completion before output and typed transport failures."""
+    """Retry transient API failures as well as typed transport failures."""
     if isinstance(error, MissingFinalResponseError):
         return not error.output_exposed
-    return is_retryable_transport_error(error)
+    if is_retryable_transport_error(error):
+        return True
+    if isinstance(error, APIStatusError):
+        return error.status_code in {408, 409, 429} or error.status_code >= 500
+    if not isinstance(error, APIError):
+        return False
+    details = api_error_details(error)
+    code = details.get("code")
+    error_type = details.get("type")
+    # Explicit codes take precedence, so quota/parameter errors cannot be
+    # retried merely because a gateway also labels them as server errors.
+    if code:
+        return code in _TRANSIENT_API_ERRORS
+    if error_type:
+        return error_type in _TRANSIENT_API_ERRORS
+    return str(error).strip().casefold() == "unknown stream error"
 
 
 def is_retryable_transport_error(error: Exception) -> bool:
@@ -65,8 +118,9 @@ def is_retryable_transport_error(error: Exception) -> bool:
 async def _backoff(retry_index: int, error: Exception) -> None:
     delay = 2**retry_index + random.uniform(0, 1)
     logger.warning(
-        "Model transport retry %s/%s after %s; delay=%.2fs",
+        "Model request retry %s/%s after %s; delay=%.2fs; details=%r",
         retry_index + 1, _MAX_RETRIES, type(error).__name__, delay,
+        api_error_details(error),
     )
     await asyncio.sleep(delay)
 
@@ -79,7 +133,7 @@ async def retry_model_call(
         try:
             return await call(**kwargs)
         except Exception as error:
-            if attempt == _MAX_RETRIES or not is_retryable_transport_error(error):
+            if attempt == _MAX_RETRIES or not is_retryable_model_error(error):
                 raise
             await _backoff(attempt, error)
     raise AssertionError("Unreachable retry state")

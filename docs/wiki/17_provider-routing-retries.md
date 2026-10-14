@@ -51,7 +51,7 @@ Li 公开 Chat 家族判断是名称包含匹配，不应据此推断任意模�
 
 | 层级 | 捕获异常 | 重试机制 | 流消费阶段 |
 |---|---|---|---|
-| 新增 ModelWrapper 外层 | Python `TimeoutError`；OpenAI `APIConnectionError`（包含 `APITimeoutError`）；HTTPX `TimeoutException`、`NetworkError`、`RemoteProtocolError`；LiteLLM `Timeout`、`APIConnectionError`、`MidStreamFallbackError` | 最多重试 2 次，共 3 次模型调用；等待 `1 + jitter`、`2 + jitter` 秒，jitter 为 0～1 秒 | 同时包住创建流、首次迭代、之后的解析/迭代；只在尚未暴露非生命周期事件时重试 |
+| 新增 ModelWrapper 外层 | Python `TimeoutError`；OpenAI `APIConnectionError`（包含 `APITimeoutError`）；HTTPX `TimeoutException`、`NetworkError`、`RemoteProtocolError`；LiteLLM `Timeout`、`APIConnectionError`、`MidStreamFallbackError`；OpenAI 临时 API 错误（HTTP 408/409/429/5xx、已识别的服务端/过载/限流/超时错误码、未分类的 `Unknown stream error`） | 最多重试 2 次，共 3 次模型调用；等待 `1 + jitter`、`2 + jitter` 秒，jitter 为 0～1 秒 | 同时包住创建流、首次迭代、之后的解析/迭代；只在尚未暴露非生命周期事件时重试 |
 | default 官方 Chat client | `max_retries=0` | SDK 自动重试关闭；由包装器处理上述传输错误 | SDK 创建请求之外的读流错误由包装器捕获 |
 | Li 官方 Chat 原有策略 | `RateLimitError` | 指数退避、上限和抖动；次数由构建提供的常量控制 | 首个事件之前可重试；产出任何事件之后直接抛出 |
 | Li 官方 Chat 原有认证策略 | `APIStatusError` 且 HTTP 401/403 | 刷新认证后重试；有独立认证次数和总请求次数限制 | 首个事件之前可重试；之后直接抛出 |
@@ -59,7 +59,7 @@ Li 公开 Chat 家族判断是名称包含匹配，不应据此推断任意模�
 | default Responses transport | `except Exception` 记录错误后重新抛出 | 未显式覆盖 OpenAI SDK 默认重试参数 | 创建流后的异常不在 transport 的创建调用 catch 内；包装器消费模型流时捕获 |
 | `ResponsesModel` | `except Exception` 记录错误后重新抛出 | 自身不重试 | 模型的事件解析/迭代异常交给外层包装器 |
 | default legacy LiteLLM | 启动配置 `litellm.num_retries=3` | LiteLLM 负责其支持的异常与退避；不能把设置值当作每类异常必重试的承诺 | SDK/LiteLLM 返回流对象之后，解析抛出的传输类异常由外层包装器补齐 |
-| 新增外层的其它异常 | 其它 HTTP 状态错误、普通 `ValueError` / JSON 解析错误 | 直接抛出，保留原有内层处理 | 不把任意解析 bug 当作断流重试 |
+| 新增外层的其它异常 | 其它 HTTP 状态错误、普通 `ValueError` / JSON 解析错误、流中的参数或配额错误码 | 直接抛出，保留原有内层处理 | 不把任意解析 bug 当作断流重试 |
 | 取消 | `asyncio.CancelledError` | 不捕获为可重试异常；关闭当前流 | 立即传播取消 |
 
 Li 原有 429 和认证次数常量来自构建提供的模块；公开适配器能核验 catch 条件、退避公式和总请求上限表达式，但本页不猜测私有常量具体值。外层传输重试重新调用模型，Li 的请求 UUID 会重新生成；一次内层 429/认证重试则保留其请求 UUID 和去重标识。
@@ -99,6 +99,10 @@ flowchart TD
 
 普通解析 `ValueError` 不在传输异常白名单中；“解析过程中抛异常”需要区分读取断流与数据格式错误。流正常结束而没有抛异常也不会被本策略当成 timeout。`response.incomplete` 等正常协议事件不等同于网络异常。
 
+`ResponsesModel` 将协议 `error`、`response.error`、`response.failed` 转成 `APIError` 后交给同一策略，避免把失败事件当成功流结束。流错误优先按明确的 `code` 判断，其次按 `type`；没有分类字段时才匹配 `Unknown stream error`。因此明确的参数错误或配额不足不会因消息包含该文案而重试。
+
+每次 Responses 失败记录模型、response ID、最后事件类型、是否已交出输出，以及有长度限制的错误 message/code/type/param、可用的请求和 trace ID。仅提取这些诊断字段，不打印完整错误 body、请求正文或认证请求头。重试日志记录次数、等待时间和错误诊断字段。
+
 持久化 admission 和输入处理在重试循环外，重试沿用处理后的同一输入。admission 本身的 timeout 不触发模型调用。`ModelWrapper` 嵌套时由最内层包装器拥有传输重试预算，各层 admission / 输入处理仍各执行一次，避免重试次数相乘。失败流在退避前关闭，调用方关闭生成器或取消时也执行清理。
 
 ## 超时参数
@@ -114,6 +118,8 @@ HTTP 客户端 timeout 通常限制单次连接/读取等操作，外层重试�
 新增 [传输重试测试](../../tests/services/test_model_wrapper_transport_retry.py) 验证创建流立即失败、首个事件之前失败、生命周期事件之后解析失败、已暴露内容/工具事件后不重放、重试耗尽、取消、资源关闭、admission 只执行一次，以及真实 OpenAI Chat SDK 读 SSE body 时抛 timeout 后成功重试且只显示一次内容。
 
 真实 `Runner.run_streamed()` 配合官方 Chat SDK 和合成 SSE 传输进一步验证：首读超时后最终得到一次完整响应；连续超时在三次模型调用后向 turn 层传播；已交出文本后的超时不重放，旧流均关闭。这些故障注入不访问外部模型服务。
+
+原生 Responses SDK + Runner 的合成 SSE 回归覆盖 `Unknown stream error` 恢复、三次调用后耗尽、正文后不重放、明确参数错误不重试、协议失败事件重试、流关闭和错误日志字段筛选。
 
 ```bash
 poetry run python -m pytest tests/services/test_model_wrapper_transport_retry.py tests/session/baseline/test_model_request_boundary.py -q

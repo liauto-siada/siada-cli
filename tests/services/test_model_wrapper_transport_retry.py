@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -9,7 +10,7 @@ import httpx
 import pytest
 from agents import Agent, ModelSettings, RunConfig, Runner
 from agents.models.interface import ModelTracing
-from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
+from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError, AsyncOpenAI
 from litellm.exceptions import MidStreamFallbackError, Timeout
 
 from siada.provider import retry
@@ -37,6 +38,8 @@ def _errors():
         httpx.RemoteProtocolError("incomplete body"),
         Timeout(message="timeout", model="test", llm_provider="openai"),
         MidStreamFallbackError(message="broken stream", model="test", llm_provider="openai"),
+        APIError("Unknown stream error", request=request, body={"message": "Unknown stream error"}),
+        APIError("busy", request=request, body={"code": "server_is_overloaded"}),
     ]
 
 
@@ -95,16 +98,20 @@ async def test_stream_retry_catches_creation_and_iteration(error, phase, no_dela
     "response.function_call_arguments.delta", "response.output_item.added",
     "response.completed",
 ])
-async def test_does_not_replay_exposed_output_or_tools(event_type, no_delay):
+@pytest.mark.parametrize("error", [
+    httpx.ReadTimeout("interrupted"),
+    APIError("Unknown stream error", request=httpx.Request("POST", "https://model.test"), body=None),
+])
+async def test_does_not_replay_exposed_output_or_tools(event_type, error, no_delay):
     calls = Mock()
 
     async def stream():
         calls()
         yield SimpleNamespace(type=event_type)
-        raise httpx.ReadTimeout("interrupted")
+        raise error
 
     events = []
-    with pytest.raises(httpx.ReadTimeout):
+    with pytest.raises(type(error)):
         async for event in retry.retry_model_stream(stream):
             events.append(event)
     assert [event.type for event in events] == [event_type]
@@ -407,3 +414,217 @@ async def test_real_runner_handles_sdk_read_timeout_without_replaying_output(
     assert sum(event.type == "response.created" for event in events) == (
         0 if scenario == "exhaust" else 1
     )
+
+
+@pytest.mark.parametrize("body,expected", [
+    ({"message": "Unknown stream error"}, True),
+    ({"type": "server_error"}, True),
+    ({"error": {"code": "rate_limit_exceeded"}}, True),
+    ({"code": "insufficient_quota", "type": "server_error"}, False),
+    ({"code": "invalid_request_error", "message": "Unknown stream error"}, False),
+    ({"type": "invalid_request_error", "message": "Unknown stream error"}, False),
+    ({"message": "invalid input"}, False),
+])
+def test_api_error_classification(body, expected):
+    error = APIError(
+        body.get("message", "failure"),
+        request=httpx.Request("POST", "https://model.test"), body=body,
+    )
+    assert retry.is_retryable_model_error(error) is expected
+
+
+@pytest.mark.parametrize("status,expected", [
+    (400, False), (401, False), (403, False), (404, False),
+    (408, True), (409, True), (429, True), (500, True), (503, True),
+])
+def test_api_status_error_classification(status, expected):
+    error = APIStatusError(
+        "failure",
+        response=httpx.Response(status, request=httpx.Request("POST", "https://model.test")),
+        body=None,
+    )
+    assert retry.is_retryable_model_error(error) is expected
+
+
+def test_diagnostics_do_not_dump_unstructured_body_or_authentication():
+    request = httpx.Request(
+        "POST", "https://model.test",
+        headers={"authorization": "Bearer synthetic-secret", "siada-trace-id": "trace-test"},
+    )
+    error = APIError(
+        "error body contains synthetic-secret", request=request,
+        body={"debug": {"api_key": "synthetic-secret"}, "code": "server_error"},
+    )
+    details = retry.api_error_details(error)
+    assert details["trace_id"] == "trace-test"
+    assert details["code"] == "server_error"
+    assert "synthetic-secret" not in repr(details)
+    assert retry.api_error_details(APIError(
+        "failure", request=request, body={"message": "x" * 1000},
+    ))["message"] == "x" * 512
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code,expected_calls", [
+    ("server_error", 2), ("invalid_request_error", 1),
+])
+async def test_nonstream_api_retry_preserves_admission(code, expected_calls, no_delay):
+    error = APIError(
+        "failure", request=httpx.Request("POST", "https://model.test"),
+        body={"code": code},
+    )
+    call = AsyncMock(side_effect=[error, "ok"])
+    admission = AsyncMock()
+    wrapper = ModelWrapper(SimpleNamespace(get_response=call), before_request=admission)
+    if expected_calls == 2:
+        assert await wrapper.get_response(**_args()) == "ok"
+    else:
+        with pytest.raises(APIError) as caught:
+            await wrapper.get_response(**_args())
+        assert caught.value is error
+    assert call.await_count == expected_calls
+    assert no_delay.await_count == expected_calls - 1
+    admission.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scenario", [
+    "recover", "exhaust", "after_text", "invalid", "failed_event", "error_event",
+])
+async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monkeypatch):
+    requests = []
+    bodies = []
+    app_logger = logging.getLogger("siada.app")
+    monkeypatch.setattr(app_logger, "handlers", [*app_logger.handlers, caplog.handler])
+
+    class Body(httpx.AsyncByteStream):
+        closed = False
+
+        def __init__(self, prefix, suffix):
+            self.prefix, self.suffix = prefix, suffix
+
+        async def __aiter__(self):
+            yield self.prefix
+            # Model a later socket read so queued output reaches the consumer.
+            ready = asyncio.get_running_loop().create_future()
+            timer = asyncio.get_running_loop().call_later(0.01, ready.set_result, None)
+            try:
+                await ready
+            finally:
+                timer.cancel()
+            yield self.suffix
+
+        async def aclose(self):
+            self.closed = True
+    response = {
+        "id": "resp-test", "created_at": 1, "model": "gpt-5",
+        "object": "response", "status": "completed", "output": [],
+        "error": None, "incomplete_details": None, "instructions": None,
+        "metadata": {}, "parallel_tool_calls": True, "temperature": 1,
+        "tool_choice": "auto", "tools": [], "top_p": 1,
+    }
+
+    def sse(data):
+        return f"data: {json.dumps(data)}\n\n".encode()
+
+    error_body = {
+        "message": "Unknown stream error", "code": "server_error",
+        "type": "server_error", "debug": {"api_key": "synthetic-secret"},
+    }
+    if scenario == "invalid":
+        error_body["code"] = "invalid_request_error"
+    recovering = scenario in {"recover", "failed_event", "error_event"}
+
+    def handler(request):
+        requests.append(request)
+        if bodies:
+            assert bodies[-1].closed
+        created = sse({
+            "type": "response.created", "sequence_number": 0,
+            "response": {**response, "status": "in_progress"},
+        })
+        if recovering and len(requests) > 1:
+            content = created + sse({
+                "type": "response.completed", "sequence_number": 1, "response": response,
+            })
+        else:
+            content = created
+            if scenario == "after_text":
+                content += sse({
+                    "type": "response.output_text.delta", "sequence_number": 1,
+                    "item_id": "msg-test", "output_index": 0, "content_index": 0,
+                    "delta": "once",
+                })
+            if scenario == "failed_event":
+                suffix = sse({
+                    "type": "response.failed", "sequence_number": 1,
+                    "response": {**response, "status": "failed", "error": error_body},
+                })
+            elif scenario == "error_event":
+                suffix = sse({
+                    "type": "error", "sequence_number": 1,
+                    "message": "Unknown stream error", "code": None, "param": None,
+                })
+            else:
+                suffix = sse({"error": error_body})
+        if recovering and len(requests) > 1:
+            suffix = b""
+        body = Body(content, suffix)
+        bodies.append(body)
+        return httpx.Response(
+            200, headers={"content-type": "text/event-stream", "x-request-id": "req-test"},
+            stream=body,
+        )
+
+    events = []
+    with caplog.at_level("ERROR", logger="siada.app"):
+        async with AsyncOpenAI(
+            api_key="synthetic", base_url="https://model.test/v1", max_retries=0,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        ) as client:
+            async def create_stream(**kwargs):
+                stream = await client.responses.create(**kwargs, stream=True)
+                return stream, kwargs
+
+            model = ModelWrapper(ResponsesModel(
+                model="gpt-5", transport=SimpleNamespace(
+                    convert_model_name=lambda name: name, create_stream=create_stream,
+                ),
+            ))
+            result = Runner.run_streamed(
+                Agent(name="ResponsesRetryTest", model=model),
+                input="hello", run_config=RunConfig(tracing_disabled=True),
+            )
+
+            async def consume():
+                async for event in result.stream_events():
+                    if event.type == "raw_response_event":
+                        events.append(event.data)
+
+            if recovering:
+                await consume()
+            else:
+                with pytest.raises(APIError):
+                    await consume()
+
+    assert len(requests) == {
+        "recover": 2, "exhaust": 3, "after_text": 1, "invalid": 1,
+        "failed_event": 2, "error_event": 2,
+    }[scenario]
+    assert all(body.closed for body in bodies)
+    assert [event.delta for event in events if event.type == "response.output_text.delta"] == (
+        ["once"] if scenario == "after_text" else []
+    )
+    assert sum(event.type == "response.created" for event in events) == (
+        0 if scenario in {"exhaust", "invalid"} else 1
+    )
+    diagnostic = "\n".join(
+        record.getMessage() for record in caplog.records
+        if "OpenAI Responses API streaming error:" in record.getMessage()
+    )
+    assert "Unknown stream error" in diagnostic
+    assert "'request_id': 'req-test'" in diagnostic
+    assert "response_id=resp-test" in diagnostic
+    assert f"output_exposed={scenario == 'after_text'}" in diagnostic
+    assert "synthetic-secret" not in diagnostic
+    assert "api_key" not in diagnostic

@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 from typing import Any, AsyncIterator
 
+import httpx
 from agents import AgentOutputSchemaBase
 from agents.handoffs import Handoff
 from agents.items import ModelResponse, TResponseInputItem, TResponseStreamEvent
@@ -24,13 +25,13 @@ from agents.models.openai_responses import Converter as OpenAIResponsesConverter
 from agents.tool import Tool
 from agents.tracing import generation_span
 from agents.usage import Usage
-from openai import omit
+from openai import APIError, omit
 from openai.types.responses import Response
 from openai.types.responses.response_reasoning_item import Summary as ReasoningSummary
 from openai.types.responses.response_usage import InputTokensDetails
 
 from siada.foundation.logging import logger
-from siada.provider.retry import MissingFinalResponseError
+from siada.provider.retry import MissingFinalResponseError, api_error_details
 from siada.provider.responses.sanitize import (
     ensure_reasoning_summary_nonempty,
     sanitize_input_reasoning_items,
@@ -386,7 +387,10 @@ class ResponsesModel(Model):
                 )
 
             except Exception as e:
-                logger.error(f"OpenAI Responses API error: {e}")
+                logger.error(
+                    "OpenAI Responses API error: model=%s details=%r",
+                    self.model, api_error_details(e),
+                )
                 raise
 
     async def stream_response(
@@ -533,6 +537,32 @@ class ResponsesModel(Model):
                     response_id = getattr(event_response, "id", None) or response_id
                     if event_type in {"response.completed", "response.incomplete", "response.failed"}:
                         terminal_seen = True
+                    if event_type in {"error", "response.error", "response.failed"}:
+                        error = (
+                            getattr(event_response, "error", None)
+                            if event_type == "response.failed"
+                            else getattr(event, "error", None) or event
+                        )
+                        body = (
+                            error.model_dump(exclude_none=True)
+                            if hasattr(error, "model_dump") else error
+                        )
+                        if not isinstance(body, dict):
+                            body = {
+                                key: getattr(error, key, None)
+                                for key in ("message", "code", "type", "param")
+                            }
+                        if body.get("type") in {"error", "response.error"}:
+                            body = {key: value for key, value in body.items() if key != "type"}
+                        http_response = getattr(stream, "response", None)
+                        request = (
+                            http_response.request if http_response is not None
+                            else httpx.Request("POST", "https://responses.invalid")
+                        )
+                        raise APIError(
+                            body.get("message") or "Responses stream failed",
+                            request=request, body=body,
+                        )
 
                     if event_type == "response.output_item.added":
                         item = getattr(event, "item", None)
@@ -724,14 +754,17 @@ class ResponsesModel(Model):
                     )
 
             except Exception as e:
-                if isinstance(e, MissingFinalResponseError):
-                    logger.error(
-                        "OpenAI Responses API streaming error: model=%s "
-                        "response_id=%s last_event=%s output_exposed=%s: %s",
-                        self.model, response_id, last_event_type, output_exposed, e,
+                details = api_error_details(e)
+                http_response = getattr(stream, "response", None)
+                if http_response is not None:
+                    details["request_id"] = (
+                        details["request_id"] or http_response.headers.get("x-request-id")
                     )
-                else:
-                    logger.error(f"OpenAI Responses API streaming error: {e}")
+                logger.error(
+                    "OpenAI Responses API streaming error: model=%s "
+                    "response_id=%s last_event=%s output_exposed=%s details=%r",
+                    self.model, response_id, last_event_type, output_exposed, details,
+                )
                 raise
             finally:
                 if stream is not None:

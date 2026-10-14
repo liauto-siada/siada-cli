@@ -7,13 +7,23 @@ User-Defined Model Configuration Guide
 When using `--provider default`, Siada supports loading user-defined model configurations from a local configuration file. This allows you to configure your own model collection and default model.
 
 Agent calls through `ModelWrapper` retry transport timeouts, connection failures,
-and LiteLLM midstream failures up to twice, with exponential backoff and jitter.
+LiteLLM midstream failures, and transient OpenAI API errors up to twice, with
+exponential backoff and jitter. API retries cover HTTP 408/409/429/5xx, recognized
+server/overload/timeout error codes, and an unclassified `Unknown stream error`.
+Explicit non-transient stream error codes, such as invalid input or insufficient
+quota, are propagated.
 This covers stream creation and consumption before any output or tool event is
 exposed. Once such an event reaches the caller, the error propagates to avoid
 duplicating output or tool calls. Context admission runs once; nested wrappers
 share one transport retry budget. Direct completion clients retain their own
 retry policies. See the [provider routing and retry wiki](wiki/17_provider-routing-retries.md)
 for the protocol routes and exception matrix.
+
+Responses error logs include bounded error message/code/type/param fields,
+available request and trace IDs, model, response ID, last stream event, and whether
+output has been exposed. Request bodies, full error bodies, and authentication
+headers are excluded from these diagnostic records. Protocol `error` and
+`response.failed` events follow the same retry rules as SDK exceptions.
 
 ## Configuration File Location
 
