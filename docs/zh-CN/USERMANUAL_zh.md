@@ -572,6 +572,13 @@ deactivate
 - 验证代理类路径是否正确
 - 使用 `--verbose` 标志查看详细输出
 
+**DOCX 转换报 `FileConversionException` / `UnicodeDecodeError`：**
+
+`openhands-aci 0.3.3` 与 `markdownify 1.x` 一起安装时，含链接或图片的 DOCX
+可能转换失败。最终显示的 UTF-8 错误可能掩盖前面的转换错误。
+Siada 已将 `markdownify` 约束到兼容版本。开发环境请使用仓库提交的锁文件
+运行 `poetry install`，然后重启 Siada 并重新读取文档。
+
 **Markdown 文件编辑显示：**
 
 完成的 Markdown 字符串替换在折叠、展开和恢复会话时均显示为逐行 diff，保留正文中的代码块和空行。流式编辑结束前仍使用工具文本视图。旧版未加代码围栏的显示文本若包含无法确定边界的 `with:` 分隔行，则保留文本视图，不猜测 diff。

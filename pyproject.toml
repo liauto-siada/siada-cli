@@ -64,6 +64,8 @@ openai-agents = "0.22.3"
 openai = "3.0.0"
 litellm = "1.83.0"
 openhands-aci = "0.3.3"
+# openhands-aci's Markdown callbacks use the pre-1.0 convert_as_inline API.
+markdownify = ">=0.13.1,<1.0.0"
 termcolor = ">=3.1.0,<4.0.0"
 psutil = ">=7.0.0,<8.0.0"
 pexpect = ">=4.9.0,<5.0.0"
