@@ -71,7 +71,7 @@ def _build_memory_review_agent(system_prompt: str, *, with_fact_store: bool):
     exposed alongside the inline ``memory`` write tool.
     """
     from agents import Agent
-    from siada.agent_hub.hooks.siada_agent_hooks import SiadaAgentHooks
+    from siada.agent_hub.hooks.siada_basic_agent_hooks import SiadaBasicAgentHooks
 
     tools = [memory_write_tool]
     if with_fact_store:
@@ -81,7 +81,9 @@ def _build_memory_review_agent(system_prompt: str, *, with_fact_store: bool):
         name="MemoryReviewAgent",
         instructions=system_prompt,
         tools=tools,
-        hooks=SiadaAgentHooks(),
+        # Background review can finish while the main agent is compacting.
+        # Keep pane lifecycle reports owned by the main agent.
+        hooks=SiadaBasicAgentHooks(),
     )
 
 
