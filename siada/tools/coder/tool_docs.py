@@ -4,6 +4,7 @@ EDIT_DOCS= """Custom editing tool for viewing, creating and editing files in pla
 * The following binary file extensions can be viewed in Markdown format: [".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".flac", ".pdf", ".docx"]. 
 * Image files ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]) are automatically returned as base64-encoded data URIs optimized for AI vision models.
 * The `create` command cannot be used if the specified `path` already exists as a file
+* Edits preserve existing LF/CRLF line endings. Added text uses the file's first line ending (LF if none exists); untouched lines retain their endings. `create` preserves the supplied line endings.
 * Truncation for `view` on text files (two layers; lines are never character-truncated):
   1. Byte cap: files > 100 KB are cut to the first 100 KB; output ends with `[FILE TRUNCATED: ...]`. Then switch to `regex_search_files` or `run_cmd` (grep/head/tail) — `view_range` cannot reach the dropped bytes.
   2. Line pagination (default 1000 lines): no `view_range` → `[1, min(1000, N)]`; `[a, -1]` → `[a, N]`; `[a, b]` → as given (auto-clamped/swapped).

@@ -2,7 +2,12 @@
 Siada-customized file editor.
 
 This module subclasses the upstream :class:`OHEditor` (from ``openhands_aci``)
-to override the ``view`` command truncation strategy for regular text files.
+to preserve line endings during edits and customize text-file view truncation.
+
+Edits read and write line endings verbatim. Replacement and inserted text use
+the file's first line ending, defaulting to LF when none exists. Untouched
+content retains its original endings, including in mixed-ending files. Insert
+writes through the existing path so file permissions and identity are retained.
 
 Policy summary
 --------------
@@ -61,6 +66,9 @@ from pathlib import Path
 logging.getLogger('openhands_aci').setLevel(logging.WARNING)
 
 from openhands_aci.editor.editor import OHEditor
+from openhands_aci.editor.config import SNIPPET_CONTEXT_WINDOW
+from openhands_aci.editor.encoding import with_encoding
+from openhands_aci.editor.exceptions import EditorToolParameterInvalidError, ToolError
 from openhands_aci.editor.results import CLIResult
 
 
@@ -94,11 +102,142 @@ def _format_bytes(n: int) -> str:
 
 
 class SiadaEditor(OHEditor):
-    """OHEditor subclass with Siada-specific ``view`` truncation policy."""
+    """Editor with paginated views and edits that preserve file line endings."""
 
     # ------------------------------------------------------------------
     # Public overrides
     # ------------------------------------------------------------------
+    @with_encoding
+    def read_file(
+        self,
+        path: Path,
+        start_line: int | None = None,
+        end_line: int | None = None,
+        encoding: str = "utf-8",
+    ) -> str:
+        """Read without universal-newline translation, including history snapshots."""
+        self.validate_file(path)
+        try:
+            if (start_line is None) != (end_line is None):
+                raise ValueError("Both start_line and end_line must be provided together")
+            with path.open("r", encoding=encoding, newline="") as file:
+                if start_line is None:
+                    return file.read()
+                lines = []
+                for index, line in enumerate(file, 1):
+                    if index > end_line:
+                        break
+                    if index >= start_line:
+                        lines.append(line)
+                return "".join(lines)
+        except Exception as exc:
+            raise ToolError(f"Ran into {exc} while trying to read {path}") from None
+
+    @with_encoding
+    def write_file(self, path: Path, file_text: str, encoding: str = "utf-8") -> None:
+        """Write supplied endings verbatim and preserve the existing file identity."""
+        self.validate_file(path)
+        try:
+            with path.open("w", encoding=encoding, newline="") as file:
+                file.write(file_text)
+        except Exception as exc:
+            raise ToolError(f"Ran into {exc} while trying to write to {path}") from None
+
+    @staticmethod
+    def _preferred_newline(content: str) -> str:
+        """Use the first line ending for added text, defaulting to LF for empty files."""
+        match = re.search(r"\r\n|\n|\r", content)
+        return match.group() if match else "\n"
+
+    @staticmethod
+    def _convert_newlines(content: str, newline: str) -> str:
+        return content.replace("\r\n", "\n").replace("\n", newline)
+
+    @with_encoding
+    def str_replace(
+        self,
+        path: Path,
+        old_str: str,
+        new_str: str | None,
+        enable_linting: bool,
+        encoding: str = "utf-8",
+    ) -> CLIResult:
+        content = self.read_file(path, encoding=encoding)
+        newline = self._preferred_newline(content)
+        # Keep exact matches in mixed-ending files; otherwise adapt model text
+        # to the file's convention. Never normalize the untouched file content.
+        if old_str not in content:
+            old_str = self._convert_newlines(old_str, newline)
+        new_str = self._convert_newlines(new_str or "", newline)
+        return super().str_replace(
+            path, old_str, new_str, enable_linting, encoding=encoding
+        )
+
+    @with_encoding
+    def insert(
+        self,
+        path: Path,
+        insert_line: int,
+        new_str: str,
+        enable_linting: bool,
+        encoding: str = "utf-8",
+    ) -> CLIResult:
+        """Insert lines without replacing the file or rewriting unaffected endings."""
+        content = self.read_file(path, encoding=encoding)
+        # Match text-file iteration rather than splitting on Unicode separators.
+        lines = re.findall(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$", content)
+        if insert_line < 0 or insert_line > len(lines):
+            raise EditorToolParameterInvalidError(
+                "insert_line",
+                insert_line,
+                f"It should be within the range of allowed values: {[0, len(lines)]}",
+            )
+        newline = self._preferred_newline(content)
+        inserted = self._convert_newlines(new_str, newline) + newline
+        before = "".join(lines[:insert_line])
+        if before and not before.endswith(("\r", "\n")):
+            before += newline
+        new_content = before + inserted + "".join(lines[insert_line:])
+        self.write_file(path, new_content, encoding=encoding)
+        self._history_manager.add_history(path, content)
+
+        start_line = max(0, insert_line - SNIPPET_CONTEXT_WINDOW)
+        end_line = insert_line + SNIPPET_CONTEXT_WINDOW + inserted.count("\n")
+        snippet = self.read_file(
+            path, start_line=start_line + 1, end_line=end_line, encoding=encoding
+        )
+        output = f"The file {path} has been edited. " + self._make_output(
+            snippet, "a snippet of the edited file", start_line + 1
+        )
+        if enable_linting:
+            output += "\n" + self._run_linting(content, new_content, path) + "\n"
+        output += (
+            "Review the changes and make sure they are as expected "
+            "(correct indentation, no duplicate lines, etc). Edit the file again if necessary."
+        )
+        return CLIResult(
+            output=output,
+            prev_exist=True,
+            path=str(path),
+            old_content=content,
+            new_content=new_content,
+        )
+
+    def _make_output(
+        self,
+        snippet_content: str,
+        snippet_description: str,
+        start_line: int = 1,
+        is_converted_markdown: bool = False,
+    ) -> str:
+        # Terminal previews use LF; persisted content retains its original endings.
+        return super()._make_output(
+            snippet_content.replace("\r\n", "\n"),
+            snippet_description,
+            start_line,
+            is_converted_markdown,
+        )
+
     def view(self, path: Path, view_range: list[int] | None = None) -> CLIResult:
         # Non-text-file cases are delegated to the upstream implementation
         # (directory listing, PDF/DOCX-to-Markdown conversion, etc.).

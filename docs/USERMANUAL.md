@@ -548,6 +548,11 @@ deactivate
 
 ### Code Generation and Development
 
+The `edit_file` tool preserves LF/CRLF line endings when replacing or inserting
+text. Added text uses the file's first line ending, or LF when none exists.
+Untouched lines keep their original endings. Insertions preserve the existing
+file's permissions, and new files keep the line endings supplied to `create`.
+
 ```text
 > Implement a caching layer for the database queries in this service
 ```
