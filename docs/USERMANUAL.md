@@ -70,6 +70,20 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
    > - Non-empty `BASE_URL` and `API_KEY` override the corresponding stored
    >   credentials. Both are required to sign in without the configuration prompt.
 
+### Forking a Conversation
+
+Use `/fork` to create and switch to a new session inheriting the current
+conversation, or `/fork <session_id>` to derive it from a saved session.
+`/fork <index>` uses the current project's `/resume` list, and `/fork latest`
+uses its latest nonempty saved session. The source must belong to the current
+workspace.
+
+The new session has its own ID and storage directory and retains conversation
+history, compacted effective context, todos and goal state. Future turns write
+to the new session; the source history stays available through `/resume`.
+Forking captures saved conversation state and does not copy workspace files
+or running sub-agent processes. This command is available in the terminal CLI.
+
 ### Goal Verification Limit
 
 The `/goal` verifier stops automatic continuation when it has no actionable

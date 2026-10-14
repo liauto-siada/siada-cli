@@ -106,6 +106,7 @@ export class SlashCommandService {
       { name: 'undo', description: 'Undo the target checkpoint', requiresSession: true, argumentHint: '<checkpoint_filename>' },
       { name: 'restore', description: 'Restore files from a checkpoint', requiresSession: true, argumentHint: '<checkpoint_filename>' },
       { name: 'resume', description: 'Resume a previous session', requiresSession: true, argumentHint: '[<index> | <session_id> | latest | --all]' },
+      { name: 'fork', description: 'Create a new session inheriting the current or a saved conversation', requiresSession: true, argumentHint: '[<index> | <session_id> | latest]' },
       { name: 'clear', description: 'Start a new task session without previous conversation history', requiresSession: true },
       { name: 'lang', description: 'Switch language preference between English and Chinese', requiresSession: true, argumentHint: '<en | zh-CN>' },
       { name: 'issue-fix', description: 'Fix an issue from Siada Patch Review by issue ID', requiresSession: true, argumentHint: '<issue_id>' },

@@ -4,6 +4,8 @@ Responsible for listing, loading, and deleting sessions.
 """
 
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import List, Optional
 from dataclasses import dataclass
@@ -16,6 +18,8 @@ from siada.services.session_storage import (
     recover_transaction,
     session_storage_lock,
     storage_transaction,
+    sync_directory,
+    write_json,
 )
 
 
@@ -356,6 +360,89 @@ class SessionManager:
             logger.error(f"Failed to load session {session_id}: {e}")
             raise
     
+    def fork_session(self, session_id: str, session_path: Optional[Path] = None) -> SessionData:
+        """Publish an independent, validated snapshot of a saved session.
+
+        Preserve message identities within the new session, including admission
+        receipts for compacted items. Copy only durable conversation state;
+        process ownership, IPC injections and live sub-agent handles stay with
+        the source. Readers cannot discover the new session until it is complete.
+        """
+        from siada.foundation.id_generator import generate_session_id
+
+        if not session_id or Path(session_id).name != session_id or session_id in (".", ".."):
+            raise ValueError("Invalid source session ID")
+        source_path = session_path or self.sessions_dir / session_id
+        if not source_path.is_dir():
+            raise FileNotFoundError(f"Session not found: {session_id}")
+        with session_storage_lock(source_path):
+            recover_transaction(source_path)
+            source = self._load_session_data(session_id, source_path)
+            origin = source.project_root
+            if origin and origin != "Unknown" and Path(origin).resolve() != Path(self.project_root).resolve():
+                raise ValueError(f"Session belongs to workspace: {origin}")
+            names = ["api_history.json", "runtime_state.json", "goal.json"]
+            names.append("api_message.json" if source.context_snapshot is not None else "api_messages.json")
+            payloads = {}
+            for name in names:
+                path = source_path / name
+                if not path.exists():
+                    continue
+                data = json.loads(path.read_bytes())
+                if not isinstance(data, dict):
+                    raise SessionStorageError(f"Invalid session file: {name}")
+                if name != "goal.json" and data.get("session_id", session_id) != session_id:
+                    raise SessionStorageError(f"Session identity mismatch: {name}")
+                payloads[name] = data
+
+        new_id = generate_session_id()
+        now = datetime.now().isoformat()
+        metadata = self._extract_metadata_from_history(new_id, source.items)
+        metadata.update(
+            session_id=new_id, created_at=now, last_updated=now,
+            project_root=self.project_root, parent_session_id=session_id,
+            message_count=sum(1 for item in source.items if not item.get("_injected")),
+        )
+        for key in ("title", "model_name"):
+            if key in source.metadata:
+                metadata[key] = source.metadata[key]
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        destination = self.sessions_dir / new_id
+        with tempfile.TemporaryDirectory(prefix=".session-fork-", dir=self.sessions_dir.parent) as temporary:
+            staged = Path(temporary) / new_id
+            staged.mkdir()
+            for name, data in payloads.items():
+                if name != "goal.json":
+                    data["session_id"] = new_id
+                write_json(staged / name, data)
+            write_json(staged / "metadata.json", metadata)
+            from siada.services.session_signature import compute_last_item_signature
+
+            native_items = [item for item in source.items if not item.get("_injected")]
+            write_json(staged / "signature.json", {
+                "signature": compute_last_item_signature(native_items),
+                "native_item_count": len(native_items),
+            })
+            # Migrate only the copy so legacy resume cannot discard a summary
+            # or reset its boundary before the fork's first model request.
+            from siada.services.file_session import FileSession
+
+            FileSession.from_file(staged / "api_history.json").migrate_legacy_context_sync(
+                allow_history_only=True,
+            )
+            result = self.load_session(new_id, staged)
+            # Validate legacy goal storage as well as versioned runtime state.
+            if "goal.json" in payloads:
+                from siada.services.goal.models import Goal
+
+                Goal.model_validate(payloads["goal.json"])
+            if destination.exists():
+                raise FileExistsError(f"Session already exists: {new_id}")
+            os.rename(staged, destination)
+            sync_directory(self.sessions_dir)
+        result.session_path = destination
+        return result
+
     @staticmethod
     def resolve_session_path(workspace: str, session_id: str) -> Path:
         """

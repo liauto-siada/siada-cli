@@ -91,6 +91,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "undo": "<checkpoint_filename>",
     "restore": "<checkpoint_filename>",
     "resume": "[<index> | <session_id> | latest | --all]",
+    "fork": "[<index> | <session_id> | latest]",
     "lang": "<en | zh-CN>",
     "issue-fix": "<issue_id>",
     "plugin": "[install | remove | enable | disable | validate | marketplace] <args>",
@@ -3230,6 +3231,38 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
 
             asyncio.run(rollback_operations())
             return False
+
+    def cmd_fork(self, session, args: str):
+        """Create a new session inheriting the current or a saved conversation
+
+        Usage:
+            /fork              - Fork the current session
+            /fork <session_id> - Fork a saved session in this workspace
+            /fork <index>      - Fork a session by its /resume list index
+            /fork latest       - Fork the latest nonempty saved session
+        """
+        from siada.support.resume_service import ResumeService
+
+        service = ResumeService(session.siada_config.workspace)
+        identifier = args.strip()
+        try:
+            if identifier:
+                info = service.get_session_info(identifier)
+                if info is None:
+                    self.io.print_error(f"Session not found: {identifier}")
+                    return
+                source_id, source_path = info.session_id, info.session_path
+            else:
+                source_id = session.session_id
+                store = session.state.openai_session
+                if store is None:
+                    self.io.print_error("Current session has no saved history to fork")
+                    return
+                source_path = store.session_folder
+            data = service.session_manager.fork_session(source_id, source_path)
+            return SwitchEvent(fork_data=data)
+        except Exception as error:
+            self.io.print_error(f"Failed to fork session: {error}")
 
     def cmd_resume(self, session, args: str):
         """Resume a previous session

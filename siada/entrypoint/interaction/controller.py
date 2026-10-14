@@ -166,6 +166,30 @@ class Controller:
             return self._build_pending_input_for_ai_analysis(
                 values["ai_analysis_prompt"], values.get("goal_command", False),
             )
+        elif values.get("fork_data") is not None:
+            from siada.support.session_restore import restore_into_fresh_session
+
+            data = values["fork_data"]
+            new_session = restore_into_fresh_session(
+                data, target_workspace=self.config.workspace,
+                siada_config=self.config, session_id=data.session_id,
+            )
+            self._release_cli_ownership()
+            self.session = new_session
+            self._unregister_background_wakeups()
+            self._bg_wakeup_event.clear()
+            self._register_background_wakeup(self.session)
+            if self.config.completer:
+                self.config.completer.session_id = self.session.session_id
+            self.ui.reset_history_state()
+            self.show_announcements()
+            if self.config.io.acp_adapter is not None:
+                self.slash_commands._send_history_to_ui(data.items)
+                self.slash_commands._push_resumed_goal_state_to_ui(self.session)
+            self.config.io.print_info(
+                f"Forked session {data.metadata['parent_session_id']} → {data.session_id}"
+            )
+            return None
         elif values.get("clear"):
             from siada.session.session_manager import RunningSessionManager
             self.session = RunningSessionManager.create_session(siada_config=self.config)

@@ -64,7 +64,7 @@ class AcpRuntimeSession:
 # Mirrors the rationale of LarkSlashCommandHandler._IM_BLOCKED_COMMANDS for
 # another headless, non-TTY caller.
 _BLOCKED_SLASH_COMMANDS = {
-    "agent", "compare", "configure", "edit", "editor", "exit", "goal",
+    "agent", "compare", "configure", "edit", "editor", "exit", "fork", "goal",
     "init", "issue-fix", "lark-auth", "logout", "map", "map-refresh",
     "migrate-detect", "migrate-import", "model", "models",
     "multiline-mode", "quit", "restore", "resume", "run", "shell",
@@ -648,6 +648,12 @@ class SiadaTurnRunner:
         cousins) is hand off to a normal agent turn via __call__ so it still
         streams like any other prompt.
         """
+        if text.strip().split(maxsplit=1)[:1] == ["/fork"]:
+            yield update_agent_message_text(
+                "Session forking is available in the terminal CLI via /fork."
+            )
+            return
+
         from siada.support.slash_commands import SwitchEvent
 
         runtime_session = self._sessions[session_id]

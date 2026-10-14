@@ -51,7 +51,7 @@ class LarkSlashCommandHandler:
     # goal status rendering is designed.
     _IM_BLOCKED_COMMANDS = {
         "agent", "compare", "configure",
-        "edit", "editor", "exit", "goal", "init", "issue-fix",
+        "edit", "editor", "exit", "fork", "goal", "init", "issue-fix",
         "lark-auth", "logout",
         "map", "map-refresh",
         "migrate-detect", "migrate-import",
