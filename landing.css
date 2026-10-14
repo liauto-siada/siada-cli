@@ -141,7 +141,11 @@ html[lang="en"] .sidebar-compose { gap: 8px; }
 .case-visual { min-width: 0; }
 .case-visual > figcaption { margin-top: 12px; font-size: 11px; color: #627582; line-height: 1.7; }
 .recording-visual > figcaption { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.recording-surface { aspect-ratio: 16/9; background: #fff url("assets/siada-history-to-paper-poster.jpg") center/contain no-repeat; border: 1px solid #dce6ec; border-radius: 11px; overflow: hidden; box-shadow: 0 10px 26px #243c4d0b; }
+.recording-surface { position: relative; aspect-ratio: 16/9; background: #fff url("assets/siada-history-to-paper-poster.jpg") center/contain no-repeat; border: 1px solid #dce6ec; border-radius: 11px; overflow: hidden; box-shadow: 0 10px 26px #243c4d0b; }
+.video-play-trigger { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 12px 20px; border: 1px solid #dce6ec; border-radius: 999px; background: #fff; color: var(--ink); font: inherit; cursor: pointer; box-shadow: 0 4px 20px #243c4d26; }
+.video-play-trigger::before { content: "▶"; margin-right: 8px; }
+.video-play-trigger:focus-visible { outline: 3px solid #71a8fb; outline-offset: 4px; }
+.video-load-status { position: absolute; top: 8px; left: 12px; right: 12px; margin: 0; padding: 8px; border-radius: 6px; background: #fff; color: var(--ink); text-align: center; font-size: 13px; }
 .human-action-surface { background-image: url("assets/siada-human-action-perception-poster.jpg"); }
 .financial-case-surface { background-image: url("assets/siada-financial-report-poster.jpg"); }
 .ecommerce-case-surface { background-image: url("assets/siada-ecommerce-to-ppt-poster.jpg"); }
