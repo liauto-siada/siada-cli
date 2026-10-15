@@ -68,6 +68,15 @@ class TestStateAndPush(unittest.TestCase):
         notifier.push_sub_agent_message("sa_x", "tool_output", "z" * 6000)
         self.assertTrue(calls[0][1]["entry"]["text"].endswith("… (truncated)"))
 
+    def test_stream_snapshot_includes_identity_and_completion(self):
+        calls = _capture(self)
+        notifier.push_sub_agent_message(
+            "sa_x", "thinking", "partial", entry_id="reasoning_1", is_complete=False,
+        )
+        self.assertEqual(calls[0][1]["entry"], {
+            "kind": "thinking", "text": "partial", "id": "reasoning_1", "isComplete": False,
+        })
+
     def test_finish_updates_item_and_pushes_snapshot(self):
         calls = _capture(self)
         ctx = CodeAgentContext()

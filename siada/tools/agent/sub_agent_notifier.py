@@ -79,12 +79,17 @@ def start_sub_agent(context: Optional[CodeAgentContext], instruction: str) -> Su
 
 
 def push_sub_agent_message(
-    sa_id: str, kind: str, text: Optional[str], tool_name: Optional[str] = None
+    sa_id: str, kind: str, text: Optional[str], tool_name: Optional[str] = None,
+    *, entry_id: Optional[str] = None, is_complete: Optional[bool] = None,
 ) -> None:
-    """Append one content entry for a sub-agent run (incremental push)."""
+    """Append an entry, or replace a streaming entry identified by entry_id."""
     entry = {"kind": kind, "text": truncate_text(text)}
     if tool_name:
         entry["toolName"] = tool_name
+    if entry_id is not None:
+        entry["id"] = entry_id
+    if is_complete is not None:
+        entry["isComplete"] = is_complete
     _send_notification("context/subAgentMessage", {"id": sa_id, "entry": entry})
 
 

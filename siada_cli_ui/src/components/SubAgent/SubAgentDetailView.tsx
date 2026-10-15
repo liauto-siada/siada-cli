@@ -37,13 +37,20 @@ export function entriesToMessages(itemId: string, entries: SubAgentMessageEntry[
     .filter(entry => entry.kind !== 'tool_output')
     .map((entry, index) => {
       const base = {
-        id: `${itemId}_${index}`,
+        id: entry.id ? `${itemId}_${entry.id}` : `${itemId}_${index}`,
         timestamp: '1970-01-01T00:00:00.000Z',  // placeholder; detail view doesn't show real times
         author: 'SubAgent',
       };
       switch (entry.kind) {
         case 'thinking':
-          return { ...base, type: 'agent' as const, content: entry.text, metadata: { subtype: 'thinking' as const } };
+          return {
+            ...base, type: 'agent' as const, content: entry.text,
+            metadata: {
+              subtype: 'thinking' as const,
+              isStreaming: entry.isComplete === false,
+              streamEnd: entry.isComplete !== false,
+            },
+          };
         case 'tool_call':
           return { ...base, type: 'agent' as const, content: entry.text, metadata: { subtype: 'tool_use' as const } };
         case 'message':

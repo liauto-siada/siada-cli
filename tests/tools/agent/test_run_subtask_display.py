@@ -12,9 +12,10 @@ Verifies that:
 import asyncio
 import json
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
-from agents import RunItemStreamEvent
+from agents import RunItemStreamEvent, RawResponsesStreamEvent
 from agents.items import ToolCallItem, ToolCallOutputItem, MessageOutputItem, ResponseFunctionToolCall
 from agents import ToolOutputText, ToolOutputImage
 
@@ -317,6 +318,42 @@ class TestSubAgentNotifications(unittest.TestCase):
         first = mock_push.call_args_list[0]
         self.assertEqual(first.args[1], "tool_output")
         self.assertEqual(first.args[2], "unwrapped text content")
+
+    def test_reasoning_deltas_are_pushed_during_stream_before_tool_call(self):
+        from openai.types.responses import ResponseReasoningSummaryTextDeltaEvent
+
+        events = [
+            RawResponsesStreamEvent(data=ResponseReasoningSummaryTextDeltaEvent(
+                type="response.reasoning_summary_text.delta", item_id="r1",
+                output_index=0, summary_index=0, sequence_number=1, delta="检查",
+            )),
+            RawResponsesStreamEvent(data=ResponseReasoningSummaryTextDeltaEvent(
+                type="response.reasoning_summary_text.delta", item_id="r1",
+                output_index=0, summary_index=0, sequence_number=2, delta="实现",
+            )),
+            _make_tool_call_event("run_cmd", '{"command": "ls"}'),
+        ]
+        _, _, push, _ = self._run_with_events(events)
+        calls = push.call_args_list
+        self.assertEqual([c.args[1] for c in calls], [
+            "thinking", "thinking", "tool_call", "thinking", "message",
+        ])
+        self.assertEqual(calls[0].args[2], "检查")
+        self.assertEqual(calls[1].args[2], "检查实现")
+        self.assertFalse(calls[0].kwargs["is_complete"])
+        self.assertEqual(calls[0].kwargs["entry_id"], calls[1].kwargs["entry_id"])
+        self.assertTrue(calls[3].kwargs["is_complete"])
+
+    def test_completed_reasoning_item_is_not_ignored(self):
+        from agents.items import ReasoningItem
+
+        item = MagicMock(spec=ReasoningItem)
+        item.raw_item = SimpleNamespace(id="r1", summary=[SimpleNamespace(text="reasoning")])
+        event = MagicMock(spec=RunItemStreamEvent)
+        event.item = item
+        _, _, push, _ = self._run_with_events([event])
+        self.assertEqual(push.call_args_list[0].args[1:3], ("thinking", "reasoning"))
+        self.assertTrue(push.call_args_list[0].kwargs["is_complete"])
 
     def test_tool_output_to_text_variants(self):
         from siada.tools.agent.run_subtask import _tool_output_to_text

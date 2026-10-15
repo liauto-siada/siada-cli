@@ -69,6 +69,7 @@ from siada.tools.agent.sub_agent_notifier import (
     push_sub_agent_message,
     start_sub_agent,
 )
+from siada.tools.agent.sub_agent_reasoning_stream import SubAgentReasoningStream
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 from siada.tools.coder.apply_patch_presentation import (
     is_apply_patch_call,
@@ -550,9 +551,30 @@ async def run_subtask_impl(
                 nonlocal result
                 async with aclosing(_run_subtask_attempts(**run_kwargs)) as attempts:
                     async for result in attempts:
-                        async with aclosing(result.stream_events()) as events:
-                            async for event in events:
-                                yield event
+                        def persist_reasoning(text: str) -> None:
+                            if persist:
+                                subagent_persistence.append_log(
+                                    agent_context.root_dir, agent_context.root_session_id,
+                                    sa_item.id, "thinking", text,
+                                )
+
+                        reasoning = SubAgentReasoningStream(
+                            lambda text, **kwargs: push_sub_agent_message(
+                                sa_item.id, "thinking", text, **kwargs,
+                            ),
+                            persist_reasoning,
+                        )
+                        try:
+                            async with aclosing(result.stream_events()) as events:
+                                async for event in events:
+                                    if isinstance(event, RawResponsesStreamEvent):
+                                        reasoning.handle_raw(event.data)
+                                    elif isinstance(event, RunItemStreamEvent):
+                                        if isinstance(event.item, ReasoningItem):
+                                            reasoning.complete_item(event.item.raw_item)
+                                    yield event
+                        finally:
+                            reasoning.finish()
 
             native_patch_calls: dict[str, object] = {}
             async for event in stream_events():

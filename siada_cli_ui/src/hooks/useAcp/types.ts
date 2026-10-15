@@ -74,6 +74,9 @@ export interface SubAgentMessageEntry {
   kind: 'thinking' | 'tool_call' | 'tool_output' | 'message';
   text: string;
   toolName?: string;
+  /** Stable identity for replacement snapshots; absent on legacy append entries. */
+  id?: string;
+  isComplete?: boolean;
 }
 
 export interface TodoMessageRange {

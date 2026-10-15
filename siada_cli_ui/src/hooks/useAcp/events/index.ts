@@ -4,6 +4,7 @@ import { ClientConfig, Message, ConnectionStatus, type AgentMessageSubtype } fro
 import { logger } from '../../../utils/logger.js';
 import { recordFlicker } from '../../../utils/flickerMonitor.js';
 import { TokenUsage, InteractiveInputRequest, LoginState, TodoItem, BannerInfo, TodoMessageRange, CacheStatusData, GoalState, SubAgentItem, SubAgentMessageEntry } from '../types.js';
+import { mergeSubAgentEntry } from '../../../utils/subAgentMessages.js';
 import { promptQueueStore } from '../../../store/promptQueueStore.js';
 import { inputRestoreStore } from '../../../store/inputRestoreStore.js';
 import { removeLastUserMessage } from './messageRemoval.js';
@@ -549,7 +550,7 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
           logger.debug('[SubAgentState] updated', { count: params?.items?.length ?? 0 });
         };
 
-        // Sub-agent content append: immutable Map update keyed by sub-agent id.
+        // Sub-agent content: append legacy entries or replace streaming snapshots.
         // Entries arriving before their state snapshot (or with unknown id) are
         // still accumulated — ordering loss never drops content.
         const handleSubAgentMessage = (params: { id?: string; entry?: SubAgentMessageEntry }) => {
@@ -557,7 +558,7 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
           const { id, entry } = params;
           setSubAgentMessages(prev => {
             const next = new Map(prev);
-            next.set(id, [...(next.get(id) ?? []), entry]);
+            next.set(id, mergeSubAgentEntry(next.get(id) ?? [], entry));
             return next;
           });
         };

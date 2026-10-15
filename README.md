@@ -140,6 +140,11 @@ final answer. Retries continue the existing session with completed tool results.
 If all three attempts return this result, the task is marked failed. This check
 detects a potentially incomplete response; it does not establish a network fault.
 
+Open a running sub-agent's detail view to follow its reasoning as it streams.
+Each reasoning part updates in place and keeps the latest 5,000 characters for
+long responses. Providers that return only completed reasoning show it when the
+item arrives.
+
 | Entry point | Usage |
 | --- | --- |
 | Interactive terminal | Run `siada-cli` for a continuous conversation in the terminal UI. |
