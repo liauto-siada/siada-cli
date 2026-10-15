@@ -5,6 +5,53 @@ from rich.console import Console
 
 from siada.io.color_settings import ColorSettings, RunningConfigColorSettings
 from siada.io.io import InputOutput
+import json
+
+
+def test_acp_input_reads_request_id_from_envelope(monkeypatch):
+    from siada.foundation.context import context_dict_var, get_context_var
+    from siada.foundation.log_context import REQUEST_ID
+
+    token = context_dict_var.set({})
+    try:
+        monkeypatch.setattr(InputOutput, "_initialize_acp", lambda self, *a: None)
+        monkeypatch.setattr(InputOutput, "_instance", None)
+        io = InputOutput(acp_enabled=True)
+        io.ring_bell = lambda: None
+        monkeypatch.setattr("siada.io.stdin_interrupt_monitor.is_monitor_active", lambda: False)
+        envelope = {"prompt": "/status", "_meta": {"siadaLog": {"requestId": "synthetic-request"}}}
+        monkeypatch.setattr("sys.stdin", StringIO(
+            "<<<SIADA_MSG_START>>>\n" + json.dumps(envelope) + "\n<<<SIADA_MSG_END>>>\n"
+        ))
+        assert io.get_input(display_rule=False) == "/status"
+        assert get_context_var(REQUEST_ID) == "synthetic-request"
+    finally:
+        context_dict_var.reset(token)
+
+
+def test_legacy_framed_requests_do_not_reuse_previous_request_id(monkeypatch):
+    from siada.foundation.context import context_dict_var, get_context_var
+    from siada.foundation.log_context import REQUEST_ID
+
+    token = context_dict_var.set({REQUEST_ID: "previous-request"})
+    try:
+        monkeypatch.setattr(InputOutput, "_initialize_acp", lambda self, *a: None)
+        monkeypatch.setattr(InputOutput, "_instance", None)
+        io = InputOutput(acp_enabled=True)
+        io.ring_bell = lambda: None
+        monkeypatch.setattr("siada.io.stdin_interrupt_monitor.is_monitor_active", lambda: False)
+        monkeypatch.setattr("sys.stdin", StringIO(
+            "<<<SIADA_MSG_START>>>\nfirst\n<<<SIADA_MSG_END>>>\n"
+            "<<<SIADA_MSG_START>>>\nsecond\n<<<SIADA_MSG_END>>>\n"
+        ))
+        assert io.get_input(display_rule=False) == "first"
+        first = get_context_var(REQUEST_ID)
+        assert io.get_input(display_rule=False) == "second"
+        second = get_context_var(REQUEST_ID)
+        assert first and second and first != second
+        assert first != "previous-request"
+    finally:
+        context_dict_var.reset(token)
 
 
 def test_acp_input_does_not_construct_legacy_ui_or_print_prompt(monkeypatch, capsys):

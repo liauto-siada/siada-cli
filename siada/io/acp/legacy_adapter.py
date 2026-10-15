@@ -234,7 +234,8 @@ class LegacyACPAdapter:
         try:
             # Build message
             msg = message_func(*args, **kwargs)
-            logger.info(f"[_send_if_acp_robust] Preparing to send message: {msg.method if hasattr(msg, 'method') else 'unknown'}")
+            logger.debug("[_send_if_acp_robust] Preparing to send message: %s",
+                         getattr(msg, "method", "unknown"))
             
             if not self.transport:
                 logger.error("[_send_if_acp_robust] Transport not available")

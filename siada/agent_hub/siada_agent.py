@@ -5,7 +5,8 @@ import dataclasses
 import yaml
 import os
 
-from agents import Agent, RunConfig, RunHooks, RunResult, RunResultStreaming, Runner, TContext, TResponseInputItem, set_trace_processors
+from agents import Agent, RunConfig, RunHooks, RunResult, RunResultStreaming, TContext, TResponseInputItem, set_trace_processors
+from siada.foundation.agent_logging import LoggingRunner as Runner
 from agents.tool import FunctionTool
 from siada.agent_hub.hooks.guardrails import PLUGIN_HOOK_INPUT_GUARDRAIL, PLUGIN_HOOK_OUTPUT_GUARDRAIL
 from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks

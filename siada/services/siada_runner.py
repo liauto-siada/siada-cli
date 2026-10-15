@@ -3,6 +3,7 @@ import copy
 import time
 
 from siada.foundation.context import set_context_var, set_session_id, MODEL_PROVIDER_NAME, LLM_CONFIG, AGENT_NAME
+from siada.foundation.log_context import logged_request
 
 from siada.foundation.code_agent_context import RuntimeSource
 from siada.session.session_models import RunningSession
@@ -490,6 +491,7 @@ class SiadaRunner:
     ) -> RunResult: ...
 
     @staticmethod
+    @logged_request
     async def run_agent(
         agent_name: str,
         user_input: str | list[TResponseInputItem],

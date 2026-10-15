@@ -19,8 +19,13 @@ class RecordingClient:
         self.updates.append((session_id, update))
 
 
-def _run_prompt_against_real_client(agent):
-    """Exercise error propagation through both SDK connections."""
+def _run_prompt_against_real_client(agent, *, request_id=None):
+    """Drive ``agent`` through a real SDK client connection over a socketpair.
+
+    Both sides of the ACP connection are the SDK's own, so whatever this
+    returns is what a real client (chrome-acp sidepanel, editor plugin, Node
+    TUI) observes — including how the SDK re-shapes a failed request.
+    """
 
     class _StubClient:
         async def session_update(self, *_args, **_kwargs):
@@ -39,6 +44,7 @@ def _run_prompt_against_real_client(agent):
             return await client.prompt(
                 session_id=session.session_id,
                 prompt=[TextContentBlock(type="text", text="hi")],
+                **({"_meta": {"siadaLog": {"requestId": request_id}}} if request_id else {}),
             )
         finally:
             await connection.close()
@@ -61,6 +67,47 @@ def test_acp_agent_emits_sdk_session_update_and_ends_prompt():
     assert initialized.agent_info.version == siada.__version__
     assert response.stop_reason == "end_turn"
     assert len(client.updates) == 1
+
+
+def test_acp_update_carries_request_metadata_without_mutating_original():
+    from siada.foundation.log_context import log_fields
+
+    original = update_agent_message_text("synthetic")
+    agent = SiadaAcpAgent(turn_runner=lambda _session_id, _text: [original])
+    client = RecordingClient()
+    agent.on_connect(client)
+
+    async def request():
+        session = await agent.new_session(cwd="/tmp")
+        await agent.prompt(
+            session.session_id, prompt=[],
+            _meta={"siadaLog": {"requestId": "synthetic-request"}},
+        )
+        assert log_fields()["requestId"] == "-"
+        return session.session_id
+
+    session_id = asyncio.run(request())
+    fields = client.updates[0][1].model_dump(by_alias=True)["_meta"]["siadaLog"]
+    assert fields["sessionId"] == session_id
+    assert fields["requestId"] == "synthetic-request"
+    assert original.field_meta is None
+
+
+def test_request_metadata_survives_real_sdk_transport():
+    from siada.foundation.log_context import log_fields
+
+    fields = []
+    def turn_runner(_session_id, _text):
+        fields.append(log_fields())
+        return [update_agent_message_text("synthetic")]
+
+    response = _run_prompt_against_real_client(
+        SiadaAcpAgent(turn_runner=turn_runner),
+        request_id="wire-request",
+    )
+    assert response.stop_reason == "end_turn"
+    assert fields[0]["requestId"] == "wire-request"
+    assert fields[0]["sessionId"] != "-"
 
 
 def test_acp_agent_accepts_async_turn_runner():

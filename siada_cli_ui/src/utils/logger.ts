@@ -5,8 +5,10 @@
 
 import chalk from 'chalk';
 import { writeFileSync, appendFileSync, existsSync, mkdirSync, statSync, renameSync, readdirSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -18,6 +20,9 @@ export enum LogLevel {
 export interface LogContext {
   messageId?: string;
   sessionId?: string;
+  requestId?: string;
+  agent?: string;
+  agentRunId?: string;
   component?: string;
   operation?: string;
   duration?: number;
@@ -31,6 +36,7 @@ export interface LoggerOptions {
   maxFileSize?: number; // in bytes
   maxContentLength?: number;
   filterSensitive?: boolean;
+  logDir?: string;
 }
 
 export class Logger {
@@ -46,6 +52,21 @@ export class Logger {
   private filterSensitive: boolean;
   private sessionId: string;
   private messageCounter: number = 0;
+  private readonly instanceId = randomUUID();
+  private readonly context = new AsyncLocalStorage<LogContext>();
+  private lastCleanup = 0;
+
+  withContext<T>(context: LogContext, action: () => T): T {
+    return this.context.run({ ...this.context.getStore(), ...context }, action);
+  }
+
+  getContext(): LogContext {
+    return { ...this.context.getStore() };
+  }
+
+  setSessionId(sessionId: string): void {
+    this.sessionId = sessionId;
+  }
 
   // Sensitive patterns to filter
   private sensitivePatterns = [
@@ -62,11 +83,11 @@ export class Logger {
     this.maxFileSize = options.maxFileSize ?? 10 * 1024 * 1024; // 10MB default
     this.maxContentLength = options.maxContentLength ?? 1000; // 1000 chars default
     this.filterSensitive = options.filterSensitive ?? true;
-    this.sessionId = this.generateSessionId();
+    this.sessionId = '-';
     
     // Setup log file in home directory
     if (this.enableFile) {
-      const logDir = join(homedir(), '.siada-cli', 'ui-logs');
+      const logDir = options.logDir || process.env.SIADA_UI_LOG_DIR || join(homedir(), '.siada-cli', 'ui-logs');
       if (!existsSync(logDir)) {
         mkdirSync(logDir, { recursive: true });
       }
@@ -76,12 +97,8 @@ export class Logger {
     }
   }
 
-  private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
   private generateMessageId(): string {
-    return `msg_${this.sessionId}_${this.messageCounter++}`;
+    return `msg_${this.instanceId}_${this.messageCounter++}`;
   }
 
   private shouldLog(level: LogLevel): boolean {
@@ -133,34 +150,19 @@ export class Logger {
    * Format message with enhanced context
    */
   private formatMessage(level: string, message: string, context?: LogContext): string {
-    // Use local time instead of UTC to match Python logger timezone
-    const now = new Date();
-    const timestamp = now.getFullYear() + '-' +
-      String(now.getMonth() + 1).padStart(2, '0') + '-' +
-      String(now.getDate()).padStart(2, '0') + 'T' +
-      String(now.getHours()).padStart(2, '0') + ':' +
-      String(now.getMinutes()).padStart(2, '0') + ':' +
-      String(now.getSeconds()).padStart(2, '0') + '.' +
-      String(now.getMilliseconds()).padStart(3, '0') + '+08:00';
+    context = { ...this.context.getStore(), ...context };
+    const timestamp = new Date().toISOString();
     const messageId = context?.messageId || this.generateMessageId();
-    
-    const contextInfo = {
-      timestamp,
-      level,
-      messageId,
-      sessionId: this.sessionId,
-      component: context?.component,
-      operation: context?.operation,
-      duration: context?.duration,
-    };
-
-    // Remove undefined fields
-    Object.keys(contextInfo).forEach(key => 
-      contextInfo[key as keyof typeof contextInfo] === undefined && delete contextInfo[key as keyof typeof contextInfo]
-    );
 
     // Build structured log
     let logLine = `[${timestamp}] [${level}]`;
+    const identifiers = {
+      pid: process.pid, instanceId: this.instanceId,
+      sessionId: context?.sessionId || this.sessionId,
+      requestId: context?.requestId || '-', agent: context?.agent || '-',
+      agentRunId: context?.agentRunId || '-',
+    };
+    logLine += ` ${JSON.stringify(identifiers)}`;
     
     if (context?.component) {
       logLine += ` [${context.component}]`;
@@ -178,7 +180,7 @@ export class Logger {
 
     // Add additional context
     if (context) {
-      const { messageId, component, operation, duration, ...rest } = context;
+      const { messageId, component, operation, duration, sessionId, requestId, agent, agentRunId, ...rest } = context;
       if (Object.keys(rest).length > 0) {
         const filtered = this.filterSensitiveData(rest);
         const contextStr = JSON.stringify(filtered, null, 2);
@@ -199,12 +201,13 @@ export class Logger {
   private cleanOldLogs(logDir: string): void {
     try {
       const files = readdirSync(logDir);
+      this.lastCleanup = Date.now();
       const now = Date.now();
       const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
       files.forEach(file => {
         // Only process log files (*.log)
-        if (!file.endsWith('.log')) return;
+        if (!/^siada-ui\..+\.log$/.test(file)) return;
         
         const filePath = join(logDir, file);
         try {
@@ -219,6 +222,10 @@ export class Logger {
           // Silently fail for individual files
         }
       });
+      const backups = readdirSync(logDir).filter(file => /^siada-ui\..+\.log$/.test(file)).sort();
+      for (const file of backups.slice(0, Math.max(0, backups.length - 30))) {
+        try { unlinkSync(join(logDir, file)); } catch { /* Another process may have removed it. */ }
+      }
     } catch (error) {
       // Silently fail if unable to clean logs
     }
@@ -234,8 +241,9 @@ export class Logger {
       const stats = statSync(this.logFile);
       if (stats.size > this.maxFileSize) {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const rotatedFile = this.logFile.replace('.log', `.${timestamp}.log`);
+        const rotatedFile = this.logFile.replace('.log', `.${timestamp}.${process.pid}.${randomUUID()}.log`);
         renameSync(this.logFile, rotatedFile);
+        this.cleanOldLogs(dirname(this.logFile));
       }
     } catch (error) {
       // Silently fail
@@ -251,6 +259,9 @@ export class Logger {
     try {
       this.checkAndRotateLog();
       appendFileSync(this.logFile, message + '\n');
+      if (Date.now() - this.lastCleanup > 60 * 60 * 1000) {
+        this.cleanOldLogs(join(this.logFile, '..'));
+      }
     } catch (error) {
       // Silently fail if unable to write to log file
     }
@@ -339,6 +350,7 @@ export class Logger {
    * Log ACP message
    */
   logACPMessage(direction: 'send' | 'receive', message: any, context?: LogContext): void {
+    if (!this.shouldLog(LogLevel.DEBUG)) return;
     const arrow = direction === 'send' ? '→' : '←';
     const messageStr = typeof message === 'string' 
       ? this.truncateContent(message)
@@ -437,7 +449,7 @@ export class Logger {
 
 // Export singleton instance
 export const logger = new Logger({
-  level: process.env.SIADA_DEBUG ? LogLevel.DEBUG : LogLevel.INFO,
+  level: /^(true|1|yes)$/i.test(process.env.SIADA_DEBUG || '') ? LogLevel.DEBUG : LogLevel.INFO,
   enableConsole: false, // Disabled to prevent terminal crashes
   enableFile: true,
   maxFileSize: 10 * 1024 * 1024, // 10MB

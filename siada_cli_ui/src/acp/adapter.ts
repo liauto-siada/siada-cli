@@ -18,6 +18,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { ClientConfig, ACPMessage, ACPEvent } from '../types/index.js';
 import { logger, LogLevel } from '../utils/logger.js';
+import { randomUUID } from 'node:crypto';
 
 const MAX_RESTART_ATTEMPTS = 3;
 const RESTART_DELAY = 2000;
@@ -75,19 +76,19 @@ export class SiadaACPAdapter extends EventEmitter {
     const safeInput = this.redactSensitiveInput(input);
     const safeWriteData = this.redactSensitiveInput(writeData);
 
-    logger.info('About to write to stdin', {
+    logger.debug('About to write to stdin', {
       component: 'Adapter',
       operation: meta.operation,
       messageId: meta.messageId,
       method: meta.method,
-      writeData: safeWriteData,
+      dataLength: writeData.length,
       stdinWritable: this.process?.stdin?.writable,
       stdinDestroyed: this.process?.stdin?.destroyed,
     });
 
     const written = this.process?.stdin?.write(writeData);
 
-    logger.info('Write completed', {
+    logger.debug('Write completed', {
       component: 'Adapter',
       operation: meta.operation,
       messageId: meta.messageId,
@@ -639,10 +640,19 @@ export class SiadaACPAdapter extends EventEmitter {
   private tryParseACPJson(line: string): boolean {
     try {
       const json = JSON.parse(line);
+      const logContext = json.params?._meta?.siadaLog;
+      return logger.withContext(logContext || {}, () => this.handleParsedACPJson(json));
+    } catch (error) {
+      return false;
+    }
+  }
+
+  private handleParsedACPJson(json: any): boolean {
+    try {
       
       // Check if it's a valid ACP message (JSON-RPC 2.0)
       if (json.jsonrpc === '2.0' && json.method) {
-        logger.info('✅ Parsed ACP JSON message', {
+        logger.debug('✅ Parsed ACP JSON message', {
           component: 'Adapter',
           operation: 'tryParseACPJson',
           method: json.method,
@@ -902,7 +912,7 @@ export class SiadaACPAdapter extends EventEmitter {
 
         // Handle context/subAgentMessage notifications (incremental sub-agent content)
         if (json.method === 'context/subAgentMessage') {
-          logger.info('Received context/subAgentMessage notification', {
+          logger.debug('Received context/subAgentMessage notification', {
             component: 'Adapter',
             operation: 'tryParseACPJson',
             subAgentId: json.params?.id,
@@ -937,13 +947,13 @@ export class SiadaACPAdapter extends EventEmitter {
     const params = json.params || {};
     const reason = params.reason;
     const content = params.content || '';
-    const metadata = params._meta || params.metadata || {};
+    const metadata = { ...params.metadata, ...params._meta };
     const chunkType = metadata.chunkType;
     const isStreaming = metadata.isStreaming !== undefined ? metadata.isStreaming : true;
     const streamEnd = metadata.streamEnd || false;
     const streamStartId = metadata.streamStartId; // 🆕 Extract streamStartId from metadata
     
-    logger.info('📨 ACP session/update', {
+    logger.debug('📨 ACP session/update', {
       component: 'Adapter',
       operation: 'handleACPSessionUpdate',
       reason,
@@ -1037,7 +1047,7 @@ export class SiadaACPAdapter extends EventEmitter {
       
       case 'cache_status':
         // Handle cache status update — emit as typed event for useACP
-        logger.info('📊 Cache status received', {
+        logger.debug('📊 Cache status received', {
           component: 'Adapter',
           operation: 'handleACPSessionUpdate',
           contentLength: content.length,
@@ -1330,6 +1340,12 @@ export class SiadaACPAdapter extends EventEmitter {
    * Send message to siada-cli
    */
   async sendMessage(message: ACPMessage): Promise<void> {
+    const requestId = logger.getContext().requestId || randomUUID();
+    return logger.withContext({ requestId, sessionId: logger.getSessionId() }, () =>
+      this.sendMessageWithContext(message, requestId));
+  }
+
+  private async sendMessageWithContext(message: ACPMessage, requestId: string): Promise<void> {
     if (!this.process || !this.isReady) {
       const error = new Error('Adapter not ready');
       logger.error('Cannot send message: adapter not ready', error, {
@@ -1356,7 +1372,7 @@ export class SiadaACPAdapter extends EventEmitter {
         command,
       });
       
-      logger.info('Writing to siada-cli stdin', {
+      logger.debug('Writing to siada-cli stdin', {
         component: 'Adapter',
         operation: 'sendMessage',
         messageId: String(message.id),
@@ -1364,7 +1380,13 @@ export class SiadaACPAdapter extends EventEmitter {
         commandLength: command.length,
         hasStdin: !!this.process.stdin,
       });
-      await this.writeInputToStdin(command, {
+      let wireCommand = command;
+      if (message.method === 'agent/execute') {
+        const envelope = JSON.parse(command);
+        envelope._meta = { ...envelope._meta, siadaLog: { requestId } };
+        wireCommand = JSON.stringify(envelope);
+      }
+      await this.writeInputToStdin(wireCommand, {
         messageId: String(message.id),
         operation: 'sendMessage',
         method: message.method,
@@ -1691,11 +1713,10 @@ export class SiadaACPAdapter extends EventEmitter {
     // So we extract eventType directly from params.type
     const eventType = params.type;
     
-    logger.info('🔄 Lifecycle event received', {
+    logger.debug('🔄 Lifecycle event received', {
       component: 'Adapter',
       operation: 'handleLifecycleEvent',
       eventType,
-      params,
     });
     
     switch (eventType) {
@@ -1978,7 +1999,7 @@ export class SiadaACPAdapter extends EventEmitter {
     const { delta, is_final, stream_end, stream_start_id } = data;
     
     // 🔍 Debug: Log all conditions for handleContentDelta
-    logger.info('🔍 [DEBUG] handleContentDelta called', {
+    logger.debug('🔍 [DEBUG] handleContentDelta called', {
       component: 'Adapter',
       operation: 'handleContentDelta',
       hasStreamingBuffer: !!this.streamingBuffer,
@@ -1992,7 +2013,6 @@ export class SiadaACPAdapter extends EventEmitter {
         isActive: this.streamingBuffer.isActive,
       } : null,
       eventData: {
-        delta: delta?.substring(0, 100),
         is_final,
         stream_end,
         stream_start_id,

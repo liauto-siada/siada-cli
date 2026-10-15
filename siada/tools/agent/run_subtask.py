@@ -28,7 +28,8 @@ from typing import Any, AsyncIterator, Optional
 from contextlib import AsyncExitStack, aclosing
 from pathlib import Path
 
-from agents import RunContextWrapper, Runner, RunConfig, RunResultStreaming, function_tool, RunItemStreamEvent, RawResponsesStreamEvent, ToolOutputText, ToolOutputImage
+from agents import RunContextWrapper, RunConfig, RunResultStreaming, function_tool, RunItemStreamEvent, RawResponsesStreamEvent, ToolOutputText, ToolOutputImage
+from siada.foundation.agent_logging import LoggingRunner as Runner
 from agents.items import ToolCallItem, ToolCallOutputItem, MessageOutputItem, ReasoningItem
 from agents.tracing import trace as agent_trace
 from pydantic import Field

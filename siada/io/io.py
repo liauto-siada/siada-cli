@@ -350,6 +350,7 @@ class InputOutput:
 
         inp = ""
         multiline_input = False
+        input_request_id = None
 
         style = None
         completer_instance = None
@@ -445,7 +446,7 @@ class InputOutput:
                     
                     # Check for message start marker
                     if line.strip() == '<<<SIADA_MSG_START>>>':
-                        logger.info("[IO.get_input] Detected SIADA_MSG_START marker, reading multiline message...")
+                        logger.debug("[IO.get_input] Detected SIADA_MSG_START marker, reading multiline message...")
                         # Read complete message until end marker
                         # Use retry mechanism to handle incomplete data due to backpressure
                         message_lines = []
@@ -459,7 +460,7 @@ class InputOutput:
                             if not content_line:  # EOF - data may not have arrived yet
                                 eof_retry_count += 1
                                 if eof_retry_count <= max_eof_retries:
-                                    logger.warning(f"[IO.get_input] EOF while reading multiline message (retry {eof_retry_count}/{max_eof_retries}). "
+                                    logger.debug(f"[IO.get_input] EOF while reading multiline message (retry {eof_retry_count}/{max_eof_retries}). "
                                                    f"Read {line_count} lines, {total_bytes} bytes so far. Waiting for more data...")
                                     import time
                                     time.sleep(0.1)  # Wait 100ms for more data to arrive
@@ -474,7 +475,7 @@ class InputOutput:
                             eof_retry_count = 0
                             
                             if content_line.strip() == '<<<SIADA_MSG_END>>>':
-                                logger.info(f"[IO.get_input] Detected SIADA_MSG_END marker. Total lines={line_count}, total_bytes={total_bytes}")
+                                logger.debug(f"[IO.get_input] Detected SIADA_MSG_END marker. Total lines={line_count}, total_bytes={total_bytes}")
                                 break
                             message_lines.append(content_line.rstrip('\n'))
                             total_bytes += len(content_line)
@@ -483,7 +484,7 @@ class InputOutput:
                             if line_count % 1000 == 0:
                                 logger.debug(f"[IO.get_input] Reading progress: {line_count} lines, {total_bytes} bytes")
                         line = '\n'.join(message_lines)
-                        logger.info(f"[IO.get_input] Multiline message assembled: total_length={len(line)}, first_100_chars={repr(line[:100])}, last_100_chars={repr(line[-100:] if len(line) > 100 else line)}")
+                        logger.debug("[IO.get_input] Multiline message assembled: total_length=%d", len(line))
                         
                         # Intercept JSON-RPC notifications from frontend (e.g. session/pullHistory)
                         # Notifications have jsonrpc="2.0", method, but no id field.
@@ -509,6 +510,14 @@ class InputOutput:
                                         continue
                                     # Multimodal message: {"prompt": "...", "image_paths": [...]}
                                     if "prompt" in parsed:
+                                        from siada.foundation.context import set_context_var
+                                        from siada.foundation.log_context import REQUEST_ID
+                                        from uuid import uuid4
+                                        meta = parsed.get("_meta") or {}
+                                        log_meta = meta.get("siadaLog") or {} if isinstance(meta, dict) else {}
+                                        request_id = log_meta.get("requestId") if isinstance(log_meta, dict) else None
+                                        input_request_id = str(request_id or uuid4().hex)
+                                        set_context_var(REQUEST_ID, input_request_id)
                                         image_paths = parsed.get("image_paths") or []
                                         if image_paths:
                                             self._pending_image_paths = image_paths
@@ -610,6 +619,11 @@ class InputOutput:
 
         if not self.acp_enabled:
             print()
+        if inp.strip() and input_request_id is None:
+            from siada.foundation.context import set_context_var
+            from siada.foundation.log_context import REQUEST_ID
+            from uuid import uuid4
+            set_context_var(REQUEST_ID, uuid4().hex)
         return inp
 
     def display_user_input(self, inp):

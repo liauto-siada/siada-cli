@@ -3,13 +3,16 @@ import sys
 import logging
 import tempfile
 import threading
+import time
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
+from concurrent_log_handler import ConcurrentTimedRotatingFileHandler
 from typing import Literal, Mapping, Optional
 from termcolor import colored
 
 from siada.foundation.constants import SIADA_HOME
 from siada.foundation.log_category import LogCategory
+from siada.foundation.log_context import log_fields
 
 
 def get_log_directory():
@@ -136,6 +139,14 @@ class ColoredFormatter(logging.Formatter):
 
 class FileFormatter(logging.Formatter):
     def format(self, record):
+        fields = log_fields()
+        prefix = f"[pid={record.process} " + " ".join(
+            f"{key}={str(record.__dict__.get(key, value)).replace(chr(10), ' ').replace(chr(13), ' ')}"
+            for key, value in fields.items()
+        ) + "] "
+        return prefix + self._format_record(record)
+
+    def _format_record(self, record):
         msg_type = record.__dict__.get('msg_type')
         event_source = record.__dict__.get('event_source')
         
@@ -144,7 +155,7 @@ class FileFormatter(logging.Formatter):
             msg_type = f'{event_source.upper()}_{msg_type}'
             
         if msg_type:
-            msg = record.msg
+            msg = record.getMessage()
             time_str = self.formatTime(record, self.datefmt)
             name_str = record.name
             level_str = record.levelname
@@ -170,38 +181,30 @@ file_formatter = logging.Formatter(
 llm_formatter = logging.Formatter('%(message)s')
 
 
-class SafeTimedRotatingFileHandler(TimedRotatingFileHandler):
+class SafeTimedRotatingFileHandler(ConcurrentTimedRotatingFileHandler):
     """
-    Windows-compatible TimedRotatingFileHandler that gracefully handles rotation errors.
-    
-    On Windows, when multiple processes have the same log file open, rotation can fail
-    with PermissionError because Windows doesn't allow renaming files that are open
-    by other processes. This handler catches such errors and continues logging to the
-    current file instead of crashing.
-    
-    This is a common scenario when multiple siada-cli instances are running simultaneously.
+    Daily and size rotation coordinated across processes by a shared file lock.
     """
     
+    def __init__(self, *args, **kwargs):
+        self._last_rotation_warning = None
+        kwargs.setdefault("maxBytes", 10 * 1024 * 1024)
+        super().__init__(*args, **kwargs)
+
     def doRollover(self):
-        """
-        Override doRollover to handle Windows-specific file locking issues.
-        
-        When rotation fails due to PermissionError (file locked by another process),
-        we silently continue using the current log file. For other errors, we log
-        a warning but don't crash the application.
-        """
+        """Continue writing after a failed rollover, with bounded diagnostics."""
         try:
             super().doRollover()
-        except PermissionError:
-            # File is locked by another process (common on Windows with multiple instances)
-            # Continue using the current log file - rotation will be attempted again later
-            print("Warning: siada-log locked by another process. Permission error.")
-            pass
+            self._last_rotation_warning = None
         except Exception as e:
-            # Log other rotation errors to stderr but don't crash
-            import sys
-            print(f"Warning: Log rotation failed: {e}. Continuing with current log file.", 
-                  file=sys.stderr)
+            now = time.monotonic()
+            if self._last_rotation_warning is None or now - self._last_rotation_warning >= 60:
+                self._last_rotation_warning = now
+                print(
+                    f"Warning: Log rotation failed [pid={os.getpid()} file={self.baseFilename}]: "
+                    f"{e}. Continuing with current log file.",
+                    file=sys.stderr,
+                )
 
 
 def _create_concurrent_file_handler():
@@ -305,7 +308,7 @@ class FilteredHandler(logging.Handler):
         self.addFilter(log_filter)
 
     def emit(self, record: logging.LogRecord) -> None:
-        self.target.emit(record)
+        self.target.handle(record)
 
     def setLevel(self, level: int) -> None:  # noqa: N802 – keep stdlib naming
         super().setLevel(level)

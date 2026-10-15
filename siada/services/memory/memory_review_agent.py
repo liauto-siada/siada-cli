@@ -8,6 +8,7 @@ MemoryAgent). Reviews the session content and updates MEMORY.md / USER.md via th
 """
 import logging
 from typing import TYPE_CHECKING, Optional
+from siada.foundation.log_context import logged_agent
 
 from siada.tools.memory.memory_write_tool import memory as memory_write_tool
 from siada.tools.memory.fact_tools import fact_store as fact_store_tool
@@ -87,6 +88,7 @@ def _build_memory_review_agent(system_prompt: str, *, with_fact_store: bool):
     )
 
 
+@logged_agent("MemoryReviewAgent")
 async def review_and_update_inline_memory(
     session_content: str,
     *,
@@ -176,7 +178,7 @@ async def review_and_update_inline_memory(
             holographic_provider=holographic_provider,
         )
 
-        from agents import Runner
+        from siada.foundation.agent_logging import LoggingRunner as Runner
         from siada.provider.fast_llm import build_fast_run_config
 
         # Sandwich structure: task instruction wraps both sides of the session

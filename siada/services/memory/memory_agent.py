@@ -16,7 +16,9 @@ To add a new memory type:
 
 from pathlib import Path
 from datetime import datetime
-from agents import Agent, Runner, RunConfig, function_tool, RunContextWrapper
+from agents import Agent, RunConfig, function_tool, RunContextWrapper
+from siada.foundation.agent_logging import LoggingRunner as Runner
+from siada.foundation.log_context import logged_agent
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.logging import logger
 from siada.agent_hub.hooks.siada_basic_agent_hooks import SiadaBasicAgentHooks
@@ -122,6 +124,7 @@ def _build_run_config() -> RunConfig:
 
 # ---- Main Entry Point --------------------------------
 
+@logged_agent("MemoryAgent")
 async def analyze_and_update_memory(session_content: str) -> dict:
     """
     Run all memory task instructions sequentially on the given session content.

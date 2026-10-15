@@ -1047,15 +1047,26 @@ class ProactiveScheduler:
         """
         from siada.services.memory.memory_agent import analyze_and_update_memory
         from siada.services.memory.memory_review_agent import review_and_update_inline_memory
+        from siada.foundation.log_context import log_scope
+        from uuid import uuid4
 
         logger.info("ProactiveScheduler -- Analyzing session file: %s", f.name)
         try:
             content = f.read_text(encoding="utf-8")
+            header = content.split("## Conversation Summary", 1)[0]
+            source_session_id = next(
+                (line.removeprefix("- **Session ID**: ").strip()
+                 for line in header.splitlines()
+                 if line.startswith("- **Session ID**: ")),
+                "-",
+            )
+            analysis_request_id = uuid4().hex
             logger.info(
                 "[memory-source][analyze] trigger=periodic source=session_markdown file=%s chars=%d status=starting",
                 f.name, len(content),
             )
-            result = await analyze_and_update_memory(session_content=content)
+            with log_scope(session_id=source_session_id, request_id=analysis_request_id):
+                result = await analyze_and_update_memory(session_content=content)
             if result.get("success"):
                 logger.info(
                     "ProactiveScheduler -- Session analysis done: %s, tasks=%s",
@@ -1071,7 +1082,8 @@ class ProactiveScheduler:
                 "[memory-source][review] trigger=periodic source=session_markdown file=%s chars=%d status=starting",
                 f.name, len(content),
             )
-            review_result = await review_and_update_inline_memory(content)
+            with log_scope(session_id=source_session_id, request_id=analysis_request_id):
+                review_result = await review_and_update_inline_memory(content)
             if review_result.get("success"):
                 logger.info(
                     "ProactiveScheduler -- Inline memory review done: %s, skipped=%s",

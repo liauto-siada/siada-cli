@@ -47,7 +47,8 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from agents import RunContextWrapper, RunHooks, Runner
+from agents import RunContextWrapper, RunHooks
+from siada.foundation.agent_logging import LoggingRunner as Runner
 from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 from agents.tool import FunctionTool
 from agents.tool_guardrails import (

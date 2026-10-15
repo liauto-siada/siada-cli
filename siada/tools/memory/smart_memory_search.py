@@ -9,7 +9,8 @@ for the main agent while providing more relevant and concise results.
 import logging
 from pathlib import Path
 from typing import Literal, Optional
-from agents import Agent, Runner, RunContextWrapper, function_tool
+from agents import Agent, RunContextWrapper, function_tool
+from siada.foundation.agent_logging import LoggingRunner as Runner
 from siada.agent_hub.hooks.siada_basic_agent_hooks import SiadaBasicAgentHooks
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.services.memory import DEFAULT_CHUNK_SIZE

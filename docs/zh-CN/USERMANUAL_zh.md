@@ -563,6 +563,9 @@ deactivate
 
 ## 故障排除
 
+并行请求排查时，请参阅[日志关联与轮转](LOGGING_zh.md)，了解日志位置、
+来源标识、DEBUG 设置和轮转规则。
+
 ### 常见问题
 
 **命令找不到 (command not found)：**

@@ -293,7 +293,8 @@ async def _run_async(
 ) -> str:
     import time
 
-    from agents import Runner, RunHooks
+    from agents import RunHooks
+    from siada.foundation.agent_logging import LoggingRunner as Runner
     from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 
     from siada.agent_hub.hooks.siada_basic_agent_hooks import SiadaBasicAgentHooks

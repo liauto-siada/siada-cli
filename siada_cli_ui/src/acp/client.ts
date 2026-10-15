@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'node:crypto';
 import { SiadaACPAdapter } from './adapter.js';
 import { ClientConfig, ACPMessage, ACPEvent, Message } from '../types/index.js';
 import { logger, LogLevel } from '../utils/logger.js';
@@ -141,6 +142,7 @@ export class SiadaACPClient extends EventEmitter {
 
     // Session ID event
     this.adapter.on('session:id', (sessionId: string) => {
+      logger.setSessionId(sessionId);
       logger.info('Session ID received', {
         component: 'Client',
         operation: 'session_id',
@@ -161,7 +163,7 @@ export class SiadaACPClient extends EventEmitter {
 
     // Token usage event
     this.adapter.on('tokenUsage', (data: any) => {
-      logger.info('Token usage received', {
+      logger.debug('Token usage received', {
         component: 'Client',
         operation: 'token_usage',
         contextSize: data.contextSize,
@@ -396,6 +398,11 @@ export class SiadaACPClient extends EventEmitter {
    * Send a message to siada-cli
    */
   async sendMessage(content: string, imagePaths?: string[], options?: { queueId?: string }): Promise<void> {
+    return logger.withContext({ requestId: randomUUID() }, () =>
+      this.sendMessageWithContext(content, imagePaths, options));
+  }
+
+  private async sendMessageWithContext(content: string, imagePaths?: string[], options?: { queueId?: string }): Promise<void> {
     if (!this.connected) {
       const error = new Error('Not connected to siada-cli');
       logger.error('Cannot send message: not connected', error, {

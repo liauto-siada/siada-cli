@@ -587,6 +587,9 @@ file's permissions, and new files keep the line endings supplied to `create`.
 
 ## Troubleshooting
 
+See [Log correlation and rotation](LOGGING.md) for log locations, identifiers,
+DEBUG settings, and rotation policies when diagnosing concurrent requests.
+
 ### Common Issues
 
 **Command not found:**

@@ -35,7 +35,7 @@ function pipeStderr(child: ChildProcess, tail: string[]): () => void {
 
   const pushLine = (line: string) => {
     if (!line.trim()) return;
-    console.error(`[Agent stderr] ${line}`);
+    console.error(`[Agent stderr pid=${child.pid ?? "-"}] ${line}`);
     tail.push(line);
     if (tail.length > STDERR_TAIL_MAX_LINES) tail.shift();
   };
@@ -168,7 +168,7 @@ export async function launchAgent(options: LaunchAgentOptions): Promise<Launched
   } catch (error) {
     const reason = (error as Error).message;
     const tail = stderrTail.join("\n").trim();
-    log.error("Agent startup failed", { reason, stderr: tail });
+    log.error("Agent startup failed", { agentPid: child.pid, reason, stderr: tail });
     throw new Error(tail ? `${reason}\n${tail}` : reason);
   }
 

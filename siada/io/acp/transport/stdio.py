@@ -14,6 +14,7 @@ from typing import Optional
 from siada.io.acp.message_builder import ACPMessage
 from .base import ACPTransport, ConnectionError, SendError, ReceiveError
 from siada.foundation.logging import logger
+from siada.foundation.log_context import log_fields
 
 
 class StdioTransport(ACPTransport):
@@ -139,7 +140,13 @@ class StdioTransport(ACPTransport):
         """
         try:
             # Convert message to JSON
-            json_str = message.to_json(ensure_ascii=self._ensure_ascii)
+            payload = dict(message.to_dict())
+            if isinstance(payload.get("params"), dict):
+                payload["params"] = dict(payload["params"])
+                meta = dict(payload["params"].get("_meta") or {})
+                meta["siadaLog"] = log_fields()
+                payload["params"]["_meta"] = meta
+            json_str = json.dumps(payload, ensure_ascii=self._ensure_ascii)
             
             # Add unique delimiter and newline for reliable message separation
             # Using \x1E (Record Separator) as delimiter to avoid conflicts with content
@@ -151,7 +158,7 @@ class StdioTransport(ACPTransport):
                 self._stdout.buffer.write(data)
                 self._stdout.buffer.flush()
 
-            logger.debug(f"[STDIO SEND SYNC] Message {data} sent successfully")
+            logger.debug("[STDIO SEND SYNC] method=%s bytes=%d", message.method, len(data))
 
         except Exception as e:
             raise SendError(f"Failed to send message: {e}") from e

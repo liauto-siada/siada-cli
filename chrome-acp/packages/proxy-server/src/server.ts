@@ -22,7 +22,8 @@ import {
   unregisterExecutor,
   sendToExtension,
 } from "./mcp/handler.js";
-import { log } from "./logger.js";
+import { log, withLogContext } from "./logger.js";
+import { randomUUID } from "node:crypto";
 import { renderGhostLogo } from "./ghost-logo.js";
 import { getOrCreateCertificate, getLanIPs } from "./cert.js";
 import {
@@ -265,7 +266,7 @@ function createClient(ws: WSContext, clientState: ClientState): acp.Client {
       const outcomePromise = new Promise<{ outcome: "cancelled" } | { outcome: "selected"; optionId: string }>((resolve) => {
         // Set timeout to auto-cancel if no response
         const timeout = setTimeout(() => {
-          log.warn("Permission request timed out", { requestId });
+          log.warn("Permission request timed out", { permissionId: requestId, sessionId: params.sessionId });
           clientState.pendingPermissions.delete(requestId);
           resolve({ outcome: "cancelled" });
         }, PERMISSION_TIMEOUT_MS);
@@ -284,23 +285,30 @@ function createClient(ws: WSContext, clientState: ClientState): acp.Client {
 
       // Wait for user response
       const outcome = await outcomePromise;
-      log.debug("Permission response received", { requestId, outcome });
+      log.debug("Permission response received", { permissionId: requestId, sessionId: params.sessionId, outcome });
 
       return { outcome };
     },
 
     async sessionUpdate(params) {
-      send(ws, "session_update", params);
+      const fields = params.update._meta?.siadaLog;
+      return withLogContext({
+        sessionId: params.sessionId,
+        ...(fields && typeof fields === "object" ? fields : {}),
+      }, () => {
+        log.debug("Agent session update", { updateType: params.update.sessionUpdate });
+        send(ws, "session_update", params);
+      });
     },
 
     async readTextFile(params) {
-      log.debug("Read file", { path: params.path });
+      log.debug("Read file", { sessionId: params.sessionId, path: params.path });
       // TODO: Forward to extension to read file
       return { content: "" };
     },
 
     async writeTextFile(params) {
-      log.debug("Write file", { path: params.path });
+      log.debug("Write file", { sessionId: params.sessionId, path: params.path });
       // TODO: Forward to extension to write file
       return {};
     },
@@ -317,7 +325,7 @@ function handlePermissionResponse(ws: WSContext, payload: { requestId: string; o
 
   const pending = state.pendingPermissions.get(payload.requestId);
   if (!pending) {
-    log.warn("Permission response for unknown request", { requestId: payload.requestId });
+    log.warn("Permission response for unknown request", { permissionId: payload.requestId });
     return;
   }
 
@@ -349,7 +357,7 @@ function forwardTrajectoryEventsToAgents(events: unknown[]): void {
     if (!ws) continue;
     const state = clients.get(ws);
     if (!state?.connection) continue;
-    log.info("[STEP 8] proxy -> agent extNotification _trajectory_event", {
+    log.debug("[STEP 8] proxy -> agent extNotification _trajectory_event", {
       tabId,
       count: tabEvents.length,
     });
@@ -777,6 +785,19 @@ async function handlePrompt(
   params: { content: ContentBlock[] },
 ): Promise<void> {
   const state = clients.get(ws);
+  const requestId = randomUUID();
+  return withLogContext({
+    sessionId: state?.sessionId || "-", requestId,
+    agentProcess: state?.process?.spawnfile || "-", agentPid: state?.process?.pid,
+  }, () => handlePromptWithContext(ws, params, requestId));
+}
+
+async function handlePromptWithContext(
+  ws: WSContext,
+  params: { content: ContentBlock[] },
+  requestId: string,
+): Promise<void> {
+  const state = clients.get(ws);
   if (!state?.connection || !state.sessionId) {
     send(ws, "error", { message: "No active session" });
     return;
@@ -806,6 +827,7 @@ async function handlePrompt(
     const result = await state.connection.prompt({
       sessionId: state.sessionId,
       prompt: params.content as acp.ContentBlock[],
+      _meta: { siadaLog: { requestId } },
     });
 
     log.info("Prompt completed", { stopReason: result.stopReason });
@@ -1164,6 +1186,10 @@ export async function startServer(config: ServerConfig): Promise<void> {
           setFallbackExecutor(ws);
         },
       async onMessage(event, ws) {
+        const state = clients.get(ws);
+        return withLogContext({
+          sessionId: state?.sessionId || "-", agentPid: state?.process?.pid,
+        }, async () => {
         try {
           const data = JSON.parse(event.data.toString());
           log.debug("Received message", { type: data.type });
@@ -1364,6 +1390,7 @@ export async function startServer(config: ServerConfig): Promise<void> {
           log.error("WebSocket message error", { error: reason });
           send(ws, "error", { message: `Error: ${reason}` });
         }
+        });
       },
       onClose(_event, ws) {
         log.info("Client disconnected");
@@ -1433,7 +1460,7 @@ export async function startServer(config: ServerConfig): Promise<void> {
               log.warn("Dropped malformed trajectory batch", { count: events.length });
               return;
             }
-            log.info("[STEP 6] proxy received trajectory events", { count: events.length });
+            log.debug("[STEP 6] proxy received trajectory events", { count: events.length });
             appendTrajectoryEvents(events);
             forwardTrajectoryEventsToAgents(events);
           } catch (error) {
@@ -1619,7 +1646,7 @@ export async function startServer(config: ServerConfig): Promise<void> {
     publicUrl,
     wsEndpoint: `${wsProtocol}://${displayHost}:${port}/ws`,
     mcpEndpoint: `${httpProtocol}://${displayHost}:${port}/mcp`,
-    agent: AGENT_COMMAND,
+    agentCommand: AGENT_COMMAND,
     agentArgs: AGENT_ARGS,
     cwd: AGENT_CWD,
     authEnabled: !!AUTH_TOKEN,

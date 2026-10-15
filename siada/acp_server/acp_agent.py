@@ -8,6 +8,7 @@ import inspect
 import logging
 from typing import Any
 from uuid import uuid4
+from siada.foundation.log_context import logged_request, log_fields
 
 import siada
 from acp import (
@@ -466,6 +467,7 @@ class SiadaAcpAgent(Agent):
             updated_at=updated_at if updated_at else None,
         )
 
+    @logged_request
     async def prompt(self, session_id: str, prompt: list[TextContentBlock], **_: Any) -> PromptResponse:
         if session_id not in self._sessions:
             self._sessions.add(session_id)
@@ -501,12 +503,12 @@ class SiadaAcpAgent(Agent):
                 async for update in updates:
                     if session_id in self._cancelled:
                         return PromptResponse(stop_reason="cancelled")
-                    await self._conn.session_update(session_id, update)
+                    await self._send_attributed_update(session_id, update)
             else:
                 for update in updates:
                     if session_id in self._cancelled:
                         return PromptResponse(stop_reason="cancelled")
-                    await self._conn.session_update(session_id, update)
+                    await self._send_attributed_update(session_id, update)
             return PromptResponse(stop_reason="end_turn")
         except asyncio.CancelledError:
             if session_id in self._cancelled:
@@ -524,6 +526,13 @@ class SiadaAcpAgent(Agent):
             raise RequestError(-32603, message) from None
         finally:
             self._active_prompts.pop(session_id, None)
+
+    async def _send_attributed_update(self, session_id: str, update) -> None:
+        if hasattr(update, "model_copy"):
+            meta = dict(getattr(update, "field_meta", None) or {})
+            meta.setdefault("siadaLog", log_fields())
+            update = update.model_copy(update={"field_meta": meta})
+        await self._conn.session_update(session_id, update)
 
     async def ext_notification(self, method: str, params: dict[str, Any]) -> None:
         """Route extension notifications (e.g. ``trajectory_event``).
