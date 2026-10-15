@@ -22,7 +22,7 @@ Porting conventions:
 | Source | Destination | Approach | Notes |
 | --- | --- | --- | --- |
 | ff5ed450 | 6baf1200 | port | baseline effective-context sync |
-| 27093e04 | a962c2ad | already adapted | public pricing/SDK adaptations; not repeated in this sync |
+| 27093e04 | a962c2ad | already adapted | public launcher/provider adaptations and isolated SDK/main-session regressions; not repeated in this sync |
 | 153c415d | fd914ffd | cherry-pick | |
 | 5336ac43 | — | skipped | internal auth-only change |
 | 64c0537f | a4b2ac6c | cherry-pick | lockfile hash corrected for public registry |
@@ -67,23 +67,48 @@ Porting conventions:
 - Offline session baseline (`tests/run_session_baseline.py`):
   837 passed, 3 xfailed (the three documented legacy gaps).
 - Terminal UI: `tsc` build clean, esbuild bundle regenerated, 302 vitest
-  tests passed.
+  tests passed. The final follow-up reran all 29 Vitest files (302 passed)
+  and TypeScript with `--noEmit`, retaining both command outputs.
 - Chrome ACP test manifest (extension cwd, shared+proxy, web-client):
   288 tests passed, 0 failed.
 - Chrome ACP package builds (web-client, extension, proxy-server)
   completed successfully.
 - Node packaging validation (`chrome-acp/scripts/package-browser.test.mjs`):
-  2 passed.
+  2 passed, confirmed by a final Node LTS rerun.
 - Public startup, launcher isolation, SDK bootstrap and provider contracts:
   119 passed with an ambient `SIADA_BROWSER_NODE` override. The launcher
   fixture now isolates the dedicated browser home as well as `Path.home()`.
   Provider routing documentation was checked against the shipped `default`
   implementation; unsupported provider rows and missing source links were removed.
-- Full `tests/` sweep: 4073 passed / 59 failing at the synced HEAD versus
-  3813 passed / 74 failing at the pre-sync branch point. Every failing
-  test id at the synced HEAD also fails at the pre-sync point, and twelve
-  pre-sync failures now pass (the sub-agent provider-resolution group and
-  the browser-prompt fixture). No failure was introduced by the sync.
+- Full `tests/` sweep at `47299fbc`: 4073 passed, 62 failed, 151 skipped,
+  3 xfailed. The pre-sync sweep reported 3813 passed, 74 failed, 149 skipped,
+  3 xfailed. Comparing failure IDs gives 15 baseline-only failures and
+  3 sync-only test-expectation mismatches. The latter were two provider-factory
+  contract tests and one login-reply monitor fixture, corrected by `bc4815e1`;
+  rerunning their two files gives 62 passed. The 15 resolved baseline failures
+  comprise 14 sub-agent provider/model-override tests and one browser-prompt
+  history test.
+- After excluding those three corrected mismatches, the raw sweep has
+  59 remaining pre-existing failure IDs. This is a reconciliation of the
+  earlier sweep, not a new full-suite result. The additional launcher fixture
+  correction in `c1e039d2` addresses five of those IDs and is covered by the
+  119-pass startup/SDK/provider selection above. No full sweep has been rerun
+  after these fixture corrections; the full suite is not claimed green.
+
+Final follow-up commands (run without model calls):
+
+```bash
+poetry run python -m pytest tests/entrypoint/test_public_startup.py tests/entrypoint/test_public_launcher_setup.py tests/entrypoint/test_sdk_bootstrap_gate.py tests/provider/test_chat_completions_providers.py -q
+poetry run python -m pytest tests/provider/test_provider_factory.py tests/entrypoint/test_public_login_prompt.py -q
+npm --prefix siada_cli_ui test -- --run
+npm --prefix siada_cli_ui run build -- --noEmit
+node --test chrome-acp/scripts/package-browser.test.mjs
+poetry check --lock
+git diff --check
+```
+
+The first selection also passed with an ambient `SIADA_BROWSER_NODE` override.
+Validation used a compatible Node 24 LTS runtime and isolated test log directories.
 
 ## Gaps and known pre-existing issues
 
