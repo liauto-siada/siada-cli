@@ -68,6 +68,18 @@ an active root session, even when SDK tracing or recursion is disabled.
 Each completed model request records its sequence number, effective model,
 input/output/cache-read/cache-write/total tokens, estimated cost in CNY, and
 `Duration` in seconds. Token counts follow Siada's normalized provider usage.
+`Input` counts uncached input; cache reads and writes are separate.
+`Usage Details` preserves the SDK's `input_tokens`, `input_tokens_details`,
+`output_tokens`, `output_tokens_details`, and `total_tokens` as formatted JSON,
+along with `requests` and any per-attempt `request_usage_entries` from SDK retries.
+`Reasoning Tokens` records the reported reasoning subset of output tokens;
+it is not added again to output, total tokens, or cost. Missing reasoning
+details are marked unavailable when observable. The SDK defaults omitted
+reasoning details to zero, so a logged zero does not prove the provider reported
+zero reasoning tokens. The summary accumulates the SDK reasoning values.
+An empty SDK `Usage()` is treated as missing usage; a reported request with
+zero tokens remains a valid zero. JSON serialization failure marks only
+`Usage Details` unavailable and preserves request token and cost accounting.
 Request duration covers the model call, including transport retries and backoff;
 tool execution between requests is excluded. Continuation requests after an
 empty reasoning-only response are recorded separately.

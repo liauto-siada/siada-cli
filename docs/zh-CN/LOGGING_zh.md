@@ -54,7 +54,18 @@ INFO 或更高等级。开启 DEBUG 后，流式输出仍会产生较多日志�
 有根会话的普通、命名、fork、后台和递归子任务均支持，不依赖 SDK tracing
 或递归开关。每次完成的模型请求记录序号、实际使用的模型、
 输入/输出/缓存读取/缓存写入/总 token、人民币估算费用及秒数 `Duration`。
-token 沿用 Siada 的 provider 归一化口径。单次请求耗时包含模型调用、
+token 沿用 Siada 的 provider 归一化口径。`Input` 表示非缓存输入，
+缓存读取和缓存写入分别列出。`Usage Details` 以格式化 JSON 保留 SDK 的
+`input_tokens`、`input_tokens_details`、`output_tokens`、
+`output_tokens_details` 和 `total_tokens`，同时保留 `requests` 及
+SDK 重试返回的逐次 `request_usage_entries` 明细。
+`Reasoning Tokens` 单独记录返回的推理 token，它属于输出 token 的子集，
+不会再次计入输出、总 token 或费用。可识别的缺失推理明细标记为不可用；
+SDK 会将未提供的推理明细默认成零，因此日志中的零不能证明上游报告了零。
+汇总累计 SDK 返回的推理值。空的 SDK `Usage()` 视为缺失 usage，
+已返回请求次数且 token 为零的统计仍视为有效的零值。
+明细 JSON 序列化失败只将 `Usage Details` 标记为不可用，保留 token 和费用统计。
+单次请求耗时包含模型调用、
 传输重试和退避等待，不包含请求之间的工具执行；
 reasoning-only 空回答触发的继续请求单独记录。
 `SDK Reported Requests` 记录 SDK 返回的请求次数，

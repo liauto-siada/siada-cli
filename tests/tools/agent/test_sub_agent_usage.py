@@ -2,12 +2,13 @@
 
 import asyncio
 import importlib
+import json
 from types import SimpleNamespace
 
 import pytest
 from agents import RunConfig
 from agents.models.interface import Model
-from agents.usage import Usage
+from agents.usage import RequestUsage, Usage
 from openai.types.responses import (
     Response, ResponseCompletedEvent,
     ResponseOutputMessage, ResponseOutputText, ResponseReasoningItem,
@@ -43,9 +44,34 @@ async def test_request_cost_cache_counts_and_monotonic_duration(monkeypatch):
     assert "Duration: 2.500s" in entries[0][1]
     assert "CacheRead=500, CacheWrite=50, Total=1650" in entries[0][1]
     assert "Cost: CNY 0.0227" in entries[0][1]
+    assert '"input_tokens_details": {\n    "cache_write_tokens": 0,\n    "cached_tokens": 500' in entries[0][1]
+    assert '"output_tokens_details": {\n    "reasoning_tokens": 0\n  }' in entries[0][1]
     assert "Duration: 10.000s" in entries[1][1]
     assert "Model Request Duration: 2.500s" in entries[1][1]
     assert "Known Cost: CNY 0.0227" in entries[1][1]
+
+
+@pytest.mark.asyncio
+async def test_detailed_tokens_preserve_cache_and_reasoning_without_double_counting():
+    entries = []
+    hook = SubAgentUsageHooks("gpt-5.2", lambda kind, text: entries.append(text))
+    usage = SimpleNamespace(
+        requests=1, input_tokens=1224, output_tokens=397, total_tokens=31893,
+        input_tokens_details=SimpleNamespace(cached_tokens=30272, cache_write_tokens=0),
+        output_tokens_details=SimpleNamespace(reasoning_tokens=91),
+    )
+    for _ in range(2):
+        await hook.on_llm_start(None, None, None, [])
+        await hook.on_llm_end(None, None, SimpleNamespace(usage=usage))
+    hook.finish("completed")
+    assert "Input=1224, Output=397, CacheRead=30272, CacheWrite=0, Total=31893" in entries[0]
+    assert "Reasoning Tokens: 91" in entries[0]
+    assert '"input_tokens": 1224' in entries[0]
+    assert '"cached_tokens": 30272' in entries[0]
+    assert '"cache_write_tokens": 0' in entries[0]
+    assert '"output_tokens_details": {\n    "reasoning_tokens": 91\n  }' in entries[0]
+    assert "Input=2448, Output=794, CacheRead=60544, CacheWrite=0, Total=63786" in entries[2]
+    assert "Reasoning Tokens (SDK): 182" in entries[2]
 
 
 @pytest.mark.asyncio
@@ -66,10 +92,12 @@ async def test_explicit_cache_writes_and_sdk_retry_count():
     assert "SDK Reported Requests: 3" in entries[0]
     assert "Requests: 1\nSDK Reported Requests: 3" in entries[1]
     assert "Known Cost: CNY 0.0379" in entries[1]
+    assert "Reasoning Tokens: unavailable" in entries[0]
+    assert '"output_tokens_details": null' in entries[0]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("usage", [None, Usage(input_tokens=123, total_tokens=123)])
+@pytest.mark.parametrize("usage", [None, Usage(), Usage(input_tokens=123, total_tokens=123)])
 async def test_unknown_cost_is_not_reported_as_free(usage):
     entries = []
     hook = SubAgentUsageHooks("synthetic-unknown", lambda kind, text: entries.append(text))
@@ -78,6 +106,51 @@ async def test_unknown_cost_is_not_reported_as_free(usage):
     hook.finish("completed")
     assert "Cost: unavailable" in entries[0]
     assert "Requests with unknown cost: 1" in entries[1]
+
+
+@pytest.mark.asyncio
+async def test_usage_serialization_failure_preserves_request_and_cost():
+    class SlotsDetails:
+        __slots__ = ("cached_tokens",)
+
+        def __init__(self):
+            self.cached_tokens = 500
+
+    entries = []
+    hook = SubAgentUsageHooks("gpt-5.2", lambda kind, text: entries.append(text))
+    await hook.on_llm_start(None, None, None, [])
+    await hook.on_llm_end(None, None, SimpleNamespace(usage=SimpleNamespace(
+        requests=1, input_tokens=1000, output_tokens=100, total_tokens=1650,
+        input_tokens_details=SlotsDetails(),
+    )))
+    hook.finish("completed")
+    assert "Usage Details:\nunavailable" in entries[0]
+    assert "Cost: CNY 0.0227" in entries[0]
+    assert "Input=1000" in entries[0]
+    assert "Known Cost: CNY 0.0227" in entries[1]
+    assert "Requests with unknown cost: 0" in entries[1]
+
+
+@pytest.mark.asyncio
+async def test_sdk_zero_usage_and_retry_details():
+    entries = []
+    hook = SubAgentUsageHooks("gpt-5.2", lambda kind, text: entries.append(text))
+    usage = Usage(requests=1)
+    await hook.on_llm_start(None, None, None, [])
+    await hook.on_llm_end(None, None, SimpleNamespace(usage=usage))
+    assert "Cost: CNY 0.0000" in entries[0]
+    assert "Reasoning Tokens: 0" in entries[0]
+    details = json.loads(entries[0].split("Usage Details:\n")[1].split("\nCost:")[0])
+    assert details["output_tokens_details"]["reasoning_tokens"] == 0
+    assert details["input_tokens_details"]["cached_tokens"] == 0
+    usage.request_usage_entries = [RequestUsage(
+        input_tokens=1224, output_tokens=397, total_tokens=31893,
+        input_tokens_details=usage.input_tokens_details,
+        output_tokens_details=usage.output_tokens_details,
+    )]
+    details = json.loads(hook._usage_details(usage))
+    assert details["request_usage_entries"][0]["input_tokens"] == 1224
+    assert details["request_usage_entries"][0]["output_tokens_details"]["reasoning_tokens"] == 0
 
 
 def test_interrupted_request_has_duration_without_invented_tokens():

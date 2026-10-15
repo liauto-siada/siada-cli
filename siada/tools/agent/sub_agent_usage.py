@@ -1,6 +1,8 @@
 """Run-scoped request accounting for a sub-agent's transcript."""
 
+import json
 import time
+from dataclasses import asdict, is_dataclass
 from typing import Callable
 
 from agents import Agent, ModelResponse, RunContextWrapper, RunHooks, TResponseInputItem
@@ -22,6 +24,7 @@ class SubAgentUsageHooks(RunHooks):
         self.request_count = 0
         self.sdk_request_count = 0
         self.tokens = dict(input=0, output=0, cache_read=0, cache_write=0, total=0)
+        self.reasoning_tokens = 0
         self.total_cost = 0.0
         self.unknown_cost_requests = 0
         self.model_duration = 0.0
@@ -40,7 +43,12 @@ class SubAgentUsageHooks(RunHooks):
         duration = self._end_request()
         try:
             usage = response.usage
-            if usage is None:
+            if usage is None or (
+                getattr(usage, "requests", None) == 0
+                and not getattr(usage, "request_usage_entries", [])
+                and not any(getattr(usage, key, 0) for key in ("input_tokens", "output_tokens", "total_tokens"))
+            ):
+                # The SDK substitutes an empty Usage when no usage was returned.
                 self.unknown_cost_requests += 1
                 self._append("request_usage", self._request_header(duration) + "\nTokens: unavailable\nCost: unavailable (no usage)")
                 return
@@ -57,6 +65,10 @@ class SubAgentUsageHooks(RunHooks):
             self.sdk_request_count += sdk_requests
             for key, value in data.items():
                 self.tokens[key] += value
+            output_details = getattr(usage, "output_tokens_details", None)
+            reasoning_tokens = getattr(output_details, "reasoning_tokens", None)
+            if reasoning_tokens is not None:
+                self.reasoning_tokens += reasoning_tokens
 
             # Raw configured names preserve user-defined pricing; the public
             # provider set has no gateway alias, so the name is used as-is.
@@ -79,7 +91,10 @@ class SubAgentUsageHooks(RunHooks):
                 "request_usage",
                 self._request_header(duration)
                 + f"\nSDK Reported Requests: {sdk_requests}\n"
-                + self._token_text(data) + "\n" + cost_text,
+                + self._token_text(data)
+                + f"\nReasoning Tokens: {reasoning_tokens if reasoning_tokens is not None else 'unavailable'}"
+                + "\nUsage Details:\n" + self._usage_details(usage)
+                + "\n" + cost_text,
             )
         except Exception:
             self.unknown_cost_requests += 1
@@ -102,6 +117,34 @@ class SubAgentUsageHooks(RunHooks):
 
     def _request_header(self, duration: float) -> str:
         return f"Request: {self.request_count}\nModel: {self.model_name}\nDuration: {duration:.3f}s"
+
+    @staticmethod
+    def _usage_details(usage: object) -> str:
+        """Preserve SDK token details without copying response content."""
+        def details_dict(details: object) -> dict:
+            model_dump = getattr(details, "model_dump", None)
+            if callable(model_dump):
+                return model_dump()
+            if is_dataclass(details) and not isinstance(details, type):
+                return asdict(details)
+            return vars(details)
+
+        try:
+            return json.dumps(
+                {
+                    "requests": getattr(usage, "requests", None),
+                    "input_tokens": getattr(usage, "input_tokens", None),
+                    "input_tokens_details": getattr(usage, "input_tokens_details", None),
+                    "output_tokens": getattr(usage, "output_tokens", None),
+                    "output_tokens_details": getattr(usage, "output_tokens_details", None),
+                    "total_tokens": getattr(usage, "total_tokens", None),
+                    "request_usage_entries": getattr(usage, "request_usage_entries", []),
+                },
+                indent=2, default=details_dict, allow_nan=False,
+            )
+        except Exception:
+            logger.warning("[sub_agent_usage] failed to serialize usage details", exc_info=True)
+            return "unavailable (SDK usage details could not be serialized)"
 
     @staticmethod
     def _token_text(data: dict[str, int]) -> str:
@@ -127,6 +170,7 @@ class SubAgentUsageHooks(RunHooks):
             f"Duration: {time.perf_counter() - self.started_at:.3f}s\n"
             f"Model Request Duration: {self.model_duration:.3f}s\n"
             + self._token_text(self.tokens)
+            + f"\nReasoning Tokens (SDK): {self.reasoning_tokens}"
             + f"\nKnown Cost: CNY {self.total_cost:.4f}\n"
             f"Requests with unknown cost: {self.unknown_cost_requests}",
         )
