@@ -480,6 +480,7 @@ export const PromptInput = ({
   // Refs
   const inputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const submissionRef = useRef<Promise<void>>(Promise.resolve());
 
   // ----- Local attachments (only used when no provider)
   const [items, setItems] = useState<FileUIPartWithFile[]>([]);
@@ -773,7 +774,7 @@ export const PromptInput = ({
 
     // Convert blob URLs to data URLs asynchronously
     // Pass the original File object for reliable reading in Chrome extensions
-    Promise.all(
+    const conversion = Promise.all(
       files.map(async ({ id, _file, ...item }) => {
         if (item.url && item.url.startsWith("blob:")) {
           const dataUrl = await convertToDataUrl(item.url, _file);
@@ -785,7 +786,10 @@ export const PromptInput = ({
         }
         return item;
       })
-    )
+    );
+    // Preserve submission order even when attachment conversions finish out
+    // of order. Each form submission retains its original onSubmit callback.
+    submissionRef.current = submissionRef.current.then(() => conversion)
       .then((convertedFiles: FileUIPart[]) => {
         try {
           const result = onSubmit({ text, files: convertedFiles }, event);
@@ -794,7 +798,7 @@ export const PromptInput = ({
           if (result instanceof Promise) {
             result
               .then(() => {
-                clear();
+                files.forEach((file) => remove(file.id));
                 if (usingProvider) {
                   controller.textInput.clear();
                 }
@@ -804,7 +808,7 @@ export const PromptInput = ({
               });
           } else {
             // Sync function completed without throwing, clear attachments
-            clear();
+            files.forEach((file) => remove(file.id));
             if (usingProvider) {
               controller.textInput.clear();
             }

@@ -48,7 +48,7 @@ export type ConnectionStateHandler = (
 ) => void;
 export type SessionUpdateHandler = (sessionId: string, update: SessionUpdate) => void;
 export type SessionCreatedHandler = (sessionId: string) => void;
-export type PromptCompleteHandler = (stopReason: string) => void;
+export type PromptCompleteHandler = (stopReason: string, sessionId?: string, requestId?: string) => void;
 export type PermissionRequestHandler = (request: PermissionRequestPayload) => void;
 // Runtime error notifications from the proxy (e.g. prompt failures). Without
 // this, agent-side errors only land in the console and the UI stays silent.
@@ -221,6 +221,8 @@ export class ACPClient {
   private pendingSessionList: { resolve: (response: ListSessionsResponse) => void; reject: (err: Error) => void } | null = null;
   private pendingSessionLoad: { resolve: (sessionId: string) => void; reject: (err: Error) => void } | null = null;
   private pendingSessionResume: { resolve: (sessionId: string) => void; reject: (err: Error) => void } | null = null;
+  private pendingSteers = new Map<string, { resolve: () => void; reject: (error: Error) => void }>();
+  private activePrompt: { sessionId: string; requestId?: string } | null = null;
 
   private connectResolve: ((value: void) => void) | null = null;
   private connectReject: ((error: Error) => void) | null = null;
@@ -577,6 +579,11 @@ export class ACPClient {
           }
 
           this.ws = null;
+          this.rejectSteers(new Error("Disconnected"));
+          if (this.activePrompt) {
+            this.onPromptComplete?.("disconnected", this.activePrompt.sessionId, this.activePrompt.requestId);
+            this.activePrompt = null;
+          }
           this.sessionId = null;
         };
       } catch (error) {
@@ -631,6 +638,7 @@ export class ACPClient {
           else settleFileRequest(this.pendingFileRead, target, error);
           break;
         }
+        if (response.payload.sessionId && response.payload.sessionId !== this.sessionId) break;
         console.error("[ACPClient] Error:", response.payload.message);
         this.pendingSessionTarget = null;
         // Surface runtime errors (e.g. prompt failures) to the UI
@@ -711,9 +719,20 @@ export class ACPClient {
         break;
 
       case "prompt_complete":
-        this.onPromptComplete?.(response.payload.stopReason);
+        if (!response.payload.requestId || response.payload.requestId === this.activePrompt?.requestId) {
+          this.activePrompt = null;
+        }
+        this.onPromptComplete?.(response.payload.stopReason, response.payload.sessionId, response.payload.requestId);
         this.emitTurn({ kind: "completed", stopReason: response.payload.stopReason });
         break;
+
+      case "steer_result": {
+        const pending = this.pendingSteers.get(response.payload.requestId);
+        this.pendingSteers.delete(response.payload.requestId);
+        if (response.payload.accepted) pending?.resolve();
+        else pending?.reject(new Error(response.payload.error || "Steering failed"));
+        break;
+      }
 
       case "permission_request":
         console.log("[ACPClient] Permission request:", response.payload);
@@ -876,7 +895,7 @@ export class ACPClient {
   // Reference: Zed's MessageEditor.contents() builds Vec<acp::ContentBlock>
   // and sends via AcpThread.send()
   // Accepts either a string (for backward compatibility) or ContentBlock[]
-  async sendPrompt(content: string | ContentBlock[]): Promise<void> {
+  async sendPrompt(content: string | ContentBlock[], requestId?: string): Promise<void> {
     if (!this.sessionId) {
       throw new Error("No active session");
     }
@@ -885,10 +904,45 @@ export class ACPClient {
       ? [{ type: "text", text: content }]
       : content;
 
-    this.send({ type: "prompt", payload: { content: contentBlocks } });
+    this.send({ type: "prompt", payload: { content: contentBlocks, requestId } });
+    this.activePrompt = { sessionId: this.sessionId, requestId };
     // The protocol has no "turn started" notification; sending the prompt is
     // the observable start of one.
     this.emitTurn({ kind: "started" });
+  }
+
+  get supportsSteering(): boolean {
+    const meta = this._agentCapabilities?._meta?.siada as { steering?: boolean } | undefined;
+    return meta?.steering === true;
+  }
+
+  steer(content: ContentBlock[], requestId: string): Promise<void> {
+    if (!this.sessionId || !this.supportsSteering) {
+      return Promise.reject(new Error("This agent does not support steering"));
+    }
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingSteers.delete(requestId);
+        reject(Object.assign(new Error("Steering acknowledgement timed out; delivery is unknown"), { deliveryUnknown: true }));
+      }, 15000);
+      this.pendingSteers.set(requestId, {
+        resolve: () => { clearTimeout(timer); resolve(); },
+        reject: (error) => { clearTimeout(timer); reject(error); },
+      });
+      try {
+        this.send({ type: "steer", payload: { content, requestId } });
+      } catch (error) {
+        this.pendingSteers.delete(requestId);
+        clearTimeout(timer);
+        reject(error);
+      }
+    });
+  }
+
+  private rejectSteers(error: Error): void {
+    const uncertain = Object.assign(new Error(`${error.message}; steering delivery is unknown`), { deliveryUnknown: true });
+    for (const pending of this.pendingSteers.values()) pending.reject(uncertain);
+    this.pendingSteers.clear();
   }
 
   cancel(): void {
@@ -1154,6 +1208,10 @@ export class ACPClient {
       this.ws = null;
     }
     this.setState("disconnected");
+    if (this.activePrompt) {
+      this.onPromptComplete?.("disconnected", this.activePrompt.sessionId, this.activePrompt.requestId);
+      this.activePrompt = null;
+    }
     this.sessionId = null;
     this.pendingSessionTarget = null;
     this._modelState = null;
@@ -1164,6 +1222,7 @@ export class ACPClient {
 
     // Reject all pending operations before clearing
     const disconnectError = new Error("Disconnected");
+    this.rejectSteers(disconnectError);
     for (const { reject, timer } of this.pendingDirListing.values()) {
       clearTimeout(timer);
       reject(disconnectError);

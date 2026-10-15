@@ -5,6 +5,8 @@ import * as readline from "node:readline";
 const rl = readline.createInterface({ input: process.stdin });
 
 const GENERIC_DETAILS = "BadGatewayError: Error code: 502 LiteLLM Retried: 3 times";
+const steeringEnabled = process.argv.includes("--steering");
+let heldPrompt = null;
 
 function reply(id, payload) {
   process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, ...payload }) + "\n");
@@ -21,7 +23,7 @@ rl.on("line", (line) => {
     reply(message.id, {
       result: {
         protocolVersion: message.params?.protocolVersion ?? "1",
-        agentCapabilities: {},
+        agentCapabilities: steeringEnabled ? { _meta: { siada: { steering: true } } } : {},
         agentInfo: { name: "fake-agent", version: "1.0.0" },
       },
     });
@@ -57,6 +59,10 @@ rl.on("line", (line) => {
     const text = (message.params?.prompt ?? [])
       .map((block) => block.text ?? "")
       .join("");
+    if (steeringEnabled && text === "steering-hold") {
+      heldPrompt = message.id;
+      return;
+    }
     if (text === "logging-stream") {
       for (let i = 0; i < 1000; i++) {
         process.stdout.write(JSON.stringify({
@@ -77,5 +83,14 @@ rl.on("line", (line) => {
       ? { code: -32603, message: "Internal error", data: { details: GENERIC_DETAILS } }
       : { code: -32603, message: GENERIC_DETAILS };
     reply(message.id, { error });
+  }
+  if (message.method === "_session/steer" && steeringEnabled) {
+    if (heldPrompt === null || message.params?.prompt?.some(block => block.type !== "text")) {
+      reply(message.id, { error: { code: -32000, message: "Steering rejected" } });
+      return;
+    }
+    reply(message.id, { result: { accepted: true } });
+    reply(heldPrompt, { result: { stopReason: "end_turn" } });
+    heldPrompt = null;
   }
 });

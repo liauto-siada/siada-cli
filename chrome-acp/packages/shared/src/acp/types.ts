@@ -219,7 +219,8 @@ export type ProxyMessage =
   | { type: "connect" }
   | { type: "disconnect" }
   | { type: "new_session"; payload?: { cwd?: string; tabId?: number } }
-  | { type: "prompt"; payload: { content: ContentBlock[] } }  // Changed from { text: string } to match Zed
+  | { type: "prompt"; payload: { content: ContentBlock[]; requestId?: string } }
+  | { type: "steer"; payload: { content: ContentBlock[]; requestId: string } }
   | { type: "cancel" }
   | { type: "permission_response"; payload: PermissionResponsePayload }
   | { type: "browser_tool_result"; callId: string; result: BrowserToolResult | { error: string } }
@@ -288,6 +289,7 @@ export interface ProxyErrorMessage {
   type: "error";
   payload: {
     message: string;
+    sessionId?: string;
     operation?: "list_dir" | "read_file";
     path?: string;
     requestId?: number;
@@ -315,7 +317,12 @@ export interface ProxySessionUpdateMessage {
 
 export interface ProxyPromptCompleteMessage {
   type: "prompt_complete";
-  payload: { stopReason: string };
+  payload: { stopReason: string; sessionId?: string; requestId?: string };
+}
+
+export interface ProxySteerResultMessage {
+  type: "steer_result";
+  payload: { requestId: string; accepted: boolean; error?: string };
 }
 
 export interface ProxyPermissionRequestMessage {
@@ -474,6 +481,7 @@ export type ProxyResponse =
   | ProxySessionCreatedMessage
   | ProxySessionUpdateMessage
   | ProxyPromptCompleteMessage
+  | ProxySteerResultMessage
   | ProxyPermissionRequestMessage
   | ProxyBrowserToolCallMessage
   | ProxyModelChangedMessage

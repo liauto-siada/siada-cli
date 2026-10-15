@@ -782,10 +782,10 @@ async function handleResumeSession(
 // Reference: Zed's AcpThread.send() forwards Vec<acp::ContentBlock> to agent
 async function handlePrompt(
   ws: WSContext,
-  params: { content: ContentBlock[] },
+  params: { content: ContentBlock[]; requestId?: string },
 ): Promise<void> {
   const state = clients.get(ws);
-  const requestId = randomUUID();
+  const requestId = params.requestId || randomUUID();
   return withLogContext({
     sessionId: state?.sessionId || "-", requestId,
     agentProcess: state?.process?.spawnfile || "-", agentPid: state?.process?.pid,
@@ -800,8 +800,10 @@ async function handlePromptWithContext(
   const state = clients.get(ws);
   if (!state?.connection || !state.sessionId) {
     send(ws, "error", { message: "No active session" });
+    send(ws, "prompt_complete", { stopReason: "error", requestId });
     return;
   }
+  const sessionId = state.sessionId;
 
   try {
     // Log content blocks for debugging
@@ -825,23 +827,46 @@ async function handlePromptWithContext(
 
     // Forward ContentBlock[] directly to agent (matches Zed's behavior)
     const result = await state.connection.prompt({
-      sessionId: state.sessionId,
+      sessionId,
       prompt: params.content as acp.ContentBlock[],
       _meta: { siadaLog: { requestId } },
     });
 
     log.info("Prompt completed", { stopReason: result.stopReason });
-    send(ws, "prompt_complete", result);
+    send(ws, "prompt_complete", { ...result, sessionId, requestId });
   } catch (error) {
     const reason = describeError(error);
     log.error("Prompt failed", { error: reason });
     send(ws, "error", {
       message: `Prompt failed: ${reason}`,
+      sessionId,
     });
     // Always send a terminal prompt_complete so clients can clear their
     // loading state. Without this, a failed prompt leaves the UI stuck
     // in "thinking" forever (no prompt_complete ever arrives).
-    send(ws, "prompt_complete", { stopReason: "error" });
+    send(ws, "prompt_complete", { stopReason: "error", sessionId, requestId });
+  }
+}
+
+async function handleSteer(
+  ws: WSContext, params: { content: ContentBlock[]; requestId: string },
+): Promise<void> {
+  const state = clients.get(ws);
+  try {
+    if (!state?.connection || !state.sessionId) throw new Error("No active session");
+    const meta = state.agentCapabilities?._meta?.siada as { steering?: boolean } | undefined;
+    if (meta?.steering !== true) throw new Error("This agent does not support steering");
+    // The JS SDK sends extension method names verbatim; the Python SDK
+    // expects the leading "_" on the wire and strips it before dispatch.
+    const result = await state.connection.extMethod("_session/steer", {
+      sessionId: state.sessionId, prompt: params.content, requestId: params.requestId,
+    });
+    if (result.accepted !== true) throw new Error("Steering was not accepted");
+    send(ws, "steer_result", { requestId: params.requestId, accepted: true });
+  } catch (error) {
+    send(ws, "steer_result", {
+      requestId: params.requestId, accepted: false, error: describeError(error),
+    });
   }
 }
 
@@ -1218,7 +1243,10 @@ export async function startServer(config: ServerConfig): Promise<void> {
               );
               break;
             case "prompt":
-              await handlePrompt(ws, data.payload as { content: ContentBlock[] });
+              await handlePrompt(ws, data.payload as { content: ContentBlock[]; requestId?: string });
+              break;
+            case "steer":
+              await handleSteer(ws, data.payload as { content: ContentBlock[]; requestId: string });
               break;
             case "browser_tool_result":
               // Handle response from extension for browser tool call

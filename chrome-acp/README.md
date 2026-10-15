@@ -16,6 +16,33 @@ for you:
 Chrome extensions cannot spawn subprocesses — that is what the proxy is for.
 See [docs/](./docs) for the rendered documentation site source.
 
+## Features
+
+- **Prompt queue** — Submit messages while a task runs. They appear above the
+  input and run in submission order after each successful turn. Remove a queued
+  message with its × button. Stop, errors, and disconnections pause the queue;
+  use **Resume queue** to continue. Starting or switching sessions clears it.
+- **Steering** — With a supporting Siada agent, click **Steer** on a queued text
+  message to apply it to the current task at the next model request. The current
+  response or tool operation finishes first. Input received during the final
+  response triggers a follow-up request before the task completes. Images and
+  slash commands use the regular queue. A failed steering request keeps the
+  message queued and pauses automatic dispatch.
+  If an acknowledgement times out or the connection closes, delivery may
+  already have occurred. Such messages show **Delivery unknown** and cannot be
+  resent as ordinary prompts. Check the task and remove the item, or retry
+  **Steer** while the task is still active; the same steering ID is deduplicated.
+
+The preview queue is local to the open chat and is cleared when it closes.
+Accepted steering input is held by the running agent until its next request
+boundary, where it is saved to session history before the model call. If the
+task is cancelled first, unconsumed input remains for the next turn in that
+running agent; it does not survive terminating the agent before admission.
+
+For offline browser verification, run the web client's development server and
+open `/app/__fixtures__/prompt-queue.html`. It renders the real chat against a
+controllable transport; `window.fixture.complete()` finishes the active turn.
+
 ## Architecture
 
 ```mermaid

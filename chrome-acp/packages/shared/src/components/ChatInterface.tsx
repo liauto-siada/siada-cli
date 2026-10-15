@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import imageCompression from "browser-image-compression";
 import type { ACPClient } from "../acp/client";
+import { PromptQueue } from "../lib/prompt-queue";
 import type { SessionUpdate, ToolCallContent, PermissionRequestPayload, PermissionOption, ContentBlock, ImageContent } from "../acp/types";
 import {
   fetchBrowserContext,
@@ -71,7 +72,7 @@ import {
   usePromptInputAttachments,
   type PromptInputMessage,
 } from "./ai-elements/prompt-input";
-import { ImageIcon, Plus, Globe, TextQuote } from "lucide-react";
+import { ImageIcon, Plus, Globe, TextQuote, Square, X } from "lucide-react";
 import { ModelSelectorPopover } from "./model-selector";
 import { Button } from "./ui/button";
 import {
@@ -282,6 +283,38 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
   const [sessionReady, setSessionReady] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
+  const [, refreshQueue] = useState(0);
+  const queueClientRef = useRef(client);
+  queueClientRef.current = client;
+  const queueRef = useRef<PromptQueue<{ blocks: ContentBlock[]; entry: UserMessageEntry }> | null>(null);
+  if (!queueRef.current) {
+    queueRef.current = new PromptQueue(
+      async (item) => {
+        const sessionId = activeSessionIdRef.current;
+        await queueClientRef.current.sendPrompt(item.value.blocks, item.id);
+        if (sessionId === activeSessionIdRef.current) {
+          setEntries((prev) => [...prev, { ...item.value.entry, id: item.id }]);
+        }
+      },
+      async (item) => {
+        const sessionId = activeSessionIdRef.current;
+        await queueClientRef.current.steer(item.value.blocks, item.id);
+        if (sessionId === activeSessionIdRef.current) {
+          setEntries((prev) => [...prev, { ...item.value.entry, id: item.id }]);
+        }
+      },
+      () => {
+        setIsLoading(Boolean(queueRef.current?.activeId));
+        refreshQueue((value) => value + 1);
+      },
+      (error) => setEntries((prev) => [...prev, {
+        type: "error_message", id: crypto.randomUUID(),
+        text: error instanceof Error ? error.message : String(error),
+      }]),
+    );
+  }
+  const promptQueue = queueRef.current;
+  const preparationRef = useRef<Promise<void>>(Promise.resolve());
   // Safety-net timer for cancel: if the agent never sends prompt_complete
   // after a cancel (e.g. the prompt already failed agent-side), force the
   // UI out of the loading state instead of being stuck on "Thinking...".
@@ -335,6 +368,8 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
   }, [activeSessionId]);
 
   const resetThreadState = useCallback(() => {
+    queueRef.current?.reset();
+    activeSessionIdRef.current = null;
     setEntries([]);
     setIsLoading(false);
     setSessionReady(false);
@@ -342,12 +377,14 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
   }, [clearCancelTimeout]);
 
   const activateSession = useCallback((sessionId: string, options?: { resetEntries?: boolean }) => {
+    if (sessionId !== activeSessionIdRef.current) queueRef.current?.reset();
     const shouldResetEntries = options?.resetEntries ?? true;
     if (shouldResetEntries) {
       setEntries([]);
       setIsLoading(false);
     }
     setActiveSessionId(sessionId);
+    activeSessionIdRef.current = sessionId;
     setSessionReady(true);
     setSupportsImages(client.supportsImages);
     console.log("[ChatInterface] Active session:", sessionId, "supportsImages:", client.supportsImages);
@@ -644,13 +681,14 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
       handleSessionUpdate(sessionId, update);
     });
 
-    client.setPromptCompleteHandler((stopReason) => {
+    client.setPromptCompleteHandler((stopReason, sessionId, requestId) => {
+      if (sessionId && sessionId !== activeSessionIdRef.current) return;
       console.log("[ChatInterface] Prompt complete:", stopReason);
-      // Always set isLoading=false when prompt completes
-      // This includes stopReason="cancelled" (which is the expected response after client.cancel())
-      // Note: Tool calls are already marked as "canceled" in handleCancel before this fires
+      // Only a successful turn advances the queue. Cancel/error preserve
+      // pending input until the user explicitly resumes it.
       clearCancelTimeout();
-      setIsLoading(false);
+      queueRef.current?.complete(stopReason, requestId);
+      if (stopReason === "disconnected") setSessionReady(false);
     });
 
     client.setPermissionRequestHandler(handlePermissionRequest);
@@ -730,12 +768,12 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
 
   // Reference: Zed's MessageEditor.contents() builds Vec<acp::ContentBlock>
   // from text and attached images. We do the same here.
-  const handleSubmit = async (message: PromptInputMessage) => {
+  const prepareSubmit = async (message: PromptInputMessage, sessionId: string | null) => {
     const text = message.text.trim();
     const files = message.files || [];
 
     // Allow sending if there's text OR images (like Zed)
-    if ((!text && files.length === 0) || isLoading || !sessionReady) return;
+    if ((!text && files.length === 0) || !sessionId || sessionId !== activeSessionIdRef.current) return;
 
     // Build ContentBlock[] from text and files
     // Reference: Zed's contents() method builds text chunks and image chunks
@@ -852,7 +890,7 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
       }
     }
 
-    if (contentBlocks.length === 0) return;
+    if (contentBlocks.length === 0 || sessionId !== activeSessionIdRef.current) return;
 
     // Add user message as new entry with images
     // Reference: Zed's UserMessage contains both content and chunks (images)
@@ -862,16 +900,17 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
       content: text,
       images: userImages.length > 0 ? userImages : undefined,
     };
-    setEntries((prev) => [...prev, userEntry]);
-    setIsLoading(true);
+    promptQueue.enqueue({ blocks: contentBlocks, entry: userEntry });
+  };
 
-    try {
-      // Reference: Zed's AcpThread.send() forwards Vec<acp::ContentBlock>
-      await client.sendPrompt(contentBlocks);
-    } catch (error) {
-      console.error("[ChatInterface] Failed to send prompt:", error);
-      setIsLoading(false);
-    }
+  const handleSubmit = (message: PromptInputMessage) => {
+    if (!sessionReady) return;
+    // The form captures this callback before asynchronous attachment conversion.
+    const sessionId = activeSessionId;
+    // Image preparation may await; preserve submission order and session owner.
+    const prepared = preparationRef.current.then(() => prepareSubmit(message, sessionId));
+    preparationRef.current = prepared.catch((error) => console.error("Prompt preparation failed", error));
+    return prepared;
   };
 
   // Cancel handler - matches Zed's cancel() logic in acp_thread.rs
@@ -916,7 +955,7 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
     cancelTimeoutRef.current = setTimeout(() => {
       cancelTimeoutRef.current = null;
       console.warn("[ChatInterface] Timed out waiting for prompt_complete after cancel, forcing loading state reset");
-      setIsLoading(false);
+      queueRef.current?.complete("cancelled");
     }, 5000);
   };
 
@@ -1024,7 +1063,6 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
   const showThinkingIndicator = isLoading && entries.length > 0 &&
     entries[entries.length - 1]?.type === "user_message";
 
-  const chatStatus = isLoading ? "streaming" : "ready";
 
   // Find the index of the last user message for scroll-to-last-user-message feature
   // Reference: Issue #3 - Provide a feature to locate the last human message
@@ -1165,21 +1203,53 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
 
       {/* Input area */}
       <div className="border-t p-4">
-        {/* Reference: Zed's MessageEditor conditionally shows attachment UI based on supports_images() */}
+        {promptQueue.items.length > 0 && (
+          <div className="mb-3 space-y-2" aria-label="Prompt queue">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Queued ({promptQueue.items.length}){promptQueue.paused ? " · Paused" : ""}</span>
+              {promptQueue.paused && !isLoading && (
+                <Button type="button" variant="ghost" size="sm"
+                  disabled={promptQueue.items.some((item) => item.deliveryUnknown)}
+                  onClick={() => promptQueue.resume()}>
+                  Resume queue
+                </Button>
+              )}
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              {promptQueue.items.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 rounded border p-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">
+                    {item.deliveryUnknown ? "Delivery unknown · " : ""}
+                    {item.value.entry.content || `${item.value.entry.images?.length || 0} image(s)`}
+                  </span>
+                  {isLoading && client.supportsSteering && (
+                    <Button type="button" variant="outline" size="sm"
+                      disabled={item.steering || item.value.blocks.some((block) => block.type !== "text") || item.value.entry.content.startsWith("/")}
+                      title="Apply to the current task at the next model request"
+                      onClick={() => void promptQueue.steer(item.id)}>
+                      {item.steering ? "Sending..." : "Steer"}
+                    </Button>
+                  )}
+                  <Button type="button" variant="ghost" size="icon" disabled={item.steering}
+                    aria-label="Remove queued prompt" onClick={() => promptQueue.remove(item.id)}>
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <PromptInput
           onSubmit={handleSubmit}
           accept={supportsImages ? "image/*" : undefined}
           multiple={supportsImages}
         >
-          {/* Show header when there are attachments or browser context chips */}
-          {(supportsImages || browserContext) && (
-            <PromptInputHeader>
-              {supportsImages && (
-                <PromptInputAttachments>
-                  {/* children is called per-file, not with array */}
-                  {(file) => <PromptInputAttachment data={file} />}
-                </PromptInputAttachments>
-              )}
+          {/* Clipboard attachments must remain visible even without an image capability announcement. */}
+          <PromptInputHeader className="empty:hidden">
+            <PromptInputAttachments>
+              {/* children is called per-file, not with array */}
+              {(file) => <PromptInputAttachment data={file} />}
+            </PromptInputAttachments>
               {/* Browser context chips (Chrome extension only): reflect what
                   will be attached to the next prompt; click to toggle */}
               {browserContext && (
@@ -1214,10 +1284,9 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
                   )}
                 </div>
               )}
-            </PromptInputHeader>
-          )}
+          </PromptInputHeader>
           <PromptInputTextarea
-            placeholder={sessionReady ? "Type a message..." : "Waiting for session..."}
+            placeholder={sessionReady ? (isLoading ? "Type a message to queue..." : "Type a message...") : "Waiting for session..."}
             disabled={!sessionReady}
           />
           <PromptInputFooter>
@@ -1249,10 +1318,16 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
                 </Tooltip>
               )}
               <PromptInputSubmit
-                status={chatStatus}
+                status="ready"
                 disabled={!sessionReady}
-                onClick={isLoading ? handleCancel : undefined}
+                title={isLoading ? "Add to queue" : "Send"}
               />
+              {isLoading && (
+                <Button type="button" variant="ghost" size="icon" aria-label="Stop current task"
+                  onClick={() => { promptQueue.pause(); handleCancel(); }}>
+                  <Square className="size-4" />
+                </Button>
+              )}
             </div>
           </PromptInputFooter>
         </PromptInput>

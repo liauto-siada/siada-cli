@@ -85,7 +85,7 @@ beforeAll(async () => {
     port,
     host: "127.0.0.1",
     command: process.execPath,
-    args: [fakeAgentPath],
+    args: [fakeAgentPath, "--steering"],
     cwd: import.meta.dir,
     token: TOKEN,
     https: false,
@@ -119,6 +119,7 @@ describe("prompt failure reporting", () => {
 
     const error = await client.waitFor("error");
     expect(error.message).toBe(`Prompt failed: ${CAUSE}`);
+    expect((await client.waitFor("prompt_complete")).stopReason).toBe("error");
   });
 
   test("a generic message is replaced by error.data.details", async () => {
@@ -128,6 +129,30 @@ describe("prompt failure reporting", () => {
 
     const error = await client.waitFor("error");
     expect(error.message).toBe(`Prompt failed: ${CAUSE}`);
+    expect((await client.waitFor("prompt_complete")).stopReason).toBe("error");
+  });
+});
+
+describe("steering protocol", () => {
+  test("steering rejection does not complete the prompt, acceptance is independently correlated", async () => {
+    client.send("prompt", {
+      content: [{ type: "text", text: "steering-hold" }], requestId: "main-steering-test",
+    });
+    client.send("steer", {
+      content: [{ type: "image", mimeType: "image/png", data: "" }], requestId: "rejected-steer",
+    });
+    const rejected = await client.waitFor("steer_result");
+    expect(rejected.requestId).toBe("rejected-steer");
+    expect(rejected.accepted).toBe(false);
+    client.send("steer", {
+      content: [{ type: "text", text: "correction" }], requestId: "accepted-steer",
+    });
+    const accepted = await client.waitFor("steer_result");
+    expect(accepted).toEqual({ requestId: "accepted-steer", accepted: true });
+    const completed = await client.waitFor("prompt_complete");
+    expect(completed).toMatchObject({
+      stopReason: "end_turn", requestId: "main-steering-test", sessionId: "fake-session",
+    });
   });
 });
 

@@ -62,6 +62,39 @@ async def run_bridge(baseline, session, model, *, stream=False, input="continue"
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_steering_during_tool_loop_is_durable_and_seen_once(baseline, stream):
+    from siada.services.steering import SteeringQueue, current_steering
+
+    session = baseline.session()
+    await session.openai_session.migrate_legacy_context(allow_history_only=True)
+    queue = SteeringQueue(session.session_id)
+
+    @function_tool
+    def wait_for_correction() -> str:
+        """Simulate user input arriving while a tool is running."""
+        queue.append("use the new direction", "steer-test")
+        return "tool finished"
+
+    model = baseline.model(session, [
+        [baseline.call("steering-tool", "wait_for_correction", {})],
+        [baseline.text("adjusted answer")],
+    ])
+    token = current_steering.set(queue)
+    try:
+        await run_bridge(baseline, session, model, stream=stream, tools=[wait_for_correction])
+    finally:
+        current_steering.reset(token)
+    item = {"role": "user", "content": "<user_input>use the new direction</user_input>"}
+    assert item not in model.requests[0]["input"]
+    assert model.requests[1]["input"].count(item) == 1
+    assert (await session.openai_session.get_history_items()).count(item) == 1
+    assert not queue.pending
+    queue.append("use the new direction", "steer-test")
+    assert not queue.pending
+
+
+@pytest.mark.asyncio
 async def test_identified_append_survives_compaction_and_cross_instance_retry(baseline):
     store = baseline.session().openai_session
     await store.migrate_legacy_context(allow_history_only=True)

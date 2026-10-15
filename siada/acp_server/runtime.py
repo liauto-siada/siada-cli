@@ -325,6 +325,7 @@ class SiadaTurnRunner:
         # Sessions currently inside a normal __call__ turn (event routing and
         # ordinary prompts are mutually exclusive per session).
         self._active_turn_sessions: set[str] = set()
+        self._steering_queues = {}
         # Sessions where the skill executor drives __call__ fallback turns:
         # context is still injected, but persistence is owned by the executor.
         self._browser_skill_executing: set[str] = set()
@@ -746,12 +747,31 @@ class SiadaTurnRunner:
                 f"session {session_id} has a pending browser-skill permission request"
             )
         async with self._turn_lock(session_id):
+            from siada.services.steering import SteeringQueue, current_steering
+
+            queue = self._steering_queues.setdefault(session_id, SteeringQueue(session_id))
+            token = current_steering.set(queue)
             self._active_turn_sessions.add(session_id)
             try:
                 async for update in self._stream_turn(session_id, prompt):
                     yield update
+                # Input received during the final response still gets a model
+                # request before completing the original ACP prompt.
+                while queue.pending:
+                    pending_ids = [identity for identity, _ in queue.pending]
+                    async for update in self._stream_turn(session_id, ""):
+                        yield update
+                    if pending_ids == [identity for identity, _ in queue.pending]:
+                        raise RuntimeError("Steering input did not reach a model request boundary")
             finally:
                 self._active_turn_sessions.discard(session_id)
+                current_steering.reset(token)
+
+    def steer(self, session_id: str, text: str, request_id: str | None = None) -> None:
+        """Accept input for an active normal turn without taking its turn lock."""
+        if session_id not in self._active_turn_sessions or session_id in self._browser_skill_executing:
+            raise RuntimeError("No active normal turn to steer")
+        self._steering_queues[session_id].append(text, request_id)
 
     # ------------------------------------------------------------------
     # Browser-skill ACE bridge — entry points (called by SiadaAcpAgent)

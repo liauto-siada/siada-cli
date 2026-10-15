@@ -690,3 +690,47 @@ describe("ACPClient frame listeners", () => {
     client.disconnect();
   });
 });
+
+describe("ACPClient steering", () => {
+  async function connected() {
+    const { client } = newClient();
+    const promise = client.connect();
+    const ws = FakeWebSocket.last;
+    ws.open();
+    ws.message({ type: "status", payload: {
+      connected: true, capabilities: { _meta: { siada: { steering: true } } },
+    } });
+    await promise;
+    ws.message({ type: "session_created", payload: { sessionId: "steering-session" } });
+    return { client, ws };
+  }
+
+  test("steering acknowledgements are correlated and do not complete the current prompt", async () => {
+    const { client, ws } = await connected();
+    const completed: string[] = [];
+    client.setPromptCompleteHandler((reason) => completed.push(reason));
+    await client.sendPrompt("main task", "main");
+    const accepted = client.steer([{ type: "text", text: "correction" }], "steer-1");
+    const rejected = client.steer([{ type: "text", text: "another" }], "steer-2");
+    ws.message({ type: "steer_result", payload: { requestId: "steer-2", accepted: false, error: "busy" } });
+    await expect(rejected).rejects.toThrow("busy");
+    ws.message({ type: "steer_result", payload: { requestId: "steer-1", accepted: true } });
+    await accepted;
+    expect(completed).toEqual([]);
+    ws.message({ type: "prompt_complete", payload: { stopReason: "end_turn", requestId: "main", sessionId: "steering-session" } });
+    expect(completed).toEqual(["end_turn"]);
+    client.disconnect();
+  });
+
+  test("transport close rejects pending steering and pauses the active prompt", async () => {
+    const { client, ws } = await connected();
+    const completed: string[] = [];
+    client.setPromptCompleteHandler((reason) => completed.push(reason));
+    await client.sendPrompt("main task", "main");
+    const steering = client.steer([{ type: "text", text: "correction" }], "steer-1");
+    ws.closeWith(1006, "");
+    await expect(steering).rejects.toThrow("Disconnected");
+    expect(completed).toEqual(["disconnected"]);
+    client.disconnect();
+  });
+});

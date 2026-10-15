@@ -150,6 +150,7 @@ class SiadaAcpAgent(Agent):
         trajectory_handler: Callable[[str, dict[str, Any]], None] | None = None,
         task_setter: Callable[[str, str, list[dict] | None], None] | None = None,
         canceller: Callable[[str], None] | None = None,
+        steerer: Callable[..., None] | None = None,
     ):
         self._turn_runner = turn_runner
         self._session_creator = session_creator
@@ -179,6 +180,7 @@ class SiadaAcpAgent(Agent):
         self._trajectory_handler = trajectory_handler
         self._task_setter = task_setter
         self._canceller = canceller
+        self._steerer = steerer
         self._conn: Client | None = None
         self._sessions: set[str] = set()
         self._session_cwd: dict[str, str] = {}
@@ -203,6 +205,7 @@ class SiadaAcpAgent(Agent):
         return InitializeResponse(
             protocol_version=PROTOCOL_VERSION,
             agent_capabilities=AgentCapabilities(
+                field_meta={"siada": {"steering": self._steerer is not None}},
                 # Advertise the full session-history surface implemented by
                 # this agent: session/list (disk-backed via session_lister),
                 # session/load (restore + history replay) and the unstable
@@ -473,6 +476,8 @@ class SiadaAcpAgent(Agent):
             self._sessions.add(session_id)
         if self._conn is None:
             raise RuntimeError("ACP connection has not been established")
+        if session_id in self._active_prompts:
+            raise RequestError(-32000, "Session already has an active prompt")
         self._cancelled.discard(session_id)
         active_task = asyncio.current_task()
         if active_task is not None:
@@ -525,7 +530,34 @@ class SiadaAcpAgent(Agent):
             message = f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
             raise RequestError(-32603, message) from None
         finally:
-            self._active_prompts.pop(session_id, None)
+            if self._active_prompts.get(session_id) is active_task:
+                self._active_prompts.pop(session_id, None)
+
+    async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        if method != "session/steer" or self._steerer is None:
+            raise RequestError(-32601, f"Method not supported: {method}")
+        session_id = params.get("sessionId")
+        blocks = params.get("prompt")
+        if not isinstance(session_id, str) or session_id not in self._active_prompts:
+            raise RequestError(-32000, "No active prompt to steer")
+        if (not isinstance(blocks, list) or not blocks
+                or any(not isinstance(block, dict) or block.get("type") != "text"
+                       or not isinstance(block.get("text"), str) for block in blocks)):
+            raise RequestError(-32602, "Steering supports text content only")
+        text = "\n".join(block["text"] for block in blocks).strip()
+        if not text or text.startswith("/"):
+            raise RequestError(-32602, "Steering requires a non-command text message")
+        try:
+            request_id = params.get("requestId")
+            if request_id is not None:
+                if not isinstance(request_id, str) or not request_id or len(request_id) > 128:
+                    raise RequestError(-32602, "Invalid steering requestId")
+                self._steerer(session_id, text, request_id)
+            else:
+                self._steerer(session_id, text)
+        except RuntimeError as exc:
+            raise RequestError(-32000, str(exc)) from None
+        return {"accepted": True}
 
     async def _send_attributed_update(self, session_id: str, update) -> None:
         if hasattr(update, "model_copy"):

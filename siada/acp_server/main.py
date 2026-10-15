@@ -80,6 +80,7 @@ def main() -> None:
             trajectory_handler=turn_runner.queue_trajectory_event,
             task_setter=turn_runner.set_browser_task,
             canceller=turn_runner.cancel_browser_task,
+            steerer=turn_runner.steer,
         )
         try:
             # use_unstable_protocol enables the session/resume route (marked

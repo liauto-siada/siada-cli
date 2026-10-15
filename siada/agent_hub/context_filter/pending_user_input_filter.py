@@ -50,6 +50,13 @@ class PendingUserInputInjector:
         self, model_data: ModelInputData, agent: Any, context: CodeAgentContext,
         *, persist_items: Callable[[list, list[str]], Awaitable[None]] | None = None,
     ) -> None:
+        from siada.services.steering import current_steering
+
+        steering = current_steering.get()
+        if steering is not None:
+            await steering.inject(model_data, context, persist_items)
+            # ACP input belongs to this session, never to the TUI's global queue.
+            return
         from siada.io.stdin_interrupt_monitor import (
             drain_pending_injections, restore_pending_injections, _send_queue_notification,
         )
