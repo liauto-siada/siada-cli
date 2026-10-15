@@ -349,3 +349,26 @@ class TestCli:
         assert cli.main(["setup"]) == 1
         assert "SHA256 mismatch" in capsys.readouterr().out
         assert not paths.state_path().exists()
+
+    @pytest.mark.parametrize("nested", [False, True])
+    def test_setup_download_404_reports_failed_url(
+        self, home, fake_setup, monkeypatch, capsys, nested
+    ):
+        from urllib.error import HTTPError
+
+        url = "https://example.test/releases/browser-manifest.json"
+
+        def fail(base):
+            error = HTTPError(url, 404, "Not Found", {}, None)
+            if nested:
+                raise RuntimeError("no downloadable browser package") from error
+            raise error
+
+        monkeypatch.setattr(cli.release_install, "install_release", fail)
+        monkeypatch.setattr(manager, "restart", lambda: pytest.fail("must not launch on failure"))
+        assert cli.main(["setup", "--base-url", "https://example.test/releases"]) == 1
+        out = capsys.readouterr().out
+        assert "HTTP 404" in out
+        assert url in out
+        assert "--base-url" in out
+        assert not paths.state_path().exists()

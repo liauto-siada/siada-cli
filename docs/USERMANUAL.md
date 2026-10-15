@@ -594,6 +594,13 @@ If running `siada-cli` directly shows command not found:
 - This is normal behavior in developer mode as the command is installed in the virtual environment
 - Refer to examples to activate the virtual environment
 
+For installed commands, run `uv tool update-shell` if you installed with `uv tool`.
+After running an installer, open a new terminal so its PATH changes take effect.
+The browser companion uses `siada-browser setup`, or `siada-cli --browser-setup`.
+If setup reports HTTP 404, update Siada and retry. For a custom download source,
+use `siada-browser setup --base-url <release-directory>`; the equivalent CLI option
+is `siada-cli --browser-setup --browser-base-url <release-directory>`.
+
 **Model API errors:**
 - Check your internet connection
 

@@ -570,6 +570,13 @@ deactivate
 - 在开发者模式中是正常现象，因为命令安装在虚拟环境中
 - 参考示例激活虚拟环境
 
+通过 `uv tool` 安装的命令，可运行 `uv tool update-shell` 配置 PATH。
+运行安装脚本后，请打开新终端使 PATH 配置生效。
+浏览器配套组件的安装命令是 `siada-browser setup`，也可使用 `siada-cli --browser-setup`。
+如果 setup 提示 HTTP 404，请更新 Siada 后重试。使用自定义下载源时，可运行
+`siada-browser setup --base-url <发布目录>`，或
+`siada-cli --browser-setup --browser-base-url <发布目录>`。
+
 **模型 API 错误：**
 - 检查您的网络连接
 

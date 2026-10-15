@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 
 from siada.browser_addon import installer, manager, paths, release_install
 
@@ -65,7 +66,18 @@ def cmd_setup(args: argparse.Namespace) -> int:
         _print(f"    ✓ {paths.extension_dir()}")
     else:
         _print("==> Installing the browser platform package...")
-        release_install.install_release(args.base_url)
+        try:
+            release_install.install_release(args.base_url)
+        except (OSError, RuntimeError, URLError) as exc:
+            cause = exc
+            while cause.__cause__ is not None:
+                cause = cause.__cause__
+            if isinstance(cause, HTTPError):
+                _print(f"Browser download failed: HTTP {cause.code} ({cause.url})")
+            else:
+                _print(f"Browser setup failed: {exc}")
+            _print("Check the release download address; use --base-url to select another source.")
+            return 1
 
     state = manager.init_state(args.port, args.host)
 
