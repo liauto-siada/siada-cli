@@ -14,7 +14,13 @@ Explicit non-transient stream error codes, such as invalid input or insufficient
 quota, are propagated.
 This covers stream creation and consumption before any output or tool event is
 exposed. Once such an event reaches the caller, the error propagates to avoid
-duplicating output or tool calls. Context admission runs once; nested wrappers
+duplicating output or tool calls. Empty message/reasoning items and empty text
+parts are buffered along with lifecycle events, so a deployment disconnect
+(`RemoteProtocolError`, including `incomplete chunked read`) during these start
+events can still retry. Failed attempts' response and item IDs are discarded.
+The buffer holds at most 64 events; content, tool calls, unknown events, or a full
+buffer end the replay window. Retry delays are 1–2 seconds and 2–3 seconds.
+Context admission runs once; nested wrappers
 share one transport retry budget. Direct completion clients retain their own
 retry policies. See the [provider routing and retry wiki](wiki/17_provider-routing-retries.md)
 for the protocol routes and exception matrix.

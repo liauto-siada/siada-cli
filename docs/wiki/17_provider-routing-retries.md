@@ -82,7 +82,7 @@ flowchart TD
     A[持久化 admission 与输入处理一次] --> B[创建模型流]
     B --> C[消费与解析事件]
     C --> D{事件类型}
-    D -->|created / in_progress| E[暂存生命周期事件]
+    D -->|生命周期或已识别的空起始事件，缓冲未满| E[暂存起始事件]
     E --> C
     D -->|其它事件| F[释放暂存事件并交给下游]
     F --> G[继续消费，后续异常直接传播]
@@ -95,7 +95,16 @@ flowchart TD
 
 例如第一次请求产出 `response.created` 后，在读取首个 chunk 时抛 `ReadTimeout` 或 `MidStreamFallbackError`，外层会关闭失败流、丢弃暂存的 created、退避并重建模型流。下游只收到成功尝试的生命周期事件与内容。
 
-一旦 `response.output_item.added`、文本 delta、reasoning delta、工具参数 delta 或其它非生命周期事件已经交给下游，就停止重放。此时重新请求可能返回不同内容和工具 id；仅在 provider 内重试会重复输出，工具执行还可能重复。没有协议级撤回或恢复契约时，异常会保留并交由上层处理。
+空的 assistant message / reasoning `response.output_item.added`、空的
+`response.content_part.added` 和 `response.reasoning_summary_part.added` 会与生命周期事件
+一起暂存，最多 64 个事件。在这些起始事件之后发生 `RemoteProtocolError`
+（包括服务发版导致的 `incomplete chunked read`）仍可关闭旧流并退避重试，
+丢弃失败尝试的 response ID 和 item ID。
+
+一旦正文或 reasoning delta、工具调用条目或参数、含内容的条目、未知事件已经交给下游，
+或起始事件缓冲已满，就停止重放。此时重新请求可能返回不同内容和工具 id；
+仅在 provider 内重试会重复输出，工具执行还可能重复。没有协议级撤回或恢复契约时，
+异常会保留并交由上层处理。
 
 普通解析 `ValueError` 不在传输异常白名单中；“解析过程中抛异常”需要区分读取断流与数据格式错误。流正常结束而没有抛异常也不会被本策略当成 timeout。`response.incomplete` 等正常协议事件不等同于网络异常。
 

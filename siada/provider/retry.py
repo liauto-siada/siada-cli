@@ -16,6 +16,7 @@ from siada.foundation.logging import logger
 
 _MAX_RETRIES = 2
 _LIFECYCLE_EVENTS = frozenset({"response.created", "response.in_progress"})
+_MAX_PENDING_EVENTS = 64
 _Result = TypeVar("_Result")
 _TRANSIENT_API_ERRORS = frozenset({
     "server_error", "internal_server_error", "server_is_overloaded",
@@ -139,15 +140,52 @@ async def retry_model_call(
     raise AssertionError("Unreachable retry state")
 
 
+def _field(value: Any, name: str) -> Any:
+    return value.get(name) if isinstance(value, dict) else getattr(value, name, None)
+
+
+def _is_empty_stream_start(event: Any) -> bool:
+    """Buffer only known empty scaffolding; tool and unknown events commit."""
+    event_type = _field(event, "type")
+    if event_type in _LIFECYCLE_EVENTS:
+        return True
+    if event_type == "response.output_item.added":
+        item = _field(event, "item")
+        if _field(item, "type") == "message":
+            return (
+                _field(item, "role") == "assistant"
+                and _field(item, "status") == "in_progress"
+                and _field(item, "content") == []
+            )
+        if _field(item, "type") == "reasoning":
+            return (
+                _field(item, "summary") == []
+                and _field(item, "content") in (None, [])
+                and not _field(item, "encrypted_content")
+            )
+    if event_type == "response.content_part.added":
+        part = _field(event, "part")
+        return (
+            _field(part, "type") == "output_text"
+            and _field(part, "text") == ""
+            and _field(part, "annotations") == []
+        )
+    if event_type == "response.reasoning_summary_part.added":
+        part = _field(event, "part")
+        return _field(part, "type") == "summary_text" and _field(part, "text") == ""
+    return False
+
+
 async def retry_model_stream(
     create_stream: Callable[[], AsyncIterator[_Result]],
     *,
     model_name: str | None = None,
 ) -> AsyncIterator[_Result]:
-    """Retry creation/iteration until the first non-lifecycle event is exposed.
+    """Retry creation/iteration until meaningful output or tool events are exposed.
 
-    Buffer lifecycle events so failed attempts cannot leak response IDs. Once
-    output/tool events are exposed, replay could duplicate content or actions.
+    Buffer empty start events so failed attempts cannot leak response/item IDs.
+    Flush on the first meaningful event, preserving streaming after that point.
+    Bound the buffer and treat unknown events conservatively.
     """
     for attempt in range(_MAX_RETRIES + 1):
         stream = None
@@ -176,7 +214,11 @@ async def retry_model_stream(
                 # Explicit failures retain their own SDK error handling.
                 if event_type in {"response.completed", "response.incomplete", "response.failed"}:
                     terminal_seen = True
-                if not committed and event_type in _LIFECYCLE_EVENTS:
+                if (
+                    not committed
+                    and len(pending) < _MAX_PENDING_EVENTS
+                    and _is_empty_stream_start(event)
+                ):
                     pending.append(event)
                     continue
                 committed = True
