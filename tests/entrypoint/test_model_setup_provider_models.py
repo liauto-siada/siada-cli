@@ -75,3 +75,15 @@ def test_unexpected_provider_error_is_not_silently_swallowed(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="bug"):
         model_setup.get_api_key_provider_models("glm", "glm-5.3")
+
+
+@pytest.mark.parametrize("provider_id", ["deepseek", "custom"])
+def test_deepseek_offline_selection_loads_preset_context(monkeypatch, provider_id):
+    monkeypatch.setattr(models_dev, "get_providers_for_ui", lambda: [])
+
+    models = model_setup.get_api_key_provider_models(
+        provider_id, "deepseek-flash", "https://api.deepseek.com/v1/"
+    )
+
+    assert [m.model_name for m in models] == ["deepseek-flash", "deepseek-v4-pro"]
+    assert all(m.context_window == 1_000_000 for m in models)

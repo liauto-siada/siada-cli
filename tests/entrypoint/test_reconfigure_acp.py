@@ -75,6 +75,26 @@ def test_repeated_api_configuration_during_command_turn(wizard, caplog):
     assert "synthetic-kimi-key" not in caplog.text
 
 
+@pytest.mark.parametrize("model", ["deepseek-flash", "deepseek-v4-pro"])
+def test_deepseek_reconfiguration_saves_and_applies_selected_model(wizard, model):
+    io, replies, notifications, saved = wizard
+    config = {
+        "provider_id": "deepseek",
+        "model": model,
+        "api_key": "synthetic-deepseek-key",
+        "base_url": "https://api.deepseek.com/v1",
+    }
+    replies.append("__LOGIN_CHOICE__:3:" + json.dumps(config))
+
+    assert login_prompt.reconfigure_acp(io) == "api-key-user:deepseek"
+    saved.assert_called_once_with(
+        "deepseek", "synthetic-deepseek-key", "https://api.deepseek.com/v1", model,
+    )
+    assert login_prompt.get_applied_api_key_config() == config
+    assert notifications[-1] == "ui/loginSuccess"
+    assert not monitor_module.drain_pending_injections()
+
+
 @pytest.mark.parametrize("choice", ["cancel", "skip"])
 def test_cancel_during_reconfiguration_reaches_wizard(wizard, choice):
     io, replies, notifications, saved = wizard

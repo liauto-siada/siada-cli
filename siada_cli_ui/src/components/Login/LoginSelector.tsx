@@ -58,6 +58,16 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
     ],
   },
   {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiKeyHint: 'Enter API key from platform.deepseek.com',
+    models: [
+      { id: 'deepseek-flash', name: 'DeepSeek Flash', context: 1000 },
+      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', context: 1000 },
+    ],
+  },
+  {
     id: 'glm',
     name: 'GLM (ZhipuAI)',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
@@ -131,7 +141,7 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
 // ── Main options ───────────────────────────────────────────────────────────────
 
 const OPTIONS = [
-  { id: '3' as const, label: 'Configure API Key',        description: 'Use your own API key (kimi, openai, claude...)' },
+  { id: '3' as const, label: 'Configure API Key',        description: 'Use your own API key (kimi, deepseek, openai, claude...)' },
 ];
 
 // ── Phase type ─────────────────────────────────────────────────────────────────

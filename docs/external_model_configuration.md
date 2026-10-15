@@ -31,6 +31,18 @@ output has been exposed. Request bodies, full error bodies, and authentication
 headers are excluded from these diagnostic records. Protocol `error` and
 `response.failed` events follow the same retry rules as SDK exceptions.
 
+## Configure DeepSeek with an API Key
+
+On first sign-in or through `/configure`, select **Configure API Key → DeepSeek**,
+choose a model, and enter your DeepSeek API key. The base URL is prefilled as
+`https://api.deepseek.com/v1`; the selected model and credentials are saved in
+`~/.siada-cli/conf.yaml` with `provider: default` and `provider_id: deepseek`.
+
+The offline preset includes `deepseek-flash` and `deepseek-v4-pro` (1M context).
+When a models.dev cache is available, the wizard uses its current tool-capable
+DeepSeek models; an older cache without usable DeepSeek entries uses the preset.
+You do not need to create `models.json` to use this wizard.
+
 ## Configuration File Location
 
 The model configuration file is located at: `~/.siada-cli/models.json`

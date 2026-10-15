@@ -25,6 +25,17 @@ Responses 错误日志包含有长度限制的 message/code/type/param、可用�
 模型、response ID、最后一个流事件和是否已交出输出。这些诊断记录不打印请求正文、
 完整错误 body 或认证请求头。协议 `error` 和 `response.failed` 事件也按相同规则处理。
 
+## 使用 API Key 配置 DeepSeek
+
+首次登录或输入 `/configure` 后，选择 **Configure API Key → DeepSeek**，
+选择模型并输入 DeepSeek API Key。接口地址自动填为 `https://api.deepseek.com/v1`；
+模型和凭据会保存到 `~/.siada-cli/conf.yaml`，其中 `provider: default`、
+`provider_id: deepseek`。
+
+离线预设包含 `deepseek-flash` 和 `deepseek-v4-pro`（1M 上下文）。
+有 models.dev 缓存时，向导使用缓存中支持工具调用的 DeepSeek 模型；
+旧缓存缺少可用的 DeepSeek 模型时使用预设。通过向导配置无需手动创建 `models.json`。
+
 ## 配置文件位置
 
 模型配置文件位于：`~/.siada-cli/models.json`

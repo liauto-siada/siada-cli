@@ -79,3 +79,32 @@ def test_curate_caps_models_per_provider_and_appends_custom():
     assert len(openai["models"]) == 8
     assert providers[-1]["id"] == "custom"
     assert providers[-1]["models"] == []
+
+
+def test_curate_includes_deepseek_with_cached_tool_models():
+    raw = {"deepseek": {"models": {
+        "deepseek-v4-pro": _model("DeepSeek V4 Pro", "2026-04-24", context=1_000_000),
+        "deepseek-no-tools": _model("No tools", "2026-05-01", tool_call=False),
+    }}}
+
+    providers = models_dev._curate(raw)
+    deepseek = next(p for p in providers if p["id"] == "deepseek")
+
+    assert deepseek["name"] == "DeepSeek"
+    assert deepseek["baseUrl"] == "https://api.deepseek.com/v1"
+    assert deepseek["models"] == [{
+        "id": "deepseek-v4-pro", "name": "DeepSeek V4 Pro",
+        "context": 1000, "image": None,
+    }]
+    assert providers[-1]["id"] == "custom"
+
+
+def test_old_cache_without_usable_deepseek_models_uses_preset():
+    for raw in ({}, {"deepseek": {"models": {
+        "old-model": _model("Old model", "2025-01-01", tool_call=False),
+    }}}):
+        deepseek = next(p for p in models_dev._curate(raw) if p["id"] == "deepseek")
+        assert [m["id"] for m in deepseek["models"]] == [
+            "deepseek-flash", "deepseek-v4-pro",
+        ]
+        assert all(m["context"] == 1000 for m in deepseek["models"])

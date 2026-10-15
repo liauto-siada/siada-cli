@@ -20,6 +20,7 @@ _CACHE_MAX_AGE = 86400  # 24 hours
 # provider_id (our internal) → (models.dev provider id, base_url, api_key_hint)
 _PROVIDER_MAP = [
     ('kimi',    'moonshotai-cn', 'https://api.moonshot.cn/v1',                              'Enter API key like sk-...'),
+    ('deepseek', 'deepseek',     'https://api.deepseek.com/v1',                             'Enter API key from platform.deepseek.com'),
     ('glm',     'zhipuai',       'https://open.bigmodel.cn/api/paas/v4',                    'Enter API key from zhipuai.cn'),
     ('minimax', 'minimax',       'https://api.minimax.chat/v1',                             'Enter API key from minimax.io'),
     ('openai',  'openai',        'https://api.openai.com/v1',                               'Enter API key like sk-...'),
@@ -30,12 +31,20 @@ _PROVIDER_MAP = [
 # Override provider display names (models.dev names differ from our UX labels)
 _PROVIDER_DISPLAY_NAMES = {
     'kimi':    'Kimi (Moonshot AI)',
+    'deepseek': 'DeepSeek',
     'glm':     'GLM (ZhipuAI)',
     'minimax': 'MiniMax',
     'openai':  'OpenAI',
     'claude':  'Claude (Anthropic)',
     'gemini':  'Gemini (Google)',
 }
+
+# Keep older caches usable when they have no tool-capable DeepSeek entries.
+# Official API names and limits: https://api-docs.deepseek.com/quick_start/pricing
+_DEEPSEEK_MODELS_SNAPSHOT = [
+    {'id': 'deepseek-flash', 'name': 'DeepSeek Flash', 'context': 1000},
+    {'id': 'deepseek-v4-pro', 'name': 'DeepSeek V4 Pro', 'context': 1000},
+]
 
 
 def _get_cache_path():
@@ -145,6 +154,8 @@ def _curate(raw: dict) -> list:
         models.sort(key=lambda m: m['_date'], reverse=True)
         for m in models:
             del m['_date']
+        if our_id == 'deepseek' and not models:
+            models = [dict(model) for model in _DEEPSEEK_MODELS_SNAPSHOT]
         result.append({
             'id': our_id,
             'name': _PROVIDER_DISPLAY_NAMES.get(our_id, pdata.get('name', our_id)),
@@ -299,6 +310,11 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
             if p.get('baseUrl', '').rstrip('/') == normalized:
                 matched = p
                 break
+    if not matched and (
+        provider_id == 'deepseek'
+        or base_url.rstrip('/') == 'https://api.deepseek.com/v1'
+    ):
+        matched = next(p for p in _curate({}) if p['id'] == 'deepseek')
     if matched:
         models = matched.get('models', [])
         if models:
