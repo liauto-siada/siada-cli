@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from agents import RawResponsesStreamEvent, RunItemStreamEvent, ToolCallOutputItem
 from openai.types.responses import (
     ResponseFunctionCallArgumentsDeltaEvent,
@@ -11,6 +13,23 @@ from openai.types.responses import (
 )
 
 from siada.acp_server.runtime import SiadaTurnRunner
+
+
+@pytest.fixture(autouse=True)
+def isolated_conf(monkeypatch, tmp_path):
+    """Model switches and startup must only access a synthetic configuration."""
+    config_path = tmp_path / "conf.yaml"
+    config_path.write_text(
+        "# Keep this comment\n"
+        "llm_config:\n"
+        "  model: claude-sonnet-4.6\n"
+        "  provider: anthropic\n"
+        "  thinking: false\n"
+        "preferred_language: en\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("siada.config.conf_store.get_conf_path", lambda: config_path)
+    return config_path
 
 
 class _DummyAgent:
@@ -298,3 +317,52 @@ def test_set_model_preserves_the_configured_provider(tmp_path):
     runner.set_model("acp-1", other_model)
 
     assert session.siada_config.llm_config.provider == original_provider
+
+
+def test_acp_model_selection_persists_and_survives_runtime_restart(tmp_path, isolated_conf):
+    from siada.acp_server.acp_agent import SiadaAcpAgent
+    from siada.config.conf_store import read_conf_dict
+
+    runner = SiadaTurnRunner()
+    agent = SiadaAcpAgent(
+        turn_runner=runner,
+        session_creator=runner.create_session,
+        model_lister=runner.list_available_models,
+        model_getter=runner.get_model,
+        model_setter=runner.set_model,
+    )
+    session = asyncio.run(agent.new_session(cwd=str(tmp_path)))
+    other_model = next(
+        m for m in runner.list_available_models()
+        if m != runner.get_model(session.session_id)
+    )
+    before = read_conf_dict()
+
+    response = asyncio.run(agent.set_config_option(
+        config_id="model", session_id=session.session_id, value=other_model,
+    ))
+
+    assert response.config_options[0].current_value == other_model
+    before["llm_config"]["model"] = other_model
+    assert read_conf_dict() == before
+    assert "# Keep this comment" in isolated_conf.read_text(encoding="utf-8")
+
+    restarted = SiadaTurnRunner()
+    restarted.create_session("acp-restarted", str(tmp_path))
+    assert restarted.get_model("acp-restarted") == other_model
+
+
+def test_set_model_save_failure_keeps_live_model_and_reports_error(monkeypatch, tmp_path):
+    runner = SiadaTurnRunner()
+    runner.create_session("acp-1", str(tmp_path))
+    original_config = runner._sessions["acp-1"].session.siada_config.llm_config
+    other_model = next(
+        m for m in runner.list_available_models()
+        if m != original_config.model_name
+    )
+    monkeypatch.setattr("siada.config.conf_store.save_conf_fields", lambda _fields: False)
+
+    with pytest.raises(RuntimeError, match="Failed to save selected model to conf.yaml"):
+        runner.set_model("acp-1", other_model)
+
+    assert runner._sessions["acp-1"].session.siada_config.llm_config is original_config

@@ -68,6 +68,11 @@ Siada CLI 是一个专业的命令行 AI 工作流工具，专为代码开发、
    >   `~/.siada-cli/conf.yaml` > 内置默认值。
    > - 非空的 `BASE_URL`、`API_KEY` 覆盖对应的已存凭据，两项完整时可直接进入会话。
 
+通过 chrome-acp 使用 Siada 时，选择模型会将其保存到
+`~/.siada-cli/conf.yaml` 的 `llm_config.model`。新建会话或重启 Agent 后，
+会使用保存的模型，并保留配置文件中的其他字段和注释。
+如果保存失败，模型切换会报错，当前模型保持不变。
+
 ### 从已有会话派生新会话
 
 输入 `/fork` 可从当前会话派生并切换到新会话；输入 `/fork <session_id>`

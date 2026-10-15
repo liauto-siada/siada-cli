@@ -601,9 +601,16 @@ class SiadaTurnRunner:
         return self._sessions[session_id].session.siada_config.llm_config.model_name
 
     def set_model(self, session_id: str, model_name: str) -> None:
+        """Switch the session model and persist the default for future sessions."""
+        from siada.config.conf_store import save_conf_fields
+
         llm_config = self._sessions[session_id].session.siada_config.llm_config
         new_config = ModelRunConfig(model_name)
         new_config.provider = llm_config.provider
+        # Commit before changing the live session so a failed save cannot
+        # acknowledge a selection that would disappear after a restart.
+        if not save_conf_fields({"llm_config.model": new_config.model_name}):
+            raise RuntimeError("Failed to save selected model to conf.yaml")
         self._sessions[session_id].session.siada_config.llm_config = new_config
 
     def _get_slash_commands(self, session_id: str):

@@ -70,6 +70,11 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
    > - Non-empty `BASE_URL` and `API_KEY` override the corresponding stored
    >   credentials. Both are required to sign in without the configuration prompt.
 
+When using Siada through chrome-acp, selecting a model saves it to
+`llm_config.model` in `~/.siada-cli/conf.yaml`. New sessions and agent restarts
+use the saved model. Other configuration fields and comments are preserved.
+If saving fails, the model switch reports an error and the current model stays active.
+
 ### Forking a Conversation
 
 Use `/fork` to create and switch to a new session inheriting the current
