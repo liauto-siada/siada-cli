@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterable, Awaitable, Callable, Iterable
 import inspect
+import json
 import logging
 from typing import Any
 from uuid import uuid4
@@ -21,6 +22,7 @@ from acp import (
 )
 from acp.helpers import (
     SessionUpdate,
+    start_tool_call,
     update_agent_message_text,
     update_available_commands,
     update_user_message_text,
@@ -136,7 +138,7 @@ class SiadaAcpAgent(Agent):
         command_runner: TurnRunner | None = None,
         session_lister: Callable[[str | None], list[dict[str, Any]]] | None = None,
         session_restorer: Callable[[str, str, list[Any] | None], Any] | None = None,
-        history_lister: Callable[[str], list[dict[str, str]]] | None = None,
+        history_lister: Callable[[str], list[dict[str, Any]]] | None = None,
         # Optional browser-skill ACE wiring (all degrade to no-ops when None):
         #   connection_setter — receive the connected ACP client (runtime
         #     pushes suggestions and asks request_permission through it);
@@ -436,19 +438,37 @@ class SiadaAcpAgent(Agent):
     async def _replay_history(self, session_id: str) -> None:
         """Stream the restored session's history as session/update chunks.
 
-        Maps the display messages from history_lister to user_message_chunk
-        / agent_message_chunk updates (tool-call entries are already
-        rendered to text by the shared formatter, matching the /resume
-        ui/loadHistory presentation).
+        Preserve tool entries as tool_call updates so clients can collapse
+        them instead of concatenating their previews into assistant replies.
         """
         if self._conn is None or self._history_lister is None:
             return
         messages = self._history_lister(session_id)
         if inspect.isawaitable(messages):
             messages = await messages
-        for message in messages:
+        for index, message in enumerate(messages):
+            if message.get("role") not in ("user", "assistant"):
+                continue
             text = message.get("content") or ""
             if not text:
+                continue
+            if message.get("subtype") == "tool_use":
+                raw_input = message.get("raw_input")
+                if isinstance(raw_input, str):
+                    try:
+                        raw_input = json.loads(raw_input)
+                    except (ValueError, TypeError):
+                        pass
+                update = start_tool_call(
+                    tool_call_id=message.get("tool_call_id") or f"history-{session_id}-{index}",
+                    title=message.get("title") or "Tool call",
+                    status="completed",
+                    # Keep the preview as input, not output: Chrome opens
+                    # tools with output by default, while history previews
+                    # should stay collapsed until the user expands them.
+                    raw_input=raw_input if raw_input is not None else text,
+                )
+                await self._conn.session_update(session_id, update)
                 continue
             update = (
                 update_user_message_text(text)

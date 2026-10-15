@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ChatInterface } from "../../../shared/src/components/ChatInterface";
 import { TooltipProvider } from "../../../shared/src/components/ui/tooltip";
 import type { ACPClient } from "../../../shared/src/acp/client";
+import type { SessionUpdate } from "../../../shared/src/acp/types";
 import "../../../shared/src/styles/index.css";
 
 const handlers = new Map<string, (...args: any[]) => void>();
@@ -36,6 +37,11 @@ const client = new Proxy({
 
 (window as any).fixture = {
   sent, steered,
+  replay(updates: SessionUpdate[]) {
+    for (const update of updates) {
+      handlers.get("setSessionUpdateHandler")?.(sessionId, update);
+    }
+  },
   complete(reason = "end_turn") {
     handlers.get("setPromptCompleteHandler")?.(reason, sessionId, sent.at(-1)?.id);
   },

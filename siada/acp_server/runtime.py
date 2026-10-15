@@ -495,7 +495,7 @@ class SiadaTurnRunner:
         )
         logger.info("[acp] Restored session %s from disk (cwd=%s)", session_id, workspace)
 
-    def load_history_messages(self, session_id: str) -> list[dict[str, str]]:
+    def load_history_messages(self, session_id: str) -> list[dict[str, Any]]:
         """Display-ready user/assistant messages for replaying a session.
 
         Reuses format_native_items_for_display (the same formatter as
@@ -510,7 +510,7 @@ class SiadaTurnRunner:
             return []
         from siada.support.message_classifier import format_native_items_for_display
 
-        return format_native_items_for_display(items)
+        return format_native_items_for_display(items, include_tool_metadata=True)
 
     def _build_running_config(self, workspace: str) -> RunningConfig:
         """Build the session's RunningConfig from ~/.siada-cli/conf.yaml.

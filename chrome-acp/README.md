@@ -18,6 +18,10 @@ See [docs/](./docs) for the rendered documentation site source.
 
 ## Features
 
+- **History with Siada** — Reopening a session shows your questions and agent
+  replies. Generated page context and internal reminders stay hidden, including
+  page preambles in older sessions. Tool calls appear as collapsed cards that
+  you can expand to inspect their saved inputs.
 - **Prompt queue** — Submit messages while a task runs. They appear above the
   input and run in submission order after each successful turn. Remove a queued
   message with its × button. Stop, errors, and disconnections pause the queue;

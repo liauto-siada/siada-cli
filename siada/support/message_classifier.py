@@ -14,6 +14,16 @@ _SYSTEM_REMINDER_WRAPPERS = (
 # Hyphen-spelling opening tag carrying attributes (e.g. a ``source=...``).
 _SYSTEM_REMINDER_OPEN_WITH_ATTRS = re.compile(r"<system-reminder\s[^<>]*>")
 
+# Older Chrome clients persisted this generated preamble inside the user
+# message. Match only its leading, generated shape; quoted tags elsewhere
+# in a user's text remain part of the conversation.
+_LEGACY_BROWSER_PREAMBLE = re.compile(
+    r"^\s*<browser-context>\r?\n"
+    r"(?:Current tab:|(?:\r?\n)?Selected text on the page:|(?:\r?\n)?Page content excerpt:)"
+    r".*?</browser-context>(?:\r?\n){2}",
+    re.DOTALL,
+)
+
 
 def _is_whole_system_reminder(text: str) -> bool:
     """Return True only if ``text``, once surrounding whitespace is
@@ -198,13 +208,17 @@ def get_role_and_type_from_item(item: Any) -> Tuple[Optional[str], Optional[str]
     return None, item_type
 
 
-def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
+def format_native_items_for_display(
+    items: list, *, include_tool_metadata: bool = False,
+) -> List[Dict[str, Any]]:
     """Convert native OpenAI-format message items into display-ready dicts.
 
     Shared by Controller._send_session_sync (deferred rendering) and
     SlashCommands._send_history_to_ui (/resume).
 
     Each returned dict has keys: role, content, and optionally subtype.
+    ACP replay can opt into tool identity/input metadata to keep tools out
+    of ordinary assistant text without changing the terminal history shape.
     - function_call items are formatted via ToolCallFormatterFactory
     - function_call_output items are skipped
     - User messages have <task>...</task> wrappers stripped, as well as
@@ -243,7 +257,7 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
     )
     from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 
-    messages: List[Dict[str, str]] = []
+    messages: List[Dict[str, Any]] = []
     for item in items:
         item_type = item.get("type", "")
         role = item.get("role", "assistant")
@@ -257,11 +271,14 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
                 formatter = ToolCallFormatterFactory.get_formatter(name)
                 content, _ = formatter.format_input(call_id, name, arguments)
                 if content:
-                    messages.append({
+                    message: Dict[str, Any] = {
                         "role": "assistant",
                         "content": content,
                         "subtype": "tool_use",
-                    })
+                    }
+                    if include_tool_metadata:
+                        message.update(tool_call_id=call_id, title=name, raw_input=arguments)
+                    messages.append(message)
             except Exception:
                 pass
             continue
@@ -269,11 +286,18 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
         # Like edit_file, reconstruct a requested patch preview from the
         # persisted tool input. The model-facing output remains skipped.
         if item_type == "apply_patch_call":
-            messages.append({
+            message = {
                 "role": "assistant",
                 "content": render_apply_patch_history_preview(item),
                 "subtype": "tool_use",
-            })
+            }
+            if include_tool_metadata:
+                message.update(
+                    tool_call_id=item.get("call_id", item.get("id", "")),
+                    title="apply_patch",
+                    raw_input=item.get("operation"),
+                )
+            messages.append(message)
             continue
 
         # Tool outputs are skipped consistently with normal live rendering.
@@ -313,6 +337,7 @@ def format_native_items_for_display(items: list) -> List[Dict[str, str]]:
             # the literal tag strings, so the chat bubble shows exactly what
             # the human typed.
             text = strip_user_input(text)
+            text = _LEGACY_BROWSER_PREAMBLE.sub("", text, count=1)
 
         # Strip sentinel-wrapped injection blocks (holographic prefetch +
         # IM context). Cheap early-return for plain text — only does the
