@@ -414,7 +414,7 @@ siada-cli -p "Fix authentication errors in login.py"
 # Use a different model
 siada-cli --model claude-sonnet-4.5
 
-# Set color theme
+# Set color theme (dark by default; legacy auto also uses dark)
 siada-cli --theme dark
 
 # Enable verbose output

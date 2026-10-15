@@ -1021,35 +1021,19 @@ class SystemThemeDetector:
         
         Args:
             user_theme: User's theme preference ('auto', 'dark', 'light', 'default', or None)
-            auto_follow: Whether to auto-follow system theme (deprecated, use user_theme='auto')
+            auto_follow: Legacy option; automatic themes now use dark.
         
         Returns:
             Theme name to use: 'dark', 'light', or 'default'
         """
-        # Handle legacy auto_follow parameter
-        if auto_follow is True and user_theme is None:
-            user_theme = 'auto'
-        
-        # If user explicitly set a theme (not 'auto'), use it
+        # Preserve explicit preferences while mapping legacy automatic mode to dark.
         if user_theme and user_theme != 'auto':
             return user_theme
-        
-        # If theme is 'auto' or auto_follow is enabled, detect system theme
         if user_theme == 'auto' or auto_follow is True:
-            detected = SystemThemeDetector.detect_theme()
-            if detected in ('dark', 'light'):
-                return detected
-            # If detection fails, fall back to default
-            return 'default'
+            return 'dark'
         
         # Default case
         return 'default'
-
-
-# Cached 'auto' resolution for the process lifetime. The detector shells out
-# to AppleScript/gsettings (~80-120ms on macOS), so it must run at most once
-# per process, on the startup path or the first /theme auto.
-_cached_auto_theme: Optional[str] = None
 
 
 def resolve_theme_for_ui(theme: Optional[str]) -> str:
@@ -1059,18 +1043,9 @@ def resolve_theme_for_ui(theme: Optional[str]) -> str:
         theme: Configured theme ('auto', 'dark', 'light', or anything else).
 
     Returns:
-        'dark' or 'light'. 'auto' (and unknown values) resolve through
-        SystemThemeDetector.detect_theme(), cached per process; detection
-        failure falls back to 'dark'.
+        'dark' or 'light'. Legacy 'auto', missing, and unknown values use
+        'dark' without terminal or system theme detection.
     """
-    global _cached_auto_theme
     if theme in ('dark', 'light'):
         return theme
-    if _cached_auto_theme is None:
-        try:
-            detected = SystemThemeDetector.detect_theme()
-        except Exception:
-            logger.error("Theme detection failed, falling back to 'dark'", exc_info=True)
-            detected = 'unknown'
-        _cached_auto_theme = detected if detected in ('dark', 'light') else 'dark'
-    return _cached_auto_theme
+    return 'dark'

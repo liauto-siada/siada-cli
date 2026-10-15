@@ -4,7 +4,7 @@
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-export type ThemeType = 'light' | 'dark' | 'auto';
+export type ThemeType = 'light' | 'dark';
 
 export interface ClientConfig {
   workingDir: string;

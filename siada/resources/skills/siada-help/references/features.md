@@ -103,7 +103,7 @@ Type `/` in the input box to trigger — no configuration required:
 | `/model <name>` | Switch to the specified model and persist to `conf.yaml` |
 | `/effort [level]` | Show or set the reasoning effort level for the current model, persisted to `conf.yaml`. Valid levels depend on the model: `low`/`medium`/`high` for most, Claude also supports `xhigh`/`max`, GPT-5/GPT-6 (`gpt-5.6-*`, `gpt-6-astra`) also support `max`, Kimi K3/GLM/DeepSeek use `low`/`high`/`max` (GLM-5.2 has no `low`) |
 | `/thinking [on\|off]` | Show, enable, or disable thinking/reasoning for the current model, persisted to `conf.yaml` (`llm_config.enable_thinking`). `off` is an absolute switch: it wins over any effort level or thinking-token budget |
-| `/theme [auto\|dark\|light]` | Show or switch the UI color theme, persisted to `conf.yaml` (`ui.theme`). `auto` follows the system/terminal background |
+| `/theme [dark\|light]` | Show or switch the UI color theme, persisted to `conf.yaml` (`ui.theme`). Defaults to `dark`; legacy `auto` uses `dark` without detection |
 | `/status` | Show current status (model, agent, session ID, workspace) |
 | `/clear` | Clear conversation history and start a new task |
 | `/compact` | Manually compact conversation history; show message counts and the number removed beneath the compaction status |
@@ -336,4 +336,4 @@ The ACP session advertises the installed siada version (the same value `siada-cl
 
 ## Theme
 
-Switch the UI color theme with `/theme` — `auto` (follows the system/terminal background, the default), `dark`, or `light`. The choice is persisted to `conf.yaml` as `ui.theme`.
+Switch the UI color theme with `/theme` — `dark` (the default) or `light`. The choice is persisted to `conf.yaml` as `ui.theme`. Legacy `auto` configuration values use `dark` without system or terminal detection; `/theme auto` saves `dark`.

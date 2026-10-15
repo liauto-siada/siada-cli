@@ -332,7 +332,7 @@ Terminal UI preferences (terminal and front-end themes). Written by slash comman
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `ui.theme` | string | `"auto"` | UI color theme: `"auto"` (follows the system/terminal background), `"dark"`, or `"light"`. Persisted by `/theme` |
+| `ui.theme` | string | `"dark"` | UI color theme: `"dark"` or `"light"`. Legacy `"auto"` uses `"dark"` without detection. Persisted by `/theme` |
 
 **Example:**
 ```yaml
@@ -457,7 +457,7 @@ sub_agent:
   allow_recursive_subagents: false
 
 ui:
-  theme: auto
+  theme: dark
 
 im:
   verbose:

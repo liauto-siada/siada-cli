@@ -178,9 +178,10 @@ def get_parser(default_config_files, git_root):
     group = parser.add_argument_group("Output settings")
     group.add_argument(
         "--theme",
-        choices=["auto", "dark", "light"],
-        default="auto",
-        help="Select color theme: auto (auto-detect system theme), dark, or light (default: auto)",
+        type=lambda value: "dark" if value == "auto" else value,
+        choices=["dark", "light"],
+        default="dark",
+        help="Select color theme: dark or light (default: dark; legacy auto uses dark)",
     )
 
     group.add_argument(
@@ -524,7 +525,8 @@ class SiadaArgs:
 
     @property
     def theme(self) -> str:
-        return self._get('theme', 'auto')
+        theme = self._get('theme', 'dark')
+        return 'dark' if theme == 'auto' else theme
 
     @property
     def fancy_input(self) -> bool:

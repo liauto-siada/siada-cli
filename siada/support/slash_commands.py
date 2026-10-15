@@ -85,7 +85,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "model": "[<model_name>]",
     "effort": "[low | medium | high | xhigh | max]",
     "thinking": "[on | off]",
-    "theme": "[auto | dark | light]",
+    "theme": "[dark | light]",
     "rule-global-add": "<text>",
     "compare": "<checkpoint_filename>",
     "undo": "<checkpoint_filename>",
@@ -105,9 +105,8 @@ def get_argument_hint(cmd_name: str) -> str:
 
 
 # UI color themes accepted by /theme and persisted to conf.yaml (ui.theme).
-# 'auto' detects the terminal/system background once per process and is the
-# default when ui.theme is not configured.
-VALID_THEMES = ("auto", "dark", "light")
+# Automatic theme selection is retired; legacy 'auto' commands map to dark.
+VALID_THEMES = ("dark", "light")
 
 
 class SlashCommands:
@@ -1201,20 +1200,22 @@ class SlashCommands:
 
         Usage:
             /theme              - Open theme selector (shows current theme in TTY mode)
-            /theme auto         - Follow the terminal/system background (default)
-            /theme dark         - Switch to the dark theme
+            /theme auto         - Legacy alias for dark
+            /theme dark         - Switch to the dark theme (default)
             /theme light        - Switch to the light theme
 
         The choice is persisted to conf.yaml (ui.theme) and pushed to the
-        ACP frontend so the terminal UI repaints immediately. 'auto' is
-        resolved to dark/light via terminal background detection before the
-        push (the frontend only understands concrete themes).
+        ACP frontend so the terminal UI repaints immediately. Legacy 'auto'
+        values use dark without terminal or system theme detection.
         """
         from siada.config.conf_store import get_conf_value
+        from siada.io.system_theme_detector import resolve_theme_for_ui
 
         arg = args.strip().lower()
+        if arg == "auto":
+            arg = "dark"
         if not arg:
-            current = get_conf_value("ui.theme", "auto")
+            current = resolve_theme_for_ui(get_conf_value("ui.theme", "dark"))
             # In UI/ACP mode, open the theme selector in the frontend instead
             # of printing a plain text line (mirrors cmd_effort).
             if self.io.acp_adapter and self.io.acp_adapter.transport \
@@ -1232,12 +1233,12 @@ class SlashCommands:
                                      exc_info=True)
                 return
 
-            self.io.print_info(f"Theme: {current}\nUsage: /theme [auto | dark | light]")
+            self.io.print_info(f"Theme: {current}\nUsage: /theme [dark | light]")
             return
 
         if arg not in VALID_THEMES:
             self.io.print_error(
-                f"Invalid theme '{arg}'. Usage: /theme [auto | dark | light]"
+                f"Invalid theme '{arg}'. Usage: /theme [dark | light]"
             )
             return
 
@@ -1246,18 +1247,10 @@ class SlashCommands:
             self.io.print_error("Failed to persist theme to conf.yaml")
             return
 
-        # Resolve 'auto' to a concrete theme; the frontend palettes only
-        # know dark|light (detection is cached per process).
-        from siada.io.system_theme_detector import resolve_theme_for_ui
-        resolved = resolve_theme_for_ui(arg)
-
         # In ACP mode, notify the frontend so it repaints immediately.
-        self._push_theme_to_ui(resolved)
+        self._push_theme_to_ui(arg)
 
-        if arg == 'auto':
-            self.io.print_info(f"Theme switched to 'auto' (detected: {resolved})")
-        else:
-            self.io.print_info(f"Theme switched to '{arg}'")
+        self.io.print_info(f"Theme switched to '{arg}'")
         logger.info(f"[theme] set to {arg} (persisted to conf.yaml)")
 
     def cmd_model(self, session, args: str):

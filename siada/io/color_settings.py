@@ -94,7 +94,7 @@ class ColorSettings:
         
         Args:
             theme_name: Theme name ('auto', 'dark', 'light', 'default')
-            auto_detect: If True and theme_name is 'auto', detect system theme
+            auto_detect: Legacy option; automatic themes now use dark.
         
         Returns:
             ColorSettings instance

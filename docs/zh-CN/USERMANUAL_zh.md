@@ -395,7 +395,7 @@ siada-cli -p "修复 login.py 中的认证错误"
 # 使用不同模型
 siada-cli --model claude-sonnet-4
 
-# 设置颜色主题
+# 设置颜色主题（默认 dark，旧的 auto 也直接使用 dark，不再自动检测）
 siada-cli --theme dark
 
 # 启用详细输出

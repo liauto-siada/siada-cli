@@ -401,20 +401,14 @@ class ControllerUI:
     def _resolve_ui_theme(self) -> str:
         """Resolve the configured UI theme to a concrete 'dark'|'light' value.
 
-        Reads ``ui.theme`` from conf.yaml ('auto' is the default) and resolves
-        non-concrete values through the terminal/system theme detector, which
-        returns a platform-dependent theme. The frontend only
-        understands dark|light.
+        Reads ``ui.theme`` from conf.yaml (dark by default). Legacy automatic
+        and unknown values use dark without terminal or system detection.
         """
         from siada.config.conf_store import get_conf_value
 
-        theme = get_conf_value("ui.theme", "auto")
-        if theme in ("dark", "light"):
-            return theme
-        from siada.io.system_theme_detector import SystemThemeDetector
+        from siada.io.system_theme_detector import resolve_theme_for_ui
 
-        resolved = SystemThemeDetector.get_theme_for_config(theme)
-        return resolved if resolved in ("dark", "light") else "dark"
+        return resolve_theme_for_ui(get_conf_value("ui.theme", "dark"))
 
     # ------------------------------------------------------------------ #
     # Shutdown

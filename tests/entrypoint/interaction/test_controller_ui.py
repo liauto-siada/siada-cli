@@ -370,16 +370,14 @@ def test_remember_own_turn_does_not_replay_history():
     assert ctx.sent == []
 
 
-def test_theme_uses_existing_detector_for_auto():
+def test_theme_auto_uses_dark_without_detection():
     ctx = _build_ui()
     with patch("siada.config.conf_store.get_conf_value", return_value="auto"), patch(
-        "siada.io.system_theme_detector.SystemThemeDetector.get_theme_for_config",
-        return_value="light",
+        "siada.io.system_theme_detector.SystemThemeDetector.detect_theme",
+        side_effect=AssertionError("unexpected detection"),
     ) as detector:
-        assert ctx.ui._resolve_ui_theme() == "light"
-        detector.assert_called_once_with("auto")
-        detector.return_value = "default"
         assert ctx.ui._resolve_ui_theme() == "dark"
+        detector.assert_not_called()
 
 
 def test_stale_title_worker_cannot_reset_new_session_guard():

@@ -16,8 +16,7 @@ export interface ThemeSelectorProps {
 }
 
 const THEME_NOTES: Record<string, string> = {
-  auto: 'Follow terminal/system background (default)',
-  dark: 'GitHub Dark',
+  dark: 'GitHub Dark (default)',
   light: 'GitHub Light',
 };
 
