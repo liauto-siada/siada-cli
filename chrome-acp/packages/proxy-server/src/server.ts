@@ -999,25 +999,35 @@ async function handleSetConfigOption(
 // File Explorer Handlers
 // ============================================================================
 
-function handleListDir(ws: WSContext, payload: { path: string }): void {
+function handleListDir(ws: WSContext, payload: { path: string; requestId?: number }): void {
   const cwd = getClientCwd(ws);
   const items = listDir(cwd, payload.path);
   if (items === null) {
     log.debug(`list_dir failed: ${payload.path || "(root)"}`);
-    send(ws, "error", { message: `list_dir failed: ${payload.path || "(root)"}` });
+    send(ws, "error", {
+      message: `list_dir failed: ${payload.path || "(root)"}`,
+      operation: "list_dir",
+      path: payload.path,
+      requestId: payload.requestId,
+    });
     return;
   }
-  send(ws, "dir_listing", { path: payload.path, items });
+  send(ws, "dir_listing", { path: payload.path, items, requestId: payload.requestId });
 }
 
-function handleReadFile(ws: WSContext, payload: { path: string }): void {
+function handleReadFile(ws: WSContext, payload: { path: string; requestId?: number }): void {
   const cwd = getClientCwd(ws);
   const content = readFile(cwd, payload.path);
   if (content === null) {
-    send(ws, "error", { message: "Access denied or file not found" });
+    send(ws, "error", {
+      message: "Access denied or file not found",
+      operation: "read_file",
+      path: payload.path,
+      requestId: payload.requestId,
+    });
     return;
   }
-  send(ws, "file_content", content);
+  send(ws, "file_content", { ...content, requestId: payload.requestId });
 }
 
 // ContentBlock type matching @agentclientprotocol/sdk

@@ -146,6 +146,32 @@ export type SessionLoadedHandler = (sessionId: string) => void;
 // then receives updates for that thread while load/resume is in flight.
 export type SessionSwitchingHandler = (sessionId: string) => void;
 
+interface PendingFileRequest<T> {
+  path: string;
+  resolve: (value: T) => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+function settleFileRequest<T>(
+  requests: Map<number, PendingFileRequest<T>>,
+  payload: { path: string; requestId?: number },
+  result: T | Error,
+): boolean {
+  let matched = false;
+  for (const [id, pending] of requests) {
+    // Older proxies return only the path. Settle all callers for that path.
+    if (payload.requestId !== undefined ? id !== payload.requestId : pending.path !== payload.path) continue;
+    if (pending.path !== payload.path) continue;
+    matched = true;
+    clearTimeout(pending.timer);
+    requests.delete(id);
+    if (result instanceof Error) pending.reject(result);
+    else pending.resolve(result);
+  }
+  return matched;
+}
+
 export class ACPClient {
   private ws: WebSocket | null = null;
   private settings: ACPSettings;
@@ -189,15 +215,12 @@ export class ACPClient {
 
   // Pending file operations - keyed by unique requestId to handle concurrent requests
   private requestIdCounter = 0;
-  private pendingDirListing: Map<number, { resolve: (items: FileItem[]) => void; reject: (err: Error) => void }> = new Map();
-  private pendingFileRead: Map<number, { resolve: (content: FileContent) => void; reject: (err: Error) => void }> = new Map();
+  private pendingDirListing = new Map<number, PendingFileRequest<FileItem[]>>();
+  private pendingFileRead = new Map<number, PendingFileRequest<FileContent>>();
   // Pending session operations
   private pendingSessionList: { resolve: (response: ListSessionsResponse) => void; reject: (err: Error) => void } | null = null;
   private pendingSessionLoad: { resolve: (sessionId: string) => void; reject: (err: Error) => void } | null = null;
   private pendingSessionResume: { resolve: (sessionId: string) => void; reject: (err: Error) => void } | null = null;
-  // Track requestId for each path to match responses
-  private dirListingRequestIds: Map<string, number> = new Map();
-  private fileReadRequestIds: Map<string, number> = new Map();
 
   private connectResolve: ((value: void) => void) | null = null;
   private connectReject: ((error: Error) => void) | null = null;
@@ -596,6 +619,18 @@ export class ACPClient {
         break;
 
       case "error":
+        // File explorer failures belong to their request, not to the chat or
+        // an unrelated session operation. Recognize older proxy list errors too.
+        if (response.payload.operation || response.payload.message.startsWith("list_dir failed: ")) {
+          const operation = response.payload.operation ?? "list_dir";
+          const legacyPath = response.payload.message.slice("list_dir failed: ".length);
+          const path = response.payload.path ?? (legacyPath === "(root)" ? "" : legacyPath);
+          const target = { path, requestId: response.payload.requestId };
+          const error = new Error(response.payload.message);
+          if (operation === "list_dir") settleFileRequest(this.pendingDirListing, target, error);
+          else settleFileRequest(this.pendingFileRead, target, error);
+          break;
+        }
         console.error("[ACPClient] Error:", response.payload.message);
         this.pendingSessionTarget = null;
         // Surface runtime errors (e.g. prompt failures) to the UI
@@ -724,16 +759,8 @@ export class ACPClient {
         break;
 
       case "dir_listing": {
-        const requestId = this.dirListingRequestIds.get(response.payload.path);
-        if (requestId !== undefined) {
-          // Response to a client request
-          const pending = this.pendingDirListing.get(requestId);
-          if (pending) {
-            pending.resolve(response.payload.items);
-            this.pendingDirListing.delete(requestId);
-          }
-          this.dirListingRequestIds.delete(response.payload.path);
-        } else {
+        const matched = settleFileRequest(this.pendingDirListing, response.payload, response.payload.items);
+        if (!matched && response.payload.requestId === undefined) {
           // Server-pushed listing (e.g., after session cwd change)
           this.onDirListingPush?.(response.payload.path, response.payload.items);
         }
@@ -741,15 +768,7 @@ export class ACPClient {
       }
 
       case "file_content": {
-        const requestId = this.fileReadRequestIds.get(response.payload.path);
-        if (requestId !== undefined) {
-          const pending = this.pendingFileRead.get(requestId);
-          if (pending) {
-            pending.resolve(response.payload);
-            this.pendingFileRead.delete(requestId);
-          }
-          this.fileReadRequestIds.delete(response.payload.path);
-        }
+        settleFileRequest(this.pendingFileRead, response.payload, response.payload);
         break;
       }
 
@@ -1029,24 +1048,19 @@ export class ACPClient {
   async listDir(path: string): Promise<FileItem[]> {
     const requestId = ++this.requestIdCounter;
     return new Promise((resolve, reject) => {
-      this.pendingDirListing.set(requestId, { resolve, reject });
-      this.dirListingRequestIds.set(path, requestId);
-      try {
-        this.send({ type: "list_dir", payload: { path } });
-      } catch (err) {
+      const timer = setTimeout(() => {
         this.pendingDirListing.delete(requestId);
-        this.dirListingRequestIds.delete(path);
+        reject(new Error("Directory listing timed out"));
+      }, 10000);
+      this.pendingDirListing.set(requestId, { path, resolve, reject, timer });
+      try {
+        this.send({ type: "list_dir", payload: { path, requestId } });
+      } catch (err) {
+        clearTimeout(timer);
+        this.pendingDirListing.delete(requestId);
         reject(err);
         return;
       }
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        if (this.pendingDirListing.has(requestId)) {
-          this.pendingDirListing.delete(requestId);
-          this.dirListingRequestIds.delete(path);
-          reject(new Error("Directory listing timed out"));
-        }
-      }, 10000);
     });
   }
 
@@ -1057,24 +1071,19 @@ export class ACPClient {
   async readFile(path: string): Promise<FileContent> {
     const requestId = ++this.requestIdCounter;
     return new Promise((resolve, reject) => {
-      this.pendingFileRead.set(requestId, { resolve, reject });
-      this.fileReadRequestIds.set(path, requestId);
-      try {
-        this.send({ type: "read_file", payload: { path } });
-      } catch (err) {
+      const timer = setTimeout(() => {
         this.pendingFileRead.delete(requestId);
-        this.fileReadRequestIds.delete(path);
+        reject(new Error("File read timed out"));
+      }, 10000);
+      this.pendingFileRead.set(requestId, { path, resolve, reject, timer });
+      try {
+        this.send({ type: "read_file", payload: { path, requestId } });
+      } catch (err) {
+        clearTimeout(timer);
+        this.pendingFileRead.delete(requestId);
         reject(err);
         return;
       }
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        if (this.pendingFileRead.has(requestId)) {
-          this.pendingFileRead.delete(requestId);
-          this.fileReadRequestIds.delete(path);
-          reject(new Error("File read timed out"));
-        }
-      }, 10000);
     });
   }
 
@@ -1150,10 +1159,12 @@ export class ACPClient {
 
     // Reject all pending operations before clearing
     const disconnectError = new Error("Disconnected");
-    for (const { reject } of this.pendingDirListing.values()) {
+    for (const { reject, timer } of this.pendingDirListing.values()) {
+      clearTimeout(timer);
       reject(disconnectError);
     }
-    for (const { reject } of this.pendingFileRead.values()) {
+    for (const { reject, timer } of this.pendingFileRead.values()) {
+      clearTimeout(timer);
       reject(disconnectError);
     }
     // Reject pending session operations
@@ -1166,7 +1177,5 @@ export class ACPClient {
 
     this.pendingDirListing.clear();
     this.pendingFileRead.clear();
-    this.dirListingRequestIds.clear();
-    this.fileReadRequestIds.clear();
   }
 }

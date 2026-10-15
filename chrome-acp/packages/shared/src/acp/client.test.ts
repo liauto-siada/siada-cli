@@ -450,6 +450,129 @@ describe("ACPClient turn lifecycle listeners", () => {
   });
 });
 
+describe("ACPClient file operation errors", () => {
+  async function connected() {
+    const { client } = newClient();
+    const promise = client.connect();
+    const ws = FakeWebSocket.last;
+    ws.open();
+    ws.message({ type: "status", payload: { connected: true, capabilities: { sessionCapabilities: { list: {} } } } });
+    await promise;
+    return { client, ws };
+  }
+
+  test("directory failure rejects immediately without reaching chat or session operations", async () => {
+    const { client, ws } = await connected();
+    const errors: string[] = [];
+    client.setErrorHandler(message => errors.push(message));
+    const sessions = client.listSessions();
+    const listing = client.listDir("target/classes/db");
+    const requestId = (ws.sent.at(-1)?.payload as { requestId: number }).requestId;
+    ws.message({
+      type: "error",
+      payload: { operation: "list_dir", path: "target/classes/db", requestId, message: "list_dir failed: target/classes/db" },
+    });
+    await expect(listing).rejects.toThrow("list_dir failed");
+    ws.message({ type: "session_list", payload: { sessions: [], hasMore: false } });
+    expect((await sessions).sessions).toEqual([]);
+    expect(errors).toEqual([]);
+    expect(client.getState()).toBe("connected");
+    client.disconnect();
+  });
+
+  test("file read failure only rejects its corresponding request", async () => {
+    const { client, ws } = await connected();
+    const errors: string[] = [];
+    client.setErrorHandler(message => errors.push(message));
+    const read = client.readFile("missing.txt");
+    const requestId = (ws.sent.at(-1)?.payload as { requestId: number }).requestId;
+    const listing = client.listDir("");
+    ws.message({
+      type: "error",
+      payload: { operation: "read_file", path: "missing.txt", requestId, message: "Access denied or file not found" },
+    });
+    await expect(read).rejects.toThrow("Access denied");
+    ws.message({ type: "dir_listing", payload: { path: "", items: [] } });
+    expect(await listing).toEqual([]);
+    expect(errors).toEqual([]);
+    client.disconnect();
+  });
+
+  test("concurrent listings of the same path match out-of-order responses", async () => {
+    const { client, ws } = await connected();
+    const first = client.listDir("src");
+    const firstId = (ws.sent.at(-1)?.payload as { requestId: number }).requestId;
+    const second = client.listDir("src");
+    const secondId = (ws.sent.at(-1)?.payload as { requestId: number }).requestId;
+    const items = [{ path: "src/a.ts", name: "a.ts", type: "file" }];
+    ws.message({ type: "dir_listing", payload: { path: "src", requestId: secondId, items } });
+    expect(await second).toEqual(items);
+    ws.message({ type: "error", payload: { operation: "list_dir", path: "src", requestId: firstId, message: "Directory removed" } });
+    await expect(first).rejects.toThrow("Directory removed");
+    client.disconnect();
+  });
+
+  test("legacy path-only listings settle every caller for the path", async () => {
+    const { client, ws } = await connected();
+    const first = client.listDir("src");
+    const second = client.listDir("src");
+    ws.message({ type: "dir_listing", payload: { path: "src", items: [] } });
+    expect(await Promise.all([first, second])).toEqual([[], []]);
+    client.disconnect();
+  });
+
+  test("concurrent reads of the same file match their request IDs", async () => {
+    const { client, ws } = await connected();
+    const first = client.readFile("src/a.ts");
+    const firstId = (ws.sent.at(-1)?.payload as { requestId: number }).requestId;
+    const second = client.readFile("src/a.ts");
+    const secondId = (ws.sent.at(-1)?.payload as { requestId: number }).requestId;
+    const payload = { path: "src/a.ts", size: 3, truncated: false, binary: false };
+    ws.message({ type: "file_content", payload: { ...payload, requestId: secondId, content: "new" } });
+    ws.message({ type: "file_content", payload: { ...payload, requestId: firstId, content: "old" } });
+    expect((await first).content).toBe("old");
+    expect((await second).content).toBe("new");
+    client.disconnect();
+  });
+
+  test("disconnect rejects pending file operations", async () => {
+    const { client } = await connected();
+    const listing = client.listDir("src");
+    const reading = client.readFile("src/a.ts");
+    const settled = Promise.allSettled([listing, reading]);
+    client.disconnect();
+    const results = await settled;
+    expect(results.map(result => result.status)).toEqual(["rejected", "rejected"]);
+    for (const result of results) {
+      if (result.status === "rejected") expect(result.reason.message).toBe("Disconnected");
+    }
+  });
+
+  test("legacy list errors and late file errors never enter chat", async () => {
+    const { client, ws } = await connected();
+    const errors: string[] = [];
+    client.setErrorHandler(message => errors.push(message));
+    const listing = client.listDir("");
+    ws.message({ type: "error", payload: { message: "list_dir failed: (root)" } });
+    await expect(listing).rejects.toThrow("list_dir failed");
+    ws.message({ type: "error", payload: { operation: "list_dir", path: "gone", requestId: 999, message: "Directory removed" } });
+    expect(errors).toEqual([]);
+    ws.message({ type: "error", payload: { message: "Prompt failed: model unavailable" } });
+    expect(errors).toEqual(["Prompt failed: model unavailable"]);
+    client.disconnect();
+  });
+
+  test("late correlated listings are not treated as server pushes", async () => {
+    const { client, ws } = await connected();
+    const pushes: string[] = [];
+    client.setDirListingPushHandler(path => pushes.push(path));
+    ws.message({ type: "dir_listing", payload: { path: "old", requestId: 999, items: [] } });
+    ws.message({ type: "dir_listing", payload: { path: "", items: [] } });
+    expect(pushes).toEqual([""]);
+    client.disconnect();
+  });
+});
+
 describe("ACPClient frame listeners", () => {
   async function connected() {
     const { client } = newClient();

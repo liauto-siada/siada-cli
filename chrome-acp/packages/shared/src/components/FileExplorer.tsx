@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { directoriesToRefresh, isDeletedPath } from "../lib/file-explorer-refresh";
 import type { ACPClient } from "../acp/client";
 import type {
   FileItem,
@@ -151,12 +152,19 @@ export function FileExplorer({ client }: FileExplorerProps) {
 
   // Refs to avoid stale closures in file change handler
   const selectedFileRef = useRef<FileContent | null>(null);
+  const treeStateRef = useRef(treeState);
+  const directoryEpochRef = useRef(0);
+  const directoryVersionsRef = useRef(new Map<string, number>());
   const loadDirectoryRef = useRef<((path: string, silent?: boolean) => Promise<void>) | null>(null);
 
   // Keep refs in sync with state
   useEffect(() => {
     selectedFileRef.current = selectedFile;
   }, [selectedFile]);
+
+  useEffect(() => {
+    treeStateRef.current = treeState;
+  }, [treeState]);
 
   // Subscribe to file changes (separate from state to avoid re-subscribing)
   useEffect(() => {
@@ -166,14 +174,15 @@ export function FileExplorer({ client }: FileExplorerProps) {
       console.log("[FileExplorer] File changes:", changes);
 
       // Refresh affected directories
-      const affectedDirs = new Set<string>();
-      for (const change of changes) {
-        const parentDir = change.path.includes("/")
-          ? change.path.substring(0, change.path.lastIndexOf("/"))
-          : "";
-        affectedDirs.add(parentDir);
+      const loadedPaths = new Set([""]);
+      for (const [path, state] of treeStateRef.current) {
+        if (state.children !== undefined) loadedPaths.add(path);
       }
-      for (const dir of affectedDirs) {
+      for (const [path, version] of directoryVersionsRef.current) {
+        if (isDeletedPath(path, changes)) directoryVersionsRef.current.set(path, version + 1);
+      }
+      setTreeState(prev => new Map([...prev].filter(([path]) => !isDeletedPath(path, changes))));
+      for (const dir of directoriesToRefresh(changes, loadedPaths)) {
         loadDirectoryRef.current?.(dir, true); // silent refresh
       }
 
@@ -195,8 +204,7 @@ export function FileExplorer({ client }: FileExplorerProps) {
           }
         }
         // Clear selection if file was deleted
-        const deletedFile = changes.find(c => c.path === currentSelectedFile.path && c.event === "delete");
-        if (deletedFile && isMounted) {
+        if (isDeletedPath(currentSelectedFile.path, changes) && isMounted) {
           setSelectedFile(null);
         }
       }
@@ -210,6 +218,9 @@ export function FileExplorer({ client }: FileExplorerProps) {
 
   // Load directory contents
   const loadDirectory = useCallback(async (path: string, silent = false) => {
+    const epoch = directoryEpochRef.current;
+    const version = (directoryVersionsRef.current.get(path) ?? 0) + 1;
+    directoryVersionsRef.current.set(path, version);
     if (!silent) {
       setTreeState((prev) => {
         const newState = new Map(prev);
@@ -220,17 +231,25 @@ export function FileExplorer({ client }: FileExplorerProps) {
 
     try {
       const items = await client.listDir(path);
+      if (epoch !== directoryEpochRef.current || version !== directoryVersionsRef.current.get(path)) return;
       if (path === "") {
         setRootItems(items);
       } else {
         setTreeState((prev) => {
           const newState = new Map(prev);
-          newState.set(path, { expanded: true, children: items, loading: false });
+          newState.set(path, { expanded: silent ? (prev.get(path)?.expanded ?? false) : true, children: items, loading: false });
           return newState;
         });
       }
       setError(null);
     } catch (err) {
+      if (epoch !== directoryEpochRef.current || version !== directoryVersionsRef.current.get(path)) return;
+      setTreeState(prev => {
+        const newState = new Map(prev);
+        const state = newState.get(path);
+        if (state) newState.set(path, { ...state, loading: false });
+        return newState;
+      });
       if (!silent) {
         setError(`Failed to load ${path || "root"}: ${(err as Error).message}`);
       }
@@ -253,6 +272,8 @@ export function FileExplorer({ client }: FileExplorerProps) {
       console.log("[FileExplorer] Server pushed dir_listing:", path);
       if (path === "") {
         // Root directory changed - reset the tree state and update root items
+        directoryEpochRef.current++;
+        directoryVersionsRef.current.clear();
         setTreeState(new Map());
         setRootItems(items);
         setSelectedFile(null);

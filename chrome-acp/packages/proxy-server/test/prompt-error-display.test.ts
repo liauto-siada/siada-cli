@@ -110,6 +110,7 @@ beforeAll(async () => {
   expect(status.connected).toBe(true);
   client.send("new_session", { cwd: import.meta.dir });
   await client.waitFor("session_created");
+  await client.waitFor("dir_listing");
 }, 30_000);
 
 describe("prompt failure reporting", () => {
@@ -127,5 +128,40 @@ describe("prompt failure reporting", () => {
 
     const error = await client.waitFor("error");
     expect(error.message).toBe(`Prompt failed: ${CAUSE}`);
+  });
+});
+
+describe("file operation response correlation", () => {
+  test("missing directories produce a scoped error with the request ID", async () => {
+    client.send("list_dir", { path: "removed/target/classes/db", requestId: 101 });
+    expect(await client.waitFor("error")).toEqual({
+      message: "list_dir failed: removed/target/classes/db",
+      operation: "list_dir",
+      path: "removed/target/classes/db",
+      requestId: 101,
+    });
+  });
+
+  test("file reads outside the workspace produce a scoped error", async () => {
+    client.send("read_file", { path: "../outside.txt", requestId: 102 });
+    expect(await client.waitFor("error")).toEqual({
+      message: "Access denied or file not found",
+      operation: "read_file",
+      path: "../outside.txt",
+      requestId: 102,
+    });
+  });
+
+  test("successful file operations echo their request IDs", async () => {
+    client.send("list_dir", { path: "fixtures", requestId: 103 });
+    const listing = await client.waitFor("dir_listing");
+    expect(listing.path).toBe("fixtures");
+    expect(listing.requestId).toBe(103);
+    expect(listing.items.some((item: { name: string }) => item.name === "fake-agent.mjs")).toBe(true);
+    client.send("read_file", { path: "fixtures/fake-agent.mjs", requestId: 104 });
+    const file = await client.waitFor("file_content");
+    expect(file.path).toBe("fixtures/fake-agent.mjs");
+    expect(file.requestId).toBe(104);
+    expect(file.content).toContain("jsonrpc");
   });
 });

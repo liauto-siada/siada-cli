@@ -223,14 +223,16 @@ The proxy server provides file system access for workspace browsing:
 
 ```typescript
 // Request
-{ type: "list_dir", path: "/some/path" }
+{ type: "list_dir", payload: { path: "src", requestId: 1 } }
 
 // Response
 {
-  items: [
-    { name: "src", type: "directory" },
-    { name: "README.md", type: "file" }
-  ]
+  type: "dir_listing",
+  payload: {
+    path: "src",
+    requestId: 1,
+    items: [{ name: "app.ts", path: "src/app.ts", type: "file" }]
+  }
 }
 ```
 
@@ -238,15 +240,33 @@ The proxy server provides file system access for workspace browsing:
 
 ```typescript
 // Request
-{ type: "read_file", path: "/some/path/file.txt" }
+{ type: "read_file", payload: { path: "src/app.ts", requestId: 2 } }
 
 // Response
 {
-  path: "/some/path/file.txt",
-  content: "file contents...",
-  mimeType: "text/plain"
+  type: "file_content",
+  payload: {
+    path: "src/app.ts",
+    requestId: 2,
+    content: "file contents...",
+    size: 16,
+    truncated: false,
+    binary: false
+  }
 }
 ```
+
+File operations use workspace-relative paths. The optional `requestId` is echoed
+in success and error responses so concurrent requests for the same path can be
+matched independently. File errors include `operation` (`list_dir` or
+`read_file`), `path`, and `message` in the `error` payload; the file explorer
+handles them without adding a chat message or interrupting session operations.
+Clients also accept path-only responses and legacy `list_dir failed:` errors.
+
+Live updates refresh directories already loaded in the file tree. When a
+directory is removed, its cached subtree is cleared and surviving loaded parents
+are refreshed. Build cleanup therefore does not trigger requests for every
+removed directory.
 
 ---
 

@@ -231,8 +231,8 @@ export type ProxyMessage =
   | { type: "load_session"; payload: LoadSessionRequest }
   | { type: "resume_session"; payload: ResumeSessionRequest }
   // File explorer messages
-  | { type: "list_dir"; payload: { path: string } }
-  | { type: "read_file"; payload: { path: string } }
+  | { type: "list_dir"; payload: { path: string; requestId?: number } }
+  | { type: "read_file"; payload: { path: string; requestId?: number } }
   // Trajectory recording events (extension background -> proxy-server)
   | { type: "trajectory_events"; payload: TrajectoryEvent[] }
   // Per-step picture frames (extension background -> proxy-server -> clients)
@@ -286,7 +286,12 @@ export interface ProxyStatusMessage {
 
 export interface ProxyErrorMessage {
   type: "error";
-  payload: { message: string };
+  payload: {
+    message: string;
+    operation?: "list_dir" | "read_file";
+    path?: string;
+    requestId?: number;
+  };
 }
 
 // Reference: Zed's session/initialize response includes promptCapabilities and models
@@ -405,12 +410,13 @@ export interface ProxyDirListingMessage {
   payload: {
     path: string;
     items: FileItem[];
+    requestId?: number;
   };
 }
 
 export interface ProxyFileContentMessage {
   type: "file_content";
-  payload: FileContent;
+  payload: FileContent & { requestId?: number };
 }
 
 export interface ProxyFileChangesMessage {
