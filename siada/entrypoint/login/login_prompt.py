@@ -281,7 +281,7 @@ def _read_acp_stdin_message() -> Optional[str]:
 
     def _read_line() -> str:
         if is_monitor_active():
-            return get_stdin_monitor().readline(timeout=0.1)
+            return get_stdin_monitor().read_login_reply_line(timeout=0.1)
         line = sys.stdin.readline()
         if not line:
             raise EOFError("ACP stdin reached EOF")
@@ -312,11 +312,22 @@ def _read_acp_stdin_message() -> Optional[str]:
 
 def _send_acp_notification(io, method: str, params: dict) -> None:
     """Send a custom ACP notification to the frontend."""
+    from siada.io.stdin_interrupt_monitor import is_monitor_active, get_stdin_monitor
+
+    monitor = get_stdin_monitor() if is_monitor_active() else None
+    if monitor is not None:
+        if method == "ui/showLoginSelector":
+            # Register before notifying: the frontend can reply immediately.
+            params = {**params, "requestId": monitor.begin_login_request()}
+        elif method in ("ui/loginSuccess", "ui/loginError", "ui/loginDismiss"):
+            monitor.finish_login_request()
     try:
         from siada.io.acp.message_builder import ACPMessageBuilder
         msg = ACPMessageBuilder().build_custom_notification(method=method, params=params)
         io.acp_adapter.transport.send_sync(msg)
     except Exception as exc:
+        if monitor is not None and method == "ui/showLoginSelector":
+            monitor.finish_login_request()
         logger.warning(f"[login_acp] Failed to send {method}: {exc}")
 
 

@@ -32,6 +32,7 @@ import signal
 import sys
 import threading
 import time
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,9 @@ class StdinInterruptMonitor:
 
     def __init__(self):
         self._queue = queue.Queue()
+        self._login_reply_queue = queue.Queue()
+        self._login_reply_lock = threading.Lock()
+        self._login_request_id: str | None = None
         self._thread = None
         self._running = False
         self._main_thread_id = threading.main_thread().ident
@@ -248,6 +252,38 @@ class StdinInterruptMonitor:
     def stop(self):
         """Signal the reader thread to stop (best-effort; thread is daemon)."""
         self._running = False
+        self.finish_login_request()
+
+    def begin_login_request(self) -> str:
+        """Accept one reply for a newly displayed login selector."""
+        with self._login_reply_lock:
+            self._clear_login_reply_queue()
+            self._login_request_id = uuid.uuid4().hex
+            return self._login_request_id
+
+    def finish_login_request(self) -> None:
+        """Reject replies after a login flow has ended."""
+        with self._login_reply_lock:
+            self._login_request_id = None
+            self._clear_login_reply_queue()
+
+    def _clear_login_reply_queue(self) -> None:
+        """Discard unread protocol lines while holding the login reply lock."""
+        while True:
+            try:
+                self._login_reply_queue.get_nowait()
+            except queue.Empty:
+                return
+
+    def read_login_reply_line(self, timeout: float = 0.1) -> str:
+        """Read login protocol input without consuming ordinary user messages."""
+        try:
+            item = self._login_reply_queue.get(timeout=timeout)
+            if item is None:
+                raise EOFError("EOF on stdin")
+            return item
+        except queue.Empty:
+            return ""
 
     # ------------------------------------------------------------------
     # Public API – replaces sys.stdin.readline() in io.py
@@ -336,14 +372,39 @@ class StdinInterruptMonitor:
         dispatch to the handler in a new thread (without enqueuing).
         Otherwise put all lines into _queue for get_input() to consume.
         """
-        # /configure runs inside an active turn and waits on this queue.
+        # /configure runs inside an active turn and waits on the login queue.
         # Login replies are protocol input, so diverting them to the model's
         # pending injections would deadlock the wizard and expose credentials.
         if len(msg_lines) >= 3:
             body = self._extract_message_body(msg_lines).strip()
             if body.startswith("__LOGIN_CHOICE__:"):
-                for line in msg_lines:
-                    self._queue.put(line)
+                parts = body.split(":", 2)
+                request_id = None
+                if len(parts) == 3:
+                    try:
+                        envelope = json.loads(parts[2])
+                    except (ValueError, TypeError):
+                        envelope = None
+                    if isinstance(envelope, dict) and "requestId" in envelope and "payload" in envelope:
+                        request_id = envelope["requestId"]
+                        payload = envelope["payload"]
+                        if not isinstance(request_id, str) or (payload is not None and not isinstance(payload, str)):
+                            return
+                        body = f"__LOGIN_CHOICE__:{parts[1]}"
+                        if payload:
+                            body += ":" + payload
+                        msg_lines = [msg_lines[0], body + "\n", msg_lines[-1]]
+
+                with self._login_reply_lock:
+                    # Legacy clients omit the envelope; still accept their
+                    # first reply, but never enqueue a duplicate or late one.
+                    if self._login_request_id is None or (
+                        request_id is not None and request_id != self._login_request_id
+                    ):
+                        return
+                    self._login_request_id = None
+                    for line in msg_lines:
+                        self._login_reply_queue.put(line)
                 return
 
         # Handle queue/cancelPending before any other routing.
@@ -546,6 +607,7 @@ class StdinInterruptMonitor:
                         self._queue.put(line_buf.decode("utf-8", errors="replace"))
                         line_buf.clear()
                     self._queue.put(None)
+                    self._login_reply_queue.put(None)
                     # Pause briefly before retrying (stdin might reopen)
                     time.sleep(0.05)
                     continue

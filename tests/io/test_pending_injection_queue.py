@@ -11,6 +11,7 @@ Covers:
 """
 
 import collections
+import json
 import queue
 import unittest
 from unittest.mock import MagicMock
@@ -225,6 +226,7 @@ class TestPendingInjectionQueue(unittest.TestCase):
                 with self.subTest(running=running, payload=payload):
                     _mod._agent_running = running
                     self.monitor._queue = queue.Queue()
+                    self.monitor.begin_login_request()
                     _mod._pending_injections.clear()
                     existing = ("qid-existing", "ordinary user prompt", None)
                     _mod._pending_injections.append(existing)
@@ -234,9 +236,65 @@ class TestPendingInjectionQueue(unittest.TestCase):
 
                     self.assertEqual(list(_mod._pending_injections), [existing])
                     self.assertEqual(
-                        [self.monitor.readline() for _ in lines], lines,
+                        [self.monitor.read_login_reply_line() for _ in lines], lines,
                     )
                     self.assertTrue(self.monitor._queue.empty())
+                    self.assertTrue(self.monitor._login_reply_queue.empty())
+
+    def test_login_reply_without_active_selector_is_discarded(self):
+        for running in (False, True):
+            _mod._agent_running = running
+            self.monitor._dispatch_or_enqueue(_make_acp_lines("__LOGIN_CHOICE__:cancel"))
+            self.assertTrue(self.monitor._queue.empty())
+            self.assertTrue(self.monitor._login_reply_queue.empty())
+            self.assertFalse(_mod._pending_injections)
+
+    def test_old_login_reply_cannot_cancel_a_new_selector(self):
+        old_request = self.monitor.begin_login_request()
+        new_request = self.monitor.begin_login_request()
+        stale = "__LOGIN_CHOICE__:cancel:" + json.dumps({
+            "requestId": old_request, "payload": None,
+        })
+        self.monitor._dispatch_or_enqueue(_make_acp_lines(stale))
+        self.assertTrue(self.monitor._queue.empty())
+        self.assertTrue(self.monitor._login_reply_queue.empty())
+
+        current = "__LOGIN_CHOICE__:cancel:" + json.dumps({
+            "requestId": new_request, "payload": None,
+        })
+        self.monitor._dispatch_or_enqueue(_make_acp_lines(current))
+        expected = _make_acp_lines("__LOGIN_CHOICE__:cancel")
+        self.assertEqual([self.monitor.read_login_reply_line() for _ in expected], expected)
+        self.monitor._dispatch_or_enqueue(_make_acp_lines(current))
+        self.assertTrue(self.monitor._queue.empty())
+        self.assertTrue(self.monitor._login_reply_queue.empty())
+
+    def test_ending_login_request_discards_its_late_reply(self):
+        request_id = self.monitor.begin_login_request()
+        self.monitor.finish_login_request()
+        reply = "__LOGIN_CHOICE__:3:" + json.dumps({
+            "requestId": request_id, "payload": "synthetic-token",
+        })
+        self.monitor._dispatch_or_enqueue(_make_acp_lines(reply))
+        self.assertTrue(self.monitor._queue.empty())
+        self.assertTrue(self.monitor._login_reply_queue.empty())
+        self.assertFalse(_mod._pending_injections)
+
+    def test_interrupt_cleanup_removes_an_accepted_but_unread_login_reply(self):
+        self.monitor.begin_login_request()
+        self.monitor._dispatch_or_enqueue(_make_acp_lines(
+            '__LOGIN_CHOICE__:3:{"api_key":"synthetic-key","provider_id":"kimi"}',
+        ))
+        self.assertFalse(self.monitor._login_reply_queue.empty())
+        self.monitor.finish_login_request()
+        self.assertTrue(self.monitor._login_reply_queue.empty())
+        self.assertTrue(self.monitor._queue.empty())
+        self.assertFalse(_mod._pending_injections)
+
+    def test_login_reply_reader_reports_real_eof(self):
+        self.monitor._login_reply_queue.put(None)
+        with self.assertRaises(EOFError):
+            self.monitor.read_login_reply_line()
 
     def test_dispatch_json_envelope_extracted_when_running(self):
         """JSON-wrapped prompt is extracted cleanly into _pending_injections."""

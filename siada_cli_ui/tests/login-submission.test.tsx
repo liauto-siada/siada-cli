@@ -8,6 +8,7 @@ import type { ClientConfig } from '../src/types/index.js';
 const state = vi.hoisted(() => ({
   selector: null as LoginSelectorProps | null,
   sendLoginChoice: vi.fn(),
+  requestId: undefined as string | undefined,
 }));
 
 vi.mock('../src/hooks/useACP.js', () => ({
@@ -15,7 +16,7 @@ vi.mock('../src/hooks/useACP.js', () => ({
     messages: [],
     connectionStatus: { connecting: false, connected: true, ready: true },
     loading: false,
-    loginState: { phase: 'selecting', cancelable: true },
+    loginState: { phase: 'selecting', cancelable: true, requestId: state.requestId },
     client: { sendLoginChoice: state.sendLoginChoice },
     clientRef: { current: null },
   }),
@@ -41,6 +42,7 @@ let app: ReturnType<typeof render> | undefined;
 
 beforeEach(() => {
   state.selector = null;
+  state.requestId = undefined;
   state.sendLoginChoice.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => {
@@ -77,5 +79,27 @@ describe('login submission', () => {
     state.selector!.onSelect('3', 'duplicate-payload');
     expect(state.sendLoginChoice).toHaveBeenCalledTimes(1);
     expect(state.sendLoginChoice).toHaveBeenCalledWith('3', 'synthetic-payload');
+  });
+
+  it('uses the current selector request ID for both submission and cancellation', async () => {
+    state.requestId = 'selector-request';
+    await submitLogin();
+    expect(state.sendLoginChoice).toHaveBeenCalledWith('3', 'synthetic-payload', 'selector-request');
+    state.selector!.onSelect('cancel');
+    await vi.waitFor(() => {
+      expect(state.sendLoginChoice).toHaveBeenLastCalledWith('cancel', undefined, 'selector-request');
+    });
+  });
+
+  it('clears an old submission when a new selector arrives before the intermediate close renders', async () => {
+    state.requestId = 'old-selector';
+    await submitLogin();
+    state.requestId = 'new-selector';
+    app!.rerender(<App config={{ workingDir: '.', model: 'test-model' } as ClientConfig} />);
+    await vi.waitFor(() => expect(state.selector!.submitting).toBe(false));
+    state.selector!.onSelect('3', 'new-payload');
+    await vi.waitFor(() => {
+      expect(state.sendLoginChoice).toHaveBeenLastCalledWith('3', 'new-payload', 'new-selector');
+    });
   });
 });

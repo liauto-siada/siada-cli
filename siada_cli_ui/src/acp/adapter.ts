@@ -865,7 +865,7 @@ export class SiadaACPAdapter extends EventEmitter {
           return true;
         }
 
-        if (json.method === 'ui/loginError' || json.method === 'ui/loginCancelled') {
+        if (json.method === 'ui/loginError' || json.method === 'ui/loginCancelled' || json.method === 'ui/loginDismiss') {
           logger.info(`Received ${json.method} notification`, {
             component: 'Adapter',
             operation: 'tryParseACPJson',

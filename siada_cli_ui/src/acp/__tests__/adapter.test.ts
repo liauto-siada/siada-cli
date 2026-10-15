@@ -45,6 +45,20 @@ describe('ACP log correlation', () => {
 });
 
 describe('SiadaACPAdapter handleACPSessionUpdate', () => {
+  it.each(['ui/loginDismiss', 'ui/loginCancelled', 'ui/loginError'])(
+    'closes the login selector on %s',
+    method => {
+      const adapter = new SiadaACPAdapter();
+      const dismissed = vi.fn();
+      adapter.on('ui:loginDismiss', dismissed);
+      (adapter as any).tryParseACPJson(JSON.stringify({
+        jsonrpc: '2.0', method, params: { reason: 'synthetic cancellation' },
+      }));
+      expect(dismissed).toHaveBeenCalledOnce();
+      expect(dismissed).toHaveBeenCalledWith({ reason: 'synthetic cancellation' });
+    },
+  );
+
   it("routes reason 'restore_input' to an 'input:restore' event carrying the content", () => {
     const adapter = new SiadaACPAdapter();
     const received: Array<{ content: string }> = [];

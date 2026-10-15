@@ -452,7 +452,7 @@ export class SiadaACPClient extends EventEmitter {
     }
   }
 
-  async sendLoginChoice(choice: string, payload?: string): Promise<void> {
+  async sendLoginChoice(choice: string, payload?: string, requestId?: string): Promise<void> {
     // During the login flow, the backend sends ui/showLoginSelector BEFORE
     // banner_info (which resolves waitForReady and sets this.connected=true).
     // Allow sending the choice as long as the adapter process is running.
@@ -467,8 +467,13 @@ export class SiadaACPClient extends EventEmitter {
 
     const startTime = Date.now();
     const messageId = this.generateMessageId();
-    const rawInput = payload
-      ? `__LOGIN_CHOICE__:${choice}:${payload}`
+    // The backend unwraps this envelope before the existing login parser.
+    // Omit it for older backends that do not advertise a request ID.
+    const replyPayload = requestId
+      ? JSON.stringify({ requestId, payload: payload ?? null })
+      : payload;
+    const rawInput = replyPayload
+      ? `__LOGIN_CHOICE__:${choice}:${replyPayload}`
       : `__LOGIN_CHOICE__:${choice}`;
 
     logger.info('Sending login choice to siada-cli', {

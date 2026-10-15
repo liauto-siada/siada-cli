@@ -246,6 +246,10 @@ nano ~/.siada-cli/models.json
 可以重复运行该命令来更新 Key 或切换供应商，无需重启。
 提交过程中也可以按 Esc 取消配置。
 
+每次配置只接收一条回复。后台仍在等待选择时，Esc 可以取消；
+已经接受的提交不会因随后按 Esc 而撤销。
+重复和过期的回复会被忽略，避免影响后续命令。
+
 在 `~/.siada-cli/conf.yaml` 中配置 `base_url` 和 `api_key`：
 
 ```yaml

@@ -384,6 +384,7 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
             process.stdout?.write('\x1b[2J\x1b[H');
             setLoginState({
               phase: 'selecting',
+              requestId: typeof params?.requestId === 'string' ? params.requestId : undefined,
               providers: params?.providers,
               cancelable: params?.cancelable ?? false,
               liidDisabled: params?.liidDisabled ?? false,

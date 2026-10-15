@@ -256,6 +256,10 @@ In the Siada UI, run `/configure` to choose a provider, model and API key.
 You can repeat the command to update the key or switch providers without
 restarting. Press Esc while submitting to cancel the configuration.
 
+Each configuration accepts one reply. Esc cancels while the backend is still
+waiting for a choice; it does not undo an already accepted submission.
+Duplicate and expired replies are ignored so they cannot affect later commands.
+
 Configure `base_url` and `api_key` in `~/.siada-cli/conf.yaml`:
 
 ```yaml

@@ -416,15 +416,18 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     }
   }, []);
 
+  const loginRequestId = loginState?.phase === 'selecting' ? loginState.requestId : undefined;
+
   useEffect(() => {
-    if (loginState?.phase !== 'selecting') {
+    if (loginState?.phase !== 'selecting' || loginRequestId) {
       // The login view is going away (success / error / banner): drop the
-      // submitting state, any pending watchdog and any retry hint.
+      // submitting state, watchdog and retry hint. A new selector request
+      // must also reset them when notifications share a React render batch.
       setIsSubmittingLogin(false);
       setLoginSubmitError(null);
       clearLoginSubmitTimer();
     }
-  }, [loginState?.phase, clearLoginSubmitTimer]);
+  }, [loginState?.phase, loginRequestId, clearLoginSubmitTimer]);
 
   // Never leave a watchdog timer behind on unmount.
   useEffect(() => clearLoginSubmitTimer, [clearLoginSubmitTimer]);
@@ -462,12 +465,17 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
       });
     }, LOGIN_SUBMIT_TIMEOUT_MS);
     try {
-      await activeClient.sendLoginChoice(choice, choice === '3' ? apiKey : undefined);
+      const payload = choice === '3' ? apiKey : undefined;
+      if (loginRequestId) {
+        await activeClient.sendLoginChoice(choice, payload, loginRequestId);
+      } else {
+        await activeClient.sendLoginChoice(choice, payload);
+      }
     } catch {
       clearLoginSubmitTimer();
       setIsSubmittingLogin(false);
     }
-  }, [client, clientRef, isSubmittingLogin, clearLoginSubmitTimer]);
+  }, [client, clientRef, isSubmittingLogin, clearLoginSubmitTimer, loginRequestId]);
 
   const handleResumeSession = useCallback(async (sessionId: string) => {
     try {
