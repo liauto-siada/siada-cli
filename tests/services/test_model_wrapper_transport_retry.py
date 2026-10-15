@@ -490,6 +490,7 @@ async def test_nonstream_api_retry_preserves_admission(code, expected_calls, no_
 @pytest.mark.asyncio
 @pytest.mark.parametrize("scenario", [
     "recover", "exhaust", "after_text", "invalid", "failed_event", "error_event",
+    "eof_recover", "eof_exhaust", "eof_after_text", "eof_after_tool", "empty_eof",
 ])
 async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monkeypatch):
     requests = []
@@ -533,7 +534,7 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
     }
     if scenario == "invalid":
         error_body["code"] = "invalid_request_error"
-    recovering = scenario in {"recover", "failed_event", "error_event"}
+    recovering = scenario in {"recover", "failed_event", "error_event", "eof_recover"}
 
     def handler(request):
         requests.append(request)
@@ -549,11 +550,21 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
             })
         else:
             content = created
-            if scenario == "after_text":
+            if scenario in {"after_text", "eof_after_text"}:
                 content += sse({
                     "type": "response.output_text.delta", "sequence_number": 1,
                     "item_id": "msg-test", "output_index": 0, "content_index": 0,
                     "delta": "once",
+                })
+            if scenario == "eof_after_tool":
+                content += sse({
+                    "type": "response.output_item.added", "sequence_number": 1,
+                    "output_index": 0,
+                    "item": {
+                        "id": "fc-test", "type": "function_call",
+                        "call_id": "call-test", "name": "synthetic_tool",
+                        "arguments": "", "status": "in_progress",
+                    },
                 })
             if scenario == "failed_event":
                 suffix = sse({
@@ -565,6 +576,10 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
                     "type": "error", "sequence_number": 1,
                     "message": "Unknown stream error", "code": None, "param": None,
                 })
+            elif scenario.startswith("eof_") or scenario == "empty_eof":
+                suffix = b"data: [DONE]\n\n"
+                if scenario == "empty_eof":
+                    content = b""
             else:
                 suffix = sse({"error": error_body})
         if recovering and len(requests) > 1:
@@ -604,27 +619,37 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
             if recovering:
                 await consume()
             else:
-                with pytest.raises(APIError):
+                expected_error = (
+                    retry.MissingFinalResponseError
+                    if scenario.startswith("eof_") or scenario == "empty_eof"
+                    else APIError
+                )
+                with pytest.raises(expected_error):
                     await consume()
 
     assert len(requests) == {
         "recover": 2, "exhaust": 3, "after_text": 1, "invalid": 1,
         "failed_event": 2, "error_event": 2,
+        "eof_recover": 2, "eof_exhaust": 3, "eof_after_text": 1,
+        "eof_after_tool": 1, "empty_eof": 3,
     }[scenario]
     assert all(body.closed for body in bodies)
     assert [event.delta for event in events if event.type == "response.output_text.delta"] == (
-        ["once"] if scenario == "after_text" else []
+        ["once"] if scenario in {"after_text", "eof_after_text"} else []
     )
     assert sum(event.type == "response.created" for event in events) == (
-        0 if scenario in {"exhaust", "invalid"} else 1
+        0 if scenario in {"exhaust", "invalid", "eof_exhaust", "empty_eof"} else 1
     )
     diagnostic = "\n".join(
         record.getMessage() for record in caplog.records
         if "OpenAI Responses API streaming error:" in record.getMessage()
     )
-    assert "Unknown stream error" in diagnostic
+    assert (
+        "without a final response" if scenario.startswith("eof_") or scenario == "empty_eof"
+        else "Unknown stream error"
+    ) in diagnostic
     assert "'request_id': 'req-test'" in diagnostic
-    assert "response_id=resp-test" in diagnostic
-    assert f"output_exposed={scenario == 'after_text'}" in diagnostic
+    assert f"response_id={'None' if scenario == 'empty_eof' else 'resp-test'}" in diagnostic
+    assert f"output_exposed={scenario in {'after_text', 'eof_after_text', 'eof_after_tool'}}" in diagnostic
     assert "synthetic-secret" not in diagnostic
     assert "api_key" not in diagnostic
