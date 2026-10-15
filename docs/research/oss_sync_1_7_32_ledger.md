@@ -74,23 +74,32 @@ Porting conventions:
   completed successfully.
 - Node packaging validation (`chrome-acp/scripts/package-browser.test.mjs`):
   2 passed.
-- Full `tests/` sweep: results recorded in the sync report; every failure
-  was verified to pre-exist at the pre-sync branch point (see Gaps).
+- Full `tests/` sweep: 4073 passed / 59 failing at the synced HEAD versus
+  3813 passed / 74 failing at the pre-sync branch point. Every failing
+  test id at the synced HEAD also fails at the pre-sync point, and twelve
+  pre-sync failures now pass (the sub-agent provider-resolution group and
+  the browser-prompt fixture). No failure was introduced by the sync.
 
 ## Gaps and known pre-existing issues
 
 1. `tests/agent_hub/context_filter/test_litellm_token_counter.py` — two
    tests fail only when run after other files in the same process
    (test-order pollution). Each passes in isolation, before and after the
-   sync. Not introduced by this sync.
+   sync. The same pattern also affects a handful of launcher/provider
+   files that pass in isolation. Not introduced by this sync.
 2. `tests/agent_hub/proactive/` (16), `tests/services/memory/` (13),
-   `tests/agent_hub/coder/test_code_gen_agent_at_command.py` (4),
-   `tests/services/test_input_processor.py` (2) — 35 failures verified
-   byte-for-byte identical at the pre-sync branch point; the visible
-   causes are environment-specific test assumptions (macOS `/private/var`
-   tmp-path resolution and similar), unrelated to the ported changes.
-3. Offline browser logging E2E: 2 tests skip without their offline
-   environment fixtures; both pass in the runs that provide them.
+   `tests/tools/test_read_many_files_tool.py` (6),
+   `tests/tools/memory/` (6), `tests/entrypoint/interaction/test_controller_background_subtask_await.py`
+   (2), `tests/agent_hub/coder/test_code_gen_agent_at_command.py` (4),
+   `tests/services/test_input_processor.py` (2) and a few single-file
+   stragglers — all verified present at the pre-sync branch point; the
+   visible causes are environment-specific test assumptions (macOS
+   `/private/var` tmp-path resolution and similar), unrelated to the
+   ported changes.
+3. Offline browser logging E2E: the two `test_logging_e2e.py` tests skip
+   without `SIADA_TEST_PROXY_ENTRY`; both were verified passing against
+   the freshly built proxy entry (`packages/proxy-server/dist/cli/bin.js`)
+   with the offline fake-agent fixture — 2 passed.
 4. The internal `readline`-style raw key logging from the private tree
    was intentionally not ported; the public keyboard logging keeps its
    stronger sanitization (no raw keys, characters, previews, or
