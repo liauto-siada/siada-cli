@@ -1114,6 +1114,11 @@ export class ACPClient {
    * off. The proxy resolves the tab, so this works from the web client too.
    */
   setScreencast(enabled: boolean): void {
+    // UI unmount cleanup runs after disconnect has closed the socket. The
+    // proxy owns stopping the stream on disconnect, so no stop is needed here.
+    if (!enabled && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+      return;
+    }
     this.send({ type: "screencast", payload: { enabled } });
   }
 

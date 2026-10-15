@@ -648,6 +648,28 @@ describe("ACPClient frame listeners", () => {
     client.disconnect();
   });
 
+  test("stopping live view after manual disconnect is safe for UI cleanup", async () => {
+    const { client, ws } = await connected();
+    client.setScreencast(true);
+    client.disconnect();
+    const sent = [...ws.sent];
+
+    expect(() => client.setScreencast(false)).not.toThrow();
+    expect(() => client.setScreencast(false)).not.toThrow();
+    expect(ws.sent).toEqual(sent);
+    expect(() => client.setScreencast(true)).toThrow("WebSocket not connected");
+  });
+
+  test("stopping live view after a transport close is safe for UI cleanup", async () => {
+    const { client, ws } = await connected();
+    ws.closeWith(1006, "");
+    const sent = [...ws.sent];
+
+    expect(() => client.setScreencast(false)).not.toThrow();
+    expect(ws.sent).toEqual(sent);
+    client.disconnect();
+  });
+
   test("screencast state reaches listeners, including failures", async () => {
     const { client, ws } = await connected();
     const states: Array<{ active: boolean; error?: string }> = [];
