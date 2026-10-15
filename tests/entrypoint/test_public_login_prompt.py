@@ -990,6 +990,12 @@ class _FakeMonitor:
             self.timeouts += 1
         return line
 
+    def read_login_reply_line(self, timeout=None):
+        # The login prompt reads configuration replies through the
+        # monitor's dedicated login-reply queue (2f21d82e); for this
+        # stand-in it behaves like the ordinary polled readline.
+        return self.readline(timeout=timeout)
+
 
 def test_inactive_monitor_stdin_eof_raises(monkeypatch):
     """Without the monitor, an empty read is EOF — never an infinite poll."""

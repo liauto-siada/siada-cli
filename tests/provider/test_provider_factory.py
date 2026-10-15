@@ -19,21 +19,18 @@ def test_get_provider_returns_named_provider(monkeypatch: pytest.MonkeyPatch):
     assert provider_factory.get_provider("second") is sentinel.second
 
 
-def test_get_provider_requires_an_explicit_name(monkeypatch: pytest.MonkeyPatch):
-    """The public build has no legacy alias map and no first-provider fallback.
+def test_get_provider_defaults_to_first_registered_provider(monkeypatch: pytest.MonkeyPatch):
+    """``get_provider()`` without a name returns the first registered provider.
 
-    ``get_provider()`` without a name raises even when the registry is
-    populated: every call site passes the configured provider name (e.g.
-    ``"default"``). This replaces the source
-    ``test_get_provider_defaults_to_first_registered_provider``, which asserted
-    a fallback this build does not implement.
+    The 1.7.32 subagent provider-inheritance change restored this fallback
+    (model-only overrides inherit the active provider), so the public build
+    now matches the source contract documented in the port of 18814a58.
     """
     providers = {"first": sentinel.first, "second": sentinel.second}
     monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
     monkeypatch.setattr(provider_factory, "provider_map", providers)
 
-    with pytest.raises(ValueError, match="No model providers found or registered"):
-        provider_factory.get_provider()
+    assert provider_factory.get_provider() is sentinel.first
 
 
 def test_get_provider_reports_empty_provider_registry(monkeypatch: pytest.MonkeyPatch):
@@ -50,7 +47,10 @@ def test_get_provider_reports_unsupported_provider(
     monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
     monkeypatch.setattr(provider_factory, "provider_map", {"default": sentinel.default})
 
-    with pytest.raises(ValueError, match="No model providers found or registered"):
+    with pytest.raises(
+        ValueError,
+        match="Unsupported model provider 'missing'. Available providers: default.",
+    ):
         provider_factory.get_provider("missing")
 
 
