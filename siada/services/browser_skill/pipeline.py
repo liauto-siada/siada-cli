@@ -49,7 +49,7 @@ class BrowserLearningWorker:
                          ``finally`` releases the claimed lease; records stay
                          persisted in SQLite.
 
-    The loop re-checks ``pending_count`` every ``retry_interval`` seconds, so
+    The loop re-checks ``ready_count`` every ``retry_interval`` seconds, so
     backoff'd records are retried; when nothing is pending no LLM boundary is
     touched (drain is only invoked when pending_count > 0).
     """
@@ -99,16 +99,19 @@ class BrowserLearningWorker:
 
     async def drain_once(self) -> dict:
         """One explicit drain through distiller.process_pending_updates."""
-        logger.info("[STEP 12] learning worker draining queue")
+        logger.debug("[STEP 12] learning worker draining queue")
         result = await _distiller().process_pending_updates(store=self._store)
-        logger.info(
+        log = logger.info if result.get("processed", 0) or result.get("failed", 0) else logger.debug
+        log(
             "[STEP 12] drain finished: processed=%d failed=%d",
             result.get("processed", 0), result.get("failed", 0),
         )
         return result
 
     def _has_pending(self, store) -> bool:
-        counter = getattr(store, "pending_count", None)
+        counter = getattr(store, "ready_count", None)
+        if counter is None:
+            counter = getattr(store, "pending_count", None)
         if counter is None:
             return True
         try:

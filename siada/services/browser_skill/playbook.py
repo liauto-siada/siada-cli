@@ -34,6 +34,7 @@ from .models import ExecutionRecord, VerificationResult
 
 _LEASE_SECONDS = 120.0
 _MAX_BACKOFF = 300.0
+_MAX_FAILURES = 3
 # 2**9 (512 s) already exceeds _MAX_BACKOFF; capping here keeps the exponent
 # computation far below the float overflow boundary even for huge attempt counts.
 _BACKOFF_EXPONENT_CAP = 60
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS executions (
     token TEXT,
     lease_until REAL,
     attempts INTEGER NOT NULL DEFAULT 0,
+    failures INTEGER NOT NULL DEFAULT 0,
     next_attempt_at REAL NOT NULL DEFAULT 0,
     last_error TEXT NOT NULL DEFAULT '',
     result_snapshot TEXT
@@ -298,6 +300,20 @@ class PlaybookStore:
         connection = self._connect()
         try:
             connection.executescript(_SCHEMA)
+            connection.execute("BEGIN IMMEDIATE")
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(executions)")}
+            if "failures" not in columns:
+                connection.execute(
+                    "ALTER TABLE executions ADD COLUMN failures INTEGER NOT NULL DEFAULT 0"
+                )
+                # Preserve the retry history of records from older versions.
+                connection.execute(
+                    "UPDATE executions SET failures=attempts WHERE last_error <> ''"
+                )
+            connection.execute(
+                "UPDATE executions SET status='failed', token=NULL, lease_until=NULL "
+                "WHERE status='pending' AND failures >= ?", (_MAX_FAILURES,),
+            )
             connection.commit()
         finally:
             connection.close()
@@ -389,6 +405,23 @@ class PlaybookStore:
             connection.close()
         return row["count"]
 
+    def ready_count(self) -> int:
+        """Count work claimable now, respecting the database-wide live lease."""
+        now = time.time()
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT COUNT(*) AS count FROM executions WHERE "
+                "((status='pending' AND next_attempt_at <= ?) OR "
+                "(status='claimed' AND lease_until <= ?)) AND failures < ? "
+                "AND NOT EXISTS (SELECT 1 FROM executions "
+                "WHERE status='claimed' AND lease_until > ?)",
+                (now, now, _MAX_FAILURES, now),
+            ).fetchone()
+            return row["count"]
+        finally:
+            connection.close()
+
     def claim(self) -> dict | None:
         """Claim the next eligible execution with a cross-process lease.
 
@@ -410,10 +443,10 @@ class PlaybookStore:
                 return None
             candidate = connection.execute(
                 "SELECT execution_id FROM executions WHERE "
-                "(status = 'pending' AND next_attempt_at <= ?) OR "
-                "(status = 'claimed' AND lease_until <= ?) "
+                "((status = 'pending' AND next_attempt_at <= ?) OR "
+                "(status = 'claimed' AND lease_until <= ?)) AND failures < ? "
                 "ORDER BY rowid LIMIT 1",
-                (now, now),
+                (now, now, _MAX_FAILURES),
             ).fetchone()
             if candidate is None:
                 connection.execute("ROLLBACK")
@@ -448,13 +481,19 @@ class PlaybookStore:
         finally:
             connection.close()
 
-    def release(self, execution_id: str, token: str, error: str = "") -> None:
+    def release(
+        self, execution_id: str, token: str, error: str = "", *, retryable: bool = True,
+    ) -> str | None:
         """Return a claimed execution to pending; no-op for stale tokens.
 
         With a non-empty error the retry is backed off exponentially
         (capped at 300 s) using the record's attempt counter; an empty error
         allows an immediate retry. Releasing with a token that does not own
         the current lease changes nothing.
+
+        Authentication errors pause the record; three ordinary failures stop
+        automatic retries. Cancellation does not consume the failure budget.
+        Records and their last error are retained in either terminal state.
         """
         if not isinstance(token, str):
             return
@@ -463,25 +502,32 @@ class PlaybookStore:
         try:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
-                "SELECT status, token, attempts FROM executions WHERE execution_id = ?",
+                "SELECT status, token, attempts, failures FROM executions WHERE execution_id = ?",
                 (execution_id,),
             ).fetchone()
             if row is None or row["status"] != "claimed" or row["token"] != token:
                 connection.execute("ROLLBACK")
                 return
-            if error:
+            failures = row["failures"] + bool(error)
+            status = "pending"
+            if error and not retryable:
+                status = "paused"
+            elif error and failures >= _MAX_FAILURES:
+                status = "failed"
+            if error and status == "pending":
                 exponent = min(max(int(row["attempts"]), 1), _BACKOFF_EXPONENT_CAP)
                 backoff = min(_MAX_BACKOFF, 2.0 ** exponent)
                 next_attempt_at = now + backoff
             else:
-                next_attempt_at = now
+                next_attempt_at = now if status == "pending" else 0
             connection.execute(
-                "UPDATE executions SET status='pending', next_attempt_at=?,"
+                "UPDATE executions SET status=?, failures=?, next_attempt_at=?,"
                 " last_error=?, token=NULL, lease_until=NULL"
                 " WHERE execution_id=? AND token=?",
-                (next_attempt_at, error or "", execution_id, token),
+                (status, failures, next_attempt_at, error or "", execution_id, token),
             )
             connection.execute("COMMIT")
+            return status
         except Exception:
             try:
                 connection.execute("ROLLBACK")

@@ -11,14 +11,16 @@ import json
 import logging
 import re
 
+from .learning_errors import LearningAuthenticationError, is_authentication_error
+
 logger = logging.getLogger(__name__)
 
 
 async def call_fast_llm(prompt: str, *, agent_name: str) -> str:
     """One-shot completion through the fast provider; returns raw text.
 
-    Returns "" on any failure (missing choices, exception, timeout) so
-    callers can treat "no answer" uniformly without try/except everywhere.
+    Matching/classification returns "" on request failure. Learning propagates
+    failures to its durable queue and disables nested SDK retries.
 
     Reasoning is pinned to ``low``: these prompts carry full trajectory
     evidence (tens of KB), and a default/high reasoning effort on the fast
@@ -26,6 +28,8 @@ async def call_fast_llm(prompt: str, *, agent_name: str) -> str:
     real stuck record: bare call > 70 s vs 18.9 s with ``low``).
     """
     from siada.provider.fast_llm import fast_completion
+
+    learning = agent_name in ("browser_skill_reflector", "browser_skill_curator")
 
     # NB: ``asyncio.timeout`` at the call sites cannot reliably interrupt
     # litellm — its retry layer swallows the cancellation and the single-shot
@@ -38,8 +42,15 @@ async def call_fast_llm(prompt: str, *, agent_name: str) -> str:
         response = await fast_completion(
             prompt, agent_name=agent_name, timeout=50,
             extra_body={"reasoning_effort": "low"},
+            **({"num_retries": 0} if learning else {}),
         )
     except Exception as e:  # noqa: BLE001 — never let a matching/distill call crash the caller
+        if learning:
+            if is_authentication_error(e):
+                raise LearningAuthenticationError(
+                    "Learning model authentication/authorization failed; automatic retry paused"
+                ) from e
+            raise RuntimeError(f"Learning model request failed: {type(e).__name__}") from e
         logger.warning("[browser-skill] fast_completion failed (%s): %s", agent_name, e)
         return ""
 

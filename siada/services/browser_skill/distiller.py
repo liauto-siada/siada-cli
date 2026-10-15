@@ -9,6 +9,7 @@ import logging
 
 from .event_utils import build_replay_steps, evidence_chunks, sanitize_text
 from .llm_utils import call_fast_llm, parse_json_from_model
+from .learning_errors import is_authentication_error
 from .models import ExecutionRecord, VerificationResult
 from .playbook import PlaybookStore, render_playbook
 from .registry import publish_verified_skill
@@ -272,10 +273,16 @@ async def process_pending_updates(store: PlaybookStore | None = None, limit: int
             # Keep the message, not just the class name: last_error is the
             # documented diagnostic surface (e.g. quota/rate failures).
             detail = f"{type(error).__name__}: {error}" if str(error) else type(error).__name__
-            store.release(record.execution_id, token, detail)
-            logger.warning("[browser-skill] learning deferred for %s: %s",
-                           record.execution_id, detail)
+            status = store.release(
+                record.execution_id, token, detail,
+                retryable=not is_authentication_error(error),
+            )
+            logger.warning("[browser-skill] learning %s for %s: %s",
+                           status or "deferred", record.execution_id, detail)
             failed += 1
+            if status == "paused":
+                # Further records use the same model credentials.
+                break
             continue
         try:
             store.export_skill(record.capacity_id)
