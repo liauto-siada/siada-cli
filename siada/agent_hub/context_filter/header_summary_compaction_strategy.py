@@ -23,16 +23,12 @@ class SummarizeWithHeaderCompaction(CompactionStrategy):
     """
     Conservative summarize-and-keep-header compaction.
 
-    Triggers at 70% context window, preserves 30% of recent messages.
+    Triggers with at most 60k tokens remaining, preserves 30% of recent messages.
     Keeps the first user-assistant pair as a header in the compressed output,
     followed by an LLM-generated summary and the recent message tail.
 
     Typically used for CLI / TUI sessions.
     """
-
-    @property
-    def token_threshold_ratio(self) -> float:
-        return 0.7
 
     @property
     def preserve_ratio(self) -> float:

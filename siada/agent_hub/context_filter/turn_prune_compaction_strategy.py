@@ -53,10 +53,6 @@ class TurnPruneSummaryCompaction(CompactionStrategy):
     # ── CompactionStrategy ABC implementation ────────────────────────
 
     @property
-    def token_threshold_ratio(self) -> float:
-        return 0.7
-
-    @property
     def preserve_ratio(self) -> float:
         return 0.5  # not directly used; split logic uses DEFAULT_RECENT_BOUNDARIES_PRESERVE
 

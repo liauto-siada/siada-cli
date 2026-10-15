@@ -70,6 +70,9 @@ from agents.items import TResponseInputItem
 from agents.run_config import CallModelData, ModelInputData
 
 from siada.agent_hub.context_filter.compaction_strategy import CompactionError
+from siada.agent_hub.context_filter.compaction_threshold import (
+    get_compaction_token_threshold,
+)
 from siada.agent_hub.context_filter.header_summary_compaction_strategy import (
     SummarizeWithHeaderCompaction,
 )
@@ -376,12 +379,13 @@ def make_sub_agent_compaction_filter(
 
         model_name = model_run_config.model_name
         token_count = calculate_tokens(model_name, effective_input)
+        threshold = get_compaction_token_threshold(model_run_config.context_window)
 
         logger.info(
             "[sub_agent_compaction_filter] tokens=%d  threshold=%.0f  "
             "window=%d  items=%d",
             token_count,
-            model_run_config.context_window * _STRATEGY.token_threshold_ratio,
+            threshold,
             model_run_config.context_window,
             len(effective_input),
         )
@@ -394,10 +398,10 @@ def make_sub_agent_compaction_filter(
 
         logger.info(
             "[sub_agent_compaction_filter] compaction triggered: "
-            "tokens=%d / window=%d (threshold=%.0f%%)",
+            "tokens=%d / window=%d (threshold=%d tokens)",
             token_count,
             model_run_config.context_window,
-            _STRATEGY.token_threshold_ratio * 100,
+            threshold,
         )
 
         # Snapshot the full pre-compaction context.  Compaction is infrequent, so

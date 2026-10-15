@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from typing import List, Optional, TYPE_CHECKING
 
 from agents.models.chatcmpl_converter import Converter
+from siada.agent_hub.context_filter.compaction_threshold import (
+    get_compaction_token_threshold,
+)
 from siada.agent_hub.coder.prompt.compact_prompt import (
     _auto_compact_response,
     get_compact_system_prompt,
@@ -73,12 +76,6 @@ class CompactionStrategy(ABC):
 
     @property
     @abstractmethod
-    def token_threshold_ratio(self) -> float:
-        """Ratio of context window that triggers compaction."""
-        ...
-
-    @property
-    @abstractmethod
     def preserve_ratio(self) -> float:
         """Fraction of recent messages to preserve after compaction."""
         ...
@@ -90,8 +87,8 @@ class CompactionStrategy(ABC):
         ...
 
     def should_compact(self, tokens_count: int, model_config: "ModelRunConfig") -> bool:
-        """Check if compaction is needed based on token count and threshold."""
-        threshold = model_config.context_window * self.token_threshold_ratio
+        """Compact when the context window has at most 60k tokens remaining."""
+        threshold = get_compaction_token_threshold(model_config.context_window)
         return tokens_count >= threshold
 
     async def compact(

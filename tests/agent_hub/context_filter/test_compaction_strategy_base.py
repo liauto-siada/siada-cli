@@ -17,6 +17,8 @@ the caller's original reference or be mistaken for "no-op" incorrectly.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from siada.agent_hub.context_filter.compaction_strategy import (
@@ -29,7 +31,6 @@ class _InPlaceMutatingNoopStrategy(CompactionStrategy):
     """Simulates a (buggy) strategy that mutates its input in place,
     returns the very same object, but correctly reports `compacted=False`."""
 
-    token_threshold_ratio = 0.8
     preserve_ratio = 0.6
     summary_budget_ratio = 0.3
 
@@ -42,7 +43,6 @@ class _NoopStrategy(CompactionStrategy):
     """Simulates a strategy that decides there's nothing to compact and
     returns the exact object it was handed, with `compacted=False`."""
 
-    token_threshold_ratio = 0.8
     preserve_ratio = 0.6
     summary_budget_ratio = 0.3
 
@@ -54,7 +54,6 @@ class _RealChangeStrategy(CompactionStrategy):
     """Simulates a well-behaved strategy that returns a brand-new list
     with `compacted=True`."""
 
-    token_threshold_ratio = 0.8
     preserve_ratio = 0.6
     summary_budget_ratio = 0.3
 
@@ -64,6 +63,32 @@ class _RealChangeStrategy(CompactionStrategy):
             summary="summary",
             compacted=True,
         )
+
+
+@pytest.mark.parametrize("context_window", [64_000, 128_000, 200_000, 1_000_000])
+@pytest.mark.parametrize("remaining_tokens", [60_001, 60_000, 59_999, 0, -1])
+@pytest.mark.parametrize("strategy_name", ["header_summary", "turn_prune_summary"])
+def test_compaction_triggers_at_60k_remaining(context_window, remaining_tokens, strategy_name):
+    from siada.agent_hub.context_filter.compaction_strategy import _resolve_strategy_by_name
+
+    strategy = _resolve_strategy_by_name(strategy_name)
+    config = SimpleNamespace(context_window=context_window)
+    assert strategy.should_compact(
+        context_window - remaining_tokens, config,
+    ) is (remaining_tokens <= 60_000)
+
+
+@pytest.mark.parametrize("context_window", [32_000, 60_000])
+def test_small_context_windows_already_meet_headroom_trigger(context_window):
+    assert _NoopStrategy().should_compact(0, SimpleNamespace(context_window=context_window))
+
+
+def test_compaction_uses_updated_effective_context_window():
+    strategy = _NoopStrategy()
+    config = SimpleNamespace(context_window=200_000)
+    assert strategy.should_compact(140_000, config)
+    config.context_window = 1_000_000
+    assert not strategy.should_compact(140_000, config)
 
 
 @pytest.mark.asyncio

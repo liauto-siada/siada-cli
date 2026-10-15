@@ -7,7 +7,7 @@ Strategy: drive a real ``agents.Runner.run`` with a self-contained FakeModel
 exactly as ``run_subtask`` wires them.
 
 A scripted tool loop grows the conversation across several model turns. We
-control token counting so the context crosses the 70% threshold mid-run and
+control token counting so the context reaches 60k remaining mid-run and
 verify the *real* runner integration:
 
 1. No-compaction run: ``compact`` is never invoked; the session accumulates the
@@ -116,7 +116,7 @@ class _ScriptedModel(Model):
         )
 
 
-def _make_model_run_config(context_window: int = 1000) -> MagicMock:
+def _make_model_run_config(context_window: int = 60_700) -> MagicMock:
     cfg = MagicMock()
     cfg.model_name = "claude-sonnet-4.6"
     cfg.context_window = context_window
@@ -201,7 +201,7 @@ class TestSubAgentCompactionE2E(unittest.IsolatedAsyncioTestCase):
             ]
         )
         session = InMemorySession()
-        cfg = _make_model_run_config(context_window=1000)  # threshold = 700
+        cfg = _make_model_run_config(context_window=60_700)  # threshold = 700
         run_config = _build_run_config(session, cfg)
         agent = Agent(name="e2e-compact", model=model, tools=[record_tool])
 
@@ -271,7 +271,7 @@ class TestSubAgentCompactionE2E(unittest.IsolatedAsyncioTestCase):
             ]
         )
         session = InMemorySession()
-        cfg = _make_model_run_config(context_window=1000)
+        cfg = _make_model_run_config(context_window=60_700)
         run_config = _build_run_config(session, cfg)
         agent = Agent(name="e2e-once", model=model, tools=[record_tool])
 

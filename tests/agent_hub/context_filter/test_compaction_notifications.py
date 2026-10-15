@@ -101,6 +101,33 @@ async def test_skipped_compaction_sends_no_notices(compaction_setup):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("strategy_name", ["header_summary", "turn_prune_summary"])
+@pytest.mark.parametrize("context_window", [128_000, 200_000, 1_000_000])
+@pytest.mark.parametrize("remaining_tokens", [60_001, 60_000, 59_999])
+async def test_main_filter_uses_real_headroom_decision(
+    compaction_setup, monkeypatch, strategy_name, context_window, remaining_tokens,
+):
+    from siada.agent_hub.context_filter.compaction_strategy import _resolve_strategy_by_name
+
+    context, _, messages, notices = compaction_setup
+    context.model_run_config = SimpleNamespace(context_window=context_window)
+    strategy = _resolve_strategy_by_name(strategy_name)
+    strategy.compact = AsyncMock(return_value=CompactionResult(messages=messages, compacted=False))
+    monkeypatch.setattr(
+        "siada.agent_hub.context_filter.api_message_transfer_filter.get_compaction_strategy",
+        lambda _: strategy,
+    )
+
+    result = await ApiMessageTransferFilter()._try_compact_real_api_messages(
+        context, messages, context_window - remaining_tokens, context.model_run_config,
+    )
+
+    assert result is messages
+    assert strategy.compact.await_count == int(remaining_tokens <= 60_000)
+    assert bool(notices) is (remaining_tokens <= 60_000)
+
+
+@pytest.mark.asyncio
 async def test_completion_counts_include_restored_reminders(compaction_setup, monkeypatch):
     context, strategy, messages, notices = compaction_setup
     compacted = [{"role": "user", "content": "summary"}]
