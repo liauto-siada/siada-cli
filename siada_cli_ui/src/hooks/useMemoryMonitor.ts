@@ -16,10 +16,10 @@ export function useMemoryMonitor(
     const interval = setInterval(() => {
       const heapUsedMB = process.memoryUsage().heapUsed / 1024 / 1024;
       if (heapUsedMB > MEMORY_WARNING_THRESHOLD) {
-        logger.warn('High memory usage detected', {
+        logger.warnThrottled('High memory usage detected', {
           heapUsedMB: heapUsedMB.toFixed(2),
           messageCount: messagesRef.current.length,
-        });
+        }, 5 * 60_000);
       }
     }, MEMORY_CHECK_INTERVAL);
 

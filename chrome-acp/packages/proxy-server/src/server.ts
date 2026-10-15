@@ -1590,7 +1590,8 @@ export async function startServer(config: ServerConfig): Promise<void> {
   const networkAppUrl = `${httpProtocol}://${displayHost}:${port}/app`;
   const tokenSuffix = AUTH_TOKEN ? `?token=${AUTH_TOKEN}` : "";
 
-  // Print startup banner
+  // Interactive connection details belong to foreground launches.
+  if (process.env.SIADA_PROXY_MANAGED !== "1") {
   console.log();
   for (const line of renderGhostLogo(process.stdout.isTTY)) {
     console.log(line);
@@ -1647,8 +1648,9 @@ export async function startServer(config: ServerConfig): Promise<void> {
   console.log();
   console.log(`  Press Ctrl+C to stop`);
   console.log();
+  }
 
-  // Also log to file when debug is enabled
+  // Record startup in both normal and debug modes.
   log.info("Server started", {
     port,
     host,

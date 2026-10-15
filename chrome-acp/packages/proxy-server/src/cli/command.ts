@@ -27,7 +27,7 @@ export const command = buildCommand({
       },
       debug: {
         kind: "boolean",
-        brief: "Enable debug logging to file",
+        brief: "Include verbose DEBUG records in the rotating log file",
         default: false,
       },
       "no-auth": {
@@ -93,8 +93,9 @@ export const command = buildCommand({
     }
 
     // Initialize logger
-    const { initLogger } = await import("../logger.js");
-    initLogger({ debug });
+    const { initLogger, captureManagedOutput } = await import("../logger.js");
+    const logger = initLogger({ debug });
+    if (process.env.SIADA_PROXY_MANAGED === "1") captureManagedOutput(logger);
 
     // Import and run the server
     const { startServer } = await import("../server.js");

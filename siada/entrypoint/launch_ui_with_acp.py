@@ -50,7 +50,7 @@ if "--acp" in sys.argv:
         pass
 
 
-from siada.foundation.logging import logger, remove_console_handler  # noqa: E402
+from siada.foundation.logging import logger, remove_console_handler, get_log_directory  # noqa: E402
 
 
 
@@ -238,6 +238,8 @@ class UILauncher:
         # was launched with.  System `python3` on macOS does not ship with
         # PyObjC and Homebrew python3 is unlikely to have it either.
         env["SIADA_PYTHON_PATH"] = self.config.get("python_path", sys.executable)
+        # Share the resolved root, including writable-directory fallbacks.
+        env["SIADA_CLI_LOG_DIR"] = get_log_directory()
         # Propagate debug mode: --verbose flag → SIADA_DEBUG=1 for Node UI
         config_args = self.config.get("args")
         if hasattr(config_args, "verbose") and config_args.verbose:

@@ -17,6 +17,22 @@ export enum LogLevel {
   ERROR = 3,
 }
 
+export function resolveLogLevel(
+  options: { debug?: boolean; logLevel?: string } = {},
+  debugEnv = process.env.SIADA_DEBUG,
+): LogLevel {
+  if (options.debug || /^(true|1|yes)$/i.test(debugEnv || '')) return LogLevel.DEBUG;
+  const levels: Record<string, LogLevel> = {
+    debug: LogLevel.DEBUG, info: LogLevel.INFO, warn: LogLevel.WARN, error: LogLevel.ERROR,
+  };
+  return levels[options.logLevel || 'info'] ?? LogLevel.INFO;
+}
+
+export function uiLogDirectory(explicitDir?: string): string {
+  return explicitDir || process.env.SIADA_UI_LOG_DIR ||
+    join(process.env.SIADA_CLI_LOG_DIR || join(homedir(), '.siada-cli', 'logs'), 'ui');
+}
+
 export interface LogContext {
   messageId?: string;
   sessionId?: string;
@@ -55,6 +71,7 @@ export class Logger {
   private readonly instanceId = randomUUID();
   private readonly context = new AsyncLocalStorage<LogContext>();
   private lastCleanup = 0;
+  private readonly warningTimes = new Map<string, number>();
 
   withContext<T>(context: LogContext, action: () => T): T {
     return this.context.run({ ...this.context.getStore(), ...context }, action);
@@ -87,7 +104,7 @@ export class Logger {
     
     // Setup log file in home directory
     if (this.enableFile) {
-      const logDir = options.logDir || process.env.SIADA_UI_LOG_DIR || join(homedir(), '.siada-cli', 'ui-logs');
+      const logDir = uiLogDirectory(options.logDir);
       if (!existsSync(logDir)) {
         mkdirSync(logDir, { recursive: true });
       }
@@ -303,6 +320,16 @@ export class Logger {
     }
   }
 
+  warnThrottled(message: string, context?: LogContext, intervalMs = 60_000): void {
+    if (!Logger.LOGGING_ENABLED || !this.shouldLog(LogLevel.WARN)) return;
+    const now = Date.now();
+    const previous = this.warningTimes.get(message);
+    if (previous === undefined || now - previous >= intervalMs) {
+      this.warningTimes.set(message, now);
+      this.warn(message, context);
+    }
+  }
+
   /**
    * Log error message
    */
@@ -449,7 +476,7 @@ export class Logger {
 
 // Export singleton instance
 export const logger = new Logger({
-  level: /^(true|1|yes)$/i.test(process.env.SIADA_DEBUG || '') ? LogLevel.DEBUG : LogLevel.INFO,
+  level: resolveLogLevel(),
   enableConsole: false, // Disabled to prevent terminal crashes
   enableFile: true,
   maxFileSize: 10 * 1024 * 1024, // 10MB

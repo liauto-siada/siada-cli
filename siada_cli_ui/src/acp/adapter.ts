@@ -537,10 +537,8 @@ export class SiadaACPAdapter extends EventEmitter {
                 linesToProcess.push(lastSubLine);
               } catch (err) {
                 // Not valid JSON yet -> likely truncated, wait for more data.
-                logger.info('Incomplete JSON in last sub-line, buffering for next chunk', {
+                logger.debug('Incomplete JSON in last sub-line, buffering for next chunk', {
                   length: lastSubLine.length,
-                  preview: lastSubLine.slice(0, 200),
-                  tail: lastSubLine.slice(-200),
                   error: err instanceof Error ? err.message : String(err),
                 });
                 remainingBuffer = lastSubLine;
@@ -2053,7 +2051,7 @@ export class SiadaACPAdapter extends EventEmitter {
       this.emit('message', streamEvent);
     } else {
       // 🔍 Debug: Log why handleContentDelta was skipped
-      logger.warn('⚠️ [DEBUG] handleContentDelta skipped', {
+      logger.warnThrottled('⚠️ [DEBUG] handleContentDelta skipped', {
         component: 'Adapter',
         operation: 'handleContentDelta',
         reason: !this.streamingBuffer ? 'no streamingBuffer' :

@@ -1,8 +1,8 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, utimesSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
-import { Logger, LogLevel } from '../logger.js';
+import { Logger, LogLevel, resolveLogLevel, uiLogDirectory } from '../logger.js';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
@@ -13,7 +13,57 @@ function setup(maxFileSize = 100000) {
   dirs.push(logDir);
   return { logDir, logger: new Logger({ logDir, maxFileSize, level: LogLevel.INFO, enableConsole: false }) };
 }
-afterEach(() => dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })));
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+  dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true }));
+});
+
+describe('default production logging', () => {
+  it.each(['', 'false', 'False', '0', 'no'])('does not enable DEBUG for SIADA_DEBUG=%s', value => {
+    expect(resolveLogLevel({}, value)).toBe(LogLevel.INFO);
+    expect(resolveLogLevel({ logLevel: 'warn' }, value)).toBe(LogLevel.WARN);
+  });
+  it.each(['true', '1', 'yes', 'TRUE'])('enables DEBUG for SIADA_DEBUG=%s', value => {
+    expect(resolveLogLevel({}, value)).toBe(LogLevel.DEBUG);
+  });
+  it('honors both explicit debug options, including numeric level zero', () => {
+    expect(resolveLogLevel({ debug: true }, 'false')).toBe(LogLevel.DEBUG);
+    expect(resolveLogLevel({ logLevel: 'debug' }, 'false')).toBe(LogLevel.DEBUG);
+  });
+  it('uses the common root unless the UI directory is explicitly overridden', () => {
+    vi.stubEnv('SIADA_UI_LOG_DIR', '');
+    vi.stubEnv('SIADA_CLI_LOG_DIR', '');
+    expect(uiLogDirectory()).toBe(join(homedir(), '.siada-cli', 'logs', 'ui'));
+    const { logDir } = setup();
+    vi.stubEnv('SIADA_CLI_LOG_DIR', logDir);
+    const logger = new Logger();
+    logger.info('new location');
+    expect(logger.getLogFile()).toBe(join(logDir, 'ui', 'siada-ui.log'));
+    vi.stubEnv('SIADA_UI_LOG_DIR', join(logDir, 'override'));
+    expect(uiLogDirectory()).toBe(join(logDir, 'override'));
+    expect(uiLogDirectory(logDir)).toBe(logDir);
+  });
+  it('does not write per-chunk DEBUG records in INFO mode', () => {
+    const { logger } = setup();
+    for (let i = 0; i < 1000; i++) logger.debug('synthetic chunk', { i });
+    logger.info('completed');
+    expect(readFileSync(logger.getLogFile()!, 'utf8').trim().split('\n')).toHaveLength(1);
+  });
+  it('keeps distinct warnings and bounds repeated warnings over time', () => {
+    vi.useFakeTimers();
+    const { logger } = setup();
+    logger.warnThrottled('memory warning', undefined, 300_000);
+    for (let i = 0; i < 10; i++) {
+      vi.advanceTimersByTime(30_000);
+      logger.warnThrottled('memory warning', undefined, 300_000);
+    }
+    logger.warnThrottled('different warning');
+    const text = readFileSync(logger.getLogFile()!, 'utf8');
+    expect(text.match(/memory warning/g)).toHaveLength(2);
+    expect(text).toContain('different warning');
+  });
+});
 
 describe('log attribution and retention', () => {
   it('keeps records when separate UI processes share and rotate the active file', async () => {

@@ -51,12 +51,28 @@ rl.on("line", (line) => {
     return;
   }
   if (message.method === "session/prompt") {
-    // Every prompt fails. Prompts containing "generic-shape" answer the way
+    // Error scenarios containing "generic-shape" answer the way
     // the SDK reports a bare exception (-32603 with the cause buried in
     // `data.details`); anything else answers with the cause as the message.
     const text = (message.params?.prompt ?? [])
       .map((block) => block.text ?? "")
       .join("");
+    if (text === "logging-stream") {
+      for (let i = 0; i < 1000; i++) {
+        process.stdout.write(JSON.stringify({
+          jsonrpc: "2.0", method: "session/update",
+          params: { sessionId: "fake-session", update: {
+            sessionUpdate: "agent_message_chunk", content: { type: "text", text: "x" },
+            _meta: { siadaLog: {
+              requestId: message.params?._meta?.siadaLog?.requestId,
+              agent: "synthetic-agent", agentRunId: "synthetic-run",
+            } },
+          } },
+        }) + "\n");
+      }
+      reply(message.id, { result: { stopReason: "end_turn" } });
+      return;
+    }
     const error = text.includes("generic-shape")
       ? { code: -32603, message: "Internal error", data: { details: GENERIC_DETAILS } }
       : { code: -32603, message: GENERIC_DETAILS };

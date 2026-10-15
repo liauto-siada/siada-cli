@@ -1,5 +1,6 @@
 import pino from "pino";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { homedir } from "node:os";
 import { mkdirSync, existsSync, appendFileSync, statSync, renameSync, readdirSync, unlinkSync } from "node:fs";
 import { Writable } from "node:stream";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -8,6 +9,7 @@ import { randomUUID } from "node:crypto";
 let logger: pino.Logger;
 const context = new AsyncLocalStorage<Record<string, unknown>>();
 const instanceId = randomUUID();
+const writeDiagnostic = process.stderr.write.bind(process.stderr);
 
 export function withLogContext<T>(fields: Record<string, unknown>, action: () => T): T {
   return context.run({ ...context.getStore(), ...fields }, action);
@@ -16,6 +18,7 @@ export function withLogContext<T>(fields: Record<string, unknown>, action: () =>
 export class RotatingLogStream extends Writable {
   private size = 0;
   private lastCleanup = 0;
+  private lastWarning = -Infinity;
   constructor(readonly file: string, readonly maxBytes = 10 * 1024 * 1024,
               readonly backupCount = 30) {
     super();
@@ -37,19 +40,29 @@ export class RotatingLogStream extends Writable {
       this.size += chunk.length;
       if (Date.now() - this.lastCleanup > 3600000) {
         this.lastCleanup = Date.now();
-        const dir = join(this.file, "..");
+        const dir = dirname(this.file);
         for (const name of readdirSync(dir)) {
-          if (!/^acp-proxy-.+\.log(?:\.\d+)?$/.test(name)) continue;
+          if (!/^acp-proxy-.+\.log(?:\.\d+)?$/.test(name) || name.startsWith("acp-proxy-launch")) continue;
           const target = join(dir, name);
           if (target === this.file) continue;
           try {
+            const active = /-(\d+)-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.log$/.exec(name);
+            if (active) {
+              try { process.kill(Number(active[1]), 0); continue; }
+              catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") continue; }
+            }
             if (Date.now() - statSync(target).mtimeMs > 7 * 86400000) unlinkSync(target);
           } catch { /* Concurrent cleanup may already have removed it. */ }
         }
       }
       callback();
     } catch (error) {
-      callback(error as Error);
+      if (Date.now() - this.lastWarning >= 60_000) {
+        this.lastWarning = Date.now();
+        writeDiagnostic(`ACP proxy log write failed [pid=${process.pid} file=${this.file}]: ${(error as Error).message}\n`);
+      }
+      // Keep the stream usable so the next record can retry after an I/O failure.
+      callback();
     }
   }
 }
@@ -67,49 +80,41 @@ export interface LoggerConfig {
   logDir?: string;
 }
 
+export function proxyLogDirectory(explicitDir?: string): string {
+  return explicitDir || process.env.SIADA_PROXY_LOG_DIR ||
+    join(process.env.SIADA_CLI_LOG_DIR || join(homedir(), ".siada-cli", "logs"), "proxy");
+}
+
+export function captureManagedOutput(target: pino.Logger): () => void {
+  const stdoutWrite = process.stdout.write;
+  const stderrWrite = process.stderr.write;
+  const output = (source: "stdout" | "stderr") => new Writable({
+    write(chunk, _encoding, callback) {
+      target[source === "stderr" ? "warn" : "info"]({
+        source, output: chunk.toString().slice(0, 8192),
+      }, `Proxy ${source}`);
+      callback();
+    },
+  });
+  const stdout = output("stdout");
+  const stderr = output("stderr");
+  process.stdout.write = stdout.write.bind(stdout) as typeof process.stdout.write;
+  process.stderr.write = stderr.write.bind(stderr) as typeof process.stderr.write;
+  return () => {
+    process.stdout.write = stdoutWrite;
+    process.stderr.write = stderrWrite;
+    stdout.end();
+    stderr.end();
+  };
+}
+
 export function initLogger(config: LoggerConfig): pino.Logger {
   const { debug, logDir } = config;
-
-  if (debug) {
-    // Ensure log directory exists
-    const dir = logDir || join(process.cwd(), ".acp-proxy");
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-
-    // Format: acp-proxy-2026-01-24_22-30-45.log
-    const now = new Date();
-    const timestamp = now.toISOString()
-      .replace(/T/, '_')
-      .replace(/:/g, '-')
-      .replace(/\..+/, '');
-    const logFile = join(dir, `acp-proxy-${timestamp}-${process.pid}-${instanceId}.log`);
-    const stream = new RotatingLogStream(logFile);
-    stream.on("error", error => console.error("ACP proxy log write failed:", error.message));
-
-    // Create logger with file transport for debug mode
-    logger = pino(
-      {
-        ...loggerOptions,
-        level: "debug",
-      },
-      stream
-    );
-
-    // Also log to console in debug mode
-    console.log(`📝 Debug logging enabled: ${logFile}`);
-  } else {
-    // Normal mode: info level to stdout
-    logger = pino({
-      level: "info",
-      ...loggerOptions,
-      transport: {
-        target: "pino/file",
-        options: { destination: 1 }, // stdout
-      },
-    });
-  }
-
+  const dir = proxyLogDirectory(logDir);
+  mkdirSync(dir, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/T/, "_").replace(/:/g, "-").replace(/\..+/, "");
+  const logFile = join(dir, `acp-proxy-${timestamp}-${process.pid}-${randomUUID()}.log`);
+  logger = pino({ ...loggerOptions, level: debug ? "debug" : "info" }, new RotatingLogStream(logFile));
   return logger;
 }
 

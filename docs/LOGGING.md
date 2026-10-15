@@ -16,8 +16,9 @@ not change JSON-RPC request IDs or model inputs.
 | Log | Default location | Rotation |
 | --- | --- | --- |
 | CLI | `~/.siada-cli/logs/siada_cli.log` | macOS/Linux: midnight or 10 MiB, 30 backups; Windows: 10 MiB, 30 backups |
-| UI | `~/.siada-cli/ui-logs/siada-ui.log` | 10 MiB, at most 30 backups, backups older than 7 days removed |
-| Chrome ACP proxy, debug mode | Configured log directory, otherwise `.acp-proxy/` in the proxy's working directory | A unique file per process, 10 MiB, 30 backups per process; files older than 7 days removed |
+| UI | `~/.siada-cli/logs/ui/siada-ui.log` | 10 MiB, at most 30 backups, backups older than 7 days removed |
+| Chrome ACP proxy, INFO and DEBUG | `~/.siada-cli/logs/proxy/acp-proxy-<time>-<pid>-<uuid>.log` | 10 MiB, 30 backups per process; files older than 7 days removed, live process logs protected |
+| Proxy bootstrap diagnostics | `~/.siada-cli/logs/proxy/acp-proxy-launch.log` | Checked on each launch: 10 MiB, 3 backups |
 
 CLI rotation uses process-shared locks and reopens the current file after another
 writer rotates it. UI writers open the current path for each append and give
@@ -28,15 +29,29 @@ UI rotation does not use a cross-process lock, so multiple UI writers can exceed
 the size threshold or create extra backups around a simultaneous rollover.
 Unique backup paths prevent processes from overwriting each other's archives.
 
-Set `SIADA_CLI_LOG_DIR` to override the CLI directory or `SIADA_UI_LOG_DIR` to
-override the UI directory. The proxy continues to log INFO to stdout in normal
-mode; file logging is enabled by its debug option. `SIADA_DEBUG=true`, `1`, or
-`yes` enables CLI and UI DEBUG logs; `false` does not enable DEBUG.
+`SIADA_CLI_LOG_DIR` relocates the shared root, including its `ui/` and `proxy/`
+subdirectories. `SIADA_UI_LOG_DIR` and `SIADA_PROXY_LOG_DIR` override individual
+component directories. Launchers pass the resolved root to child processes,
+including when the CLI falls back to another writable directory.
+
+Normal mode writes INFO and higher levels. The proxy's `--debug` option adds
+DEBUG records. `SIADA_DEBUG=true`, `1`, or `yes` enables CLI and UI DEBUG logs;
+`false`, `0`, and `no` do not enable DEBUG. UI `--log-level debug` also works.
+When managed by Siada, proxy stdout/stderr after logger initialization use the
+rotating runtime log. Connection banners and QR codes are shown on foreground
+launches. The bootstrap file captures failures before initialization.
+Existing processes retain their old paths until restarted; existing archives
+are preserved.
 
 Per-key input diagnostics, per-chunk ACP parsing, session updates, lifecycle deltas, token/cache status,
-sub-agent content, stdin writes, and trajectory forwarding are DEBUG events.
+sub-agent content, stdin writes, partial JSON buffering, screen-clear traces,
+cache status, and trajectory forwarding are DEBUG events.
 Start, completion, state changes, warnings, and errors remain visible at INFO
 or above. DEBUG mode still produces many records during streaming.
+Persistent high-memory warnings are limited to one every five minutes per UI
+instance; memory checks still run every 30 seconds. Repeated missing-message
+content diagnostics are limited to one per minute.
+Backend stderr is recorded by the adapter; UI event listeners do not duplicate it.
 Rotation failures are reported to stderr at most once per minute per handler,
 so retries do not flood diagnostics or corrupt ACP stdout.
 

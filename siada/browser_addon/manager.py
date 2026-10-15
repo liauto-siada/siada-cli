@@ -22,6 +22,7 @@ port, so local setups need no certificate trust.
 from __future__ import annotations
 
 import json
+from logging.handlers import RotatingFileHandler
 import os
 import secrets
 import shlex
@@ -34,12 +35,13 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from siada.browser_addon import paths
 
 _START_TIMEOUT = 30.0  # first launch after install can take ~10s: macOS scans
                        # the freshly-extracted node_modules before loading it
+_LAUNCH_LOG_MAX_BYTES = 10 * 1024 * 1024
 
 # subprocess exposes the Windows creation flags only on Windows; fall back to
 # the documented Win32 values so this module imports (and is testable) on
@@ -226,6 +228,19 @@ def _proxy_argv(entry: Path, port: int, host: str, agent: str) -> list[str]:
     return argv
 
 
+def _open_launch_log() -> BinaryIO:
+    """Rotate bootstrap diagnostics between launches; Node owns runtime logs."""
+    path = paths.log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and path.stat().st_size >= _LAUNCH_LOG_MAX_BYTES:
+        handler = RotatingFileHandler(path, maxBytes=_LAUNCH_LOG_MAX_BYTES, backupCount=3, delay=True)
+        try:
+            handler.doRollover()
+        finally:
+            handler.close()
+    return path.open("ab")
+
+
 def start() -> str:
     """Idempotent start. Returns 'running' | 'started' | 'error: ...'."""
     if is_running():
@@ -253,6 +268,11 @@ def start() -> str:
     # "coder"; only its X-Siada-Event-Type analytics header is remapped
     # (CodeGenAgent -> BrowserCodeGenAgent) so browser traffic is separable.
     env["SIADA_BROWSER_LAUNCH"] = "1"
+    from siada.foundation.logging import get_log_directory
+
+    env["SIADA_CLI_LOG_DIR"] = get_log_directory()
+    env["SIADA_PROXY_LOG_DIR"] = str(paths.log_directory())
+    env["SIADA_PROXY_MANAGED"] = "1"
 
     # The proxy's cwd becomes the sidepanel's default workspace (file tree +
     # agent sessions). NEVER use $HOME: ~/Library contains TCC-protected
@@ -262,7 +282,7 @@ def start() -> str:
     os.makedirs(proxy_cwd, exist_ok=True)
 
     paths.browser_home().mkdir(parents=True, exist_ok=True)
-    log = open(paths.log_path(), "ab")
+    log = _open_launch_log()
     try:
         proc = subprocess.Popen(
             cmd, cwd=proxy_cwd, env=env,

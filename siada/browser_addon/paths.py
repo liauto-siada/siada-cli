@@ -1,11 +1,12 @@
 """Paths and runtime resolution for the chrome-acp browser addon.
 
-Everything lives under ``~/.siada-cli/browser/``:
+Addon files live under ``~/.siada-cli/browser/``:
 
     proxy/          chrome-acp proxy-server (dist + public + node_modules)
     extension/      unpacked MV3 extension (fixed path — Chrome pins it)
     state.json      {port, token}
-    acp-proxy.log   proxy stdout/stderr
+
+Logs are stored under the CLI log root in ``logs/proxy/``.
 
 Env overrides (mainly for tests): SIADA_BROWSER_HOME, SIADA_BROWSER_NODE,
 SIADA_BROWSER_PROXY_CMD.
@@ -45,8 +46,18 @@ def state_path() -> Path:
     return browser_home() / "state.json"
 
 
+def log_directory() -> Path:
+    override = os.environ.get("SIADA_PROXY_LOG_DIR")
+    if override:
+        return Path(override).expanduser()
+    from siada.foundation.logging import get_log_directory
+
+    return Path(get_log_directory()) / "proxy"
+
+
 def log_path() -> Path:
-    return browser_home() / "acp-proxy.log"
+    """Bootstrap diagnostics emitted before the Node logger is initialized."""
+    return log_directory() / "acp-proxy-launch.log"
 
 
 def node_binary() -> str:

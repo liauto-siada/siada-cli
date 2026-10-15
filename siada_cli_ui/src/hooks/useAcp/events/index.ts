@@ -203,7 +203,7 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
 
         acpClient.on('cacheStatus', (data: CacheStatusData) => {
           if (mounted) {
-            logger.info('[CacheStatus] received', {
+            logger.debug('[CacheStatus] received', {
               component: 'useClientEvents',
               totalCost: data.accumulated_total_cost,
               timeSeconds: data.cost_time_seconds,
@@ -343,10 +343,6 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
               author: 'System',
             }]);
           }
-        });
-
-        acpClient.on('stderr', (message: string) => {
-          if (mounted) logger.warn('stderr', { preview: message.substring(0, 200) });
         });
 
         // Fatal startup error from backend (e.g. invalid model name in config).

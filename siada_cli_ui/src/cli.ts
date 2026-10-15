@@ -17,7 +17,7 @@ import { render } from '@jrichman/ink';
 import React from 'react';
 import { App } from './components/App.js';
 import { configManager } from './utils/config.js';
-import { logger, LogLevel } from './utils/logger.js';
+import { logger, LogLevel, resolveLogLevel } from './utils/logger.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -47,18 +47,9 @@ function readVersion(): string {
 }
 
 function configureLogger(options: any): void {
-  if (options.debug || process.env.SIADA_DEBUG) {
-    process.env.SIADA_DEBUG = '1';
-    logger.setLevel(LogLevel.DEBUG);
-    return;
-  }
-  const levelMap: Record<string, LogLevel> = {
-    debug: LogLevel.DEBUG,
-    info: LogLevel.INFO,
-    warn: LogLevel.WARN,
-    error: LogLevel.ERROR,
-  };
-  logger.setLevel(levelMap[options.logLevel] || LogLevel.INFO);
+  const level = resolveLogLevel(options);
+  if (level === LogLevel.DEBUG) process.env.SIADA_DEBUG = '1';
+  logger.setLevel(level);
 }
 
 function parseSiadaArgs(raw: string): string[] | undefined {

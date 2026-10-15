@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -14,6 +15,8 @@ from siada.browser_addon import cli, installer, manager, paths
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("SIADA_BROWSER_HOME", str(tmp_path))
+    monkeypatch.setenv("SIADA_CLI_LOG_DIR", str(tmp_path / "logs"))
+    monkeypatch.delenv("SIADA_PROXY_LOG_DIR", raising=False)
     return tmp_path
 
 
@@ -241,7 +244,7 @@ class TestManager:
         (paths.proxy_dir() / "dist" / "cli").mkdir(parents=True)
         (paths.proxy_dir() / "dist" / "cli" / "bin.js").write_text("// stub")
         monkeypatch.setattr(paths, "node_binary", lambda: "node")
-        captured: dict[str, list[str]] = {}
+        captured: dict[str, Any] = {}
 
         class FakeProc:
             pid = 4242
@@ -251,6 +254,7 @@ class TestManager:
 
         def fake_popen(cmd, **kwargs):
             captured["cmd"] = cmd
+            captured["env"] = kwargs["env"]
             return FakeProc()
 
         monkeypatch.setattr(manager.subprocess, "Popen", fake_popen)
@@ -265,6 +269,9 @@ class TestManager:
         argv = captured["cmd"]
         assert argv[argv.index("--host") + 1] == "0.0.0.0"
         assert "--https" in argv
+        assert captured["env"]["SIADA_CLI_LOG_DIR"] == str(home / "logs")
+        assert captured["env"]["SIADA_PROXY_LOG_DIR"] == str(home / "logs" / "proxy")
+        assert captured["env"]["SIADA_PROXY_MANAGED"] == "1"
 
 
 class TestProxySpawn:
@@ -292,6 +299,21 @@ class TestProxySpawn:
         )
         assert argv[argv.index("--host") + 1] == "0.0.0.0"
         assert "--https" in argv
+
+
+class TestLogLocations:
+    def test_default_uses_shared_root_and_honors_proxy_override(self, home, monkeypatch):
+        assert paths.log_path() == home / "logs" / "proxy" / "acp-proxy-launch.log"
+        monkeypatch.setenv("SIADA_PROXY_LOG_DIR", str(home / "custom"))
+        assert paths.log_path() == home / "custom" / "acp-proxy-launch.log"
+
+    def test_bootstrap_log_is_bounded_between_launches(self, home, monkeypatch):
+        monkeypatch.setattr(manager, "_LAUNCH_LOG_MAX_BYTES", 32)
+        for _ in range(6):
+            with manager._open_launch_log() as output:
+                output.write(b"x" * 32)
+        assert paths.log_path().stat().st_size == 32
+        assert len(list(paths.log_directory().glob("acp-proxy-launch.log*"))) == 4
 
 
 class TestHealthProbe:

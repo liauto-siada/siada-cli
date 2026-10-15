@@ -11,7 +11,7 @@
  * Enable:  set SIADA_DEBUG=1 (siada debug mode), or SIADA_FLICKER_MONITOR=1
  * Default: disabled (to avoid impacting normal users)
  *
- * All events are written to the existing logger (~/​.siada-cli/​ui-logs/​siada-ui.log).
+ * All events are written to the existing logger (~/.siada-cli/logs/ui/siada-ui.log).
  * Rapid-clear alerts are additionally printed to stderr (visible in the
  * terminal's scrollback) so they can be spotted during live usage.
  */
@@ -151,7 +151,7 @@ export function recordFlicker(
   }
 
   // Log individual event
-  logger.info('Screen clear event recorded', {
+  logger.debug('Screen clear event recorded', {
     component: 'FlickerMonitor',
     operation: 'clear_event',
     source,
