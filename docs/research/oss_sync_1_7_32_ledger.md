@@ -22,7 +22,7 @@ Porting conventions:
 | Source | Destination | Approach | Notes |
 | --- | --- | --- | --- |
 | ff5ed450 | 6baf1200 | port | baseline effective-context sync |
-| a962c2ad | 27093e04 | adapted | public pricing/SDK adaptations |
+| 27093e04 | a962c2ad | already adapted | public pricing/SDK adaptations; not repeated in this sync |
 | 153c415d | fd914ffd | cherry-pick | |
 | 5336ac43 | — | skipped | internal auth-only change |
 | 64c0537f | a4b2ac6c | cherry-pick | lockfile hash corrected for public registry |
@@ -74,6 +74,11 @@ Porting conventions:
   completed successfully.
 - Node packaging validation (`chrome-acp/scripts/package-browser.test.mjs`):
   2 passed.
+- Public startup, launcher isolation, SDK bootstrap and provider contracts:
+  119 passed with an ambient `SIADA_BROWSER_NODE` override. The launcher
+  fixture now isolates the dedicated browser home as well as `Path.home()`.
+  Provider routing documentation was checked against the shipped `default`
+  implementation; unsupported provider rows and missing source links were removed.
 - Full `tests/` sweep: 4073 passed / 59 failing at the synced HEAD versus
   3813 passed / 74 failing at the pre-sync branch point. Every failing
   test id at the synced HEAD also fails at the pre-sync point, and twelve

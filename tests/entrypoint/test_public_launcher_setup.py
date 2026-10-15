@@ -74,6 +74,9 @@ def isolated_home(tmp_path, monkeypatch):
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("NVM_DIR", raising=False)
+    # SIADA_HOME can be captured before this fixture redirects Path.home().
+    monkeypatch.setenv("SIADA_BROWSER_HOME", str(home / ".siada-cli" / "browser"))
+    monkeypatch.delenv("SIADA_BROWSER_NODE", raising=False)
     # Keep the debug branches of ``_build_ui_command`` out of the way.
     monkeypatch.delenv("DEBUGPY_LAUNCHER_PORT", raising=False)
     monkeypatch.delenv("PYDEVD_LOAD_VALUES_ASYNC", raising=False)
