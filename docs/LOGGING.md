@@ -60,3 +60,27 @@ Markdown header and gives the analysis a new request identifier. When an old
 export lacks that header, its session identifier is `-`. Custom integrations
 that invoke the agents SDK directly without Siada's logging runner need to
 provide their own log scope.
+
+Each `run_subtask` execution writes its transcript and accounting to
+`~/.siada-cli/data/tmp/<project-hash>/sessions/<root-session-id>/subagents/<agent-id>.log`.
+This includes normal, named, forked, background and recursive sub-agents with
+an active root session, even when SDK tracing or recursion is disabled.
+Each completed model request records its sequence number, effective model,
+input/output/cache-read/cache-write/total tokens, estimated cost in CNY, and
+`Duration` in seconds. Token counts follow Siada's normalized provider usage.
+Request duration covers the model call, including transport retries and backoff;
+tool execution between requests is excluded. Continuation requests after an
+empty reasoning-only response are recorded separately.
+`SDK Reported Requests` preserves the request count returned by the SDK, which
+can include multiple retry attempts in one model call. Explicit cache-write
+tokens take precedence when positive; otherwise the existing inference applies.
+
+The final `SUB-AGENT USAGE SUMMARY` includes cumulative tokens, known cost,
+summed model request duration, and elapsed sub-agent duration (including tools).
+Missing usage, unconfigured pricing and interrupted requests report unavailable
+cost, with a count in the summary. Costs use the existing model pricing settings
+and are estimates, not provider invoices. Failed transport attempts without
+returned usage cannot be included in the estimated cost.
+Files retain full dates in timestamps and stay at the same path across midnight.
+The shared daily subtask trace remains
+available; existing log files are not backfilled.

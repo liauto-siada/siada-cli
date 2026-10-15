@@ -70,6 +70,7 @@ from siada.tools.agent.sub_agent_notifier import (
     start_sub_agent,
 )
 from siada.tools.agent.sub_agent_reasoning_stream import SubAgentReasoningStream
+from siada.tools.agent.sub_agent_usage import SubAgentUsageHooks
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 from siada.tools.coder.apply_patch_presentation import (
     is_apply_patch_call,
@@ -405,7 +406,7 @@ async def run_subtask_impl(
     # chat-completions model (its tool conversion rejects hosted tools).
     sub_model_name = getattr(run_config, "model", None)
     if not isinstance(sub_model_name, str) or not sub_model_name:
-        sub_model_name = model_name
+        sub_model_name = getattr(sub_model_name, "model", None) or model_name
 
     # ---- Fork alignment: tools / instructions / seeded history ----
     #
@@ -446,9 +447,7 @@ async def run_subtask_impl(
 
     sa_item = start_sub_agent(agent_context, instruction)
 
-    # ---- Recursive-mode extras: nesting depth for the spawned agent's own
-    # tool set, and on-disk persistence (both are pure additions, gated on
-    # allow_recursive_subagents so the non-recursive path is untouched). ----
+    # Recursion controls the spawned agent's tool set, not transcript logging.
     recursive_enabled = bool(agent_context and agent_context.allow_recursive_subagents)
     include_run_subtask = recursive_enabled and child_depth < MAX_NESTING_DEPTH
 
@@ -482,22 +481,35 @@ async def run_subtask_impl(
             len(agent_definition.mcp_servers),
         )
 
-    persist = (
-        recursive_enabled
-        and agent_context is not None
-        and agent_context.root_dir
-        and agent_context.root_session_id
+    persist = bool(
+        agent_context is not None
+        and isinstance(agent_context.root_dir, str) and agent_context.root_dir
+        and isinstance(agent_context.root_session_id, str) and agent_context.root_session_id
     )
     if persist:
-        subagent_persistence.record_start(
-            agent_context.root_dir,
-            agent_context.root_session_id,
-            agent_id=sa_item.id,
-            parent_id=agent_context.subagent_self_id,
-            depth=child_depth,
-            title=sa_item.title,
-            instruction=instruction,
-        )
+        try:
+            subagent_persistence.record_start(
+                agent_context.root_dir,
+                agent_context.root_session_id,
+                agent_id=sa_item.id,
+                parent_id=agent_context.subagent_self_id,
+                depth=child_depth,
+                title=sa_item.title,
+                instruction=instruction,
+            )
+        except OSError:
+            logging.warning("[run_subtask] Failed to initialize sub-agent log", exc_info=True)
+            persist = False
+
+    def append_usage(kind: str, text: str) -> None:
+        if persist:
+            subagent_persistence.append_log(
+                agent_context.root_dir, agent_context.root_session_id,
+                sa_item.id, kind, text,
+            )
+
+    usage_hooks = SubAgentUsageHooks(sub_model_name or "unknown", append_usage)
+    run_status = "failed"
 
     # Wrap execution in a dedicated trace so sub-agent spans are recorded under
     # a "SubTaskAgent" trace (distinct from the parent agent's "Agent workflow"
@@ -507,13 +519,13 @@ async def run_subtask_impl(
         workflow_name="SubTaskAgent",
         disabled=run_config.tracing_disabled,
     ):
+        mcp_stack = AsyncExitStack()
         try:
             # Connect the definition's MCP servers for the duration of this run:
             # servers the global MCP manager already connected are reused as-is,
             # servers only configured (or defined inline) in the definition are
             # created, connected here, and cleaned up on the way out. The stack
             # stays empty — and both calls are no-ops — without a definition.
-            mcp_stack = AsyncExitStack()
             definition_mcp_servers = (
                 await mcp_stack.enter_async_context(
                     open_agent_mcp_servers(agent_definition)
@@ -541,6 +553,7 @@ async def run_subtask_impl(
                     agent_context, depth=child_depth, self_id=sa_item.id
                 ),
                 run_config=run_config,
+                hooks=usage_hooks,
                 max_turns=settings.MAX_TURNS,
                 session=in_memory_session,
             )
@@ -640,7 +653,8 @@ async def run_subtask_impl(
                                 agent_context.root_dir, agent_context.root_session_id,
                                 sa_item.id, "thinking", thinking_text,
                             )
-        except Exception as e:
+            run_status = "completed"
+        except BaseException as e:
             finish_sub_agent(agent_context, sa_item.id, "failed", str(e))
             if persist:
                 subagent_persistence.record_finish(
@@ -649,6 +663,7 @@ async def run_subtask_impl(
                 )
             raise
         finally:
+            usage_hooks.finish(run_status)
             # Closes the definition's MCP servers (no-op when the stack is
             # empty). Runs on success, failure, and cancellation alike.
             await mcp_stack.aclose()

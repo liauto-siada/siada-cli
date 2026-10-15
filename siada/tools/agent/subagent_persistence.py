@@ -1,10 +1,8 @@
 """
-On-disk persistence for recursive sub-agent conversations.
+On-disk persistence for sub-agent conversations and request accounting.
 
-Gated entirely behind ``sub_agent.allow_recursive_subagents`` (conf.yaml,
-default False) — callers only invoke this module when that switch is on;
-when it's off, sub-agent runs are not persisted here at all (matching the
-pre-existing, unpersisted behaviour exactly).
+Every run_subtask execution with a project root and root session ID uses
+this storage, independently of recursion and SDK tracing settings.
 
 Storage layout, alongside the main agent's own session directory so it's
 easy for a user to find (``DirectoryUtils.get_global_sessions_dir``):
@@ -18,7 +16,7 @@ still ``status == "running"`` when the main agent process last touched it
 means that agent's work was interrupted (main agent crashed/was killed) and
 its progress needs to be surfaced back to the user (see ``scan_unfinished``).
 
-The ``.log`` files reuse the same three message kinds already pushed to the
+The ``.log`` files reuse the same message kinds already pushed to the
 ACP sub-agent detail view (``tool_call`` / ``tool_output`` / ``thinking`` /
 ``message``), formatted the same readable way as the existing
 ``LoggerTracingProcessor`` trace logs, so a user opening one of these files
@@ -166,6 +164,8 @@ def append_log(
     """Append one readable transcript entry to ``<agent_id>.log``."""
     log_path = _log_path(subagents_dir(root_dir, root_session_id), agent_id)
     label = {
+        "request_usage": "📊 MODEL REQUEST USAGE",
+        "usage_summary": "📊 SUB-AGENT USAGE SUMMARY",
         "tool_call": f"🔧 TOOL CALL{f' [{tool_name}]' if tool_name else ''}",
         "tool_output": "📤 TOOL OUTPUT",
         "thinking": "💭 THINKING",
