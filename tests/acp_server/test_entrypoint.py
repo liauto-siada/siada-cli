@@ -40,6 +40,7 @@ def test_module_entrypoint_serves_official_initialize_and_exits_on_eof(tmp_path)
                 "agentCapabilities": {
                     "loadSession": True,
                     "sessionCapabilities": {"list": {}, "resume": {}},
+                    "_meta": {"siada": {"steering": True}},
                 },
                 "agentInfo": {"name": "siada", "title": "Siada", "version": siada.__version__},
             },

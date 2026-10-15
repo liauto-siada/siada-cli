@@ -1,7 +1,7 @@
 """Browser context and learned hints stay outside literal user input."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from agents import AgentHooks, RunConfig
 from agents.testing import ScriptedModel
@@ -101,7 +101,23 @@ async def test_separate_items_reach_real_sdk_and_file_history(monkeypatch, tmp_p
     )
     monkeypatch.setattr(agent, "_attach_plugin_guardrails", lambda starting_agent: starting_agent)
     monkeypatch.setattr("siada.agent_hub.siada_agent.SiadaRunHooks", lambda: None)
-    context = CodeAgentContext(root_dir=str(tmp_path), interactive_mode=False)
+    # The authoritative input filter reads the session's compaction settings;
+    # disable auto-compact so this offline fixture keeps its raw three items.
+    from siada.session.session_models import RunningSession
+
+    fixture_session = MagicMock(spec=RunningSession)
+    fixture_session.siada_config = SimpleNamespace(auto_compact=False)
+    fixture_session.session_id = session.session_id
+    fixture_session.openai_session = session.openai_session
+    fixture_session.checkpoint_tracker = None
+    fixture_session.state = SimpleNamespace(
+        openai_session=session.openai_session,
+        usage=None,
+        task_message_state=SimpleNamespace(reset_message_history=lambda items: None),
+    )
+    context = CodeAgentContext(
+        root_dir=str(tmp_path), interactive_mode=False, session=fixture_session,
+    )
 
     async def run_agent(**kwargs):
         return await agent.run_streamed(
