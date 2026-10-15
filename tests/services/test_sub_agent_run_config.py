@@ -7,6 +7,7 @@ provider this spawn would use anyway, and degrade to the configured model
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -33,10 +34,20 @@ def _llm_config(
 
 def _context(llm_config) -> CodeAgentContext:
     session = MagicMock(spec=RunningSession)
+    session.session_id = "sub-agent-config-test"
     session.siada_config = MagicMock()
     session.siada_config.llm_config = llm_config
     session.siada_config.tracing_disabled = True
     return CodeAgentContext(root_dir="/tmp", session=session)
+
+
+@pytest.fixture(autouse=True)
+def isolated_providers(monkeypatch):
+    # Keep routing assertions independent of credentials and provider imports.
+    providers = {"alternate": MagicMock(), "default": MagicMock()}
+    monkeypatch.setattr(provider_factory, "provider_map", providers)
+    monkeypatch.setattr(provider_factory, "_providers_discovered", True)
+    return providers
 
 
 def _build(llm_config, model=None, effort=None):
@@ -184,3 +195,38 @@ async def test_run_subtask_returns_hello_with_model_only_override(monkeypatch):
     run_config = run_streamed.call_args.kwargs["run_config"]
     assert run_config.model == "gpt-6-luna"
     assert run_config.model_provider.base_provider is provider
+
+
+class TestSubAgentProviderInheritance:
+    @pytest.mark.parametrize("provider", [None, ""])
+    def test_model_only_override_inherits_parent_provider(
+        self, provider, isolated_providers
+    ):
+        parent = _llm_config(provider="default")
+        context = _context(parent)
+        conf = SimpleNamespace(
+            sub_agent_config=SubAgentConfig(
+                llm_config=LLMConfig(model="gpt-6-luna", provider=provider)
+            )
+        )
+        with patch("siada.config.config_loader.load_conf", return_value=conf):
+            effective = resolve_sub_agent_llm_config(context)
+            run_config = build_sub_agent_run_config(context)
+
+        assert effective.provider == "default"
+        assert run_config.model == "gpt-6-luna"
+        assert run_config.model_provider.base_provider is isolated_providers["default"]
+        assert parent.model_name == "claude-sonnet-5"
+        assert parent.provider == "default"
+
+    def test_explicit_sub_agent_provider_is_preserved(self, isolated_providers):
+        context = _context(_llm_config(provider="default"))
+        conf = SimpleNamespace(
+            sub_agent_config=SubAgentConfig(
+                llm_config=LLMConfig(model="gpt-6-luna", provider="alternate")
+            )
+        )
+        with patch("siada.config.config_loader.load_conf", return_value=conf):
+            run_config = build_sub_agent_run_config(context)
+
+        assert run_config.model_provider.base_provider is isolated_providers["alternate"]

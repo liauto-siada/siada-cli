@@ -72,10 +72,17 @@ def get_provider(p_type: provider_type | None = None):
         ValueError: If the provider name is not supported.
     """
     _discover_providers()  # lazy init — first call imports agents SDK
-    if p_type and p_type in provider_map:
-        return provider_map[p_type]
+    if not provider_map:
+        raise ValueError("No model providers found or registered.")
+    if p_type is None:
+        return next(iter(provider_map.values()))
+    if p_type not in provider_map:
+        available = ", ".join(sorted(provider_map))
+        raise ValueError(
+            f"Unsupported model provider '{p_type}'. Available providers: {available}."
+        )
 
-    raise ValueError("No model providers found or registered.")
+    return provider_map[p_type]
 
 
 async def aclose_providers() -> None:

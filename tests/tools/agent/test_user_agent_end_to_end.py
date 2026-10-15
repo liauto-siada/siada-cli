@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import AsyncIterator
 from unittest.mock import MagicMock, patch
 
-from agents import RunConfig, function_tool
+from agents import ModelProvider, RunConfig, function_tool
 from agents.items import ModelResponse, TResponseStreamEvent
 from agents.models.interface import Model
 from openai.types.responses import (
@@ -41,8 +41,10 @@ from openai.types.responses import (
     ResponseOutputText,
 )
 
+from siada.config.config_loader import Config, LLMConfig, SubAgentConfig
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.models.model_run_config import ModelRunConfig
+from siada.provider import provider_factory
 from siada.services.agents import get_agent_definition
 from siada.services.sub_agent_run_config import build_sub_agent_run_config
 from siada.session.session_models import RunningSession
@@ -241,6 +243,38 @@ class _UserAgentE2ETestCase(unittest.IsolatedAsyncioTestCase):
 
 
 class TestUserAgentEndToEnd(_UserAgentE2ETestCase):
+    async def test_model_only_sub_agent_config_runs_with_parent_provider(self):
+        """Exercise real config resolution, provider lookup and streaming runner."""
+        remote_patch = patch.dict("os.environ", {"SIADA_REMOTE_MODEL_CONFIG": "0"})
+        remote_patch.start()
+        self.addCleanup(remote_patch.stop)
+        context = self._make_context()
+        model = ScriptedStreamingModel([[_text_message("SUB-AGENT-PROVIDER-OK")]])
+        provider = MagicMock(spec=ModelProvider)
+        provider.get_model.return_value = model
+        conf = Config(
+            sub_agent_config=SubAgentConfig(
+                llm_config=LLMConfig(model="gpt-6-luna")
+            )
+        )
+        with (
+            patch("siada.config.config_loader.load_conf", return_value=conf),
+            patch.object(provider_factory, "_providers_discovered", True),
+            patch.object(
+                provider_factory, "provider_map",
+                {"alternate": MagicMock(spec=ModelProvider), "default": provider},
+            ),
+        ):
+            summary = await run_subtask_impl(
+                instruction="Return the verification marker.",
+                agent_context=context,
+            )
+
+        self.assertEqual(summary, "SUB-AGENT-PROVIDER-OK")
+        provider.get_model.assert_called_once_with("gpt-6-luna")
+        self.assertEqual(context.sub_agent_items[0].status, "completed")
+        self.assertEqual(context.session.siada_config.llm_config.provider, "default")
+
     async def test_definition_driven_agent_runs_end_to_end(self):
         self._write_reviewer_agent()
         definition = get_agent_definition(self.workspace, "reviewer")

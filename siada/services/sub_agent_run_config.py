@@ -29,6 +29,9 @@ def resolve_sub_agent_llm_config(context: CodeAgentContext):
          the parent's model)
       2. The parent agent's session llm_config (original behaviour)
 
+    A model-only override inherits the parent's provider so it keeps using the
+    same gateway. An explicitly configured sub-agent provider takes precedence.
+
     Extracted from ``build_sub_agent_run_config`` so other call sites that must
     know the sub-agent's model *before* the run starts (e.g. adapting forked
     tool lists) resolve it exactly the same way.

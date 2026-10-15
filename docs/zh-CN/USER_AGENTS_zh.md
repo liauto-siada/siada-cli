@@ -213,6 +213,7 @@ model: gpt-6-luna
 - 取值需要是模型目录里的模型名（即 `/model` 里可选的模型）。
 - 它优先于 `conf.yaml` 中配置的子 Agent 模型（`sub_agent.llm_config.model`）；不写该字段时按上述配置解析——都没有配置时使用父会话自身的模型。
 - provider 始终沿用这次 spawn 本来会用的那个（`conf.yaml` 里设了 `sub_agent.llm_config.provider` 就用它，否则用父级的），因此换模型不会换网关。
+  只覆盖子 Agent 模型时，`provider` 可以省略或留空，两种情况都会继承父会话的 provider。
 - `inherit`（Claude Code 的"与主 Agent 使用相同模型"）等同于"未配置"：按上面的默认解析生效。
 - 未知的模型名（拼写错误、或已更名的旧名）会被忽略并在日志中打 warning；本次运行继续使用已配置的子 Agent 模型。
 - [`effort`](#effort) 会按这个模型的可用档位做映射。

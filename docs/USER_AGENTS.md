@@ -263,6 +263,8 @@ model: gpt-6-luna
 - The provider stays the one the spawn would have used anyway (the
   `sub_agent.llm_config.provider` from `conf.yaml` when set, the parent's
   provider otherwise), so switching the model never switches the gateway.
+  A model-only override may omit `provider` or leave it empty; both inherit
+  the parent session's provider.
 - `inherit` (Claude Code's "same model as the main agent") means "not
   configured": the default resolution above applies.
 - An unknown model name (typo, or a model renamed since) is ignored with a
