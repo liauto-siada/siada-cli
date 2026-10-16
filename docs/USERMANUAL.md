@@ -329,6 +329,10 @@ siada-cli --agent coder --model claude-sonnet-4.5 --prompt "Create a REST API en
 - Real-time interaction: Supports slash commands, editor mode, and other advanced features
 - Use cases: Exploratory programming, complex tasks, development work requiring multiple rounds of dialogue
 
+With saved API-key configuration, the input interface can become ready while
+model libraries finish initializing in the background. A message sent immediately
+after startup may briefly wait for that initialization.
+
 **Usage:**
 ```bash
 # Start directly (defaults to interactive mode)

@@ -213,10 +213,11 @@ def get_io(args, pretty=None):
 
 def set_env(args, io):
     """Apply --set-env assignments to os.environ. Returns 0 on success, 1 on error."""
-    from siada.entrypoint.launch_ui_with_acp import _parse_env_assignments
+    # The launcher has ACP bootstrap side effects; parsing must not import it.
+    from siada.entrypoint.env_assignments import parse_env_assignments
 
     try:
-        assignments = _parse_env_assignments(args)
+        assignments = parse_env_assignments(args)
     except ValueError:
         io.print_error("Invalid --set-env format. Use ENV_VAR_NAME=value.")
         return 1

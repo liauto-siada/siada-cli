@@ -51,6 +51,7 @@ if "--acp" in sys.argv:
 
 
 from siada.foundation.logging import logger, remove_console_handler, get_log_directory  # noqa: E402
+from siada.entrypoint.env_assignments import parse_env_assignments as _parse_env_assignments  # noqa: E402
 
 
 
@@ -470,19 +471,6 @@ def _resolve_workspace() -> tuple:
     git_root = _fast_git_root(temp_args.workspace)
     workspace = temp_args.workspace or git_root or os.getcwd()
     return workspace, git_root
-
-
-def _parse_env_assignments(args) -> Dict[str, str]:
-    """Validate CLI environment assignments without exposing their values."""
-    overrides = {}
-    for setting in getattr(args, "set_env", None) or []:
-        if not isinstance(setting, str):
-            raise ValueError("Invalid --set-env format. Use ENV_VAR_NAME=value.")
-        name, separator, value = setting.partition("=")
-        if not separator or not name.strip() or "\0" in setting:
-            raise ValueError("Invalid --set-env format. Use ENV_VAR_NAME=value.")
-        overrides[name.strip()] = value.strip()
-    return overrides
 
 
 def _parse_args(git_root):
