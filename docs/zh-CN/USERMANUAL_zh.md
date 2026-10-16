@@ -383,6 +383,9 @@ siada-cli --agent coder --model claude-sonnet-4.5 --prompt "创建一个 REST AP
 已有 API Key 配置时，输入界面可以在模型库仍于后台初始化时就绪。
 启动后立即发送的第一条消息可能短暂等待初始化完成。
 
+按 **Ctrl+O** 切换工具输出的紧凑视图和展开视图。所有模式的标题栏只显示 Agent
+和 Model，不显示 Provider。导出会话中的标题栏也显示相同字段。
+
 **使用方法：**
 ```bash
 # 直接启动（默认为交互模式）

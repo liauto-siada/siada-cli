@@ -25,7 +25,6 @@ export const Banner: React.FC<BannerProps> = ({
   version,
   workingDir,
   agent = 'coder',
-  provider = 'default',
   model,
   isCollapsed = false,
   showAgentInfo = true,
@@ -159,7 +158,7 @@ export const Banner: React.FC<BannerProps> = ({
         'working-dir'
       )}
 
-      {/* Agent, Provider, Model info */}
+      {/* Agent and model info */}
       {showAgentInfo && renderContentLine(
         (() => {
           type Segment = { text: string; color?: string };
@@ -167,8 +166,6 @@ export const Banner: React.FC<BannerProps> = ({
           const segments: Segment[] = [
             { text: 'Agent: ' },
             { text: agent, color: 'yellow' },
-            { text: ', Provider: ' },
-            { text: provider, color: 'yellow' },
             { text: ', Model: ' },
             { text: model || 'default', color: 'yellow' },
           ];

@@ -674,7 +674,7 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
   if (noStatic) {
     return (
       <Box ref={scrollRef} flexDirection="column" padding={0}>
-        {headerProps && <Banner {...headerProps} />}
+        {headerProps && <Banner {...headerProps} isCollapsed={isCollapsed} />}
         {staticGroups.map((group, idx) => renderGroup(group, idx, false))}
         {pendingGroups.map((group, idx) =>
           renderGroup(group, staticGroups.length + idx, false)
@@ -697,7 +697,7 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
         {(item, index) => {
           // First item is always the header sentinel — render banner if headerProps present, else skip
           if (index === 0 && 'type' in item && item.type === 'header') {
-            if (headerProps) return <Banner key="header" {...headerProps} />;
+            if (headerProps) return <Banner key="header" {...headerProps} isCollapsed={isCollapsed} />;
             return <React.Fragment key="no-header" />;
           }
           // Other items are message groups

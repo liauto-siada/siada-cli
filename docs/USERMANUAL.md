@@ -405,6 +405,10 @@ With saved API-key configuration, the input interface can become ready while
 model libraries finish initializing in the background. A message sent immediately
 after startup may briefly wait for that initialization.
 
+Press **Ctrl+O** to switch between compact and expanded tool views. The compact
+and expanded banners both show the agent and model without the provider.
+Conversation exports use the same banner fields.
+
 **Usage:**
 ```bash
 # Start directly (defaults to interactive mode)

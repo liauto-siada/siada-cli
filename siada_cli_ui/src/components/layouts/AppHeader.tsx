@@ -23,7 +23,6 @@ export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
   version = '0.0.0',
   workingDir,
   agent = 'coder',
-  provider = 'default',
   model,
   isCollapsed = false,
 }) => {
@@ -84,12 +83,10 @@ export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
         <Text color="blue">{workingDir}</Text>
       </Box>
 
-      {/* Agent, Provider, Model info */}
+      {/* Agent and model info */}
       <Box marginTop={0}>
         <Text>Agent: </Text>
         <Text color="yellow">{agent}</Text>
-        <Text>, Provider: </Text>
-        <Text color="yellow">{provider}</Text>
         <Text>, Model: </Text>
         <Text color="yellow">{model || 'default'}</Text>
         <Text>.</Text>

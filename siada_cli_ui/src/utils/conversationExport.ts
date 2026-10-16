@@ -112,7 +112,7 @@ function textDisplayWidth(text: string): number {
 /**
  * Reproduces the on-screen Banner (the first thing the user sees above the
  * conversation) as plain text: bordered box, ASCII art, working directory,
- * agent/provider/model line and the cost disclaimer. Layout mirrors
+ * agent/model line and the cost disclaimer. Layout mirrors
  * components/Banner/Banner.tsx at a standard 80-column terminal.
  */
 export function renderBannerBlock(info: ExportBannerInfo, columns = 80): string {
@@ -148,10 +148,9 @@ export function renderBannerBlock(info: ExportBannerInfo, columns = 80): string 
       : info.workingDir.length;
   lines.push(bordered(wdLabel + info.workingDir.slice(0, maxPathLen)));
 
-  // Agent / Provider / Model info, same segment order as Banner.tsx
+  // Agent and model info, same segment order as Banner.tsx
   const segments = [
     `Agent: ${info.agent ?? 'coder'}`,
-    `, Provider: ${info.provider ?? 'default'}`,
     `, Model: ${info.model || 'default'}`,
   ];
   segments.push(`; ${info.isCollapsed ? 'compact mode' : 'expanded mode'} (ctrl+o)`);
