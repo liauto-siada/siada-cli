@@ -402,6 +402,19 @@ You can set up scheduled tasks by simply telling Siada in natural language. The 
 
 Siada will configure the appropriate cron job and confirm the schedule with you.
 
+Each cron execution owns its model provider and releases its async clients before
+the task's event loop closes. Native Chat clients are not reused between cron
+executions, and providers used by interactive or IM sessions are left untouched.
+Main agents, recursive sub-agents, model overrides, and built-in model helpers
+share a provider pool on the same runtime event loop, not across loops. ACP,
+each IM controller loop, legacy TUI, and temporary `/btw` or vision-bridge loops
+use separate pools. This ownership applies to native Chat and default Responses
+clients. Runtime shutdown stops new work, cancels and drains remaining tasks and
+streams, then closes its providers on their owning loop before closing the loop.
+Exiting an individual agent does not close a sibling's shared clients.
+After upgrading, stop the existing daemon with `siada-cli --stop-daemon` and
+launch Siada CLI again so scheduled tasks use the updated runtime.
+
 ## Command Line Options
 
 ```bash

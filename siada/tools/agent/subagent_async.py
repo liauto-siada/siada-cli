@@ -203,6 +203,28 @@ async def shutdown_session_background_subtasks(
         )
 
 
+async def shutdown_loop_background_subtasks() -> None:
+    """Cancel and drain registered descendants belonging to this runtime loop.
+
+    Session ids alone are not loop ownership: a process can host multiple IM
+    controllers and temporary cron loops. Never await a foreign loop's tasks.
+    """
+    loop = asyncio.get_running_loop()
+    current = asyncio.current_task()
+    while True:
+        pending = [
+            task
+            for tasks in tuple(_SESSION_TASKS.values())
+            for task in tuple(tasks.values())
+            if task is not current and task.get_loop() is loop and not task.done()
+        ]
+        if not pending:
+            return
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+
 async def wait_for_session_background_subtasks(
     session_id: str, timeout: float = 30.0
 ) -> bool:

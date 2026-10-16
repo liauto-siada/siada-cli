@@ -149,24 +149,28 @@ class TestOpenRouterEndToEnd:
         monkeypatch.setattr(chat_module, "AsyncOpenAI", create_client)
         provider = DefaultProvider()
         model = provider.get_model(model_name)
-        asyncio.run(
-            model.get_response(
-                system_instructions=None,
-                input=[{"role": "user", "content": "hi"}],
-                model_settings=ModelSettings(),
-                tools=[],
-                output_schema=None,
-                handoffs=[],
-                tracing=ModelTracing.DISABLED,
-            )
-        )
+
+        async def run():
+            try:
+                await model.get_response(
+                    system_instructions=None,
+                    input=[{"role": "user", "content": "hi"}],
+                    model_settings=ModelSettings(),
+                    tools=[],
+                    output_schema=None,
+                    handoffs=[],
+                    tracing=ModelTracing.DISABLED,
+                )
+            finally:
+                await provider.aclose()
+
+        asyncio.run(run())
         assert len(requests) == 1
         assert requests[0].url == "https://openrouter.ai/api/v1/chat/completions"
         body = json.loads(requests[0].content)
         assert body["model"] == expected_wire_model
         assert requests[0].headers["authorization"] == "Bearer sk-or-test"
         assert os.environ.get("DEEPSEEK_API_KEY") != "sk-or-test"
-        asyncio.run(provider.aclose())
 
     def test_non_openrouter_base_url_untouched(self, monkeypatch):
         import siada.entrypoint

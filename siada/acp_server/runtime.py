@@ -1195,7 +1195,7 @@ class SiadaTurnRunner:
             logger.exception("[browser-skill] worker wake failed")
 
     async def close(self) -> None:
-        """Cancel the full browser lifecycle and shut down the worker.
+        """Cancel background descendants and the full browser lifecycle.
 
         Sets the closing flag first so a permission grant racing shutdown can
         never spawn a new skill task, then cancels skill tasks, pending
@@ -1204,6 +1204,9 @@ class SiadaTurnRunner:
         """
         self._closing = True
 
+        from siada.tools.agent.subagent_async import shutdown_loop_background_subtasks
+
+        await shutdown_loop_background_subtasks()
         skill_tasks = [task for task in self._skill_tasks.values() if not task.done()]
         for task in skill_tasks:
             task.cancel()

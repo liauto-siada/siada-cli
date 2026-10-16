@@ -478,12 +478,17 @@ class SiadaDaemon:
                     exc_info=True,
                 )
         finally:
-            pending = asyncio.all_tasks(loop)
-            for task in pending:
-                task.cancel()
-            if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            loop.close()
+            from siada.provider.provider_factory import shutdown_provider_runtime
+
+            try:
+                loop.run_until_complete(shutdown_provider_runtime())
+            except Exception:
+                if self.logger:
+                    self.logger.exception("IM model provider cleanup failed")
+            finally:
+                loop.run_until_complete(loop.shutdown_asyncgens())
+                loop.run_until_complete(loop.shutdown_default_executor())
+                loop.close()
 
     def run_loop(self) -> None:
         """Block the main thread until shutdown() signals the stop event."""

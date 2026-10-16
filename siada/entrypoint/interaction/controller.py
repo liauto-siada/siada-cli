@@ -154,7 +154,12 @@ class Controller:
             try:
                 self.turn_policy.end_session(self.session, exit_reason)
             finally:
-                self.ui.close()
+                try:
+                    from siada.entrypoint.interaction.turn.conversation_turn import ConversationTurn
+
+                    ConversationTurn._cleanup_dedicated_loop()
+                finally:
+                    self.ui.close()
         return 1 if exit_reason == "error" else 0
 
     def _handle_switch_event(self, event: SwitchEvent):

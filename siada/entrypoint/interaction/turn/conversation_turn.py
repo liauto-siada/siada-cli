@@ -305,9 +305,17 @@ class ConversationTurn(RunTurn):
                     # Run event loop until stopped
                     loop.run_forever()
                 finally:
-                    # Cleanup
-                    loop.close()
-                    cls._dedicated_loop = None
+                    from siada.provider.provider_factory import shutdown_provider_runtime
+
+                    try:
+                        loop.run_until_complete(shutdown_provider_runtime())
+                    except Exception:
+                        logger.exception("Dedicated loop model provider cleanup failed")
+                    finally:
+                        loop.run_until_complete(loop.shutdown_asyncgens())
+                        loop.run_until_complete(loop.shutdown_default_executor())
+                        loop.close()
+                        cls._dedicated_loop = None
 
             # Start dedicated thread
             cls._dedicated_thread = threading.Thread(

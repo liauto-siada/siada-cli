@@ -29,9 +29,9 @@ class NoInteractiveController:
                     session=self.session,
                 )
             finally:
-                from siada.provider.provider_factory import aclose_providers
+                from siada.provider.provider_factory import shutdown_provider_runtime
 
-                await aclose_providers()
+                await shutdown_provider_runtime()
         
         try:
             result = asyncio.run(run_async())

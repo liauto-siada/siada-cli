@@ -675,16 +675,45 @@ class LarkController(ImController):
     async def stop(self) -> None:
         logger.info("Stopping LarkController...")
         self._running = False
+        from siada.provider.provider_factory import stop_provider_admission
+
+        stop_provider_admission()
         if self._task:
             self._task.cancel()
             try:
                 await self._task
             except asyncio.CancelledError:
                 pass
+            except Exception:
+                logger.exception("Lark message reader failed during shutdown")
             self._task = None
-        if self._transport:
-            await self._transport.disconnect()
-            self._transport = None
+        try:
+            pending = []
+            for entry in tuple(self._active_entries.values()):
+                if entry.result:
+                    try:
+                        entry.result.cancel()
+                    except Exception:
+                        logger.exception("Lark stream cancellation failed")
+                if not entry.task.done():
+                    entry.task.cancel()
+                    pending.append(entry.task)
+            if pending:
+                results = await asyncio.gather(*pending, return_exceptions=True)
+                for result in results:
+                    if isinstance(result, Exception):
+                        logger.error(
+                            "Lark agent failed during shutdown",
+                            exc_info=(type(result), result, result.__traceback__),
+                        )
+            from siada.tools.agent.subagent_async import shutdown_loop_background_subtasks
+
+            await shutdown_loop_background_subtasks()
+            self._active_entries.clear()
+        finally:
+            if self._transport:
+                await self._transport.disconnect()
+                self._transport = None
         logger.info("LarkController stopped")
 
     @property

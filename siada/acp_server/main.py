@@ -93,14 +93,19 @@ def main() -> None:
                 use_unstable_protocol=True,
             )
         finally:
+            from siada.provider.provider_factory import stop_provider_admission
+
+            stop_provider_admission()
             # Cancel in-flight browser skill/trajectory tasks and shut down
             # the lazy learning worker before the process exits.
             try:
                 await turn_runner.close()
             finally:
-                from siada.provider.provider_factory import aclose_providers
+                from siada.provider.provider_factory import shutdown_provider_runtime
 
-                await aclose_providers()
+                # SDK handlers have stopped; independent child/stream tasks
+                # must also finish before their model connection pools close.
+                await shutdown_provider_runtime()
 
     try:
         asyncio.run(_run())

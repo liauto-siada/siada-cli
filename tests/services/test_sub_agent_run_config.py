@@ -7,6 +7,7 @@ provider this spawn would use anyway, and degrade to the configured model
 """
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -32,13 +33,13 @@ def _llm_config(
     return llm_config
 
 
-def _context(llm_config) -> CodeAgentContext:
+def _context(llm_config, root_dir: Path) -> CodeAgentContext:
     session = MagicMock(spec=RunningSession)
     session.session_id = "sub-agent-config-test"
     session.siada_config = MagicMock()
     session.siada_config.llm_config = llm_config
     session.siada_config.tracing_disabled = True
-    return CodeAgentContext(root_dir="/tmp", session=session)
+    return CodeAgentContext(root_dir=str(root_dir), session=session)
 
 
 @pytest.fixture(autouse=True)
@@ -50,7 +51,7 @@ def isolated_providers(monkeypatch):
     return providers
 
 
-def _build(llm_config, model=None, effort=None):
+def _build(llm_config, root_dir: Path, model=None, effort=None):
     # Pin the resolved sub-agent config to the parent's, so the assertion does
     # not depend on the developer's own conf.yaml `sub_agent.llm_config`.
     with patch(
@@ -58,7 +59,7 @@ def _build(llm_config, model=None, effort=None):
         return_value=llm_config,
     ):
         return build_sub_agent_run_config(
-            _context(llm_config), effort=effort, model=model
+            _context(llm_config, root_dir), effort=effort, model=model
         )
 
 
@@ -74,40 +75,40 @@ class TestModelOverrideHelper:
 
 
 class TestBuildSubAgentRunConfigModelOverride:
-    def test_model_override_wins_over_the_resolved_config(self):
-        run_config = _build(_llm_config(), model="gpt-6-luna")
+    def test_model_override_wins_over_the_resolved_config(self, tmp_path):
+        run_config = _build(_llm_config(), tmp_path, model="gpt-6-luna")
 
         assert run_config.model == "gpt-6-luna"
 
-    def test_override_keeps_the_gateway_provider(self):
+    def test_override_keeps_the_gateway_provider(self, tmp_path):
         with patch("siada.services.sub_agent_run_config.get_provider") as get_provider:
-            _build(_llm_config(provider="li"), model="gpt-6-luna")
+            _build(_llm_config(provider="li"), tmp_path, model="gpt-6-luna")
 
         get_provider.assert_called_once_with("li")
 
-    def test_unknown_model_is_ignored_and_the_configured_model_kept(self):
-        run_config = _build(_llm_config(), model="gpt-5.6-luna")
+    def test_unknown_model_is_ignored_and_the_configured_model_kept(self, tmp_path):
+        run_config = _build(_llm_config(), tmp_path, model="gpt-5.6-luna")
 
         assert run_config.model == "claude-sonnet-5"
 
-    def test_same_model_does_not_rebuild_the_config(self):
+    def test_same_model_does_not_rebuild_the_config(self, tmp_path):
         with patch(
             "siada.services.sub_agent_run_config._model_override_llm_config"
         ) as override:
-            run_config = _build(_llm_config(), model="claude-sonnet-5")
+            run_config = _build(_llm_config(), tmp_path, model="claude-sonnet-5")
 
         override.assert_not_called()
         assert run_config.model == "claude-sonnet-5"
 
-    def test_effort_is_mapped_against_the_overridden_model(self):
-        run_config = _build(_llm_config(), model="gpt-6-luna", effort="medium")
+    def test_effort_is_mapped_against_the_overridden_model(self, tmp_path):
+        run_config = _build(_llm_config(), tmp_path, model="gpt-6-luna", effort="medium")
 
         # GPT-5/6 rides the native Responses API: the effort lands in
         # extra_body["reasoning"] (Claude would use output_config instead).
         assert run_config.model_settings.extra_body["reasoning"] == {"effort": "medium"}
 
-    def test_no_override_keeps_the_previous_behaviour(self):
-        run_config = _build(_llm_config())
+    def test_no_override_keeps_the_previous_behaviour(self, tmp_path):
+        run_config = _build(_llm_config(), tmp_path)
 
         assert run_config.model == "claude-sonnet-5"
 
@@ -124,11 +125,11 @@ class TestBuildSubAgentRunConfigModelOverride:
     ],
 )
 def test_sub_agent_provider_resolution(
-    monkeypatch, configured_provider, active_provider, parent_provider,
+    monkeypatch, tmp_path, configured_provider, active_provider, parent_provider,
     expected_provider,
 ):
     parent = _llm_config(provider=parent_provider)
-    context = _context(parent)
+    context = _context(parent, tmp_path)
     context.provider = active_provider
     conf = Config(
         sub_agent_config=SubAgentConfig(
@@ -152,19 +153,19 @@ def test_sub_agent_provider_resolution(
     assert parent.provider == parent_provider
 
 
-def test_sub_agent_reports_empty_registry(monkeypatch):
+def test_sub_agent_reports_empty_registry(monkeypatch, tmp_path):
     monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
     monkeypatch.setattr(provider_factory, "provider_map", {})
 
     with pytest.raises(ValueError, match="No model providers found or registered"):
-        _build(_llm_config())
+        _build(_llm_config(), tmp_path)
 
 
 @pytest.mark.asyncio
-async def test_run_subtask_returns_hello_with_model_only_override(monkeypatch):
+async def test_run_subtask_returns_hello_with_model_only_override(monkeypatch, tmp_path):
     from siada.tools.agent.run_subtask import run_subtask_impl
 
-    context = _context(_llm_config())
+    context = _context(_llm_config(), tmp_path)
     conf = Config(
         sub_agent_config=SubAgentConfig(
             llm_config=LLMConfig(model="gpt-6-luna")
@@ -173,6 +174,9 @@ async def test_run_subtask_returns_hello_with_model_only_override(monkeypatch):
     provider = MagicMock()
     monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
     monkeypatch.setattr(provider_factory, "provider_map", {"default": provider})
+    # Async callers resolve through their loop's pool; pin the pool instance to
+    # the registered mock so the assertion still verifies provider selection.
+    monkeypatch.setattr(provider_factory, "create_provider", lambda key: provider)
 
     async def stream_events():
         return
@@ -200,10 +204,10 @@ async def test_run_subtask_returns_hello_with_model_only_override(monkeypatch):
 class TestSubAgentProviderInheritance:
     @pytest.mark.parametrize("provider", [None, ""])
     def test_model_only_override_inherits_parent_provider(
-        self, provider, isolated_providers
+        self, provider, isolated_providers, tmp_path
     ):
         parent = _llm_config(provider="default")
-        context = _context(parent)
+        context = _context(parent, tmp_path)
         conf = SimpleNamespace(
             sub_agent_config=SubAgentConfig(
                 llm_config=LLMConfig(model="gpt-6-luna", provider=provider)
@@ -219,8 +223,8 @@ class TestSubAgentProviderInheritance:
         assert parent.model_name == "claude-sonnet-5"
         assert parent.provider == "default"
 
-    def test_explicit_sub_agent_provider_is_preserved(self, isolated_providers):
-        context = _context(_llm_config(provider="default"))
+    def test_explicit_sub_agent_provider_is_preserved(self, isolated_providers, tmp_path):
+        context = _context(_llm_config(provider="default"), tmp_path)
         conf = SimpleNamespace(
             sub_agent_config=SubAgentConfig(
                 llm_config=LLMConfig(model="gpt-6-luna", provider="alternate")

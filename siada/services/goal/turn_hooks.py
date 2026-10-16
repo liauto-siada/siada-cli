@@ -260,8 +260,10 @@ def maybe_run_goal_verifier(
         return result
 
     try:
+        from siada.provider.provider_factory import run_in_provider_runtime
+
         verdict = asyncio.run(
-            run_goal_verification(file_session, goal, context)
+            run_in_provider_runtime(run_goal_verification(file_session, goal, context))
         )
     except Exception as e:
         # run_goal_verification/verify_goal_with_context already fail safe on

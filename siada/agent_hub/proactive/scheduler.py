@@ -560,27 +560,29 @@ class ProactiveScheduler:
         self._run_async(self._run_cron_task(task_id, instruction))
 
     async def _run_cron_task(self, task_id: str, instruction: str) -> None:
-        """Run the coder agent for a crontab task, then update timestamps."""
+        """Run a cron task with a loop-owned provider, then update timestamps."""
         try:
             logger.info("_run_cron_task -- Executing crontab task , instruction : %s", instruction)
             from agents import RunConfig
             from siada.models.model_setting_converter import ModelSettingsConverter
-            from siada.provider.provider_factory import get_provider
+            from siada.provider.provider_factory import get_provider, provider_runtime
             from siada.services.input_processor import process_input
             from siada.services.model_wrapper import ModelProviderWrapper
             mrc = self._resolve_cron_model()
             model_settings = ModelSettingsConverter.convert_model_settings(mrc)
-            provider_wrapper = ModelProviderWrapper(
-                base_provider=get_provider(mrc.provider),
-                input_processor=process_input,
-            )
-            run_config = RunConfig(
-                tracing_disabled=False,
-                model=mrc.model_name,
-                model_provider=provider_wrapper,
-                model_settings=model_settings,
-            )
-            await self._run_agent("coder", instruction, run_config)
+            # Descendants and model helpers resolve through this same loop pool.
+            async with provider_runtime():
+                provider_wrapper = ModelProviderWrapper(
+                    base_provider=get_provider(mrc.provider),
+                    input_processor=process_input,
+                )
+                run_config = RunConfig(
+                    tracing_disabled=False,
+                    model=mrc.model_name,
+                    model_provider=provider_wrapper,
+                    model_settings=model_settings,
+                )
+                await self._run_agent("coder", instruction, run_config)
         except Exception as e:
             logger.error("ProactiveScheduler -- Crontab task %s failed: %s", task_id, e, exc_info=True)
         finally:
@@ -1249,7 +1251,8 @@ class ProactiveScheduler:
     @staticmethod
     def _run_async(coro: Awaitable) -> None:
         """Run a coroutine from a synchronous APScheduler thread."""
+        from siada.provider.provider_factory import run_in_provider_runtime
         try:
-            asyncio.run(coro)
+            asyncio.run(run_in_provider_runtime(coro))
         except Exception as e:
             logger.error("ProactiveScheduler -- Async execution failed: %s", e, exc_info=True)

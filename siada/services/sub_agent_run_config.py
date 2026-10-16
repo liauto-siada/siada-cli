@@ -228,6 +228,8 @@ def build_sub_agent_run_config(
     # A model-only override inherits the parent's gateway. Older configurations
     # may also reference a provider absent from this distribution; prefer the
     # parent's active provider before using the public endpoint provider.
+    # Resolve overrides through the parent's runtime loop pool, not a
+    # process-wide provider or a new per-agent connection pool.
     candidates = dict.fromkeys(
         name for name in (
             provider_name,

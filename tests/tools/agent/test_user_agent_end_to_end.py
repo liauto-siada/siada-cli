@@ -264,6 +264,7 @@ class TestUserAgentEndToEnd(_UserAgentE2ETestCase):
                 provider_factory, "provider_map",
                 {"alternate": MagicMock(spec=ModelProvider), "default": provider},
             ),
+            patch.object(provider_factory, "create_provider", lambda key: provider),
         ):
             summary = await run_subtask_impl(
                 instruction="Return the verification marker.",

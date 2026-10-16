@@ -714,6 +714,10 @@ class LarkAgentExecutor:
             if entry is not None and entry.task is t:
                 ctrl._active_entries.pop(_task_key, None)
 
+            # Shutdown must not enqueue notifications or new IPC work after
+            # the message reader has stopped admitting tasks.
+            if not ctrl.is_running:
+                return
             if t.cancelled():
                 logger.info("Task for task_key=%s was interrupted by user", _task_key)
                 asyncio.ensure_future(ctrl._card_sender.send_im(

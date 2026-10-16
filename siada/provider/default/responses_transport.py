@@ -17,6 +17,7 @@ from openai import AsyncOpenAI
 from openai.types.responses import Response
 
 from siada.foundation.logging import logger
+from siada.provider.lifecycle import EventLoopOwnership
 from siada.provider.responses.transport import ResponsesTransport
 
 # LiteLLM bridge prefixes that must not be sent to a native Responses endpoint.
@@ -35,6 +36,7 @@ class DefaultResponsesTransport(ResponsesTransport):
         self._retired_clients: list[AsyncOpenAI] = []
         self._lock = threading.Lock()
         self._closed = False
+        self._loop_ownership = EventLoopOwnership()
 
     def convert_model_name(self, model: str) -> str:
         """Strip LiteLLM responses-bridge prefixes; send the real model name."""
@@ -49,6 +51,7 @@ class DefaultResponsesTransport(ResponsesTransport):
         with self._lock:
             if self._closed:
                 raise RuntimeError("DefaultResponsesTransport is closed")
+            self._loop_ownership.check()
 
             base_url = os.getenv("BASE_URL") or None
             api_key = os.getenv("API_KEY") or None
@@ -69,6 +72,10 @@ class DefaultResponsesTransport(ResponsesTransport):
     async def aclose(self) -> None:
         """Close every client this transport owns, including retired ones.
 
+        Must run on the event loop that owns the clients (see
+        ``EventLoopOwnership``): a native HTTP pool cannot be released from a
+        foreign loop.
+
         Failures never stop the remaining clients from closing; a single error
         is re-raised as-is and several are aggregated into an ExceptionGroup.
 
@@ -83,6 +90,7 @@ class DefaultResponsesTransport(ResponsesTransport):
         with self._lock:
             if self._closed and self._client is None and not self._retired_clients:
                 return
+            self._loop_ownership.check()
             self._closed = True
 
             clients = list(self._retired_clients)

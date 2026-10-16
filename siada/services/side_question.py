@@ -526,7 +526,18 @@ def run_side_question(session, question: str) -> str:
         except BaseException as e:
             err[0] = e
         finally:
-            loop.close()
+            from siada.provider.provider_factory import shutdown_provider_runtime
+
+            try:
+                loop.run_until_complete(shutdown_provider_runtime())
+            except BaseException as e:
+                logger.exception("[btw] model provider cleanup failed")
+                if err[0] is None:
+                    err[0] = e
+            finally:
+                loop.run_until_complete(loop.shutdown_asyncgens())
+                loop.run_until_complete(loop.shutdown_default_executor())
+                loop.close()
 
     t = threading.Thread(target=_runner, daemon=True, name="btw-runner")
     t.start()

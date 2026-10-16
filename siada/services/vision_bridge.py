@@ -239,8 +239,11 @@ def transcribe_images_sync(
     outcome: dict = {}
 
     def _runner() -> None:
+        from siada.provider.provider_factory import run_in_provider_runtime
         try:
-            outcome["value"] = asyncio.run(transcribe_images(image_paths, user_hint))
+            outcome["value"] = asyncio.run(
+                run_in_provider_runtime(transcribe_images(image_paths, user_hint))
+            )
         except Exception as exc:  # noqa: BLE001 - any failure falls back
             outcome["error"] = exc
 

@@ -15,6 +15,7 @@ from siada.provider.chat_completions import (
     RefreshingOpenAIClientMixin,
 )
 from siada.provider.default.coverter import covert_to_litellm_model_name
+from siada.provider.lifecycle import EventLoopOwnership
 
 
 _LITELLM_ROUTING_PREFIXES = frozenset(
@@ -124,6 +125,8 @@ class DefaultChatClientFactory:
         self._client_key: tuple[str | None, str | None] | None = None
         self._retired_clients: list[AsyncOpenAI] = []
         self._lock = threading.Lock()
+        self._loop_ownership = EventLoopOwnership()
+        self._closed = False
 
     def get_client(self) -> AsyncOpenAI:
         if self._pinned_api_key is not None:
@@ -141,6 +144,9 @@ class DefaultChatClientFactory:
 
         key = (base_url, api_key)
         with self._lock:
+            if self._closed:
+                raise RuntimeError("DefaultChatClientFactory is closed")
+            self._loop_ownership.check()
             if self._client is None or self._client_key != key:
                 if self._client is not None:
                     self._retired_clients.append(self._client)
@@ -156,6 +162,10 @@ class DefaultChatClientFactory:
     async def aclose(self) -> None:
         """Close every client this factory owns, including retired ones.
 
+        Must run on the event loop that owns the clients (see
+        ``EventLoopOwnership``): a native HTTP pool cannot be released from a
+        foreign loop.
+
         Failures never stop the remaining clients from closing; a single error
         is re-raised as-is and several are aggregated into an ExceptionGroup.
 
@@ -167,6 +177,10 @@ class DefaultChatClientFactory:
         them instead of them being dropped beyond reach.
         """
         with self._lock:
+            if self._closed and self._client is None and not self._retired_clients:
+                return
+            self._loop_ownership.check()
+            self._closed = True
             clients = [*self._retired_clients]
             self._retired_clients.clear()
             if self._client is not None:
