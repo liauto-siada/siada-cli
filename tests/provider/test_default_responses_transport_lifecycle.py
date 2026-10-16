@@ -66,7 +66,7 @@ async def test_default_transport_lazily_reuses_and_closes_client(
 
     assert first is not None
     assert second is not None
-    assert created == [{"api_key": "test-key", "base_url": "https://responses.test/v1"}]
+    assert created == [{"api_key": "test-key", "base_url": "https://responses.test/v1", "max_retries": 0}]
     assert client.responses.create.await_count == 2
 
     await transport.aclose()

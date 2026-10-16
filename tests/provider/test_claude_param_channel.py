@@ -73,7 +73,7 @@ def _acompletion(**kwargs):
             try:
                 await litellm.acompletion(
                     messages=[{"role": "user", "content": "hi"}],
-                    max_tokens=100, **kwargs
+                    max_tokens=100, num_retries=0, **kwargs
                 )
             except Exception:
                 # Response parsing may fail on some providers; the request
