@@ -55,8 +55,8 @@ def atomic_write(path: Path, content: bytes) -> None:
 def sync_directory(folder: Path) -> None:
     """Make rename/unlink boundaries durable on supported local filesystems."""
     if os.name == "nt":
-        # Windows cannot open a directory handle for flushing; the rename and
-        # the file-level flushes above already carry durability there.
+        # Windows CRT cannot flush directories. File contents are still flushed,
+        # but rename/unlink boundaries have weaker power-loss durability there.
         return
     fd = os.open(folder, os.O_RDONLY)
     try:
@@ -193,7 +193,7 @@ def storage_transaction(folder: Path, files: tuple[str, ...] = STORAGE_FILES) ->
                     path = folder / name
                     if path.exists():
                         # "r+b" keeps the handle writable so Windows can flush it.
-                        with path.open("r+b") as stream:
+                        with path.open("r+b" if os.name == "nt" else "rb") as stream:
                             os.fsync(stream.fileno())
                 sync_directory(folder)
                 journal.unlink()

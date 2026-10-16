@@ -315,7 +315,7 @@ class GitService:
                 if name and path.is_file() and not path.is_symlink():
                     # "r+b" instead of "rb": Windows requires a writable handle
                     # before os.fsync, while POSIX accepts both.
-                    with path.open("r+b") as stream:
+                    with path.open("r+b" if os.name == "nt" else "rb") as stream:
                         os.fsync(stream.fileno())
                     sync_directory(path.parent)
             sync_directory(self.project_root)
