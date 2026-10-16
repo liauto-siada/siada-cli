@@ -14,12 +14,15 @@ and the RAW, unfiltered message history the main turn just used — appending
 only a short verification request at the end. Keeping the outgoing
 ``tools -> system -> messages`` prefix identical to what the main turn sent
 lets the provider's cache still hit on the verifier call instead of paying
-full price every turn.
+full price every turn. When ``sub_agent.llm_config`` selects a different model,
+the fork adapts native patch tools to that model's supported tool surface;
+cache-prefix reuse is only expected for compatible model/tool configurations.
 
 Isolation from the main conversation is preserved the same way ``/btw``
-preserves it: every tool is DENIED via a ``ToolInputGuardrail``
-(``reject_content``) rather than removed — removing tools/instructions would
-change the cache key. No ``session=`` kwarg is passed to ``Runner.run``, so
+preserves it: function tools are DENIED via a ``ToolInputGuardrail``
+(``reject_content``), and native patch tools use a rejecting editor, rather
+than being removed — removing tools/instructions would change the cache key.
+No ``session=`` kwarg is passed to ``Runner.run``, so
 nothing from this call is ever persisted back into the main session.
 
 Judgment power stays 100% with this isolated call; the main agent has no
@@ -47,7 +50,8 @@ import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from agents import RunContextWrapper, RunHooks
+from agents import ApplyPatchTool, RunContextWrapper, RunHooks
+from agents.editor import ApplyPatchOperation, ApplyPatchResult
 from siada.foundation.agent_logging import LoggingRunner as Runner
 from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 from agents.tool import FunctionTool
@@ -141,12 +145,26 @@ _VERIFIER_TOOL_DENY_MESSAGE = (
 )
 
 
+class _VerifierReadonlyPatchEditor:
+    """Reject native patch operations without reaching the workspace editor."""
+
+    def create_file(self, operation: ApplyPatchOperation) -> ApplyPatchResult:
+        return ApplyPatchResult(status="failed", output=_VERIFIER_TOOL_DENY_MESSAGE)
+
+    def update_file(self, operation: ApplyPatchOperation) -> ApplyPatchResult:
+        return ApplyPatchResult(status="failed", output=_VERIFIER_TOOL_DENY_MESSAGE)
+
+    def delete_file(self, operation: ApplyPatchOperation) -> ApplyPatchResult:
+        return ApplyPatchResult(status="failed", output=_VERIFIER_TOOL_DENY_MESSAGE)
+
+
 def _wrap_tools_with_deny(tools: list) -> list:
     """Return a NEW tool list where every FunctionTool carries a deny guardrail.
 
     The original list and its tool objects are NEVER mutated — the cached
     main agent shares them, so mutating would corrupt the main conversation's
-    tools. Non-FunctionTool entries pass through unchanged.
+    tools. Native patch tools keep their wire definition but use a rejecting
+    editor; FunctionTool guardrails do not cover native patch execution.
     """
 
     def _reject(data: ToolInputGuardrailData) -> ToolGuardrailFunctionOutput:
@@ -162,6 +180,16 @@ def _wrap_tools_with_deny(tools: list) -> list:
             existing = list(t.tool_input_guardrails or [])
             wrapped.append(
                 dataclasses.replace(t, tool_input_guardrails=existing + [deny])
+            )
+        elif isinstance(t, ApplyPatchTool):
+            wrapped.append(
+                dataclasses.replace(
+                    t,
+                    editor=_VerifierReadonlyPatchEditor(),
+                    needs_approval=False,
+                    on_approval=None,
+                    custom_data_extractor=None,
+                )
             )
         else:
             wrapped.append(t)
@@ -356,7 +384,10 @@ async def verify_goal_with_context(
         from siada.agent_hub.hooks.siada_basic_agent_hooks import SiadaBasicAgentHooks
         from siada.foundation.code_agent_context import CodeAgentContext
         from siada.services.siada_runner import SiadaRunner
-        from siada.services.sub_agent_run_config import build_sub_agent_run_config
+        from siada.services.sub_agent_run_config import (
+            adapt_fork_tools_for_effective_model,
+            build_sub_agent_run_config,
+        )
 
         agent_name = real_session.siada_config.agent_name
         agent = await SiadaRunner.get_agent(agent_name)
@@ -470,9 +501,15 @@ async def verify_goal_with_context(
         # MCP tools are now materialized into all_tools — clear mcp_servers so
         # the SDK doesn't try to (re)connect them from this call.
         forked_agent.mcp_servers = []
+        run_config = build_sub_agent_run_config(fork_ctx)
+        # A configured sub-agent model can differ from the parent's native
+        # Responses model. Adapt before adding deny guardrails so the actual
+        # request model accepts the tool definitions and the replacement
+        # edit_file tool cannot execute. Same-model native forks keep their
+        # schemas and ordering for prompt-cache reuse.
+        all_tools = adapt_fork_tools_for_effective_model(all_tools, run_config.model)
         forked_agent.tools = _wrap_tools_with_deny(all_tools)
 
-        run_config = build_sub_agent_run_config(fork_ctx)
         run_hooks = RunHooks()
 
         # Provider/client code (e.g. provider/client_factory.py) reads the
