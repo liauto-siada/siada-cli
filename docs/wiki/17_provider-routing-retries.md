@@ -70,8 +70,8 @@ HTTP 403（包括 `PermissionDeniedError` 认证失败）也使用外层的两�
 
 模型流正常 EOF 但缺少终止响应事件时，统一包装器与 `ResponsesModel` 会抛出
 `MissingFinalResponseError`，记录模型、response ID、最后事件和内容暴露状态。
-只收到 `response.created` / `response.in_progress` 或空流时沿用最多两次重试；
-已经交出正文、推理或工具事件时直接失败。明确的 `response.incomplete` /
+只收到生命周期、空起始事件或思考内容时沿用最多两次重试；
+已经交出正文、工具或未知事件时直接失败。明确的 `response.incomplete` /
 `response.failed` 保留原有失败处理，不归类为缺失终止事件。泛化的
 `ModelBehaviorError` 不自动重试。
 
@@ -84,10 +84,14 @@ flowchart TD
     C --> D{事件类型}
     D -->|生命周期或已识别的空起始事件，缓冲未满| E[暂存起始事件]
     E --> C
-    D -->|其它事件| F[释放暂存事件并交给下游]
+    D -->|思考 delta 或缓冲已满| K[交出事件并保留重试窗口]
+    K --> C
+    D -->|思考条目完成| L[暂存完成条目直到本次尝试提交]
+    L --> C
+    D -->|正文或工具或未知事件| F[释放暂存事件并交给下游]
     F --> G[继续消费，后续异常直接传播]
     B -->|传输异常| H{剩余重试次数}
-    C -->|尚未交给下游时传输异常| H
+    C -->|重试窗口仍开放时传输异常或缺失最终响应| H
     H -->|有| I[关闭失败流，退避]
     I --> B
     H -->|无| J[抛出最后一次异常]
@@ -101,22 +105,25 @@ flowchart TD
 （包括服务发版导致的 `incomplete chunked read`）仍可关闭旧流并退避重试，
 丢弃失败尝试的 response ID 和 item ID。
 
-一旦正文或 reasoning delta、工具调用条目或参数、含内容的条目、未知事件已经交给下游，
-或起始事件缓冲已满，就停止重放。此时重新请求可能返回不同内容和工具 id；
-仅在 provider 内重试会重复输出，工具执行还可能重复。没有协议级撤回或恢复契约时，
-异常会保留并交由上层处理。
+思考 delta 实时输出，思考条目和片段事件也保留重试窗口；下一次尝试可能显示新的
+思考内容。起始事件缓冲已满时只释放缓冲，不关闭重试窗口。思考输出后的新
+`response.created` 会结束上一段 thinking 展示并使用新的消息 ID。
+
+思考条目的完成事件暂存到本次尝试提交时才交出，失败尝试的完成条目会被丢弃，
+避免 Runner 在最终输出为空时将其补齐进会话历史。一旦正文、工具调用条目或参数、
+未知事件交给下游，就停止重放；此时异常交由上层处理，避免重复正文和工具执行。
 
 普通解析 `ValueError` 不在传输异常白名单中；“解析过程中抛异常”需要区分读取断流与数据格式错误。流正常结束而没有抛异常也不会被本策略当成 timeout。`response.incomplete` 等正常协议事件不等同于网络异常。
 
 `ResponsesModel` 将协议 `error`、`response.error`、`response.failed` 转成 `APIError` 后交给同一策略，避免把失败事件当成功流结束。流错误优先按明确的 `code` 判断，其次按 `type`；没有分类字段时才匹配 `Unknown stream error`。因此明确的参数错误或配额不足不会因消息包含该文案而重试。
 
-每次 Responses 失败记录模型、response ID、最后事件类型、是否已交出输出，以及有长度限制的错误 message/code/type/param、可用的请求和 trace ID。仅提取这些诊断字段，不打印完整错误 body、请求正文或认证请求头。重试日志记录次数、等待时间和错误诊断字段。
+每次 Responses 失败记录模型、response ID、最后事件类型、是否已交出正文、工具或未知事件，以及有长度限制的错误 message/code/type/param、可用的请求和 trace ID。仅思考已输出时，`output_exposed` 仍为 False。仅提取这些诊断字段，不打印完整错误 body、请求正文或认证请求头。重试日志记录次数、等待时间和错误诊断字段。
 
 持久化 admission 和输入处理在重试循环外，重试沿用处理后的同一输入。admission 本身的 timeout 不触发模型调用。`ModelWrapper` 嵌套时由最内层包装器拥有传输重试预算，各层 admission / 输入处理仍各执行一次，避免重试次数相乘。失败流在退避前关闭，调用方关闭生成器或取消时也执行清理。
 
 ## 超时参数
 
-default 官方 Chat client 显式设置 `LLM_API_POST_TIMEOUT = 1200` 秒，并设置 SDK `max_retries=0`。default Responses client 当前未显式设置 timeout / max_retries，使用锁定版本 SDK 默认参数。LiteLLM 路径的实际 timeout 取决于对应调用参数；不能把 Chat 的 1200 秒配置推导为所有 provider 的超时。
+default 官方 Chat client 显式设置 `LLM_API_POST_TIMEOUT = 1200` 秒，并设置 SDK `max_retries=0`。default Responses client 设置 SDK `max_retries=0`，timeout 使用锁定版本 SDK 默认参数。LiteLLM 路径的实际 timeout 取决于对应调用参数；不能把 Chat 的 1200 秒配置推导为所有 provider 的超时。
 
 HTTP 客户端 timeout 通常限制单次连接/读取等操作，外层重试不提供总 wall-clock 截止时间。内层重试再叠加外层重试，整体耗时可能显著长于单次 timeout。
 

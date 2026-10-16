@@ -78,6 +78,11 @@ The main workspace subsequently added local commit
 at `10a5eb7e`. This extends the audited source range to 42 commits; the local
 main workspace, rather than the remote alone, determines the requested tip.
 
+Two further commits, `841f435b12828d622e7a493a6c55f4d58d69d22e` and
+`e6659b9460983ef45f8d5f118a184197bf99f842`, subsequently arrived in both the
+main workspace and fetched remote. The latest audited range contains all
+44 commits in `27093e04..e6659b94`.
+
 The table below records every rewritten source hash alongside its previous
 source and destination. Existing ports were retained; new public changes were
 committed individually in source order.
@@ -126,6 +131,8 @@ committed individually in source order.
 | bb2176f7 | — | f2ab58b2 | focused port: browser versions 1.0.46; public proxy lock metadata aligned |
 | 10a5eb7e | — | 7f418be8 | focused port: platform-appropriate file flush handles; existing Windows directory guard and POSIX error handling retained; Windows CRT emulation and POSIX read-only regression coverage |
 | 1fd40f1a | — | c4ee6c0c | cherry-pick with public pricing fixture retained: resume sub-agent sessions after transient stream errors, preserve completed tools and independent retry budgets, and record incomplete request durations |
+| 841f435b | — | 6893f886 | focused port: bounded HTTP 403 retries; public wiki remains sanitized and correctly records disabled native SDK retries; HTTP 401 and answer/tool replay boundaries retained |
+| e6659b94 | — | fac02439 | cherry-pick preserving public task-local retry limits: reasoning streams remain live and retryable, failed completed reasoning items stay out of history, and restarted thinking displays close before new response IDs |
 
 ### Rewritten history reconciliation
 
@@ -159,10 +166,10 @@ alone.
 
 | Requirement | Evidence |
 | --- | --- |
-| Audit the latest mainline | All 42 commits in `27093e04..1fd40f1a` appear once in the table; eight new public ports and two new private-only exclusions; all 32 rewritten entries reconciled |
-| Port individually | Each of the eight destination commits contains its full source hash; all destinations are ancestors of this branch and follow source order |
+| Audit the latest mainline | All 44 commits in `27093e04..e6659b94` appear once in the table; ten new public ports and two new private-only exclusions; all 32 rewritten entries reconciled |
+| Port individually | Each of the ten destination commits contains its full source hash; all destinations are ancestors of this branch and follow source order |
 | Retain public adaptations | Strict provider rejection, pinned endpoint overrides, cancellation cleanup and startup fix `0814f145` retained; public UI bundle subsequently rebuilt in the separately requested UI follow-up `d2a9111d` |
-| Preserve existing diagnostics | After the recovery port, eight tracked files and two untracked files match stash bytes; every diagnostic addition remains in three merged files; all 13 files remain uncommitted and backups `3fb57119` and `ca60af11` are retained |
+| Preserve existing diagnostics | After the final retry ports, nine tracked files and two untracked files match stash bytes; every diagnostic addition remains in two merged files; all 13 files remain uncommitted and backups `3fb57119`, `ca60af11` and `6df327c2` are retained |
 | Verify provider/runtime/CLI compatibility | Earlier mainline contract selection: 929 passed, 147 skipped, one existing forkpty warning; includes all provider tests, workspace/launcher/SDK bootstrap, ACP runtime, cron, sub-agents, helper consumers, browser setup, diagnostics and Git/storage. Recovery follow-up: 360 passed for reviewed sub-agent/model-wrapper/diagnostic/business-verifier contracts |
 | Verify session and storage behavior | Earlier strict network-blocked session baseline plus Git and platform flushing tests: 901 passed, three existing xfails (G01, G12, G14); includes simulated Windows writable-handle requirements and POSIX read-only files. Recovery follow-up session baseline and Windows storage: 335 passed, the same three expected failures |
 | Verify UI and browser | UI follow-up: 30 files / 308 tests passed, TypeScript `--noEmit` and `build:all` passed; Chrome ACP unchanged: 118 extension + 165 shared/proxy + five web tests passed; all three browser packages built successfully |
@@ -204,6 +211,32 @@ does not turn the uncommitted diagnostics into part of the port commit.
 The separately requested UI commit `d2a9111d` removes Provider from compact,
 expanded and exported banner lines while retaining Agent, Model and mode hints.
 It includes six display regressions and the rebuilt public bundle.
+
+#### HTTP 403 and reasoning-stream follow-up
+
+`6893f886` ports `841f435b` independently, retaining the public provider wiki
+without private-provider sections. HTTP 403 shares the model wrapper's existing
+budget; HTTP 401 remains non-retryable, and the wrapper does not refresh
+credentials. Its clean offline SDK, wrapper and sub-agent selection passed
+119 tests (`oss-http403-clean.log`).
+
+`fac02439` then ports `e6659b94`, retaining the public `_retry_limit()` and
+`model_retry_scope()` interfaces. Reasoning events can remain visible during
+retry while answer, tool and unknown events close the replay window. Failed
+completed reasoning items are withheld from Runner history. The clean focused
+selection passed 200 tests (`oss-reasoning-clean.log`), including real SDK
+streaming and conversation thinking-display boundaries.
+
+After restoring diagnostics, all provider tests plus the reviewed sub-agent,
+model-stream, model-wrapper, diagnostic, thinking-display and business-verifier
+tests passed: 896 passed, 145 skipped, one existing forkpty warning
+(`oss-retry-latest-contracts.log`). The network-blocked session baseline,
+sub-agent compaction simulation and Windows storage selection passed 349 tests
+with three existing expected failures (`oss-retry-latest-baseline.log`).
+These selections cover zero retry overrides, bounded mixed-status failures,
+nested-wrapper budgets, cancellation and preservation of completed tool results.
+The public retry wiki was also updated for the new reasoning boundary and the
+64-event buffer's revised flush behavior.
 
 The initial combined run put localhost integration tests under the session
 baseline's strict network guard and failed. Its output is retained in
