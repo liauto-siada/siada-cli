@@ -73,6 +73,11 @@ rather than treating every new hash as a new feature. A final source check
 also found `10a5eb7ef27ca7c32bc91f666aa4c7ccda0e4751`, extending the audited
 range to 41 commits.
 
+The main workspace subsequently added local commit
+`1fd40f1abd30cbc025879c50b1ece89a231f86b4` while the fetched remote remained
+at `10a5eb7e`. This extends the audited source range to 42 commits; the local
+main workspace, rather than the remote alone, determines the requested tip.
+
 The table below records every rewritten source hash alongside its previous
 source and destination. Existing ports were retained; new public changes were
 committed individually in source order.
@@ -120,6 +125,7 @@ committed individually in source order.
 | fc95facc | — | — | excluded: private GitLab release trigger configuration |
 | bb2176f7 | — | f2ab58b2 | focused port: browser versions 1.0.46; public proxy lock metadata aligned |
 | 10a5eb7e | — | 7f418be8 | focused port: platform-appropriate file flush handles; existing Windows directory guard and POSIX error handling retained; Windows CRT emulation and POSIX read-only regression coverage |
+| 1fd40f1a | — | c4ee6c0c | cherry-pick with public pricing fixture retained: resume sub-agent sessions after transient stream errors, preserve completed tools and independent retry budgets, and record incomplete request durations |
 
 ### Rewritten history reconciliation
 
@@ -153,19 +159,51 @@ alone.
 
 | Requirement | Evidence |
 | --- | --- |
-| Audit the latest mainline | All 41 commits in `27093e04..10a5eb7e` appear once in the table; seven new public ports and two new private-only exclusions; all 32 rewritten entries reconciled |
-| Port individually | Each of the seven destination commits contains its full source hash; all destinations are ancestors of this branch and follow source order |
-| Retain public adaptations | Strict provider rejection, pinned endpoint overrides, cancellation cleanup, executable public UI bundle and startup fix `0814f145` retained; bundle bytes and mode checked against `bfd6d60e` |
-| Preserve existing diagnostics | Seven tracked files and two untracked files match stash bytes; every diagnostic addition remains in the four merged files; the 13 files remain uncommitted and stash `3fb57119` is retained |
-| Verify provider/runtime/CLI compatibility | Final contract selection: 929 passed, 147 skipped, one existing forkpty warning; includes all provider tests, workspace/launcher/SDK bootstrap, ACP runtime, cron, sub-agents, helper consumers, browser setup, diagnostics and Git/storage |
-| Verify session and storage behavior | Strict network-blocked session baseline plus Git and platform flushing tests: 901 passed, three existing xfails (G01, G12, G14); includes simulated Windows writable-handle requirements and POSIX read-only files |
-| Verify UI and browser | UI: 29 files / 302 tests passed and TypeScript `--noEmit` passed; Chrome ACP: 118 extension + 165 shared/proxy + five web tests passed; all three browser packages built successfully |
+| Audit the latest mainline | All 42 commits in `27093e04..1fd40f1a` appear once in the table; eight new public ports and two new private-only exclusions; all 32 rewritten entries reconciled |
+| Port individually | Each of the eight destination commits contains its full source hash; all destinations are ancestors of this branch and follow source order |
+| Retain public adaptations | Strict provider rejection, pinned endpoint overrides, cancellation cleanup and startup fix `0814f145` retained; public UI bundle subsequently rebuilt in the separately requested UI follow-up `d2a9111d` |
+| Preserve existing diagnostics | After the recovery port, eight tracked files and two untracked files match stash bytes; every diagnostic addition remains in three merged files; all 13 files remain uncommitted and backups `3fb57119` and `ca60af11` are retained |
+| Verify provider/runtime/CLI compatibility | Earlier mainline contract selection: 929 passed, 147 skipped, one existing forkpty warning; includes all provider tests, workspace/launcher/SDK bootstrap, ACP runtime, cron, sub-agents, helper consumers, browser setup, diagnostics and Git/storage. Recovery follow-up: 360 passed for reviewed sub-agent/model-wrapper/diagnostic/business-verifier contracts |
+| Verify session and storage behavior | Earlier strict network-blocked session baseline plus Git and platform flushing tests: 901 passed, three existing xfails (G01, G12, G14); includes simulated Windows writable-handle requirements and POSIX read-only files. Recovery follow-up session baseline and Windows storage: 335 passed, the same three expected failures |
+| Verify UI and browser | UI follow-up: 30 files / 308 tests passed, TypeScript `--noEmit` and `build:all` passed; Chrome ACP unchanged: 118 extension + 165 shared/proxy + five web tests passed; all three browser packages built successfully |
 | Verify release artifacts | CLI wheel 1.7.33 built with current storage code and CLI/ACP entrypoints; public UI bundle executable without a source map; browser manifests and proxy lock metadata 1.0.46; Node packaging two passed; `poetry check --lock` passed with existing manifest deprecation warnings |
 | Verify scope and cleanliness | No unresolved/staged files, introduced conflict markers or private-provider imports; only the restored diagnostics and this ledger remain modified before the documentation commit; working and committed diffs pass whitespace checks |
 
 The SDK migration's broader verification also required focused fixture follow-up
 `b23e92e1`: assert native Responses `max_retries=0` and prevent repeated vendor
 body captures after deliberately synthetic response parsing failures.
+
+#### Sub-agent recovery follow-up
+
+`c4ee6c0c` ports the full public scope of `1fd40f1a` as one commit. The accounting
+fixture conflict preserves the existing public price expectation of CNY 0.0227;
+SDK detail fields are checked as parsed JSON, including cached reads and explicit
+zero cache writes, rather than relying on key order. No pricing or dependency
+change was introduced.
+
+The clean port passed 52 recovery/reasoning/accounting tests before restoring
+diagnostics. After restoration, the reviewed sub-agent, model-wrapper, diagnostic
+and business-verifier selection passed 360 tests with one existing forkpty
+warning. The session baseline and Windows storage selection passed 335 tests
+with three existing expected failures. These are focused follow-up selections,
+not a claim that the previously failing full suite is green.
+
+The new real-SDK matrix covers foreground and background runs, completed tools
+executed once, timeout and missing-final-response recovery, preserved session
+inputs, iterator cleanup and request accounting. Separate cases cover temporary
+HTTP failures, cancellation during backoff, non-retryable errors, exhausted
+continuations and reasoning-only budgets that do not reset during recovery.
+Retained logs are `oss-subtask-recovery-clean.log`,
+`oss-subtask-recovery-contracts.log` and `oss-subtask-recovery-baseline.log`.
+
+The 1.7.33 wheel was rebuilt after this port. Its 514 Python files match the
+verified working tree byte for byte, including restored diagnostic files, and
+its UI bundle matches the committed bundle in `d2a9111d`. This artifact check
+does not turn the uncommitted diagnostics into part of the port commit.
+
+The separately requested UI commit `d2a9111d` removes Provider from compact,
+expanded and exported banner lines while retaining Agent, Model and mode hints.
+It includes six display regressions and the rebuilt public bundle.
 
 The initial combined run put localhost integration tests under the session
 baseline's strict network guard and failed. Its output is retained in
