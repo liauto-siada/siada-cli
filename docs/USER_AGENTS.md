@@ -298,6 +298,15 @@ Notes:
   tools and model are unaffected.
 - Like any other sub-agent, the run is displayed in the sub-agent detail view,
   not inline in the conversation.
+- On a transient model failure (timeout, disconnect, temporary API error, or a
+  stream without a final response), sub-agents can continue up to twice after
+  waiting 1 and 2 seconds. Each continuation reuses the session, completed tool
+  results, agent settings, and MCP connections. The sub-agent stays running
+  during recovery; only an exhausted or non-retryable failure marks it failed.
+  Cancellation and configuration errors are not retried. These continuations
+  are separate from provider request retries and the existing two retries for
+  an empty reasoning-only completion. Per-agent logs record retry notices and
+  incomplete request durations without inventing token usage or charges.
 
 ## Priority and Deduplication
 

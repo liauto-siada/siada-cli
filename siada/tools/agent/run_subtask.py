@@ -23,6 +23,8 @@ Two independent boolean parameters control how the sub-agent is launched:
   ``siada.tools.agent.subagent_async`` for the background-task registry and
   parent-notification mechanism.
 """
+import asyncio
+from dataclasses import dataclass
 from typing import Any, AsyncIterator, Optional
 
 from contextlib import AsyncExitStack, aclosing
@@ -38,6 +40,7 @@ from siada.agent_hub.coder.sub_task_agent import SubTaskAgent, _build_default_to
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.logging import logger as logging
 from siada.foundation.setting import settings
+from siada.provider.retry import MissingFinalResponseError, is_retryable_model_error
 from siada.services.agents import (
     UserAgentDefinition,
     filter_tools_for_agent,
@@ -158,11 +161,24 @@ def unknown_agent_message(agent_name: str, agent_context: Optional[CodeAgentCont
 # ---- Helper functions --------------------------------
 
 _REASONING_ONLY_MAX_RETRIES = 2
+_STREAM_ERROR_MAX_RETRIES = 2
+_STREAM_ERROR_RETRY_INPUT = (
+    "The previous model response was interrupted by a transient error. "
+    "Continue the assigned task from the existing session and completed tool "
+    "results. Do not repeat completed actions. Check the current state before "
+    "repeating any action whose outcome is uncertain. Return a final answer "
+    "when finished."
+)
 _REASONING_ONLY_RETRY_INPUT = (
     "Your previous response ended with reasoning and no final answer. "
     "Continue the assigned task from the existing session and completed tool "
     "results. Return a final answer when finished."
 )
+
+
+@dataclass
+class _ReasoningRetryState:
+    retries: int = 0
 
 
 def _is_empty_reasoning_result(result: RunResultStreaming) -> bool:
@@ -174,6 +190,8 @@ def _is_empty_reasoning_result(result: RunResultStreaming) -> bool:
 
 
 async def _run_subtask_attempts(
+    *,
+    reasoning_retry_state: _ReasoningRetryState | None = None,
     **run_kwargs: Any,
 ) -> AsyncIterator[RunResultStreaming]:
     """Retry reasoning-only completions while retaining the existing session.
@@ -182,19 +200,26 @@ async def _run_subtask_attempts(
     attempt. Completed tool work remains in the session; the original task is
     not submitted again.
     """
-    for attempt in range(_REASONING_ONLY_MAX_RETRIES + 1):
+    retry_state = reasoning_retry_state or _ReasoningRetryState()
+    for _ in range(_REASONING_ONLY_MAX_RETRIES + 1):
+        # Each continuation admits different input under a new logical-run ID.
+        # Reusing the old callback would either duplicate input or reject it.
+        run_kwargs["run_config"].session_input_callback = (
+            make_sub_agent_session_input_callback(run_kwargs["session"])
+        )
         result = Runner.run_streamed(**run_kwargs)
         yield result
         if not _is_empty_reasoning_result(result):
             return
-        if attempt == _REASONING_ONLY_MAX_RETRIES:
+        if retry_state.retries == _REASONING_ONLY_MAX_RETRIES:
             raise RuntimeError(
                 "Sub-agent returned an empty reasoning-only result after "
-                f"{attempt + 1} attempts."
+                f"{retry_state.retries + 1} attempts."
             )
+        retry_state.retries += 1
         logging.warning(
             "[run_subtask] Empty reasoning-only result; retrying (%d/%d).",
-            attempt + 1, _REASONING_ONLY_MAX_RETRIES,
+            retry_state.retries, _REASONING_ONLY_MAX_RETRIES,
         )
         run_kwargs["input"] = _REASONING_ONLY_RETRY_INPUT
 
@@ -562,32 +587,74 @@ async def run_subtask_impl(
 
             async def stream_events():
                 nonlocal result
-                async with aclosing(_run_subtask_attempts(**run_kwargs)) as attempts:
-                    async for result in attempts:
-                        def persist_reasoning(text: str) -> None:
-                            if persist:
-                                subagent_persistence.append_log(
-                                    agent_context.root_dir, agent_context.root_session_id,
-                                    sa_item.id, "thinking", text,
-                                )
+                # Error recovery must not reset the reasoning-only budget.
+                reasoning_retry_state = _ReasoningRetryState()
+                for retry_index in range(_STREAM_ERROR_MAX_RETRIES + 1):
+                    try:
+                        async with aclosing(_run_subtask_attempts(
+                            reasoning_retry_state=reasoning_retry_state, **run_kwargs,
+                        )) as attempts:
+                            async for result in attempts:
+                                def persist_reasoning(text: str) -> None:
+                                    if persist:
+                                        subagent_persistence.append_log(
+                                            agent_context.root_dir, agent_context.root_session_id,
+                                            sa_item.id, "thinking", text,
+                                        )
 
-                        reasoning = SubAgentReasoningStream(
-                            lambda text, **kwargs: push_sub_agent_message(
-                                sa_item.id, "thinking", text, **kwargs,
-                            ),
-                            persist_reasoning,
+                                reasoning = SubAgentReasoningStream(
+                                    lambda text, **kwargs: push_sub_agent_message(
+                                        sa_item.id, "thinking", text, **kwargs,
+                                    ),
+                                    persist_reasoning,
+                                )
+                                try:
+                                    async with aclosing(result.stream_events()) as events:
+                                        async for event in events:
+                                            if isinstance(event, RawResponsesStreamEvent):
+                                                reasoning.handle_raw(event.data)
+                                            elif isinstance(event, RunItemStreamEvent):
+                                                if isinstance(event.item, ReasoningItem):
+                                                    reasoning.complete_item(event.item.raw_item)
+                                            yield event
+                                finally:
+                                    reasoning.finish()
+                        return
+                    except Exception as error:
+                        # ModelWrapper stops replaying after answer or tools
+                        # are exposed. Here a new run continues committed history,
+                        # including completed tools, after a midstream failure.
+                        if (
+                            retry_index == _STREAM_ERROR_MAX_RETRIES
+                            or not (
+                                isinstance(error, MissingFinalResponseError)
+                                or is_retryable_model_error(error)
+                            )
+                        ):
+                            raise
+                        delay = 2 ** retry_index
+                        usage_hooks.record_incomplete_request("retrying")
+                        notice = (
+                            f"Model response interrupted ({type(error).__name__}); "
+                            f"continuing in {delay}s "
+                            f"({retry_index + 1}/{_STREAM_ERROR_MAX_RETRIES})."
                         )
-                        try:
-                            async with aclosing(result.stream_events()) as events:
-                                async for event in events:
-                                    if isinstance(event, RawResponsesStreamEvent):
-                                        reasoning.handle_raw(event.data)
-                                    elif isinstance(event, RunItemStreamEvent):
-                                        if isinstance(event.item, ReasoningItem):
-                                            reasoning.complete_item(event.item.raw_item)
-                                    yield event
-                        finally:
-                            reasoning.finish()
+                        logging.warning(
+                            "[run_subtask] subagent=%s session=%s retry=%s/%s "
+                            "error=%s delay=%ss",
+                            sa_item.id, in_memory_session.session_id,
+                            retry_index + 1, _STREAM_ERROR_MAX_RETRIES,
+                            type(error).__name__, delay,
+                        )
+                        append_usage("request_retry", notice)
+                        push_sub_agent_message(sa_item.id, "thinking", notice)
+                        await asyncio.sleep(delay)
+                        # If setup failed before input admission, retain the
+                        # original task rather than sending an orphan notice.
+                        run_kwargs["input"] = (
+                            _STREAM_ERROR_RETRY_INPUT
+                            if await in_memory_session.get_items() else instruction
+                        )
 
             native_patch_calls: dict[str, object] = {}
             async for event in stream_events():

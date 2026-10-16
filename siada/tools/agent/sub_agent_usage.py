@@ -153,8 +153,8 @@ class SubAgentUsageHooks(RunHooks):
             f"CacheRead={data['cache_read']}, CacheWrite={data['cache_write']}, Total={data['total']}"
         )
 
-    def finish(self, status: str) -> None:
-        """Record unfinished requests without inventing usage or charges."""
+    def record_incomplete_request(self, status: str) -> None:
+        """Close a failed request before another attempt replaces its timer."""
         if self.pending_start is not None:
             duration = self._end_request()
             self.unknown_cost_requests += 1
@@ -163,6 +163,10 @@ class SubAgentUsageHooks(RunHooks):
                 self._request_header(duration)
                 + f"\nStatus: {status}\nTokens: unavailable\nCost: unavailable (request did not complete)",
             )
+
+    def finish(self, status: str) -> None:
+        """Record unfinished requests without inventing usage or charges."""
+        self.record_incomplete_request(status)
         self._append(
             "usage_summary",
             f"Status: {status}\nRequests: {self.request_count}\n"

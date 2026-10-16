@@ -44,7 +44,9 @@ async def test_request_cost_cache_counts_and_monotonic_duration(monkeypatch):
     assert "Duration: 2.500s" in entries[0][1]
     assert "CacheRead=500, CacheWrite=50, Total=1650" in entries[0][1]
     assert "Cost: CNY 0.0227" in entries[0][1]
-    assert '"input_tokens_details": {\n    "cache_write_tokens": 0,\n    "cached_tokens": 500' in entries[0][1]
+    details = json.loads(entries[0][1].split("Usage Details:\n")[1].split("\nCost:")[0])
+    assert details["input_tokens_details"]["cached_tokens"] == 500
+    assert details["input_tokens_details"]["cache_write_tokens"] == 0
     assert '"output_tokens_details": {\n    "reasoning_tokens": 0\n  }' in entries[0][1]
     assert "Duration: 10.000s" in entries[1][1]
     assert "Model Request Duration: 2.500s" in entries[1][1]
