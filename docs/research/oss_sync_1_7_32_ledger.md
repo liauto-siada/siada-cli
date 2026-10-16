@@ -63,7 +63,145 @@ Porting conventions:
 | — | 47299fbc | rebuild | public UI bundle regenerated from synced sources (covers deferred d5951200/cdab2ac8 and the bundle half of 0cec15af). tsc clean, 302 vitest passed |
 | 86f53689 | 98120166 | focused port | installer restart after addon install: the internal tarball/local/PowerShell installers have no public counterpart (public `scripts/install.sh` installs the wheel only, no `.ps1`/tarball/venv installer exists), and the public native setup path (`siada-browser setup` / `siada-cli --browser-setup`) already restarts the CLI-managed proxy after install through the same `manager.restart()` behind `--browser-restart`, mapping restart errors to exit 1 — no runtime change required, no substitute step fabricated; added `tests/services/browser_addon/test_browser_setup_restart.py` pinning install→restart ordering, restart-failure and failed-install semantics, and the shared `--browser-restart` dispatch. 5 passed; browser_addon dir 67 passed, 2 env-gated skips |
 
-## Final validation evidence
+## Latest mainline audit (2026-10-16)
+
+The mainline was rewritten after the previous sync. Its fetched tip at the
+start of this audit is `bb2176f7789e37b6f5f88863c400c82d082b59e1`.
+The common ancestor with the previously audited source is `27093e04`.
+The initial 40 commits in `27093e04..bb2176f7` were audited by their changes,
+rather than treating every new hash as a new feature. A final source check
+also found `10a5eb7ef27ca7c32bc91f666aa4c7ccda0e4751`, extending the audited
+range to 41 commits.
+
+The table below records every rewritten source hash alongside its previous
+source and destination. Existing ports were retained; new public changes were
+committed individually in source order.
+
+| Current source | Previous source | Destination | Disposition |
+| --- | --- | --- | --- |
+| e9c54573 | — | 5a7cf8a5 | focused port: runtime provider ownership and ordered shutdown; public routing and cancellation cleanup retained |
+| 48fae88e | — | a7ce3276 | cherry-pick with public compatibility fixes: standalone SDK helpers, isolated endpoint overrides and durable learning retry budgets |
+| 5d627f62 | — | 5a769791 | focused port: trustworthy legacy snapshot boundary recovery; resume and model switches preserve durable storage |
+| 57aa8095 | — | — | excluded: private provider authentication retry |
+| 202178fc | — | 62418a61 | focused port: explicit workspace selection, launch-directory default and absolute ACP backend forwarding |
+| 1e383906 | 153c415d | fd914ffd | previously ported editor preservation |
+| 921e5ca0 | 5336ac43 | — | previously excluded private authentication change |
+| 2fd46dd5 | 64c0537f | a4b2ac6c | previously ported DOCX dependency compatibility |
+| 11e6e111 | b4fdc641 | 2c448a3e | previously ported conversation forks |
+| 5bc21cfc | 4f96b27c | 96e32fd0 | previously ported transport retry |
+| 374918cb | e5b3bb40 | 1b284d5d | previously ported missing-final-response detection |
+| fccd463d | b3e80d9b | 825e60b3 | previously ported pane state preservation |
+| db0a66de | ebfaa086 | 4277b3a1 | previously adapted public installer |
+| b0d69c4d | 5f67f459 | 3703b720 | previously ported API configuration deadlock fix |
+| fd15e932 | 0cec15af | 5912800b / 47299fbc | previously ported logging and public bundle rebuild |
+| 68f490af | d5951200 | 47299fbc | previously rebuilt public executable bundle |
+| d23184d4 | cdab2ac8 | 47299fbc | previously rebuilt public logging bundle |
+| 0d3c9f18 | 615c043c | d8d648e3 | previously ported transient stream retry |
+| ccffb75b | c093399a | 6e82e233 | previously ported empty-start-event retry |
+| 85a59f09 | b3dd7331 | aaadaf7f | previously ported model persistence |
+| 9d12c661 | fef607f5 | 2d900799 | previously ported dark theme default |
+| 606012d3 | 520c718d | 26dada27 | previously adapted browser file-error isolation |
+| 26b9518d | 5893afbe | 909f52f6 | previously ported consolidated logging |
+| a05b5b47 | beb6b20c | e5215bcb | previously adapted compaction threshold |
+| 6a0a9fb7 | 566400e8 | 3547bb1c | previously adapted public DeepSeek presets |
+| 8d53dbff | 3f1336a0 | f3c85b25 | previously adapted browser disconnect handling |
+| 83b1e5cd | baedf4cd | f34b651c | previously ported sub-agent reasoning display |
+| 4e2c2d82 | 18814a58 | 1aaedeec | previously ported sub-agent provider inheritance |
+| 9c6d2634 | ee8e7987 | — | previously excluded private build script |
+| 43c946c9 | d5c83741 | a9342b69 | previously adapted request usage logging |
+| 9b21d638 | 55be9971 | f4c7d35d | previously adapted detailed token logging |
+| 30a2484d | f9748a43 | a0f1d095 | previously adapted browser queue and steering |
+| 08142a89 | 1c6c97b8 | 26ba1802 | previously adapted history context filtering |
+| f8990ab9 | 2f21d82e | 61ab35ea | previously adapted login reply isolation |
+| 35970711 | de960a8f | 25870092 | previously ported bounded browser learning retries |
+| 7964c6da | 42d87f07 | b6ffb944 | previously ported stream EOF regressions |
+| d8d52241 | 86f53689 | 98120166 | previously adapted restart after addon installation |
+| a94f47dc | — | fe090a7f | focused port: CLI version 1.7.33; public dependency graph unchanged |
+| fc95facc | — | — | excluded: private GitLab release trigger configuration |
+| bb2176f7 | — | f2ab58b2 | focused port: browser versions 1.0.46; public proxy lock metadata aligned |
+| 10a5eb7e | — | 7f418be8 | focused port: platform-appropriate file flush handles; existing Windows directory guard and POSIX error handling retained; Windows CRT emulation and POSIX read-only regression coverage |
+
+### Rewritten history reconciliation
+
+The 32 rewritten entries were compared with their previous source patches on
+tracked public paths, excluding generated bundles/maps, private trees and
+installer scripts. The retained audit (`oss-latest-history-audit.log`) records
+24 matching nonempty patches, five matching empty public scopes and three
+reviewed differences. Empty scopes do not imply that private changes were
+ported: their exclusions or public bundle rebuilds remain recorded above.
+
+The three differences preserve existing public behavior:
+
+- `374918cb` / `e5b3bb40`: final-response detection and iterator cleanup moved
+  earlier in the rewritten history. The public Responses adapter retains
+  typed terminal errors and request iterator cleanup; the SDK helper and
+  transport suites exercise failed, incomplete, empty and cancelled streams.
+- `4e2c2d82` / `18814a58`: strict unsupported-provider handling moved earlier.
+  The public factory still rejects unsupported providers, and sub-agent
+  inheritance retains its public fallback and isolated session fixtures.
+- `35970711` / `de960a8f`: browser learning documentation/comments differ;
+  the functional retry budget is unchanged. The helper port additionally
+  prevents SDK retries from multiplying the durable learning queue budget.
+
+### Latest validation and completion audit
+
+The concrete deliverables are a complete source-to-destination mapping,
+individual commits for new public changes, preserved pre-existing work, and
+verification of the resulting working tree. The checks below refer to retained
+test output, Git ancestry/content checks and built artifacts, not ledger status
+alone.
+
+| Requirement | Evidence |
+| --- | --- |
+| Audit the latest mainline | All 41 commits in `27093e04..10a5eb7e` appear once in the table; seven new public ports and two new private-only exclusions; all 32 rewritten entries reconciled |
+| Port individually | Each of the seven destination commits contains its full source hash; all destinations are ancestors of this branch and follow source order |
+| Retain public adaptations | Strict provider rejection, pinned endpoint overrides, cancellation cleanup, executable public UI bundle and startup fix `0814f145` retained; bundle bytes and mode checked against `bfd6d60e` |
+| Preserve existing diagnostics | Seven tracked files and two untracked files match stash bytes; every diagnostic addition remains in the four merged files; the 13 files remain uncommitted and stash `3fb57119` is retained |
+| Verify provider/runtime/CLI compatibility | Final contract selection: 929 passed, 147 skipped, one existing forkpty warning; includes all provider tests, workspace/launcher/SDK bootstrap, ACP runtime, cron, sub-agents, helper consumers, browser setup, diagnostics and Git/storage |
+| Verify session and storage behavior | Strict network-blocked session baseline plus Git and platform flushing tests: 901 passed, three existing xfails (G01, G12, G14); includes simulated Windows writable-handle requirements and POSIX read-only files |
+| Verify UI and browser | UI: 29 files / 302 tests passed and TypeScript `--noEmit` passed; Chrome ACP: 118 extension + 165 shared/proxy + five web tests passed; all three browser packages built successfully |
+| Verify release artifacts | CLI wheel 1.7.33 built with current storage code and CLI/ACP entrypoints; public UI bundle executable without a source map; browser manifests and proxy lock metadata 1.0.46; Node packaging two passed; `poetry check --lock` passed with existing manifest deprecation warnings |
+| Verify scope and cleanliness | No unresolved/staged files, introduced conflict markers or private-provider imports; only the restored diagnostics and this ledger remain modified before the documentation commit; working and committed diffs pass whitespace checks |
+
+The SDK migration's broader verification also required focused fixture follow-up
+`b23e92e1`: assert native Responses `max_retries=0` and prevent repeated vendor
+body captures after deliberately synthetic response parsing failures.
+
+The initial combined run put localhost integration tests under the session
+baseline's strict network guard and failed. Its output is retained in
+`oss-latest-final-offline.log`; it is not a passing result. The final checks run
+the network-blocked session baseline separately from synthetic localhost
+HTTP/child-process contracts. Retained final logs include
+`oss-latest-final-contracts.log`, `oss-latest-windows-storage.log`,
+`oss-latest-ui-tests-lts.log`, `oss-latest-ui-types-lts.log`,
+`oss-latest-chrome-tests.log`, `oss-latest-chrome-build.log`,
+`oss-latest-browser-packaging-lts.log`, `oss-latest-wheel-build.log`,
+`oss-latest-poetry-check.log` and `oss-latest-artifact-audit.log`.
+
+Repository checks can be rerun with the commands below, the repository
+dependencies and a compatible Node 24 LTS runtime on `PATH`. The final contract
+total above also includes restored, uncommitted diagnostic cases; it describes
+the tested working tree rather than a clean checkout's case count.
+
+```bash
+poetry run python tests/run_session_baseline.py -- tests/services/test_session_storage_windows.py tests/services/test_git_service.py
+env -u API_KEY -u BASE_URL -u SIADA_TEST_PROXY_ENTRY SIADA_CLI_LOG_DIR=/tmp/oss-final-contract-logs SIADA_REMOTE_MODEL_CONFIG=0 LITELLM_LOCAL_MODEL_COST_MAP=True poetry run python -m pytest tests/provider tests/entrypoint/test_workspace.py tests/entrypoint/test_env_assignments.py tests/entrypoint/test_public_startup.py tests/entrypoint/test_public_launcher_setup.py tests/entrypoint/test_sdk_bootstrap_gate.py tests/entrypoint/test_provider_runtime_lifecycle.py tests/acp_server/test_runtime.py tests/services/test_sub_agent_run_config.py tests/tools/agent/test_user_agent_end_to_end.py tests/agent_hub/proactive/test_cron_provider_lifecycle.py tests/services/test_one_shot_consumers.py tests/services/browser_skill/test_learning_retry_policy.py tests/services/browser_addon tests/services/test_model_wrapper_transport_retry.py tests/tools/agent/test_sub_agent_usage.py tests/tools/agent/test_subagent_async.py tests/services/test_session_storage_windows.py tests/services/test_git_service.py -q -m 'not integration'
+npm --prefix siada_cli_ui test -- --run
+npm --prefix siada_cli_ui run build -- --noEmit
+(cd chrome-acp && bun run test && bun run build)
+node --test chrome-acp/scripts/package-browser.test.mjs
+poetry check --lock
+poetry build -f wheel
+git diff bfd6d60e..HEAD --check
+git diff --check
+```
+
+Windows-specific behavior was validated through CRT emulation on Darwin; no
+native Windows run is claimed. The three baseline xfails and the historical
+full-suite limitations below remain visible; the full repository suite is not
+claimed green.
+
+## Previous validation evidence
 
 - Offline session baseline (`tests/run_session_baseline.py`):
   837 passed, 3 xfailed (the three documented legacy gaps).
@@ -96,7 +234,7 @@ Porting conventions:
   119-pass startup/SDK/provider selection above. No full sweep has been rerun
   after these fixture corrections; the full suite is not claimed green.
 
-Final follow-up commands (run without model calls):
+Previous follow-up commands (run without model calls):
 
 ```bash
 poetry run python -m pytest tests/entrypoint/test_public_startup.py tests/entrypoint/test_public_launcher_setup.py tests/entrypoint/test_sdk_bootstrap_gate.py tests/provider/test_chat_completions_providers.py -q
