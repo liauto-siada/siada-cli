@@ -1,7 +1,7 @@
 {
   "name": "Siada",
   "description": "Browser companion for Siada CLI. Chat with any ACP-compatible AI agent through a local proxy server.",
-  "version": "1.0.45",
+  "version": "1.0.46",
   "manifest_version": 3,
   "permissions": [
     "sidePanel",
