@@ -61,6 +61,7 @@ Porting conventions:
 | de960a8f | 25870092 | cherry-pick | bounded browser-skill learning retries; 12 passed |
 | 42d87f07 | b6ffb944 | cherry-pick | Responses-stream EOF/exhaustion coverage; 82 passed |
 | — | 47299fbc | rebuild | public UI bundle regenerated from synced sources (covers deferred d5951200/cdab2ac8 and the bundle half of 0cec15af). tsc clean, 302 vitest passed |
+| 86f53689 | 98120166 | focused port | installer restart after addon install: the internal tarball/local/PowerShell installers have no public counterpart (public `scripts/install.sh` installs the wheel only, no `.ps1`/tarball/venv installer exists), and the public native setup path (`siada-browser setup` / `siada-cli --browser-setup`) already restarts the CLI-managed proxy after install through the same `manager.restart()` behind `--browser-restart`, mapping restart errors to exit 1 — no runtime change required, no substitute step fabricated; added `tests/services/browser_addon/test_browser_setup_restart.py` pinning install→restart ordering, restart-failure and failed-install semantics, and the shared `--browser-restart` dispatch. 5 passed; browser_addon dir 67 passed, 2 env-gated skips |
 
 ## Final validation evidence
 
