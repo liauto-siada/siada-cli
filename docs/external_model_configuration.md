@@ -8,8 +8,10 @@ When using `--provider default`, Siada supports loading user-defined model confi
 
 Agent calls through `ModelWrapper` retry transport timeouts, connection failures,
 LiteLLM midstream failures, and transient OpenAI API errors up to twice, with
-exponential backoff and jitter. API retries cover HTTP 408/409/429/5xx, recognized
+exponential backoff and jitter. API retries cover HTTP 403/408/409/429/5xx, recognized
 server/overload/timeout error codes, and an unclassified `Unknown stream error`.
+HTTP 403 authentication failures share this retry budget; persistent failures
+still propagate after three model calls. The wrapper does not refresh credentials.
 Explicit non-transient stream error codes, such as invalid input or insufficient
 quota, are propagated.
 This covers stream creation and consumption before any output or tool event is

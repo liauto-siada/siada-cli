@@ -47,15 +47,24 @@
 
 | 层级 | 捕获异常 | 重试机制 | 流消费阶段 |
 |---|---|---|---|
-| 新增 ModelWrapper 外层 | Python `TimeoutError`；OpenAI `APIConnectionError`（包含 `APITimeoutError`）；HTTPX `TimeoutException`、`NetworkError`、`RemoteProtocolError`；LiteLLM `Timeout`、`APIConnectionError`、`MidStreamFallbackError`；OpenAI 临时 API 错误（HTTP 408/409/429/5xx、已识别的服务端/过载/限流/超时错误码、未分类的 `Unknown stream error`） | 最多重试 2 次，共 3 次模型调用；等待 `1 + jitter`、`2 + jitter` 秒，jitter 为 0～1 秒 | 同时包住创建流、首次迭代、之后的解析/迭代；只在尚未暴露非生命周期事件时重试 |
+| 新增 ModelWrapper 外层 | Python `TimeoutError`；OpenAI `APIConnectionError`（包含 `APITimeoutError`）；HTTPX `TimeoutException`、`NetworkError`、`RemoteProtocolError`；LiteLLM `Timeout`、`APIConnectionError`、`MidStreamFallbackError`；OpenAI API 错误（HTTP 403/408/409/429/5xx、已识别的服务端/过载/限流/超时错误码、未分类的 `Unknown stream error`） | 最多重试 2 次，共 3 次模型调用；等待 `1 + jitter`、`2 + jitter` 秒，jitter 为 0～1 秒 | 同时包住创建流、首次迭代、之后的解析/迭代；正文、工具或未知事件交给下游后不重放 |
 | default 官方 Chat client | `max_retries=0` | SDK 自动重试关闭；由包装器处理上述传输错误 | SDK 创建请求之外的读流错误由包装器捕获 |
-| default Responses transport | `except Exception` 记录错误后重新抛出 | 未显式覆盖 OpenAI SDK 默认重试参数 | 创建流后的异常不在 transport 的创建调用 catch 内；包装器消费模型流时捕获 |
+| default Responses transport | `except Exception` 记录错误后重新抛出 | 原生 SDK `max_retries=0`，由包装器管理预算 | 创建流后的异常不在 transport 的创建调用 catch 内；包装器消费模型流时捕获 |
 | `ResponsesModel` | `except Exception` 记录错误后重新抛出 | 自身不重试 | 模型的事件解析/迭代异常交给外层包装器 |
 | default legacy LiteLLM | 启动配置 `litellm.num_retries=3` | LiteLLM 负责其支持的异常与退避；不能把设置值当作每类异常必重试的承诺 | SDK/LiteLLM 返回流对象之后，解析抛出的传输类异常由外层包装器补齐 |
 | 新增外层的其它异常 | 其它 HTTP 状态错误、普通 `ValueError` / JSON 解析错误、流中的参数或配额错误码 | 直接抛出，保留原有内层处理 | 不把任意解析 bug 当作断流重试 |
 | 取消 | `asyncio.CancelledError` | 不捕获为可重试异常；关闭当前流 | 立即传播取消 |
 
-重试预算分层，不能把“最多 3 次模型调用”解释为“最多 3 次 HTTP 请求”。例如内层一次模型调用自身最多发 N 次请求，外层最坏可以发到 `3 × N` 次。原生 default Chat 内层 SDK 重试关闭；Responses SDK 和 LiteLLM 的内层策略继续生效。
+重试预算分层，不能把“最多 3 次模型调用”解释为“最多 3 次 HTTP 请求”。例如内层一次模型调用自身最多发 N 次请求，外层最坏可以发到 `3 × N` 次。原生 default Chat 和 Responses 内层 SDK 重试关闭；其它调用路径的 provider 策略需要分别核对。
+
+HTTP 403（包括 `PermissionDeniedError` 认证失败）也使用外层的两次重试额度；
+503 后遇到 403 不会重置预算，连续失败仍抛出最后一次异常。
+外层只重新调用模型，不负责刷新认证凭证，HTTP 401 仍不在外层重试范围内。
+
+子 Agent 的 `run_subtask_impl()` 另有最多两次运行恢复，也使用
+`is_retryable_model_error()` 判断 HTTP 403。它在模型层预算耗尽后从已提交历史继续；
+连续 403 且没有其它重试时，最多三轮运行各调用模型三次，共九次模型调用。
+其它 provider 自身可能的 HTTP 重试需要另行计入。已完成的工具结果保留在历史中。
 
 来源：[retry.py](../../siada/provider/retry.py)、[model_wrapper.py](../../siada/services/model_wrapper.py)、[responses_transport.py](../../siada/provider/default/responses_transport.py)、[LiteLLM 启动配置](../../siada/entrypoint/__init__.py)。
 

@@ -434,7 +434,7 @@ def test_api_error_classification(body, expected):
 
 
 @pytest.mark.parametrize("status,expected", [
-    (400, False), (401, False), (403, False), (404, False),
+    (400, False), (401, False), (403, True), (404, False),
     (408, True), (409, True), (429, True), (500, True), (503, True),
 ])
 def test_api_status_error_classification(status, expected):

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 from agents import Model, RunConfig, function_tool
-from openai import APIStatusError
+from openai import APIStatusError, PermissionDeniedError
 from openai.types.responses import (
     Response,
     ResponseCompletedEvent,
@@ -53,6 +53,11 @@ def no_delay(monkeypatch):
         response=httpx.Response(503, request=httpx.Request("POST", "https://model.test")),
         body=None,
     ),
+    PermissionDeniedError(
+        "synthetic authentication failure",
+        response=httpx.Response(403, request=httpx.Request("POST", "https://model.test")),
+        body={"error": "Authentication failed", "code": 403},
+    ),
 ])
 async def test_transient_failure_continues_without_terminal_failure(error, no_delay):
     failed = _text_result()
@@ -92,13 +97,21 @@ async def test_non_transient_failure_is_not_retried(error, no_delay):
 
 
 @pytest.mark.asyncio
-async def test_retry_budget_preserves_final_exception_and_closes_mcp(no_delay):
-    errors = [httpx.ReadTimeout(f"synthetic-{index}") for index in range(3)]
+@pytest.mark.parametrize("auth_failure", [False, True], ids=["timeout", "403"])
+async def test_retry_budget_preserves_final_exception_and_closes_mcp(no_delay, auth_failure):
+    errors = [
+        PermissionDeniedError(
+            f"synthetic-{index}",
+            response=httpx.Response(403, request=httpx.Request("POST", "https://model.test")),
+            body={"error": "Authentication failed", "code": 403},
+        ) if auth_failure else httpx.ReadTimeout(f"synthetic-{index}")
+        for index in range(3)
+    ]
     results = [_text_result() for _ in errors]
     for result, error in zip(results, errors):
         result.stream_events = _stream_that_raises(error)
     with _MockedSubtaskRun(results, with_definition=True) as run:
-        with pytest.raises(httpx.ReadTimeout) as caught:
+        with pytest.raises(type(errors[-1])) as caught:
             await run.run()
     assert caught.value is errors[-1]
     assert run.run_streamed.call_count == 3

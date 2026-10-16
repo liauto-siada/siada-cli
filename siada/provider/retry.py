@@ -86,7 +86,7 @@ def is_retryable_model_error(error: Exception) -> bool:
     if is_retryable_transport_error(error):
         return True
     if isinstance(error, APIStatusError):
-        return error.status_code in {408, 409, 429} or error.status_code >= 500
+        return error.status_code in {403, 408, 409, 429} or error.status_code >= 500
     if not isinstance(error, APIError):
         return False
     details = api_error_details(error)
