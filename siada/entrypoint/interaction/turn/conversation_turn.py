@@ -552,6 +552,19 @@ class ConversationTurn(RunTurn):
                     continue
 
                 if te.kind == RESPONSE_CREATED:
+                    # A transport retry can start while thinking is still open.
+                    # Finish that display before the next attempt gets new IDs.
+                    if (
+                        getattr(self, "got_reasoning_part", False)
+                        and not getattr(self, "got_content_part", False)
+                        and not getattr(self, "got_function_call_part", False)
+                        and self._current_message_id is not None
+                    ):
+                        self._emit_message_end("thinking")
+                        if self.mdstream is not None:
+                            self.mdstream.close()
+                            self.mdstream = None
+                        self._stream_start_id = None
                     # Response started
                     self.response_content = ""
                     self.tool_calls = {}

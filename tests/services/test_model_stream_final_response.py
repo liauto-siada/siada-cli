@@ -93,7 +93,7 @@ async def test_eof_retries_with_one_admission_and_closes_before_backoff(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("event_type", [
-    "response.output_text.delta", "response.reasoning_summary_text.delta",
+    "response.output_text.delta",
     "response.output_item.added", "response.function_call_arguments.delta",
     "response.output_item.done",
 ])

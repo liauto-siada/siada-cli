@@ -31,7 +31,9 @@ from openai.types.responses.response_reasoning_item import Summary as ReasoningS
 from openai.types.responses.response_usage import InputTokensDetails
 
 from siada.foundation.logging import logger
-from siada.provider.retry import MissingFinalResponseError, api_error_details
+from siada.provider.retry import (
+    MissingFinalResponseError, api_error_details, is_replay_safe_stream_event,
+)
 from siada.provider.responses.sanitize import (
     ensure_reasoning_summary_nonempty,
     sanitize_input_reasoning_items,
@@ -743,7 +745,7 @@ class ResponsesModel(Model):
                         )
                     logger.debug(f"[SSE] {event_type} {_sse_extra}".rstrip())
 
-                    if event_type not in {"response.created", "response.in_progress"}:
+                    if not is_replay_safe_stream_event(event):
                         output_exposed = True
                     yield event
 

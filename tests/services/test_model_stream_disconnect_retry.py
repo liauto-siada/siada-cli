@@ -90,16 +90,12 @@ async def test_disconnect_after_empty_start_retries_without_leaking_ids(objects,
 @pytest.mark.asyncio
 @pytest.mark.parametrize("event", [
     {"type": "response.output_text.delta", "delta": "partial"},
-    {"type": "response.reasoning_summary_text.delta", "delta": "thinking"},
     {"type": "response.output_item.added", "item": {
         "type": "function_call", "name": "execute", "arguments": "", "call_id": "call-test",
     }},
     {"type": "response.output_item.added", "item": {
         "type": "message", "role": "assistant", "status": "in_progress",
         "content": [{"type": "output_text", "text": "already present"}],
-    }},
-    {"type": "response.output_item.added", "item": {
-        "type": "reasoning", "summary": [], "encrypted_content": "opaque-state",
     }},
     {"type": "response.content_part.added", "part": {
         "type": "output_text", "text": "present", "annotations": [],
@@ -125,6 +121,37 @@ async def test_disconnect_after_content_or_tool_is_not_replayed(event, delays):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("event", [
+    {"type": "response.reasoning_summary_text.delta", "delta": "thinking"},
+    {"type": "response.output_item.added", "item": {
+        "type": "reasoning", "summary": [], "encrypted_content": "opaque-state",
+    }},
+])
+async def test_disconnect_after_thinking_retries_with_fresh_lifecycle(event, delays):
+    calls = []
+    closed = []
+
+    async def stream():
+        attempt = len(calls)
+        calls.append(attempt)
+        try:
+            yield {"type": "response.created", "attempt": attempt}
+            yield event
+            if attempt == 0:
+                raise httpx.RemoteProtocolError(DISCONNECT)
+            yield {"type": "response.completed"}
+        finally:
+            closed.append(attempt)
+
+    events = [value async for value in retry.retry_model_stream(stream)]
+    assert [value["attempt"] for value in events if value["type"] == "response.created"] == [0, 1]
+    assert events.count(event) == 2
+    assert events[-1]["type"] == "response.completed"
+    assert calls == closed == [0, 1]
+    delays.assert_awaited_once_with(1.5)
+
+
+@pytest.mark.asyncio
 async def test_pending_headers_are_bounded_and_cancellation_during_backoff_aborts(delays):
     calls = []
 
@@ -138,9 +165,10 @@ async def test_pending_headers_are_bounded_and_cancellation_during_backoff_abort
     with pytest.raises(httpx.RemoteProtocolError):
         async for event in retry.retry_model_stream(excessive_headers):
             events.append(event)
-    assert len(events) == retry._MAX_PENDING_EVENTS + 1
-    assert calls == [1]
-    delays.assert_not_awaited()
+    assert len(events) == (retry._MAX_PENDING_EVENTS + 1) * 3
+    assert calls == [1, 1, 1]
+    assert delays.await_count == 2
+    delays.reset_mock()
 
     closed = []
 

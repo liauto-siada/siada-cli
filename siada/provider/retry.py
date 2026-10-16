@@ -19,6 +19,11 @@ from siada.foundation.logging import logger
 _MAX_RETRIES = 2
 _REQUEST_MAX_RETRIES: ContextVar[int | None] = ContextVar("siada_request_max_retries", default=None)
 _LIFECYCLE_EVENTS = frozenset({"response.created", "response.in_progress"})
+_REASONING_EVENTS = frozenset({
+    "response.reasoning_summary_text.delta", "response.reasoning_summary_text.done",
+    "response.reasoning_text.delta", "response.reasoning_text.done",
+    "response.reasoning_summary_part.added", "response.reasoning_summary_part.done",
+})
 _MAX_PENDING_EVENTS = 64
 _Result = TypeVar("_Result")
 _TRANSIENT_API_ERRORS = frozenset({
@@ -197,22 +202,44 @@ def _is_empty_stream_start(event: Any) -> bool:
     return False
 
 
+def is_replay_safe_stream_event(event: Any) -> bool:
+    """Allow retries after thinking, but never after answer or tool output.
+
+    Reasoning remains visible while streaming and may repeat across attempts.
+    Each new provider iterator owns fresh response assembly state.
+    """
+    event_type = _field(event, "type")
+    if event_type in _REASONING_EVENTS:
+        return True
+    if event_type in {"response.output_item.added", "response.output_item.done"}:
+        if _field(_field(event, "item"), "type") == "reasoning":
+            return True
+    if event_type in {"response.content_part.added", "response.content_part.done"}:
+        if _field(_field(event, "part"), "type") == "reasoning_text":
+            return True
+    return _is_empty_stream_start(event)
+
+
 async def retry_model_stream(
     create_stream: Callable[[], AsyncIterator[_Result]],
     *,
     model_name: str | None = None,
 ) -> AsyncIterator[_Result]:
-    """Retry creation/iteration until meaningful output or tool events are exposed.
+    """Retry creation/iteration until answer, tool, or unknown events are exposed.
 
-    Buffer empty start events so failed attempts cannot leak response/item IDs.
-    Flush on the first meaningful event, preserving streaming after that point.
-    Bound the buffer and treat unknown events conservatively.
+    Buffer empty start events until the first nonempty event or the buffer limit.
+    Thinking streams immediately without committing the attempt; a later retry
+    emits its own lifecycle events and may display new thinking.
+    Hold completed reasoning items until commitment so Runner's empty-output
+    fallback cannot persist items belonging to a failed attempt.
     """
     max_retries = _retry_limit()
     for attempt in range(max_retries + 1):
         stream = None
         pending: list[_Result] = []
+        pending_reasoning_items: list[_Result] = []
         committed = False
+        prefix_exposed = False
         terminal_seen = False
         response_id = None
         last_event = None
@@ -238,15 +265,27 @@ async def retry_model_stream(
                     terminal_seen = True
                 if (
                     not committed
+                    and event_type == "response.output_item.done"
+                    and _field(_field(event, "item"), "type") == "reasoning"
+                ):
+                    pending_reasoning_items.append(event)
+                    continue
+                if (
+                    not prefix_exposed
                     and len(pending) < _MAX_PENDING_EVENTS
                     and _is_empty_stream_start(event)
                 ):
                     pending.append(event)
                     continue
-                committed = True
+                committed = committed or not is_replay_safe_stream_event(event)
+                prefix_exposed = True
                 for lifecycle_event in pending:
                     yield lifecycle_event
                 pending.clear()
+                if committed:
+                    for reasoning_item in pending_reasoning_items:
+                        yield reasoning_item
+                    pending_reasoning_items.clear()
                 yield event
             if not terminal_seen:
                 logger.error(

@@ -94,7 +94,7 @@ async def test_stream_retry_catches_creation_and_iteration(error, phase, no_dela
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("event_type", [
-    "response.output_text.delta", "response.reasoning_summary_text.delta",
+    "response.output_text.delta",
     "response.function_call_arguments.delta", "response.output_item.added",
     "response.completed",
 ])
@@ -115,6 +115,303 @@ async def test_does_not_replay_exposed_output_or_tools(event_type, error, no_del
         async for event in retry.retry_model_stream(stream):
             events.append(event)
     assert [event.type for event in events] == [event_type]
+    calls.assert_called_once()
+    no_delay.assert_not_awaited()
+
+
+@pytest.mark.parametrize("event,expected", [
+    # Lifecycle and empty scaffolding placeholders stay replay-safe.
+    ({"type": "response.created"}, True),
+    ({"type": "response.in_progress"}, True),
+    ({"type": "response.output_item.added", "item": {
+        "type": "message", "role": "assistant", "status": "in_progress", "content": [],
+    }}, True),
+    ({"type": "response.output_item.added", "item": {
+        "type": "reasoning", "summary": [],
+    }}, True),
+    ({"type": "response.content_part.added", "part": {
+        "type": "output_text", "text": "", "annotations": [],
+    }}, True),
+    ({"type": "response.reasoning_summary_part.added", "part": {
+        "type": "summary_text", "text": "",
+    }}, True),
+    # Reasoning keeps streaming in real time and never commits the attempt.
+    ({"type": "response.reasoning_summary_text.delta", "delta": "thinking"}, True),
+    ({"type": "response.reasoning_summary_text.done", "text": "thinking"}, True),
+    ({"type": "response.reasoning_summary_part.added", "part": {
+        "type": "summary_text", "text": "inline summary",
+    }}, True),
+    ({"type": "response.reasoning_summary_part.done", "part": {
+        "type": "summary_text", "text": "inline summary",
+    }}, True),
+    ({"type": "response.reasoning_text.delta", "delta": "raw thought"}, True),
+    ({"type": "response.reasoning_text.done", "text": "raw thought"}, True),
+    ({"type": "response.output_item.added", "item": {
+        "type": "reasoning", "summary": [], "encrypted_content": "opaque-state",
+    }}, True),
+    ({"type": "response.output_item.done", "item": {
+        "type": "reasoning", "summary": [{"type": "summary_text", "text": "done thinking"}],
+    }}, True),
+    ({"type": "response.content_part.added", "part": {
+        "type": "reasoning_text", "text": "",
+    }}, True),
+    ({"type": "response.content_part.done", "part": {
+        "type": "reasoning_text", "text": "raw thought",
+    }}, True),
+    (SimpleNamespace(type="response.reasoning_summary_text.delta", delta="thinking"), True),
+    # Answer text, tool output, unknown payloads, and terminal events commit.
+    ({"type": "response.output_text.delta", "delta": "answer"}, False),
+    ({"type": "response.output_item.added", "item": {
+        "type": "function_call", "call_id": "call-test", "name": "synthetic_tool",
+        "arguments": "", "status": "in_progress",
+    }}, False),
+    ({"type": "response.function_call_arguments.delta", "delta": "{}"}, False),
+    ({"type": "response.output_item.added", "item": {
+        "type": "message", "role": "assistant", "status": "in_progress",
+        "content": [{"type": "output_text", "text": "already present"}],
+    }}, False),
+    ({"type": "response.output_item.done", "item": {
+        "type": "message", "role": "assistant", "status": "completed", "content": [],
+    }}, False),
+    ({"type": "response.content_part.added", "part": {
+        "type": "output_text", "text": "answer", "annotations": [],
+    }}, False),
+    ({"type": "response.content_part.done", "part": {
+        "type": "output_text", "text": "answer", "annotations": [],
+    }}, False),
+    ({"type": "response.output_item.added"}, False),
+    ({"type": "response.custom_event"}, False),
+    ({"type": "response.completed"}, False),
+    ({"type": "response.incomplete"}, False),
+    ({"type": "response.failed"}, False),
+])
+def test_replay_safe_stream_event_whitelist(event, expected):
+    assert retry.is_replay_safe_stream_event(event) is expected
+
+
+def _thinking(item_id="rs-test", summary="Let me think"):
+    """A realistic Responses API reasoning lifecycle with live thinking deltas."""
+    return [
+        {"type": "response.created"},
+        {"type": "response.in_progress"},
+        {"type": "response.output_item.added", "output_index": 0,
+         "item": {"id": item_id, "type": "reasoning", "summary": []}},
+        {"type": "response.reasoning_summary_part.added", "item_id": item_id,
+         "output_index": 0, "summary_index": 0,
+         "part": {"type": "summary_text", "text": ""}},
+        {"type": "response.reasoning_summary_text.delta", "item_id": item_id,
+         "output_index": 0, "summary_index": 0, "delta": summary},
+        {"type": "response.reasoning_summary_text.done", "item_id": item_id,
+         "output_index": 0, "summary_index": 0, "text": summary},
+        {"type": "response.reasoning_summary_part.done", "item_id": item_id,
+         "output_index": 0, "summary_index": 0,
+         "part": {"type": "summary_text", "text": summary}},
+        {"type": "response.content_part.added", "item_id": item_id,
+         "output_index": 0, "content_index": 0,
+         "part": {"type": "reasoning_text", "text": ""}},
+        {"type": "response.reasoning_text.delta", "item_id": item_id,
+         "output_index": 0, "content_index": 0, "delta": summary},
+        {"type": "response.reasoning_text.done", "item_id": item_id,
+         "output_index": 0, "content_index": 0, "text": summary},
+        {"type": "response.content_part.done", "item_id": item_id,
+         "output_index": 0, "content_index": 0,
+         "part": {"type": "reasoning_text", "text": summary}},
+        {"type": "response.output_item.done", "output_index": 0,
+         "item": {"id": item_id, "type": "reasoning",
+                  "summary": [{"type": "summary_text", "text": summary}]}},
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [
+    MidStreamFallbackError(message="broken stream", model="test", llm_provider="openai"),
+    httpx.RemoteProtocolError("incomplete SSE body"),
+    TimeoutError("read timed out"),
+])
+async def test_transport_failure_after_thinking_lifecycle_is_retried(error, no_delay):
+    calls = []
+
+    def attempt_events(attempt):
+        thinking = _thinking(item_id=f"rs-{attempt}")
+        if attempt:
+            return thinking + [
+                {"type": "response.output_item.added", "output_index": 1,
+                 "item": {"id": "msg-test", "type": "message", "role": "assistant",
+                          "status": "in_progress", "content": []}},
+                {"type": "response.output_text.delta", "item_id": "msg-test",
+                 "output_index": 1, "content_index": 0, "delta": "recovered"},
+                {"type": "response.completed"},
+            ]
+        return thinking
+
+    async def stream():
+        attempt = len(calls)
+        calls.append(attempt)
+        for event in attempt_events(attempt):
+            yield event
+        if not attempt:
+            raise error
+
+    events = [event async for event in retry.retry_model_stream(stream)]
+    assert len(calls) == 2
+    no_delay.assert_awaited_once_with(1)
+    # The failed attempt's thinking stays in the raw stream and the retry
+    # streams its own fresh lifecycle; only the final attempt answers.
+    assert [event["delta"] for event in events
+            if event["type"] == "response.reasoning_summary_text.delta"] == ["Let me think"] * 2
+    assert [event["delta"] for event in events
+            if event["type"] == "response.reasoning_text.delta"] == ["Let me think"] * 2
+    assert [event["delta"] for event in events
+            if event["type"] == "response.output_text.delta"] == ["recovered"]
+    assert [event["item"]["id"] for event in events
+            if event["type"] == "response.output_item.added"] == ["rs-0", "rs-1", "msg-test"]
+    assert sum(event["type"] == "response.created" for event in events) == 2
+    assert events[-1]["type"] == "response.completed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shape", ["deltas", "placeholders"])
+async def test_more_than_pending_limit_thinking_events_still_retry(shape, no_delay):
+    count = retry._MAX_PENDING_EVENTS + 36
+    calls = []
+
+    async def stream():
+        attempt = len(calls)
+        calls.append(attempt)
+        yield {"type": "response.created"}
+        for index in range(count):
+            if shape == "deltas":
+                yield {"type": "response.reasoning_summary_text.delta",
+                       "item_id": f"rs-{attempt}", "delta": f"thought {index}"}
+            else:
+                yield {"type": "response.reasoning_summary_part.added",
+                       "item_id": f"rs-{attempt}",
+                       "part": {"type": "summary_text", "text": ""}}
+        if not attempt:
+            raise MidStreamFallbackError(message="broken stream", model="test", llm_provider="openai")
+        yield {"type": "response.completed"}
+
+    events = [event async for event in retry.retry_model_stream(stream)]
+    thinking_type = ("response.reasoning_summary_text.delta" if shape == "deltas"
+                     else "response.reasoning_summary_part.added")
+    assert len(calls) == 2
+    no_delay.assert_awaited_once_with(1)
+    # The pending buffer only bounds empty scaffolding; long thinking never
+    # commits the attempt, so every thinking event of both attempts is kept.
+    assert sum(event["type"] == thinking_type for event in events) == 2 * count
+    assert sum(event["type"] == "response.created" for event in events) == 2
+    assert events[-1]["type"] == "response.completed"
+
+
+@pytest.mark.asyncio
+async def test_stream_eof_after_thinking_only_is_retryable(no_delay):
+    calls = []
+
+    async def stream():
+        attempt = len(calls)
+        calls.append(attempt)
+        for event in _thinking(item_id=f"rs-{attempt}"):
+            yield event
+        if attempt:
+            yield {"type": "response.output_text.delta", "delta": "recovered"}
+            yield {"type": "response.completed"}
+        # The first attempt ends without a terminal response event.
+
+    events = [event async for event in retry.retry_model_stream(stream, model_name="test")]
+    assert len(calls) == 2
+    no_delay.assert_awaited_once_with(1)
+    assert [event["delta"] for event in events
+            if event["type"] == "response.reasoning_summary_text.delta"] == ["Let me think"] * 2
+    assert [event["delta"] for event in events
+            if event["type"] == "response.output_text.delta"] == ["recovered"]
+    assert events[-1]["type"] == "response.completed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["transport", "eof"])
+async def test_thinking_retry_exhaustion_raises_last_error(failure, no_delay):
+    calls = []
+
+    async def stream():
+        attempt = len(calls)
+        calls.append(attempt)
+        yield {"type": "response.created"}
+        yield {"type": "response.reasoning_summary_text.delta", "delta": f"thought {attempt}"}
+        if failure == "transport":
+            raise MidStreamFallbackError(message="broken stream", model="test", llm_provider="openai")
+        # eof: end the stream without a terminal response event.
+
+    events = []
+    with pytest.raises(
+        MidStreamFallbackError if failure == "transport" else retry.MissingFinalResponseError
+    ) as caught:
+        async for event in retry.retry_model_stream(stream):
+            events.append(event)
+    if failure == "eof":
+        assert caught.value.output_exposed is False
+        assert caught.value.last_event == "response.reasoning_summary_text.delta"
+    assert len(calls) == 3
+    # Thinking of every failed attempt was already exposed in real time.
+    assert [event["delta"] for event in events
+            if event["type"] == "response.reasoning_summary_text.delta"] == [
+                "thought 0", "thought 1", "thought 2",
+            ]
+    assert [call.args[0] for call in no_delay.await_args_list] == [1, 2]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [ValueError("bad JSON"), asyncio.CancelledError()])
+async def test_parser_bugs_and_cancellation_mid_thinking_are_not_retried(error, no_delay):
+    calls = Mock()
+
+    async def stream():
+        calls()
+        yield {"type": "response.created"}
+        yield {"type": "response.reasoning_summary_text.delta", "delta": "partial thought"}
+        raise error
+
+    events = []
+    with pytest.raises(type(error)):
+        async for event in retry.retry_model_stream(stream):
+            events.append(event)
+    assert [event["type"] for event in events] == [
+        "response.created", "response.reasoning_summary_text.delta",
+    ]
+    calls.assert_called_once()
+    no_delay.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("committing", [
+    {"type": "response.output_text.delta", "item_id": "msg-test",
+     "output_index": 1, "content_index": 0, "delta": "answer"},
+    {"type": "response.output_item.added", "output_index": 1, "item": {
+        "id": "fc-test", "type": "function_call", "call_id": "call-test",
+        "name": "synthetic_tool", "arguments": "", "status": "in_progress",
+    }},
+    {"type": "response.function_call_arguments.delta", "item_id": "fc-test",
+     "output_index": 1, "delta": "{}"},
+    {"type": "response.content_part.added", "item_id": "msg-test",
+     "output_index": 1, "content_index": 0,
+     "part": {"type": "output_text", "text": "answer", "annotations": []}},
+])
+async def test_body_or_tool_after_thinking_commits_the_attempt(committing, no_delay):
+    calls = Mock()
+
+    async def stream():
+        calls()
+        for event in _thinking():
+            yield event
+        yield committing
+        raise MidStreamFallbackError(message="broken stream", model="test", llm_provider="openai")
+
+    events = []
+    with pytest.raises(MidStreamFallbackError):
+        async for event in retry.retry_model_stream(stream):
+            events.append(event)
+    assert events[: len(_thinking())] == _thinking()
+    assert events[-1] == committing
+    assert len(events) == len(_thinking()) + 1
     calls.assert_called_once()
     no_delay.assert_not_awaited()
 
@@ -651,5 +948,174 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
     assert "'request_id': 'req-test'" in diagnostic
     assert f"response_id={'None' if scenario == 'empty_eof' else 'resp-test'}" in diagnostic
     assert f"output_exposed={scenario in {'after_text', 'eof_after_text', 'eof_after_tool'}}" in diagnostic
+    assert "synthetic-secret" not in diagnostic
+    assert "api_key" not in diagnostic
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["server_error", "eof"])
+async def test_real_responses_sdk_runner_recovers_after_reasoning_without_mixing_ids(
+    failure, no_delay, caplog, monkeypatch,
+):
+    requests = []
+    bodies = []
+    app_logger = logging.getLogger("siada.app")
+    monkeypatch.setattr(app_logger, "handlers", [*app_logger.handlers, caplog.handler])
+
+    def sse(data):
+        return f"data: {json.dumps(data)}\n\n".encode()
+
+    response = {
+        "id": "resp-final", "created_at": 1, "model": "gpt-5", "object": "response",
+        "status": "in_progress", "output": [], "error": None,
+    }
+    final_reasoning = {
+        "id": "rs-final", "type": "reasoning",
+        "summary": [{"type": "summary_text", "text": "second attempt thinking"}],
+    }
+    final_message = {
+        "id": "msg-final", "type": "message", "role": "assistant", "status": "completed",
+        "content": [{"type": "output_text", "text": "recovered answer", "annotations": []}],
+    }
+
+    def reasoning_start(item_id, response_id, delta):
+        return [
+            {"type": "response.created", "sequence_number": 0,
+             "response": {**response, "id": response_id}},
+            {"type": "response.output_item.added", "sequence_number": 1,
+             "output_index": 0, "item": {"id": item_id, "type": "reasoning", "summary": []}},
+            {"type": "response.reasoning_summary_part.added", "sequence_number": 2,
+             "item_id": item_id, "output_index": 0, "summary_index": 0,
+             "part": {"type": "summary_text", "text": ""}},
+            {"type": "response.reasoning_summary_text.delta", "sequence_number": 3,
+             "item_id": item_id, "output_index": 0, "summary_index": 0, "delta": delta},
+        ]
+
+    success = reasoning_start("rs-final", "resp-final", "second attempt thinking") + [
+        {"type": "response.reasoning_summary_text.done", "sequence_number": 4,
+         "item_id": "rs-final", "output_index": 0, "summary_index": 0,
+         "text": "second attempt thinking"},
+        {"type": "response.reasoning_summary_part.done", "sequence_number": 5,
+         "item_id": "rs-final", "output_index": 0, "summary_index": 0,
+         "part": {"type": "summary_text", "text": "second attempt thinking"}},
+        {"type": "response.output_item.done", "sequence_number": 6, "output_index": 0,
+         "item": final_reasoning},
+        {"type": "response.output_item.added", "sequence_number": 7, "output_index": 1,
+         "item": {"id": "msg-final", "type": "message", "role": "assistant",
+                  "status": "in_progress", "content": []}},
+        {"type": "response.content_part.added", "sequence_number": 8, "item_id": "msg-final",
+         "output_index": 1, "content_index": 0,
+         "part": {"type": "output_text", "text": "", "annotations": []}},
+        {"type": "response.output_text.delta", "sequence_number": 9, "item_id": "msg-final",
+         "output_index": 1, "content_index": 0, "delta": "recovered answer"},
+        {"type": "response.output_item.done", "sequence_number": 10, "output_index": 1,
+         "item": final_message},
+        {"type": "response.completed", "sequence_number": 11, "response": {
+            **response, "status": "completed", "output": [final_reasoning, final_message],
+        }},
+    ]
+
+    class Body(httpx.AsyncByteStream):
+        closed = False
+
+        def __init__(self, events, failure):
+            self.events, self.failure = events, failure
+
+        async def __aiter__(self):
+            for event in self.events:
+                yield sse(event)
+            if self.failure is None:
+                return
+            # Model a later socket read so streamed thinking reaches the
+            # consumer before the failure, matching a real midstream boundary.
+            ready = asyncio.get_running_loop().create_future()
+            timer = asyncio.get_running_loop().call_later(0.01, ready.set_result, None)
+            try:
+                await ready
+            finally:
+                timer.cancel()
+            if self.failure == "eof":
+                # End the stream without a terminal response event.
+                yield b"data: [DONE]\n\n"
+            else:
+                yield sse({"error": {
+                    "message": "Unknown stream error", "code": "server_error",
+                    "type": "server_error", "debug": {"api_key": "synthetic-secret"},
+                }})
+
+        async def aclose(self):
+            self.closed = True
+
+    def handler(request):
+        requests.append(request)
+        if len(requests) == 1:
+            body = Body(
+                reasoning_start("rs-failed", "resp-failed", "first attempt thinking"),
+                failure,
+            )
+            request_id = "req-failed"
+        else:
+            body = Body(success, None)
+            request_id = "req-final"
+        bodies.append(body)
+        return httpx.Response(
+            200, headers={"content-type": "text/event-stream", "x-request-id": request_id},
+            stream=body,
+        )
+
+    events = []
+    with caplog.at_level("ERROR", logger="siada.app"):
+        async with AsyncOpenAI(
+            api_key="synthetic", base_url="https://model.test/v1", max_retries=0,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        ) as client:
+            async def create_stream(**kwargs):
+                stream = await client.responses.create(**kwargs, stream=True)
+                return stream, kwargs
+
+            model = ModelWrapper(ResponsesModel(
+                model="gpt-5", transport=SimpleNamespace(
+                    convert_model_name=lambda name: name, create_stream=create_stream,
+                ),
+            ))
+            result = Runner.run_streamed(
+                Agent(name="ResponsesThinkingRetryTest", model=model),
+                input="hello", run_config=RunConfig(tracing_disabled=True),
+            )
+            async for event in result.stream_events():
+                if event.type == "raw_response_event":
+                    events.append(event.data)
+
+    assert len(requests) == 2
+    assert all(body.closed for body in bodies)
+    # Only the final attempt's completed response reaches the runner output;
+    # response and item IDs of the failed attempt never mix in.
+    assert result.final_output == "recovered answer"
+    assert result.raw_responses[-1].response_id == "resp-final"
+    new_item_ids = [getattr(item.raw_item, "id", None) for item in result.new_items]
+    assert "rs-final" in new_item_ids and "msg-final" in new_item_ids
+    assert "rs-failed" not in new_item_ids
+    # The failed attempt's thinking stays in the raw events and the retry
+    # streams its own thinking; answer text comes from the final attempt only.
+    assert [event.delta for event in events
+            if event.type == "response.reasoning_summary_text.delta"] == [
+        "first attempt thinking", "second attempt thinking",
+    ]
+    assert [event.delta for event in events
+            if event.type == "response.output_text.delta"] == ["recovered answer"]
+    assert sorted(
+        event.response.id for event in events if event.type == "response.created"
+    ) == ["resp-failed", "resp-final"]
+    assert [event.response.id for event in events
+            if event.type == "response.completed"] == ["resp-final"]
+    # The model adapter used the shared helper: reasoning-only output stays
+    # unexposed, so both failures stay retryable.
+    diagnostic = "\n".join(
+        record.getMessage() for record in caplog.records
+        if "OpenAI Responses API streaming error:" in record.getMessage()
+    )
+    assert "response_id=resp-failed" in diagnostic
+    assert "output_exposed=False" in diagnostic
+    assert "'request_id': 'req-failed'" in diagnostic
     assert "synthetic-secret" not in diagnostic
     assert "api_key" not in diagnostic

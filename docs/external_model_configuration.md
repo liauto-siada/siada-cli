@@ -14,14 +14,20 @@ HTTP 403 authentication failures share this retry budget; persistent failures
 still propagate after three model calls. The wrapper does not refresh credentials.
 Explicit non-transient stream error codes, such as invalid input or insufficient
 quota, are propagated.
-This covers stream creation and consumption before any output or tool event is
-exposed. Once such an event reaches the caller, the error propagates to avoid
-duplicating output or tool calls. Empty message/reasoning items and empty text
+This covers stream creation and consumption until answer text, tool events, or
+unknown events reach the caller. Thinking deltas remain visible in real time;
+reasoning item/part events also do not stop retries. Thinking from another
+attempt may appear after a failure. Once answer or tool output is exposed, the
+error propagates to avoid duplicating it. Empty message/reasoning items and empty text
 parts are buffered along with lifecycle events, so a deployment disconnect
 (`RemoteProtocolError`, including `incomplete chunked read`) during these start
-events can still retry. Failed attempts' response and item IDs are discarded.
-The buffer holds at most 64 events; content, tool calls, unknown events, or a full
-buffer end the replay window. Retry delays are 1–2 seconds and 2–3 seconds.
+events can still retry. Attempts that fail before exposing any events discard
+their response and item IDs; retries after thinking emit a fresh response
+lifecycle. The buffer holds at most 64 empty start events and flushes when full
+without ending the retry window. Reasoning-only streams that end without a final
+response can also retry. Retry delays are 1–2 seconds and 2–3 seconds.
+Completed reasoning item events are held until commitment, so failed attempts'
+items cannot enter conversation history through the Runner's empty-output fallback.
 Context admission runs once; nested wrappers
 share one transport retry budget. Direct completion clients retain their own
 retry policies. See the [provider routing and retry wiki](wiki/17_provider-routing-retries.md)
@@ -29,7 +35,7 @@ for the protocol routes and exception matrix.
 
 Responses error logs include bounded error message/code/type/param fields,
 available request and trace IDs, model, response ID, last stream event, and whether
-output has been exposed. Request bodies, full error bodies, and authentication
+answer, tool, or unknown events have been exposed. Request bodies, full error bodies, and authentication
 headers are excluded from these diagnostic records. Protocol `error` and
 `response.failed` events follow the same retry rules as SDK exceptions.
 
