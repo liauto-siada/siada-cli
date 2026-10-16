@@ -93,6 +93,9 @@ class UILauncher:
     def _build_siada_args(self) -> List[str]:
         """Build arguments to pass to Python backend via --siada-args."""
         args = []
+        workspace = self.config.get("workspace")
+        if workspace:
+            args.extend(["--workspace", self._quote_arg(str(workspace))])
         config_args = self.config.get("args")
 
         if not config_args:
@@ -465,11 +468,14 @@ def _resolve_workspace() -> tuple:
     import argparse
 
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--workspace", default=None)
+    parser.add_argument(
+        "--workspace", "-w", nargs="?", const=".", default=os.environ.get("SIADA_WORKSPACE")
+    )
     temp_args, _ = parser.parse_known_args()
 
-    git_root = _fast_git_root(temp_args.workspace)
-    workspace = temp_args.workspace or git_root or os.getcwd()
+    workspace = os.path.abspath(temp_args.workspace or os.getcwd())
+    # Git discovery is for environment loading, not workspace selection.
+    git_root = _fast_git_root(workspace)
     return workspace, git_root
 
 

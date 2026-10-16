@@ -350,6 +350,33 @@ Interactive sessions use the Node.js terminal UI launched by `siada-cli`, with
 an ACP-connected Python backend. The legacy Rich/prompt_toolkit interactive UI
 is no longer supported. Non-interactive `--prompt` execution is unchanged.
 
+### Working Directory
+
+By default, Siada CLI uses the directory where you run `siada-cli` as its
+workspace in interactive and non-interactive modes. Launching from a Git
+repository subdirectory keeps that subdirectory as the workspace.
+Git-root discovery is still used by the existing `.env` loading logic.
+
+To use another directory, pass `--workspace` or `-w`, or set `SIADA_WORKSPACE`.
+Relative paths are resolved from the launch directory. The command-line option
+takes precedence over the environment variable.
+
+The directory argument is optional: `siada-cli -w` or `siada-cli --workspace`
+explicitly selects the current directory, even when `SIADA_WORKSPACE` is set.
+
+```bash
+cd ./my-project/src
+siada-cli
+siada-cli -w
+siada-cli -w --prompt "Inspect the current directory"
+siada-cli --workspace ./another-project
+siada-cli -w ./another-project --prompt "Inspect the project"
+```
+
+Sessions are associated with their workspace. To resume a session previously
+created at a repository root, launch from that root or explicitly select it
+with `--workspace`.
+
 ### Non-Interactive Mode
 
 **Features:**

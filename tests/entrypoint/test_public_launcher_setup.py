@@ -340,7 +340,7 @@ class TestUILauncherCommandContract:
             "--siada-module",
             module_root,
             "--siada-args",
-            "--no-daemon",
+            f"--workspace {launcher._quote_arg(workspace)} --no-daemon",
             workspace,
         ]
 
@@ -390,7 +390,7 @@ class TestUILauncherCommandContract:
             "--siada-module",
             module_root,
             "--siada-args",
-            "--no-daemon",
+            f"--workspace {launch.UILauncher({})._quote_arg(workspace)} --no-daemon",
             workspace,
         ]
         assert child.env["SIADA_PARENT_MODE"] == "1"

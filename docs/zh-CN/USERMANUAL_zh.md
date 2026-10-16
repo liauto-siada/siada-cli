@@ -331,6 +331,31 @@ Siada CLI 支持两种使用模式，满足不同的使用场景：
 交互会话使用 `siada-cli` 启动的 Node.js 终端 UI，通过 ACP 连接 Python 后端。
 不再支持旧的 Rich/prompt_toolkit 交互 UI；`--prompt` 非交互执行方式保持不变。
 
+### 工作目录
+
+默认情况下，Siada CLI 将执行 `siada-cli` 命令时所在的目录作为工作目录，
+交互模式和非交互模式均遵循这一规则。在 Git 仓库的子目录启动时，
+会使用该子目录作为工作目录；现有 `.env` 加载逻辑仍会查找 Git 根目录。
+
+需要使用其他目录时，可以通过 `--workspace` 或 `-w` 指定，
+也可以设置 `SIADA_WORKSPACE` 环境变量。相对路径基于启动目录解析，
+命令行参数的优先级高于环境变量。
+
+目录参数是可选的：`siada-cli -w` 或 `siada-cli --workspace` 明确使用当前目录，
+即使设置了 `SIADA_WORKSPACE` 也会使用当前目录。
+
+```bash
+cd ./my-project/src
+siada-cli
+siada-cli -w
+siada-cli -w --prompt "检查当前目录"
+siada-cli --workspace ./another-project
+siada-cli -w ./another-project --prompt "检查项目"
+```
+
+会话与其工作目录关联。恢复此前在仓库根目录创建的会话时，请从该根目录启动，
+或通过 `--workspace` 显式选择它。
+
 ### 非交互模式
 
 **特点：**

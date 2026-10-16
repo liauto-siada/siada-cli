@@ -107,7 +107,9 @@ def _parse_args_and_setup_environment(argv):
 
     # --workspace must be resolved before building the full parser (affects git root detection)
     temp_parser = argparse.ArgumentParser(add_help=False)
-    temp_parser.add_argument("--workspace", default=None)
+    temp_parser.add_argument(
+        "--workspace", "-w", nargs="?", const=".", default=os.environ.get("SIADA_WORKSPACE")
+    )
     temp_args, _ = temp_parser.parse_known_args(argv)
 
     git_root = get_git_root(temp_args.workspace)
@@ -226,7 +228,7 @@ def set_env(args, io):
 
 
 def get_workspace(workspace_arg, git_root):
-    """Resolve and chdir to the workspace. Priority: --workspace > git root > cwd."""
+    """Use the explicit workspace or cwd; git_root is only for environment loading."""
     if workspace_arg:
         workspace = os.path.abspath(workspace_arg)
         if not os.path.exists(workspace):
@@ -237,7 +239,7 @@ def get_workspace(workspace_arg, git_root):
             sys.exit(1)
         os.chdir(workspace)
     else:
-        workspace = git_root if git_root else os.getcwd()
+        workspace = os.getcwd()
     return workspace
 
 
@@ -1235,7 +1237,7 @@ def _check_resume_workspace_early(args, git_root, workspace_arg, io) -> Optional
     if workspace_arg:
         current_ws = os.path.abspath(workspace_arg)
     else:
-        current_ws = git_root if git_root else os.getcwd()
+        current_ws = os.getcwd()
 
     # resume_service.py imports agents.models.chatcmpl_converter at module level.
     # If _agents_init_thread still holds the agents package import lock, Python raises

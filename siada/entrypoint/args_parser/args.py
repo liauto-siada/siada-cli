@@ -297,6 +297,16 @@ def get_parser(default_config_files, git_root):
     group = parser.add_argument_group("Other settings")
 
     group.add_argument(
+        "--workspace",
+        "-w",
+        metavar="DIRECTORY",
+        nargs="?",
+        const=".",
+        default=None,
+        help="Working directory (omit DIRECTORY to use the current directory; default: launch directory)",
+    )
+
+    group.add_argument(
         "--vim",
         action="store_true",
         help="Use VI editing mode in the terminal (default: False)",
