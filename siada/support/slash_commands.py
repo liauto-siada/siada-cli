@@ -1346,9 +1346,11 @@ class SlashCommands:
             # Reset real API messages to force fresh context with new model
             # This avoids stale context issues when switching models
             session.state.task_message_state.reset_real_messages()
-            # Prepared context survives model switches; only the legacy adapter
-            # needs tracking reset before its next full refresh.
+            # FileSession retains legacy boundaries until one-time migration.
+            from siada.services.file_session import FileSession
+
             if (session.state.openai_session and session.state.openai_session.session_folder
+                    and not isinstance(session.state.openai_session, FileSession)
                     and getattr(session.state.openai_session, "has_prepared_context", False) is not True):
                 from siada.services.session_management import SessionManager
                 SessionManager.update_api_messages_tracking(

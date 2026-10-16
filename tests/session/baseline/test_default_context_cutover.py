@@ -11,7 +11,60 @@ from siada.agent_hub.hooks.agent_processors.context_track_processor import Conte
 from siada.agent_hub.siada_agent import SiadaAgent
 from siada.services.session_management import SessionManager
 from siada.services.session_storage import SessionStorageError
+from siada.support.resume_service import ResumeService
 from siada.support.slash_commands import SlashCommands
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("operation", ["resume", "model", "resume_then_model", "reset_before_resume"])
+async def test_legacy_commands_preserve_boundary_until_default_migration(baseline, monkeypatch, stream, operation):
+    session = baseline.session("source")
+    store = session.openai_session
+    history = [
+        {"role": "user", "content": "discarded original"},
+        {"role": "assistant", "content": "pending reply"},
+    ]
+    await store.add_items(history)
+    summary = [{"role": "user", "content": "saved summary"}]
+    from siada.services.session_signature import compute_last_item_signature
+
+    items = summary + history[:1] if operation == "reset_before_resume" else summary
+    SessionManager.sync_api_messages(
+        store.session_folder, store.session_id, items,
+        last_index=-1 if operation == "reset_before_resume" else 0,
+        last_signature="" if operation == "reset_before_resume" else compute_last_item_signature(history[:1]),
+    )
+    legacy_file = store.session_folder / "api_messages.json"
+    before = legacy_file.read_bytes()
+    if operation != "model":
+        resume = ResumeService(session.siada_config.workspace)
+        data = resume.session_manager.load_session(session.session_id, store.session_folder)
+        target = baseline.session("target")
+        resume.restore_to_running_session(data, target)
+        session = target
+        assert session.openai_session.session_folder == store.session_folder
+    if operation in ("model", "resume_then_model"):
+        from siada.models.model_base_config import ModelBaseConfig
+
+        commands = SlashCommands(io=MagicMock())
+        monkeypatch.setattr(commands, "_persist_model_to_conf", lambda _: None)
+        monkeypatch.setattr("siada.support.slash_commands.ModelInfoService.is_model_supported", lambda _: True)
+        monkeypatch.setattr(
+            "siada.models.model_run_config.get_model_config",
+            lambda name: ModelBaseConfig(model_name=name, context_window=1_000_000),
+        )
+        session.siada_config.llm_config.provider = "default"
+        event = commands.cmd_model(session, "migration-test-model")
+        assert event is not None
+        assert session.siada_config.llm_config.model_name == "migration-test-model"
+    assert not store.context_file.exists()
+    assert legacy_file.read_bytes() == before
+    model = baseline.model(session, [[baseline.text("resumed answer")]])
+    await run_default(baseline, session, model, stream=stream, input="continue")
+    assert model.requests[0]["input"] == items + history[1:] + [{"role": "user", "content": "continue"}]
+    assert (await store.get_history_items())[:2] == history
+    assert legacy_file.read_bytes() == before
 
 
 async def run_default(baseline, session, model, *, stream, config=None, input="new turn",

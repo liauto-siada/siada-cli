@@ -60,7 +60,7 @@ async def test_migration_preserves_empty_or_summary_snapshot_and_pending_delta(b
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("change", [
-    {"session_id": "wrong"}, {"last_index": 20}, {"last_index": -1},
+    {"session_id": "wrong"}, {"last_index": 20}, {"last_index": -1, "last_signature": ""},
     {"last_signature": "wrong"}, {"api_messages": None}, {"last_index": True},
 ])
 async def test_invalid_migration_is_rejected_without_changing_legacy_files(baseline, change):
@@ -73,6 +73,66 @@ async def test_invalid_migration_is_rejected_without_changing_legacy_files(basel
     path.write_text(json.dumps(data), encoding="utf-8")
     before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
     with pytest.raises(SessionStorageError):
+        await store.migrate_legacy_context(allow_history_only=True)
+    assert not store.context_file.exists()
+    assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("with_signature", [False, True])
+async def test_migration_recovers_reset_boundary_without_resurrecting_history(baseline, with_signature):
+    store = baseline.session().openai_session
+    history = [
+        {"role": "user", "content": "discarded original"},
+        {"type": "function_call", "call_id": "read-1", "name": "read", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "read-1", "output": "kept result"},
+        {"role": "assistant", "content": "pending reply"},
+    ]
+    await store.add_items(history)
+    store.inject_items([{"role": "user", "content": "route only"}], "source", position="prepend")
+    summary = [{"role": "user", "content": "saved summary"}]
+    items = summary if with_signature else summary + history[1:3]
+    from siada.services.session_signature import compute_last_item_signature
+
+    SessionManager.sync_api_messages(
+        store.session_folder, store.session_id, items, last_index=-1,
+        last_signature=compute_last_item_signature(history[:3]) if with_signature else "",
+    )
+    before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+    prepared = await store.migrate_legacy_context()
+    assert prepared["items"] == items + history[3:]
+    assert prepared["migration_source"] == "legacy_snapshot"
+    assert len(prepared["routed_items"]) == 1
+    assert await store.migrate_legacy_context() == prepared
+    assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")
+                      if path != store.context_file}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", [
+    "empty", "summary", "duplicate", "duplicate_signature", "trailing_summary", "wrong_signature",
+])
+async def test_migration_rejects_reset_boundary_without_unique_final_anchor(baseline, case):
+    store = baseline.session().openai_session
+    anchor = {"role": "user", "content": "repeated request"}
+    history = [anchor, {"role": "assistant", "content": "pending reply"}]
+    if case in ("duplicate", "duplicate_signature"):
+        history += [anchor]
+    await store.add_items(history)
+    summary = {"role": "user", "content": "summary without native anchor"}
+    items = {
+        "empty": [], "summary": [summary], "duplicate": [anchor], "duplicate_signature": [summary],
+        "trailing_summary": [anchor, summary], "wrong_signature": [anchor],
+    }[case]
+    from siada.services.session_signature import compute_last_item_signature
+
+    signature = compute_last_item_signature([anchor]) if case == "duplicate_signature" else ""
+    SessionManager.sync_api_messages(
+        store.session_folder, store.session_id, items,
+        last_signature="wrong" if case == "wrong_signature" else signature,
+    )
+    before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+    with pytest.raises(SessionStorageError, match="trustworthy history boundary"):
         await store.migrate_legacy_context(allow_history_only=True)
     assert not store.context_file.exists()
     assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}

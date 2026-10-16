@@ -107,6 +107,7 @@ class ResumeService:
             runtime_state = (load_state(session_data.session_path, session_data.session_id)
                              if session_data.session_path else session_data.runtime_state)
             prepared_context = None
+            restored_store = None
             if session_data.session_path and (
                 running_session.state.openai_session
                 or session_data.context_snapshot is not None
@@ -290,17 +291,14 @@ class ResumeService:
                 ]
                 persisted_last_index = self._align_last_index(native_items, api_messages_to_use)
                 if persisted_last_index is None:
-                    # Cannot align (e.g. api_messages starts with a compaction
-                    # summary that has no counterpart in history): fall back to a
-                    # full refresh instead of corrupting the context. The persisted
-                    # tracking must be reset too, otherwise the stale values in
-                    # api_messages.json win in _read_tracking_info_from_file.
+                    # FileSession owns the persisted migration boundary even
+                    # when a legacy summary cannot align with UI history.
                     logger.info(
-                        "Could not align api_messages with history on resume; "
-                        "next LLM call will do a full refresh"
+                        "Could not align legacy api_messages mirror with history on resume; "
+                        "resetting in-memory tracking"
                     )
                     running_session.state.task_message_state.reset_real_messages()
-                    if session_data.session_path:
+                    if session_data.session_path and restored_store is None:
                         SessionManager.update_api_messages_tracking(
                             session_data.session_path, -1, ""
                         )
@@ -308,8 +306,8 @@ class ResumeService:
                 persisted_last_signature = compute_message_signature(
                     native_items[persisted_last_index]
                 )
-                # Persist computed values back to api_messages.json
-                if session_data.session_path:
+                # Only non-FileSession legacy callers persist computed tracking.
+                if session_data.session_path and restored_store is None:
                     SessionManager.update_api_messages_tracking(
                         session_data.session_path, persisted_last_index, persisted_last_signature
                     )
@@ -331,7 +329,7 @@ class ResumeService:
                     )
             else:
                 running_session.state.task_message_state.reset_real_messages()
-                if session_data.session_path:
+                if session_data.session_path and restored_store is None:
                     SessionManager.update_api_messages_tracking(
                         session_data.session_path, -1, ""
                     )

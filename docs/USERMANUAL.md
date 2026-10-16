@@ -674,6 +674,12 @@ is `siada-cli --browser-setup --browser-base-url <release-directory>`.
 **Model API errors:**
 - Check your internet connection
 
+**Legacy session migration reports `snapshot has no trustworthy history boundary`:**
+
+- This is a local session-storage error. Older `/model` and resume paths could reset the saved snapshot boundary before migration.
+- Switching models and resuming now preserve that boundary. If it was already reset, migration accepts a unique saved signature or an exact, unique match for the snapshot's final item in native history, retaining the snapshot plus its pending tail.
+- Summary-only snapshots without a saved signature, ambiguous matches, and damaged snapshots still require manual recovery. Back up the session directory before recovery; do not delete `api_messages.json` or guess `last_index`, as this can restore discarded context or omit recent messages.
+
 **Model response stream ended without a final response:**
 
 The stream ended without its terminal response event, even if some text was

@@ -619,7 +619,24 @@ class FileSession(SessionABC):
                         raise ValueError("invalid snapshot boundary")
                     if index == -1:
                         if native or snapshot.get("last_signature", ""):
-                            raise ValueError("snapshot has no trustworthy history boundary")
+                            signature = snapshot.get("last_signature", "")
+                            if signature:
+                                boundaries = [
+                                    position for position, item in enumerate(native)
+                                    if compute_last_item_signature([item]) == signature
+                                ]
+                            else:
+                                boundaries = [
+                                    position for position, item in enumerate(native)
+                                    if items and item == items[-1]
+                                ]
+                            if len(boundaries) != 1:
+                                raise ValueError("snapshot has no trustworthy history boundary")
+                            index = boundaries[0]
+                            logger.info(
+                                "[effective-context][migration] session=%s recovered_last_index=%d anchor=%s",
+                                self.session_id, index, "signature" if signature else "snapshot_tail",
+                            )
                     elif snapshot.get("last_signature") != compute_last_item_signature(native[:index + 1]):
                         raise ValueError("snapshot history boundary signature mismatch")
                     items = items + native[index + 1:]
