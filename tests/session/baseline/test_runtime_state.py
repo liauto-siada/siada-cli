@@ -13,7 +13,7 @@ from siada.services.session_runtime_state import (
     apply_state, capture_context, load_state, notification_identity,
     record_response, restore_state, save_context,
 )
-from siada.services.session_storage import SessionStorageError, storage_transaction
+from siada.services.session_storage import ContextVersionConflict, SessionStorageError, storage_transaction
 from siada.support.usage_utils import serialize_usage
 from siada.tools.todo.models import TodoItem
 
@@ -59,6 +59,89 @@ async def test_request_commit_acknowledges_notices_with_messages_and_counters(ba
     apply_state(fresh_context, saved)
     assert fresh_context.hook_pending_contexts == []
     assert fresh_context.todo_turns_since_write == 7
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("conflict", ["append", "restore"])
+async def test_pending_request_recovery_keeps_context_and_restore_version_fences(baseline, monkeypatch, conflict):
+    from siada.services import session_runtime_state as state
+
+    session = baseline.session()
+    store = session.openai_session
+    store.migrate_legacy_context_sync(allow_history_only=True)
+    context = baseline.context(session)
+    context.hook_pending_contexts = ["synthetic pending notice"]
+    save_context(context)
+    bridge = EffectiveContextSession(store)
+    config = bridge.configure_run(RunConfig(model=baseline.model(session, [])))
+    data = CallModelData(
+        model_data=ModelInputData(input=[], instructions=""), agent=Agent(name="test"), context=context,
+    )
+    model_data = await config.call_model_input_filter(data)
+    bridge.capture_pending_contexts(context.hook_pending_contexts)
+    notice = {"role": "system", "content": context.hook_pending_contexts[0]}
+    writer = state.write_json
+
+    def fail_state(*args):
+        raise OSError("synthetic state failure")
+
+    monkeypatch.setattr(state, "write_json", fail_state)
+    with pytest.raises(OSError, match="state failure"):
+        await bridge.finalize_request_input(model_data.input + [notice])
+    monkeypatch.setattr(state, "write_json", writer)
+    pending = copy.deepcopy(bridge._pending_finalization)
+    snapshot = store.get_context_snapshot_sync()
+    if conflict == "append":
+        await store.append_context_items([{"role": "user", "content": "concurrent input"}], message_ids=["concurrent"])
+    else:
+        store.restore_checkpoint_sync(
+            store.get_history_items_sync(), snapshot, expected_version=snapshot["context_version"], before_commit=lambda: None,
+        )
+    before = store.get_checkpoint_snapshot_sync()
+    with pytest.raises(ContextVersionConflict):
+        await config.call_model_input_filter(data)
+    assert store.get_checkpoint_snapshot_sync() == before
+    assert notice not in store.get_history_items_sync()
+    assert context.hook_pending_contexts == [notice["content"]]
+    assert bridge._pending_finalization == pending
+
+
+@pytest.mark.asyncio
+async def test_empty_hook_tail_recovery_still_commits_runtime_state(baseline, monkeypatch):
+    from siada.services import session_runtime_state as state
+
+    session = baseline.session()
+    store = session.openai_session
+    store.migrate_legacy_context_sync(allow_history_only=True)
+    context = baseline.context(session)
+    context.todo_turns_since_write = 7
+    bridge = EffectiveContextSession(store, admission_id="empty-tail")
+    config = bridge.configure_run(RunConfig(model=baseline.model(session, [])))
+    data = CallModelData(
+        model_data=ModelInputData(input=[], instructions=""), agent=Agent(name="test"), context=context,
+    )
+    model_data = await config.call_model_input_filter(data)
+    writer = state.write_json
+
+    def fail_state(*args):
+        raise OSError("synthetic state failure")
+
+    monkeypatch.setattr(state, "write_json", fail_state)
+    with pytest.raises(OSError, match="state failure"):
+        await bridge.finalize_request_input(model_data.input)
+    monkeypatch.setattr(state, "write_json", writer)
+
+    async def fail_filter(data):
+        raise RuntimeError("synthetic interruption after recovery")
+
+    config = bridge.configure_run(RunConfig(model=baseline.model(session, []), call_model_input_filter=fail_filter))
+    with pytest.raises(RuntimeError, match="interruption after recovery"):
+        await config.call_model_input_filter(data)
+    saved = load_state(store.session_folder, session.session_id)
+    assert saved is not None
+    assert saved["request_counters"]["empty-tail:request:0"]["todo_turns_since_write"] == 7
+    assert bridge._pending_finalization is None
+    assert store.get_history_items_sync() == []
 
 
 def test_repeated_state_restore_keeps_usage_receipts_and_legal_empty_values(baseline):

@@ -80,6 +80,7 @@ class EffectiveContextSession(SessionABC):
         self.token_budget_model_settings: Any = None
         self._pending_contexts: list[str] = []
         self._pending_finalization: tuple[list[dict], list[str]] | None = None
+        self._request_commit_done: asyncio.Event | None = None
         self._pending_checkpoints: list[str] = []
         self._restore_generation: int | None = None
         self._response_index = 0
@@ -311,9 +312,11 @@ class EffectiveContextSession(SessionABC):
     async def finalize_request_input(self, items: list[dict]) -> None:
         """Durably admit additions from both SDK hook chains before network I/O.
 
-        Provider normalization remains downstream. Storage errors propagate;
-        notices and processor queues are retained for an explicit retry.
+        Provider normalization remains downstream. Cancellation waits for the
+        storage outcome; failed commits retain queues for an explicit retry.
         """
+        if self._request_commit_done is not None:
+            await self._request_commit_done.wait()
         if self._request_input is None or self._request_version is None:
             raise SessionStorageError("Model request did not pass the authoritative input filter")
         native = [_native_item(item) for item in items]
@@ -344,33 +347,51 @@ class EffectiveContextSession(SessionABC):
             "version=%d input_items=%d hook_items=%d",
             self.session_id, self.request_identity, self._request_version, size, len(tail),
         )
+        commit_done = asyncio.Event()
+        self._request_commit_done = commit_done
+        cancellation: asyncio.CancelledError | None = None
         try:
-            added = await asyncio.to_thread(commit)
-        except Exception as error:
+            commit_task = asyncio.create_task(asyncio.to_thread(commit))
+            try:
+                while not commit_task.done():
+                    try:
+                        await asyncio.shield(commit_task)
+                    except asyncio.CancelledError as error:
+                        cancellation = cancellation or error
+                added = commit_task.result()
+            except Exception as error:
+                logger.debug(
+                    "[CTX-BUILD][admission] session=%s request=%s stage=hooks_commit_failed error_type=%s",
+                    self.session_id, self.request_identity, type(error).__name__,
+                )
+                if cancellation is not None:
+                    raise cancellation from error
+                raise
+            self._clear_committed_queues(tail)
+            self._request_version += bool(added)
+            self._request_input = native
+            self._pending_finalization = None
+            self._request_token_signature = None
+            if self._request_context is not None and self._request_context.session is not None:
+                from siada.agent_hub.context_filter.request_token_estimator import request_token_signature
+
+                self._request_token_signature = request_token_signature(
+                    self._request_context, self._request_agent, self._request_instructions,
+                    components=self._request_signature_components,
+                )
             logger.debug(
-                "[CTX-BUILD][admission] session=%s request=%s stage=hooks_commit_failed error_type=%s",
-                self.session_id, self.request_identity, type(error).__name__,
+                "[CTX-BUILD][admission] session=%s request=%s stage=hooks_committed "
+                "version=%d items=%d hook_items=%d anchor_eligible=%s",
+                self.session_id, self.request_identity, self._request_version, len(native), len(tail),
+                self._request_token_signature is not None,
             )
-            raise
+        finally:
+            self._request_commit_done = None
+            commit_done.set()
+        if cancellation is not None:
+            raise cancellation
         if added and self.storage.on_items_added:
             await self.storage.on_items_added(copy.deepcopy(added))
-        self._clear_committed_queues(tail)
-        self._request_version += bool(added)
-        self._request_input = native
-        if self._request_context is not None and self._request_context.session is not None:
-            from siada.agent_hub.context_filter.request_token_estimator import request_token_signature
-
-            self._request_token_signature = request_token_signature(
-                self._request_context, self._request_agent, self._request_instructions,
-                components=self._request_signature_components,
-            )
-        self._pending_finalization = None
-        logger.debug(
-            "[CTX-BUILD][admission] session=%s request=%s stage=hooks_committed "
-            "version=%d items=%d hook_items=%d anchor_eligible=%s",
-            self.session_id, self.request_identity, self._request_version, len(native), len(tail),
-            self._request_token_signature is not None,
-        )
 
     def verify_request_model(self, model: Model) -> None:
         """Reject changed counting semantics before committing hooks or sending.
@@ -432,14 +453,14 @@ class EffectiveContextSession(SessionABC):
         # and whether model-instance caching is needed across SDK resolutions.
 
         async def authoritative_filter(data):
+            if self._request_commit_done is not None:
+                await self._request_commit_done.wait()
             self._check_restore_generation(await self.storage.get_context_snapshot())
             if self._pending_finalization is not None:
-                pending, identities = self._pending_finalization
-                await self.storage.append_context_items(
-                    pending, message_ids=identities, expected_restore_generation=self._restore_generation,
-                )
-                self._clear_committed_queues(pending)
-                self._pending_finalization = None
+                # Recover under the previous request's context and identities,
+                # using the same message/runtime-state transaction as admission.
+                pending, _ = self._pending_finalization
+                await self.finalize_request_input([*(self._request_input or []), *pending])
             self._request_context = data.context
             if data.context is not None:
                 data.context.runtime_session = self
