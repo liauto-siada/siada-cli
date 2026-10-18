@@ -33,6 +33,13 @@ Responses 错误日志包含有长度限制的 message/code/type/param、可用�
 模型、response ID、最后一个流事件和是否已交出正文、工具或未知事件。这些诊断记录不打印请求正文、
 完整错误 body 或认证请求头。协议 `error` 和 `response.failed` 事件也按相同规则处理。
 
+主会话在缺少最终响应、超时或连接中断后，还会最多进行两次会话续跑。续跑前读取
+已保存的会话历史和已完成的工具结果，保留已经执行的操作；尚未完整生成的工具调用
+不会执行，也不会复制进历史。如果本次输入尚未成功保存，恢复时保留原始输入。
+连续中断超过额度仍会报错；取消操作会立即停止恢复。
+如果历史已被改写，或消息格式无法确认输入是否保存，恢复也会停止，避免重复发送
+保存状态不确定的输入。
+
 ## 使用 API Key 配置 DeepSeek
 
 首次登录或输入 `/configure` 后，选择 **Configure API Key → DeepSeek**，
@@ -235,6 +242,7 @@ Chat Completions endpoint 需要接受 `role: tool` 消息中的图片内容。
 - 标准模型名（如 `gpt-4`）会映射为“供应商/模型”形式；OpenAI Chat Completions 请求会去掉 LiteLLM 路由前缀，只发送端点接受的模型 ID。
 - Claude 和 Gemini 保留原有 LiteLLM/原生路由。其他 default provider 模型必须使用支持 OpenAI Chat Completions 的端点；仅填写 LiteLLM 原生协议前缀并不能保证兼容。
 - GPT-5 及后续版本使用 Responses API；其他仅支持 Responses 的别名也不会发到 Chat Completions。
+- Responses 请求固定使用 `store: false`，回放完整的已保存历史。启用推理时，`reasoning.context` 统一为 `all_turns`，并请求用于回放的加密推理内容。调用方设置不能启用服务端存储，也不能把推理回放限制为当前轮次。
 - 完整配置示例请参考上文的[配置示例](#配置示例)章节
 
 ## 使用方法

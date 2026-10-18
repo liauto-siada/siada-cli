@@ -71,7 +71,10 @@ HTTP 403（包括 `PermissionDeniedError` 认证失败）也使用外层的两�
 模型流正常 EOF 但缺少终止响应事件时，统一包装器与 `ResponsesModel` 会抛出
 `MissingFinalResponseError`，记录模型、response ID、最后事件和内容暴露状态。
 只收到生命周期、空起始事件或思考内容时沿用最多两次重试；
-已经交出正文、工具或未知事件时直接失败。明确的 `response.incomplete` /
+已经交出正文、工具或未知事件时将异常交给调用方。
+主会话在缺失终止响应、超时或断连后最多续跑两次，从已保存的历史和工具结果继续。
+它不会重放已完成的工具，也不会执行断流时未完整生成的调用；输入尚未保存时保留
+原始输入。取消、存储失败及其它模型行为错误不触发续跑。明确的 `response.incomplete` /
 `response.failed` 保留原有失败处理，不归类为缺失终止事件。泛化的
 `ModelBehaviorError` 不自动重试。
 

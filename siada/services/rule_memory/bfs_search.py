@@ -141,7 +141,7 @@ class BFSFileSearch:
                 
                 # Add subdirectories to queue
                 try:
-                    entries = os.listdir(current_dir)
+                    entries = sorted(os.listdir(current_dir))
                 except PermissionError:
                     logger.debug(f"[BFS] Permission denied: {current_dir}")
                     continue
@@ -190,7 +190,7 @@ class BFSFileSearch:
         visited_dirs = set()
         queue = deque([start_dir])
         dirs_searched = 0
-        file_names_set = set(file_names)
+        ordered_file_names = list(dict.fromkeys(file_names))
         
         ignore_dirs = self.DEFAULT_IGNORE_DIRS.copy()
         if additional_ignore:
@@ -210,7 +210,7 @@ class BFSFileSearch:
             
             try:
                 # Check for all target files in current directory
-                for file_name in file_names_set:
+                for file_name in ordered_file_names:
                     target_file = os.path.join(current_dir, file_name)
                     if os.path.isfile(target_file):
                         found_files.append(target_file)
@@ -218,7 +218,7 @@ class BFSFileSearch:
                 
                 # Add subdirectories to queue
                 try:
-                    entries = os.listdir(current_dir)
+                    entries = sorted(os.listdir(current_dir))
                 except PermissionError:
                     logger.debug(f"[BFS] Permission denied: {current_dir}")
                     continue

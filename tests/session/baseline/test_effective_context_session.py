@@ -2,11 +2,15 @@
 
 import asyncio
 import copy
+import threading
 
 import pytest
-from agents import Agent, RunConfig, Runner, function_tool
+from agents import Agent, ModelSettings, RunConfig, Runner, function_tool
+from agents.models.default_models import get_default_model_settings
+from agents.run_internal.turn_preparation import get_model, get_model_settings
 
 from siada.services.effective_context_session import EffectiveContextSession
+from siada.provider.token_counting import token_counting_info_from_model
 from siada.services.file_session import FileSession
 from siada.services.session_storage import ContextVersionConflict, SessionStorageError
 
@@ -46,8 +50,8 @@ async def test_bridge_end_hooks_preserve_uncommitted_reminders(baseline, monkeyp
 
 
 async def run_bridge(baseline, session, model, *, stream=False, input="continue",
-                     admission_id=None, tools=None, config=None, context=None, hooks=None, agent_hooks=None):
-    bridge = EffectiveContextSession(session.openai_session, admission_id=admission_id)
+                     admission_id=None, tools=None, config=None, context=None, hooks=None, agent_hooks=None, bridge=None):
+    bridge = bridge or EffectiveContextSession(session.openai_session, admission_id=admission_id)
     context = context or baseline.context(session)
     agent = Agent(name="baseline-agent", model=model, instructions="# Context", tools=tools or [], hooks=agent_hooks)
     run_config = bridge.configure_run(config or RunConfig(tracing_disabled=True), agent=agent)
@@ -59,6 +63,55 @@ async def run_bridge(baseline, session, model, *, stream=False, input="continue"
     else:
         result = await Runner.run(agent, **kwargs)
     return result
+
+
+@pytest.mark.parametrize("model_name", ["gpt-5.4", "gpt-6", "glm-test", None])
+def test_metadata_without_early_resolution_preserves_sdk_implicit_settings(baseline, model_name):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    session = baseline.session()
+    model = baseline.model(session, [])
+    provider = SimpleNamespace(
+        get_model=Mock(return_value=model), get_token_counting_info=lambda name: token_counting_info_from_model(model),
+    )
+    agent = Agent(name="synthetic", model=model_name)
+    config = RunConfig(tracing_disabled=True, model_provider=provider)
+    bridge = EffectiveContextSession(session.openai_session)
+    configured = bridge.configure_run(config, agent=agent)
+    assert bridge.token_counting_info == token_counting_info_from_model(model)
+    provider.get_model.assert_not_called()
+    assert configured.model == model_name
+    assert get_model(agent, configured).wrapped_model is model
+    expected = get_default_model_settings(model_name) if model_name else get_default_model_settings()
+    assert get_model_settings(agent, configured) == expected
+    assert configured.model_settings is None
+    assert config.model is None and config.model_settings is None
+
+
+def test_metadata_does_not_promote_agent_settings_to_run_overrides(baseline):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    session = baseline.session()
+    model = baseline.model(session, [])
+    provider = SimpleNamespace(
+        get_model=Mock(return_value=model), get_token_counting_info=lambda name: token_counting_info_from_model(model),
+    )
+    agent = Agent(name="first", model="glm-test", model_settings=ModelSettings(temperature=0.3))
+    config = RunConfig(tracing_disabled=True, model_provider=provider, model_settings=ModelSettings(max_tokens=1200))
+    configured = EffectiveContextSession(session.openai_session).configure_run(config, agent=agent)
+    provider.get_model.assert_not_called()
+    other = Agent(name="second", model="glm-test", model_settings=ModelSettings(temperature=0.8))
+    assert configured.model == "glm-test"
+    assert configured.model_settings is config.model_settings
+    assert get_model_settings(agent, configured).temperature == 0.3
+    assert get_model_settings(other, configured).temperature == 0.8
+    assert get_model_settings(other, configured).max_tokens == 1200
+    assert get_model(agent, configured).wrapped_model is model
+    assert get_model(other, configured).wrapped_model is model
+    assert provider.get_model.call_count == 2
+    assert all(call.args == ("glm-test",) for call in provider.get_model.call_args_list)
 
 
 @pytest.mark.asyncio
@@ -281,6 +334,509 @@ async def test_post_filter_notifications_are_durable_before_failed_model_and_ret
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("failure", ["exception", "cancel"])
+@pytest.mark.parametrize("recover_pending", [False, True])
+async def test_post_commit_callback_failure_keeps_admission_acknowledged(
+    baseline, monkeypatch, stream, failure, recover_pending,
+):
+    from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
+    from siada.services import session_runtime_state as state
+    from siada.services.siada_runner import SiadaRunner
+    from siada.support.resume_service import ResumeService
+
+    session = baseline.session()
+    store = session.openai_session
+    await store.migrate_legacy_context(allow_history_only=True)
+    context = baseline.context(session)
+    notice = {"role": "system", "content": "synthetic committed notice"}
+    later = {"role": "system", "content": "synthetic later notice"}
+    context.hook_pending_contexts = [notice["content"]]
+    state.save_context(context)
+    bridge = EffectiveContextSession(store, admission_id="callback-retry")
+    model = baseline.model(session, [[baseline.text("retry")], [baseline.text("resumed", "resumed")]])
+    hooks = SiadaRunHooks(processors=[])
+
+    async def run():
+        return await run_bridge(baseline, session, model, stream=stream, context=context, hooks=hooks, bridge=bridge)
+
+    if recover_pending:
+        writer = state.write_json
+
+        def fail_state(*args):
+            raise OSError("synthetic state failure")
+
+        monkeypatch.setattr(state, "write_json", fail_state)
+        with pytest.raises(OSError, match="state failure"):
+            await run()
+        monkeypatch.setattr(state, "write_json", writer)
+
+    started = asyncio.Event()
+    stopped = asyncio.Event()
+
+    async def after_commit(items):
+        if notice not in items:
+            return
+        context.hook_pending_contexts.append(later["content"])
+        started.set()
+        try:
+            if failure == "exception":
+                raise RuntimeError("synthetic callback failure")
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    store.on_items_added = after_commit
+    if failure == "cancel":
+        task = asyncio.create_task(run())
+        try:
+            await asyncio.wait_for(started.wait(), 2)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            await asyncio.wait_for(stopped.wait(), 2)
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    else:
+        with pytest.raises(RuntimeError, match="callback failure"):
+            await run()
+
+    assert model.requests == []
+    assert context.hook_pending_contexts == [later["content"]]
+    assert bridge._pending_finalization is None
+    assert bridge._request_input.count(notice) == 1
+    assert bridge._request_version == (await store.get_context_snapshot())["context_version"]
+    saved = state.load_state(store.session_folder, session.session_id)
+    assert saved["pending_notifications"] == []
+    assert saved["delivered_notifications"] == [state.notification_identity(notice["content"])]
+    assert (await store.get_history_items()).count(notice) == 1
+    assert (await store.get_context_items()).count(notice) == 1
+
+    store.on_items_added = None
+    await run()
+    assert model.requests[0]["input"].count(notice) == 1
+    assert model.requests[0]["input"].count(later) == 1
+    assert context.hook_pending_contexts == []
+    resume = ResumeService(session.siada_config.workspace)
+    data = resume.session_manager.load_session(session.session_id, store.session_folder)
+    fresh_session = baseline.session("resume-target")
+    resume.restore_to_running_session(data, fresh_session)
+    fresh_context = baseline.context(fresh_session)
+    await SiadaRunner._prepare_context_for_run(fresh_context, fresh_session)
+    assert fresh_context.hook_pending_contexts == []
+    await run_bridge(baseline, fresh_session, model, stream=stream, context=fresh_context, hooks=hooks, input=[])
+    assert model.requests[1]["input"].count(notice) == 1
+    assert model.requests[1]["input"].count(later) == 1
+    assert (await fresh_session.openai_session.get_history_items()).count(notice) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("recover_pending", [False, True])
+@pytest.mark.parametrize("fail_commit", [False, True])
+async def test_cancellation_during_hook_commit_waits_for_outcome_before_retry(
+    baseline, monkeypatch, stream, recover_pending, fail_commit,
+):
+    from agents import AgentHooks
+    from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
+    from siada.services import session_runtime_state as state
+
+    session = baseline.session()
+    store = session.openai_session
+    await store.migrate_legacy_context(allow_history_only=True)
+    context = baseline.context(session)
+    notice = {"role": "system", "content": "synthetic notice cancelled during commit"}
+    context.hook_pending_contexts = [notice["content"]]
+    reminder_fields = (
+        "pending_reminder_items", "pending_hallucination_reminder_items", "pending_repeated_tool_reminder_items",
+    )
+    reminders = [
+        {"role": "user", "content": f"<system-reminder>synthetic cancelled {field}</system-reminder>"}
+        for field in reminder_fields
+    ]
+    for field, reminder in zip(reminder_fields, reminders, strict=True):
+        setattr(context, field, [copy.deepcopy(reminder)])
+    state.save_context(context)
+    bridge = EffectiveContextSession(store, admission_id="cancelled-commit")
+    model = baseline.model(session, [[baseline.text("retry")]])
+    hooks = SiadaRunHooks(processors=[])
+
+    class ReminderHooks(AgentHooks):
+        async def on_llm_start(self, context, agent, system_prompt, input_items):
+            for field in reminder_fields:
+                input_items.extend(copy.deepcopy(getattr(context.context, field)))
+
+    async def run():
+        return await run_bridge(
+            baseline, session, model, stream=stream, context=context, hooks=hooks,
+            agent_hooks=ReminderHooks(), bridge=bridge,
+        )
+
+    writer = state.write_json
+    if recover_pending:
+        def fail_state(*args):
+            raise OSError("synthetic initial state failure")
+
+        monkeypatch.setattr(state, "write_json", fail_state)
+        with pytest.raises(OSError, match="initial state failure"):
+            await run()
+
+    started = asyncio.Event()
+    release = threading.Event()
+    loop = asyncio.get_running_loop()
+
+    def paused_state_write(path, payload):
+        writer(path, payload)
+        loop.call_soon_threadsafe(started.set)
+        if not release.wait(10):
+            raise RuntimeError("synthetic commit wait timed out")
+        if fail_commit:
+            raise OSError("synthetic cancelled state failure")
+
+    observed = []
+
+    async def after_commit(items):
+        if notice in items:
+            observed.append(items)
+
+    store.on_items_added = after_commit
+    monkeypatch.setattr(state, "write_json", paused_state_write)
+    admission_finished = asyncio.Event()
+    admission_cancellations = []
+    finalize = bridge.finalize_request_input
+
+    async def observed_finalization(items):
+        try:
+            await finalize(items)
+        except asyncio.CancelledError as error:
+            admission_cancellations.append(error)
+            raise
+        finally:
+            admission_finished.set()
+
+    monkeypatch.setattr(bridge, "finalize_request_input", observed_finalization)
+    task = asyncio.create_task(run())
+    try:
+        await asyncio.wait_for(started.wait(), 2)
+        task.cancel("synthetic cancellation during commit")
+        await asyncio.sleep(0)
+        assert not task.done()
+        assert model.requests == []
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 2)
+        await asyncio.wait_for(admission_finished.wait(), 2)
+    finally:
+        release.set()
+        await store.get_context_snapshot()
+        monkeypatch.setattr(state, "write_json", writer)
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    assert model.requests == []
+    assert observed == []
+    saved = state.load_state(store.session_folder, session.session_id)
+    assert bridge._request_version == (await store.get_context_snapshot())["context_version"]
+    if fail_commit:
+        assert isinstance(admission_cancellations[0].__cause__, OSError)
+        assert bridge._pending_finalization[0] == [notice, *reminders]
+        assert context.hook_pending_contexts == [notice["content"]]
+        assert saved["pending_notifications"] == [notice["content"]]
+        assert saved["delivered_notifications"] == []
+        for field, reminder in zip(reminder_fields, reminders, strict=True):
+            assert getattr(context, field) == [reminder]
+            assert saved[field] == [reminder]
+        assert await store.get_history_items() == [{"role": "user", "content": "continue"}]
+    else:
+        assert bridge._pending_finalization is None
+        assert context.hook_pending_contexts == []
+        assert saved["pending_notifications"] == []
+        assert saved["delivered_notifications"] == [state.notification_identity(notice["content"])]
+        assert bridge._request_input.count(notice) == 1
+        for field in reminder_fields:
+            assert getattr(context, field) == []
+            assert saved[field] == []
+
+    await run()
+    assert model.requests[0]["input"].count(notice) == 1
+    assert context.hook_pending_contexts == []
+    for reminder in [notice, *reminders]:
+        assert model.requests[0]["input"].count(reminder) == 1
+        assert (await store.get_history_items()).count(reminder) == 1
+    assert observed == ([[notice, *reminders]] if fail_commit else [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("repeat_cancel", [False, True])
+@pytest.mark.parametrize("include_notice", [False, True])
+async def test_cancellation_after_durable_commit_before_worker_return_is_acknowledged(
+    baseline, monkeypatch, repeat_cancel, include_notice,
+):
+    from agents.run import CallModelData, ModelInputData
+    from siada.services import session_runtime_state as state
+
+    session = baseline.session()
+    store = session.openai_session
+    await store.migrate_legacy_context(allow_history_only=True)
+    context = baseline.context(session)
+    notice = {"role": "system", "content": "synthetic durable notice before cancellation"}
+    notices = [notice] if include_notice else []
+    context.hook_pending_contexts = [notice["content"]] if include_notice else []
+    context.todo_turns_since_write = 7
+    state.save_context(context)
+    bridge = EffectiveContextSession(store, admission_id="cancelled-worker-return")
+    config = bridge.configure_run(RunConfig(model=baseline.model(session, [])))
+    data = CallModelData(
+        model_data=ModelInputData(input=[], instructions=""), agent=Agent(name="test"), context=context,
+    )
+    filtered = await config.call_model_input_filter(data)
+    bridge.capture_pending_contexts(context.hook_pending_contexts)
+    started = asyncio.Event()
+    release = threading.Event()
+    original_to_thread = asyncio.to_thread
+    loop = asyncio.get_running_loop()
+
+    async def paused_worker_return(function, *args, **kwargs):
+        def committed_then_wait():
+            result = function(*args, **kwargs)
+            loop.call_soon_threadsafe(started.set)
+            if not release.wait(10):
+                raise RuntimeError("synthetic worker return timed out")
+            return result
+
+        return await original_to_thread(committed_then_wait)
+
+    monkeypatch.setattr(asyncio, "to_thread", paused_worker_return)
+    task = asyncio.create_task(bridge.finalize_request_input(filtered.input + notices))
+    try:
+        await asyncio.wait_for(started.wait(), 2)
+        task.cancel("synthetic first cancellation")
+        await asyncio.sleep(0)
+        assert not task.done()
+        if repeat_cancel:
+            task.cancel("synthetic repeated cancellation")
+            await asyncio.sleep(0)
+            assert not task.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError, match="first cancellation"):
+            await asyncio.wait_for(task, 2)
+    finally:
+        release.set()
+        await original_to_thread(store.get_context_snapshot_sync)
+        monkeypatch.setattr(asyncio, "to_thread", original_to_thread)
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    assert bridge._pending_finalization is None
+    assert bridge._request_commit_done is None
+    assert context.hook_pending_contexts == []
+    assert bridge._request_input.count(notice) == len(notices)
+    assert bridge._request_version == (await store.get_context_snapshot())["context_version"]
+    saved = state.load_state(store.session_folder, session.session_id)
+    assert saved["pending_notifications"] == []
+    assert saved["request_counters"]["cancelled-worker-return:request:0"]["todo_turns_since_write"] == 7
+    await config.call_model_input_filter(data)
+    assert await store.get_history_items() == notices
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recover_pending", [False, True])
+async def test_stream_cancelled_consumer_retry_waits_for_previous_commit(baseline, monkeypatch, recover_pending):
+    from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
+    from siada.services import session_runtime_state as state
+
+    session = baseline.session()
+    store = session.openai_session
+    await store.migrate_legacy_context(allow_history_only=True)
+    context = baseline.context(session)
+    notice = {"role": "system", "content": "synthetic streamed notice cancelled before worker return"}
+    context.hook_pending_contexts = [notice["content"]]
+    state.save_context(context)
+    bridge = EffectiveContextSession(store)
+    model = baseline.model(session, [[baseline.text("retry")]])
+    hooks = SiadaRunHooks(processors=[])
+
+    async def run():
+        return await run_bridge(baseline, session, model, stream=True, context=context, hooks=hooks, bridge=bridge)
+
+    if recover_pending:
+        writer = state.write_json
+
+        def fail_state(*args):
+            raise OSError("synthetic initial state failure")
+
+        monkeypatch.setattr(state, "write_json", fail_state)
+        with pytest.raises(OSError, match="initial state failure"):
+            await run()
+        monkeypatch.setattr(state, "write_json", writer)
+
+    started = asyncio.Event()
+    release = threading.Event()
+    original_to_thread = asyncio.to_thread
+    loop = asyncio.get_running_loop()
+
+    async def paused_worker_return(function, *args, **kwargs):
+        if function.__name__ != "commit":
+            return await original_to_thread(function, *args, **kwargs)
+
+        def committed_then_wait():
+            result = function(*args, **kwargs)
+            loop.call_soon_threadsafe(started.set)
+            if not release.wait(10):
+                raise RuntimeError("synthetic streamed worker return timed out")
+            return result
+
+        return await original_to_thread(committed_then_wait)
+
+    monkeypatch.setattr(asyncio, "to_thread", paused_worker_return)
+    task = asyncio.create_task(run())
+    retry = None
+    try:
+        await asyncio.wait_for(started.wait(), 2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 2)
+        assert bridge._request_commit_done is not None
+        assert model.requests == []
+        assert (await store.get_history_items()).count(notice) == 1
+        assert state.load_state(store.session_folder, session.session_id)["pending_notifications"] == []
+        monkeypatch.setattr(asyncio, "to_thread", original_to_thread)
+        retry = asyncio.create_task(run())
+        await asyncio.sleep(0)
+        assert not retry.done()
+        assert model.requests == []
+        release.set()
+        await asyncio.wait_for(retry, 2)
+    finally:
+        release.set()
+        monkeypatch.setattr(asyncio, "to_thread", original_to_thread)
+        for pending_task in (task, retry):
+            if pending_task is not None:
+                if not pending_task.done():
+                    pending_task.cancel()
+                await asyncio.gather(pending_task, return_exceptions=True)
+        if bridge._request_commit_done is not None:
+            await asyncio.wait_for(bridge._request_commit_done.wait(), 2)
+
+    assert bridge._request_commit_done is None
+    assert bridge._pending_finalization is None
+    assert context.hook_pending_contexts == []
+    assert model.requests[0]["input"].count(notice) == 1
+    assert (await store.get_history_items()).count(notice) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_same_bridge_recovery_commits_runtime_state_before_filter_and_resume(baseline, monkeypatch, stream):
+    from agents import AgentHooks
+    from siada.agent_hub.hooks.siada_run_hooks import SiadaRunHooks
+    from siada.services import session_runtime_state as state
+    from siada.services.siada_runner import SiadaRunner
+    from siada.support.resume_service import ResumeService
+
+    session = baseline.session()
+    store = session.openai_session
+    await store.migrate_legacy_context(allow_history_only=True)
+    context = baseline.context(session)
+    notice = {"role": "system", "content": "synthetic recoverable notice"}
+    context.hook_pending_contexts = [notice["content"]]
+    context.todo_turns_since_write = 7
+    context.todo_turns_since_reminder = 3
+    reminder_fields = (
+        "pending_reminder_items", "pending_hallucination_reminder_items", "pending_repeated_tool_reminder_items",
+    )
+    reminders = [
+        {"role": "user", "content": f"<system-reminder>synthetic {field}</system-reminder>"}
+        for field in reminder_fields
+    ]
+    for field, reminder in zip(reminder_fields, reminders, strict=True):
+        setattr(context, field, [copy.deepcopy(reminder)])
+    state.save_context(context)
+    bridge = EffectiveContextSession(store, admission_id="state-retry")
+    model = baseline.model(session, [[baseline.text("resumed")]])
+    hooks = SiadaRunHooks(processors=[])
+    interrupted = False
+
+    async def filter_input(data):
+        if interrupted:
+            raise RuntimeError("synthetic interruption after recovery")
+        return data.model_data
+
+    class ReminderHooks(AgentHooks):
+        async def on_llm_start(self, context, agent, system_prompt, input_items):
+            for field in reminder_fields:
+                input_items.extend(copy.deepcopy(getattr(context.context, field)))
+
+    async def run():
+        return await run_bridge(
+            baseline, session, model, stream=stream, context=context, hooks=hooks, agent_hooks=ReminderHooks(),
+            bridge=bridge, config=RunConfig(tracing_disabled=True, call_model_input_filter=filter_input),
+        )
+
+    writer = state.write_json
+
+    def fail_state(*args):
+        raise OSError("synthetic state failure")
+
+    monkeypatch.setattr(state, "write_json", fail_state)
+    with pytest.raises(OSError, match="state failure"):
+        await run()
+    before = store.get_checkpoint_snapshot_sync()
+    pending = copy.deepcopy(bridge._pending_finalization)
+    with pytest.raises(OSError, match="state failure"):
+        await run()
+    assert model.requests == []
+    assert store.get_checkpoint_snapshot_sync() == before
+    assert bridge._pending_finalization == pending
+    assert context.hook_pending_contexts == [notice["content"]]
+    for field, reminder in zip(reminder_fields, reminders, strict=True):
+        assert getattr(context, field) == [reminder]
+
+    monkeypatch.setattr(state, "write_json", writer)
+    interrupted = True
+    observed = []
+
+    async def after_commit(items):
+        observed.append(items)
+
+    store.on_items_added = after_commit
+    with pytest.raises(RuntimeError, match="interruption after recovery"):
+        await run()
+    assert model.requests == []
+    assert observed == [[notice, *reminders]]
+    assert bridge._pending_finalization is None
+    assert context.hook_pending_contexts == []
+    saved = state.load_state(store.session_folder, session.session_id)
+    assert saved["pending_notifications"] == []
+    assert saved["delivered_notifications"] == [state.notification_identity(notice["content"])]
+    assert saved["request_counters"]["state-retry:request:0"] == {
+        "todo_turns_since_write": 7, "todo_turns_since_reminder": 3,
+    }
+    for field in reminder_fields:
+        assert getattr(context, field) == []
+        assert saved[field] == []
+
+    resume = ResumeService(session.siada_config.workspace)
+    data = resume.session_manager.load_session(session.session_id, store.session_folder)
+    fresh_session = baseline.session("resume-target")
+    resume.restore_to_running_session(data, fresh_session)
+    fresh_context = baseline.context(fresh_session)
+    await SiadaRunner._prepare_context_for_run(fresh_context, fresh_session)
+    assert fresh_context.hook_pending_contexts == []
+    assert fresh_context.todo_turns_since_write == 7
+    await run_bridge(baseline, fresh_session, model, stream=stream, context=fresh_context, hooks=hooks, input=[])
+    assert model.requests[0]["input"].count(notice) == 1
+    assert (await fresh_session.openai_session.get_history_items()).count(notice) == 1
+    for reminder in reminders:
+        assert model.requests[0]["input"].count(reminder) == 1
+        assert (await fresh_session.openai_session.get_history_items()).count(reminder) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
 async def test_todo_post_filter_reminder_commits_once_and_usage_has_no_history_mirror(baseline, stream):
     from siada.agent_hub.hooks.agent_processors.context_track_processor import ContextTrackProcessor
     from siada.agent_hub.hooks.siada_agent_hooks import SiadaAgentHooks
@@ -415,7 +971,7 @@ async def test_final_hook_admission_retry_does_not_duplicate_already_committed_t
     bridge = EffectiveContextSession(session.openai_session)
     context = baseline.context(session)
     await bridge.session_input_callback([], [{"role": "user", "content": "continue"}])
-    config = bridge.configure_run(RunConfig())
+    config = bridge.configure_run(RunConfig(model=baseline.model(session, [])))
     data = CallModelData(model_data=ModelInputData(input=[], instructions=""), agent=Agent(name="test"), context=context)
     filtered = await config.call_model_input_filter(data)
     filtered.input.append({"role": "system", "content": "notice"})

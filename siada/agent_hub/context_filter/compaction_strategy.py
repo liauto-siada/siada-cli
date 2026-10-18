@@ -24,13 +24,10 @@ from siada.agent_hub.coder.prompt.compact_prompt import (
 )
 from siada.agent_hub.context_filter.utils import (
     calculate_tokens,
-    estimate_tokens,
     _convert_tools_to_openai_params,
-    fix_tool_message_ordering,
 )
 from siada.provider.one_shot import extract_response_text, one_shot_completion
 from siada.foundation.logging import logger
-from siada.support.chat_compat_items import to_chat_compatible_items
 
 # Event-type marker used in the X-Siada-Event-Type header for compaction LLM calls.
 # Overrides AGENT_NAME for the duration of call_llm_to_compact() so server-side
@@ -126,8 +123,29 @@ class CompactionStrategy(ABC):
             CompactionResult with an explicit `compacted` flag.
         """
         working_copy = list(real_api_messages)
-        result = await self._compact_impl(
-            model_run_config, working_copy, fixed_overhead_tokens=fixed_overhead_tokens,
+        started = time.perf_counter()
+        logger.debug(
+            "[CTX-COMPACT][strategy] stage=start strategy=%s items=%d "
+            "context_window=%s fixed_overhead_tokens=%d",
+            type(self).__name__, len(real_api_messages), getattr(model_run_config, "context_window", None),
+            fixed_overhead_tokens,
+        )
+        try:
+            result = await self._compact_impl(
+                model_run_config, working_copy, fixed_overhead_tokens=fixed_overhead_tokens,
+            )
+        except BaseException as error:
+            logger.debug(
+                "[CTX-COMPACT][strategy] stage=aborted strategy=%s error_type=%s elapsed_ms=%.1f",
+                type(self).__name__, type(error).__name__, (time.perf_counter() - started) * 1000,
+            )
+            raise
+        logger.debug(
+            "[CTX-COMPACT][strategy] stage=complete strategy=%s compacted=%s "
+            "before_items=%d after_items=%d summary_chars=%d elapsed_ms=%.1f",
+            type(self).__name__, result.compacted, len(real_api_messages),
+            len(result.messages) if result.compacted else len(real_api_messages),
+            len(result.summary) if result.summary else 0, (time.perf_counter() - started) * 1000,
         )
         if not result.compacted:
             # No-op: hand back the TRUE original object regardless of what
@@ -441,48 +459,29 @@ class CompactionStrategy(ABC):
                 model, main_model,
             )
 
-        # Replayed history may contain native Responses apply_patch items,
-        # which the ChatCompletions token-count converter rejects outright.
-        # Rewrite those items only for token accounting; the SDK request keeps
-        # native history so ModelWrapper can normalize for the selected protocol.
-        converted_messages = Converter.items_to_messages(
-            to_chat_compatible_items(history_to_compact)
-        )
-        # Kimi K3 (and other models) may interleave an assistant text message
-        # between a function_call and its function_call_output in the
-        # Responses-API item stream. Converter.items_to_messages then flushes
-        # the pending assistant tool_calls message before the interleaved
-        # text, stranding the tool response behind another assistant message —
-        # which strict Chat Completions providers reject (Moonshot:
-        # "an assistant message with 'tool_calls' must be followed by tool
-        # messages responding to each 'tool_call_id'"). Repair the ordering
-        # for token accounting. The standalone SDK boundary repairs tool pairs
-        # in item space for Chat models while preserving native Responses input.
-        converted_messages = fix_tool_message_ordering(converted_messages)
-        compact_messages = converted_messages + [
+        # Count native items once through the shared replay-aware counter.
+        # Pre-converting to Chat messages would discard reasoning before that
+        # counter can apply the selected summary model's replay policy.
+        compact_input = history_to_compact + [
             {"role": "user", "content": self._get_compaction_user_prompt()}
         ]
-        compact_messages.insert(
-            0, {"role": "system", "content": self._get_compaction_system_prompt()}
-        )
+        system_instructions = self._get_compaction_system_prompt()
 
         # Log the compact call details
-        compact_msg_tokens = self._count_tokens(
-            compact_messages, model_run_config,
+        compact_msg_tokens = calculate_tokens(
+            model, [{"role": "system", "content": system_instructions}] + compact_input,
         )
         logger.info(
             "[call_llm_to_compact] Sending %d messages (%d tokens) to model '%s'",
-            len(compact_messages), compact_msg_tokens, model,
+            len(compact_input) + 1, compact_msg_tokens, model,
         )
 
         _t0 = time.perf_counter()
         response = await one_shot_completion(
-            history_to_compact + [
-                {"role": "user", "content": self._get_compaction_user_prompt()}
-            ],
+            compact_input,
             model=model,
             provider=provider,
-            system_instructions=self._get_compaction_system_prompt(),
+            system_instructions=system_instructions,
             agent_name=COMPACTION_AGENT_NAME,
             stream=True,
         )

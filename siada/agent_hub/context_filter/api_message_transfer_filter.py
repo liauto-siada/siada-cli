@@ -9,6 +9,7 @@ from siada.session.task_message_state import RealApiMessage
 from siada.utils import DirectoryUtils
 from .utils import compute_message_signature, calculate_tokens
 from .compaction_strategy import CompactionError, CompactionStrategy, get_compaction_strategy
+from .compaction_threshold import get_compaction_token_threshold
 from siada.foundation.logging import logger
 
 
@@ -268,13 +269,26 @@ class ApiMessageTransferFilter:
             Compacted list of messages
         """
         strategy = get_compaction_strategy(context)
-
-        if not strategy.should_compact(tokens_count, model_config):
+        should_compact = strategy.should_compact(tokens_count, model_config)
+        window = getattr(model_config, "context_window", None)
+        logger.debug(
+            "[CTX-COMPACT][decision] session=%s strategy=%s tokens=%d context_window=%s "
+            "threshold=%s remaining=%s action=%s",
+            getattr(context, "session_id", None), type(strategy).__name__, tokens_count, window,
+            get_compaction_token_threshold(window) if window is not None else None,
+            window - tokens_count if window is not None else None,
+            "compact" if should_compact else "skip",
+        )
+        if not should_compact:
             return real_api_messages
 
         # Compute fixed overhead (instructions + tools) once for budget calculations
         fixed_overhead = CompactionStrategy.calculate_fixed_overhead(
             context, instructions=instructions, tools=tools,
+        )
+        logger.debug(
+            "[CTX-COMPACT][budget] session=%s fixed_overhead_tokens=%d items=%d",
+            getattr(context, "session_id", None), fixed_overhead, len(real_api_messages),
         )
 
         self._notify_compaction(context, "Compacting context...")

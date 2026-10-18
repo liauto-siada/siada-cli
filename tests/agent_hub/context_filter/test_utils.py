@@ -5,10 +5,66 @@ import json
 from agents.models.chatcmpl_converter import Converter
 
 from siada.agent_hub.context_filter.utils import (
+    _calculate_tokens,
     _normalize_to_responses_items,
     compute_message_signature,
 )
+from siada.provider.default.coverter import covert_to_litellm_model_name
+from siada.provider.reasoning_replay import should_replay_reasoning_content
 
+
+@pytest.mark.parametrize("model", ["glm-5.1", "kimi-k3", "kivy-qwen-3.8-max", "deepseek-v4-pro"])
+@pytest.mark.parametrize("origin", ["same", "other", "legacy"])
+def test_local_counter_matches_chat_reasoning_replay(monkeypatch, model, origin):
+    import copy
+    import litellm
+
+    provider_data = {} if origin == "legacy" else {"model": model if origin == "same" else "unrelated-model"}
+    items = [
+        {"role": "user", "content": "synthetic question"},
+        {"type": "reasoning", "id": "reasoning-synthetic", "summary": [
+            {"type": "summary_text", "text": "Synthetic reasoning for regression coverage."},
+        ], "provider_data": provider_data},
+        {"type": "message", "id": "msg-synthetic", "role": "assistant",
+         "content": [{"type": "output_text", "text": "synthetic answer"}]},
+    ]
+    original = copy.deepcopy(items)
+    expected = Converter.items_to_messages(
+        items=items, model=model, preserve_thinking_blocks=True, preserve_tool_output_all_content=True,
+        should_replay_reasoning_content=should_replay_reasoning_content,
+    )
+    captured = []
+
+    def count(**kwargs):
+        captured.append(kwargs)
+        return 50
+
+    monkeypatch.setattr(litellm, "token_counter", count)
+    assert _calculate_tokens(model, items) == 50
+    assert captured == [{"model": covert_to_litellm_model_name(model), "messages": expected}]
+    assistant = next(message for message in captured[0]["messages"] if message["role"] == "assistant")
+    assert ("reasoning_content" in assistant) == (origin != "other")
+    assert items == original
+
+
+@pytest.mark.parametrize("model", ["glm-5.1", "kimi-k3", "kivy-qwen-3.8-max", "deepseek-v4-pro"])
+def test_reasoning_increases_local_and_summary_budget_counts(model):
+    from siada.agent_hub.context_filter.compaction_strategy import CompactionStrategy
+    from siada.agent_hub.context_filter.utils import calculate_tokens
+    from types import SimpleNamespace
+
+    items = [
+        {"role": "user", "content": "synthetic question"},
+        {"type": "reasoning", "id": "reasoning-synthetic", "summary": [
+            {"type": "summary_text", "text": "synthetic thought " * 200},
+        ], "provider_data": {"model": model}},
+        {"type": "message", "id": "msg-synthetic", "role": "assistant",
+         "content": [{"type": "output_text", "text": "synthetic answer"}]},
+    ]
+    without_reasoning = [items[0], items[-1]]
+    count = calculate_tokens(model, items)
+    assert count > calculate_tokens(model, without_reasoning) + 200
+    assert CompactionStrategy._count_tokens(None, items, SimpleNamespace(model_name=model)) == count
 
 
 class TestComputeMessageSignature:

@@ -20,6 +20,7 @@ from siada.provider.request_config import (
     default_credentials_scope,
     get_default_credentials,
 )
+from siada.provider.token_counting import TokenCountingInfo
 
 if TYPE_CHECKING:
     from litellm.types.utils import ModelResponse as LitellmModelResponse
@@ -109,6 +110,31 @@ class DefaultProvider(ModelProvider):
             return model_name
         return f"openrouter/{model_name}"
 
+    def _resolve_model_route(self, raw_model_name: str, base_url: str | None) -> tuple[str, TokenCountingInfo]:
+        """Share pure routing between token estimation and model construction."""
+        from siada.provider.responses import is_responses_only_model
+
+        if is_responses_only_model(raw_model_name):
+            return "responses", TokenCountingInfo(raw_model_name, "responses", "siada_responses")
+        lower_model_name = raw_model_name.lower()
+        effective_model_name = covert_to_litellm_model_name(raw_model_name)
+        uses_responses_bridge = effective_model_name.startswith(("openai/responses/", "responses/"))
+        if (
+            "claude" not in lower_model_name
+            and "anthropic" not in lower_model_name
+            and "gemini" not in lower_model_name
+            and not uses_responses_bridge
+        ):
+            return "chat", TokenCountingInfo(get_default_chat_wire_model(raw_model_name, base_url))
+        effective_model_name = self._ensure_openrouter_prefix(effective_model_name, base_url=base_url or "")
+        return "litellm", TokenCountingInfo(effective_model_name)
+
+    def get_token_counting_info(self, model_name: str | None) -> TokenCountingInfo:
+        """Describe the configured route without creating a model or HTTP client."""
+        base_url, _ = get_default_credentials()
+        _, info = self._resolve_model_route(model_name or os.getenv("MODEL_NAME") or "", base_url)
+        return info
+
     def get_model(self, model_name: str | None) -> Model:
         """Get a model by name (the SDK ``ModelProvider`` entry point).
 
@@ -186,9 +212,11 @@ class DefaultProvider(ModelProvider):
         """
         # Responses-API-only models (GPT-5.x family) go through the native
         # Responses protocol layer instead of LiteLLM's responses bridge.
-        raw_model_name = model_name or os.getenv("MODEL_NAME")
-        from siada.provider.responses import ResponsesModel, is_responses_only_model
-        if is_responses_only_model(raw_model_name):
+        raw_model_name = model_name or os.getenv("MODEL_NAME") or ""
+        route, info = self._resolve_model_route(raw_model_name, base_url)
+        effective_model_name = info.model_name
+        from siada.provider.responses import ResponsesModel
+        if route == "responses":
             # A bare pinned model outlives a request scope. Its credentials
             # must match the transport's active task-local configuration.
             active_base_url, active_api_key = get_default_credentials()
@@ -208,19 +236,7 @@ class DefaultProvider(ModelProvider):
                 transport=self._responses_transport,
             )
 
-        # Keep native Anthropic/Gemini traffic on their existing LiteLLM paths.
-        lower_model_name = (raw_model_name or "").lower()
-        effective_model_name = covert_to_litellm_model_name(raw_model_name or "")
-        uses_responses_bridge = effective_model_name.startswith(
-            ("openai/responses/", "responses/")
-        )
-        if (
-            "claude" not in lower_model_name
-            and "anthropic" not in lower_model_name
-            and "gemini" not in lower_model_name
-            and not uses_responses_bridge
-        ):
-            wire_model = get_default_chat_wire_model(raw_model_name or "", base_url)
+        if route == "chat":
             if credentials_source == self._CREDENTIALS_OVERRIDE:
                 # The shared factory re-reads BASE_URL / API_KEY from the
                 # environment on every call; an explicit override must keep the
@@ -239,16 +255,10 @@ class DefaultProvider(ModelProvider):
             else:
                 client_factory = self._chat_client_factory
             return DefaultOpenAIChatCompletionsModel(
-                model=wire_model,
+                model=effective_model_name,
                 client_factory=client_factory,
                 should_replay_reasoning_content=should_replay_reasoning_content,
             )
-
-        # Resolve the name the same way the branches above do: a caller may pass
-        # None and rely on MODEL_NAME (``covert_to_litellm_model_name`` needs a
-        # str, so an unset MODEL_NAME falls back to the empty name here too).
-        effective_model_name = covert_to_litellm_model_name(raw_model_name or "")
-        effective_model_name = self._ensure_openrouter_prefix(effective_model_name, base_url)
 
         # NOTE: building a model never writes process-global env vars. The
         # effective credentials ride on the returned model only (both the

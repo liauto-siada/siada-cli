@@ -43,7 +43,7 @@ from siada.session.session_models import RunningSession
 from siada.utils import DirectoryUtils
 
 capture = importlib.import_module("siada.agent_hub.context_filter.context_capture_filter")
-effective = importlib.import_module("siada.agent_hub.context_filter.effective_context_filter")
+estimator = importlib.import_module("siada.agent_hub.context_filter.request_token_estimator")
 
 # litellm is imported lazily by the context filters and would otherwise fetch
 # its model-cost map over the network on first use. Keep the suite offline.
@@ -249,8 +249,8 @@ def baseline(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(capture, "_CONTEXT_FILTERS", None)
     monkeypatch.setattr(transfer, "calculate_tokens", lambda _, value, **kwargs: len(value) * 10)
-    # The effective-context filter binds the estimator at import time.
-    monkeypatch.setattr(effective, "calculate_tokens", lambda _, value, **kwargs: len(value) * 10)
+    # The request estimator binds the tokenizer at import time.
+    monkeypatch.setattr(estimator, "calculate_tokens", lambda _, value, **kwargs: len(value) * 10)
     # The per-request dynamic window resolver is private-only; skip it here.
     monkeypatch.setattr(
         transfer.ApiMessageTransferFilter, "_resolve_effective_context_window",

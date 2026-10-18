@@ -2,10 +2,12 @@
 
 import copy
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
 from siada.services.model_wrapper import ModelProviderWrapper, ModelWrapper
+from siada.services.input_processor import process_input
 
 
 def request_args(items):
@@ -124,3 +126,90 @@ async def test_close_before_iteration_does_not_admit_or_open_provider_stream(bas
     stream = ModelWrapper(model, before_request=admit).stream_response(**request_args([]))
     await stream.aclose()
     assert admitted == [] and model.requests == []
+
+
+@pytest.mark.parametrize("processor", [None, process_input])
+@pytest.mark.parametrize("admission", [False, True])
+def test_model_resolution_callback_precedes_all_wrapper_paths(baseline, processor, admission):
+    model = CapturingModel(native=True)
+    resolved = []
+
+    async def admit(items):
+        assert resolved == [model]
+
+    provider = ModelProviderWrapper(
+        SimpleNamespace(get_model=lambda name: model), input_processor=processor,
+        before_request=admit if admission else None, on_model_resolved=resolved.append,
+    )
+    result = provider.get_model("synthetic-alias")
+    assert resolved == [model]
+    assert model.requests == []
+    if processor is None and not admission:
+        assert result is model
+    else:
+        assert isinstance(result, ModelWrapper)
+        assert result.wrapped_model is model
+        assert result.input_processor is processor
+        assert result.supports_native_responses_items
+
+
+def test_model_resolution_failure_does_not_return_untracked_model(baseline):
+    model = CapturingModel()
+
+    def fail(model):
+        raise RuntimeError("synthetic resolution failure")
+
+    provider = ModelProviderWrapper(SimpleNamespace(get_model=lambda name: model), on_model_resolved=fail)
+    with pytest.raises(RuntimeError, match="resolution failure"):
+        provider.get_model("synthetic-alias")
+    assert model.requests == []
+
+
+def test_provider_resolution_always_delegates_without_caching(baseline):
+    models = [CapturingModel() for _ in range(4)]
+    base = SimpleNamespace(get_model=Mock(side_effect=models))
+    observed = []
+    provider = ModelProviderWrapper(base, on_model_resolved=observed.append)
+    first = provider.get_model("synthetic-alias")
+    second = provider.get_model("synthetic-alias")
+    third = provider.get_model("another-alias")
+    assert first is not second
+    assert observed == [first, second, third]
+    assert base.get_model.call_count == 3
+    next_run = ModelProviderWrapper(base)
+    assert next_run.get_model("synthetic-alias") is not first
+
+
+def test_failed_resolution_callback_does_not_retain_model(baseline):
+    models = [CapturingModel(), CapturingModel(), CapturingModel()]
+    base = SimpleNamespace(get_model=Mock(side_effect=models))
+    callback = Mock(side_effect=[RuntimeError("synthetic callback failure"), None, None])
+    provider = ModelProviderWrapper(base, on_model_resolved=callback)
+    with pytest.raises(RuntimeError, match="callback failure"):
+        provider.get_model("synthetic-alias")
+    assert provider.get_model("synthetic-alias") is models[1]
+    assert provider.get_model("synthetic-alias") is models[2]
+    assert base.get_model.call_count == 3
+    assert [call.args[0] for call in callback.call_args_list] == models
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_verification_failure_precedes_admission_processing_and_transport(baseline, stream):
+    model = CapturingModel()
+    admission = Mock()
+    processor = Mock()
+    error = ValueError("synthetic counting mismatch")
+    verify = Mock(side_effect=error)
+    wrapper = ModelWrapper(model, processor, before_request=admission, verify_model=verify)
+    with pytest.raises(ValueError) as caught:
+        if stream:
+            async for _ in wrapper.stream_response(**request_args([])):
+                pass
+        else:
+            await wrapper.get_response(**request_args([]))
+    assert caught.value is error
+    verify.assert_called_once_with(model)
+    admission.assert_not_called()
+    processor.assert_not_called()
+    assert model.requests == []

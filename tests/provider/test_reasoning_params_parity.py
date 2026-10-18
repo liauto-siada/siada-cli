@@ -8,8 +8,9 @@ intermediate format with litellm-native params.
 
 Correctness contract, verified by these tests:
 
-1. **Responses path — byte-identical.** ``ResponsesModel._build_request_params``
-   output for GPT-6 must equal the pre-refactor golden snapshots
+1. **Responses path — current protocol.** ``ResponsesModel._build_request_params``
+   output for GPT-6 must equal the golden snapshots, including stateless
+   storage and full-turn reasoning replay
    (``reasoning_parity_golden_responses.json``).
 
 2. **default path — unchanged for claude/gemini.** Those families keep the
@@ -75,7 +76,7 @@ def _matrix() -> list[tuple[str, str]]:
 
 
 # ---------------------------------------------------------------------------
-# 1. Responses path: byte-identical to the pre-refactor golden snapshots
+# 1. Responses path: current protocol golden snapshots
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("model,variant", _matrix())

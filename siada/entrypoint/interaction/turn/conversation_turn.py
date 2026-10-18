@@ -110,6 +110,124 @@ class ConversationTurn(RunTurn):
     """Handles regular AI conversation turns"""
 
     mdstream: siada.io.components.mdstream.MarkdownRender = None
+    _MAX_STREAM_RECOVERIES = 2
+    _STREAM_RECOVERY_INPUT = (
+        "<system-reminder>\n"
+        "The previous model response was interrupted. Continue the original task "
+        "from the saved conversation and completed tool results. Do not repeat "
+        "completed operations. Check the current state before repeating any "
+        "operation whose outcome is uncertain. Any unfinished tool call was "
+        "not executed; generate it again if it is still needed.\n"
+        "</system-reminder>"
+    )
+
+    async def _run_stream_with_recovery(self, user_input: str | list) -> RunResultStreaming:
+        """Continue durable history after EOF or a transport interruption."""
+        import asyncio
+        from siada.provider.retry import MissingFinalResponseError, is_retryable_transport_error
+        from siada.services.siada_runner import SiadaRunner
+
+        store = self.session.openai_session
+        read_history = getattr(store, "get_history_items", store.get_items)
+        initial_history = await read_history()
+        original_items = (
+            [{"role": "user", "content": user_input}]
+            if isinstance(user_input, str) else user_input
+        )
+        next_input = user_input
+        for attempt in range(self._MAX_STREAM_RECOVERIES + 1):
+            try:
+                result = await SiadaRunner.run_agent(
+                    agent_name=self.config.agent_name,
+                    user_input=next_input,
+                    workspace=self.config.workspace,
+                    session=self.session,
+                    stream=True,
+                )
+                self.current_result = result
+                self._result_ready.set()
+                await self.output_stream_content(result)
+                return result
+            except Exception as error:
+                if (
+                    attempt == self._MAX_STREAM_RECOVERIES
+                    or not (
+                        isinstance(error, MissingFinalResponseError)
+                        or is_retryable_transport_error(error)
+                    )
+                ):
+                    raise
+                # Read failures must propagate: recovery requires durable state.
+                history = await read_history()
+                # A rewrite makes admission uncertain; never replay on a guess.
+                if history[:len(initial_history)] != initial_history:
+                    raise
+                additions = history[len(initial_history):]
+
+                def content_parts(item):
+                    if not isinstance(item, dict):
+                        return None
+                    content = item.get("content")
+                    if isinstance(content, str):
+                        return [{"type": "input_text", "text": content}]
+                    if not isinstance(content, list):
+                        return None
+                    parts = []
+                    for part in content:
+                        if not isinstance(part, dict):
+                            return None
+                        if part.get("type") in {"input_text", "text"}:
+                            parts.append({"type": "input_text", "text": part.get("text")})
+                        else:
+                            parts.append(part)
+                    return parts
+
+                # Unsupported input/history shapes cannot establish admission.
+                if any(not isinstance(item, dict) for item in additions) or any(
+                    content_parts(item) is None for item in original_items
+                ):
+                    raise
+
+                def contains_input(original):
+                    if original in additions:
+                        return True
+                    parts = content_parts(original)
+                    return bool(parts) and any(
+                        item.get("role") == original.get("role")
+                        and content_parts(item) is not None
+                        and all(part in content_parts(item) for part in parts)
+                        for item in additions
+                    )
+
+                input_admitted = bool(original_items) and all(
+                    contains_input(item) for item in original_items
+                )
+                next_input = (
+                    self._STREAM_RECOVERY_INPUT if input_admitted
+                    else user_input
+                )
+                if self._current_message_id is not None:
+                    message_type = (
+                        "tool_call" if self.got_function_call_part
+                        else "answer" if self.got_content_part else "thinking"
+                    )
+                    self._emit_message_end(message_type)
+                self._stream_start_id = None
+                self.current_active_call_id = None
+                self.current_result = None
+                self._result_ready.clear()
+                delay = 2 ** attempt
+                logger.warning(
+                    "[ConversationTurn] Recovering interrupted response: "
+                    "attempt=%s/%s error=%s delay=%ss",
+                    attempt + 1, self._MAX_STREAM_RECOVERIES, type(error).__name__, delay,
+                )
+                self.config.io.print_warning(
+                    f"模型响应中断，正在从已保存的进度继续"
+                    f"（{attempt + 1}/{self._MAX_STREAM_RECOVERIES}）。"
+                )
+                await asyncio.sleep(delay)
+        raise AssertionError("Unreachable stream recovery state")
 
     def _process_thinking_tags(self, text: str) -> Tuple[str, bool]:
         """
@@ -1206,27 +1324,12 @@ class ConversationTurn(RunTurn):
                         )
 
                     # Run agent for conversation
-                    _run_start = time.perf_counter()
-                    logger.debug(f"[PERF][turn] SiadaRunner.run_agent start")
-                    result: RunResultStreaming = await SiadaRunner.run_agent(
-                        agent_name=self.config.agent_name,
-                        user_input=user_input,
-                        workspace=self.config.workspace,
-                        session=self.session,
-                        stream=True,
-                    )
-                    logger.debug(f"[PERF][turn] SiadaRunner.run_agent returned | +{(time.perf_counter()-_run_start)*1000:.0f}ms")
-
-                    # Store result immediately for potential cancellation
-                    self.current_result = result
-                    # Set result ready flag to ensure memory visibility
-                    self._result_ready.set()
-
                     _stream_start = time.perf_counter()
-                    logger.debug(f"[PERF][turn] output_stream_content start")
+                    logger.debug("[PERF][turn] streamed execution start")
                     try:
-                        await self.output_stream_content(result)
+                        result = await self._run_stream_with_recovery(user_input)
                     except RepetitiveStreamError as rep_exc:
+                        result = self.current_result
                         # Repetition-loop guard fired (deepseek-v4-flash family
                         # only). The request was already cancelled and the UI
                         # notified via `stream_aborted`. Fall through with the
@@ -1249,7 +1352,7 @@ class ConversationTurn(RunTurn):
                         logger.info(f"[ConversationTurn] Hook tripwire triggered: {stop_reason}")
                         self.config.io.print_warning(f"[Hook] {stop_reason}")
                         return None
-                    logger.debug(f"[PERF][turn] output_stream_content done | +{(time.perf_counter()-_stream_start)*1000:.0f}ms")
+                    logger.debug(f"[PERF][turn] streamed execution done | +{(time.perf_counter()-_stream_start)*1000:.0f}ms")
 
                     # Show system notification on task completion (non-blocking)
                     # Only notify if enabled and the agent ran for a while.

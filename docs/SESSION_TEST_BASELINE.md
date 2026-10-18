@@ -42,3 +42,23 @@ Compaction cannot guarantee that an oversized newest tool group fits the
 budget. If trimming leaves no recent context, compaction fails and the subtask
 filter retains the previous context. These tests use synthetic data and mocked
 summary responses; they do not validate live provider behavior.
+
+## Notification request-commit recovery
+
+Post-filter reminders and runtime acknowledgements share one transaction.
+Successful admission updates request bookkeeping and clears only committed
+queues before awaiting callbacks. Callback failure does not make committed
+messages pending again; notices arriving later remain queued.
+
+Cancellation waits for the storage worker's outcome, including repeated
+cancellation. Successful commits are acknowledged before cancellation propagates;
+failed commits retain the batch and chain the storage error to cancellation.
+Cancelled admission does not start the model. A same-bridge retry waits for an
+earlier admission to settle and preserves context-version and restore-generation
+fences. This can delay cancellation until storage completes.
+
+The offline tests cover streamed and non-streamed runs, callback failures,
+cancellation during and after commit, state-only admission, registered reminder
+queues, storage failures, conflicts, and resume after recovery. Admission success
+does not imply a successful model response or external telemetry delivery, and
+does not remove duplicates already stored by older versions.
