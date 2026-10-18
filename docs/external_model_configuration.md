@@ -39,6 +39,15 @@ answer, tool, or unknown events have been exposed. Request bodies, full error bo
 headers are excluded from these diagnostic records. Protocol `error` and
 `response.failed` events follow the same retry rules as SDK exceptions.
 
+The main conversation also allows up to two session continuations after a missing
+final response, timeout, or connection interruption. It reads saved conversation
+history and completed tool results before continuing, so completed operations are
+preserved. Unfinished tool calls are not executed or copied into history. If the
+new input was not admitted, recovery retains the original input. Persistent
+interruptions still report an error; cancellation stops recovery immediately.
+Recovery also stops if saved history was rewritten or an unsupported message
+shape prevents verifying input admission, rather than resending uncertain input.
+
 ## Configure DeepSeek with an API Key
 
 On first sign-in or through `/configure`, select **Configure API Key → DeepSeek**,
