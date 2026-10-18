@@ -344,3 +344,74 @@ Validation used a compatible Node 24 LTS runtime and isolated test log directori
    was intentionally not ported; the public keyboard logging keeps its
    stronger sanitization (no raw keys, characters, previews, or
    per-keystroke content).
+
+## Follow-up sync through f4c833fd (2026-10-18)
+
+The local and fetched `1_7_32` tips were both
+`f4c833fdd02865bf4eeb6fc92089c73ccf52370f` at the final check. This follow-up
+covers all six commits after `e6659b94`, independently in source order.
+
+| Source | Destination | Public disposition |
+| --- | --- | --- |
+| c9d07523b6577aceecf975441948ec28de7a7394 | fe65abf3 | Native patch editor denial and effective-model tool adaptation in the isolated verifier |
+| a8de898455cfba490b1b1fbcf57347dc2e016a05 | 189ffded | Version 1.7.34 |
+| 9f0cc646de3a4294c3dd98adeb1e679ed94e0692 | 24f3b465 | Shared request budgets, durable response-usage anchors, stateless Responses replay and credential-redacted model errors |
+| 74ea8c4c5fd8093321cfd7e4c9897e64da43775c | 719f3c59 | Version 1.7.35 |
+| 3f8e5d0dc36943985bacb5c43d301e9d7eb2ba92 | db494f9c | Cancellation waits for reminder admission to settle; committed queues remain acknowledged |
+| f4c833fdd02865bf4eeb6fc92089c73ccf52370f | ba969025 | Main streamed turns resume saved progress after interruptions |
+
+Each destination message records its full source identity. An ancestry and
+ordering check verified all six mappings. Supporting commits are `4b3748a7`
+(native patch isolation tests), `0a2d0496` (public UI bundle for 1.7.35), and
+`1dd31bd1` (complete request-estimator and real main-flow compaction coverage).
+
+The mixed context commit excludes internal provider implementations, their
+tests and source operational instructions. Public credential overrides, route
+validation, client lifetimes, one-shot retry ownership and existing context
+repairs remain supported. Counting and actual model construction share one
+route description. Public Responses fixtures retain public model names.
+The source main-flow suite is added as
+`test_shared_compaction_budget_main_flow.py`, preserving the existing public
+boundary suite in `test_shared_compaction_main_flow.py`. Public baseline fixtures
+now patch the request estimator's tokenizer rather than the old filter import.
+
+English and Chinese configuration documentation describes the request budget
+and stateless full-turn reasoning replay. Cancellation documentation retains
+the existing public baseline guide and adds the new admission semantics,
+without copying unrelated historical validation reports.
+
+### Retained validation evidence
+
+These counts come from retained pytest logs. Selections are separate runs and
+overlap; they must not be added together as a unique total.
+
+| Selection | Observed result |
+| --- | --- |
+| Verifier and sub-agent configuration before restoring pending work | 63 passed |
+| Native patch denial and replacement | 4 passed |
+| Request-estimator regression suite | 140 passed |
+| Real compaction budget main-flow suite | 204 passed |
+| Complete clean committed session baseline | 718 passed, 3 existing xfailed |
+| Cancellation admission and runtime-state tests | 75 passed |
+| Reminder hooks | 87 passed |
+| Related contracts after pending-work restoration | 1492 passed, 149 skipped, 2 deselected |
+| UI | 30 files, 308 passed |
+
+TypeScript compilation, public UI bundling, Poetry lock validation and
+whitespace checks passed. No live model validation was performed.
+
+Two existing tool-image conversion assertions expect the SDK flag to disable
+image preservation, while the existing public adapter forces preservation.
+Both failures were reproduced using the pre-port test source with that adapter;
+they are explicitly deselected in the related selection.
+
+Original uncommitted diagnostics and concurrent verifier/conversation work were
+backed up before migration and restored afterward. The saved recovery helper
+remains available; the main path uses the newly ported durable-history recovery.
+The pending verifier still inherits its parent's model and omits tool types
+without a denial mechanism. Those pending adaptations remain uncommitted.
+The saved new `test_chat_stream_completion.py` has six failures and four passes:
+its desired missing-finish behavior is not implemented by the existing native
+Chat adapter. This pending-work gap is reported separately and is excluded
+from the related passing selection. Restoration ended with no staged changes
+or unresolved conflicts; the backup was retained.
