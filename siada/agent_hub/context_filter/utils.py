@@ -5,8 +5,10 @@ import json
 
 from agents.models.chatcmpl_converter import Converter
 from agents.exceptions import UserError
-from agents.tool import FunctionTool, Tool
+from agents.tool import Tool
 from siada.foundation.logging import logger
+from siada.provider.default.coverter import covert_to_litellm_model_name
+from siada.provider.reasoning_replay import should_replay_reasoning_content
 from siada.support.chat_compat_items import to_chat_compatible_item
 
 # Safety margin for char-based token estimation (20% buffer)
@@ -383,9 +385,10 @@ def _calculate_tokens(
     import litellm
 
     _t0 = _time.perf_counter()
+    tokenizer_model = covert_to_litellm_model_name(model_name)
 
     if isinstance(messages_or_text, str):
-        result = litellm.token_counter(model=model_name, text=messages_or_text)
+        result = litellm.token_counter(model=tokenizer_model, text=messages_or_text)
         logger.debug(
             "[PERF][_calculate_tokens] mode=text chars=%d | %.1fms",
             len(messages_or_text), (_time.perf_counter() - _t0) * 1000,
@@ -407,6 +410,7 @@ def _calculate_tokens(
         model=model_name,
         preserve_thinking_blocks=True,
         preserve_tool_output_all_content=True,
+        should_replay_reasoning_content=should_replay_reasoning_content,
     )
     _t_convert = _time.perf_counter() - _t_convert0
 
@@ -416,13 +420,13 @@ def _calculate_tokens(
     _t_count0 = _time.perf_counter()
     if openai_tools:
         result = litellm.token_counter(
-            model=model_name,
+            model=tokenizer_model,
             messages=converted_messages,
             tools=openai_tools,
         )
     else:
         result = litellm.token_counter(
-            model=model_name,
+            model=tokenizer_model,
             messages=converted_messages,
         )
     _t_count = _time.perf_counter() - _t_count0
@@ -457,11 +461,32 @@ def estimate_tokens(messages: List, *, safety_margin: float = _ESTIMATION_SAFETY
     return int(total_chars / 4 * safety_margin)
 
 
+def _tokenizer_source(model_name: str) -> str:
+    """Describe the pinned LiteLLM counter without encoding the input again."""
+    source = f"litellm:{covert_to_litellm_model_name(model_name)}"
+    try:
+        from inspect import getclosurevars
+        from litellm.litellm_core_utils.token_counter import _get_count_function
+
+        # Reuse LiteLLM's cached selector and actual encoding choice rather than
+        # claiming that an OpenAI-compatible model has a native tokenizer.
+        values = getclosurevars(_get_count_function(covert_to_litellm_model_name(model_name))).nonlocals
+        encoding = values.get("encoding")
+        if encoding is not None:
+            return f"{source}:tiktoken:{encoding.name}"
+        tokenizer = values.get("tokenizer_json", {})
+        return f"{source}:{tokenizer.get('type', 'encoding_unavailable')}"
+    except Exception:
+        # Diagnostic failure must not alter the count or trigger a recount.
+        return f"{source}:encoding_unavailable"
+
+
 def calculate_tokens(
     model_name: str | None,
     messages_or_text: List | str,
     *,
     tools: Optional[List[Tool]] = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> int:
     """
     Count tokens using litellm when model_name is available,
@@ -480,28 +505,42 @@ def calculate_tokens(
         model_name: if provided, uses litellm model-aware tokenizer
         messages_or_text: list of API message items, or a plain string
         tools: optional list of agent Tool objects for accurate tool-token counting
+        diagnostics: optional request-local output for raw count, headroom, and
+            counter provenance. No message content is retained.
 
     Returns:
         Token count (inflated by safety margin)
     """
+    def counted(raw: int, budget: int, source: str) -> int:
+        if diagnostics is not None:
+            diagnostics.update(raw_tokens=raw, safety_tokens=budget - raw,
+                               budget_tokens=budget, tokenizer_source=source)
+        return budget
+
     if model_name is not None:
         try:
             raw = _calculate_tokens(model_name, messages_or_text, tools=tools)
-            return int(raw * (1 + TOKEN_ESTIMATION_SAFETY_MARGIN))
+            return counted(raw, int(raw * (1 + TOKEN_ESTIMATION_SAFETY_MARGIN)),
+                           _tokenizer_source(model_name) if diagnostics is not None else "litellm")
         except UserError as e:
             # Converter could not interpret the items (often a previously-unseen
             # ChatCompletion-style shape).  Demote to warning + compact summary
             # so the log is actionable but not noisy.
             logger.warning(
                 "token_counter fell back to estimate "
-                f"(converter rejected items: {e}); "
+                f"(converter rejected items: {type(e).__name__}); "
                 f"{_summarize_items_for_log(messages_or_text)}"
             )
         except Exception as e:
             logger.error(
-                f"litellm token_counter failed, falling back to estimate: {e}"
+                "litellm token_counter failed, falling back to estimate: %s", type(e).__name__
             )
     if isinstance(messages_or_text, str):
         raw = len(messages_or_text) // 4
-        return int(raw * (1 + TOKEN_ESTIMATION_SAFETY_MARGIN))
-    return estimate_tokens(messages_or_text)
+        return counted(raw, int(raw * (1 + TOKEN_ESTIMATION_SAFETY_MARGIN)), "char_fallback:text/4")
+    total_chars = sum(
+        len(json.dumps(m, sort_keys=True, ensure_ascii=False, default=str))
+        for m in messages_or_text
+    )
+    return counted(total_chars // 4, int(total_chars / 4 * _ESTIMATION_SAFETY_MARGIN),
+                   "char_fallback:json/4")

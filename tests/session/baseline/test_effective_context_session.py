@@ -4,9 +4,12 @@ import asyncio
 import copy
 
 import pytest
-from agents import Agent, RunConfig, Runner, function_tool
+from agents import Agent, ModelSettings, RunConfig, Runner, function_tool
+from agents.models.default_models import get_default_model_settings
+from agents.run_internal.turn_preparation import get_model, get_model_settings
 
 from siada.services.effective_context_session import EffectiveContextSession
+from siada.provider.token_counting import token_counting_info_from_model
 from siada.services.file_session import FileSession
 from siada.services.session_storage import ContextVersionConflict, SessionStorageError
 
@@ -59,6 +62,55 @@ async def run_bridge(baseline, session, model, *, stream=False, input="continue"
     else:
         result = await Runner.run(agent, **kwargs)
     return result
+
+
+@pytest.mark.parametrize("model_name", ["gpt-5.4", "gpt-6", "glm-test", None])
+def test_metadata_without_early_resolution_preserves_sdk_implicit_settings(baseline, model_name):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    session = baseline.session()
+    model = baseline.model(session, [])
+    provider = SimpleNamespace(
+        get_model=Mock(return_value=model), get_token_counting_info=lambda name: token_counting_info_from_model(model),
+    )
+    agent = Agent(name="synthetic", model=model_name)
+    config = RunConfig(tracing_disabled=True, model_provider=provider)
+    bridge = EffectiveContextSession(session.openai_session)
+    configured = bridge.configure_run(config, agent=agent)
+    assert bridge.token_counting_info == token_counting_info_from_model(model)
+    provider.get_model.assert_not_called()
+    assert configured.model == model_name
+    assert get_model(agent, configured).wrapped_model is model
+    expected = get_default_model_settings(model_name) if model_name else get_default_model_settings()
+    assert get_model_settings(agent, configured) == expected
+    assert configured.model_settings is None
+    assert config.model is None and config.model_settings is None
+
+
+def test_metadata_does_not_promote_agent_settings_to_run_overrides(baseline):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    session = baseline.session()
+    model = baseline.model(session, [])
+    provider = SimpleNamespace(
+        get_model=Mock(return_value=model), get_token_counting_info=lambda name: token_counting_info_from_model(model),
+    )
+    agent = Agent(name="first", model="glm-test", model_settings=ModelSettings(temperature=0.3))
+    config = RunConfig(tracing_disabled=True, model_provider=provider, model_settings=ModelSettings(max_tokens=1200))
+    configured = EffectiveContextSession(session.openai_session).configure_run(config, agent=agent)
+    provider.get_model.assert_not_called()
+    other = Agent(name="second", model="glm-test", model_settings=ModelSettings(temperature=0.8))
+    assert configured.model == "glm-test"
+    assert configured.model_settings is config.model_settings
+    assert get_model_settings(agent, configured).temperature == 0.3
+    assert get_model_settings(other, configured).temperature == 0.8
+    assert get_model_settings(other, configured).max_tokens == 1200
+    assert get_model(agent, configured).wrapped_model is model
+    assert get_model(other, configured).wrapped_model is model
+    assert provider.get_model.call_count == 2
+    assert all(call.args == ("glm-test",) for call in provider.get_model.call_args_list)
 
 
 @pytest.mark.asyncio
@@ -415,7 +467,7 @@ async def test_final_hook_admission_retry_does_not_duplicate_already_committed_t
     bridge = EffectiveContextSession(session.openai_session)
     context = baseline.context(session)
     await bridge.session_input_callback([], [{"role": "user", "content": "continue"}])
-    config = bridge.configure_run(RunConfig())
+    config = bridge.configure_run(RunConfig(model=baseline.model(session, [])))
     data = CallModelData(model_data=ModelInputData(input=[], instructions=""), agent=Agent(name="test"), context=context)
     filtered = await config.call_model_input_filter(data)
     filtered.input.append({"role": "system", "content": "notice"})

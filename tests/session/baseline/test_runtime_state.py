@@ -30,7 +30,7 @@ async def test_request_commit_acknowledges_notices_with_messages_and_counters(ba
     save_context(context)
     bridge = EffectiveContextSession(store, admission_id="synthetic-request")
     await bridge.session_input_callback([], [{"role": "user", "content": "continue"}])
-    config = bridge.configure_run(RunConfig())
+    config = bridge.configure_run(RunConfig(model=baseline.model(session, [])))
     model_data = await config.call_model_input_filter(CallModelData(
         model_data=ModelInputData(input=[], instructions=""), agent=Agent(name="test"), context=context,
     ))

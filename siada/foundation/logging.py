@@ -230,7 +230,7 @@ def _create_concurrent_file_handler():
         encoding='utf-8',
         use_gzip=False  # Don't compress old logs
     )
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logging.DEBUG if DEBUG else logging.INFO)
     formatter_str = '%(asctime)s - %(name)s:%(levelname)s: %(filename)s:%(lineno)s - %(message)s'
     file_handler.setFormatter(FileFormatter(formatter_str, datefmt='%Y-%m-%d %H:%M:%S'))
     return file_handler
@@ -763,23 +763,99 @@ def redirect_openhands_aci_logger():
         target_logger.addHandler(file_handler)
 
 
+_MODEL_ERROR_SECRET_FIELDS = frozenset({
+    "authorization", "proxy_authorization", "api_key", "apikey", "x_api_key",
+    "token", "access_token", "refresh_token", "id_token", "x_siada_token",
+    "client_secret", "password", "cookie", "set_cookie",
+})
+
+
+def _collect_model_error_secrets(value: object, secrets: set[str], authorization: bool) -> None:
+    """Collect string credentials, including multi-valued authentication headers."""
+    if isinstance(value, str) and value:
+        secrets.add(value)
+        if authorization:
+            parts = value.split(None, 1)
+            if len(parts) == 2:
+                secrets.add(parts[1])
+    elif isinstance(value, dict):
+        for item in value.values():
+            _collect_model_error_secrets(item, secrets, authorization)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _collect_model_error_secrets(item, secrets, authorization)
+
+
+def _redact_model_error_body(value: object, secrets: set[str]) -> object:
+    """Copy diagnostic containers while removing credential field values."""
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            normalized_key = key.lower().replace("-", "_") if isinstance(key, str) else ""
+            if normalized_key in _MODEL_ERROR_SECRET_FIELDS:
+                redacted[key] = "[REDACTED]"
+                _collect_model_error_secrets(
+                    item, secrets, normalized_key in {"authorization", "proxy_authorization"},
+                )
+            else:
+                redacted[key] = _redact_model_error_body(item, secrets)
+        return redacted
+    if isinstance(value, (list, tuple)):
+        return [_redact_model_error_body(item, secrets) for item in value]
+    return value
+
+
+def _remove_model_error_secrets(value: object, secrets: list[str]) -> object:
+    """Remove known credentials before JSON escaping can obscure their values."""
+    if isinstance(value, str):
+        for secret in secrets:
+            value = value.replace(secret, "[REDACTED]")
+        return value
+    if isinstance(value, dict):
+        return {
+            _remove_model_error_secrets(key, secrets): _remove_model_error_secrets(item, secrets)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_remove_model_error_secrets(item, secrets) for item in value]
+    return value
+
+
 def log_model_error(
     error_type: str,
     error_message: str,
     llm_request_body: Optional[dict] = None
 ) -> None:
     """
-    Log detailed model error information
+    Log model errors without exposing request authentication values.
     
     Args:
         error_type: Type of error (e.g., 'API_ERROR', 'TIMEOUT', 'VALIDATION_ERROR')
         error_message: Main error message
-        llm_request_body: Complete LLM request body (already includes UUID and all request parameters)
+        llm_request_body: This request's body; credentials are redacted without changing it.
     """
     import json
     from datetime import datetime
     
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+
+    secrets: set[str] = set()
+    serialized_body = None
+    if llm_request_body:
+        try:
+            redacted_body = _redact_model_error_body(llm_request_body, secrets)
+            known_secrets = sorted(secrets, key=len, reverse=True)
+            redacted_body = _remove_model_error_secrets(redacted_body, known_secrets)
+            error_message = _remove_model_error_secrets(error_message, known_secrets)
+            serialized_body = json.dumps(
+                redacted_body, ensure_ascii=False, indent=2,
+                default=lambda value: "[UNSERIALIZABLE]",
+            )
+        except Exception:
+            # Diagnostic serialization must not replace the original model failure.
+            serialized_body = "[Request body unavailable: serialization failed]"
+            # Traversal may have failed before collecting every credential.
+            error_message = "[Error message unavailable: request credential redaction failed]"
     
     # Build comprehensive error log
     log_parts = [
@@ -789,10 +865,10 @@ def log_model_error(
         f"Error Message: {error_message}",
     ]
     
-    # Add complete LLM request body
-    if llm_request_body:
+    # Add a credential-redacted copy, never the transport-owned body.
+    if serialized_body is not None:
         log_parts.append("\n--- Complete LLM Request Body ---")
-        log_parts.append(json.dumps(llm_request_body, ensure_ascii=False, indent=2))
+        log_parts.append(serialized_body)
     
     # Join all parts and log with MODEL_ERROR category
     full_log = '\n'.join(log_parts)

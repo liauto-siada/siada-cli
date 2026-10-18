@@ -245,6 +245,10 @@ To simplify configuration, the system automatically adds protocol prefixes for t
 - Standard model names (such as `gpt-4`) are mapped to a provider/model form. OpenAI Chat Completions requests send the endpoint's model ID without the LiteLLM routing prefix.
 - Claude and Gemini keep their existing LiteLLM/native routes. Other default-provider models must use an endpoint that accepts OpenAI Chat Completions; a LiteLLM-native protocol prefix alone does not make an endpoint compatible.
 - GPT-5 and newer use the Responses API. Other Responses-only aliases are not sent to Chat Completions.
+- Responses requests use `store: false` and replay the full saved history. When
+  reasoning is enabled, `reasoning.context` is normalized to `all_turns` and
+  encrypted reasoning is requested for replay. Caller settings cannot enable
+  server-side storage or restrict reasoning replay to the current turn.
 - For complete configuration examples, please refer to the [Configuration Example](#configuration-example) section above
 
 ## Usage Guide

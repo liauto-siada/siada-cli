@@ -65,6 +65,45 @@ class _RealChangeStrategy(CompactionStrategy):
         )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model", ["glm-5.1", "kimi-k3", "kivy-qwen-3.8-max", "deepseek-v4-pro"])
+async def test_summary_request_counts_native_reasoning_with_selected_model(monkeypatch, model):
+    from unittest.mock import AsyncMock, Mock
+    from agents import ModelResponse
+    from agents.usage import Usage
+    from siada.agent_hub.context_filter import compaction_strategy as shared
+
+    config = SimpleNamespace(model_name="gpt-4o", provider="synthetic")
+    monkeypatch.setenv("SIADA_COMPACT_MODEL", model)
+    items = [
+        {"role": "user", "content": "synthetic task"},
+        {"type": "reasoning", "id": "reasoning-synthetic", "summary": [
+            {"type": "summary_text", "text": "synthetic thought"},
+        ], "provider_data": {"model": model}},
+        {"type": "message", "id": "msg-synthetic", "role": "assistant",
+         "content": [{"type": "output_text", "text": "synthetic answer"}]},
+    ]
+    counter = Mock(return_value=100)
+    completion = AsyncMock(return_value=ModelResponse(output=[], usage=Usage(), response_id="synthetic-summary"))
+    monkeypatch.setattr(shared, "calculate_tokens", counter)
+    monkeypatch.setattr(shared, "one_shot_completion", completion)
+    strategy = _NoopStrategy()
+    system_prompt = Mock(return_value="# Synthetic system")
+    user_prompt = Mock(return_value="Synthetic summary request")
+    monkeypatch.setattr(strategy, "_get_compaction_system_prompt", system_prompt)
+    monkeypatch.setattr(strategy, "_get_compaction_user_prompt", user_prompt)
+    assert await strategy.call_llm_to_compact(config, items) is None
+    system_prompt.assert_called_once_with()
+    user_prompt.assert_called_once_with()
+    count_model, counted_items = counter.call_args.args
+    assert count_model == model
+    assert counted_items[1:-1] == items
+    assert completion.call_args.args[0][:-1] == items
+    assert completion.call_args.kwargs["model"] == model
+    assert completion.call_args.kwargs["system_instructions"] == counted_items[0]["content"]
+    assert completion.call_args.args[0] == counted_items[1:]
+
+
 @pytest.mark.parametrize("context_window", [64_000, 128_000, 200_000, 1_000_000])
 @pytest.mark.parametrize("remaining_tokens", [60_001, 60_000, 59_999, 0, -1])
 @pytest.mark.parametrize("strategy_name", ["header_summary", "turn_prune_summary"])

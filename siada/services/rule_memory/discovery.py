@@ -199,7 +199,7 @@ class ContextDiscovery:
         Returns:
             List of (file_path, content) tuples
         """
-        results = []
+        results: dict[str, Tuple[str, str]] = {}
         
         # Process in batches to control concurrency
         batch_size = self.FILE_READ_CONCURRENCY
@@ -212,13 +212,14 @@ class ContextDiscovery:
                 for future in as_completed(futures):
                     try:
                         result = future.result()
-                        results.append(result)
+                        results[futures[future]] = result
                     except Exception as e:
                         file_path = futures[future]
                         logger.debug(f"[Discovery] Error reading {file_path}: {e}")
-                        results.append((file_path, ""))
+                        results[file_path] = (file_path, "")
         
-        return results
+        # Completion order must not change the prompt or its resumable signature.
+        return [results[file_path] for file_path in file_paths]
     
     def load_and_process_files(
         self,
@@ -236,10 +237,8 @@ class ContextDiscovery:
         # Discover files
         global_files, root_files, subdir_files = self.discover_all_files()
         
-        # Combine in hierarchical order
-        all_files = global_files + root_files + subdir_files
-        all_files_set = set(all_files)
-        all_files=list(all_files_set)
+        # Keep the first occurrence in global/project/subdirectory order.
+        all_files = list(dict.fromkeys(global_files + root_files + subdir_files))
         
         if not all_files:
             logger.debug("[Discovery] No context files found")

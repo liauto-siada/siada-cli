@@ -274,13 +274,6 @@ class ResponsesModel(Model):
                 f"so ``response.reasoning_summary_text.delta`` events are emitted."
             )
 
-        # Normalize to a plain dict here (protocol layer) so every transport
-        # receives spec-shaped JSON and none of them needs to know about
-        # ``Reasoning`` pydantic serialization quirks.
-        normalized_reasoning = _normalize_reasoning(reasoning_config)
-        if normalized_reasoning is not None:
-            request_params["reasoning"] = normalized_reasoning
-
         if model_settings.parallel_tool_calls is not None and tools:
             request_params["parallel_tool_calls"] = model_settings.parallel_tool_calls
 
@@ -297,9 +290,6 @@ class ResponsesModel(Model):
 
         if prompt is not None:
             request_params["prompt"] = prompt
-
-        if model_settings.store is not None:
-            request_params["store"] = model_settings.store
 
         if model_settings.metadata is not None:
             request_params["metadata"] = model_settings.metadata
@@ -323,6 +313,36 @@ class ResponsesModel(Model):
 
         if model_settings.extra_args:
             request_params.update(model_settings.extra_args)
+
+        # Full reasoning replay is independent of server-side response storage.
+        # Apply these protocol settings after caller overrides so both transports
+        # use the same context budget assumptions on every request.
+        effective_reasoning = request_params.get("reasoning", reasoning_config)
+        extra_body = request_params.get("extra_body")
+        if isinstance(extra_body, dict):
+            extra_body = dict(extra_body)
+            body_reasoning = extra_body.pop("reasoning", None)
+            if body_reasoning:
+                normalized = _normalize_reasoning(effective_reasoning) or {}
+                normalized.update(body_reasoning)
+                effective_reasoning = normalized
+            extra_body.pop("store", None)
+            if extra_body:
+                request_params["extra_body"] = extra_body
+            else:
+                request_params.pop("extra_body", None)
+
+        normalized_reasoning = _normalize_reasoning(effective_reasoning)
+        if normalized_reasoning is None and self._should_default_reasoning(self.model):
+            normalized_reasoning = {}
+        if normalized_reasoning is not None:
+            normalized_reasoning["context"] = "all_turns"
+            request_params["reasoning"] = normalized_reasoning
+            include_set.update(request_params.get("include") or [])
+            include_set.add("reasoning.encrypted_content")
+            request_params["include"] = sorted(include_set)
+
+        request_params["store"] = False
 
         return request_params
 

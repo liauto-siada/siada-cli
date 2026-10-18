@@ -46,13 +46,12 @@ class ContextTrackProcessor(AgentHooks):
             return
         if getattr(siada_context, "runtime_session", None) is None:
             siada_context.session.state.task_message_state.add_messages(messages=input_items)
-        # update the usage info in session
-        siada_context.session.state.usage = response.usage
         import asyncio
         from siada.services.session_runtime_state import record_response, save_context
 
         await asyncio.to_thread(record_response, siada_context, response)
+        siada_context.session.state.usage = response.usage
         await asyncio.to_thread(save_context, siada_context)
         runtime = getattr(siada_context, "runtime_session", None)
         if runtime is not None:
-            runtime.response_received()
+            await runtime.response_received(response)

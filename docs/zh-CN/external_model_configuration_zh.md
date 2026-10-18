@@ -235,6 +235,7 @@ Chat Completions endpoint 需要接受 `role: tool` 消息中的图片内容。
 - 标准模型名（如 `gpt-4`）会映射为“供应商/模型”形式；OpenAI Chat Completions 请求会去掉 LiteLLM 路由前缀，只发送端点接受的模型 ID。
 - Claude 和 Gemini 保留原有 LiteLLM/原生路由。其他 default provider 模型必须使用支持 OpenAI Chat Completions 的端点；仅填写 LiteLLM 原生协议前缀并不能保证兼容。
 - GPT-5 及后续版本使用 Responses API；其他仅支持 Responses 的别名也不会发到 Chat Completions。
+- Responses 请求固定使用 `store: false`，回放完整的已保存历史。启用推理时，`reasoning.context` 统一为 `all_turns`，并请求用于回放的加密推理内容。调用方设置不能启用服务端存储，也不能把推理回放限制为当前轮次。
 - 完整配置示例请参考上文的[配置示例](#配置示例)章节
 
 ## 使用方法

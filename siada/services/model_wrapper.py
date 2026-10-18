@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from functools import partial
-from typing import Any, Awaitable, Callable
+from typing import Awaitable, Callable
 
 from agents import Model, TResponseInputItem, ModelSettings, AgentOutputSchemaBase, Handoff, ModelTracing, \
     ModelResponse, ModelProvider
@@ -21,6 +21,7 @@ from siada.models.agent import Tool
 from siada.models.model_base_config import is_claude_model
 from siada.foundation.logging import logger
 from siada.provider.retry import retry_model_call, retry_model_stream
+from siada.provider.token_counting import TokenCountingInfo, provider_token_counting_info, with_input_processor
 from siada.support.chat_compat_items import to_chat_compatible_items
 
 
@@ -49,6 +50,7 @@ class ModelWrapper(Model):
         input_processor: Callable[[list[TResponseInputItem]], list[TResponseInputItem]] | None = None,
         *,
         before_request: Callable[[list[TResponseInputItem]], Awaitable[None]] | None = None,
+        verify_model: Callable[[Model], None] | None = None,
     ):
         """
         Initialize the context trimming model wrapper.
@@ -60,10 +62,12 @@ class ModelWrapper(Model):
                            Function signature: (input_items: list[TResponseInputItem]) -> list[TResponseInputItem]
             before_request: Optional async admission boundary before provider normalization.
                             Unlike input_processor, its failures abort the request.
+            verify_model: Verify actual counting semantics before admission and normalization.
         """
         self.wrapped_model = wrapped_model
         self.input_processor = input_processor
         self.before_request = before_request
+        self.verify_model = verify_model
         self.supports_native_responses_items = getattr(wrapped_model, "supports_native_responses_items", False)
         
         # Store metadata about the wrapped model for debugging
@@ -175,6 +179,8 @@ class ModelWrapper(Model):
         before passing it to the underlying model.
         """
         # Process the input
+        if self.verify_model is not None:
+            self.verify_model(self.wrapped_model)
         if self.before_request is not None:
             await self.before_request(input)
         processed_input = self._process_input(input)
@@ -219,6 +225,8 @@ class ModelWrapper(Model):
         before passing it to the underlying model.
         """
         async def admitted_stream():
+            if self.verify_model is not None:
+                self.verify_model(self.wrapped_model)
             if self.before_request is not None:
                 await self.before_request(input)
             processed_input = self._process_input(input)
@@ -285,6 +293,8 @@ class ModelProviderWrapper(ModelProvider):
             input_processor: Callable[[list[TResponseInputItem]], list[TResponseInputItem]] | None = None,
             *,
             before_request: Callable[[list[TResponseInputItem]], Awaitable[None]] | None = None,
+            on_model_resolved: Callable[[Model], None] | None = None,
+            verify_model: Callable[[Model], None] | None = None,
     ):
         """
         Initialize the context trimming model provider.
@@ -293,10 +303,20 @@ class ModelProviderWrapper(ModelProvider):
             base_provider: The underlying ModelProvider to wrap
             input_processor: Optional function to process/trim input items for all models.
                            If None, models will be returned without wrapping.
+            before_request: Optional async admission boundary before provider normalization.
+            on_model_resolved: Observe the base model before wrapping or returning it.
+                               Callback failures propagate rather than returning an untracked model.
+            verify_model: Verify each request's actual model before admission and normalization.
         """
         self.base_provider = base_provider
         self.input_processor = input_processor
         self.before_request = before_request
+        self.on_model_resolved = on_model_resolved
+        self.verify_model = verify_model
+
+    def get_token_counting_info(self, model_name: str | None) -> TokenCountingInfo:
+        """Forward counting metadata without resolving or caching a model."""
+        return with_input_processor(provider_token_counting_info(self.base_provider, model_name), self.input_processor)
 
     def get_model(self, model_name: str | None) -> Model:
         """
@@ -309,14 +329,18 @@ class ModelProviderWrapper(ModelProvider):
             A ContextTrimmingModel wrapping the requested model
         """
         # Get the base model
+        # Provider-owned HTTP clients may be reused; model instances are not cached.
         base_model = self.base_provider.get_model(model_name)
-
+        if self.on_model_resolved is not None:
+            self.on_model_resolved(base_model)
         # If no processor is configured, return the base model unchanged
-        if self.input_processor is None and self.before_request is None:
+        if self.input_processor is None and self.before_request is None and self.verify_model is None:
             return base_model
 
         # Wrap with context trimming
-        return ModelWrapper(base_model, self.input_processor, before_request=self.before_request)
+        return ModelWrapper(
+            base_model, self.input_processor, before_request=self.before_request, verify_model=self.verify_model,
+        )
 
     def __str__(self) -> str:
         """String representation for debugging."""

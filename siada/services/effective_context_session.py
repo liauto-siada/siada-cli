@@ -10,16 +10,20 @@ import copy
 import inspect
 import uuid
 from dataclasses import replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from agents import Agent, Model, RunConfig
 from agents.memory.session import SessionABC
 from agents.models.fake_id import FAKE_RESPONSES_ID
 
 from siada.foundation.logging import logger
+from siada.provider.token_counting import TokenCountingInfo, provider_token_counting_info, token_counting_info_from_model
 from siada.services.file_session import FileSession
-from siada.services.session_storage import ContextVersionConflict, SessionStorageError
 from siada.services.model_wrapper import ModelProviderWrapper, ModelWrapper
+from siada.services.session_storage import ContextVersionConflict, SessionStorageError
+
+if TYPE_CHECKING:
+    from siada.agent_hub.context_filter.request_token_estimator import RequestTokenBaseline
 
 
 _REMINDER_QUEUES = (
@@ -68,18 +72,86 @@ class EffectiveContextSession(SessionABC):
         self._request_input: list[dict] | None = None
         self._request_version: int | None = None
         self._request_context: Any = None
+        self._request_token_signature: str | None = None
+        self._request_signature_components: dict[str, str] = {}
+        self._request_agent: Any = None
+        self._request_instructions: str | None = None
+        self.token_counting_info: TokenCountingInfo | None = None
+        self.token_budget_model_settings: Any = None
         self._pending_contexts: list[str] = []
         self._pending_finalization: tuple[list[dict], list[str]] | None = None
         self._pending_checkpoints: list[str] = []
         self._restore_generation: int | None = None
         self._response_index = 0
+        self._pending_response: tuple[Any, RequestTokenBaseline | None, list[dict]] | None = None
 
     @property
     def request_identity(self) -> str:
         return f"{self.admission_id}:request:{self._response_index}"
 
-    def response_received(self) -> None:
+    def token_baseline_from_response(self, response: Any) -> RequestTokenBaseline | None:
+        """Stage server total usage; this is not yet a durable response anchor."""
+        from siada.agent_hub.context_filter.request_token_estimator import RequestTokenBaseline
+
+        if self._request_token_signature is None or self._request_input is None:
+            return None
+        return RequestTokenBaseline.from_response(
+            self._request_token_signature, self._request_input, getattr(response, "usage", None),
+            restore_generation=self._restore_generation or 0,
+            session_id=self.session_id,
+            signature_components=self._request_signature_components,
+        )
+
+    async def response_received(self, response: Any) -> None:
+        """Stage response metadata after usage commits, before SDK message saves."""
+        self._pending_response = (
+            response, self.token_baseline_from_response(response),
+            [_native_item(item) for item in response.to_input_items()],
+        )
+        logger.debug(
+            "[CTX-BUILD][anchor] session=%s request=%s stage=response_staged "
+            "candidate=%s response_items=%d",
+            self.session_id, self.request_identity, self._pending_response[1] is not None,
+            len(self._pending_response[2]),
+        )
         self._response_index += 1
+        # An empty response gives the SDK nothing to save. Its input is already
+        # durable, so confirm that boundary while retaining reported total usage.
+        if not self._pending_response[2]:
+            await self.add_items([])
+
+    def _durable_response_baseline(self, snapshot: dict) -> RequestTokenBaseline | None:
+        """Use the actual persisted prefix, excluding tool results and later input."""
+        _, baseline, expected_response = self._pending_response
+        if baseline is None:
+            return None
+        size = len(baseline.items)
+        items = snapshot["items"]
+        if items[:size] != baseline.items:
+            logger.info(
+                "[CTX-BUILD][anchor] session=%s stage=discarded reason=request_prefix_changed",
+                self.session_id,
+            )
+            return None
+        response_items = items[size:size + len(expected_response)]
+
+        def matching_item(item: dict) -> dict:
+            item = _native_item(item)
+            # The SDK may omit reasoning IDs on save. Keep every other field
+            # intact, and anchor the stored IDs rather than the hook's copy.
+            if item.get("type") == "reasoning":
+                item.pop("id", None)
+            return item
+
+        if [matching_item(item) for item in response_items] != [matching_item(item) for item in expected_response]:
+            logger.info(
+                "[CTX-BUILD][anchor] session=%s stage=discarded reason=response_items_mismatch",
+                self.session_id,
+            )
+            return None
+        return replace(
+            baseline, items=copy.deepcopy(items[:size + len(response_items)]),
+        )
 
     def _check_restore_generation(self, snapshot: dict) -> None:
         """Fence in-flight runs after restore without blocking normal compaction."""
@@ -132,9 +204,58 @@ class EffectiveContextSession(SessionABC):
                 identities.append(f"{self.admission_id}:output:{item_type}:{stable_id}")
             else:
                 identities.append(f"{self.admission_id}:batch:{self._batch_index}:{index}")
-        await self.storage.append_context_items(
-            native, message_ids=identities, expected_restore_generation=self._restore_generation,
-        )
+        pending_response = self._pending_response
+        if pending_response is None:
+            await self.storage.append_context_items(
+                native, message_ids=identities, expected_restore_generation=self._restore_generation,
+            )
+        else:
+            from siada.services.session_runtime_state import record_response
+
+            # response_received advances the index before the SDK saves output.
+            request = f"{self.admission_id}:request:{self._response_index - 1}"
+
+            def commit():
+                with self.storage._mutation():
+                    added = self.storage.append_context_items_sync(
+                        native, message_ids=identities, expected_restore_generation=self._restore_generation,
+                    )
+                    snapshot = self.storage.get_context_snapshot_sync()
+                    self._check_restore_generation(snapshot)
+                    baseline = self._durable_response_baseline(snapshot)
+                    record_response(self._request_context, pending_response[0], baseline=baseline, publish=False)
+                return added, baseline
+
+            try:
+                added, baseline = await asyncio.to_thread(commit)
+            except Exception as error:
+                logger.info(
+                    "[CTX-BUILD][anchor] session=%s request=%s admission_id=%s "
+                    "stage=response_commit_failed error_type=%s",
+                    self.session_id, request, self.admission_id, type(error).__name__,
+                )
+                raise
+            # Publish only after the outer message/usage/anchor transaction succeeds.
+            state = self._request_context.session.state
+            state.usage = pending_response[0].usage
+            state.context_token_baseline = baseline
+            self._pending_response = None
+            logger.info(
+                "[CTX-BUILD][anchor] session=%s request=%s admission_id=%s stage=response_committed "
+                "anchored=%s baseline_source=%s restore_generation=%d prefix_items=%d "
+                "input_tokens=%d response_tokens=%d baseline_tokens=%d",
+                self.session_id, request, self.admission_id, baseline is not None,
+                "server_usage" if baseline is not None else "unavailable", self._restore_generation or 0,
+                len(baseline.items) if baseline is not None else 0,
+                baseline.input_tokens if baseline is not None else 0,
+                baseline.response_tokens if baseline is not None else 0,
+                baseline.context_tokens if baseline is not None else 0,
+            )
+            if added and self.storage.on_items_added:
+                try:
+                    await self.storage.on_items_added(copy.deepcopy(added))
+                except Exception as error:
+                    logger.debug("Error in on_items_added hook: %s", error)
         if consumed_input:
             self._input_save_pending = False
         self._batch_index += 1
@@ -218,13 +339,63 @@ class EffectiveContextSession(SessionABC):
                                          request_identity=self.request_identity)
                 return added
 
-        added = await asyncio.to_thread(commit)
+        logger.debug(
+            "[CTX-BUILD][admission] session=%s request=%s stage=hooks_pending "
+            "version=%d input_items=%d hook_items=%d",
+            self.session_id, self.request_identity, self._request_version, size, len(tail),
+        )
+        try:
+            added = await asyncio.to_thread(commit)
+        except Exception as error:
+            logger.debug(
+                "[CTX-BUILD][admission] session=%s request=%s stage=hooks_commit_failed error_type=%s",
+                self.session_id, self.request_identity, type(error).__name__,
+            )
+            raise
         if added and self.storage.on_items_added:
             await self.storage.on_items_added(copy.deepcopy(added))
         self._clear_committed_queues(tail)
         self._request_version += bool(added)
         self._request_input = native
+        if self._request_context is not None and self._request_context.session is not None:
+            from siada.agent_hub.context_filter.request_token_estimator import request_token_signature
+
+            self._request_token_signature = request_token_signature(
+                self._request_context, self._request_agent, self._request_instructions,
+                components=self._request_signature_components,
+            )
         self._pending_finalization = None
+        logger.debug(
+            "[CTX-BUILD][admission] session=%s request=%s stage=hooks_committed "
+            "version=%d items=%d hook_items=%d anchor_eligible=%s",
+            self.session_id, self.request_identity, self._request_version, len(native), len(tail),
+            self._request_token_signature is not None,
+        )
+
+    def verify_request_model(self, model: Model) -> None:
+        """Reject changed counting semantics before committing hooks or sending.
+
+        Replacing metadata cannot recover a filter's previous budget decision.
+        Restart with a newly configured run so its route is counted from scratch
+        when incompatible with the durable baseline. Never retry this mismatch
+        as a transport failure or discard uncommitted reminder queues.
+        """
+        actual_info = token_counting_info_from_model(model)
+        matches = actual_info == self.token_counting_info
+        logger.debug(
+            "[CTX-BUILD][model] session=%s request=%s status=%s model_type=%s "
+            "expected_info=%s actual_info=%s",
+            self.session_id, self.request_identity, "matched" if matches else "counting_mismatch",
+            type(model).__name__, self.token_counting_info, actual_info,
+        )
+        if not matches:
+            self._request_token_signature = None
+            context = self._request_context
+            if context is not None and getattr(context, "session", None) is not None:
+                context.session.state.context_token_baseline = None
+            raise SessionStorageError(
+                "Request model counting semantics changed; restart with a newly configured run before sending"
+            )
 
     def configure_run(self, config: RunConfig, *, agent: Agent | None = None) -> RunConfig:
         """Copy a run config and enforce authoritative reads around its filter.
@@ -242,6 +413,23 @@ class EffectiveContextSession(SessionABC):
 
         if original_filter is None or original_filter is context_capture_filter:
             original_filter = effective_context_filter
+        selected_model = config.model if config.model is not None else getattr(agent, "model", None)
+        self.token_counting_info = (
+            token_counting_info_from_model(selected_model) if isinstance(selected_model, Model)
+            else provider_token_counting_info(config.model_provider, selected_model)
+        )
+        logger.debug(
+            "[CTX-BUILD][route] session=%s request=%s source=%s configured_model=%s "
+            "provider_type=%s info=%s",
+            self.session_id, self.request_identity,
+            "explicit_model" if isinstance(selected_model, Model) else "provider_route",
+            getattr(selected_model, "model", None) if isinstance(selected_model, Model) else selected_model,
+            type(config.model_provider).__name__, self.token_counting_info,
+        )
+        self.token_budget_model_settings = config.model_settings
+        # This run uses a fixed model route and does not support handoff. Before
+        # adding handoff, reevaluate per-agent model binding, counting metadata,
+        # and whether model-instance caching is needed across SDK resolutions.
 
         async def authoritative_filter(data):
             self._check_restore_generation(await self.storage.get_context_snapshot())
@@ -280,6 +468,8 @@ class EffectiveContextSession(SessionABC):
                 model_data.input, expected_version=snapshot["context_version"],
             )
             self._request_input = [_native_item(item) for item in model_data.input]
+            self._request_agent = data.agent
+            self._request_instructions = model_data.instructions
             self._request_version = version
             logger.info(
                 "[effective-context][request] session=%s mode=prepared source=api_message.json "
@@ -290,12 +480,17 @@ class EffectiveContextSession(SessionABC):
             )
             return model_data
 
-        selected_model = config.model if config.model is not None else getattr(agent, "model", None)
         model_provider = config.model_provider
         if isinstance(selected_model, Model):
-            selected_model = ModelWrapper(selected_model, before_request=self.finalize_request_input)
+            selected_model = ModelWrapper(
+                selected_model, before_request=self.finalize_request_input, verify_model=self.verify_request_model,
+            )
         else:
-            model_provider = ModelProviderWrapper(model_provider, before_request=self.finalize_request_input)
+            model_provider = ModelProviderWrapper(
+                model_provider, before_request=self.finalize_request_input, verify_model=self.verify_request_model,
+            )
+            # Count from pure route metadata: no preliminary model construction.
+            # Retain the configured name to preserve SDK implicit setting precedence.
         configured = replace(
             config,
             model=selected_model,

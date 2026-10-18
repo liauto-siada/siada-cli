@@ -13,9 +13,11 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "max",
       "summary": "detailed"
     },
+    "store": false,
     "tool_choice": "auto"
   },
   "gpt-6-luna|effort_low": {
@@ -32,9 +34,11 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "low",
       "summary": "detailed"
     },
+    "store": false,
     "tool_choice": "auto"
   },
   "gpt-6-luna|effort_low_tokens": {
@@ -51,9 +55,11 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "low",
       "summary": "detailed"
     },
+    "store": false,
     "tool_choice": "auto"
   },
   "gpt-6-luna|effort_max": {
@@ -70,9 +76,11 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "max",
       "summary": "detailed"
     },
+    "store": false,
     "tool_choice": "auto"
   },
   "gpt-6-luna|no_reasoning": {
@@ -89,9 +97,11 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "low",
       "summary": "detailed"
     },
+    "store": false,
     "tool_choice": "auto"
   },
   "gpt-6-luna|thinking_off": {
@@ -108,8 +118,10 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "none"
     },
+    "store": false,
     "tool_choice": "auto"
   },
   "gpt-6-luna|thinking_off_tokens": {
@@ -126,8 +138,10 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "none"
     },
+    "store": false,
     "tool_choice": "auto"
   },
   "gpt-6-luna|tokens_2048": {
@@ -144,9 +158,11 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "low",
       "summary": "detailed"
     },
+    "store": false,
     "tool_choice": "auto"
   },
   "gpt-6-luna|tokens_neg1": {
@@ -163,9 +179,11 @@
     "max_output_tokens": 65536,
     "model": "gpt-6-luna",
     "reasoning": {
+      "context": "all_turns",
       "effort": "low",
       "summary": "detailed"
     },
+    "store": false,
     "tool_choice": "auto"
   }
 }

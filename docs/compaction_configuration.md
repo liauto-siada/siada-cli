@@ -1,6 +1,13 @@
 # Conversation Compaction Configuration
 
-When the model's context window has 60,000 tokens or fewer remaining, Siada automatically compresses the message history by generating an LLM summary to replace older messages while preserving recent conversations. The trigger is `used_tokens >= context_window - 60_000`, using the current effective context window and existing token counting. For a 200,000-token window, compaction starts at 140,000 used tokens; for a 1,000,000-token window, it starts at 940,000. Windows of 60,000 tokens or less reach the trigger immediately; the selected strategy still needs compressible history.
+When the model's context window has 60,000 tokens or fewer remaining, Siada automatically compresses the message history by generating an LLM summary to replace older messages while preserving recent conversations. The trigger is `used_tokens >= context_window - 60_000`, using the current effective context window. For a 200,000-token window, compaction starts at 140,000 used tokens; for a 1,000,000-token window, it starts at 940,000. Windows of 60,000 tokens or less reach the trigger immediately; the selected strategy still needs compressible history.
+
+The budget includes instructions, tool definitions and the history replayed to
+the selected model. After a response is saved successfully, its reported total
+usage can anchor the saved prefix; subsequent requests count only the added
+history. Cache-hit and cache-write figures do not reduce the context budget.
+Changed instructions, tools, model routing or restored history invalidate that
+anchor, so the next request estimates the complete input again.
 
 ## Configuration
 

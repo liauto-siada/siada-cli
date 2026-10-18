@@ -192,6 +192,7 @@ async def test_try_compact_reinjects_reminder_when_compaction_occurs():
 
     context = _make_context(goal=_make_goal())
     context.model_run_config = MagicMock()
+    context.model_run_config.context_window = 200_000
 
     filter_ = ApiMessageTransferFilter()
     with patch(
@@ -221,6 +222,7 @@ async def test_try_compact_skips_reinjection_when_should_compact_is_false():
 
     context = _make_context(goal=_make_goal())
     context.model_run_config = MagicMock()
+    context.model_run_config.context_window = 200_000
 
     filter_ = ApiMessageTransferFilter()
     with patch(

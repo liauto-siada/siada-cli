@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from siada.foundation.logging import (
+    DEBUG,
     logger,
     get_file_handler,
     _create_concurrent_file_handler,
@@ -81,7 +82,7 @@ class TestWindowsLogging(unittest.TestCase):
             )
 
             # 验证handler配置
-            self.assertEqual(handler.level, logging.INFO)
+            self.assertEqual(handler.level, logging.DEBUG if DEBUG else logging.INFO)
             self.assertIsNotNone(handler.formatter)
 
             handler.close()

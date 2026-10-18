@@ -82,6 +82,9 @@ class SessionState:
     pending_subagent_resume_note: Optional[str] = field(default=None)
 
     usage: Optional[Any] = None  # runtime type: agents.usage.Usage; Any avoids heavy import at module level
+
+    context_token_baseline: Optional[Any] = field(default=None, repr=False)
+    """Post-response usage anchor restored only with validated durable metadata."""
     
     # UI components (injected dependencies)  
     spinner: Any = None

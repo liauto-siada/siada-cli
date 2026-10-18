@@ -248,10 +248,9 @@ class ResumeService:
                 logger.debug(f"[subagent] Failed to scan unfinished sub-agents on resume: {e}")
 
 
-            if runtime_state is not None:
-                from siada.support.usage_utils import deserialize_usage
+            from siada.services.session_runtime_state import restore_response_usage
 
-                running_session.state.usage = deserialize_usage(runtime_state["usage"])
+            restore_response_usage(running_session, runtime_state, context_snapshot=prepared_context)
             if prepared_context is not None:
                 # Never rebuild runtime input or legacy tracking from UI history.
                 running_session.state.task_message_state.reset_real_messages()

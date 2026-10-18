@@ -1,4 +1,4 @@
-"""Durable business state, separate from request budgets and live resources."""
+"""Durable business state and response usage, separate from live resources."""
 
 from __future__ import annotations
 
@@ -7,10 +7,13 @@ import hashlib
 import json
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from siada.services.session_storage import SessionStorageError, recover_transaction, session_storage_lock, storage_transaction, write_json
 from siada.support.usage_utils import deserialize_usage, serialize_usage
+
+if TYPE_CHECKING:
+    from siada.agent_hub.context_filter.request_token_estimator import RequestTokenBaseline
 
 
 STATE_FILE = "runtime_state.json"
@@ -28,7 +31,7 @@ def empty_state(session_id: str) -> dict:
         "hook_pending_input_updates": {}, "pending_notifications": [],
         "pending_reminder_items": [], "pending_hallucination_reminder_items": [],
         "pending_repeated_tool_reminder_items": [], "delivered_notifications": [],
-        "usage": None, "usage_records": {}, "request_counters": {},
+        "usage": None, "usage_records": {}, "request_counters": {}, "context_token_baseline": None,
     }
 
 
@@ -128,10 +131,57 @@ def apply_state(context, data: dict) -> None:
         value = data[name]
         setattr(context, name, [TodoItem.model_validate(item) for item in value] if name == "todos" else copy.deepcopy(value))
     context.hook_pending_contexts = list(data["pending_notifications"])
-    context.session.state.usage = deserialize_usage(data["usage"])
+    restore_response_usage(context.session, data)
 
 
-def record_response(context, response, *, identity: str | None = None) -> None:
+def restore_response_usage(session: Any, data: dict | None, *, context_snapshot: dict | None = None) -> None:
+    """Restore actual usage and a validated optional anchor before the next run."""
+    from siada.agent_hub.context_filter.request_token_estimator import RequestTokenBaseline
+    from siada.services.file_session import FileSession
+    from siada.foundation.logging import logger
+
+    state = session.state
+    state.usage = deserialize_usage(data.get("usage")) if data is not None else None
+    state.context_token_baseline = None
+    payload = data.get("context_token_baseline") if data is not None else None
+    if payload is None:
+        logger.info("[CTX-BUILD][resume] session=%s anchor=missing", session.session_id)
+        return
+    store = state.openai_session
+    if getattr(store, "session_id", session.session_id) != session.session_id:
+        logger.info(
+            "[CTX-BUILD][resume] session=%s anchor=discarded reason=storage_owner_mismatch",
+            session.session_id,
+        )
+        return
+    if context_snapshot is None and isinstance(store, FileSession) and store.has_prepared_context:
+        context_snapshot = store.get_context_snapshot_sync()
+    if context_snapshot is not None:
+        state.context_token_baseline = RequestTokenBaseline.from_dict(
+            payload, context_snapshot, state.usage, session_id=session.session_id,
+        )
+    if state.context_token_baseline is None:
+        logger.info(
+            "[CTX-BUILD][resume] session=%s anchor=discarded reason=invalid_metadata_or_prefix",
+            session.session_id,
+        )
+    else:
+        baseline = state.context_token_baseline
+        logger.info(
+            "[CTX-BUILD][resume] session=%s anchor=restored restore_generation=%d "
+            "prefix_items=%d input_tokens=%d response_tokens=%d baseline_tokens=%d",
+            session.session_id, baseline.restore_generation, len(baseline.items),
+            baseline.input_tokens, baseline.response_tokens, baseline.context_tokens,
+        )
+
+
+def record_response(context, response, *, identity: str | None = None, baseline: RequestTokenBaseline | None = None,
+                    publish: bool = True) -> None:
+    """Persist actual usage, optionally with an already admitted response anchor.
+
+    The bridge defers live publication when joining a message transaction; only
+    its outer transaction can confirm that both response items and anchor committed.
+    """
     from agents.models.fake_id import FAKE_RESPONSES_ID
     from siada.services.file_session import FileSession
 
@@ -141,6 +191,8 @@ def record_response(context, response, *, identity: str | None = None) -> None:
         return
     if context.bound_session_id != session.session_id or store.session_id != session.session_id:
         raise SessionStorageError("Response belongs to a replaced session")
+    if baseline is not None and baseline.session_id != session.session_id:
+        raise SessionStorageError("Response anchor belongs to another session")
     usage = serialize_usage(response.usage)
     if usage is None:
         raise SessionStorageError("Response usage could not be serialized")
@@ -156,8 +208,13 @@ def record_response(context, response, *, identity: str | None = None) -> None:
             raise SessionStorageError("Response identity was reused with different usage")
         records[identity] = usage
         current["usage"] = usage
+        current["context_token_baseline"] = baseline.to_dict() if baseline is not None else None
         current["state_version"] += 1
         write_json(store.session_folder / STATE_FILE, validate_state(current, session.session_id))
+    # Failed commits retain the previous live usage/anchor as well as the disk pair.
+    if publish:
+        session.state.usage = response.usage
+        session.state.context_token_baseline = baseline
 
 
 def commit_request_state(context, delivered: list[str], *, request_identity: str) -> None:

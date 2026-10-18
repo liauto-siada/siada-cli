@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from siada.foundation.logging import logger
 from .api_message_transfer_filter import ApiMessageTransferFilter
 from .compaction_strategy import CompactionError
-from .utils import calculate_tokens
+from .request_token_estimator import estimate_request_tokens
 
 if TYPE_CHECKING:
     from agents.run import CallModelData, ModelInputData
@@ -39,12 +39,11 @@ async def effective_context_filter(data: CallModelData[CodeAgentContext]) -> Mod
             logger.debug("Effective context window resolution failed: %s", error)
     model_data.input, _ = transfer._drop_orphan_function_call_outputs(model_data.input)
     if not context.auto_compact:
+        logger.debug("[CTX-COMPACT][decision] session=%s action=skip reason=auto_compact_disabled", context.session_id)
         return model_data
 
     tools = getattr(data.agent, "tools", None)
-    model_name = context.model_run_config.model_name
-    tokens_count = calculate_tokens(model_name, model_data.input, tools=tools)
-    tokens_count += calculate_tokens(model_name, model_data.instructions or "")
+    tokens_count = estimate_request_tokens(context, data.agent, model_data.input, model_data.instructions)
     # Background memory work owns a detached pre-compaction snapshot, never a
     # handle that could later read the compacted current session file.
     try:
@@ -71,6 +70,10 @@ async def effective_context_filter(data: CallModelData[CodeAgentContext]) -> Mod
         return model_data
     model_data.input = compacted
     if compacted != original:
+        logger.debug(
+            "[CTX-COMPACT][filter] session=%s stage=prepared before_items=%d after_items=%d",
+            context.session_id, len(original), len(compacted),
+        )
         if context.memory_store is not None:
             try:
                 context.memory_store.load_from_disk()
