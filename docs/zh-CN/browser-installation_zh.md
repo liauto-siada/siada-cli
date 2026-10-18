@@ -4,12 +4,13 @@
 生产依赖、网页客户端、Chrome 扩展和第三方许可声明。Python wheel 包含
 终端 UI bundle 和浏览器安装器，不包含浏览器二进制产物。
 
-这套新平台包尚未发布。远端各平台构建和 Chrome 连接验收仍需完成。
+当前正式版本为 1.7.35。平台包随 CLI 版本发布在 GitHub Releases。
+构建会检查随包运行时和代理；安装后请重新加载扩展并检查连接。
 
 ## 安装已发布版本
 
 ```bash
-uv tool install --force --python python3.12 --with pip siada-cli@latest
+uv tool install --force --python python3.12 --with pip --default-index https://pypi.org/simple "siada-cli==1.7.35"
 uv tool update-shell
 siada-browser setup
 ```

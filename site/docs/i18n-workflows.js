@@ -154,7 +154,7 @@ Object.assign(window.siadaDocsEnglish ??= {}, {
   "在你正在使用的 Chrome 里，把阅读、点击和选择变成任务上下文。Siada 从当前页面理解意图，就地解释内容、整理资料，与你交接操作。": "Turn reading, clicking, and selecting in the Chrome you already use into task context. Siada reads intent from the current page, explains content in place, organizes material, and hands operations back and forth with you.",
   "连接你的 Chrome": "Connect your Chrome",
   "准备好 Chrome 和已完成模型配置的 Siada，然后安装浏览器协作组件并启动本机代理。": "Have Chrome ready and Siada already set up with a model, then install the browser collaboration components and start the local proxy.",
-  "1.7.32 浏览器组件": "1.7.32 browser components",
+  "1.7.35 浏览器组件": "1.7.35 browser components",
   "请查看": "Check ",
   "中与当前平台匹配的附件。siada-browser setup 会下载与 CLI 版本一致的组件包；安装包包含 Node.js 运行时、代理和 Chrome 扩展。": " for assets matching your platform. siada-browser setup downloads the package matching your CLI version; packages include Node.js, the proxy, and the Chrome extension.",
   "，启用开发者模式，点击“加载已解压的扩展程序”，选择": ", enable Developer mode, click “Load unpacked,” and select ",

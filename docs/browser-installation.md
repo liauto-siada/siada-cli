@@ -6,13 +6,14 @@ dependencies, the web client, and the Chrome extension with redistribution
 notices. The Python wheel contains the terminal UI bundle and installer,
 but does not contain these browser binaries.
 
-These new platform packages have not yet been published. Remote platform
-builds and Chrome connection acceptance still require verification.
+The current stable release is 1.7.35. Platform packages are published with the
+CLI release on GitHub Releases. Builds check the bundled runtime and proxy;
+reload the extension and check its connection after installation.
 
 ## Install a published version
 
 ```bash
-uv tool install --force --python python3.12 --with pip siada-cli@latest
+uv tool install --force --python python3.12 --with pip --default-index https://pypi.org/simple "siada-cli==1.7.35"
 uv tool update-shell
 siada-browser setup
 ```

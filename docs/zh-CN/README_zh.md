@@ -81,7 +81,7 @@
 | 包管理工具 | [uv](https://docs.astral.sh/uv/) |
 | 模型访问 | 已配置的 Provider 账号或自己的 API Key |
 
-终端界面使用 Node.js 24 LTS。仅使用终端时请自行安装 Node.js；浏览器平台包发布后，也可复用 `siada-browser setup` 安装的运行时。启动器不会在启动时下载 Node.js。源码开发与浏览器组件构建还需要 npm 和 Bun。
+终端界面使用 Node.js 24 LTS。仅使用终端时请自行安装 Node.js；也可复用 `siada-browser setup` 从已发布浏览器平台包安装的运行时。启动器不会在启动时下载 Node.js。源码开发与浏览器组件构建还需要 npm 和 Bun。
 
 ### 安装
 
@@ -97,10 +97,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-各平台使用相同命令安装已发布的 Siada CLI：
+当前正式版本为 **1.7.35**。各平台使用相同命令安装：
 
 ```bash
-uv tool install --force --python python3.12 --compile --with pip siada-cli@latest
+uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple "siada-cli==1.7.35"
 uv tool update-shell
 ```
 
