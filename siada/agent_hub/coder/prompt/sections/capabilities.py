@@ -1,13 +1,19 @@
+from ..selection.model_features import is_gpt6_or_newer_model
 from ..selection.profiles import PromptFamily, PromptProfile, resolve_prompt_profile
 
 
-# Sub-agent (`run_subtask`) capability bullets. Both variants are omitted
+# Sub-agent (`run_subtask`) capability bullets. All variants are omitted
 # entirely when the sub-agent master switch (conf.yaml `sub_agent.enabled`) is
 # off, so the prompt never advertises a tool the agent doesn't have.
 _NATIVE_PATCH_SUBAGENT_BULLET = (
     "- Use `run_subtask` for self-contained, boundary-clear work that would "
     "otherwise clutter your context or that can run independently/in parallel "
     "— give it a self-contained instruction and use its returned summary."
+)
+
+_GPT6_SUBAGENT_BULLET = (
+    "- You can use `run_subtask` to create a sub-agent for a specific task and "
+    "receive its final summary."
 )
 
 _DEFAULT_SUBAGENT_BULLET = (
@@ -52,7 +58,14 @@ def get_capabilities_for_profile(
     if profile.family in (PromptFamily.KIMI_K3, PromptFamily.GLM):
         return _get_edit_file_capabilities_section(subagent_enabled=subagent_enabled)
     if profile.native_patch_file_tools:
-        return _get_native_patch_capabilities_section(subagent_enabled=subagent_enabled)
+        return _get_native_patch_capabilities_section(
+            subagent_enabled=subagent_enabled,
+            subagent_bullet=(
+                _GPT6_SUBAGENT_BULLET
+                if is_gpt6_or_newer_model(profile.model_name)
+                else _NATIVE_PATCH_SUBAGENT_BULLET
+            ),
+        )
     return _get_default_capabilities_section(subagent_enabled=subagent_enabled)
 
 
@@ -73,7 +86,10 @@ def _get_edit_file_capabilities_section(subagent_enabled: bool = True) -> str:
 """
 
 
-def _get_native_patch_capabilities_section(subagent_enabled: bool = True) -> str:
+def _get_native_patch_capabilities_section(
+    subagent_enabled: bool = True,
+    subagent_bullet: str = _NATIVE_PATCH_SUBAGENT_BULLET,
+) -> str:
     """Native patch surface for GPT-5+ and the Astra compatibility alias."""
     return f"""===
 
@@ -86,7 +102,7 @@ def _get_native_patch_capabilities_section(subagent_enabled: bool = True) -> str
 - You can use `read_file` to view files and directories. Use `view_range` to efficiently read specific portions of large text files.
 - You can use `apply_patch` to create, update, delete, and move text files with focused patches.
 - You can use `todo_write` to plan and track work. Mark each task completed as soon as it's done; don't batch.
-{_NATIVE_PATCH_SUBAGENT_BULLET if subagent_enabled else ""}
+{subagent_bullet if subagent_enabled else ""}
 
 ===
 """

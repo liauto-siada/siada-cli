@@ -89,6 +89,23 @@ class TestSubagentPersistence(unittest.TestCase):
         self.assertEqual(entry["status"], "failed")
         self.assertIn("boom", entry["summary"])
 
+    def test_record_finish_marks_cancelled_and_is_terminal(self):
+        """A cancelled sub-agent is a terminal state: not failed, not resumed."""
+        subagent_persistence.record_start(
+            self.root_dir, self.root_session_id,
+            agent_id="sa_1", parent_id=None, depth=1,
+            title="t", instruction="do X",
+        )
+        subagent_persistence.record_finish(
+            self.root_dir, self.root_session_id, "sa_1", "cancelled", "Cancelled before completion"
+        )
+        entry = self._index()["agents"]["sa_1"]
+        self.assertEqual(entry["status"], "cancelled")
+        self.assertIn("Cancelled", entry["summary"])
+        # Cancelled entries are finished for good: they must not be reported
+        # as unfinished work on session resume (only "running" is).
+        self.assertEqual(subagent_persistence.scan_unfinished(self.root_dir, self.root_session_id), [])
+
     def test_scan_unfinished_returns_only_running_entries(self):
         subagent_persistence.record_start(
             self.root_dir, self.root_session_id,

@@ -511,7 +511,10 @@ def _check_resume_workspace(workspace: str, args) -> int:
 
         session_info = ResumeService(workspace).get_session_info(resume_id)
         if session_info is None:
-            logger.error(f"Error: Session not found: {resume_id}")
+            message = f"Error: Session not found: {resume_id}"
+            logger.error(message)
+            # The launcher removes console logging before IO/UI initialization.
+            print(message, file=sys.stderr)
             return 1
 
         origin_root = session_info.project_root or ""
@@ -520,10 +523,14 @@ def _check_resume_workspace(workspace: str, args) -> int:
             and origin_root != "Unknown"
             and os.path.normpath(origin_root) != os.path.normpath(workspace)
         ):
-            logger.error(f"Session belongs to workspace: {origin_root}")
-            logger.error(
+            message = f"Session belongs to workspace: {origin_root}"
+            hint = (
                 f"To resume this session, run:  cd {origin_root} && siada-cli --resume {session_info.session_id}"
             )
+            logger.error(message)
+            logger.error(hint)
+            print(message, file=sys.stderr)
+            print(hint, file=sys.stderr)
             return 1
     except Exception as e:
         logger.warning(f"Early resume workspace check failed: {e}")

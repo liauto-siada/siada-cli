@@ -585,7 +585,14 @@ class LarkAgentExecutor:
         downloaded_media = []
 
         try:
+            from siada.services.file_session import FileSession
             from siada.services.siada_runner import SiadaRunner
+
+            # Lark owns automatic migration for incoming turns, including
+            # history-only sessions. Prepare before pre-run consumers and
+            # validate existing context without rebuilding it.
+            if isinstance(session.openai_session, FileSession):
+                await session.openai_session.migrate_legacy_context(allow_history_only=True)
 
             # Update entry with session for interrupt handling
             task_key = ctrl._resolve_task_key(msg)

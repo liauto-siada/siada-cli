@@ -9,6 +9,8 @@ import shutil
 import sys
 from pathlib import Path
 
+import yaml
+
 # Requires siada virtualenv (same as other skill scripts like manage_cron_task.py).
 # ruamel.yaml is a direct dependency of the siada package.
 from ruamel.yaml import YAML
@@ -110,11 +112,47 @@ KNOWN_TOP_KEYS = (
 
 
 
+def _overlay_last_wins(data, effective) -> None:
+    """Where duplicate keys made the round-trip tree (ruamel keeps the first
+    occurrence) diverge from the plain-dict parse (last occurrence wins),
+    take the effective value so the rewrite keeps what config reads used."""
+    for key, eff in effective.items():
+        if key not in data:
+            continue
+        cur = data[key]
+        if isinstance(cur, dict) and isinstance(eff, dict):
+            _overlay_last_wins(cur, eff)
+        elif cur != eff:
+            data[key] = eff
+
+
 def _load():
     if not CONFIG_PATH.exists():
         return {}
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return _ryaml.load(f) or {}
+        raw = f.read()
+    try:
+        return _ryaml.load(raw) or {}
+    except Exception as exc:
+        if "duplicate key" not in str(exc).lower():
+            raise
+    # Duplicate keys (e.g. a section appended twice by an older version):
+    # reload tolerating duplicates and take last-occurrence values; the next
+    # save rewrites the file without them.
+    print(
+        f"warning: {CONFIG_PATH} contains duplicate YAML keys; "
+        f"saving will remove them (last occurrence wins)"
+    )
+    # allow_duplicate_keys only takes effect if set before the instance is
+    # first used, so the recovery load needs a fresh YAML object.
+    recovery = YAML()
+    recovery.preserve_quotes = True
+    recovery.allow_duplicate_keys = True
+    data = recovery.load(raw) or {}
+    effective = yaml.safe_load(raw) or {}
+    if isinstance(data, dict) and isinstance(effective, dict):
+        _overlay_last_wins(data, effective)
+    return data
 
 
 def _save(data) -> None:

@@ -182,6 +182,57 @@ def write_conf_dict(data: Mapping[str, Any], config_path: Optional[Path] = None)
         return False
 
 
+def _overlay_effective_values(node: Dict[str, Any], effective: Mapping[str, Any]) -> None:
+    """Where duplicate keys made the round-trip tree (ruamel keeps the first
+    occurrence) diverge from the plain-dict parse (last occurrence wins, the
+    semantics every reader uses), take the effective value so the rewrite
+    keeps the settings the running config actually resolved to."""
+    for key, eff in effective.items():
+        if key not in node:
+            continue
+        cur = node[key]
+        if isinstance(cur, dict) and isinstance(eff, dict):
+            _overlay_effective_values(cur, eff)
+        elif cur != eff:
+            node[key] = eff
+
+
+def _load_round_trip(ryaml: Any, path: Path) -> Any:
+    """Round-trip load conf.yaml, tolerating duplicate YAML keys.
+
+    Files written by older versions (or hand edits) can contain duplicate
+    keys, which ruamel rejects by default — that would block every
+    update_conf() write (e.g. switching models). Recover by re-loading with
+    duplicates allowed and overlaying the last-wins values used by the read
+    path (read_conf_dict), so the write back both succeeds and drops the
+    duplicates. Any other parse error still propagates.
+    """
+    if not path.exists():
+        return None
+    try:
+        return ryaml.load(path)
+    except Exception as exc:
+        if "duplicate key" not in str(exc).lower():
+            raise
+    logger.warning(
+        f"{path} contains duplicate YAML keys; updating it will remove the "
+        f"duplicates (last occurrence wins, as config reads do)."
+    )
+    raw = path.read_text(encoding="utf-8")
+    from ruamel.yaml import YAML
+
+    # allow_duplicate_keys only takes effect if set before the instance is
+    # first used, so the recovery load needs a fresh YAML object.
+    recovery = YAML()
+    recovery.preserve_quotes = True
+    recovery.allow_duplicate_keys = True
+    data = recovery.load(raw)
+    effective = yaml.safe_load(raw)
+    if isinstance(data, dict) and isinstance(effective, dict):
+        _overlay_effective_values(data, effective)
+    return data
+
+
 def update_conf(
     mutator: Callable[[Dict[str, Any]], Any],
     config_path: Optional[Path] = None,
@@ -201,7 +252,7 @@ def update_conf(
         path.parent.mkdir(parents=True, exist_ok=True)
         ryaml = YAML()
         ryaml.preserve_quotes = True
-        data = ryaml.load(path) if path.exists() else None
+        data = _load_round_trip(ryaml, path)
         if data is None:
             data = {}
         if not isinstance(data, dict):

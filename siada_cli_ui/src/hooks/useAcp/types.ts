@@ -66,7 +66,7 @@ export interface TodoItem {
 export interface SubAgentItem {
   id: string;
   title: string;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
   summary?: string;
 }
 

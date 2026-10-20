@@ -18,12 +18,14 @@ const STATUS_ICONS: Record<string, string> = {
   running:   '◐',
   completed: '✓',
   failed:    '✗',
+  cancelled: '⊘',
 };
 
 const STATUS_COLORS: Record<string, string> = {
   running:   'yellow',
   completed: 'green',
   failed:    'red',
+  cancelled: 'gray',
 };
 
 /**

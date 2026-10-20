@@ -42,6 +42,12 @@ def is_gpt6_model(model_name: Optional[str]) -> bool:
     return _gpt_main_version(model_name) == 6 or is_astra_model(model_name)
 
 
+def is_gpt6_or_newer_model(model_name: Optional[str]) -> bool:
+    """Identify GPT-6+ generations and the Astra alias for delegation policy."""
+    version = _gpt_main_version(model_name)
+    return (version is not None and version >= 6) or is_astra_model(model_name)
+
+
 _GPT6_MINOR_REVISION_PATTERN = re.compile(r"gpt[-_]?6\.(\d+)")
 
 

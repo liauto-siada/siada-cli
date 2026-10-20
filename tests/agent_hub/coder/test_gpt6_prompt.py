@@ -11,6 +11,7 @@ import pytest
 from siada.agent_hub.coder.prompt.selection.model_features import (
     is_gpt5_model,
     is_gpt5_or_newer_model,
+    is_gpt6_or_newer_model,
     uses_native_patch_file_tools,
 )
 from siada.agent_hub.coder.prompt.sections.rules.dispatch import get_rules_section
@@ -113,10 +114,14 @@ def test_gpt6_model_detection_uses_major_version_with_astra_alias_support():
         "astral-projection",
         "gpt-5.6-luna",
         "gpt-5-astra",
-        "gpt-7-nova",
-        "gpt-7-astra",
     ):
         assert is_gpt6_model(model_name) is False
+        assert is_gpt6_or_newer_model(model_name) is False
+        assert resolve_skill_usage_profile(model_name) is SkillUsageProfile.STRICT
+
+    for model_name in ("gpt-7-nova", "gpt-7-astra", "vendor-gpt-8.1-sol"):
+        assert is_gpt6_model(model_name) is False
+        assert is_gpt6_or_newer_model(model_name) is True
         assert resolve_skill_usage_profile(model_name) is SkillUsageProfile.STRICT
 
     assert is_gpt5_model("gpt-6-astra") is False

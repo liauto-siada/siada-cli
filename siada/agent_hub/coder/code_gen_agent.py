@@ -22,7 +22,7 @@ from siada.services.memory.holographic.marker import (
     wrap_prefetch_block,
 )
 from siada.support.message_classifier import is_hidden_runtime_text
-from siada.tools.agent.run_subtask import run_subtask
+from siada.tools.agent.run_subtask import create_run_subtask_tool
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
@@ -100,7 +100,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             list_code_definition_names,
         ]
         if include_run_subtask:
-            base_tools.append(run_subtask)
+            base_tools.append(create_run_subtask_tool(model_name))
         base_tools.append(todo_write)
 
         pwsh = get_run_powershell_tool_if_available()

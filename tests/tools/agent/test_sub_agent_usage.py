@@ -268,7 +268,9 @@ async def test_subtask_sdk_writes_individual_logs_without_tracing_or_recursion(t
         assert "Duration:" in text
         assert "Model: gpt-5.2" in text
         if mode in ("failure", "cancel"):
-            assert "Status: failed" in text
+            # Usage summary follows the terminal status: "failed" for errors,
+            # "cancelled" for a cancelled run (never a misleading "failed").
+            assert f"Status: {'cancelled' if mode == 'cancel' else 'failed'}" in text
             assert "Cost: unavailable" in text
         else:
             assert "Cost: CNY 0.0227" in text

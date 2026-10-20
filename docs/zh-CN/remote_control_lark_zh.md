@@ -493,6 +493,12 @@ Siada 现在支持在飞书群聊中使用。在群聊中，机器人通过 **@�
 
 ## 常见问题
 
+### Q: 提示 "history-only migration requires explicit approval"？
+
+机器人会在开始任务前自动准备旧会话，包括仅有聊天历史的会话，并保留原始历史。
+更新 Siada 后如果仍出现此错误，执行 `siada-cli --restart-daemon` 让机器人加载更新后的代码，
+然后重新发送消息。请保留会话文件；损坏的会话数据仍需修复，机器人会报告对应错误。
+
 ### Q: 机器人没有响应消息？
 
 1. **检查 Daemon 是否在运行**：`siada-cli --daemon-status`

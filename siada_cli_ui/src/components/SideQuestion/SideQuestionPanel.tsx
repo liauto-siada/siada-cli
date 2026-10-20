@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, Text } from '@jrichman/ink';
+import { Box, Text, useStdout } from '@jrichman/ink';
 import Spinner from 'ink-spinner';
 import { spawn } from 'node:child_process';
 import { useKeypress } from '../../hooks/useKeypress.js';
@@ -35,7 +35,7 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
   onClearHistory,
   onFork,
 }) => {
-
+  const { stdout } = useStdout();
   // The newest item (last) is always the focused / highlighted one.
   // Older items are rendered as collapsed history entries (title only).
   const activeIndex = items.length - 1;
@@ -167,7 +167,9 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
                   <Text color={colors.secondary}> Answering...</Text>
                 </Box>
               ) : (
-                <MarkdownText content={itemVisibleAnswer} />
+                <MarkdownText content={itemVisibleAnswer}
+                  availableWidth={Math.max((stdout.columns || 80) - 4, 0)}
+                  maxDiagramHeight={VIEWPORT_LINES} />
               )}
             </Box>
           </Box>

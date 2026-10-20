@@ -8,7 +8,8 @@ from .assembly.kimi import render_kimi_system_prompt
 from .models.default.instructions import INTRO, _build_objective
 from .models.gpt5.instructions import get_gpt5_intro
 from .models.gpt6.instructions import get_gpt6_intro
-from .selection.model_features import uses_gpt6_scannable_writing_style
+from .models.gpt6.multi_agent import EXPLICIT_REQUEST_ONLY
+from .selection.model_features import is_gpt6_or_newer_model, uses_gpt6_scannable_writing_style
 from .sections.capabilities import get_capabilities_for_profile
 from .sections.objectives import GPT5_OBJECTIVE
 from .sections.rules.dispatch import get_rules_for_profile
@@ -96,13 +97,16 @@ def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True,
     agents_section = get_agents_section(cwd) if subagent_enabled else None
 
     if profile.family is PromptFamily.GPT6:
-        return render_codex_system_prompt(
+        prompt = render_codex_system_prompt(
             model_name=profile.model_name, cwd=cwd, os_name=os_name, home_dir=home_dir,
             capabilities=capabilities, interactive_mode=interactive_mode,
             username=username,
             preferred_language=preferred_language, skills_section=skills_section,
             agents_section=agents_section, user_memory=user_memory,
         )
+        if subagent_enabled:
+            prompt += f"\n# Delegation\n\n{EXPLICIT_REQUEST_ONLY}\n"
+        return prompt
 
     if profile.family is PromptFamily.KIMI_K3:
         return render_kimi_system_prompt(
@@ -126,7 +130,7 @@ def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True,
     rules = get_rules_for_profile(
         cwd, os_name, home_dir, interactive_mode, profile=profile
     )
-    return render_system_prompt(
+    prompt = render_system_prompt(
         intro=intro,
         capabilities=capabilities,
         rules=rules,
@@ -138,3 +142,6 @@ def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True,
         agents_section=agents_section,
         profile=profile,
     )
+    if subagent_enabled and is_gpt6_or_newer_model(model_name):
+        prompt += f"\n\n# Delegation\n\n{EXPLICIT_REQUEST_ONLY}\n"
+    return prompt

@@ -350,6 +350,23 @@ Interactive sessions use the Node.js terminal UI launched by `siada-cli`, with
 an ACP-connected Python backend. The legacy Rich/prompt_toolkit interactive UI
 is no longer supported. Non-interactive `--prompt` execution is unchanged.
 
+### Mermaid Diagrams
+
+Closed `mermaid` or `mmd` code blocks in terminal answers render as Unicode
+diagrams, including Chinese labels. Supported types are flowcharts, state,
+sequence, class, and entity relationship diagrams. Unclosed blocks, unsupported
+syntax, and diagrams that exceed the available width or message height keep
+their source text. Widen the terminal to display a diagram that did not fit.
+
+Ask Siada to answer with a Mermaid code block, for example:
+
+````markdown
+```mermaid
+flowchart LR
+  A[Request] --> B[Validate] --> C[Result]
+```
+````
+
 ### Working Directory
 
 By default, Siada CLI uses the directory where you run `siada-cli` as its
@@ -592,6 +609,12 @@ Each `run_subtask` execution uses an isolated in-memory context that can be
 compacted as it grows. Later SDK saves do not restore summarized task input.
 Identical messages remain distinct, including repeated messages in inherited
 (`fork`) history.
+
+For GPT-6 and later models (including the `astra` alias), the system prompt
+requires you or applicable `SIADA.md`/`AGENTS.md`/skill instructions to explicitly
+request sub-agents, delegation or parallel agent work. For example: “Use the reviewer
+agent to review this diff.” A matching agent description alone does not request
+delegation.
 
 ## Examples
 

@@ -22,7 +22,7 @@ MAX_TITLE_LENGTH = 60
 class SubAgentItem:
     id: str          # "sa_" + uuid4 hex[:8]
     title: str       # first non-empty line of the instruction, truncated
-    status: str      # "running" | "completed" | "failed"
+    status: str      # "running" | "completed" | "failed" | "cancelled"
     summary: str = ""
 
 
@@ -96,7 +96,7 @@ def push_sub_agent_message(
 def finish_sub_agent(
     context: Optional[CodeAgentContext], sa_id: str, status: str, summary: Optional[str]
 ) -> None:
-    """Mark a sub-agent item completed/failed and push the state snapshot."""
+    """Mark a sub-agent item completed/failed/cancelled and push the state snapshot."""
     if context is None:
         return
     for item in context.sub_agent_items:

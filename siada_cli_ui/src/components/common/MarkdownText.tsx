@@ -15,10 +15,13 @@ import { useThemeVersion } from '../../themes/index.js';
 import { RenderInline } from '../markdown/InlineMarkdownRenderer.js';
 import { colorizeCode } from '../markdown/CodeColorizer.js';
 import { TableRenderer } from '../markdown/TableRenderer.js';
+import { MermaidDiagram, renderMermaidDiagram } from '../markdown/MermaidDiagram.js';
 
 export interface MarkdownTextProps {
   content: string;
   dimColor?: boolean;
+  availableWidth?: number;
+  maxDiagramHeight?: number;
 }
 
 /**
@@ -83,7 +86,7 @@ function renderMarkdownLine(line: string, dimColor: boolean = false): React.Reac
  * MarkdownText - Renders markdown with terminal styling
  * Custom implementation compatible with Ink v5
  */
-export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = false }) => {
+export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = false, availableWidth, maxDiagramHeight }) => {
   const { stdout } = useStdout();
   const terminalWidth = stdout?.columns || 80;
   useThemeVersion(); // repaint with the new palette after /theme
@@ -103,14 +106,14 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
     });
   }
 
-  // Normalize: collapse consecutive blank lines into a single blank line (outside code blocks)
-  // This prevents double-spacing between paragraphs when LLM returns \n\n\n or more
-  const normalizedContent = content.replace(/\n{3,}/g, '\n\n');
+  // Preserve source whitespace inside fences; collapse paragraph spacing below.
+  const normalizedContent = content.replace(/\r\n?/g, '\n');
   
   const lines = normalizedContent.split('\n');
   let inCodeBlock = false;
   const codeBlockLines: string[] = [];
   let codeBlockLang: string | null = null;
+  let codeBlockFence = '';
   const elements: React.ReactNode[] = [];
   let currentKey = 0;
   let prevLineWasEmpty = false;
@@ -122,33 +125,43 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
   const tableRowRegex = /^\s*\|(.+)\|\s*$/;
   const tableSeparatorRegex = /^\s*\|?\s*(:?-+:?)\s*(\|\s*(:?-+:?)\s*)+\|?\s*$/;
 
+  function renderFence(closed: boolean): React.ReactNode {
+    const source = codeBlockLines.join('\n');
+    if (closed && /^(mermaid|mmd)$/i.test(codeBlockLang ?? '')) {
+      const art = renderMermaidDiagram(source, availableWidth ?? Math.max(terminalWidth - 2, 0), maxDiagramHeight);
+      if (art) return <MermaidDiagram art={art} dimColor={dimColor} />;
+    }
+    return colorizeCode({
+      code: source,
+      language: codeBlockLang,
+      maxWidth: 0,
+      hideLineNumbers: true,
+      constrainWidth: false,
+    });
+  }
+
   lines.forEach((line, idx) => {
     // Track code blocks
-    if (line.trim().startsWith('```')) {
+    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    const isClosingFence = inCodeBlock && fenceMatch &&
+      fenceMatch[1][0] === codeBlockFence[0] &&
+      fenceMatch[1].length >= codeBlockFence.length && fenceMatch[2].trim() === '';
+    if ((!inCodeBlock && fenceMatch) || isClosingFence) {
       prevLineWasEmpty = false;
       if (inCodeBlock) {
         // End of code block - render accumulated lines
         if (codeBlockLines.length > 0) {
-          const colorizedCode = colorizeCode({
-            code: codeBlockLines.join('\n'),
-            language: codeBlockLang,
-            // Let parent Box control width; 0 + constrainWidth=false means "no fixed width".
-            maxWidth: 0,
-            hideLineNumbers: true,
-            constrainWidth: false,
-          });
           elements.push(
             <React.Fragment key={`codeblock_${currentKey++}`}>
-              {colorizedCode}
+              {renderFence(true)}
             </React.Fragment>
           );
           codeBlockLines.length = 0;
           codeBlockLang = null;
         }
-      } else {
-        const fence = line.trim();
-        const langMatch = fence.match(/^```(\w+)?/);
-        codeBlockLang = langMatch && langMatch[1] ? langMatch[1] : null;
+      } else if (fenceMatch) {
+        codeBlockFence = fenceMatch[1];
+        codeBlockLang = fenceMatch[2].trim().split(/\s+/, 1)[0] || null;
       }
       inCodeBlock = !inCodeBlock;
       return;
@@ -165,6 +178,7 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
     const tableSeparatorMatch = line.match(tableSeparatorRegex);
 
     if (tableRowMatch || tableSeparatorMatch) {
+      prevLineWasEmpty = false;
       if (!inTable) {
         // Start of table - first row is header
         inTable = true;
@@ -202,6 +216,8 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
     // Empty line: render as an empty Box with height={0.5} for paragraph spacing.
     // Previously used <Text>{' '}</Text> which caused double spacing.
     if (line.trim() === '') {
+      if (prevLineWasEmpty) return;
+      prevLineWasEmpty = true;
       elements.push(
         <Box key={`empty_${currentKey++}`} height={0.5} />
       );
@@ -209,6 +225,7 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
     }
 
     // Render regular markdown line
+    prevLineWasEmpty = false;
     elements.push(
       <Box key={`line_${currentKey++}`}>
         {renderMarkdownLine(line, dimColor)}
@@ -218,16 +235,9 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
 
   // Handle unclosed code block
   if (codeBlockLines.length > 0) {
-    const colorizedCode = colorizeCode({
-      code: codeBlockLines.join('\n'),
-      language: codeBlockLang,
-      maxWidth: 0,
-      hideLineNumbers: true,
-      constrainWidth: false,
-    });
     elements.push(
       <React.Fragment key={`codeblock_${currentKey++}`}>
-        {colorizedCode}
+        {renderFence(false)}
       </React.Fragment>
     );
   }

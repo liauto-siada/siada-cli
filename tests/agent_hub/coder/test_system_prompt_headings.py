@@ -58,13 +58,16 @@ def test_coding_prompt_generated_sections_have_markdown_headings(
         ])
     elif model_name == "gpt-6-astra":
         headings.extend(["# SYSTEM INFORMATION", "## Skills"])
-        headings.extend(["# Runtime instructions", "## Verification"])
+        headings.extend(["# Runtime instructions", "## Verification", "# Delegation"])
     else:
         headings.extend(["# SYSTEM INFORMATION", "## Skills"])
         headings.append("# OBJECTIVE")
     if model_name not in ("gpt-6-astra", "kimi-k3", "glm-5.3"):
         headings.extend(["# RULES", "## Completion Discipline"])
-    assert prompt.rstrip().endswith("====")
+    if model_name == "gpt-6-astra":
+        assert lines.index("# Combined Memory") < lines.index("# Delegation")
+    else:
+        assert prompt.rstrip().endswith("====")
 
     for heading in headings:
         assert lines.count(heading) == 1, heading

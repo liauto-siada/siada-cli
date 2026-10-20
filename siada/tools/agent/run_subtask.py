@@ -24,19 +24,21 @@ Two independent boolean parameters control how the sub-agent is launched:
   parent-notification mechanism.
 """
 import asyncio
+import copy
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Optional
 
 from contextlib import AsyncExitStack, aclosing
 from pathlib import Path
 
-from agents import RunContextWrapper, RunConfig, RunResultStreaming, function_tool, RunItemStreamEvent, RawResponsesStreamEvent, ToolOutputText, ToolOutputImage
+from agents import RunContextWrapper, RunConfig, RunResultStreaming, FunctionTool, function_tool, RunItemStreamEvent, RawResponsesStreamEvent, ToolOutputText, ToolOutputImage
 from siada.foundation.agent_logging import LoggingRunner as Runner
 from agents.items import ToolCallItem, ToolCallOutputItem, MessageOutputItem, ReasoningItem
 from agents.tracing import trace as agent_trace
 from pydantic import Field
 
 from siada.agent_hub.coder.sub_task_agent import SubTaskAgent, _build_default_tools
+from siada.agent_hub.coder.prompt.selection.model_features import is_gpt6_or_newer_model
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.logging import logger as logging
 from siada.foundation.setting import settings
@@ -120,6 +122,13 @@ Returns:
     When async is True: a short acknowledgement that the sub-agent was started in
     the background; the actual summary arrives later as an injected notification.
 """
+
+# Adapted from Codex V2's spawn_agent description, commit 83086188ae0614bd882818ff1aa23f3194962012.
+# OpenAI Codex, Copyright 2025 OpenAI. Apache-2.0; see docs/CREDITS.md.
+GPT6_RUN_SUBTASK_DOCS = """\
+Spawns an agent to work on the specified task.
+
+""" + RUN_SUBTASK_DOCS[RUN_SUBTASK_DOCS.index("Args:"):]
 
 
 # ---- User-defined agents (`.agents/agents/*.md`) -------------------------
@@ -721,6 +730,23 @@ async def run_subtask_impl(
                                 sa_item.id, "thinking", thinking_text,
                             )
             run_status = "completed"
+        except asyncio.CancelledError as e:
+            # A cancelled sub-agent run (user stop / session shutdown /
+            # cancel_session_background_subtasks) is not a failure: record it
+            # as "cancelled" with a non-empty summary — str(CancelledError) is
+            # usually empty, which used to surface as a red ✗ with a blank
+            # summary in the sub-agent panel. Re-raise so cancellation
+            # semantics upstream (no retry, no resume) are preserved.
+            reason = str(e).strip()
+            summary = f"Cancelled: {reason}" if reason else "Cancelled before completion"
+            run_status = "cancelled"
+            finish_sub_agent(agent_context, sa_item.id, "cancelled", summary)
+            if persist:
+                subagent_persistence.record_finish(
+                    agent_context.root_dir, agent_context.root_session_id,
+                    sa_item.id, "cancelled", summary,
+                )
+            raise
         except BaseException as e:
             finish_sub_agent(agent_context, sa_item.id, "failed", str(e))
             if persist:
@@ -873,3 +899,12 @@ async def run_subtask(
     finally:
         if recursive_enabled:
             release_alive(agent_context.root_session_id)
+
+
+def create_run_subtask_tool(model_name: str | None) -> FunctionTool:
+    """Select per-agent wording while preserving SDK invocation and error policies."""
+    if not is_gpt6_or_newer_model(model_name):
+        return run_subtask
+    adapted = copy.copy(run_subtask)
+    adapted.description = GPT6_RUN_SUBTASK_DOCS
+    return adapted

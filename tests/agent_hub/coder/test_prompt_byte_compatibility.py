@@ -24,7 +24,8 @@ from siada.services.skills.models import SkillUsageProfile
 
 
 # Captured from the pre-refactor get_system_prompt implementation with the
-# fixtures below. GLM and GPT-6 have reviewed newer baselines. Do not
+# fixtures below. GLM and GPT-6+ have reviewed newer baselines; GPT-6+ adds
+# neutral tool wording and explicit-request delegation. Do not
 # regenerate these values from the code under test without reviewing the diff.
 EXPECTED_SHA256 = {
     "default": (
@@ -36,28 +37,28 @@ EXPECTED_SHA256 = {
         "37490daaae22469dbfe8fc369c99100b2205a344f6eb42b383807a3aae6d2998",
     ),
     "gpt6": (
-        "e42ab82fbda2034592c8e7d6b6c14ec5fda1a046f7f4e55ee8cf391377f2d55c",
-        "0fdf09e84843c12e5468d93784c39e7590fc4a01b727eafc8bed2965991b9145",
+        "ddd7f4fe8841ec971becdb972679db9e2ba61d4f79fa15b00384c7692b4ec60c",
+        "c67e3880f8bfde1a215ed6a5c1a4fee5baf8151fa4481f33876308e0bddc9b42",
     ),
     "gpt61_sol": (
-        "06996ac08b5a76e18ab63464060cf77a1673faf129c10e85554a63ba7b881c36",
-        "9e4cc9c30181cdaed38e29fbd3fb4effad3c079371059780a9c89e63769ac435",
+        "3a75fa6c6a5cdadc241b4f88f40c97b05f4abcd33089777b04db97f7df5c5063",
+        "9017fd8653d313ba93ad0f7894ba64c0837549c3c4854f0bbd68aeaeb9f5648a",
     ),
     "gpt6_sol": (
-        "ea9bc75358dadb6be5dc8e92468804459f329d5bebbff55a19ac2de3152523b6",
-        "9dfd520b0f0b26b422380ae526b1b127fcc2244229e5ce6287c478466006cc65",
+        "dbac79b6485e8440b1595c737d172a5f20c10fe66f8918ba141f8be6935c4f83",
+        "892bd0a479686a8e4a7d69b96d8c10db725b48c2df860d3ea9cca39026d081c7",
     ),
     "gpt6_luna": (
-        "be9b7adeb488cbf43339bc351445330b541f85682e69efc775a7b0033cef998d",
-        "559f518598a0d3837a1bc5de4878961a1921bb359caf63be754c48a9e96766df",
+        "26ac785e4a68b41eed70d0b3c897e58df6b3eb9a53a9878a4163a12983e8f206",
+        "7e1868fc5c6fb295ba85bb8ae4640490f459bff12e9b96a51bff68ec7c31f01d",
     ),
     "glm": (
         "7ace41a877dc1f88b697c9dcb617e01fb9a556ea567a5cd32e3221a31b3f9550",
         "a9ece776aa27221e742f6ee28030887e6781aff22427a68359ff6d8504b38374",
     ),
     "future_gpt": (
-        "550364d1b6e818082874d070b9e8d54886ff23fb95fe685cd4966205291b413f",
-        "4d9762083679c3b9d663e59ab9f4a420ad8ad7187d0e87a03170c788850b0dea",
+        "0e9c020a5afe59d5ebbb7dc69d34627810645dfffbf3b3f2a22e53038a1d618b",
+        "01dbb0a28e151fce903add0adcd60dfe28d97e592c2986da26292f3728e3e81f",
     ),
 }
 
@@ -188,7 +189,7 @@ def test_snapshot_failure_identifies_changed_lines(render_prompt, monkeypatch):
         ("claude-sonnet-5", {"preferred_language": None},
          "f86f308585157725e1f0b4536b785748d6fec3c94ac01efa873baa60cf302ce9"),
         ("gpt-6-astra", {"user_memory": None},
-         "aa065357795038518aa31b3fdafda780e3ea6a3c130c0fa51176eb7d97be96ed"),
+         "ec2677830e9badc4b40b2ca4683e0d8118bf89b642e0812775a99fc3d7280972"),
     ),
 )
 def test_optional_sections_match_reviewed_bytes(render_prompt, model_name, overrides, expected_sha256):

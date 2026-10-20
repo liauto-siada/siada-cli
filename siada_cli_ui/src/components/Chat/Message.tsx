@@ -431,7 +431,8 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
               </Box>
             )}
             <Box paddingLeft={2} paddingRight={2} paddingY={0}>
-              <MarkdownText content={cleanContent} />
+              <MarkdownText content={cleanContent} availableWidth={Math.max(terminalWidth - 10, 0)}
+                maxDiagramHeight={disableTruncation ? undefined : dynamicMaxLines} />
             </Box>
           </Box>
         )}
@@ -463,7 +464,8 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
         )}
         {cleanContent.length > 0 && (
           <Box paddingLeft={2}>
-            <MarkdownText content={cleanContent} />
+            <MarkdownText content={cleanContent} availableWidth={Math.max(terminalWidth - 2, 0)}
+              maxDiagramHeight={disableTruncation ? undefined : dynamicMaxLines} />
           </Box>
         )}
       </Box>
@@ -613,7 +615,8 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
       <Box paddingLeft={2} marginBottom={1}>
         {message.type === 'agent' ? (
-          <MarkdownText content={message.content} />
+          <MarkdownText content={message.content} availableWidth={Math.max(terminalWidth - 2, 0)}
+            maxDiagramHeight={disableTruncation ? undefined : dynamicMaxLines} />
         ) : (
           <Text>{message.content}</Text>
         )}

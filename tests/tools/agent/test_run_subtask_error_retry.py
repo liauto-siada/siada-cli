@@ -73,17 +73,24 @@ async def test_transient_failure_continues_without_terminal_failure(error, no_de
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("error", [
-    ValueError("invalid configuration"),
-    RuntimeError("Event loop is closed"),
-    asyncio.CancelledError(),
-    APIStatusError(
-        "synthetic unauthorized",
-        response=httpx.Response(401, request=httpx.Request("POST", "https://model.test")),
-        body=None,
-    ),
-])
-async def test_non_transient_failure_is_not_retried(error, no_delay):
+@pytest.mark.parametrize(
+    ("error", "expected_status"),
+    [
+        (ValueError("invalid configuration"), "failed"),
+        (RuntimeError("Event loop is closed"), "failed"),
+        (asyncio.CancelledError(), "cancelled"),
+        (
+            APIStatusError(
+                "synthetic unauthorized",
+                response=httpx.Response(401, request=httpx.Request("POST", "https://model.test")),
+                body=None,
+            ),
+            "failed",
+        ),
+    ],
+    ids=["value-error", "runtime-error", "cancelled", "401"],
+)
+async def test_non_transient_failure_is_not_retried(error, expected_status, no_delay):
     failed = _text_result()
     failed.stream_events = _stream_that_raises(error)
     with _MockedSubtaskRun([failed, _text_result("Unexpected.")], with_definition=True) as run:
@@ -91,7 +98,11 @@ async def test_non_transient_failure_is_not_retried(error, no_delay):
             await run.run()
     assert caught.value is error
     assert run.run_streamed.call_count == 1
-    assert run.finish_statuses == ["failed"]
+    # A cancellation is not a failure: it must be recorded as "cancelled"
+    # (with a non-empty summary), never as "failed".
+    assert run.finish_statuses == [expected_status]
+    if isinstance(error, asyncio.CancelledError):
+        assert run.finishes[0][1].strip()
     assert run.mcp_servers.exit_count == 1
     no_delay.assert_not_awaited()
 
@@ -132,7 +143,9 @@ async def test_cancellation_during_backoff_stops_recovery(monkeypatch):
             await run.run()
     assert caught.value is cancelled
     assert run.run_streamed.call_count == 1
-    assert run.finish_statuses == ["failed"]
+    # Cancellation stops recovery AND is recorded as "cancelled", not "failed".
+    assert run.finish_statuses == ["cancelled"]
+    assert run.finishes[0][1].strip()
     assert run.mcp_servers.exit_count == 1
 
 
