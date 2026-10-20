@@ -97,10 +97,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-当前正式版本为 **1.7.35**。各平台使用相同命令安装：
+从 PyPI 安装最新正式版本。各平台使用相同命令：
 
 ```bash
-uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple "siada-cli==1.7.35"
+uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple siada-cli@latest
 uv tool update-shell
 ```
 

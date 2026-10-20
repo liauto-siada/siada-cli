@@ -97,10 +97,10 @@ Or on **Windows (PowerShell)**:
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-The current stable release is **1.7.35**. Install it with the same command on all platforms:
+Install the latest stable release from PyPI with the same command on all platforms:
 
 ```bash
-uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple "siada-cli==1.7.35"
+uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple siada-cli@latest
 uv tool update-shell
 ```
 
