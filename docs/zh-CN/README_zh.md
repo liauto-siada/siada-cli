@@ -98,6 +98,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```
 
 从 PyPI 安装最新正式版本。各平台使用相同命令：
+当前正式版本为 [1.7.37](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.37)。
 
 ```bash
 uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple siada-cli@latest
@@ -184,7 +185,7 @@ siada-cli --checkpointing
 siada-browser setup
 ```
 
-在 `chrome://extensions` 中手动加载 `~/.siada-cli/browser/extension`，并在扩展设置中填写 setup 输出的 token。执行 `uv tool upgrade siada-cli` 后，再运行 `siada-browser setup`，然后在 Chrome 中重新加载扩展。源码安装、候选产物验收和发布说明见[浏览器安装指南](./browser-installation_zh.md)。
+在 `chrome://extensions` 中手动加载 `~/.siada-cli/browser/extension`。扩展会自动发现本机连接 token；远程连接需手动配置。在 Chrome 中选择 API Key 或 Free Trial 登录。执行 `uv tool upgrade siada-cli` 后，再运行 `siada-browser setup`，然后在 Chrome 中重新加载扩展。Linux/macOS 和 Windows 一键安装、源码安装与发布说明见[浏览器安装指南](./browser-installation_zh.md)。
 
 ## 源码开发
 

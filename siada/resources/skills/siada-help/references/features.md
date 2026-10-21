@@ -25,7 +25,7 @@ This is a display layer only: it parses the tool call that actually ran and show
 
 siada signs in with **your own model-provider API key** — there is no hosted/account login in this build:
 
-- On first launch (or with `/configure`) the sign-in wizard asks for the provider, the model and the API key, and persists them into `llm_config` in `~/.siada-cli/conf.yaml` (`provider: default`)
+- On first launch (or with `/configure`) choose a provider API key or Free Trial. Free Trial selects curated anonymous Kilo models. Settings persist into `llm_config` in `~/.siada-cli/conf.yaml` (`provider: default`). The active provider catalogue appears before `models.json`, with duplicate names retaining user metadata; Custom adds only the entered model.
 - Credentials can also come from the `BASE_URL` / `API_KEY` environment variables (e.g. `siada-cli --set-env API_KEY=... --set-env BASE_URL=...`)
 - `/logout` or `siada-cli --logout` removes the stored provider API key
 - The legacy account options `--user-id` / `--access-token` are deprecated and rejected: they exit with an error that points at configuring a provider API key (LiId/domain-account credentials are not supported here)
@@ -141,7 +141,7 @@ Type `/` in the input box to trigger — no configuration required:
 | `/restore` | Restore files from a checkpoint |
 | `/compare` | Compare files between the working directory and a checkpoint |
 | `/statusbar` | Toggle status bar item visibility (UI mode) |
-| `/configure` | Re-run provider sign-in (API key) in the Siada UI without restarting; cancelling leaves the session and config untouched. Requires the UI |
+| `/configure` | Re-run API Key / Free Trial sign-in in the Siada UI without restarting; cancelling leaves the session and config untouched. Requires the UI |
 | `/logout` | Sign out: remove the stored provider API key from `conf.yaml` (the process then exits) |
 | `/exit` | Exit siada |
 | `/help` | Show help for all commands |
@@ -286,6 +286,9 @@ siada can search the web and fetch page content (`web_search` / `web_fetch`) whe
 ## Browser Add-on & Session Sharing
 
 The `chrome-acp` browser add-on connects siada to your own Chrome through a local proxy, so the agent can see and drive pages using your real browser session. It is managed from the CLI:
+The Chrome side panel supports installation guidance for Linux/macOS and Windows,
+automatic local token discovery, API Key / Free Trial login, and signing in again
+or switching providers from connection settings. Remote URL/token settings remain manual.
 
 - `siada-cli --browser-setup` — install the proxy + Chrome extension and start the proxy (optional value: path to an already-built `chrome-acp` repo; omit it to download prebuilt artifacts)
 - `siada-cli --browser-start` / `--browser-stop` / `--browser-restart` / `--browser-status` — manage or inspect the running proxy

@@ -9,7 +9,7 @@
     "使用手册": "User guide",
     "切换语言": "Choose language",
     "开始使用": "Get started",
-    "当前正式版本：1.7.35": "Current stable release: 1.7.35",
+    "当前正式版本：1.7.37": "Current stable release: 1.7.37",
     "AI 的价值不是取代，": "AI makes room for creativity, ",
     "而是营造创造的环境": "empowering people to create.",
     "从当前阅读、浏览历史与动作理解意图，": "Siada understands your intent through what you read, your browsing history, and your actions. ",

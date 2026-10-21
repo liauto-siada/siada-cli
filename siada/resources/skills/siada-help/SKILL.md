@@ -52,7 +52,7 @@ siada-cli --daemon-status     # check if running
 Note: there is no separate start command; the daemon auto-starts when siada is launched.
 
 **What this open-source build supports:**
-- **Sign-in: provider API key only.** `/configure` re-runs the sign-in selector (it needs the Siada UI; cancelling changes nothing) and `/logout` removes the stored provider API key. The legacy `--user-id` / `--access-token` options are deprecated and rejected: they exit with an error pointing at API-key sign-in.
+- **Sign-in: provider API key or Free Trial.** Free Trial uses curated anonymous Kilo models. `/configure` re-runs the sign-in selector (it needs the Siada UI; cancelling changes nothing), and Chrome offers the same flow through “Sign in again / switch provider”. `/logout` removes the stored provider configuration. The legacy `--user-id` / `--access-token` options are deprecated and rejected.
 - **Lark remote control: `direct` mode only** — your own Lark app credentials (`lark.direct.app_id` / `app_secret`). `mode: relay` is a legacy value and fails with a clear error; the relay client is not bundled.
 - **The `headroom` proxy is not bundled.** A legacy `headroom:` section in `conf.yaml` is only tolerated so old files still parse: no proxy starts and the `--headroom*` CLI flags do not exist.
 - **Costs shown are estimates** (CNY per million tokens; USD list prices converted at a fixed snapshot rate). Models defined in `~/.siada-cli/models.json` are authoritative. See `references/features.md` for details.

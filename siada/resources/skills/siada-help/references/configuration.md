@@ -27,7 +27,7 @@ Controls which LLM model siada uses.
 | `llm_config.vision_provider` | string | (`llm_config.provider`) | Provider for `llm_config.vision_model` |
 | `llm_config.parallel_tool_calls` | bool | `true` | Allow parallel tool calls |
 
-**Sign-in:** this build authenticates with your own provider API key. Signing in writes `provider: default`, `provider_id`, `base_url`, `api_key` (and `model`) into `llm_config`; `/logout` (or `siada-cli --logout`) removes those four provider/credential keys and leaves the rest of the section intact. `siada-cli --set-env API_KEY=... --set-env BASE_URL=...` supplies credentials for that invocation through the environment — it does not rewrite `conf.yaml`.
+**Sign-in:** choose your provider API key or Free Trial. Free Trial stores `provider_id: kilo-free`, the fixed Kilo gateway endpoint, an empty API key, and a curated free model. Signing in writes `provider: default`, `provider_id`, `base_url`, `api_key` (and `model`) into `llm_config`; `/logout` removes the provider configuration and leaves other settings intact. `siada-cli --set-env API_KEY=... --set-env BASE_URL=...` supplies credentials for that invocation without rewriting `conf.yaml`.
 
 **Example:**
 ```yaml

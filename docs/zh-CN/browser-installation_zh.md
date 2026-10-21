@@ -4,13 +4,13 @@
 生产依赖、网页客户端、Chrome 扩展和第三方许可声明。Python wheel 包含
 终端 UI bundle 和浏览器安装器，不包含浏览器二进制产物。
 
-当前正式版本为 1.7.35。平台包随 CLI 版本发布在 GitHub Releases。
+当前正式版本为 [1.7.37](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.37)。平台包随 CLI 版本发布在 GitHub Releases。
 构建会检查随包运行时和代理；安装后请重新加载扩展并检查连接。
 
 ## 安装已发布版本
 
 ```bash
-uv tool install --force --python python3.12 --with pip --default-index https://pypi.org/simple "siada-cli==1.7.35"
+uv tool install --force --python python3.12 --with pip --default-index https://pypi.org/simple "siada-cli==1.7.37"
 uv tool update-shell
 siada-browser setup
 ```
@@ -21,9 +21,21 @@ siada-browser setup
 保留连接配置。下载或校验失败时保留原安装。
 
 打开 `chrome://extensions`，开启开发者模式，加载
-`~/.siada-cli/browser/extension`。在扩展设置中填写 setup 输出的 token，
-默认本地地址为 `ws://localhost:9315/ws`。token 是访问本地服务的凭据，
-请妥善保管。
+`~/.siada-cli/browser/extension`。扩展自动发现本机 token，
+默认本地地址为 `ws://localhost:9315/ws`。远程连接需手动填写地址和 token。
+在 Chrome 登录向导中选择 API Key 或 Free Trial。
+
+Linux/macOS 一键安装：
+
+```bash
+curl -fsSL https://liauto-siada.github.io/siada-cli/scripts/install-browser.sh | SIADA_VERSION=1.7.37 sh
+```
+
+Windows PowerShell 一键安装：
+
+```powershell
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://liauto-siada.github.io/siada-cli/scripts/install-browser.ps1').Content)) -Version '1.7.37'
+```
 
 ```bash
 siada-browser status

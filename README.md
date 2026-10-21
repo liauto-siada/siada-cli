@@ -98,6 +98,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```
 
 Install the latest stable release from PyPI with the same command on all platforms:
+The current stable release is [1.7.37](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.37).
 
 ```bash
 uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple siada-cli@latest
@@ -186,7 +187,7 @@ Browser platform packages contain Node.js, the proxy, its production dependencie
 siada-browser setup
 ```
 
-Load `~/.siada-cli/browser/extension` manually through `chrome://extensions` and enter the setup token in the extension settings. After `uv tool upgrade siada-cli`, run `siada-browser setup` again and reload the extension in Chrome. See [Browser installation](./docs/browser-installation.md) for source installation, candidate artifact testing, and release details.
+Load `~/.siada-cli/browser/extension` manually through `chrome://extensions`. The extension discovers the local connection token automatically; remote connections require manual settings. Sign in from Chrome with API Key or Free Trial. After `uv tool upgrade siada-cli`, run `siada-browser setup` again and reload the extension in Chrome. See [Browser installation](./docs/browser-installation.md) for one-command installation on Linux/macOS and Windows, source installation, and release details.
 
 ## Development
 
