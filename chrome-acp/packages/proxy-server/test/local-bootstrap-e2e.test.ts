@@ -14,8 +14,8 @@ test("running proxy supplies token and authenticates ACP connection", async () =
     });
   });
   const extensionId = "a".repeat(32);
-  const proc = spawn("node", [
-    join(import.meta.dir, "../dist/cli/bin.js"),
+  const proc = spawn(process.execPath, [
+    join(import.meta.dir, "../src/cli/bin.ts"),
     "--host", "127.0.0.1", "--port", String(port),
     "node", "--", join(import.meta.dir, "fixtures/fake-agent.mjs"),
   ], {

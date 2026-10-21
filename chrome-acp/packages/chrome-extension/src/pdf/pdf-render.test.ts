@@ -32,7 +32,10 @@ const chromeStub = {
 
 (globalThis as { chrome?: unknown }).chrome = chromeStub;
 
-const { executePdfRender } = await import("./pdf-render");
+// Other suites import browser tools with different Chrome listener stubs.
+// Give this listener-owning module a distinct identity for this fixture.
+const fixtureModule = "./pdf-render?pdf-render-fixture";
+const { executePdfRender } = await import(fixtureModule);
 
 function emitViewerEvent(tabId: number, event: Record<string, unknown>) {
   for (const fn of messageListeners) {
