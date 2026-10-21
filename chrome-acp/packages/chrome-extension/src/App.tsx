@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ACPConnect } from "@/components/ACPConnect";
+import { ACPConnect, type StartupState } from "@/components/ACPConnect";
 import { ACPMain } from "@chrome-acp/shared/components";
 import { ThemeProvider } from "@chrome-acp/shared/lib";
 import type { ACPClient } from "@chrome-acp/shared/acp";
@@ -13,6 +13,8 @@ const LAST_SESSION_KEY = "sidepanel_last_session";
 export function App() {
   const [client, setClient] = useState<ACPClient | null>(null);
   const [expanded, setExpanded] = useState(true);
+  const [connecting, setConnecting] = useState(true);
+  const [startupState, setStartupState] = useState<StartupState>("checking");
   // undefined = not yet read from storage; null = no previous session
   const [lastSession, setLastSession] = useState<{ sessionId: string } | null | undefined>(undefined);
   // Auto-connect restores the last session; a MANUAL Connect click means the
@@ -22,7 +24,11 @@ export function App() {
   useEffect(() => {
     chrome.storage.local
       .get(LAST_SESSION_KEY)
-      .then((stored) => setLastSession(stored[LAST_SESSION_KEY] ?? null))
+      .then((stored) => {
+        const session = stored[LAST_SESSION_KEY];
+        setLastSession(session && typeof session === "object" && "sessionId" in session && typeof session.sessionId === "string"
+          ? { sessionId: session.sessionId } : null);
+      })
       .catch(() => setLastSession(null));
   }, []);
 
@@ -41,7 +47,9 @@ export function App() {
       <div className="flex flex-col h-dvh w-full">
         {/* Unified Connection Bar */}
         <ACPConnect
+          onStartupStateChange={setStartupState}
           onClientReady={setClient}
+          onConnectingChange={setConnecting}
           expanded={expanded}
           onExpandedChange={setExpanded}
           onConnectInitiated={handleConnectInitiated}
@@ -49,7 +57,7 @@ export function App() {
 
         {/* Main Content — wait for the storage read before mounting ACPMain,
             or ChatInterface would create a new session before we can restore. */}
-        <main className="flex-1 overflow-hidden">
+        {startupState === "connection" && <main className="flex-1 overflow-hidden">
           {client && initialSession !== undefined ? (
             <ACPMain
               client={client}
@@ -59,12 +67,12 @@ export function App() {
           ) : client ? null : (
             <div className="flex items-center justify-center h-full text-muted-foreground p-4">
               <div className="text-center">
-                <p className="text-lg mb-2">No agent connected</p>
-                <p className="text-sm">Click the status bar above to configure connection</p>
+                <p className="text-lg mb-2">{connecting ? "正在连接 Siada…" : "尚未连接 Siada"}</p>
+                <p className="text-sm">{connecting ? "正在启动本机助手，请稍候。" : "请在上方查看连接状态。"}</p>
               </div>
             </div>
           )}
-        </main>
+        </main>}
       </div>
     </ThemeProvider>
   );

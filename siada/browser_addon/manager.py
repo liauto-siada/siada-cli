@@ -22,6 +22,7 @@ port, so local setups need no certificate trust.
 from __future__ import annotations
 
 import json
+import hashlib
 from logging.handlers import RotatingFileHandler
 import os
 import secrets
@@ -273,6 +274,27 @@ def start() -> str:
     env["SIADA_CLI_LOG_DIR"] = get_log_directory()
     env["SIADA_PROXY_LOG_DIR"] = str(paths.log_directory())
     env["SIADA_PROXY_MANAGED"] = "1"
+    # Chromium hashes the absolute load-unpacked path unless the manifest
+    # contains a public key. Trust that installed extension, plus explicit IDs
+    # supplied for a separately installed store/development extension.
+    manifest_path = paths.extension_dir() / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        manifest = {}
+    if manifest.get("key"):
+        import base64
+
+        identity = base64.b64decode(manifest["key"])
+    else:
+        extension_path = str(paths.extension_dir().absolute())
+        if sys.platform.startswith("win"):
+            extension_path = extension_path.lower()
+        identity = extension_path.encode("utf-8")
+    digest = hashlib.sha256(identity).hexdigest()[:32]
+    extension_id = "".join(chr(ord("a") + int(char, 16)) for char in digest)
+    explicit_ids = env.get("SIADA_BROWSER_EXTENSION_IDS", "")
+    env["SIADA_BROWSER_EXTENSION_IDS"] = ",".join(filter(None, (extension_id, explicit_ids)))
 
     # The proxy's cwd becomes the sidepanel's default workspace (file tree +
     # agent sessions). NEVER use $HOME: ~/Library contains TCC-protected

@@ -34,6 +34,10 @@ import {
 } from "./files.js";
 import { appendTrajectoryEvents } from "./trajectory-writer.js";
 import { killAgentProcess, launchAgent } from "./agent-connection.js";
+import { localBootstrapHandler } from "./local-bootstrap.js";
+import { checkCliLogin, createTerminalLogin } from "./terminal-login.js";
+import { browserLoginSocket } from "./browser-login.js";
+import { allowLocalBootstrap } from "./local-bootstrap.js";
 
 // Get the directory of this file to resolve public folder path
 const __filename = fileURLToPath(import.meta.url);
@@ -1132,11 +1136,31 @@ export async function startServer(config: ServerConfig): Promise<void> {
 
   const app = new Hono();
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+  app.use("/local-login", async (c, next) => {
+    const socket = (c.env as { incoming: { socket: { remoteAddress?: string; encrypted?: boolean } } }).incoming.socket;
+    if (!allowLocalBootstrap({
+      url: c.req.url, peer: socket.remoteAddress, origin: c.req.header("Origin"),
+      extensionId: c.req.query("extensionId"),
+      encrypted: "encrypted" in socket && socket.encrypted === true,
+    }, (process.env.SIADA_BROWSER_EXTENSION_IDS ?? "").split(",").filter(Boolean))
+      || c.req.header("Origin") !== `chrome-extension://${c.req.query("extensionId")}`) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    return next();
+  });
+  app.get("/local-login", upgradeWebSocket(c => browserLoginSocket(command, cwd, c.req.query("reconfigure") === "1")));
 
   // Health check endpoint
   app.get("/health", (c) => {
     return c.json({ status: "ok" });
   });
+
+  const bootstrap = localBootstrapHandler(
+    AUTH_TOKEN, port, (process.env.SIADA_BROWSER_EXTENSION_IDS ?? "").split(",").filter(Boolean),
+    { check: () => checkCliLogin(command), open: createTerminalLogin(command, cwd) },
+  );
+  app.get("/local-bootstrap", bootstrap);
+  app.post("/local-bootstrap", bootstrap);
 
   // Status endpoint for setup verification (e.g. `siada browser setup`
   // polls it until the extension's tool channel registers).

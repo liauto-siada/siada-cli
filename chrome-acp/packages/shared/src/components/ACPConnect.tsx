@@ -77,6 +77,7 @@ function getInitialSettings(inferFromUrl: boolean, stored?: Partial<ACPSettings>
 
 export interface ACPConnectProps {
   onClientReady?: (client: ACPClient | null) => void;
+  onConnectingChange?: (connecting: boolean) => void;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   /** Handler for browser tool calls (only Chrome extension can execute these) */
@@ -95,10 +96,13 @@ export interface ACPConnectProps {
   onSettingsChange?: (settings: ACPSettings) => void;
   /** Extra host-specific settings UI rendered below the built-in fields */
   extraSettings?: ReactNode;
+  autoConnect?: boolean;
+  onConnectInitiated?: (source: "auto" | "manual") => void;
 }
 
 export function ACPConnect({
   onClientReady,
+  onConnectingChange,
   expanded,
   onExpandedChange,
   browserToolHandler,
@@ -325,6 +329,9 @@ export function ACPConnect({
 
   const isConnected = connectionState === "connected";
   const isConnecting = connectionState === "connecting";
+  useEffect(() => {
+    onConnectingChange?.(isConnecting);
+  }, [isConnecting, onConnectingChange]);
 
   const handleInputKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isConnected && !isConnecting) {
@@ -348,9 +355,13 @@ export function ACPConnect({
     <div className="bg-background/80 backdrop-blur-sm">
       <div className="max-w-md mx-auto border-b">
       {/* Status Bar - Always visible */}
+      <div className="flex items-center gap-1 pr-2">
       <button
         onClick={() => onExpandedChange(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors"
+        type="button"
+        aria-expanded={expanded}
+        aria-label="连接设置"
+        className="min-w-0 flex-1 flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           <StatusDot state={connectionState} />
@@ -360,9 +371,6 @@ export function ACPConnect({
           )}
         </div>
         <div className="flex items-center gap-1">
-          <div onClick={(e) => e.stopPropagation()}>
-            <ThemeToggle />
-          </div>
           <ChevronDown
             className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
               expanded ? "rotate-180" : ""
@@ -370,6 +378,8 @@ export function ACPConnect({
           />
         </div>
       </button>
+      <ThemeToggle />
+      </div>
 
       {/* Expandable Settings Panel */}
       <div

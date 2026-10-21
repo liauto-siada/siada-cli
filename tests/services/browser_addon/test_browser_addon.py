@@ -237,7 +237,15 @@ class TestManager:
             time.sleep(0.1)
         assert manager.is_running() is False
 
-    def test_start_passes_effective_host_and_https_to_popen(self, home, monkeypatch):
+    @pytest.mark.parametrize("public_key", [None, "c3ludGhldGljLXB1YmxpYy1rZXk="])
+    def test_start_passes_effective_host_and_https_to_popen(self, home, monkeypatch, public_key):
+        import base64
+        import hashlib
+        import json
+
+        monkeypatch.setenv("SIADA_BROWSER_EXTENSION_IDS", "b" * 32)
+        paths.extension_dir().mkdir()
+        (paths.extension_dir() / "manifest.json").write_text(json.dumps({"key": public_key}))
         port = _free_port()
         manager.init_state(port, "0.0.0.0")
         # fake a minimal installed proxy so start() passes the entry check
@@ -272,6 +280,10 @@ class TestManager:
         assert captured["env"]["SIADA_CLI_LOG_DIR"] == str(home / "logs")
         assert captured["env"]["SIADA_PROXY_LOG_DIR"] == str(home / "logs" / "proxy")
         assert captured["env"]["SIADA_PROXY_MANAGED"] == "1"
+        identity = base64.b64decode(public_key) if public_key else str(paths.extension_dir().absolute()).encode()
+        digest = hashlib.sha256(identity).hexdigest()[:32]
+        expected_id = "".join(chr(ord("a") + int(char, 16)) for char in digest)
+        assert captured["env"]["SIADA_BROWSER_EXTENSION_IDS"] == f"{expected_id},{'b' * 32}"
 
 
 class TestProxySpawn:

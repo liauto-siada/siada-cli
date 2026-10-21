@@ -577,6 +577,15 @@ def _launch_ui(workspace: str, args) -> int:
 
 def main():
     """Main entry point for siada-cli command."""
+    if "--browser-login" in sys.argv:
+        remove_console_handler()
+        from siada.entrypoint.browser_login import main as browser_login_main
+        return browser_login_main(reconfigure="--reconfigure" in sys.argv)
+    if "--browser-check" in sys.argv:
+        remove_console_handler()
+        from siada.entrypoint.browser_check import main as browser_check_main
+
+        return browser_check_main()
     if "--acp" in sys.argv:
         from siada.acp_server.main import main as acp_server_main
         acp_server_main()
