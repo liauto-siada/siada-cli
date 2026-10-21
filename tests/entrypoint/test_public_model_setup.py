@@ -136,6 +136,54 @@ def test_preload_installs_catalogue_when_no_models_json(monkeypatch, temp_siada_
     assert not (temp_siada_home / "models.json").exists()
 
 
+@pytest.mark.parametrize("provider", ["openai", "kilo-free", "custom"])
+def test_active_provider_precedes_user_models_on_restart(monkeypatch, temp_siada_home, provider):
+    from siada.provider.free_trial import FREE_TRIAL_MODELS, FREE_TRIAL_BASE_URL
+    names = [m[0] for m in FREE_TRIAL_MODELS] if provider == "kilo-free" else ["selected-model", "provider-other"]
+    if provider == "custom":
+        names = ["selected-model"]
+    monkeypatch.setattr(model_base_config, "_user_model_settings", None)
+    path = temp_siada_home / "models.json"
+    path.write_text(json.dumps({"models": [
+        {"model_name": "user-only", "context_window": 42000, "max_tokens": 512},
+        {"model_name": names[0], "context_window": 42000, "max_tokens": 512},
+    ]}))
+    original = path.read_bytes()
+    from siada.config.model_config import load_user_model_config
+    monkeypatch.setattr(model_setup, "get_api_key_provider_models",
+                        lambda *args: [_catalog_entry(n) for n in names])
+    conf = Config(model_config=load_user_model_config(), llm_config=LLMConfig.from_dict({
+        "provider": "default", "model": names[0], "provider_id": provider,
+        "base_url": FREE_TRIAL_BASE_URL if provider == "kilo-free" else "https://example.com/v1",
+    }))
+    get_config_from_conf(Mock(), conf)
+    assert [m.model_name for m in model_base_config.get_model_settings()] == names + ["user-only"]
+    assert model_base_config.get_model_settings()[0].context_window == 42000
+    assert path.read_bytes() == original
+
+
+def test_custom_does_not_infer_provider_from_endpoint(monkeypatch):
+    from siada.provider import models_dev
+    monkeypatch.setattr(models_dev, "get_providers_for_ui", Mock(side_effect=AssertionError("catalogue lookup")))
+    models = models_dev.get_provider_model_configs("custom", "user-entered", "https://api.deepseek.com/v1")
+    assert [m.model_name for m in models] == ["user-entered"]
+
+
+def test_provider_switch_replaces_transient_catalogue_and_deduplicates(monkeypatch, temp_siada_home):
+    path = temp_siada_home / "models.json"
+    path.write_text(json.dumps({"models": [
+        {"model_name": "user-only", "context_window": 42000, "max_tokens": 512},
+    ]}))
+    monkeypatch.setattr(model_base_config, "_user_model_settings", None)
+    model_setup.merge_provider_models_into_user_settings([_catalog_entry("old-provider")])
+    model_setup.merge_provider_models_into_user_settings([
+        _catalog_entry("new-provider"), _catalog_entry("new-provider"),
+        _catalog_entry("user-only"),
+    ])
+    assert [m.model_name for m in model_base_config.get_model_settings()] == ["new-provider", "user-only"]
+    assert model_base_config.get_model_settings()[1].context_window == 42000
+
+
 def test_provider_switch_loads_existing_models_json_before_merging(
     monkeypatch, temp_siada_home
 ):

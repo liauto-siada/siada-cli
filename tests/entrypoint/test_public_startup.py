@@ -434,12 +434,12 @@ class TestApiKeyLogin:
         assert result is None
         assert model_base_config._user_model_settings is existing
         assert [entry.model_name for entry in existing] == [
-            "my-private-deploy",
             "gpt-4o-mini",
+            "my-private-deploy",
         ]
-        assert existing[0].default_thinking_tokens == 777
-        assert existing[0].input_price == 9.9
-        assert existing[0].context_window == 64_000
+        assert existing[1].default_thinking_tokens == 777
+        assert existing[1].input_price == 9.9
+        assert existing[1].context_window == 64_000
         assert replace_calls == []
 
     def test_missing_credentials_fail_with_guidance(
@@ -504,14 +504,14 @@ class TestApiKeyLogin:
         assert model.configured == ["my-custom-model"]
         assert model.model_name == "my-custom-model"
         assert [entry.model_name for entry in existing] == [
-            "provider-model",
             "gpt-4o-mini",
             "my-custom-model",
+            "provider-model",
         ]
         # models.json stays authoritative: the user's fields are untouched.
-        assert existing[0].context_window == 32_000
-        assert existing[0].max_tokens == 4096
-        assert existing[0].default_thinking_tokens == 1234
+        assert existing[2].context_window == 32_000
+        assert existing[2].max_tokens == 4096
+        assert existing[2].default_thinking_tokens == 1234
         assert model_base_config._user_model_settings is existing
         assert private_import_recorder.attempts == []
 

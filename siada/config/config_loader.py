@@ -30,6 +30,7 @@ class LLMConfig:
     reasoning_effort: Optional[str] = None  # Default reasoning effort level ("low"/"medium"/"high") for models that support it
     vision_model: Optional[str] = None  # Dedicated vision engine for text-only main models (open-source vision bridge)
     vision_provider: Optional[str] = None  # Provider for vision_model (defaults to provider when omitted)
+    provider_id: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'LLMConfig':
@@ -48,6 +49,7 @@ class LLMConfig:
         return cls(
             model=text('model'),
             provider=text('provider'),
+            provider_id=text('provider_id'),
             base_url=text('base_url'),
             api_key=text('api_key'),
             thinking=bool(data['thinking']) if 'thinking' in data and data['thinking'] is not None else None,

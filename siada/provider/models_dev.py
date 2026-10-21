@@ -307,19 +307,19 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
             default_reasoning_effort=builtin.default_reasoning_effort if builtin else None,
         )
 
-    providers = get_providers_for_ui()
+    providers = [] if provider_id == "custom" else get_providers_for_ui()
     matched = None
     for p in providers:
         if p.get('id') == provider_id:
             matched = p
             break
-    if not matched and base_url:
+    if provider_id != "custom" and not matched and base_url:
         normalized = base_url.rstrip('/')
         for p in providers:
             if p.get('baseUrl', '').rstrip('/') == normalized:
                 matched = p
                 break
-    if not matched and (
+    if provider_id != "custom" and not matched and (
         provider_id == 'deepseek'
         or base_url.rstrip('/') == 'https://api.deepseek.com/v1'
     ):

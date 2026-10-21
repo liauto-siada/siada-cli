@@ -55,18 +55,17 @@ def _user_model_settings(model_config) -> list:
 
 
 def merge_provider_models_into_user_settings(provider_models: list) -> None:
-    """Add provider-catalogue models without replacing the user's models.json.
+    """Put active-provider models first, preserving user metadata and disk data.
 
     ``models.json`` is authoritative
     for the models it defines: a catalogue entry for the same model may carry
     different defaults and no custom thinking budgets / prices, so an existing
-    entry is never replaced. Only models the user catalogue does not know yet
-    are appended — which is also what lets a selected ``--model`` resolve later
-    in the same session. Nothing is written back to disk.
+    entry is never replaced. Provider entries lead the list, followed by the
+    remaining user models, with one entry per name. Nothing is written to disk.
 
     Shared by the login flow (``siadahub._apply_login``), the default-provider
     pre-load in ``get_config`` and ``/configure`` so all three keep the same
-    "merge, never replace" semantics.
+    provider-first ordering and user-metadata precedence.
     """
     from siada.models import model_base_config
 
@@ -83,11 +82,21 @@ def merge_provider_models_into_user_settings(provider_models: list) -> None:
         existing = _user_model_settings(user_config)
         model_base_config.set_user_model_settings(existing)
 
-    existing_names = {model.model_name for model in existing}
-    for provider_model in provider_models:
-        if provider_model.model_name not in existing_names:
-            existing.append(provider_model)
-            existing_names.add(provider_model.model_name)
+    # Reload the disk catalogue on provider changes so the previous provider's
+    # transient models do not accumulate in the active list.
+    from siada.config.model_config import load_user_model_config
+
+    user_config = load_user_model_config()
+    if user_config is not None:
+        existing[:] = _user_model_settings(user_config)
+    by_name = {model.model_name: model for model in existing}
+    ordered = []
+    seen = set()
+    for model in [*provider_models, *existing]:
+        if model.model_name not in seen:
+            ordered.append(by_name.get(model.model_name, model))
+            seen.add(model.model_name)
+    existing[:] = ordered
 
 
 def _pre_load_default_provider_models(conf: Optional[Config], model_name: str) -> None:
@@ -165,6 +174,11 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
             logger.info(f"Using default model from user configuration: {final_model}")
             if args.verbose:
                 io.print_info(f"Using default model from user configuration: {final_model}")
+
+    if final_provider == "default" and conf and conf.llm_config:
+        # ACP does not run the interactive _apply_login path. Populate the
+        # current provider even when models.json already resolves the selection.
+        _pre_load_default_provider_models(conf, final_model or "")
 
     if final_model is not None:
         logger.info(f"Configuring model: {final_model}")
