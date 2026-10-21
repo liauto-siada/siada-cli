@@ -82,10 +82,6 @@ export function BrowserLogin({ endpoint, extensionId, icon, reconfigure = false,
       </div>
       {!selector && !error && <p role="status">正在加载登录选项…</p>}
       {selector && phase === "select" && <div className="flex flex-col gap-3">
-        {!selector.liidDisabled && <>
-          <button className={optionClass} disabled={busy} onClick={() => submit("1")}><span className="block text-sm font-medium">Sign in with LiId</span><span className="mt-1 block text-xs text-muted-foreground">使用理想账号，自动打开授权页面</span></button>
-          <button className={optionClass} disabled={busy} onClick={() => submit("2")}><span className="block text-sm font-medium">Sign in with Device Code</span><span className="mt-1 block text-xs text-muted-foreground">复制授权链接，在其它浏览器或设备登录</span></button>
-        </>}
         <button className={optionClass} disabled={busy} onClick={() => setPhase("apikey")}><span className="block text-sm font-medium">Configure API Key</span><span className="mt-1 block text-xs text-muted-foreground">使用自己的模型服务和 API Key</span></button>
         {!!selector.freeTrialModels?.length && <button className={optionClass} disabled={busy} onClick={() => {
           setModel(selector.freeTrialModels![0]!.id); setPhase("trial");

@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { InstallGuide, INSTALL_COMMANDS } from "./components/InstallGuide";
+import { InstallGuide, INSTALL_COMMAND } from "./components/InstallGuide";
 import { ACPClient } from "@chrome-acp/shared/acp";
 import { ThemeProvider } from "../../shared/src/lib/theme";
 // Browser tools register a runtime listener at import time.
@@ -42,13 +42,12 @@ async function mount(element: React.ReactNode) {
   return container;
 }
 
-test("install guide displays icon, exact commands and remote access explanation", async () => {
+test("public install guide displays public command and manual connection entry", async () => {
   chromeFixture();
   const container = await mount(<InstallGuide onConnect={() => {}} />);
   expect(container.querySelector("img")?.alt).toBe("Chrome ACP");
-  expect(container.textContent).toContain(INSTALL_COMMANDS.unix);
-  expect(container.textContent).toContain(INSTALL_COMMANDS.windows);
-  expect(container.textContent).toContain("对外开放");
+  expect(container.textContent).toContain(INSTALL_COMMAND);
+  expect(container.textContent).not.toContain("li.auto");
   let opened = false;
   await act(async () => root?.render(<InstallGuide onConnect={() => { opened = true; }} />));
   await act(async () => (Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("其它设备")) as HTMLButtonElement).click());

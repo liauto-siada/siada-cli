@@ -10,7 +10,7 @@ siada-browser setup
 扩展会获取正在运行的本机 proxy 的 token，保存到连接设置并自动连接。
 随后沿用现有 ACP 握手启动配置的 CLI，并显示连接失败信息。
 
-CLI 未登录时，侧栏显示与 CLI 对应的 LiId、Device Code、API Key 三项登录。
+CLI 未登录时，侧栏显示与 CLI 对应的 API Key、Free Trial 两项登录。
 proxy 运行 `siada-cli --browser-login` 并通过获授权的本机连接传递登录消息。
 在 Chrome 中完成向导，CLI 校验并保存配置，侧栏在登录后自动连接。
 API Key 输入隐藏显示，不保存到 Chrome 存储；关闭向导会结束对应登录子进程。
@@ -20,8 +20,8 @@ API Key 输入隐藏显示，不保存到 Chrome 存储；关闭向导会结束�
 
 本机 proxy 不可用时，侧栏中央显示 Chrome ACP 图标和可复制的安装命令，
 每 5 秒重试检测。底部点击「已安装 / 其它设备存在 Siada CLI」可打开连接界面，
-填写地址和 token。内部安装命令的 `0.0.0.0` 会开启远程控制并对外开放相应端口，
-页面会在命令旁说明。已有安装可以运行：
+填写地址和 token。开源安装脚本默认绑定回环地址；GitHub raw 安装链接需在
+脚本发布到 `main` 后才可用。已有安装可以运行：
 
 ```bash
 siada-browser start

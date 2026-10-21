@@ -33,12 +33,10 @@ async function mount(params: object) {
   await act(async () => FakeSocket.current.event("ui/showLoginSelector", params));
   return host;
 }
-test("internal selector matches CLI three choices and sends device code selection", async () => {
+test("public selector never offers hosted login and cleans up its socket", async () => {
   const host = await mount({ providers: [] });
-  expect(host.querySelectorAll("button").length).toBe(3);
-  expect(host.textContent).toContain("Sign in with LiId");
-  await act(async () => (Array.from(host.querySelectorAll("button")).find(b => b.textContent?.includes("Sign in with Device Code"))!).click());
-  expect(JSON.parse(FakeSocket.current.sent[0]!).choice).toBe("2");
+  expect(host.querySelectorAll("button").length).toBe(1);
+  expect(host.textContent).not.toContain("LiId");
   await act(async () => FakeSocket.current.event("ui/loginDeviceUrl", { url: "https://example.com/device", openBrowser: false }));
   expect(host.querySelector("a")?.href).toBe("https://example.com/device");
   act(() => root.unmount());

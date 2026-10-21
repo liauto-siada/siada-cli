@@ -25,18 +25,11 @@ def test_invalid_config_reports_unknown(monkeypatch):
     assert browser_check()["auth"]["status"] == "unknown"
 
 
-@pytest.mark.parametrize("valid,status", [(True, "ready"), (False, "login_required")])
-def test_account_login_checks_token_without_returning_credentials(monkeypatch, valid, status):
-    import sys
-    from types import SimpleNamespace
+def test_free_trial_is_ready_without_key(monkeypatch):
     from siada.config import conf_store
-
-    monkeypatch.setattr(conf_store, "get_conf_section", lambda _: {})
-    monkeypatch.setitem(sys.modules, "siada.internal.services.idaas.auth_store", SimpleNamespace(
-        get_stored_user_id=lambda: "synthetic-user",
-        get_stored_access_token=lambda: "synthetic-token",
-        is_token_valid=lambda _: valid,
-    ))
+    from siada.provider.free_trial import FREE_TRIAL_BASE_URL
+    monkeypatch.setattr(conf_store, "get_conf_section", lambda _: {
+        "provider": "default", "base_url": FREE_TRIAL_BASE_URL, "api_key": "",
+    })
     result = browser_check()
-    assert result["auth"]["status"] == status
-    assert "synthetic" not in str(result)
+    assert result["auth"]["status"] == "ready"
