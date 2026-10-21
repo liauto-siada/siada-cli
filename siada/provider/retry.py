@@ -31,6 +31,7 @@ _TRANSIENT_API_ERRORS = frozenset({
     "overloaded_error", "service_unavailable", "rate_limit_exceeded",
     "rate_limit_error", "timeout", "request_timeout",
 })
+_UPSTREAM_AUTH_ERROR = "gateway cannot authenticate upstream services."
 
 
 class MissingFinalResponseError(ModelBehaviorError):
@@ -90,6 +91,17 @@ def is_retryable_model_error(error: Exception) -> bool:
         return not error.output_exposed
     if is_retryable_transport_error(error):
         return True
+    if isinstance(error, APIError):
+        # This specific gateway failure concerns upstream credentials and can
+        # arrive as an authentication error, including an HTTP 401 response.
+        body = error.body
+        if isinstance(body, dict) and isinstance(body.get("error"), dict):
+            body = body["error"]
+        message = body.get("message") if isinstance(body, dict) else body
+        if not isinstance(message, str):
+            message = error.message
+        if message.strip().casefold().startswith(_UPSTREAM_AUTH_ERROR):
+            return True
     if isinstance(error, APIStatusError):
         return error.status_code in {403, 408, 409, 429} or error.status_code >= 500
     if not isinstance(error, APIError):
