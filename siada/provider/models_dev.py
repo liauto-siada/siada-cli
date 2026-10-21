@@ -266,6 +266,15 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
     Matches by provider_id first, then by base_url. Falls back to a single-entry
     list using selected_model if no cache data is found."""
     from siada.models.model_base_config import MODEL_SETTING, ModelBaseConfig
+    from siada.provider.free_trial import FREE_TRIAL_PROVIDER_ID, FREE_TRIAL_MODELS
+
+    if provider_id == FREE_TRIAL_PROVIDER_ID:
+        # Use a conservative local admission budget until gateway limits are
+        # verified; the UI does not advertise these as upstream context limits.
+        return [
+            ModelBaseConfig(model_name=model, context_window=32_000, max_tokens=8192)
+            for model, _ in FREE_TRIAL_MODELS
+        ]
     builtin_by_name = {m.model_name: m for m in MODEL_SETTING}
 
     def _build(

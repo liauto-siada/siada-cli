@@ -25,12 +25,13 @@ export interface ProviderInfo {
   models: ModelInfo[];
 }
 
-export type LoginChoice = '1' | '2' | '3' | 'skip' | 'cancel';
+export type LoginChoice = '1' | '2' | '3' | '4' | 'skip' | 'cancel';
 
 export interface LoginSelectorProps {
   onSelect: (choice: LoginChoice, apiKey?: string) => void;
   /** Provider/model data from backend (models.dev cache). Overrides bundled snapshot when provided. */
   providers?: ProviderInfo[];
+  freeTrialModels?: ModelInfo[];
   /** When true (reconfigure flow), Esc cancels without error instead of sending 'skip'. */
   cancelable?: boolean;
   /** Legacy flag retained for compatibility with existing ACP notifications. */
@@ -142,12 +143,14 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
 
 const OPTIONS = [
   { id: '3' as const, label: 'Configure API Key',        description: 'Use your own API key (kimi, deepseek, openai, claude...)' },
+  { id: '4' as const, label: 'Free Trial', description: 'Try free models through Kilo — no API key required' },
 ];
 
 // ── Phase type ─────────────────────────────────────────────────────────────────
 
 type Phase =
   | 'selecting'
+  | 'free-model-select'
   | 'provider-select'
   | 'model-select'
   | 'baseurl-input'
@@ -156,10 +159,10 @@ type Phase =
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, cancelable, submitting = false, submitError = null }) => {
+export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, freeTrialModels = [], cancelable, submitting = false, submitError = null }) => {
   const effectiveProviders =
     providers && providers.length > 0 ? providers : PROVIDERS_SNAPSHOT;
-  const visibleOptions = OPTIONS;
+  const visibleOptions = OPTIONS.filter(option => option.id !== '4' || freeTrialModels.length > 0);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('selecting');
@@ -187,13 +190,26 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         if (choice === '3') {
           setPhase('provider-select');
           setActiveIndex(0);
-        } else {
-          onSelect(choice);
+        } else if (choice === '4') {
+          setPhase('free-model-select');
+          setActiveIndex(0);
         }
       } else if (key.name === 'escape' || (key.ctrl && key.name === 'c') || key.sequence === 'q') {
         onSelect(cancelable ? 'cancel' : 'skip');
       }
 
+    } else if (phase === 'free-model-select') {
+      if (key.name === 'up' || key.sequence === 'k') {
+        setActiveIndex(i => clamp(i - 1, freeTrialModels.length));
+      } else if (key.name === 'down' || key.sequence === 'j') {
+        setActiveIndex(i => clamp(i + 1, freeTrialModels.length));
+      } else if (isSubmitKey(key)) {
+        const model = freeTrialModels[activeIndex];
+        if (model) onSelect('4', JSON.stringify({ model: model.id }));
+      } else if (key.name === 'escape') {
+        setPhase('selecting');
+        setActiveIndex(1);
+      }
     } else if (phase === 'provider-select') {
       if (key.name === 'up' || key.sequence === 'k') {
         setActiveIndex(i => clamp(i - 1, effectiveProviders.length));
@@ -245,6 +261,34 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
   }, { isActive: submitting });
 
   // ── Renders ──────────────────────────────────────────────────────────────────
+
+  if (phase === 'free-model-select') {
+    // Keep the selected item visible without growing a twelve-model menu
+    // beyond a typical terminal's height.
+    const start = Math.max(0, Math.min(activeIndex - 2, freeTrialModels.length - 5));
+    return (
+      <Box flexDirection="column">
+        <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+          <Text bold color="cyan">Free Trial — Choose Model</Text>
+        </Box>
+        <Box paddingX={1}><Text dimColor>Kilo · No API key required · Free availability may change</Text></Box>
+        <Box flexDirection="column" paddingX={1}>
+          {freeTrialModels.slice(start, start + 5).map((model, offset) => (
+            <Box key={model.id}>
+              <Text color={start + offset === activeIndex ? 'cyan' : 'white'}>
+                {start + offset === activeIndex ? '▶ ' : '  '}{model.name}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+        <Box paddingX={1}><Text dimColor>{activeIndex + 1}/{freeTrialModels.length} · {freeTrialModels[activeIndex]?.id}</Text></Box>
+        {submitError ? <Text color="red">{submitError}</Text> : null}
+        <Box borderStyle="single" borderColor="gray" paddingX={1}>
+          <Text dimColor>{submitting ? 'Submitting login... (Esc to cancel)' : '↑↓/j/k navigate · Enter try · Esc back'}</Text>
+        </Box>
+      </Box>
+    );
+  }
 
   if (phase === 'provider-select') {
     return (
@@ -434,7 +478,7 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
       </Box>
       <Box paddingX={1} marginBottom={1}>
           <Text dimColor>
-            You are not signed in. Please configure an API key to continue:
+            Choose how to connect your model:
           </Text>
       </Box>
       <Box flexDirection="column" paddingX={1}>

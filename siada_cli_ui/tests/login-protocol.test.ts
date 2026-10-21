@@ -4,6 +4,19 @@ import type { ClientConfig } from '../src/types/index.js';
 import { logger } from '../src/utils/logger.js';
 
 describe('login protocol replies', () => {
+  it.each([undefined, 'free-selector'])('writes free model selection with request ID %s', async requestId => {
+    const client = new SiadaACPClient({ workingDir: '.', model: 'test-model' } as ClientConfig);
+    const send = vi.spyOn(client.adapter, 'sendRawInput').mockResolvedValue(undefined);
+    vi.spyOn(client.adapter, 'isProcessRunning').mockReturnValue(true);
+    try {
+      const payload = JSON.stringify({ model: 'poolside/laguna-s-2.1:free' });
+      await client.sendLoginChoice('4', payload, requestId);
+      const encoded = requestId ? JSON.stringify({ requestId, payload }) : payload;
+      expect(send.mock.calls[0][0]).toBe(`__LOGIN_CHOICE__:4:${encoded}`);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
   it.each([undefined, 'selector-request'])('writes API configuration with request ID %s without logging the key', async requestId => {
     const client = new SiadaACPClient({ workingDir: '.', model: 'test-model' } as ClientConfig);
     const write = vi.fn(() => true);

@@ -48,6 +48,20 @@ interruptions still report an error; cancellation stops recovery immediately.
 Recovery also stops if saved history was rewritten or an unsupported message
 shape prevents verifying input admission, rather than resending uncertain input.
 
+## Try Free Models
+
+On first sign-in or through `/configure`, **Free Trial** lets you choose a free
+model through [Kilo Gateway](https://kilo.ai) without registering or entering an
+API key. Laguna S 2.1 is the default; North Mini Code and Nemotron 3 Super are
+also available, alongside the other curated models in the selector.
+Your selection is saved for the next launch, and `/model` can switch between
+the trial models. Use `/configure → Configure API Key` to switch to your own
+provider. Trial requests omit the Authorization header and go to
+`https://api.kilo.ai/api/gateway`. Free availability and rate limits may change;
+if a model is unavailable, select another model or configure your own provider.
+The trial uses a conservative 32,000-token local context budget, not a claim
+about the gateway's maximum context.
+
 ## Configure DeepSeek with an API Key
 
 On first sign-in or through `/configure`, select **Configure API Key → DeepSeek**,

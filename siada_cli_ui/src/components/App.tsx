@@ -465,7 +465,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
       });
     }, LOGIN_SUBMIT_TIMEOUT_MS);
     try {
-      const payload = choice === '3' ? apiKey : undefined;
+      const payload = choice === '3' || choice === '4' ? apiKey : undefined;
       if (loginRequestId) {
         await activeClient.sendLoginChoice(choice, payload, loginRequestId);
       } else {
@@ -630,6 +630,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               providers={s.providers as any}
               cancelable={s.cancelable}
               liidDisabled={s.liidDisabled}
+              freeTrialModels={s.freeTrialModels}
               submitting={isSubmittingLogin}
               submitError={loginSubmitError}
             />

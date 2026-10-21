@@ -126,7 +126,7 @@ export interface GoalState {
 
 
 export type LoginState =
-  | { phase: 'selecting'; providers?: Record<string, unknown>[]; cancelable?: boolean; liidDisabled?: boolean; requestId?: string }
+  | { phase: 'selecting'; providers?: Record<string, unknown>[]; freeTrialModels?: import('../../components/Login/LoginSelector.js').ModelInfo[]; cancelable?: boolean; liidDisabled?: boolean; requestId?: string }
   | { phase: 'waiting'; url: string; openBrowser: boolean }
   | null;
 

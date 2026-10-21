@@ -51,7 +51,7 @@ afterEach(() => {
   app = undefined;
 });
 
-async function submitLogin() {
+async function submitLogin(choice: '3' | '4' = '3') {
   app = render(<App config={{ workingDir: '.', model: 'test-model' } as ClientConfig} />, {
     stdout: Object.assign(new PassThrough(), { columns: 100, rows: 30 }),
     stdin: new PassThrough(),
@@ -60,11 +60,18 @@ async function submitLogin() {
     maxFps: 0,
   });
   await vi.waitFor(() => expect(state.selector).not.toBeNull());
-  state.selector!.onSelect('3', 'synthetic-payload');
+  state.selector!.onSelect(choice, 'synthetic-payload');
   await vi.waitFor(() => expect(state.selector!.submitting).toBe(true));
 }
 
 describe('login submission', () => {
+  it('forwards the free model payload and request ID without a key prompt', async () => {
+    state.requestId = 'free-selector';
+    await submitLogin('4');
+    expect(state.sendLoginChoice).toHaveBeenCalledWith('4', 'synthetic-payload', 'free-selector');
+    state.selector!.onSelect('4', 'duplicate');
+    expect(state.sendLoginChoice).toHaveBeenCalledTimes(1);
+  });
   it.each(['cancel', 'skip'] as const)('sends %s while a login reply is pending', async choice => {
     await submitLogin();
     state.selector!.onSelect(choice);

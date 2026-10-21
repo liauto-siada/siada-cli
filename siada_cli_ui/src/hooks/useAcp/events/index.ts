@@ -388,6 +388,7 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
               providers: params?.providers,
               cancelable: params?.cancelable ?? false,
               liidDisabled: params?.liidDisabled ?? false,
+              freeTrialModels: params?.freeTrialModels,
             });
           }
         });

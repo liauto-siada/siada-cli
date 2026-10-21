@@ -1,10 +1,9 @@
 """
 Login prompt for unauthenticated users.
 
-The open-source build signs in with the user's own model provider: the only
-supported sign-in method is configuring a provider API key (or any other
-OpenAI-compatible endpoint), which is persisted to ``~/.siada-cli/conf.yaml``
-under ``llm_config`` with ``provider: default``.
+The open-source build offers provider API keys and an anonymous Kilo free trial.
+Both are persisted to ``~/.siada-cli/conf.yaml`` under ``llm_config`` with
+``provider: default``. Only the curated Kilo trial accepts an empty API key.
 
 Credentials already present in the environment (``BASE_URL`` + ``API_KEY``,
 e.g. shell exports or ``--set-env``) are accepted as-is for this process: they
@@ -15,8 +14,8 @@ through to the prompt below.
 Two entry points share this module:
 
   * ``ensure_logged_in()`` — first-run sign-in. In ACP mode the frontend
-    ``LoginSelector`` is shown with ``liidDisabled`` set (API key only); in TTY
-    mode base URL / API key / model are read from stdin.
+    ``LoginSelector`` offers API key and free trial choices; TTY mode offers
+    the same choices through stdin.
   * ``reconfigure_acp()`` — the ``/configure`` re-run of the same selector,
     cancelable, without restarting the process.
 """
@@ -26,6 +25,14 @@ import time
 from typing import Optional
 
 from siada.foundation.logging import logger
+from siada.provider.free_trial import (
+    FREE_TRIAL_BASE_URL,
+    FREE_TRIAL_PROVIDER_ID,
+    FREE_TRIAL_MODEL_IDS,
+    FREE_TRIAL_MODELS,
+    get_free_trial_models_for_ui,
+    is_free_trial_endpoint,
+)
 
 # Set after API-key login; read by siadahub to update runtime provider/model.
 _applied_api_key_config: Optional[dict] = None
@@ -106,10 +113,52 @@ def _field_text(value) -> Optional[str]:
     return None
 
 
+def _handle_free_trial_config(payload: str, io) -> Optional[str]:
+    """Apply a validated free model; the client cannot supply an endpoint/key."""
+    import json
+
+    global _applied_api_key_config
+
+    def report_error(message: str) -> None:
+        if _acp_transport_connected(io):
+            _send_acp_notification(io, "ui/loginError", {"error": message})
+        else:
+            io.print_error(message)
+
+    try:
+        data = json.loads(payload)
+        model = _field_text(data.get("model")) if isinstance(data, dict) else None
+    except (ValueError, TypeError):
+        model = None
+    if model not in FREE_TRIAL_MODEL_IDS:
+        report_error("Choose a supported free trial model.")
+        return None
+    if not _save_provider_config(FREE_TRIAL_PROVIDER_ID, "", FREE_TRIAL_BASE_URL, model):
+        report_error(_save_failed_message())
+        return None
+    os.environ["BASE_URL"] = FREE_TRIAL_BASE_URL
+    # An empty value also prevents a previous provider's key from being reused.
+    os.environ["API_KEY"] = ""
+    _applied_api_key_config = {
+        "provider_id": FREE_TRIAL_PROVIDER_ID,
+        "base_url": FREE_TRIAL_BASE_URL,
+        "api_key": "",
+        "model": model,
+    }
+    user_id = f"api-key-user:{FREE_TRIAL_PROVIDER_ID}"
+    if _acp_transport_connected(io):
+        _send_acp_notification(io, "ui/loginSuccess", {
+            "userId": user_id, "displayName": "Free Trial (Kilo)",
+        })
+    else:
+        io.print_info(f"Free trial configured: {model}")
+    return user_id
+
+
 def _save_failed_message() -> str:
     """Error text for a failed conf.yaml write (never contains the API key)."""
     return (
-        "Could not save the API key configuration to ~/.siada-cli/conf.yaml. "
+        "Could not save the model configuration to ~/.siada-cli/conf.yaml. "
         "Check that the file is writable and try again."
     )
 
@@ -215,6 +264,13 @@ def _resolve_session_credentials() -> Optional[tuple[dict, str]]:
 
     base_url = (os.environ.get('BASE_URL') or '').strip() or stored_base_url
     api_key = (os.environ.get('API_KEY') or '').strip() or stored_api_key
+    if (
+        stored.get("provider_id") == FREE_TRIAL_PROVIDER_ID
+        and is_free_trial_endpoint(base_url)
+        and stored.get("model") in FREE_TRIAL_MODEL_IDS
+        and not api_key
+    ):
+        return stored, f"api-key-user:{FREE_TRIAL_PROVIDER_ID}"
     if not base_url or not api_key:
         return None
 
@@ -343,10 +399,8 @@ def _acp_transport_connected(io) -> bool:
 def _ensure_logged_in_acp(io) -> Optional[str]:
     """ACP-mode sign-in: show the frontend LoginSelector and read the choice.
 
-    The API key wizard is the only method offered in this build, so the
-    selector is sent with ``liidDisabled`` set — the frontend then renders the
-    provider/model/API-key flow alone (the ``liidDisabled`` flag is the existing
-    frontend compatibility contract for "no hosted sign-in in this build").
+    The selector offers provider API keys and the curated anonymous free trial.
+    ``liidDisabled`` retains compatibility with clients supporting hosted login.
 
     Returns the synthetic ``api-key-user:<provider_id>`` id on success (after
     saving the config and notifying the frontend), or None when the user could
@@ -365,9 +419,10 @@ def _ensure_logged_in_acp(io) -> Optional[str]:
     _send_acp_notification(io, "ui/showLoginSelector", {
         "providers": providers_data,
         "liidDisabled": True,
+        "freeTrialModels": get_free_trial_models_for_ui(),
     })
     logger.info(
-        "[login_acp] Sent ui/showLoginSelector with %d providers (API key only)",
+        "[login_acp] Sent ui/showLoginSelector with %d providers and free trial",
         len(providers_data),
     )
 
@@ -383,6 +438,9 @@ def _ensure_logged_in_acp(io) -> Optional[str]:
 
     parts = raw.split(":", 2)
     choice = parts[1] if len(parts) >= 2 else ""
+
+    if choice == "4":
+        return _handle_free_trial_config(parts[2] if len(parts) >= 3 else "", io)
 
     if choice == "3":
         payload_str = parts[2].strip() if len(parts) >= 3 else ""
@@ -401,12 +459,11 @@ def _ensure_logged_in_acp(io) -> Optional[str]:
         })
         return None
 
-    # Hosted sign-in is not part of this build, and the selector only offers the
-    # API key wizard; treat any other choice as an abandoned login.
+    # Hosted sign-in is not part of this build.
     _send_acp_notification(io, "ui/loginError", {
-        "error": "Login is required to use Siada. Please configure an API key."
+        "error": "Choose Configure API Key or Free Trial to use Siada."
     })
-    logger.warning("[login_acp] Unsupported login choice %r — API key required", choice)
+    logger.warning("[login_acp] Unsupported login choice %r", choice)
     return None
 
 
@@ -426,10 +483,23 @@ def _ensure_logged_in_tty(io) -> Optional[str]:
         return None
 
     io.print_info("")
-    io.print_info("You are not signed in. Configure your model provider to use Siada.")
+    io.print_info("Choose a model provider or a free trial to use Siada.")
     io.print_info("")
 
     try:
+        io.print_info("1. Configure API Key")
+        io.print_info("2. Free Trial — no API key required (Kilo)")
+        if input("Choose [1/2] (default 1): ").strip() == "2":
+            for index, (_, name) in enumerate(FREE_TRIAL_MODELS, 1):
+                io.print_info(f"{index}. {name}")
+            selected = input("Choose free model (default 1): ").strip() or "1"
+            if not selected.isdigit() or not 1 <= int(selected) <= len(FREE_TRIAL_MODELS):
+                io.print_error("Choose a supported free trial model.")
+                return None
+            import json
+            return _handle_free_trial_config(
+                json.dumps({"model": FREE_TRIAL_MODELS[int(selected) - 1][0]}), io,
+            )
         base_url = input("Base URL (e.g. https://api.openai.com/v1): ").strip()
         import getpass
         api_key = getpass.getpass("API key: ").strip()
@@ -475,8 +545,7 @@ def reconfigure_acp(io) -> Optional[str]:
     """Reconfiguration flow triggered by /configure (ACP mode).
 
     Always shows the LoginSelector (skips the stored-config fast path) and
-    supports cancel. Like the first-run selector it is API-key only, so
-    ``liidDisabled`` is always set.
+    supports cancel, provider API keys, and the anonymous free trial.
 
     Returns:
         'api-key-user:{provider_id}' when the user configured a new API key,
@@ -497,6 +566,7 @@ def reconfigure_acp(io) -> Optional[str]:
         # cancelable=True so the frontend shows an Esc-to-cancel hint
         "cancelable": True,
         "liidDisabled": True,
+        "freeTrialModels": get_free_trial_models_for_ui(),
     })
 
     try:
@@ -511,6 +581,9 @@ def reconfigure_acp(io) -> Optional[str]:
 
     parts = raw.split(":", 2)
     choice = parts[1] if len(parts) >= 2 else ""
+
+    if choice == "4":
+        return _handle_free_trial_config(parts[2] if len(parts) >= 3 else "", io)
 
     if choice in ("cancel", "skip"):
         _send_acp_notification(io, "ui/loginDismiss", {})
@@ -533,10 +606,9 @@ def reconfigure_acp(io) -> Optional[str]:
         _send_acp_notification(io, "ui/loginDismiss", {})
         return None
 
-    # Only the API key wizard is offered (liidDisabled); nothing else can be
-    # applied, so leave the previous configuration untouched.
+    # Leave the previous configuration untouched for unsupported choices.
     _send_acp_notification(io, "ui/loginError", {
-        "error": "Login is required to use Siada. Please configure an API key."
+        "error": "Choose Configure API Key or Free Trial to use Siada."
     })
     logger.warning("[reconfigure_acp] Unsupported login choice %r", choice)
     return None
