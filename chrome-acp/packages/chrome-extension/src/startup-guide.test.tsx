@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { InstallGuide, INSTALL_COMMAND } from "./components/InstallGuide";
+import { InstallGuide, INSTALL_COMMAND, WINDOWS_INSTALL_COMMAND } from "./components/InstallGuide";
 import { ACPClient } from "@chrome-acp/shared/acp";
 import { ThemeProvider } from "../../shared/src/lib/theme";
 // Browser tools register a runtime listener at import time.
@@ -47,6 +47,9 @@ test("public install guide displays public command and manual connection entry",
   const container = await mount(<InstallGuide onConnect={() => {}} />);
   expect(container.querySelector("img")?.alt).toBe("Chrome ACP");
   expect(container.textContent).toContain(INSTALL_COMMAND);
+  expect(container.textContent).toContain("Windows（PowerShell）");
+  expect(container.textContent).toContain(WINDOWS_INSTALL_COMMAND);
+  expect(INSTALL_COMMAND).not.toContain("/main/");
   expect(container.textContent).not.toContain("li.auto");
   let opened = false;
   await act(async () => root?.render(<InstallGuide onConnect={() => { opened = true; }} />));

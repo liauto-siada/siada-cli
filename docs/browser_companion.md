@@ -26,8 +26,10 @@ If the local proxy is unavailable, the sidepanel shows the Chrome ACP icon and
 copyable installation commands. It retries discovery every five seconds.
 Choose **Already installed / Siada CLI on another device** at the bottom to
 open the connection settings and enter the server address and token.
-The public installer uses loopback networking. Its GitHub raw URL becomes
-available after this script is published to `main`.
+The public installer uses loopback networking. The Chrome guide provides Linux /
+macOS shell and Windows PowerShell commands hosted on the public GitHub Pages site.
+Preview commands select the matching TestPyPI wheel and browser release; dependencies
+are resolved from PyPI.
 For an existing installation, start its service:
 
 ```bash

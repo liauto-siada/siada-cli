@@ -20,8 +20,9 @@ API Key 输入隐藏显示，不保存到 Chrome 存储；关闭向导会结束�
 
 本机 proxy 不可用时，侧栏中央显示 Chrome ACP 图标和可复制的安装命令，
 每 5 秒重试检测。底部点击「已安装 / 其它设备存在 Siada CLI」可打开连接界面，
-填写地址和 token。开源安装脚本默认绑定回环地址；GitHub raw 安装链接需在
-脚本发布到 `main` 后才可用。已有安装可以运行：
+填写地址和 token。开源安装脚本默认绑定回环地址；Chrome 引导提供 GitHub Pages 站点上的
+Linux / macOS Shell 和 Windows PowerShell 命令。测试版命令选择对应的 TestPyPI
+wheel 和浏览器版本，依赖从 PyPI 获取。已有安装可以运行：
 
 ```bash
 siada-browser start
