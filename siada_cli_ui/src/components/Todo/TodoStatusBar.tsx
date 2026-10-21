@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from '@jrichman/ink';
 import type { TodoItem } from '../../hooks/useAcp/types.js';
+import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
 
 export type { TodoItem };
 
@@ -46,7 +47,7 @@ export const TodoStatusBar: React.FC<TodoStatusBarProps> = ({ items }) => {
         {inProgress && (
           <Box marginLeft={2}>
             <Text color="yellow">◐ </Text>
-            <Text>{inProgress.content}</Text>
+            <Text>{decodeHtmlEntities(inProgress.content)}</Text>
           </Box>
         )}
       </Box>
@@ -57,7 +58,7 @@ export const TodoStatusBar: React.FC<TodoStatusBarProps> = ({ items }) => {
           return (
             <Box key={idx} marginRight={2}>
               <Text color={color}>{icon} </Text>
-              <Text dimColor={item.status === 'completed'}>{item.content}</Text>
+              <Text dimColor={item.status === 'completed'}>{decodeHtmlEntities(item.content)}</Text>
             </Box>
           );
         })}

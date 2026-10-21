@@ -5,6 +5,7 @@ import type { TodoItem } from '../../hooks/useAcp/types.js';
 import { useThemeVersion } from '../../themes/index.js';
 import { colors } from '../../utils/colors.js';
 import { ToolHeading } from './ToolHeading.js';
+import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
@@ -53,7 +54,7 @@ export const TodoPlanView: React.FC<{
     const icon = item.status === 'completed' ? '✓' : item.status === 'in_progress' ? '◐' : '○';
     // Two columns of outer indentation, five for the tree/status prefix, and
     // one spare column prevent Ink from soft-wrapping at the final cell.
-    return wrapStep(item.content, Math.max(1, columns - 8)).map((line, lineIndex) => ({
+    return wrapStep(decodeHtmlEntities(item.content), Math.max(1, columns - 8)).map((line, lineIndex) => ({
       line, icon: lineIndex === 0 ? icon : '  ',
       status: item.status, first: lineIndex === 0, firstItem: index === 0,
     }));

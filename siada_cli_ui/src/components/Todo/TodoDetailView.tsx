@@ -5,6 +5,7 @@ import { MessageList } from '../Chat/MessageList.js';
 import type { Message } from '../../types/index.js';
 import type { TodoItem, TodoMessageRange } from '../../hooks/useAcp/types.js';
 import { recordFlicker } from '../../utils/flickerMonitor.js';
+import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
 
 export interface TodoDetailViewProps {
   todo: TodoItem;
@@ -99,7 +100,7 @@ export const TodoDetailView: React.FC<TodoDetailViewProps> = ({
       >
         <Box>
           <Text color={iconColor}>{icon} </Text>
-          <Text color="cyan" bold>{todo.content}</Text>
+          <Text color="cyan" bold>{decodeHtmlEntities(todo.content)}</Text>
           <Text color="gray">  [{todo.status}]</Text>
         </Box>
         <Text color="gray">{msgCount} message{msgCount !== 1 ? 's' : ''}</Text>

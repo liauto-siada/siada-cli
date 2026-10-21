@@ -10,6 +10,7 @@ import { theme } from './theme.js';
 import { useThemeVersion } from '../../themes/index.js';
 import stringWidth from 'string-width';
 import { HighlightedText } from '../common/HighlightedText.js';
+import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
 
 // Constants for Markdown parsing
 const BOLD_MARKER_LENGTH = 2; // For "**"
@@ -34,7 +35,7 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
   // Early return for plain text without markdown or URLs
   // But still apply smart highlighting for paths and commands
   if (!/[*_~`<[https?:]/.test(text)) {
-    return <HighlightedText text={text} defaultColor={baseColor} />;
+    return <HighlightedText text={decodeHtmlEntities(text)} defaultColor={baseColor} enableCodeHighlight={false} />;
   }
 
   const nodes: React.ReactNode[] = [];
@@ -50,7 +51,8 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
       nodes.push(
         <HighlightedText 
           key={`t-${lastIndex}`} 
-          text={plainText}
+          text={decodeHtmlEntities(plainText)}
+          enableCodeHighlight={false}
           defaultColor={baseColor}
         />
       );
@@ -68,7 +70,7 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
       ) {
         renderedNode = (
           <Text key={key} bold color={baseColor}>
-            {fullMatch.slice(BOLD_MARKER_LENGTH, -BOLD_MARKER_LENGTH)}
+            {decodeHtmlEntities(fullMatch.slice(BOLD_MARKER_LENGTH, -BOLD_MARKER_LENGTH))}
           </Text>
         );
       } else if (
@@ -86,7 +88,7 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
       ) {
         renderedNode = (
           <Text key={key} italic color={baseColor}>
-            {fullMatch.slice(ITALIC_MARKER_LENGTH, -ITALIC_MARKER_LENGTH)}
+            {decodeHtmlEntities(fullMatch.slice(ITALIC_MARKER_LENGTH, -ITALIC_MARKER_LENGTH))}
           </Text>
         );
       } else if (
@@ -96,10 +98,10 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
       ) {
         renderedNode = (
           <Text key={key} strikethrough color={baseColor}>
-            {fullMatch.slice(
+            {decodeHtmlEntities(fullMatch.slice(
               STRIKETHROUGH_MARKER_LENGTH,
               -STRIKETHROUGH_MARKER_LENGTH,
-            )}
+            ))}
           </Text>
         );
       } else if (
@@ -126,8 +128,8 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
           const url = linkMatch[2];
           renderedNode = (
             <Text key={key} color={baseColor}>
-              {linkText}
-              <Text color={theme.text.link}> ({url})</Text>
+              {decodeHtmlEntities(linkText)}
+              <Text color={theme.text.link}> ({decodeHtmlEntities(url)})</Text>
             </Text>
           );
         }
@@ -139,16 +141,16 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
       ) {
         renderedNode = (
           <Text key={key} underline color={baseColor}>
-            {fullMatch.slice(
+            {decodeHtmlEntities(fullMatch.slice(
               UNDERLINE_TAG_START_LENGTH,
               -UNDERLINE_TAG_END_LENGTH,
-            )}
+            ))}
           </Text>
         );
       } else if (fullMatch.match(/^https?:\/\//)) {
         renderedNode = (
           <Text key={key} color={theme.text.link}>
-            {fullMatch}
+            {decodeHtmlEntities(fullMatch)}
           </Text>
         );
       }
@@ -161,7 +163,7 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
     nodes.push(
       renderedNode ?? (
         <Text key={key} color={baseColor}>
-          {fullMatch}
+          {decodeHtmlEntities(fullMatch)}
         </Text>
       ),
     );
@@ -174,7 +176,8 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
     nodes.push(
       <HighlightedText 
         key={`t-${lastIndex}`} 
-        text={remainingText}
+        text={decodeHtmlEntities(remainingText)}
+        enableCodeHighlight={false}
         defaultColor={baseColor}
       />
     );
@@ -190,13 +193,16 @@ export const RenderInline = React.memo(RenderInlineInternal);
  * This is useful for calculating column widths in tables
  */
 export const getPlainTextLength = (text: string): number => {
-  const cleanText = text
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/_(.*?)_/g, '$1')
-    .replace(/~~(.*?)~~/g, '$1')
-    .replace(/`(.*?)`/g, '$1')
-    .replace(/<u>(.*?)<\/u>/g, '$1')
-    .replace(/.*\[(.*?)\]\(.*\)/g, '$1');
+  // Code spans retain entity spelling, just as they do in RenderInline.
+  const cleanText = text.split(/(`+.+?`+)/g)
+    .map(part => part.startsWith('`')
+      ? part.replace(/^(`+)(.*?)\1$/s, '$2')
+      : decodeHtmlEntities(part
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.+?)\*/g, '$1')
+        .replace(/_(.*?)_/g, '$1')
+        .replace(/~~(.*?)~~/g, '$1')
+        .replace(/<u>(.*?)<\/u>/g, '$1')
+        .replace(/.*\[(.*?)\]\(.*\)/g, '$1'))).join('');
   return stringWidth(cleanText);
 };

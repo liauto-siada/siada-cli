@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from '@jrichman/ink';
 import type { TodoItem } from '../../hooks/useAcp/types.js';
+import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
 
 export interface TodoDisplayProps {
   items: TodoItem[];
@@ -82,7 +83,7 @@ export const TodoDisplay: React.FC<TodoDisplayProps> = ({
               bold={isActive}
               dimColor={item.status === 'completed' && !isActive}
             >
-              {item.content}
+              {decodeHtmlEntities(item.content)}
             </Text>
           </Box>
         );
