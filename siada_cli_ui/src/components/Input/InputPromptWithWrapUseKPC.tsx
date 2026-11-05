@@ -1019,8 +1019,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     }
 
     // ↑ with a non-empty queue and an empty input box: pull all queued prompts
-    // back into the input box (merged) for editing — mirrors Claude Code's
-    // "press up to edit queued messages". Also tell the backend to drop those
+    // back into the input box (merged) for editing. Tell the backend to drop those
     // pending injections so the pulled-back prompts are not also consumed
     // mid-turn / flushed as a new turn.
     if (

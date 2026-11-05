@@ -1,4 +1,4 @@
-"""Compose literal Codex prompt sections with explicit per-model differences.
+"""Compose literal prompt sections with explicit per-model differences.
 
 Template selection preserves complete upstream sections and per-model prose.
 """

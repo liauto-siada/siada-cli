@@ -1,4 +1,4 @@
-"""Codex V2 explicit-request delegation rule adapted to Siada.
+"""Explicit-request delegation rules for Siada.
 
 Source: openai/codex commit 83086188ae0614bd882818ff1aa23f3194962012,
 codex-rs/prompts/src/model_messages/multi_agent.rs. OpenAI Codex, Copyright 2025 OpenAI.

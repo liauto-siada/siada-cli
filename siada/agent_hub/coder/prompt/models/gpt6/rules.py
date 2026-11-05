@@ -5,9 +5,8 @@ from ...sections.rules.shared import _GPT_COMPLETION_DISCIPLINE_SECTION, _render
 
 # GPT-6's concise section preserves Siada's product-level preference for
 # direct answers while allowing answer length to follow task complexity.
-# Codex's GPT-6 templates never ask the model to minimize output tokens, and
-# doing so produced compressed, hard-to-read final answers, so this section
-# only governs answer focus, summaries, and channel discipline. It is a
+# Minimizing output tokens produced compressed, hard-to-read final answers,
+# so this section only governs answer focus, summaries, and channel discipline. It is a
 # standalone literal rather than a runtime replacement over the strict text,
 # so edits to the existing-model prompt cannot silently affect GPT-6.
 _GPT6_CONCISE_COMMUNICATION_SECTION = """## Concise Communication
@@ -20,8 +19,7 @@ _GPT6_CONCISE_COMMUNICATION_SECTION = """## Concise Communication
 - Only use emojis if the user explicitly requests it. Avoid emojis in all other communication.
 - All text you output outside of tool use is shown to the user, and it is the only channel for talking to them. Never use `run_cmd` (for example `echo`) or code comments as a way to communicate with the user."""
 
-# Codex's GPT-6 templates close with final-answer formatting rules; without
-# them the model produced dense prose that rendered poorly in the terminal.
+# Final-answer formatting rules keep prose readable in the terminal.
 _GPT6_FINAL_ANSWER_SECTION = """## Final Answer
 
 Focus the final answer on the most important information and make it self-contained: the user should not need to re-read earlier progress updates to understand the outcome.

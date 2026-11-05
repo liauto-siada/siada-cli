@@ -74,7 +74,7 @@ export const promptQueueStore = {
 
   /**
    * Drain all queued items and return their combined content.
-   * Mirrors Claude Code's `popAllEditable`: collects all items (every item is
+   * Collects all items (every item is
    * considered editable in siada-cli), clears the store, and returns the merged
    * text and collected image paths so the caller can restore them to the input box.
    */

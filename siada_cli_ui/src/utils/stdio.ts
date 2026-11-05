@@ -18,7 +18,7 @@ const originalStderrWrite = process.stderr.write.bind(process.stderr);
 // Ink renders each frame as erase-previous-lines + rewrite. Without
 // synchronization the terminal paints the intermediate blank state, which is
 // the visible "flicker" during streaming. Wrapping every frame in BSU/ESU
-// (same mechanism as claude-code's ink fork, see terminalDetector.ts) makes
+// (see terminalDetector.ts) makes
 // the whole frame atomic: the old frame stays on screen until ESU arrives.
 //
 // Frames are coalesced per macrotask: Ink emits one frame as several

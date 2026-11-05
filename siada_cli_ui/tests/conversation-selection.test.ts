@@ -7,7 +7,7 @@ import {
 const textNode = (nodeValue: string): any => ({ nodeName: '#text', nodeValue });
 afterEach(() => vi.useRealTimers());
 describe('conversation selection Unicode boundaries', () => {
-  it('uses an exclusive character endpoint like Codex for both drag directions', () => {
+  it('uses an exclusive character endpoint for both drag directions', () => {
     const layout = new ConversationSelectionLayout();
     layout.entries.set('a', { text: '中文内容', fragments: [] });
     const forward = new ConversationTextSelection(['a'], { id: 'a', offset: 0 }, 'character', layout);

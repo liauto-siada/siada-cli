@@ -1,4 +1,4 @@
-"""Codex-style model instructions followed by explicit runtime fragments."""
+"""Per-model instructions followed by explicit runtime fragments."""
 
 from ..models.gpt6.templates import get_gpt6_template
 from ..sections.language import render_language_section

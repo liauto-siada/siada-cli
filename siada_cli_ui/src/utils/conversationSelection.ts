@@ -266,7 +266,7 @@ export class ConversationTextSelection {
     const candidate = lowerBound(values, offset);
     const index = Math.max(0, values[candidate] === offset ? candidate : candidate - 1);
     const start = values[index], next = values[index + 1] ?? text.length;
-    // Character gestures use insertion boundaries, with an exclusive end like Codex.
+    // Character gestures use insertion boundaries with an exclusive end.
     if (this.unit === 'character') return { start, end: start };
     return { start, end: this.unit === 'line' && next > start && text[next - 1] === '\n' ? next - 1 : next };
   }

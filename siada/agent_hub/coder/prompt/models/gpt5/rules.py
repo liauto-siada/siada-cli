@@ -8,7 +8,7 @@ from ...sections.rules.shared import (
 
 
 def _get_gpt5_rules_section(cwd: str, os_name: str, home_dir: str, interactive_mode: bool) -> str:
-    """GPT-5 optimized rules section with Codex-style constraints."""
+    """GPT-5 rules for permissions, tool usage, and response formatting."""
     autonomy_rule = (
         "- Unless the user explicitly asks for a plan, asks a question about the code, is "
         "brainstorming potential solutions, or some other intent that makes it clear that code "

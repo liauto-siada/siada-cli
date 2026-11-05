@@ -23,8 +23,8 @@ class SkillUsageProfile(IntEnum):
 
     # Keep the default at STRICT so existing model prompts remain unchanged.
     STRICT = 0
-    # All GPT-6 variants use the judgement-first instructions derived from
-    # Codex's Astra template. Astra remains an alias for callers that adopted
+    # All GPT-6 variants use judgement-first instructions.
+    # Astra remains an alias for callers that adopted
     # the original implementation name.
     GPT6 = 1
     ASTRA = GPT6

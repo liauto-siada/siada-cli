@@ -56,7 +56,7 @@ SHA-256 基线，覆盖 56,160 组完整输出：全部六个家族、GPT-6 四�
 未来 GPT 回退、三种操作系统、交互和子 agent 开关、联网工具组合及可选章节边界。
 每组提示词按字节长度和原始 UTF-8 内容依次计入摘要；基线不在测试中自动更新。
 
-GPT-6 templates and their Codex provenance/adaptations are documented in
+GPT-6 templates and their source provenance/adaptations are documented in
 [`models/gpt6/templates/README.md`](models/gpt6/templates/README.md). GPT-6.1 Terra
 uses the Astra-equivalent base with its additional Default-mode execution
 preference. GPT-6.1 Sol, GPT-6 Sol, and GPT-6 Luna retain their individual upstream

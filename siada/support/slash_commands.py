@@ -69,7 +69,7 @@ def _looks_like_filepath(slash_input: str) -> bool:
         return False
 
 
-# Concise, Claude-Code-style argument hints shown inline in the CLI input box
+# Concise argument hints shown inline in the CLI input box
 # right after a fully-typed command name (before the user has typed any
 # argument yet), e.g. "/goal " renders as "/goal [<objective> | clear]" with
 # the hint dimmed. Keys use the same hyphenated command name exposed via

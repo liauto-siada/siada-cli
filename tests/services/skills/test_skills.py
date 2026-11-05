@@ -674,8 +674,7 @@ class TestRenderer:
 # ============================================================================
 
 class TestRendererDescriptionBudget:
-    """Test skill-list description display cap and total budget degradation
-    (mechanism borrowed from codex-rs/ext/skills/src/render.rs)"""
+    """Test skill-list description display caps and total budget degradation."""
 
     @staticmethod
     def _make_skills(count: int, desc_len: int) -> list:

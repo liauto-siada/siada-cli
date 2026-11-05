@@ -347,7 +347,7 @@ class BannerDisplay:
     @classmethod
     def show_welcome_panel(cls, announcements: list = None, console: Console = None, siada_version: str = "Siada CLI"):
         """
-        Display a welcome panel similar to Claude Code style.
+        Display a welcome panel.
         
         Args:
             announcements: List of announcement strings to display

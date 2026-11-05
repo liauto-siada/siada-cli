@@ -4,7 +4,7 @@ Marketplace configuration management.
 Migrated from slash_commands.py plugin methods (_get_plugin_config,
 _save_plugin_config, _fetch_marketplace_skills, _plugin_marketplace_*).
 
-Discovery strategy (mirrors Claude Code's loadAndCacheMarketplace):
+Discovery strategy:
 the marketplace repo is shallow-cloned into ``~/.siada-cli/marketplaces/<name>``
 using the system ``git`` binary so we automatically pick up the user's git
 credentials (SSH keys, credential helper, ~/.netrc), allowing private repos
@@ -118,7 +118,7 @@ class MarketplaceManager:
     def fetch_skills(self, marketplace: dict, installed_names: set | None = None) -> list[dict]:
         """Fetch available skills/plugins from marketplace.
 
-        Discovery order (matches Claude Code's loadAndCacheMarketplace):
+        Discovery order:
         1. ``git clone --depth=1`` the repo into ``~/.siada-cli/marketplaces/<name>``
            and read ``.claude-plugin/marketplace.json`` from the working tree.
            This naturally reuses the user's git credentials so private repos
@@ -239,7 +239,7 @@ class MarketplaceManager:
         enterprise repos (e.g. ``gitlab.example.com``).
 
         For HTTPS URLs we automatically retry with the equivalent ``git@``
-        SSH URL when HTTPS auth fails (mirrors Claude Code's behaviour)."""
+        SSH URL when HTTPS auth fails."""
         ref_url = marketplace.get("url") or marketplace.get("repo") or ""
         if not ref_url:
             return None

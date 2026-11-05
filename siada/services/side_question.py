@@ -51,7 +51,7 @@ CONSTRAINTS
 
 
 # ── btw tool deny guardrail ───────────────────────────────────────────────────
-# Mirror Claude Code's `canUseTool: deny`: keep every tool's JSON schema in the
+# Keep every tool's JSON schema in the
 # request so the prompt-cache prefix (tools -> system -> messages) stays
 # byte-identical to the main thread, but reject any tool the model tries to call
 # BEFORE it executes (zero side effects).  Overriding `tool_choice` or dropping
@@ -361,8 +361,8 @@ async def _run_async(
     # 4. clone agent. Keep the SAME tool schemas as the main thread so the
     #    Anthropic prompt-cache prefix (tools -> system -> messages) is
     #    byte-identical, but attach a deny guardrail so any tool the model tries
-    #    is rejected BEFORE execution (zero side effects). This mirrors Claude
-    #    Code's `canUseTool: deny` — DO NOT clear tools or set tool_choice="none",
+    #    is rejected BEFORE execution (zero side effects).
+    #    DO NOT clear tools or set tool_choice="none",
     #    both mutate the Anthropic cache key and bust the cache.
     #    Avoid dataclasses.replace because subclass constructors conflict.
     from agents import RunContextWrapper

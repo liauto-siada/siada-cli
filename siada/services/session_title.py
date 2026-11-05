@@ -3,7 +3,7 @@ Session title generation via the fast LLM.
 
 Generates a short, human-readable title for a CLI session from the user's
 first message, so the frontend can display it as the terminal tab/window
-title (analogous to Claude Code's Haiku-generated session title).
+title.
 
 Routed through ``siada.provider.fast_llm.fast_completion`` so this stays
 cheap and fast — it must never block or slow down the main agent turn.

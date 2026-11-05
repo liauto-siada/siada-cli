@@ -54,9 +54,9 @@ _GPT6_MINOR_REVISION_PATTERN = re.compile(r"gpt[-_]?6\.(\d+)")
 def uses_gpt6_scannable_writing_style(model_name: Optional[str]) -> bool:
     """GPT-6 Sol and Luna use the first-read writing style.
 
-    Codex ships those models with instructions that minimize cognitive load,
+    These models use instructions that minimize cognitive load,
     while Astra and later numbered Sol revisions (6.1+) keep the
-    connected-prose template. Siada mirrors that split so terminal answers
+    connected-prose template. This split keeps terminal answers
     stay scannable on the models users reported as hard to read.
     """
     if not is_gpt6_model(model_name):

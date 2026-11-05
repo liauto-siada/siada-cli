@@ -1,8 +1,7 @@
 """
 Rule Memory - Hierarchical Context File System
 
-This module provides hierarchical context file management similar to Gemini CLI's
-GEMINI.md functionality, using siada_rule.md files.
+This module provides hierarchical context file management using siada_rule.md files.
 
 Main features:
 - 3-tier hierarchical discovery (global, project root, subdirectories)
