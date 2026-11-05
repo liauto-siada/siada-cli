@@ -8,6 +8,7 @@ be arbitrarily long -- it must be capped before being embedded in the
 notification message.
 """
 import tempfile
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -59,6 +60,8 @@ def _make_controller():
         ctrl._acp_notifications.append((method, params))
 
     ctrl._send_acp_notification = fake_send
+    verify = ctrl._maybe_run_goal_verifier
+    ctrl._maybe_run_goal_verifier = lambda *args: asyncio.run(verify(*args))
     return ctrl
 
 

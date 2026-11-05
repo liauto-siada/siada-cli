@@ -17,11 +17,9 @@ agents:
     description: "Proactive agent for task discovery and daily summaries"
     enabled: true
     supported_modes: "all"
-
-
 # LLM Configuration
 llm_config:
-  provider: "default"                 # Bring your own API key and provider endpoint.
+  provider: "default"
   model_name: "claude-sonnet-5"
   repo_map_tokens: 8192                     # repo map max token
   repo_map_mul_no_files: 16                 # Multiple without chat files

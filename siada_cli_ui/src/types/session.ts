@@ -64,6 +64,7 @@ export interface SessionBrowserProps {
 }
 
 export interface SessionListProps {
+  maxSnippetRows?: number;
   sessions: SessionInfo[];
   activeIndex: number;
   scrollOffset: number;
@@ -73,6 +74,7 @@ export interface SessionListProps {
 }
 
 export interface SessionItemProps {
+  maxSnippetRows?: number;
   session: SessionInfo;
   isActive: boolean;
   showMatchSnippets?: boolean;

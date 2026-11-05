@@ -20,7 +20,7 @@ from typing import Any, Callable, Optional
 
 from siada.foundation.logging import logger as logging
 from siada.session.session_models import RunningSession
-from siada.support.slash_commands import get_argument_hint
+from siada.support.slash_commands import SlashCommands, get_argument_hint
 
 
 class ControllerUI:
@@ -54,7 +54,7 @@ class ControllerUI:
         self._known_sig: str = ""
         self._known_count: int = 0
 
-        # Set by close() to make all sends no-ops during shutdown.
+        # Set by close(); prevents sends after shutdown.
         self._exiting: bool = False
 
     # ------------------------------------------------------------------ #
@@ -288,11 +288,7 @@ class ControllerUI:
     # Banner info
     # ------------------------------------------------------------------ #
     def show_announcements(self) -> None:
-        """Push the banner_info payload over ACP (no-op outside ACP mode).
-
-        Also triggers the immediate quota fetch and the (single) periodic
-        quota refresh timer. No terminal clear / Rich banner.
-        """
+        """Push the banner_info payload over ACP (no-op outside ACP mode)."""
         if not self.config.acp_mode:
             return
 
@@ -322,7 +318,10 @@ class ControllerUI:
                         {
                             "name": cmd_name,
                             "description": description,
-                            "argument_hint": get_argument_hint(cmd_name),
+                            "argument_hint": get_argument_hint(
+                                cmd_name, self.config.llm_config,
+                            ),
+                            "execution_mode": SlashCommands.get_execution_mode(cmd_name),
                         }
                     )
             except Exception as e:
@@ -414,6 +413,6 @@ class ControllerUI:
     # Shutdown
     # ------------------------------------------------------------------ #
     def close(self) -> None:
-        """Mark the UI as exiting (idempotent)."""
+        """Mark the UI as exiting and disconnect notifications (idempotent)."""
         self._exiting = True
         self.config.io._notification_handler = None

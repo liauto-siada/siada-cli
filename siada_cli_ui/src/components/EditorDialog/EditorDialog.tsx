@@ -3,9 +3,10 @@
  * Allows users to select their preferred external editor
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { t, useUiLanguage } from '../../i18n/index.js';
+import { PickerFrame, PickerRow, PickerScrollHint, pickerHint, usePickerWindow } from '../Picker/Picker.js';
 import { useKeypress } from '../../hooks/useKeypress.js';
-import { Box, Text, useStdout, useInput } from '@jrichman/ink';
 import {
   type EditorType,
   checkHasEditorType,
@@ -32,7 +33,7 @@ function getEditorOptions(): EditorOption[] {
   const options: EditorOption[] = [
     {
       type: 'not_set',
-      displayName: 'None',
+      displayName: t('未设置', 'None'),
       installed: true,
     },
   ];
@@ -59,15 +60,15 @@ export function EditorDialog({
   onSelect,
   onCancel,
 }: EditorDialogProps): React.JSX.Element {
-  const options = getEditorOptions();
+  const language = useUiLanguage();
+  const options = useMemo(getEditorOptions, [language]);
   
   // Find current selection index
   const currentIndex = options.findIndex((opt) => opt.type === currentEditor);
   const [selectedIndex, setSelectedIndex] = useState(
     currentIndex >= 0 ? currentIndex : 0
   );
-  const { stdout } = useStdout();
-  const terminalWidth =  stdout?.columns ?? 80;
+  const { startIndex: start, endIndex } = usePickerWindow(options.length, selectedIndex, { summary: true });
   // Handle keyboard input
   useKeypress(
     (key) => {
@@ -116,56 +117,28 @@ export function EditorDialog({
   );
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="round"
-      borderColor="gray "
-      paddingX={2}
-      paddingY={1}
-      width={terminalWidth}
-    >
-      <Box marginBottom={1}>
-        <Text bold color="white">
-           Editor Selection
-        </Text>
-      </Box>
-
+    <PickerFrame title={t('选择编辑器', 'Editor Selection')}
+      summary={`${t('当前：', 'Current: ')}${currentEditor && currentEditor !== 'not_set' ? getEditorDisplayName(currentEditor) : t('未设置', 'None')}`}
+      hint={pickerHint('vertical')}>
+      <PickerScrollHint visible={start > 0} direction="up" />
       {/* Editor options */}
-      {options.map((option, index) => {
+      {options.slice(start, endIndex).map((option, offset) => {
+        const index = start + offset;
         const isSelected = index === selectedIndex;
         const disabled = !option.installed;
         
         let displayText = option.displayName;
         if (disabled) {
-          displayText += ' (Not installed)';
+          displayText += t('（未安装）', ' (Not installed)');
         }
 
         return (
-          <Box key={option.type} marginLeft={1}>
-            <Text
-              color={disabled ? 'gray' : isSelected ? 'cyan' : 'white'}
-              bold={isSelected}
-            >
-              {isSelected ? '● ' : '○ '}
-              {displayText}
-            </Text>
-          </Box>
+          <PickerRow key={option.type} active={isSelected} disabled={disabled}
+            current={option.type === (currentEditor || 'not_set')}>{displayText}</PickerRow>
         );
       })}
 
-      {/* Current preference */}
-      <Box marginTop={1} marginLeft={1}>
-        <Text dimColor>
-          Current: {currentEditor ? getEditorDisplayName(currentEditor) : 'None'}
-        </Text>
-      </Box>
-
-      {/* Instructions */}
-      <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-        <Text >
-          ↑↓ Navigate • Enter Select • Esc Cancel • Ctrl+X Open Editor
-        </Text>
-      </Box>
-    </Box>
+      <PickerScrollHint visible={endIndex < options.length} direction="down" />
+    </PickerFrame>
   );
 }

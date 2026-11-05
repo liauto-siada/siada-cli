@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import AsyncIterator
 from unittest.mock import MagicMock, patch
 
-from agents import ModelProvider, RunConfig, function_tool
+from agents import ModelProvider, RunConfig
 from agents.items import ModelResponse, TResponseStreamEvent
 from agents.models.interface import Model
 from openai.types.responses import (
@@ -45,6 +45,7 @@ from siada.config.config_loader import Config, LLMConfig, SubAgentConfig
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.models.model_run_config import ModelRunConfig
 from siada.provider import provider_factory
+from siada.provider.token_counting import TokenCountingInfo
 from siada.services.agents import get_agent_definition
 from siada.services.sub_agent_run_config import build_sub_agent_run_config
 from siada.session.session_models import RunningSession
@@ -152,24 +153,6 @@ def _make_tool_context(run_ctx):
     )
 
 
-def _stand_in_internal_web_search():
-    """Stand-in for the internal-only ``web_search`` tool.
-
-    The real implementation is not part of this open-source distribution, so
-    ``siada.tools.web.web_search`` is None here and the tool would silently
-    disappear from the sub-agent's default surface. That surface is what the
-    generic-sub-agent test pins down, so a placeholder with the same name
-    restores the baseline shape; nothing in the run ever calls it.
-    """
-
-    @function_tool
-    def web_search(query: str) -> str:
-        """Search the web (stand-in, never invoked by these tests)."""
-        raise AssertionError("the stand-in web_search must never be called")
-
-    return web_search
-
-
 class _UserAgentE2ETestCase(unittest.IsolatedAsyncioTestCase):
     """Shared workspace + context setup for the end-to-end scenarios."""
 
@@ -250,8 +233,21 @@ class TestUserAgentEndToEnd(_UserAgentE2ETestCase):
         self.addCleanup(remote_patch.stop)
         context = self._make_context()
         model = ScriptedStreamingModel([[_text_message("SUB-AGENT-PROVIDER-OK")]])
-        provider = MagicMock(spec=ModelProvider)
-        provider.get_model.return_value = model
+
+        class Provider(ModelProvider):
+            def __init__(self):
+                self.selected_models = []
+                self.counted_models = []
+
+            def get_model(self, model_name):
+                self.selected_models.append(model_name)
+                return model
+
+            def get_token_counting_info(self, model_name):
+                self.counted_models.append(model_name)
+                return TokenCountingInfo(model_name)
+
+        provider = Provider()
         conf = Config(
             sub_agent_config=SubAgentConfig(
                 llm_config=LLMConfig(model="gpt-6-luna")
@@ -264,15 +260,16 @@ class TestUserAgentEndToEnd(_UserAgentE2ETestCase):
                 provider_factory, "provider_map",
                 {"alternate": MagicMock(spec=ModelProvider), "default": provider},
             ),
-            patch.object(provider_factory, "create_provider", lambda key: provider),
         ):
             summary = await run_subtask_impl(
                 instruction="Return the verification marker.",
                 agent_context=context,
             )
+            runtime_provider = provider_factory.get_provider("default")
 
         self.assertEqual(summary, "SUB-AGENT-PROVIDER-OK")
-        provider.get_model.assert_called_once_with("gpt-6-luna")
+        self.assertEqual(runtime_provider.selected_models, ["gpt-6-luna"])
+        self.assertIn("gpt-6-luna", runtime_provider.counted_models)
         self.assertEqual(context.sub_agent_items[0].status, "completed")
         self.assertEqual(context.session.siada_config.llm_config.provider, "default")
 
@@ -343,15 +340,11 @@ class TestUserAgentEndToEnd(_UserAgentE2ETestCase):
         model = ScriptedStreamingModel([[_text_message("generic summary")]])
         run_config = self._build_run_config(context, model)
 
-        with patch(
-            "siada.agent_hub.coder.sub_task_agent.web_search",
-            _stand_in_internal_web_search(),
-        ):
-            summary = await run_subtask_impl(
-                instruction="Do something generic",
-                agent_context=context,
-                run_config=run_config,
-            )
+        summary = await run_subtask_impl(
+            instruction="Do something generic",
+            agent_context=context,
+            run_config=run_config,
+        )
 
         self.assertEqual(summary, "generic summary")
         instructions = model.requests[0]["instructions"]

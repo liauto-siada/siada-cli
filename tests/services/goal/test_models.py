@@ -1,4 +1,7 @@
 from datetime import datetime
+from unittest.mock import patch
+
+import pytest
 
 from siada.services.goal.models import (
     Goal,
@@ -73,3 +76,44 @@ def test_goal_consecutive_system_errors_survives_serialization_round_trip():
     dumped = goal.model_dump_json()
     restored = Goal.model_validate_json(dumped)
     assert restored.consecutive_system_errors == 2
+
+
+@pytest.mark.parametrize("status", ["blocked", "paused", "complete"])
+def test_elapsed_time_freezes_and_resumes_without_counting_stopped_time(status):
+    clock = {"now": "2026-01-01T00:00:00Z"}
+    with patch("siada.services.goal.models._now_iso", side_effect=lambda: clock["now"]):
+        goal = Goal.create("verify active duration")
+        clock["now"] = "2026-01-01T00:00:02.250Z"
+        goal.set_status(status)
+        clock["now"] = "2026-01-01T00:01:00Z"
+        goal.touch()
+        assert goal.elapsed_seconds() == 2.25
+        restored = Goal.model_validate_json(goal.model_dump_json())
+        assert restored.elapsed_seconds() == 2.25
+
+        restored.set_status("active")
+        clock["now"] = "2026-01-01T00:01:00.750Z"
+        assert restored.elapsed_seconds() == 3
+        restored.set_status("blocked")
+        clock["now"] = "2026-01-01T00:02:00Z"
+        restored.set_status("blocked")
+        assert restored.elapsed_seconds() == 3
+
+
+@pytest.mark.parametrize("status", ["active", "blocked", "paused", "complete"])
+def test_legacy_goal_timing_uses_creation_and_last_update(status):
+    with patch("siada.services.goal.models._now_iso", return_value="2026-01-01T00:01:00Z"):
+        goal = Goal.model_validate({
+            "objective": "restore legacy progress", "status": status,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:10Z",
+        })
+        assert goal.elapsed_seconds() == (60 if status == "active" else 10)
+
+
+def test_elapsed_time_handles_invalid_and_future_timestamps():
+    with patch("siada.services.goal.models._now_iso", return_value="2026-01-01T00:00:00Z"):
+        invalid = Goal(objective="invalid legacy timestamp", created_at="invalid")
+        future = Goal(objective="future timestamp", created_at="2026-01-01T00:00:01Z")
+        assert invalid.elapsed_seconds() == 0
+        assert future.elapsed_seconds() == 0

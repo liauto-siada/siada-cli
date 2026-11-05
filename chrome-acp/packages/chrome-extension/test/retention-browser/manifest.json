@@ -1,0 +1,12 @@
+{
+  "name": "Siada retention test",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "permissions": ["tabs", "storage", "sidePanel"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "background": {"service_worker": "background.js"},
+  "side_panel": {"default_path": "dist/sidepanel.html"},
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*;"
+  }
+}

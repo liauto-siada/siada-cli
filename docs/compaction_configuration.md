@@ -1,13 +1,28 @@
 # Conversation Compaction Configuration
 
-When the model's context window has 60,000 tokens or fewer remaining, Siada automatically compresses the message history by generating an LLM summary to replace older messages while preserving recent conversations. The trigger is `used_tokens >= context_window - 60_000`, using the current effective context window. For a 200,000-token window, compaction starts at 140,000 used tokens; for a 1,000,000-token window, it starts at 940,000. Windows of 60,000 tokens or less reach the trigger immediately; the selected strategy still needs compressible history.
+Siada automatically compresses older message history into an LLM summary while preserving recent conversations. CLI/TUI and IM use the same trigger, based on the current effective context window:
 
-The budget includes instructions, tool definitions and the history replayed to
-the selected model. After a response is saved successfully, its reported total
-usage can anchor the saved prefix; subsequent requests count only the added
-history. Cache-hit and cache-write figures do not reduce the context budget.
-Changed instructions, tools, model routing or restored history invalidate that
-anchor, so the next request estimates the complete input again.
+- **Up to and including 500,000 tokens:** reserve 60,000 tokens; trigger at `used_tokens >= max(0, context_window - 60_000)`.
+- **Above 500,000 tokens:** reserve 25% of the window; trigger when usage reaches 75%. Fractional thresholds are rounded up to the next whole token.
+
+| Effective context window | Trigger at used tokens |
+|---:|---:|
+| 200,000 | 140,000 |
+| 500,000 | 440,000 |
+| 600,000 | 450,000 |
+| 1,000,000 | 750,000 |
+
+Windows of 60,000 tokens or less reach the trigger immediately. Reaching the trigger does not guarantee compression: the selected strategy still needs compressible history and a nonempty summary.
+
+## Request Budget and Diagnostics
+
+For requests using the **Responses protocol**, a full local recount receives an additional **1.5× conservative buffer** after the existing estimation allowance. With the normal tokenizer's 10% safety margin, this is approximately `raw_estimate × 1.10 × 1.5 = raw_estimate × 1.65`, subject to integer rounding. The existing tokenizer and fallback methods remain unchanged. A full budget of 506,029 tokens therefore becomes 759,043, exceeding the 750,000-token trigger for a 1M window.
+
+The buffer compensates for reasoning and encrypted payloads that local counting cannot fully represent; it is **not precise provider-side counting**. It depends on the actual counting protocol, not a GPT model-name prefix. It does not further inflate incremental additions or the server-usage baseline, which already includes cached input and response usage.
+
+MCP server schemas are currently excluded from local estimation and request signatures. Configuring MCP servers no longer forces a full recount, but their schema changes cannot be detected by the signature. This accepted estimation limitation is logged as `mcp_schema_counting_deferred`; other signature safety checks still apply.
+
+Structured diagnostics report the protocol, full/incremental counting mode, budget before and after buffering, reasoning-item counts and encrypted-carrier lengths, effective window and threshold rule, and compaction outcome. Request/response comparisons use cache-inclusive server input usage without adding cache twice. If compaction or subsequent hooks change the counted input, the comparison is marked unavailable rather than comparing different requests. These diagnostics record counts, lengths, and reasons, not conversation content, reasoning text, tool arguments, or credentials.
 
 ## Configuration
 
@@ -34,12 +49,3 @@ Force IM strategy in CLI mode:
 ```yaml
 compaction_strategy: "turn_prune_summary"
 ```
-
-## Compaction Model
-
-Summaries use the main model by default. Set `SIADA_COMPACT_MODEL` to use a
-different model available through the same provider and endpoint.
-
-With the `default` provider, bare custom model IDs use the configured
-OpenAI-compatible endpoint (`BASE_URL` and `API_KEY`). Provider-prefixed model
-IDs retain their explicit routing; OpenRouter endpoints use OpenRouter routing.

@@ -10,14 +10,10 @@ from agents import Agent
 from agents.agent_output import AgentOutputSchema, AgentOutputSchemaBase
 from agents.exceptions import UserError
 from agents.handoffs import handoff
-from agents.models.chatcmpl_converter import Converter
-from agents.models.openai_responses import Converter as ResponsesConverter
 from agents.tool import ComputerTool
-from openai import omit
 
 from siada.foundation.logging import logger
-from siada.provider.responses.sanitize import sanitize_responses_tools_for_openai
-from siada.provider.token_counting import TokenCountingInfo, token_counting_info_from_model
+from siada.provider.token_counting import TokenCountingInfo, project_request_schemas, replay_counting_domain, token_counting_info_from_model
 
 from .utils import calculate_tokens, compute_message_signature
 
@@ -32,6 +28,8 @@ _REQUEST_INPUT_OVERRIDE_KEYS = frozenset({
     "model", "messages", "input", "instructions", "system", "tools", "functions",
     "response_format", "text", "prompt", "conversation", "conversation_id", "previous_response_id",
     "context_management", "truncation",
+    "cached_content", "cachedContent", "response_schema", "responseSchema",
+    "response_json_schema", "responseJsonSchema", "response_mime_type", "responseMimeType",
 })
 
 
@@ -94,13 +92,24 @@ def request_token_model_name(context: Any, agent: Any) -> str:
 def request_token_signature(
     context: Any, agent: Any, instructions: str | None, *, components: dict[str, str] | None = None,
 ) -> str | None:
-    """Sign counting semantics, instructions, and wire schemas, not run settings."""
+    """Sign counting semantics/instructions/wire schemas, excluding deferred MCP."""
     runtime = getattr(context, "runtime_session", None)
     if components is not None:
         components.clear()
 
+    if getattr(agent, "mcp_servers", None):
+        # MCP discovery is intentionally deferred. Sign/count only agent.tools;
+        # this signature cannot detect changes in server-provided schemas.
+        logger.info(
+            "[CTX-BUILD][signature] session=%s request=%s status=partial "
+            "reason=mcp_schema_counting_deferred excluded_scope=mcp_schemas "
+            "signature_covers_mcp=False estimate_covers_mcp=False mcp_servers=%d",
+            getattr(context, "session_id", None), getattr(runtime, "request_identity", None),
+            len(agent.mcp_servers),
+        )
+
     def unavailable(reason: str) -> None:
-        logger.debug(
+        logger.info(
             "[CTX-BUILD][signature] session=%s request=%s status=unavailable reason=%s",
             getattr(context, "session_id", None), getattr(runtime, "request_identity", None), reason,
         )
@@ -122,8 +131,8 @@ def request_token_signature(
     if info.unavailable_reason is not None:
         return unavailable(info.unavailable_reason)
     model_name = request_token_model_name(context, agent)
-    if getattr(agent, "mcp_servers", None) or getattr(agent, "prompt", None):
-        return unavailable("mcp_tools" if getattr(agent, "mcp_servers", None) else "remote_prompt")
+    if getattr(agent, "prompt", None):
+        return unavailable("remote_prompt")
     tools = []
     for tool in getattr(agent, "tools", None) or []:
         enabled = getattr(tool, "is_enabled", True)
@@ -151,22 +160,15 @@ def request_token_signature(
             None if output is None or output is str
             else output if isinstance(output, AgentOutputSchemaBase) else AgentOutputSchema(output)
         )
-        if native:
-            wire_tools = ResponsesConverter.convert_tools(tools, handoffs, model=model_name).tools
-            if info.input_projection == "siada_responses":
-                wire_tools = sanitize_responses_tools_for_openai(wire_tools)
-            wire_output = ResponsesConverter.get_response_format(output_schema)
-        else:
-            wire_tools = [Converter.tool_to_openai(tool) for tool in tools]
-            wire_tools.extend(Converter.convert_handoff_tool(value) for value in handoffs)
-            wire_output = Converter.convert_response_format(output_schema)
+        schemas = project_request_schemas(info, tools, handoffs, output_schema, model_name=model_name)
         payload = {
             "domain": {"model": model_name, "provider": context.provider,
-                       "protocol": "responses" if native else "chat",
+                       "protocol": info.protocol,
                        "input_projection": info.input_projection,
-                       "replay_version": _REQUEST_TOKEN_DOMAIN_VERSION},
+                       "replay_version": _REQUEST_TOKEN_DOMAIN_VERSION,
+                       **replay_counting_domain(info)},
             "instructions": instructions or "",
-            "schemas": {"tools": wire_tools, "output": None if wire_output is omit else wire_output},
+            "schemas": schemas,
         }
         signature = compute_message_signature(payload)
         fingerprints = {
@@ -278,13 +280,58 @@ class RequestTokenBaseline:
                             and baseline.response_tokens == response_tokens) else None
 
 
-def estimate_request_tokens(context: Any, agent: Any, items: list[dict], instructions: str | None) -> int:
-    """Tokenize only additions after the last durably anchored response."""
+def _input_content_profile(items: list[dict]) -> dict[str, int]:
+    """Measure structured input without decoding images or logging content.
+
+    Only inspect content fields, never parse text as JSON or search quoted image
+    tags. Incremental callers pass the delta, not the anchored history prefix.
+    """
+    profile = dict(image_blocks=0, inline_image_chars=0, referenced_images=0, text_chars=0, max_text_chars=0,
+                   reasoning_items=0, encrypted_content_chars=0)
+
+    def visit(value: Any) -> None:
+        if isinstance(value, str):
+            profile["text_chars"] += len(value)
+            profile["max_text_chars"] = max(profile["max_text_chars"], len(value))
+        elif isinstance(value, list):
+            for part in value:
+                visit(part)
+        elif isinstance(value, dict):
+            if value.get("type") == "reasoning":
+                profile["reasoning_items"] += 1
+                encrypted = value.get("encrypted_content")
+                if isinstance(encrypted, str):
+                    profile["encrypted_content_chars"] += len(encrypted)
+            if value.get("type") in {"input_image", "image_url", "image"}:
+                profile["image_blocks"] += 1
+                url = value.get("image_url")
+                if isinstance(url, dict):
+                    url = url.get("url")
+                if isinstance(url, str) and url.startswith("data:"):
+                    profile["inline_image_chars"] += len(url)
+                else:
+                    profile["referenced_images"] += 1
+                return
+            for key in ("text", "content", "output", "summary", "arguments"):
+                if key in value:
+                    visit(value[key])
+
+    visit(items)
+    return profile
+
+
+def estimate_request_tokens(
+    context: Any, agent: Any, items: list[dict], instructions: str | None,
+    *, diagnostics: dict[str, Any] | None = None,
+) -> int:
+    """Count additions after a durable response; buffer full Responses recounts."""
     state = context.session.state
     baseline = getattr(state, "context_token_baseline", None)
     components: dict[str, str] = {}
     signature = request_token_signature(context, agent, instructions, components=components)
-    model_name = request_token_model_name(context, agent)
+    info = _request_counting_info(context, agent)
+    model_name = info.model_name or context.model_run_config.model_name
+    protocol = info.protocol
     runtime = getattr(context, "runtime_session", None)
     session_id = context.session_id
     storage_id = getattr(state.openai_session, "session_id", session_id)
@@ -325,40 +372,68 @@ def estimate_request_tokens(context: Any, agent: Any, items: list[dict], instruc
         # an earlier tool result while leaving the last message unchanged.
         if len(items) >= size and items[:size] == baseline.items:
             delta = items[size:]
-            diagnostics: dict[str, Any] = {}
-            delta_tokens = calculate_tokens(model_name, delta, diagnostics=diagnostics) if delta else 0
+            delta_count: dict[str, Any] = {}
+            delta_tokens = calculate_tokens(model_name, delta, diagnostics=delta_count, counting_info=info) if delta else 0
             tokens = baseline.context_tokens + delta_tokens
             raw_tokens = (
-                baseline.context_tokens + diagnostics["raw_tokens"] if diagnostics
+                baseline.context_tokens + delta_count["raw_tokens"] if delta_count
                 else tokens if not delta else "unavailable"
             )
+            profile = _input_content_profile(delta)
             logger.info(
                 "[CTX-BUILD][effective] session=%s request=%s model=%s token_mode=delta_only "
                 "baseline_source=server_usage restore_generation=%d baseline_count=%d "
                 "input_tokens=%d response_tokens=%d "
                 "baseline_tokens=%d delta_count=%d delta_tokens=%d total=%d "
-                "raw_tokens=%s safety_tokens=%s budget_tokens=%d tokenizer_source=%s",
+                "raw_tokens=%s safety_tokens=%s budget_tokens=%d tokenizer_source=%s "
+                "input_scope=delta image_blocks=%d inline_image_chars=%d referenced_images=%d "
+                "text_chars=%d max_text_chars=%d protocol=%s "
+                "pre_buffer_tokens=%d buffer_tokens=0 buffer_factor=1.0 buffer_reason=none "
+                "reasoning_items=%d encrypted_content_chars=%d",
                 session_id, request, model_name, generation, size, baseline.input_tokens,
                 baseline.response_tokens, baseline.context_tokens, len(delta), delta_tokens, tokens,
                 raw_tokens,
-                diagnostics.get("safety_tokens", 0 if not delta else "unavailable"), tokens,
-                "server_usage+" + diagnostics.get("tokenizer_source", "none" if not delta else "unavailable"),
+                delta_count.get("safety_tokens", 0 if not delta else "unavailable"), tokens,
+                "server_usage+" + delta_count.get("tokenizer_source", "none" if not delta else "unavailable"),
+                profile["image_blocks"], profile["inline_image_chars"], profile["referenced_images"],
+                profile["text_chars"], profile["max_text_chars"], protocol, tokens,
+                profile["reasoning_items"], profile["encrypted_content_chars"],
             )
+            if diagnostics is not None:
+                diagnostics.update(tokens=tokens, token_mode="delta_only", protocol=protocol)
             return tokens
         reason = "prefix_shortened" if len(items) < size else "prefix_rewritten"
     state.context_token_baseline = None
     message_count: dict[str, Any] = {}
     instruction_count: dict[str, Any] = {}
-    tokens = calculate_tokens(model_name, items, tools=getattr(agent, "tools", None), diagnostics=message_count)
-    tokens += calculate_tokens(model_name, instructions or "", diagnostics=instruction_count)
+    tokens = calculate_tokens(model_name, items, tools=getattr(agent, "tools", None), diagnostics=message_count, counting_info=info)
+    tokens += calculate_tokens(model_name, instructions or "", diagnostics=instruction_count, counting_info=info)
+    pre_buffer_tokens = tokens
+    # This is a conservative allowance for reasoning/encrypted carriers that
+    # the existing local Responses projection cannot count precisely. Keep the
+    # counter's safety margin and fallback intact; never scale usage or delta.
+    if protocol == "responses":
+        tokens = tokens * 3 // 2
     counts = (message_count, instruction_count)
+    profile = _input_content_profile(items)
     logger.info(
         "[CTX-BUILD][effective] session=%s request=%s model=%s token_mode=recount_all "
         "reason=%s restore_generation=%d items=%d total=%d "
-        "raw_tokens=%s safety_tokens=%s budget_tokens=%d tokenizer_source=%s",
+        "raw_tokens=%s safety_tokens=%s budget_tokens=%d tokenizer_source=%s "
+        "input_scope=all_items image_blocks=%d inline_image_chars=%d referenced_images=%d "
+        "text_chars=%d max_text_chars=%d instructions_chars=%d protocol=%s "
+        "pre_buffer_tokens=%d buffer_tokens=%d buffer_factor=%.1f buffer_reason=%s "
+        "reasoning_items=%d encrypted_content_chars=%d",
         session_id, request, model_name, reason, generation, len(items), tokens,
         sum(count["raw_tokens"] for count in counts) if all(counts) else "unavailable",
         sum(count["safety_tokens"] for count in counts) if all(counts) else "unavailable", tokens,
         "+".join(count.get("tokenizer_source", "unavailable") for count in counts),
+        profile["image_blocks"], profile["inline_image_chars"], profile["referenced_images"],
+        profile["text_chars"], profile["max_text_chars"], len(instructions or ""), protocol,
+        pre_buffer_tokens, tokens - pre_buffer_tokens, 1.5 if protocol == "responses" else 1.0,
+        "conservative_responses_reasoning_buffer" if protocol == "responses" else "none",
+        profile["reasoning_items"], profile["encrypted_content_chars"],
     )
+    if diagnostics is not None:
+        diagnostics.update(tokens=tokens, token_mode="recount_all", protocol=protocol)
     return tokens

@@ -17,6 +17,7 @@ from siada.tools.coder.file_search import regex_search_files
 from siada.tools.coder.run_cmd import run_cmd
 from siada.tools.coder.run_powershell import get_run_powershell_tool_if_available
 from siada.tools.web import web_search, web_fetch
+from siada.agent_hub.coder.prompt.selection.profiles import PromptFamily, resolve_prompt_profile
 from siada.agent_hub.coder.prompt.selection.model_features import (
     uses_native_patch_file_tools,
 )
@@ -225,8 +226,12 @@ def _build_default_tools(
     if pwsh is not None:
         tools.append(pwsh)
     if include_run_subtask:
-        from siada.tools.agent.run_subtask import run_subtask
-        tools.append(run_subtask)
+        from siada.tools.agent.run_subtask import create_run_subtask_tool, run_subtask
+        tools.append(
+            create_run_subtask_tool(model_name)
+            if resolve_prompt_profile(model_name).family is PromptFamily.DEEPSEEK
+            else run_subtask
+        )
     return tools
 
 

@@ -45,6 +45,32 @@ async def test_two_turns_persist_input_and_reply_once(baseline, stream, auto_com
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True], ids=["run", "streamed"])
+async def test_verifier_continuation_persists_without_human_input_envelope(baseline, stream):
+    from siada.services.goal.models import Goal
+    from siada.services.goal.prompts import build_goal_reminder_text
+    from siada.services.memory.holographic.marker import wrap_user_input
+    from siada.support.message_classifier import format_native_items_for_display
+
+    session = baseline.session()
+    feedback = build_goal_reminder_text(
+        Goal.create("Fix the synthetic regression."),
+        verifier_reason="Tests still fail.",
+        verifier_next_action="Run the tests and fix the failure.",
+    )
+    model = baseline.model(session, [[baseline.text("continued reply")]])
+
+    await baseline.run(session, model, stream=stream, input=wrap_user_input(feedback))
+
+    persisted = await session.openai_session.get_all_items()
+    assert persisted[0] == {"role": "user", "content": feedback}
+    assert model.requests[0]["input"] == [persisted[0]]
+    assert format_native_items_for_display(persisted) == [
+        {"role": "assistant", "content": "continued reply"},
+    ]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [False, True])
 async def test_tool_calls_outputs_and_usage_are_persisted_once(baseline, stream):
     session = baseline.session()

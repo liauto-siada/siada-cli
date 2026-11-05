@@ -16,12 +16,14 @@ import { RenderInline } from '../markdown/InlineMarkdownRenderer.js';
 import { colorizeCode } from '../markdown/CodeColorizer.js';
 import { TableRenderer } from '../markdown/TableRenderer.js';
 import { MermaidDiagram, renderMermaidDiagram } from '../markdown/MermaidDiagram.js';
+import { advanceMarkdownFence, type MarkdownCodeFence } from '../../utils/markdownUtilities.js';
 
 export interface MarkdownTextProps {
   content: string;
   dimColor?: boolean;
   availableWidth?: number;
   maxDiagramHeight?: number;
+  initialCodeFence?: MarkdownCodeFence;
 }
 
 /**
@@ -86,7 +88,7 @@ function renderMarkdownLine(line: string, dimColor: boolean = false): React.Reac
  * MarkdownText - Renders markdown with terminal styling
  * Custom implementation compatible with Ink v5
  */
-export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = false, availableWidth, maxDiagramHeight }) => {
+export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = false, availableWidth, maxDiagramHeight, initialCodeFence }) => {
   const { stdout } = useStdout();
   const terminalWidth = stdout?.columns || 80;
   useThemeVersion(); // repaint with the new palette after /theme
@@ -110,10 +112,11 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
   const normalizedContent = content.replace(/\r\n?/g, '\n');
   
   const lines = normalizedContent.split('\n');
-  let inCodeBlock = false;
+  let activeFence = initialCodeFence;
+  let inCodeBlock = Boolean(activeFence);
   const codeBlockLines: string[] = [];
-  let codeBlockLang: string | null = null;
-  let codeBlockFence = '';
+  let codeBlockLang: string | null = initialCodeFence?.language ?? null;
+  let continuedCodeBlock = Boolean(initialCodeFence);
   const elements: React.ReactNode[] = [];
   let currentKey = 0;
   let prevLineWasEmpty = false;
@@ -127,9 +130,10 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
 
   function renderFence(closed: boolean): React.ReactNode {
     const source = codeBlockLines.join('\n');
-    if (closed && /^(mermaid|mmd)$/i.test(codeBlockLang ?? '')) {
-      const art = renderMermaidDiagram(source, availableWidth ?? Math.max(terminalWidth - 2, 0), maxDiagramHeight);
-      if (art) return <MermaidDiagram art={art} dimColor={dimColor} />;
+    if (closed && !continuedCodeBlock && /^(mermaid|mmd)$/i.test(codeBlockLang ?? '')) {
+      const width = availableWidth ?? Math.max(terminalWidth - 2, 0);
+      const art = renderMermaidDiagram(source, width, maxDiagramHeight);
+      if (art) return <MermaidDiagram art={art} dimColor={dimColor} availableWidth={width} />;
     }
     return colorizeCode({
       code: source,
@@ -142,11 +146,8 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
 
   lines.forEach((line, idx) => {
     // Track code blocks
-    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-    const isClosingFence = inCodeBlock && fenceMatch &&
-      fenceMatch[1][0] === codeBlockFence[0] &&
-      fenceMatch[1].length >= codeBlockFence.length && fenceMatch[2].trim() === '';
-    if ((!inCodeBlock && fenceMatch) || isClosingFence) {
+    const nextFence = advanceMarkdownFence(line, activeFence);
+    if (nextFence !== activeFence) {
       prevLineWasEmpty = false;
       if (inCodeBlock) {
         // End of code block - render accumulated lines
@@ -159,11 +160,12 @@ export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, dimColor = 
           codeBlockLines.length = 0;
           codeBlockLang = null;
         }
-      } else if (fenceMatch) {
-        codeBlockFence = fenceMatch[1];
-        codeBlockLang = fenceMatch[2].trim().split(/\s+/, 1)[0] || null;
+      } else if (nextFence) {
+        codeBlockLang = nextFence.language;
+        continuedCodeBlock = false;
       }
-      inCodeBlock = !inCodeBlock;
+      activeFence = nextFence;
+      inCodeBlock = Boolean(activeFence);
       return;
     }
 

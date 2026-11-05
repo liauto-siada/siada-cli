@@ -3,17 +3,20 @@
 import asyncio
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from siada.entrypoint.interaction.turn.models import TurnOutput, TurnType
 from siada.foundation.code_agent_context import RuntimeSource
 from siada.models.agent_lifecycle import AgentMessage, MessageEventType
-from siada.services.goal import goal_storage
-from siada.services.goal.models import Goal
+from siada.services.goal import goal_storage, turn_hooks, verifier
+from siada.services.goal.models import Goal, GoalVerdict
 from siada.services.siada_runner import SiadaRunner
 from siada.session.message_state_tracker import MessageState, MessageStateTracker
 from siada.session.ownership import OwnershipError, SessionOwner, SessionOwnershipManager
 from siada.support.resume_service import ResumeService
+from siada.support.slash_commands import SlashCommands
 from siada.support.usage_utils import deserialize_usage, serialize_usage
 from siada.tools.agent import subagent_async, subagent_persistence
 from siada.tools.todo.models import TodoItem
@@ -36,17 +39,28 @@ def load_and_restore(source, target):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [False, True])
-async def test_todos_all_fields_and_order_survive_runner_and_resume(baseline, stream):
+@pytest.mark.parametrize("active_form_key", ["active_form", "activeForm"])
+async def test_todos_all_fields_and_order_survive_runner_and_resume(baseline, stream, active_form_key):
     original = baseline.session("original")
     expected = todos()
+    arguments = [
+        {"content": item.content, active_form_key: item.active_form, "status": item.status}
+        for item in expected
+    ]
     model = baseline.model(original, [
-        [baseline.call("todo-1", "todo_write", {"todos": [t.model_dump() for t in expected]})],
+        [baseline.call("todo-1", "todo_write", {"todos": arguments})],
         [baseline.text("tracked")],
     ])
     _, context, _ = await baseline.run(original, model, tools=[todo_write], stream=stream)
     assert context.todos == expected
     fresh = baseline.session("fresh")
     data = load_and_restore(original, fresh)
+    assert fresh.state.pending_todos == expected
+    commands = SlashCommands(io=MagicMock())
+    commands._push_resumed_todo_state_to_ui(fresh)
+    assert commands.io.acp_adapter._send_if_acp.call_args.kwargs["params"] == {
+        "todos": [{"content": item.content, "status": item.status} for item in expected]
+    }
     assert fresh.state.pending_todos == expected
     resumed_context = baseline.context(fresh)
     await SiadaRunner._prepare_context_for_run(resumed_context, fresh)
@@ -76,6 +90,144 @@ async def test_goal_all_fields_and_audit_history_survive_resume(baseline, status
     assert context.goal.model_dump() == goal.model_dump()
     assert fresh.state.pending_goal is None
     assert goal_storage.load_goal_history(original.openai_session.session_folder)[0]["objective"] == goal.objective
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("cached", [False, True])
+async def test_first_user_turn_after_resume_reactivates_goal_and_runs_verifier(
+    baseline, monkeypatch, stream, cached,
+):
+    original = baseline.session("original")
+    goal = Goal.create("Ship synthetic feature")
+    goal.status = "blocked"
+    goal.consecutive_failures = 3
+    goal.consecutive_system_errors = 2
+    goal.reminder_injected = True
+    goal_storage.save_goal(original.openai_session.session_folder, goal)
+    fresh = baseline.session("fresh")
+    context = baseline.context(fresh)
+    if cached:
+        context.goal = Goal.create("Stale cached goal")
+        cache_key = ("baseline-agent", original.siada_config.workspace, original.session_id)
+        SiadaRunner._context_cache[cache_key] = context
+    load_and_restore(original, fresh)
+    notices = []
+    turn = SimpleNamespace(get_turn_type=lambda: TurnType.CONVERSATION)
+    folder = fresh.openai_session.session_folder
+    turn_hooks.maybe_reset_goal_on_new_turn(lambda *args: notices.append(args), turn, fresh, folder)
+
+    assert fresh.state.pending_goal.status == "active"
+    assert fresh.state.pending_goal.consecutive_failures == 0
+    assert fresh.state.pending_goal.consecutive_system_errors == 0
+    assert fresh.state.pending_goal.reminder_injected is False
+    assert notices[-1][1]["goal"]["status"] == "active"
+    await SiadaRunner._prepare_context_for_run(context, fresh)
+    SiadaRunner._context_cache[("baseline-agent", fresh.siada_config.workspace, fresh.session_id)] = context
+    model = baseline.model(fresh, [[baseline.text("completed work")]])
+    user_input = SiadaRunner._maybe_merge_goal_reminder(context, "continue")
+    await baseline.run(fresh, model, stream=stream, context=context, input=user_input)
+    assert "Ship synthetic feature" in str(model.requests[0]["input"])
+    verify = AsyncMock(return_value=GoalVerdict(passed=True, reason="Checked"))
+    monkeypatch.setattr(verifier, "run_goal_verification", verify)
+    result = TurnOutput(output="completed work", metadata={}, next_action=None)
+    # Verification shares the model turn's event loop.
+    await turn_hooks.maybe_run_goal_verifier(
+        lambda *args: notices.append(args),
+        turn, fresh, folder, result, enable_notification=False,
+    )
+
+    verify.assert_awaited_once()
+    assert context.goal.status == "complete"
+    assert goal_storage.load_goal(folder).status == "complete"
+    assert fresh.state.pending_goal is None
+    assert notices[-1][1]["goal"]["status"] == "complete"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["blocked", "paused", "complete"])
+@pytest.mark.parametrize("user_initiated", [False, True])
+async def test_pending_goal_normalization_preserves_turn_intent(baseline, status, user_initiated):
+    original = baseline.session("original")
+    goal = Goal.create("Ship synthetic feature")
+    goal.status = status
+    goal_storage.save_goal(original.openai_session.session_folder, goal)
+    fresh = baseline.session("fresh")
+    load_and_restore(original, fresh)
+    notices = []
+    folder = fresh.openai_session.session_folder
+    turn = SimpleNamespace(get_turn_type=lambda: TurnType.CONVERSATION)
+    turn_hooks.maybe_reset_goal_on_new_turn(
+        lambda *args: notices.append(args), turn, fresh, folder, user_initiated=user_initiated,
+    )
+    context = baseline.context(fresh)
+    await SiadaRunner._prepare_context_for_run(context, fresh)
+
+    if user_initiated and status == "complete":
+        assert context.goal is None
+        assert goal_storage.load_goal(folder) is None
+        assert len(goal_storage.load_goal_history(folder)) == 1
+        assert notices[-1][1] == {"goal": None, "verifying": False}
+    else:
+        expected = (
+            "active" if user_initiated and status in ("blocked", "paused") else status
+        )
+        assert context.goal.status == expected
+        assert goal_storage.load_goal(folder).status == expected
+        assert goal_storage.load_goal_history(folder) == []
+        if user_initiated and expected != "complete":
+            # Blocked/paused reactivation and the unchanged-goal refresh both
+            # push a snapshot so the frontend can rebuild its status bar;
+            # internal continuations leave the UI untouched.
+            assert notices[-1][1]["goal"]["status"] == expected
+            assert notices[-1][1]["verifying"] is False
+        else:
+            assert notices == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_completed_goal_survives_resume_until_the_next_user_conversation(baseline, monkeypatch, stream):
+    original = baseline.session("completed-goal")
+    clock = {"now": "2026-01-01T00:00:00Z"}
+    monkeypatch.setattr("siada.services.goal.models._now_iso", lambda: clock["now"])
+    goal = Goal.create("Finish the synthetic Goal")
+    clock["now"] = "2026-01-01T00:01:02Z"
+    goal.set_status("complete")
+    goal.turns = 2
+    goal_storage.save_goal(original.openai_session.session_folder, goal)
+    fresh = baseline.session("restored-completed-goal")
+    load_and_restore(original, fresh)
+    assert fresh.state.pending_goal.model_dump() == goal.model_dump()
+    clock["now"] = "2026-01-01T01:00:00Z"
+    notices = []
+    turn = SimpleNamespace(get_turn_type=lambda: TurnType.CONVERSATION)
+    folder = fresh.openai_session.session_folder
+    turn_hooks.maybe_reset_goal_on_new_turn(lambda *args: notices.append(args), turn, fresh, folder)
+    context = baseline.context(fresh)
+    await SiadaRunner._prepare_context_for_run(context, fresh)
+    SiadaRunner._context_cache[("baseline-agent", fresh.siada_config.workspace, fresh.session_id)] = context
+    user_input = SiadaRunner._maybe_merge_goal_reminder(context, "Discuss another topic")
+    assert user_input == "Discuss another topic"
+    model = baseline.model(fresh, [[baseline.text("A new conversation reply")]])
+    result, _, _ = await baseline.run(fresh, model, context=context, input=user_input, stream=stream)
+    verify = AsyncMock()
+    monkeypatch.setattr(verifier, "run_goal_verification", verify)
+    output = TurnOutput(output=result.final_output, metadata={}, next_action=None)
+    returned = await turn_hooks.maybe_run_goal_verifier(
+        lambda *args: notices.append(args),
+        turn, fresh, folder, output, enable_notification=False,
+    )
+    assert returned is output
+    assert context.goal is None
+    assert goal_storage.load_goal(folder) is None
+    history = goal_storage.load_goal_history(folder)
+    assert len(history) == 1
+    assert history[0]["status"] == "complete"
+    assert history[0]["active_elapsed_seconds"] == 62
+    assert history[0]["turns"] == 2
+    assert notices == [("context/goalState", {"goal": None, "verifying": False})]
+    verify.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -312,6 +464,29 @@ async def test_empty_resume_clears_previous_todos(baseline, empty):
     load_and_restore(original, fresh)
     await SiadaRunner._prepare_context_for_run(context, fresh)
     assert context.todos == []
+
+
+@pytest.mark.asyncio
+async def test_resume_keeps_empty_structured_todos_after_failed_write(baseline):
+    from siada.services.session_runtime_state import save_context
+
+    original = baseline.session("failed-todo-original")
+    await original.openai_session.migrate_legacy_context(allow_history_only=True)
+    original.openai_session.add_items_sync([
+        baseline.call("failed-todo", "todo_write", {"todos": [{
+            "content": "Attempted task", "activeForm": "Attempting task", "status": "in_progress",
+        }]}).model_dump(exclude_none=True),
+        {"type": "function_call_output", "call_id": "failed-todo",
+         "output": "An error occurred while running the tool. Error: Invalid JSON input for tool todo_write"},
+    ])
+    save_context(baseline.context(original))
+
+    fresh = baseline.session("failed-todo-target")
+    load_and_restore(original, fresh)
+    assert fresh.state.pending_todos == []
+    restored = baseline.context(fresh)
+    await SiadaRunner._prepare_context_for_run(restored, fresh)
+    assert restored.todos == []
 
 
 @pytest.mark.asyncio

@@ -86,7 +86,7 @@ def is_slash_command(text: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Browser-skill ACE bridge
+# Browser-skill ACE bridge (see design_docs/browser-skill-graph-design.md)
 # ---------------------------------------------------------------------------
 
 # How long we wait for the user to answer the proactive skill-suggestion
@@ -1052,7 +1052,7 @@ class SiadaTurnRunner:
             await conn.session_update(
                 session_id,
                 update_agent_message_text(
-                    f"Detected browser skill \"{skill_name}\". Allow me to take over? ({capacity_id})"
+                    f"检测到你正在执行浏览器技能「{skill_name}」，是否允许我接管完成？（{capacity_id}）"
                 ),
             )
             from acp.schema import PermissionOption, ToolCallUpdate
@@ -1064,12 +1064,12 @@ class SiadaTurnRunner:
                         tool_call_id=f"skill-{capacity_id}",
                         kind="execute",
                         status="pending",
-                        title=f"Run browser skill \"{skill_name}\"",
+                        title=f"执行浏览器技能「{skill_name}」",
                         raw_input={"capacity_id": capacity_id},
                     ),
                     [
-                        PermissionOption(option_id="allow_once", name="Allow once", kind="allow_once"),
-                        PermissionOption(option_id="reject_once", name="Reject", kind="reject_once"),
+                        PermissionOption(option_id="allow_once", name="允许一次", kind="allow_once"),
+                        PermissionOption(option_id="reject_once", name="拒绝", kind="reject_once"),
                     ],
                 ),
                 timeout=_PERMISSION_TIMEOUT_SECONDS,
@@ -1207,6 +1207,7 @@ class SiadaTurnRunner:
         from siada.tools.agent.subagent_async import shutdown_loop_background_subtasks
 
         await shutdown_loop_background_subtasks()
+
         skill_tasks = [task for task in self._skill_tasks.values() if not task.done()]
         for task in skill_tasks:
             task.cancel()
@@ -1302,7 +1303,7 @@ class SiadaTurnRunner:
             return "", []
         if not text:
             return "", []
-        return f"[Low-trust experience suggestion · browser-skill · {domain}]\n{text}", list(entry_ids or [])
+        return f"[低信任经验建议 · browser-skill · {domain}]\n{text}", list(entry_ids or [])
 
     async def _stream_turn(self, session_id: str, prompt: str):
         """Run one agent turn and yield ACP updates (see ``__call__``)."""

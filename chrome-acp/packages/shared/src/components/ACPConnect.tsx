@@ -98,6 +98,7 @@ export interface ACPConnectProps {
   extraSettings?: ReactNode;
   autoConnect?: boolean;
   onConnectInitiated?: (source: "auto" | "manual") => void;
+  retentionId?: string;
 }
 
 export function ACPConnect({
@@ -121,6 +122,7 @@ export function ACPConnect({
    * between restoring the last session ("auto") and starting fresh
    * ("manual" — the user explicitly asked for a connection). */
   onConnectInitiated,
+  retentionId,
 }: ACPConnectProps) {
   const [settings, setSettings] = useState<ACPSettings>(() => getInitialSettings(inferFromUrl, initialSettings));
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
@@ -193,7 +195,7 @@ export function ACPConnect({
 
   // Initialize client once on mount using initial settings from ref
   useEffect(() => {
-    const acpClient = new ACPClient(initialSettingsRef.current);
+    const acpClient = new ACPClient(initialSettingsRef.current, retentionId);
     acpClient.setConnectionStateHandler((state, err) => {
       setConnectionState(state);
       setError(err || null);
@@ -202,9 +204,9 @@ export function ACPConnect({
     setClient(acpClient);
 
     return () => {
-      acpClient.disconnect();
+      acpClient.disconnect({ retainSession: true });
     };
-  }, []);
+  }, [retentionId]);
 
 
 

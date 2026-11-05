@@ -7,6 +7,8 @@ from .base_filter import ContextFilter
 from .message_history_capture_filter import MessageHistoryCaptureFilter
 from .api_message_transfer_filter import ApiMessageTransferFilter
 from .pending_user_input_filter import PendingUserInputInjector
+from .tool_output_offload import ToolOutputOffloadFilter
+from .malformed_tool_call_filter import MalformedToolCallFilter
 from siada.foundation.logging import logger as logging
 
 
@@ -47,6 +49,25 @@ def get_context_filters() -> List[ContextFilter]:
         # is actually sent to the model — guaranteeing the reminder is both
         # part of the live call and durably persisted to the Session.
         _CONTEXT_FILTERS = [
+            # MUST run first: replaces oversized tool outputs (external MCP /
+            # plugin tools have no native output cap and can return
+            # multi-million-char results) with a small placeholder + an offload
+            # file BEFORE MessageHistoryCaptureFilter captures them into the
+            # task message state. Running it later would be too late: capture /
+            # transfer / compaction would keep seeing the raw payload on every
+            # LLM call, and compaction cannot shrink a single oversized message
+            # (trimming works at message granularity) — the request then
+            # exceeds the model context window / gateway body limit and 400s
+            # in a loop (see tests/agent_hub/context_filter/
+            # test_oversized_tool_output_e2e.py for the production repro).
+            ToolOutputOffloadFilter(),
+            # MUST run before MessageHistoryCaptureFilter / ApiMessageTransferFilter:
+            # repairs function_call items whose arguments are not valid JSON (the
+            # gateway 400s on them) so neither the captured task message state nor
+            # the persisted API messages ever carry the poisoned payload — once it
+            # lands there, every later request in the session replays it verbatim
+            # (see malformed_tool_call_filter.py for the production repro).
+            MalformedToolCallFilter(),
             PendingUserInputInjector(),
             MessageHistoryCaptureFilter(),
             ApiMessageTransferFilter(),

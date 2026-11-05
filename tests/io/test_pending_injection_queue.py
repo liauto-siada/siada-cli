@@ -13,6 +13,7 @@ Covers:
 import collections
 import json
 import queue
+import threading
 import unittest
 from unittest.mock import MagicMock
 
@@ -378,6 +379,46 @@ class TestPendingInjectionQueue(unittest.TestCase):
 
         self.assertEqual(len(_mod._pending_injections), 0)
         self.assertTrue(self.monitor._queue.empty())
+
+    def test_effort_bypasses_both_queues_for_raw_and_json_prompts(self):
+        existing = ("queued-message", "Continue the current task", None)
+        for running in (False, True):
+            for prompt, level in (("/effort", ""), (" /effort high ", "high")):
+                for body in (
+                    prompt,
+                    json.dumps({"params": {"prompt": prompt}}),
+                    json.dumps({"prompt": prompt}),
+                ):
+                    with self.subTest(running=running, body=body):
+                        _mod._agent_running = running
+                        _mod._pending_injections.clear()
+                        _mod._pending_injections.append(existing)
+                        self.monitor._queue = queue.Queue()
+                        completed = threading.Event()
+                        captured = []
+
+                        def handle_effort(value):
+                            captured.append(value)
+                            completed.set()
+
+                        self.monitor.set_effort_handler(handle_effort)
+                        self.monitor._dispatch_or_enqueue(_make_acp_lines(body))
+                        self.assertTrue(completed.wait(1))
+                        self.assertEqual(captured, [level])
+                        self.assertEqual(list(_mod._pending_injections), [existing])
+                        self.assertTrue(self.monitor._queue.empty())
+
+    def test_effort_prefix_and_unregistered_handler_keep_normal_routing(self):
+        _mod._agent_running = True
+        self.monitor.set_effort_handler(MagicMock())
+        self.monitor._dispatch_or_enqueue(_make_acp_lines("/effortful task"))
+        self.monitor._effort_handler.assert_not_called()
+        self.monitor.set_effort_handler(None)
+        self.monitor._dispatch_or_enqueue(_make_acp_lines("/effort"))
+        self.assertEqual(
+            [item[1] for item in _mod._pending_injections],
+            ["/effortful task", "/effort"],
+        )
 
     def test_multiple_messages_accumulate_in_pending(self):
         """Multiple mid-turn messages stack up in order."""

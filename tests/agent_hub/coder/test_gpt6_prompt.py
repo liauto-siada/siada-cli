@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 from siada.agent_hub.coder.prompt import code_gen_prompt
+from siada.agent_hub.coder.prompt.assembly import legacy
 from siada.agent_hub.coder.prompt.models.gpt6.astra import get_astra_intro
 from siada.agent_hub.coder.prompt.models.gpt6.instructions import get_gpt6_intro
 from siada.agent_hub.coder.prompt.models.gpt6.templates import get_gpt6_template, resolve_gpt6_template_name
@@ -20,7 +21,9 @@ from siada.agent_hub.coder.prompt.selection.skill_usage import (
     is_gpt6_model,
     resolve_skill_usage_profile,
 )
+from siada.models import model_base_config
 from siada.models.model_base_config import MODEL_SETTING
+from siada.services.model_info_service import ModelInfoService
 from siada.services.skills import SkillMetadata, SkillScope, SkillUsageProfile, render_skills_section
 
 
@@ -38,7 +41,7 @@ def _render_gpt6_prompt(monkeypatch, model_name: str = "gpt-6-astra", **kwargs) 
     return code_gen_prompt.get_system_prompt("/cwd", model_name=model_name, **kwargs)
 
 
-def test_gpt6_preserves_four_distinct_upstream_templates_in_each_mode(monkeypatch):
+def test_gpt6_preserves_five_distinct_upstream_profiles_in_each_mode(monkeypatch):
     """Writing-style siblings retain their upstream policy differences."""
     for options in ({}, {"interactive_mode": False}):
         scannable = _render_gpt6_prompt(monkeypatch, model_name="gpt-6-sol", **options)
@@ -54,7 +57,10 @@ def test_gpt6_preserves_four_distinct_upstream_templates_in_each_mode(monkeypatc
         assert scannable != prose
         luna = _render_gpt6_prompt(monkeypatch, model_name="gpt-6-luna", **options)
         sol61 = _render_gpt6_prompt(monkeypatch, model_name="gpt-6.1-sol", **options)
-        assert len({prose, scannable, luna, sol61}) == 4
+        terra61 = _render_gpt6_prompt(monkeypatch, model_name="gpt-6.1-terra", **options)
+        for model_name in ("vendor/gpt-6.1-terra", "azure-gpt-6_1-terra"):
+            assert code_gen_prompt.get_system_prompt("/cwd", model_name=model_name, **options) == terra61
+        assert len({prose, scannable, luna, sol61, terra61}) == 5
         assert "Avoid unnecessary apologies and self-blame." in sol61
         assert "Avoid unnecessary apologies and self-blame." not in prose
         assert "Do not add or run tests unless the user asks" in luna
@@ -69,10 +75,36 @@ def test_gpt6_writing_style_follows_the_per_model_split(monkeypatch):
         assert "Write in connected prose" not in prompt
         assert "avoid concluding summary statements" not in prompt
 
-    for model_name in ("gpt-6-astra", "gpt-6.1-sol", "astra", "gpt-6-nova"):
+    for model_name in ("gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "astra", "gpt-6-nova"):
         prompt = _render_gpt6_prompt(monkeypatch, model_name=model_name)
         assert "Write in connected prose" in prompt
         assert "write so the user understands your response on first read" not in prompt
+
+
+@pytest.mark.parametrize("interactive_mode", [True, False])
+@pytest.mark.parametrize("subagent_enabled", [True, False])
+def test_terra_execution_preference_preserves_runtime_constraints(
+    monkeypatch, interactive_mode, subagent_enabled,
+):
+    options = {"interactive_mode": interactive_mode, "subagent_enabled": subagent_enabled}
+    prompt = _render_gpt6_prompt(monkeypatch, model_name="gpt-6.1-terra", **options)
+    astra_prompt = _render_gpt6_prompt(monkeypatch, model_name="gpt-6-astra", **options)
+    preference = (
+        "\n\nStrongly prefer making reasonable assumptions and executing the user's "
+        "request rather than stopping to ask questions."
+    )
+
+    assert prompt.count(preference) == 1
+    assert preference not in astra_prompt
+    assert prompt.replace(preference, "", 1) == astra_prompt
+    assert "User authorization and preferences persist across turns" in prompt
+    assert "Follow explicit user and repository verification requirements" in prompt
+    assert "You can use `read_file`" in prompt
+    assert "You can use `apply_patch`" in prompt
+    assert ("# Delegation" in prompt) is subagent_enabled
+    assert (
+        "This session is non-interactive, so you cannot ask the user anything." in prompt
+    ) is not interactive_mode
 
 
 def test_gpt6_action_requests_and_risk_scaled_verification_across_modes(monkeypatch):
@@ -104,7 +136,10 @@ def test_gpt6_model_detection_uses_major_version_with_astra_alias_support():
     for model_name in (None, "", "astral-projection", "astrapi", "gpt-5-astra", "gpt-7-astra"):
         assert is_astra_model(model_name) is False
 
-    for model_name in ("astra", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6-codex", "vendor-gpt-6.1-nova"):
+    for model_name in (
+        "astra", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6-codex",
+        "gpt-6.1-terra", "azure-gpt-6_1-terra", "vendor-gpt-6.1-nova",
+    ):
         assert is_gpt6_model(model_name) is True
         assert resolve_skill_usage_profile(model_name) is SkillUsageProfile.GPT6
 
@@ -113,6 +148,7 @@ def test_gpt6_model_detection_uses_major_version_with_astra_alias_support():
         "",
         "astral-projection",
         "gpt-5.6-luna",
+        "terra",
         "gpt-5-astra",
     ):
         assert is_gpt6_model(model_name) is False
@@ -246,14 +282,26 @@ def test_every_gpt5_or_newer_prompt_uses_the_native_file_tool_contract(monkeypat
     ("gpt-6-astra", "gpt-6-astra"), ("astra", "gpt-6-astra"),
     ("vendor-gpt-6.1-sol", "gpt-6.1-sol"), ("gpt-6-sol", "gpt-6-sol"),
     ("vendor-gpt-6-luna", "gpt-6-luna"), ("gpt-6-nova", "gpt-6-astra"),
+    ("gpt-6.1-terra", "gpt-6.1-terra"),
+    ("vendor/gpt-6.1-terra", "gpt-6.1-terra"),
+    ("openai.gpt-6.1-terra", "gpt-6.1-terra"),
+    ("azure-gpt-6_1-terra", "gpt-6.1-terra"),
+    ("GPT_6.1_TERRA", "gpt-6.1-terra"),
+    ("vendor-gpt-6.1-terra-preview", "gpt-6.1-terra"),
+    ("gpt-6.1/terra", "gpt-6.1-terra"),
+    ("gpt-6.10-terra", "gpt-6-astra"),
+    ("gpt-6.2-terra", "gpt-6-astra"),
+    ("gpt-6-terra", "gpt-6-astra"),
+    ("gpt-6.1-terrestrial", "gpt-6-astra"),
+    ("gpt-6.1-terra2", "gpt-6-astra"),
 ])
 def test_gpt6_template_aliases(model_name, expected):
     assert resolve_gpt6_template_name(model_name) == expected
 
 
 def test_gpt6_uses_literal_template_then_runtime_fragments(monkeypatch):
-    monkeypatch.setattr(code_gen_prompt, "get_rules_for_profile", lambda *_a, **_k: pytest.fail("Legacy rules used"))
-    monkeypatch.setattr(code_gen_prompt, "render_system_prompt", lambda **_k: pytest.fail("Legacy builder used"))
+    monkeypatch.setattr(legacy, "get_rules_for_profile", lambda *args, **kwargs: pytest.fail("Legacy rules used"))
+    monkeypatch.setattr(legacy, "render_system_prompt", lambda **kwargs: pytest.fail("Legacy builder used"))
     prompt = _render_gpt6_prompt(monkeypatch, preferred_language="zh-CN", user_memory="Synthetic note")
     template = get_gpt6_template("gpt-6-astra")
     assert prompt.startswith(template + "\n\n===\n\n# CAPABILITIES")
@@ -265,8 +313,8 @@ def test_gpt6_uses_literal_template_then_runtime_fragments(monkeypatch):
 
 
 @pytest.mark.parametrize("model_name", [
-    "claude-sonnet-5", "gpt-5.4", "zhipuai/glm-5.3", "gpt-6-astra",
-    "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol",
+    "claude-sonnet-5", "gpt-5.4", "lpai-glm-5.3", "gpt-6-astra",
+    "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra",
 ])
 @pytest.mark.parametrize("interactive_mode", [True, False])
 def test_prompts_do_not_advertise_question_tools(monkeypatch, model_name, interactive_mode):
@@ -363,3 +411,29 @@ def test_gpt_6_astra_has_local_model_fallback_configuration():
     assert config.parallel_tool_calls is True
     assert config.supports_extra_params == ["reasoning_effort"]
     assert config.default_reasoning_effort == "low"
+
+
+def test_remote_models_catalog_exception_falls_back_to_local_astra_config(monkeypatch):
+    """A failed initial remote catalog request must leave local models usable."""
+    import requests
+
+    def raise_catalog_error(*_args, **_kwargs):
+        raise requests.RequestException("simulated catalog outage")
+
+    monkeypatch.setattr(requests, "get", raise_catalog_error)
+    monkeypatch.setattr(model_base_config, "_current_user_id", lambda: None)
+    monkeypatch.setattr(model_base_config, "_remote_model_configs", None)
+    monkeypatch.setattr(model_base_config, "_user_model_settings", None)
+
+    model_base_config._fetch_remote_model_config()
+
+    assert model_base_config._remote_model_configs is None
+    assert model_base_config.get_model_settings() is MODEL_SETTING
+
+    # Keep the validation synchronous and prove the fallback used by callers,
+    # rather than starting another background catalog request in this test.
+    monkeypatch.setattr(model_base_config, "_ensure_remote_fetch_started", lambda: None)
+    config = model_base_config.get_model_config("gpt-6-astra")
+    assert config is not None
+    assert config.model_name == "gpt-6-astra"
+    assert ModelInfoService.is_model_supported("gpt-6-astra") is True

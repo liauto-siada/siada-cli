@@ -34,7 +34,11 @@ def get_rules_section(cwd: str, os_name: str, home_dir: str, interactive_mode: b
 
 def get_rules_for_profile(cwd: str, os_name: str, home_dir: str, interactive_mode: bool,
                           *, profile: PromptProfile) -> str:
-    """Render legacy rules; full-template families use assembly renderers."""
+    """Render rules for the already-selected coding prompt profile.
+
+    Full-template families (Kimi K3, GLM, DeepSeek) never reach this dispatcher: their
+    system prompt comes from ``assembly/`` renderers instead.
+    """
     if profile.family is PromptFamily.GPT6:
         return _get_gpt6_rules_section(cwd, os_name, home_dir, interactive_mode)
     if profile.family is PromptFamily.GPT5:

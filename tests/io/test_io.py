@@ -6,6 +6,36 @@ from rich.console import Console
 from siada.io.color_settings import ColorSettings, RunningConfigColorSettings
 from siada.io.io import InputOutput
 import json
+from unittest.mock import Mock
+
+
+def test_hook_notification_uses_one_lifecycle_event_without_failure():
+    io = object.__new__(InputOutput)
+    io.acp_enabled = True
+    io.acp_adapter = Mock()
+    io._printer = Mock()
+    io._send_lifecycle_event = Mock()
+    io.print_hook("Synthetic hook notice", "PreToolUse", status="blocked")
+    event = io._send_lifecycle_event.call_args.args[0]
+    assert event["type"] == "hook"
+    assert event["content"] == "Synthetic hook notice"
+    assert event["hook_event"] == "PreToolUse"
+    assert event["hook_status"] == "blocked"
+    io.acp_adapter.error.assert_not_called()
+    io.printer.output.assert_not_called()
+    io.print_hook("", "PreToolUse")
+    io._send_lifecycle_event.assert_called_once()
+
+
+def test_hook_notification_in_traditional_mode_is_not_an_error():
+    io = object.__new__(InputOutput)
+    io.acp_enabled = False
+    io._printer = Mock()
+    io.print_hook("Synthetic hook notice", "PostToolUse")
+    io.printer.output.assert_called_once_with(
+        "[Hook · PostToolUse · notification] Synthetic hook notice"
+    )
+    io.printer.error.assert_not_called()
 
 
 def test_acp_input_reads_request_id_from_envelope(monkeypatch):

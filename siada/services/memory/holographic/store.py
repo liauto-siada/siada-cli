@@ -1,6 +1,6 @@
 """SQLite-backed fact storage for holographic memory.
 
-Schema:
+Schema (see design_docs/siada-holographic-memory-introduction.md §4):
 - ``facts``         — atomic content + meta (trust, retrieval_count, hrr_vector BLOB)
 - ``entities``      — canonical entity table with aliases
 - ``fact_entities`` — many-to-many link
@@ -17,9 +17,11 @@ from __future__ import annotations
 import logging
 import sqlite3
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Callable, Iterable, Iterator, List, Optional, ParamSpec, Tuple, TypeVar
 
 from siada.services.memory.holographic import hrr
 from siada.services.memory.holographic.entity_extractor import extract_entities
@@ -137,8 +139,21 @@ def _siada_jieba_tokenize(text: Optional[str]) -> str:
         return text
 
 
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _with_connection(method: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Keep one connection alive for a complete, possibly nested operation."""
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self.connection():
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
 class FactStore:
-    """SQLite + FTS5 + HRR-vector storage for atomic facts."""
+    """SQLite storage with connections scoped to operations, not cached sessions."""
 
     def __init__(
         self,
@@ -158,16 +173,17 @@ class FactStore:
         self._lock = threading.RLock()
         self._conn: Optional[sqlite3.Connection] = None
         self._fts_available: bool = False
+        self._closed = False
 
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
     # ---------------------------------------------------------------- #
     # Lifecycle
     # ---------------------------------------------------------------- #
 
-    def _init_db(self) -> None:
-        """Open the connection, register helpers, create schema."""
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+    def _open_connection(self) -> None:
+        """Open and configure a connection within the owning operation."""
         self._conn = sqlite3.connect(
             str(self.db_path),
             check_same_thread=False,
@@ -188,6 +204,31 @@ class FactStore:
             "siada_jieba_tokenize", 1, _siada_jieba_tokenize, deterministic=True,
         )
 
+    @contextmanager
+    def connection(self) -> Iterator[sqlite3.Connection]:
+        """Serialize access and release handles even when an operation fails.
+
+        Nested store/retriever calls share the outer connection and transaction.
+        Cached providers hold no database descriptors between operations.
+        """
+        with self._lock:
+            if self._closed:
+                raise sqlite3.ProgrammingError("FactStore is closed")
+            owns_connection = self._conn is None
+            try:
+                if owns_connection:
+                    self._open_connection()
+                yield self._conn
+            finally:
+                if owns_connection and self._conn is not None:
+                    try:
+                        self._conn.close()
+                    finally:
+                        self._conn = None
+
+    @_with_connection
+    def _init_db(self) -> None:
+        """Create schema, closing the initialization connection on all paths."""
         # Apply core schema first, then FTS5 (which is optional), then triggers
         # (which need both base table and FTS5 to exist).
         with self._lock:
@@ -213,6 +254,7 @@ class FactStore:
     def close(self) -> None:
         """Release the SQLite connection. Safe to call multiple times."""
         with self._lock:
+            self._closed = True
             if self._conn is not None:
                 try:
                     self._conn.close()
@@ -357,6 +399,7 @@ class FactStore:
     # Public CRUD: add / update / remove
     # ---------------------------------------------------------------- #
 
+    @_with_connection
     def add_fact(
         self,
         content: str,
@@ -445,6 +488,7 @@ class FactStore:
             "entities": entity_names,
         }
 
+    @_with_connection
     def update_fact(
         self,
         fact_id: int,
@@ -541,6 +585,7 @@ class FactStore:
 
         return {"success": True, "fact_id": fact_id}
 
+    @_with_connection
     def remove_fact(self, fact_id: int) -> dict:
         """Hard-delete a fact and its entity links; rebuilds the affected bank."""
         if not isinstance(fact_id, int) or fact_id <= 0:
@@ -574,6 +619,7 @@ class FactStore:
     # Feedback
     # ---------------------------------------------------------------- #
 
+    @_with_connection
     def record_feedback(
         self,
         fact_id: int,
@@ -632,6 +678,7 @@ class FactStore:
     # Read / list
     # ---------------------------------------------------------------- #
 
+    @_with_connection
     def get_fact(self, fact_id: int) -> Optional[dict]:
         """Fetch a single fact (without HRR vector). Returns None if missing."""
         cur = self._conn.execute(
@@ -645,6 +692,7 @@ class FactStore:
         row = cur.fetchone()
         return dict(row) if row else None
 
+    @_with_connection
     def list_facts(
         self,
         *,
@@ -674,7 +722,7 @@ class FactStore:
             return
         try:
             placeholders = ",".join("?" * len(ids))
-            with self._lock:
+            with self.connection():
                 self._conn.execute(
                     f"UPDATE facts SET retrieval_count = retrieval_count + 1 "
                     f"WHERE fact_id IN ({placeholders})",
@@ -683,6 +731,7 @@ class FactStore:
         except Exception as exc:  # pragma: no cover
             logger.debug("[holographic] increment_retrieval_count failed: %s", exc)
 
+    @_with_connection
     def fact_count(self, *, category: Optional[str] = None) -> int:
         """Return the total number of facts (optionally filtered by category)."""
         if category:
@@ -694,6 +743,7 @@ class FactStore:
             cur = self._conn.execute("SELECT COUNT(*) AS n FROM facts")
         return int(cur.fetchone()["n"])
 
+    @_with_connection
     def categories(self) -> List[Tuple[str, int]]:
         """Return ``[(category, count), ...]`` sorted by count desc."""
         cur = self._conn.execute(
@@ -706,6 +756,7 @@ class FactStore:
     # Helpers for FactRetriever
     # ---------------------------------------------------------------- #
 
+    @_with_connection
     def fts_candidates(
         self,
         query: str,
@@ -770,6 +821,7 @@ class FactStore:
             out.append(d)
         return out
 
+    @_with_connection
     def _fallback_like_candidates(
         self,
         query: str,
@@ -799,6 +851,7 @@ class FactStore:
             out.append(d)
         return out
 
+    @_with_connection
     def iter_facts_with_vectors(
         self,
         *,
@@ -821,6 +874,7 @@ class FactStore:
         cur = self._conn.execute(sql, tuple(params))
         return [dict(row) for row in cur.fetchall()]
 
+    @_with_connection
     def get_bank_vector(self, category: str) -> Optional[bytes]:
         """Return the raw HRR bank BLOB for a category, or None if missing."""
         cur = self._conn.execute(
@@ -830,6 +884,7 @@ class FactStore:
         row = cur.fetchone()
         return row["vector"] if row else None
 
+    @_with_connection
     def get_entities_for_facts(self, fact_ids: Iterable[int]) -> dict[int, set[str]]:
         """Bulk-fetch lowercased entity name sets for ``contradict`` overlap calc."""
         ids = [int(fid) for fid in fact_ids if fid is not None]
@@ -849,6 +904,7 @@ class FactStore:
             out[int(row["fact_id"])].add(row["name_lc"])
         return out
 
+    @_with_connection
     def rebuild_all_vectors(self, *, dim: Optional[int] = None) -> int:
         """Recompute every fact's HRR vector and every category bank.
 
@@ -888,6 +944,7 @@ class FactStore:
                 raise
         return len(rows)
 
+    @_with_connection
     def get_existing_bank_dim(self) -> Optional[int]:
         """Read the ``dim`` of any existing memory bank, or None when empty.
 

@@ -5,12 +5,13 @@
 
 import React from 'react';
 import { Box, Text } from '@jrichman/ink';
-import stringWidth from 'string-width';
+import stringWidth from '../../utils/terminalWidth.js';
 import { Message as MessageType } from '../../types/index.js';
 import { MAX_TEXT_LENGTH } from '../../constants/limits.js';
 import { getIcons } from '../../constants/icons.js';
 import { truncateByLines, truncateByJSONLines } from '../../utils/contentTruncator.js';
 import { MarkdownText } from '../common/MarkdownText.js';
+import type { MarkdownCodeFence } from '../../utils/markdownUtilities.js';
 import { ShellOutput } from '../Shell/ShellOutput.js';
 import { parseToolCall } from '../../utils/toolCallParser.js';
 import { getSemanticToolCallDisplay } from '../../utils/toolCallDisplay.js';
@@ -21,11 +22,17 @@ import { ToolPromptView } from './ToolPromptView.js';
 import { SemanticToolCallView } from './SemanticToolCallView.js';
 import { TodoPlanView } from './TodoPlanView.js';
 import { parseTodoWriteContent } from '../../utils/todoWrite.js';
-import { parseApplyPatchContent, parseFileCreateContent, parseFileEditContent, getSimplePatch } from '../../utils/diff.js';
+import { parseApplyPatchContent, parseFileCreateContent, parseFileEditContent, parseFileEditPresentation, getSimplePatch } from '../../utils/diff.js';
+import { FileEditStatusView } from './FileEditStatusView.js';
 import { formatElapsedShort } from '../../utils/formatter.js';
-import { THINKING_STEPS } from '../../constants/phrases.js';
+import { THINKING_STEPS, COMPACTION_CONTENT_PATTERN } from '../../constants/phrases.js';
 import { getActiveTheme, useThemeVersion } from '../../themes/index.js';
 import { colors } from '../../utils/colors.js';
+import { isErrorMessage } from '../../utils/errorMessage.js';
+import { isHookMessage, hookMessageLabel } from '../../utils/hookMessage.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
+import type { GoalResult } from '../../hooks/useAcp/types.js';
+import { goalResultLabel } from '../../utils/goalDisplay.js';
 
 
 
@@ -34,11 +41,20 @@ export interface MessageProps {
   isNewGroup?: boolean;        // Indicates whether this is a new group (group_key has changed)
   disableTruncation?: boolean; // When true, render full content without truncation (used for static history)
   isCollapsed?: boolean;       // When true, compact non-edit tool calls
+  terminalWidth?: number;
+  showToolHeading?: boolean;
+  compactSpacing?: boolean;
+  presentation?: boolean;
+  initialCodeFence?: MarkdownCodeFence;
 }
 
-const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, disableTruncation = false, isCollapsed = false }) => {
+const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, disableTruncation = false, isCollapsed = false, terminalWidth: availableWidth, showToolHeading = true, compactSpacing = false, presentation = false, initialCodeFence }) => {
   useThemeVersion(); // repaint on theme change (React.memo blocks prop-driven re-renders)
+  useUiLanguage();
   const icons = getIcons();
+  // The bounded transcript owns inter-message spacing and disclosure headings.
+  const blockGap = compactSpacing ? 0 : 1;
+  const smallGap = compactSpacing ? 0 : 0.5;
 
   const getColor = (): string | undefined => {
     switch (message.type) {
@@ -95,7 +111,6 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   const isToolUse = subtype === 'tool_use';
   const isProcess = subtype === 'process';
   const isAnswer = subtype === 'answer';
-  const isErrorBox = subtype === 'error_box';  // 🔴 New error box subtype
   const isShell = subtype === 'shell';         // 🔵 Shell execution subtype
   const isGoalResult = subtype === 'goal_result'; // 🎯 /goal verifier pass/fail summary
 
@@ -105,7 +120,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   // Calculate dynamic max lines based on terminal height
   // Note: process is a global Node.js object, available in runtime but needs type declaration
   const terminalHeight = (typeof globalThis.process !== 'undefined' && globalThis.process.stdout?.rows) || 24;
-  const terminalWidth = (typeof globalThis.process !== 'undefined' && globalThis.process.stdout?.columns) || 80;
+  const terminalWidth = availableWidth ?? ((typeof globalThis.process !== 'undefined' && globalThis.process.stdout?.columns) || 80);
   // Keep the pending (dynamic) message strictly shorter than the terminal so
   // the whole dynamic area (message + spinner/queue/panels ~14 rows + input
   // box) stays below stdout.rows. Once Ink's dynamic output height reaches
@@ -143,6 +158,32 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     hiddenLinesCount = lineResult.hiddenLines;
   }
 
+  if (isHookMessage(message)) {
+    const accent = message.metadata?.hookStatus === 'notification' || !message.metadata?.hookStatus
+      ? colors.tool : colors.warning;
+    return <Box flexDirection="column" marginBottom={blockGap}>
+      <Box>
+        <Box userSelect="none" flexShrink={0}><Text color={accent}>{'● '}</Text></Box>
+        <Text color={accent} bold>{hookMessageLabel(message)}</Text>
+      </Box>
+      <Box paddingLeft={2}>
+        <Text color={colors.content.secondary}>{safeContent}</Text>
+      </Box>
+    </Box>;
+  }
+
+  if (isErrorMessage(message)) {
+    return <Box flexDirection="column" marginBottom={blockGap}>
+      <Box>
+        <Box userSelect="none" flexShrink={0}><Text color={colors.error}>{'● '}</Text></Box>
+        <Text color={colors.error} bold>{t('错误', 'Error')}</Text>
+      </Box>
+      <Box paddingLeft={2}>
+        <Text color={colors.content.secondary}>{safeContent}</Text>
+      </Box>
+    </Box>;
+  }
+
   // For shell execution messages, render using ShellOutput
   if (isShell) {
     const shellExecution = message.metadata?.shellExecution;
@@ -152,7 +193,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     }
 
     return (
-      <Box marginBottom={1}>
+      <Box marginBottom={blockGap}>
         <ShellOutput
           command={shellExecution.command}
           executing={shellExecution.executing}
@@ -191,7 +232,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
       const summary = firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
       
       return (
-        <Box marginBottom={1}>
+        <Box marginBottom={blockGap}>
           <Text color={colors.content.secondary}>
             ● {summary}... (ctrl+o to expand thinking)
           </Text>
@@ -203,7 +244,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     return (
       <Box
         flexDirection="column"
-        marginBottom={1}
+        marginBottom={blockGap}
         marginLeft={2}
         marginRight={2}
         borderStyle="round"
@@ -228,19 +269,35 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
   // For tool use messages, render in a highlighted box
   if (isToolUse) {
+    const fileEdit = parseFileEditPresentation(originalContent);
+    if (fileEdit) {
+      if (fileEdit.status === 'completed' && fileEdit.hunks.length > 0) {
+        return (
+          <Box flexDirection="column" marginBottom={blockGap}>
+            <FileChangeSetView
+              changes={[{ action: fileEdit.action === 'create' ? 'create' : 'update', path: fileEdit.path, hunks: fileEdit.hunks }]}
+              fileCount={1} width={Math.max(terminalWidth - 2, 8)} showHeading={showToolHeading} />
+          </Box>
+        );
+      }
+      return <FileEditStatusView edit={fileEdit} collapsed={isCollapsed} width={terminalWidth}
+        maxRows={disableTruncation || message.metadata?.streamEnd ? undefined : dynamicMaxLines}
+        showHeading={showToolHeading} />;
+    }
     // Remove the arrow markers if present
     const cleanContent = safeContent.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
-    if (cleanContent === THINKING_STEPS.compaction.phrase) {
+    if (COMPACTION_CONTENT_PATTERN.test(cleanContent) || cleanContent === '正在压缩上下文…') {
       return (
         <Box marginBottom={0}>
-          <ToolHeading parts={[cleanContent]} accent={colors.secondary} />
+          {showToolHeading ? <ToolHeading parts={[THINKING_STEPS.compaction.phrase]} accent={colors.secondary} />
+            : <Text>{THINKING_STEPS.compaction.phrase}</Text>}
         </Box>
       );
     }
     const compactionResult = cleanContent.match(/^Compacted:\s*(\d+)\s*→\s*(\d+)\s+messages\s*\((-?\d+)\s+removed\)$/);
     if (compactionResult) {
       return (
-        <Box flexDirection="column" marginBottom={1} paddingLeft={2}>
+        <Box flexDirection="column" marginBottom={blockGap} paddingLeft={2}>
           <Text>
             <Text color={colors.content.secondary}>{'├─ messages: '}</Text>
             {compactionResult[1]} <Text color={colors.content.secondary}>→</Text> {compactionResult[2]}
@@ -260,10 +317,13 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
       ? parseFileEditContent(originalContent)
       : null;
     const createInfo = parseFileCreateContent(originalContent);
-    const editHunks = (message.metadata?.streamEnd || disableTruncation) && editInfo?.isComplete
+    // Full-text viewports remove height limits without completing a live tool stream.
+    const toolContentComplete = message.metadata?.streamEnd === true || (disableTruncation &&
+      message.metadata?.isStreaming !== true && message.metadata?.chunkIndex === undefined);
+    const editHunks = toolContentComplete && editInfo?.isComplete
       ? getSimplePatch(editInfo.filePath, editInfo.oldString, editInfo.newString)
       : [];
-    const createHunks = (message.metadata?.streamEnd || disableTruncation) &&
+    const createHunks = toolContentComplete &&
         createInfo?.isComplete && createInfo.newString.length > 0
       ? getSimplePatch(createInfo.filePath, '', createInfo.newString)
       : [];
@@ -276,11 +336,13 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
     if (todoItems !== null) {
       return (
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column" marginBottom={blockGap}>
           <TodoPlanView
             items={todoItems}
             collapsed={isCollapsed}
             maxRows={disableTruncation || message.metadata?.streamEnd ? undefined : dynamicMaxLines}
+            width={terminalWidth}
+            showHeading={showToolHeading}
           />
         </Box>
       );
@@ -343,7 +405,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
         }
 
         return (
-          <Box marginBottom={1}>
+          <Box marginBottom={blockGap}>
             <Text color={colors.content.secondary}>
               {icons.tool} {compactDisplay}
             </Text>
@@ -354,11 +416,12 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
     if (patchInfo) {
       return (
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column" marginBottom={blockGap}>
           <FileChangeSetView
             changes={patchInfo.changes}
             fileCount={patchInfo.fileCount}
             width={Math.max(terminalWidth - 2, 8)}
+            showHeading={showToolHeading}
           />
         </Box>
       );
@@ -366,11 +429,12 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
     if (editInfo?.isComplete && editHunks.length > 0) {
       return (
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column" marginBottom={blockGap}>
           <FileChangeSetView
             changes={[{ action: 'update', path: editInfo.filePath, hunks: editHunks }]}
             fileCount={1}
             width={Math.max(terminalWidth - 2, 8)}
+            showHeading={showToolHeading}
           />
         </Box>
       );
@@ -378,11 +442,12 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
     if (createInfo && createHunks.length > 0) {
       return (
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column" marginBottom={blockGap}>
           <FileChangeSetView
             changes={[{ action: 'create', path: createInfo.filePath, hunks: createHunks }]}
             fileCount={1}
             width={Math.max(terminalWidth - 2, 8)}
+            showHeading={showToolHeading}
           />
         </Box>
       );
@@ -392,8 +457,9 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     const semanticDisplay = parsed ? getSemanticToolCallDisplay(parsed) : null;
     if (semanticDisplay) {
       return (
-        <Box flexDirection="column" marginBottom={1}>
-          <SemanticToolCallView tool={parsed!} maxRows={disableTruncation ? undefined : dynamicMaxLines} />
+        <Box flexDirection="column" marginBottom={blockGap}>
+          <SemanticToolCallView tool={parsed!} maxRows={disableTruncation ? undefined : dynamicMaxLines}
+            width={terminalWidth} showHeading={showToolHeading} />
         </Box>
       );
     }
@@ -405,16 +471,18 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     );
     if (isPromptTool) {
       return (
-        <Box flexDirection="column" marginBottom={1}>
-          <ToolPromptView tool={parsed} content={cleanContent} maxRows={disableTruncation ? undefined : dynamicMaxLines} />
+        <Box flexDirection="column" marginBottom={blockGap}>
+          <ToolPromptView tool={parsed} content={cleanContent} maxRows={disableTruncation ? undefined : dynamicMaxLines}
+            width={terminalWidth} showHeading={showToolHeading} />
         </Box>
       );
     }
     return (
-      <Box flexDirection="column" marginBottom={1}>
-        {parsed && <ToolHeading parts={[parsed.summary]} hint={commandDisplay?.timeout ? `timeout:${commandDisplay.timeout}` : undefined} />}
+      <Box flexDirection="column" marginBottom={blockGap}>
+        {parsed && showToolHeading && <ToolHeading parts={[parsed.summary]} />}
         {commandDisplay ? (
-          <CommandView content={commandDisplay.body} hiddenLinesCount={hiddenLinesCount} />
+          <CommandView content={commandDisplay.body} hiddenLinesCount={hiddenLinesCount}
+            width={Math.max(terminalWidth - 4, 2)} />
         ) : (
           <Box
             marginLeft={2}
@@ -443,13 +511,13 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   // For answer messages, render with markdown support
   if (isAnswer) {
     // Remove the arrow markers if present - handle both with and without spaces/asterisks
-    const cleanContent = safeContent.replace('▶ **ANSWER**', '').trimStart();
+    const cleanContent = initialCodeFence ? safeContent : safeContent.replace('▶ **ANSWER**', '').trimStart();
 
     return (
       <Box flexDirection="column" marginTop={isNewGroup ? 0 : 0}>
         {/* Only show agent icon when it's a new group */}
         {isNewGroup && (
-          <Box marginBottom={-1}>
+          <Box marginBottom={-1} userSelect="none">
             <Text color="blue" bold>
               {icons.agent}
             </Text>
@@ -465,6 +533,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
         {cleanContent.length > 0 && (
           <Box paddingLeft={2}>
             <MarkdownText content={cleanContent} availableWidth={Math.max(terminalWidth - 2, 0)}
+              initialCodeFence={initialCodeFence}
               maxDiagramHeight={disableTruncation ? undefined : dynamicMaxLines} />
           </Box>
         )}
@@ -476,6 +545,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   if (isProcess) {
     return (
       <Box flexDirection="column" marginBottom={0} paddingLeft={2}>
+        {presentation && <Text color={colors.content.tertiary}>{t('状态', 'Status')}</Text>}
         <Text color={colors.content.secondary}>{safeContent}</Text>
       </Box>
     );
@@ -486,23 +556,24 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
   // expanding to the full objective/reason/nextAction under global Ctrl+O
   // (isCollapsed), same convention as the thinking/tool_use summaries above.
   if (isGoalResult) {
-    const goalResult = message.metadata?.goalResult as
-      | {
-          achieved: boolean;
-          elapsedSeconds: number;
-          turns: number;
-          tokensUsed: number;
-          objective: string;
-          reason: string;
-          nextAction?: string;
-        }
-      | undefined;
+    const goalResult = message.metadata?.goalResult as GoalResult | undefined;
 
     if (!goalResult) return null;
+    if (presentation) {
+      return <Box flexDirection="column" paddingX={1} backgroundColor={colors.content.surface}>
+        {showToolHeading && <Text bold color={goalResult.achieved ? colors.info : colors.warning}>
+          {goalResult.achieved ? '✓' : '!'} Goal {goalResultLabel(goalResult)} · {goalResult.turns} checks
+        </Text>}
+        <Text color={colors.content.secondary}>Objective: {goalResult.objective}</Text>
+        <Text>Reason: {goalResult.reason}</Text>
+        {goalResult.nextAction && <Text color={colors.content.secondary}>Next action: {goalResult.nextAction}</Text>}
+        <Text color={colors.content.secondary}>Elapsed: {formatElapsedShort(goalResult.elapsedSeconds)} · Checks: {goalResult.turns}</Text>
+      </Box>;
+    }
 
     const achieved = goalResult.achieved;
     const icon = achieved ? '✓' : '○';
-    const iconColor = achieved ? 'green' : 'yellow';
+    const iconColor = achieved ? colors.info : 'yellow';
     const label = achieved ? 'achieved' : 'not yet achieved';
     const elapsedStr = formatElapsedShort(goalResult.elapsedSeconds);
     const turnsStr = `${goalResult.turns} turn${goalResult.turns === 1 ? '' : 's'}`;
@@ -523,7 +594,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
     if (isCollapsed) {
       return (
-        <Box marginTop={1} marginBottom={1}>
+        <Box marginTop={blockGap} marginBottom={blockGap}>
           <Text>
             {summaryLine}
             <Text color={colors.content.secondary}> (ctrl+o to expand)</Text>
@@ -533,7 +604,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     }
 
     return (
-      <Box flexDirection="column" marginTop={1} marginBottom={1}>
+      <Box flexDirection="column" marginTop={blockGap} marginBottom={blockGap}>
         {summaryLine}
 
         <Box flexDirection="column" paddingLeft={2}>
@@ -542,33 +613,6 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
           {goalResult.nextAction && (
             <Text color={colors.content.secondary}>Next action: {goalResult.nextAction}</Text>
           )}
-        </Box>
-      </Box>
-    );
-  }
-
-  // 🔴 For error box messages, render in a red bordered box (similar to tool_use style)
-  if (isErrorBox) {
-    return (
-      <Box
-        flexDirection="column"
-        marginBottom={1}
-        marginLeft={2}
-        borderStyle="round"
-        borderColor="red"
-        paddingX={1}
-      >
-        {hiddenLinesCount > 0 && (
-          <Box paddingLeft={2}>
-            <Text color={colors.warning}>
-              ... {hiddenLinesCount} lines hidden ...
-            </Text>
-          </Box>
-        )}
-        <Box paddingLeft={1} paddingY={0}>
-          <Text color={colors.error}>
-            {safeContent}
-          </Text>
         </Box>
       </Box>
     );
@@ -586,7 +630,7 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
     const width = Math.max(terminalWidth, 1);
 
     return (
-      <Box flexDirection="column" marginTop={0.5} marginBottom={1}>
+      <Box flexDirection="column" marginTop={smallGap} marginBottom={blockGap}>
         {lines.map((line, i) => {
           const text = i === 0 ? `${getIcon()} ${line}` : `  ${line}`;
           // Pad short lines so the background spans the full terminal width.
@@ -605,17 +649,18 @@ const MessageInternal: React.FC<MessageProps> = ({ message, isNewGroup = true, d
 
   // Regular message rendering with header
   return (
-    <Box flexDirection="column" marginBottom={0.5} marginTop={0.5}>
-      <Box marginBottom={-1}>
+    <Box flexDirection="column" marginBottom={smallGap} marginTop={smallGap}>
+      <Box marginBottom={-1} userSelect="none">
         <Text color={getColor()} bold>
           {getIcon()}
         </Text>
         {/* <Text dimColor> [{formatTimestamp(message.timestamp)}]</Text> */}
       </Box>
 
-      <Box paddingLeft={2} marginBottom={1}>
+      <Box paddingLeft={2} marginBottom={blockGap}>
         {message.type === 'agent' ? (
           <MarkdownText content={message.content} availableWidth={Math.max(terminalWidth - 2, 0)}
+            initialCodeFence={initialCodeFence}
             maxDiagramHeight={disableTruncation ? undefined : dynamicMaxLines} />
         ) : (
           <Text>{message.content}</Text>

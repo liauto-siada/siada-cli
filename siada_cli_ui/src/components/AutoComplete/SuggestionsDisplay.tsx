@@ -4,6 +4,9 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
+import { slashCommandService } from '../../services/slashCommandService.js';
 import { Box, Text } from '@jrichman/ink';
 import type { Suggestion } from '../../types/autocomplete.js';
 import { getIcons } from '../../constants/icons.js';
@@ -137,6 +140,7 @@ export const SuggestionsDisplay: React.FC<SuggestionsDisplayProps> = ({
   dualColumnLayout = false,
   expandedIndex = -1
 }) => {
+  useUiLanguage();
   const icons = getIcons();
   
   // Loading state
@@ -184,7 +188,7 @@ export const SuggestionsDisplay: React.FC<SuggestionsDisplayProps> = ({
       {/* Header with position counter */}
       <Box marginBottom={0} justifyContent='space-between'>
         <Text color="cyan" dimColor={githubTheme.textSettings.useDimColor}>
-        Suggestions
+        {t('补全建议', 'Suggestions')}
         </Text>
         <Text color="cyan" dimColor={githubTheme.textSettings.useDimColor}>
           {hasMoreAbove && ' ▲ '}
@@ -204,8 +208,10 @@ export const SuggestionsDisplay: React.FC<SuggestionsDisplayProps> = ({
         const remappedPositions = suggestion.positions
           ?.map(remapPosition)
           .filter((p): p is number => p !== null);
-        const description = suggestion.description
-          ? truncateMiddle(suggestion.description, MAX_DESCRIPTION_LENGTH, isExpanded).text
+        const localizedDescription = suggestion.type === 'command'
+          ? slashCommandService.describeCommand(suggestion.label, suggestion.description) : suggestion.description;
+        const description = localizedDescription
+          ? truncateMiddle(localizedDescription, MAX_DESCRIPTION_LENGTH, isExpanded).text
           : '';
         
         // Check if this is an MCP resource or command
@@ -289,7 +295,7 @@ export const SuggestionsDisplay: React.FC<SuggestionsDisplayProps> = ({
       {/* Navigation hint */}
       <Box marginTop={0}>
         <Text color="gray">
-          ↑↓ navigate • Tab/Enter accept • →← expand • Esc cancel
+          {PANEL_TIPS.completion}
         </Text>
       </Box>
     </Box>

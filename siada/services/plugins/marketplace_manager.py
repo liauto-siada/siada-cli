@@ -26,7 +26,7 @@ from siada.foundation.constants import SIADA_HOME
 from siada.foundation.logging import logger
 
 
-_DEFAULT_MARKETPLACES: list = []
+_DEFAULT_MARKETPLACES = []
 
 _CONFIG_FILENAME = "plugin_config.json"
 
@@ -122,7 +122,7 @@ class MarketplaceManager:
         1. ``git clone --depth=1`` the repo into ``~/.siada-cli/marketplaces/<name>``
            and read ``.claude-plugin/marketplace.json`` from the working tree.
            This naturally reuses the user's git credentials so private repos
-           on enterprise GitLab/GitHub hosts work.
+           on enterprise GitLab/GitHub (e.g. ``gitlab.example.com``) work.
         2. Fallback to anonymous HTTP/REST API (raw.githubusercontent.com /
            GitLab API v4) — only useful for fully public repos but kept for
            machines without a working ``git`` binary.
@@ -236,7 +236,7 @@ class MarketplaceManager:
 
         Uses the system ``git`` binary so SSH keys, credential helpers and
         ``~/.netrc`` are picked up automatically — required for private
-        enterprise repos.
+        enterprise repos (e.g. ``gitlab.example.com``).
 
         For HTTPS URLs we automatically retry with the equivalent ``git@``
         SSH URL when HTTPS auth fails (mirrors Claude Code's behaviour)."""

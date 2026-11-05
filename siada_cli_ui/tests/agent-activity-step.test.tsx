@@ -1,3 +1,4 @@
+import './helpers/chineseLocale.js';
 import React from 'react';
 import { PassThrough } from 'node:stream';
 import { render } from '@jrichman/ink';
@@ -78,14 +79,14 @@ describe('agent activity indicator', () => {
       ui.emit({ type: 'info', content: 'Compacting context...' });
       await vi.waitFor(() => {
         expect(ui.step).toBe('compaction');
-        expect(ui.output).toContain('Compacting context...');
+        expect(ui.output).toContain('正在压缩上下文…');
       });
 
       ui.emit(event);
       await vi.waitFor(() => {
         expect(ui.step).toBe('reasoning');
-        expect(ui.output).toContain('Model reasoning...');
-        expect(ui.output).not.toContain('Compacting context...');
+        expect(ui.output).toContain('正在推理…');
+        expect(ui.output).not.toContain('正在压缩上下文…');
       });
     } finally {
       ui.close();
@@ -105,8 +106,8 @@ describe('agent activity indicator', () => {
       ui.emit(event);
       await vi.waitFor(() => {
         expect(ui.step).toBe('tool_execution');
-        expect(ui.output).toContain('Executing tools...');
-        expect(ui.output).not.toContain('Compacting context...');
+        expect(ui.output).toContain('正在执行工具…');
+        expect(ui.output).not.toContain('正在压缩上下文…');
       });
     } finally {
       ui.close();
@@ -121,7 +122,7 @@ describe('agent activity indicator', () => {
       ui.emit({ type: 'processing_started', animation_control: 'start' });
       await vi.waitFor(() => {
         expect(ui.step).toBe('reasoning');
-        expect(ui.output).toContain('Model reasoning...');
+        expect(ui.output).toContain('正在推理…');
       });
     } finally {
       ui.close();
@@ -137,7 +138,7 @@ describe('agent activity indicator', () => {
       ui.emit({ type: 'message_start', message_type: messageType, message_id: 'model-stream' });
       await vi.waitFor(() => {
         expect(ui.step).toBe('reasoning');
-        expect(ui.output).toContain('Model reasoning...');
+        expect(ui.output).toContain('正在推理…');
       });
       ui.emit({
         type: 'content_delta', delta: 'I will inspect the compression module.',

@@ -27,7 +27,8 @@ from siada.tools.agent.run_subtask import (
 
 GPT6_MODELS = (
     "gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "astra",
-    "vendor-gpt-6.1-sol", "vendor-gpt-7-nova", "gpt-8.1-sol",
+    "gpt-6.1-terra", "azure-gpt-6_1-terra", "vendor-gpt-6.1-sol",
+    "vendor-gpt-7-nova", "gpt-8.1-sol",
 )
 
 
@@ -121,15 +122,18 @@ async def test_reused_primary_agent_refreshes_delegation_after_model_switch(tmp_
         "siada.agent_hub.coder.code_gen_agent.get_available_lark_tools", lambda: [],
     )
     agent = CodeGenAgent()
-    for model_name in ("gpt-6-luna", "gpt-5.4", "gpt-7-astra", "claude-sonnet-5", "astra"):
+    for model_name in (
+        "gpt-6-luna", "gpt-6.1-terra", "gpt-5.4", "gpt-7-astra", "claude-sonnet-5", "astra",
+    ):
         session.siada_config.llm_config = SimpleNamespace(model_name=model_name, provider="default")
         agent.configure_tools_for_context(context)
         tool = next(tool for tool in agent.tools if tool.name == "run_subtask")
-        explicit_only = model_name in ("gpt-6-luna", "gpt-7-astra", "astra")
+        explicit_only = model_name in ("gpt-6-luna", "gpt-6.1-terra", "gpt-7-astra", "astra")
         expected = GPT6_RUN_SUBTASK_DOCS if explicit_only else RUN_SUBTASK_DOCS
         assert tool.description == expected
         prompt = await agent.get_system_prompt(RunContextWrapper(context=context))
         assert (EXPLICIT_REQUEST_ONLY in prompt) is explicit_only
+        assert ("Strongly prefer making reasonable assumptions" in prompt) is (model_name == "gpt-6.1-terra")
 
 
 @pytest.mark.asyncio

@@ -15,6 +15,7 @@ import pytest
 
 from siada.agent_hub.coder.prompt import code_gen_prompt
 from siada.agent_hub.coder.prompt.assembly import builder as prompt_builder
+from siada.agent_hub.coder.prompt.assembly import legacy
 from siada.agent_hub.coder.prompt.assembly.builder import build_system_prompt
 from siada.agent_hub.coder.prompt.sections import capabilities
 from siada.agent_hub.coder.prompt.sections.rules import dispatch as rules
@@ -81,8 +82,8 @@ MODEL_PROFILES = (
     ("vendor-gpt-6.1-sol", "gpt61_sol"),
     ("gpt-6-sol", "gpt6_sol"),
     ("gpt-6-luna", "gpt6_luna"),
-    ("zhipuai/glm-5.2-flash", "glm"),
-    ("zhipuai/glm-5.3", "glm"),
+    ("lpai-glm-5.2-flash", "glm"),
+    ("lpai-glm-5.3", "glm"),
     ("vendor-gpt-7-nova", "future_gpt"),
     ("gpt-7-astra", "future_gpt"),
 )
@@ -95,7 +96,7 @@ SNAPSHOT_CASES = (
     ("default", "claude-sonnet-5", 0),
     ("gpt5", "gpt-5.4", 0),
     ("gpt6", "gpt-6-astra", 1),
-    ("glm", "zhipuai/glm-5.3", 1),
+    ("glm", "lpai-glm-5.3", 1),
     ("future_gpt", "vendor-gpt-7-nova", 0),
 )
 
@@ -165,8 +166,8 @@ def test_coding_prompt_matches_readable_snapshot(render_prompt, profile, model_n
 
 def test_snapshot_failure_identifies_changed_lines(render_prompt, monkeypatch):
     monkeypatch.setattr(
-        code_gen_prompt, "INTRO",
-        code_gen_prompt.INTRO.replace("highly skilled", "synthetically changed"),
+        legacy, "INTRO",
+        legacy.INTRO.replace("highly skilled", "synthetically changed"),
     )
 
     with pytest.raises(pytest.fail.Exception) as error:
@@ -184,7 +185,7 @@ def test_snapshot_failure_identifies_changed_lines(render_prompt, monkeypatch):
     (
         ("gpt-5.4", {"extra_capabilities": ["- Extra one.", "- Extra two."]},
          "8d0fccdc6950187d76279093d4ed5db526ce2e2c9a038cbb872413b7fe85e524"),
-        ("zhipuai/glm-5.3", {"subagent_enabled": False},
+        ("lpai-glm-5.3", {"subagent_enabled": False},
          "c1154ec504471786dedd30878e70cda92ad4578409fadcc37acdda2d884ca5ba"),
         ("claude-sonnet-5", {"preferred_language": None},
          "f86f308585157725e1f0b4536b785748d6fec3c94ac01efa873baa60cf302ce9"),
@@ -268,8 +269,8 @@ def test_rule_dispatcher_keeps_family_renderers_in_separate_modules():
         ("astra", PromptFamily.GPT6, SkillUsageProfile.GPT6, True),
         ("gpt-7-astra", PromptFamily.DEFAULT, SkillUsageProfile.STRICT, True),
         ("vendor-gpt-7-nova", PromptFamily.DEFAULT, SkillUsageProfile.STRICT, True),
-        ("zhipuai/glm-5.2-flash", PromptFamily.GLM, SkillUsageProfile.STRICT, False),
-        ("zhipuai/glm-5.3", PromptFamily.GLM, SkillUsageProfile.STRICT, False),
+        ("lpai-glm-5.2-flash", PromptFamily.GLM, SkillUsageProfile.STRICT, False),
+        ("lpai-glm-5.3", PromptFamily.GLM, SkillUsageProfile.STRICT, False),
         ("kimi-k3", PromptFamily.KIMI_K3, SkillUsageProfile.STRICT, False),
         ("vendor-kimi-k3", PromptFamily.KIMI_K3, SkillUsageProfile.STRICT, False),
         ("kimi-k3.1", PromptFamily.KIMI_K3, SkillUsageProfile.STRICT, False),
@@ -277,6 +278,8 @@ def test_rule_dispatcher_keeps_family_renderers_in_separate_modules():
         ("kimi-k4", PromptFamily.KIMI_K3, SkillUsageProfile.STRICT, False),
         ("k3.1", PromptFamily.KIMI_K3, SkillUsageProfile.STRICT, False),
         ("k4", PromptFamily.KIMI_K3, SkillUsageProfile.STRICT, False),
+        ("deepseek-v4-flash", PromptFamily.DEEPSEEK, SkillUsageProfile.STRICT, False),
+        ("baidu-deepseek-v4.1-flash", PromptFamily.DEEPSEEK, SkillUsageProfile.STRICT, False),
     ),
 )
 def test_profile_keeps_prompt_family_separate_from_tool_surface(
@@ -290,7 +293,8 @@ def test_profile_keeps_prompt_family_separate_from_tool_surface(
 
 
 @pytest.mark.parametrize("model_name", [
-    "gpt-5.4", "kimi-k3", "k3.1", "vendor-kimi-k3.5", "kimi-k4", "glm-5.2", "glm-5.3", "glm-6",
+    "gpt-5.4", "kimi-k3", "k3.1", "vendor-kimi-k3.5", "kimi-k4", "lpai-glm-5.3",
+    "deepseek-v4-flash",
 ])
 def test_main_path_resolves_profile_once(monkeypatch, render_prompt, model_name):
     resolved_models = []

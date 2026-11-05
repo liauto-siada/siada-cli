@@ -128,23 +128,18 @@ export function cleanMessage(text: string): string {
 /**
  * Calculate how many session items fit within the terminal height.
  *
- * Row budget for everything except the list itself: header (6) + footer (4)
- * + scroll indicators (2) = 12, plus any visible auxiliary panel, plus one
- * extra row for the renderer's trailing newline (the frame is written as
- * `frame + '\n'`; a frame exactly `terminalRows` tall scrolls its first
- * line into scrollback on every redraw). Each SessionItem renders exactly
- * 2 rows (all texts use wrap="truncate" and the message is collapsed to a
- * single line), so the rendered frame stays within `terminalRows - 1`.
+ * Shared picker chrome occupies seven rows including scroll indicators and
+ * the trailing newline. Session rows include the metadata line and snippets.
  */
 export function calculateVisibleSessionCount(
   terminalRows: number,
-  options: { searchVisible?: boolean; renameVisible?: boolean; redirectVisible?: boolean } = {}
+  options: { searchVisible?: boolean; renameVisible?: boolean; redirectVisible?: boolean; snippetRows?: number } = {}
 ): number {
-  let chromeRows = 13;
+  let chromeRows = 7;
   if (options.searchVisible) chromeRows += 4; // SearchBox: border(3) + marginBottom(1)
   if (options.renameVisible) chromeRows += 4; // RenameBox: border(3) + marginBottom(1)
   if (options.redirectVisible) chromeRows += 6; // Redirect panel: border(5) + marginTop(1)
-  return Math.max(1, Math.floor((terminalRows - chromeRows) / 2));
+  return Math.max(1, Math.floor((terminalRows - chromeRows) / (2 + (options.snippetRows ?? 0))));
 }
 
 /**

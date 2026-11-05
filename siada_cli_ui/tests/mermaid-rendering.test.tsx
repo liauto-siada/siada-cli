@@ -5,6 +5,7 @@ import stringWidth from 'string-width';
 import { describe, expect, it, vi } from 'vitest';
 import { MarkdownText } from '../src/components/common/MarkdownText.js';
 import { renderMermaidDiagram } from '../src/components/markdown/MermaidDiagram.js';
+import { KeypressProvider } from '../src/contexts/KeypressContext.js';
 
 const source = 'flowchart LR\n A[收到请求] --> B[返回结果]';
 const fenced = `\`\`\`mermaid\n${source}\n\`\`\``;
@@ -13,9 +14,9 @@ async function frame(content: string, columns = 80, maxDiagramHeight?: number): 
   const stdout = Object.assign(new PassThrough(), { columns, rows: 40 });
   let output: string | undefined;
   const app = render(
-    <Box paddingLeft={2}>
+    <KeypressProvider><Box paddingLeft={2}>
       <MarkdownText content={content} availableWidth={columns - 2} maxDiagramHeight={maxDiagramHeight} />
-    </Box>,
+    </Box></KeypressProvider>,
     {
       stdout, stdin: new PassThrough(), patchConsole: false, exitOnCtrlC: false, maxFps: 0,
       onRender: value => { output = value.output.replace(/\x1b\[[0-9;]*m/g, ''); },
@@ -58,10 +59,11 @@ describe('Mermaid rendering boundaries', () => {
     expect(new Set(endings).size).toBe(1);
   });
 
-  it('accepts the exact width and height and rejects one cell less', () => {
+  it('accepts narrow viewports and budgets a row for navigation', () => {
     const art = renderMermaidDiagram(source, 80)!;
     expect(renderMermaidDiagram(source, art.width, art.plain.length)).not.toBeNull();
-    expect(renderMermaidDiagram(source, art.width - 1)).toBeNull();
+    expect(renderMermaidDiagram(source, art.width - 1)).not.toBeNull();
+    expect(renderMermaidDiagram(source, art.width - 1, art.plain.length)).toBeNull();
     expect(renderMermaidDiagram(source, 80, art.plain.length - 1)).toBeNull();
   });
 
@@ -89,8 +91,12 @@ describe('Mermaid rendering boundaries', () => {
     expect(output).not.toContain('┌');
   });
 
-  it('retains source when the width or height does not fit', async () => {
-    expect(await frame(fenced, 12)).not.toContain('┌');
+  it('clips wide diagrams and retains source when the height does not fit', async () => {
+    const output = await frame(fenced, 12);
+    expect(output).toContain('┌');
+    expect(output).toContain('◀');
+    expect(output).toContain('▶');
+    expect(output.split('\n').every(line => stringWidth(line) <= 12)).toBe(true);
     expect(await frame(fenced, 80, 2)).toContain('flowchart LR');
   });
 

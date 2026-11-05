@@ -4,6 +4,10 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
+import { PickerHeader, PickerFooter, PickerRow, PickerScrollHint, calculatePickerVisibleCount } from '../Picker/Picker.js';
+import { colors } from '../../utils/colors.js';
 import { Box, Text } from '@jrichman/ink';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
@@ -75,12 +79,14 @@ export interface PluginManagerProps {
 
 const TABS = ['Discover', 'Installed', 'Marketplaces'] as const;
 type TabName = typeof TABS[number];
-const MAX_VISIBLE = 8;
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgress, onAction, onExit }) => {
-  const { columns } = useTerminalSize();
+  const uiLanguage = useUiLanguage();
+  const { rows } = useTerminalSize();
+  // Include each item's description and group header in the visible-row budget.
+  const MAX_VISIBLE = calculatePickerVisibleCount(rows, { summary: true, rowHeight: 3, extraRows: 2 });
 
   const [activeTab, setActiveTab] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -162,7 +168,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
       plugin_name: null,
     }));
     return [...skills, ...mcps];
-  }, [data.installed, data.mcp_servers, localRemovedSkills]);
+  }, [data.installed, data.mcp_servers, localRemovedSkills, uiLanguage]);
 
   // Grouped structure for rendering: section headers + selectable items
   // Each entry is either a header (no selectIdx) or a skill with its navigation index
@@ -200,7 +206,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
     }
 
     if (pluginMap.size > 0) {
-      entries.push({ kind: 'header', label: `Plugins (${pluginMap.size})` });
+      entries.push({ kind: 'header', label: t(`插件（${pluginMap.size}）`, `Plugins (${pluginMap.size})`) });
       for (const [pname, pskills] of pluginMap) {
         entries.push({ kind: 'header', label: `  \u25b8 ${pname}` });
         for (const s of pskills) {
@@ -210,21 +216,21 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
     }
 
     if (standaloneSkills.length > 0) {
-      entries.push({ kind: 'header', label: `Skills (${standaloneSkills.length})` });
+      entries.push({ kind: 'header', label: t(`技能（${standaloneSkills.length}）`, `Skills (${standaloneSkills.length})`) });
       for (const s of standaloneSkills) {
         entries.push({ kind: 'skill', skill: s, selectIdx: selectIdx++ });
       }
     }
 
     if (mcps.length > 0) {
-      entries.push({ kind: 'header', label: `MCP Servers (${mcps.length})` });
+      entries.push({ kind: 'header', label: t(`MCP 服务（${mcps.length}）`, `MCP Servers (${mcps.length})`) });
       for (const m of mcps) {
         entries.push({ kind: 'skill', skill: m, selectIdx: selectIdx++ });
       }
     }
 
     return entries;
-  }, [data.installed, data.mcp_servers, localRemovedSkills]);
+  }, [data.installed, data.mcp_servers, localRemovedSkills, uiLanguage]);
 
   const visibleMarketplaces = useMemo(
     () =>
@@ -371,11 +377,11 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
             return ns;
           });
           setLocalRemovedSkills(s => new Set([...s, skill.name]));
-          setPendingMsg(`Removing '${skill.name}'...`);
+          setPendingMsg(t(`正在卸载“${skill.name}”…`, `Removing '${skill.name}'...`));
           onAction(`/plugin remove ${skill.name}`);
         } else {
           setLocalInstalled(s => new Set([...s, skill.name]));
-          setPendingMsg(`Waiting for clone to start...`);
+          setPendingMsg(t('等待开始下载…', 'Waiting for clone to start...'));
           onAction(`/plugin install ${skill.name} @${skill.marketplaceName}`);
         }
       }
@@ -415,7 +421,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
           setLocalRemovedMps(s => new Set([...s, mp.name]));
           onAction(`/plugin marketplace remove ${mp.name}`);
         } else if (key.sequence === 'u' || key.sequence === 'U') {
-          setPendingMsg(`Fetching skills from '${mp.name}'...`);
+          setPendingMsg(t(`正在从“${mp.name}”获取技能…`, `Fetching skills from '${mp.name}'...`));
           onAction(`/plugin marketplace update ${mp.name}`);
         }
       }
@@ -424,31 +430,22 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
 
   // ─── Render helpers ───────────────────────────────────────────────────────
 
-  const sep = '\u2500'.repeat(Math.max(10, columns - 2));
-
   const renderTabBar = () => (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box flexDirection="row" paddingX={1}>
-        <Text bold color="white">
-          {' Plugins  '}
-        </Text>
+    <Box flexDirection="column">
+      <PickerHeader title={t('插件', 'Plugins')} />
+      <Box flexDirection="row">
         {TABS.map((tab, i) => (
           <Text
             key={tab}
-            color={activeTab === i ? 'cyan' : 'gray'}
+            color={activeTab === i ? undefined : colors.content.secondary}
             bold={activeTab === i}
+            wrap="truncate-end"
           >
-            {tab}
+            {activeTab === i ? '› ' : '  '}{t({ Discover: '发现', Installed: '已安装', Marketplaces: '市场' }[tab], tab)}
             {'   '}
           </Text>
         ))}
-        <Text color="gray" dimColor>
-          {'(\u2190/\u2192 or tab to move)'}
-        </Text>
       </Box>
-      <Text color="gray" dimColor>
-        {sep}
-      </Text>
     </Box>
   );
 
@@ -460,62 +457,46 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
 
     return (
       <Box flexDirection="column">
-        <Box paddingX={2} marginBottom={1}>
-          <Text color="gray" dimColor>
-            {`Discover plugins (${skills.length}/${data.discover.length})`}
+        <Box>
+          <Text color={colors.content.secondary} wrap="truncate-end">
+            {t(`发现插件（${skills.length}/${data.discover.length}）`, `Discover plugins (${skills.length}/${data.discover.length})`)}
           </Text>
         </Box>
 
-        <Box paddingX={2} marginBottom={1}>
-          <Box
-            borderStyle="round"
-            borderColor={isSearching ? 'cyan' : 'gray'}
-            paddingX={1}
-          >
-            <Text color={isSearching ? 'cyan' : 'gray'}>
+        <Box>
+            <Text color={colors.content.secondary} wrap="truncate-end">
               {isSearching
                 ? `\u2315 ${searchQuery}\u258b`
                 : searchQuery
                 ? `\u2315 ${searchQuery}`
-                : '\u2315 Search\u2026'}
+                : t('⌕ 搜索…', '⌕ Search…')}
             </Text>
-          </Box>
         </Box>
 
         {skills.length === 0 && (
-          <Box paddingX={4}>
-            <Text color="gray" dimColor>
+          <Box>
+            <Text color={colors.content.secondary} wrap="truncate-end">
               {data.marketplaces.length === 0
-                ? 'No marketplaces configured. Add one in the Marketplaces tab.'
+                ? t('尚未配置市场，请在“市场”标签中添加。', 'No marketplaces configured. Add one in the Marketplaces tab.')
                 : searchQuery
-                ? 'No skills match your search.'
-                : 'No skills available from configured marketplaces.'}
+                ? t('没有匹配的技能。', 'No skills match your search.')
+                : t('已配置的市场中暂无可用技能。', 'No skills available from configured marketplaces.')}
             </Text>
           </Box>
         )}
 
+        <PickerScrollHint visible={startIdx > 0} direction="up" />
         {visible.map((skill, relIdx) => {
           const absIdx = startIdx + relIdx;
           const isActive = absIdx === activeIndex;
           const isInstalled = localInstalled.has(skill.name);
           return (
-            <Box key={skill.name} paddingX={2} flexDirection="column">
-              <Box flexDirection="row">
-                <Text color={isActive ? 'cyan' : 'gray'}>
-                  {isActive ? '\u276f ' : '  '}
-                </Text>
-                <Text color={isInstalled ? 'green' : 'gray'}>
-                  {isInstalled ? '\u25c9' : '\u25ef'}
-                </Text>
-                <Text color={isActive ? 'cyan' : 'white'} bold={isActive}>
-                  {` ${skill.name}`}
-                </Text>
-                <Text color="gray" dimColor>
-                  {` \u00b7 ${skill.marketplaceName || skill.marketplace}${skill.installs ? ` \u00b7 ${skill.installs} installs` : ''}`}
-                </Text>
-              </Box>
-              <Box paddingLeft={4}>
-                <Text color="gray" dimColor>
+            <Box key={skill.name} flexDirection="column">
+              <PickerRow active={isActive} checked={isInstalled}>
+                {`${skill.name} · ${skill.marketplaceName || skill.marketplace}${skill.installs ? t(` · ${skill.installs} 次安装`, ` · ${skill.installs} installs`) : ''}`}
+              </PickerRow>
+              <Box paddingLeft={2}>
+                <Text color={colors.content.secondary} wrap="truncate-end">
                   {skill.description.length > 72
                     ? skill.description.slice(0, 69) + '...'
                     : skill.description}
@@ -525,36 +506,21 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
           );
         })}
 
-        {startIdx > 0 && (
-          <Box paddingX={4}>
-            <Text color="gray" dimColor>{`\u2191 ${startIdx} more above`}</Text>
-          </Box>
-        )}
-        {endIdx < skills.length && (
-          <Box paddingX={4}>
-            <Text color="gray" dimColor>{'\u2193 more below'}</Text>
-          </Box>
-        )}
+        <PickerScrollHint visible={endIdx < skills.length} direction="down" />
 
         {installProgress ? (() => {
-          const barWidth = Math.max(20, Math.min(40, columns - 36));
-          const filled = Math.round((installProgress.percent / 100) * barWidth);
-          const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(barWidth - filled);
+          const filled = Math.round(Math.max(0, Math.min(100, installProgress.percent)) / 10);
+          const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
           return (
-            <Box paddingX={2} marginTop={1} flexDirection="column">
-              <Box flexDirection="row" gap={1}>
-                <Text color="yellow">{`\u29d7 ${installProgress.skillName}`}</Text>
-                <Text color="gray" dimColor>{installProgress.phase}</Text>
-              </Box>
-              <Box flexDirection="row" gap={1}>
-                <Text color="cyan">{bar}</Text>
-                <Text color="white" bold>{`${installProgress.percent}%`}</Text>
-              </Box>
+            <Box>
+              <Text color={colors.content.secondary} wrap="truncate-end">
+                {`${bar} ${installProgress.percent}% ${installProgress.skillName} · ${installProgress.phase}`}
+              </Text>
             </Box>
           );
         })() : pendingMsg ? (
-          <Box paddingX={2} marginTop={1}>
-            <Text color="yellow">{`\u29d7 ${pendingMsg}`}</Text>
+          <Box>
+            <Text color={colors.content.secondary} wrap="truncate-end">{`\u29d7 ${pendingMsg}`}</Text>
           </Box>
         ) : null}
       </Box>
@@ -583,31 +549,27 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
 
     return (
       <Box flexDirection="column">
-        <Box paddingX={2} marginBottom={1}>
-          <Text color="gray" dimColor>
-            {`Installed (${totalSelectable})`}
+        <Box>
+          <Text color={colors.content.secondary} wrap="truncate-end">
+            {t(`已安装（${totalSelectable}）`, `Installed (${totalSelectable})`)}
           </Text>
         </Box>
 
         {totalSelectable === 0 && (
-          <Box paddingX={4}>
-            <Text color="gray" dimColor>No skills, plugins or MCP servers installed.</Text>
+          <Box>
+            <Text color={colors.content.secondary} wrap="truncate-end">{t('尚未安装技能、插件或 MCP 服务。', 'No skills, plugins or MCP servers installed.')}</Text>
           </Box>
         )}
 
-        {windowStart > 0 && (
-          <Box paddingX={4}>
-            <Text color="gray" dimColor>{`\u2191 more above`}</Text>
-          </Box>
-        )}
+        <PickerScrollHint visible={windowStart > 0} direction="up" />
 
         {sections.map((entry, i) => {
           if (entry.kind === 'header') {
             if (!visibleHeaders.has(i)) return null;
             const isTopLevel = !entry.label.startsWith('  ');
             return (
-              <Box key={`hdr-${i}`} paddingX={2} marginTop={isTopLevel && i > 0 ? 1 : 0}>
-                <Text color={isTopLevel ? 'cyan' : 'gray'} bold={isTopLevel} dimColor={!isTopLevel}>
+              <Box key={`hdr-${i}`}>
+                <Text color={colors.content.secondary} bold={isTopLevel} wrap="truncate-end">
                   {entry.label}
                 </Text>
               </Box>
@@ -620,26 +582,17 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
           const scopeLabel = skill.isMcp
             ? '[mcp]'
             : skill.scope === 'user'
-            ? '[user]'
+            ? t('[用户]', '[user]')
             : skill.scope === 'repo'
-            ? '[repo]'
-            : '[sys]';
-          const indent = skill.plugin_name ? 6 : 4;
+            ? t('[项目]', '[repo]')
+            : t('[系统]', '[sys]');
           return (
-            <Box key={skill.name} paddingX={2} flexDirection="column">
-              <Box flexDirection="row">
-                <Text color={isActive ? 'cyan' : 'gray'}>
-                  {isActive ? '\u276f ' : '  '}
-                </Text>
-                <Text color={skill.isMcp ? 'yellow' : isDisabled ? 'gray' : isActive ? 'cyan' : 'white'}>
-                  {`${skill.isMcp ? '\u25c8' : isDisabled ? '\u25cb' : '\u25cf'} ${skill.name}`}
-                </Text>
-                <Text color="gray" dimColor>
-                  {`  ${scopeLabel}${isDisabled ? ' [disabled]' : ''}`}
-                </Text>
-              </Box>
-              <Box paddingLeft={indent}>
-                <Text color="gray" dimColor>
+            <Box key={skill.name} flexDirection="column">
+              <PickerRow active={isActive} checked={skill.isMcp ? undefined : !isDisabled}>
+                {`${skill.name}  ${scopeLabel}${isDisabled ? t(' [已禁用]', ' [disabled]') : ''}`}
+              </PickerRow>
+              <Box paddingLeft={2}>
+                <Text color={colors.content.secondary} wrap="truncate-end">
                   {skill.description.length > 70
                     ? skill.description.slice(0, 67) + '...'
                     : skill.description}
@@ -649,69 +602,53 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
           );
         })}
 
-        {windowEnd < totalSelectable && (
-          <Box paddingX={4}>
-            <Text color="gray" dimColor>{'\u2193 more below'}</Text>
-          </Box>
-        )}
+        <PickerScrollHint visible={windowEnd < totalSelectable} direction="down" />
       </Box>
     );
   };
 
   const renderMarketplacesTab = () => {
     const mps = visibleMarketplaces;
+    const start = Math.max(0, activeIndex - MAX_VISIBLE + 1);
     return (
       <Box flexDirection="column">
-        <Box paddingX={2} marginBottom={1}>
-          <Text color="gray" dimColor>Manage marketplaces</Text>
+        <Box>
+          <Text color={colors.content.secondary} wrap="truncate-end">{t('管理插件市场', 'Manage marketplaces')}</Text>
         </Box>
 
         {isAddingMarketplace && (
-          <Box paddingX={2} marginBottom={1}>
-            <Box borderStyle="round" borderColor="cyan" paddingX={1}>
-              <Text color="cyan">{'repo (owner/repo): '}</Text>
-              <Text color="white">{`${addInput}\u258b`}</Text>
-            </Box>
+          <Box>
+            <Text wrap="truncate-end">{t('仓库（owner/repo）：', 'repo (owner/repo): ')}{`${addInput}\u258b`}</Text>
           </Box>
         )}
 
         {/* "+ Add Marketplace" row */}
-        <Box paddingX={2} flexDirection="row">
-          <Text color={activeIndex === 0 ? 'cyan' : 'gray'}>
-            {activeIndex === 0 ? '\u276f ' : '  '}
-          </Text>
-          <Text color={activeIndex === 0 ? 'cyan' : 'green'} bold>
-            + Add Marketplace
-          </Text>
-        </Box>
+        {start === 0 && <PickerRow active={activeIndex === 0}>{t('+ 添加市场', '+ Add Marketplace')}</PickerRow>}
+        <PickerScrollHint visible={start > 0} direction="up" />
 
-        {mps.map((mp, i) => {
-          const rowIdx = i + 1;
+        {mps.slice(Math.max(0, start - 1), start + MAX_VISIBLE - 1).map((mp, i) => {
+          const rowIdx = Math.max(0, start - 1) + i + 1;
           const isActive = rowIdx === activeIndex;
-          const isUpdating = pendingMsg.startsWith(`Fetching skills from '${mp.name}'`);
+          const isUpdating = pendingMsg.startsWith(`正在从“${mp.name}”获取技能`) ||
+            pendingMsg.startsWith(`Fetching skills from '${mp.name}'`);
           return (
-            <Box key={mp.name} paddingX={2} flexDirection="column" marginTop={1}>
-              <Box flexDirection="row">
-                <Text color={isActive ? 'cyan' : 'gray'}>
-                  {isActive ? '\u276f ' : '  '}
-                </Text>
-                <Text color={isActive ? 'cyan' : 'white'} bold>
-                  {`\u25cf ${mp.name}`}
-                </Text>
-              </Box>
-              <Box paddingLeft={4} flexDirection="column">
-                <Text color="gray" dimColor>{mp.repo}</Text>
+            <Box key={mp.name} flexDirection="column">
+              <PickerRow active={isActive}>{mp.name}</PickerRow>
+              <Box paddingLeft={2} flexDirection="column">
+                <Text color={colors.content.secondary} wrap="truncate-end">{mp.repo}</Text>
                 {isUpdating ? (
-                  <Text color="yellow">{`\u29d7 Fetching skill list...`}</Text>
+                  <Text color={colors.content.secondary} wrap="truncate-end">{t('⧗ 正在获取技能列表…', '⧗ Fetching skill list...')}</Text>
                 ) : (
-                  <Text color="gray" dimColor>
-                    {`${mp.available} available \u2022 ${mp.installed} installed${mp.updatedAt ? ` \u2022 Updated ${mp.updatedAt}` : ''}`}
+                  <Text color={colors.content.secondary} wrap="truncate-end">
+                    {t(`${mp.available} 项可用 · ${mp.installed} 项已安装${mp.updatedAt ? ` · 更新于 ${mp.updatedAt}` : ''}`,
+                      `${mp.available} available · ${mp.installed} installed${mp.updatedAt ? ` · Updated ${mp.updatedAt}` : ''}`)}
                   </Text>
                 )}
               </Box>
             </Box>
           );
         })}
+        <PickerScrollHint visible={start + MAX_VISIBLE < mps.length + 1} direction="down" />
       </Box>
     );
   };
@@ -721,24 +658,25 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
     const tabName: TabName = TABS[activeTab];
     let hint: string;
     if (isAddingMarketplace) {
-      hint = 'Type repo (owner/repo) · Enter to add · Esc to cancel';
+      hint = t('Enter 添加 · Esc 返回 · 输入仓库（owner/repo）',
+        'Enter add · Esc back · Type owner/repo');
     } else if (isSearching) {
-      hint = 'Type to search · Enter to confirm · Esc to cancel';
+      hint = t('Enter 确定 · Esc 返回 · 输入关键词搜索',
+        'Enter confirm · Esc back · Type to search');
     } else if (tabName === 'Discover') {
-      hint = '/ to search · Space/Enter to toggle · ←/→ or tab to switch · Esc to exit';
+      hint = t('↑↓ 选择 · Esc 返回 · ←→/Tab 标签 · Space/Enter 安装/卸载 · / 搜索',
+        '↑↓ select · Esc back · ←→/Tab tabs · Space/Enter install/remove · / search');
     } else if (tabName === 'Installed') {
-      hint = '↑↓ navigate · d to disable/enable · r to remove · ←/→ or tab to switch · Esc to exit';
+      hint = t('↑↓ 选择 · Esc 返回 · ←→/Tab 标签 · d 启停 · r 卸载',
+        '↑↓ select · Esc back · ←→/Tab tabs · d enable/disable · r remove');
     } else if (tabName === 'Marketplaces') {
-      hint = 'Enter to add · u to update · r to remove · ←/→ or tab to switch · Esc to exit';
+      hint = t('↑↓ 选择 · Esc 返回 · ←→/Tab 标签 · Enter 添加 · u 更新 · r 移除',
+        '↑↓ select · Esc back · ←→/Tab tabs · Enter add · u update · r remove');
     } else {
-      hint = '↑↓ navigate · ←/→ or tab to switch · Esc to exit'; // fallback
+      hint = PANEL_TIPS.pluginDefault; // fallback
     }
     return (
-      <Box paddingX={2} marginTop={1}>
-        <Text color="gray" dimColor>
-          {hint}
-        </Text>
-      </Box>
+      <PickerFooter>{hint}</PickerFooter>
     );
   };
 
@@ -750,7 +688,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ data, installProgr
   };
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" paddingX={1} width="100%">
       {renderTabBar()}
       {renderContent()}
       {renderFooter()}

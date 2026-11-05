@@ -1,19 +1,6 @@
 import re
 from typing import Optional, Any, Tuple, List, Dict
 
-# One (open, close) tag pair per spelling — the hyphen spelling used by
-# ``merge_goal_reminder_into_input`` and the legacy underscore spelling
-# ``TodoReminderFilter`` used before it was unified onto the hyphen tag.
-# Sessions persisted before that unification still have the underscore
-# spelling on disk, so both must keep being recognized on replay.
-_SYSTEM_REMINDER_WRAPPERS = (
-    ("<system-reminder>", "</system-reminder>"),
-    ("<system_reminder>", "</system_reminder>"),
-)
-
-# Hyphen-spelling opening tag carrying attributes (e.g. a ``source=...``).
-_SYSTEM_REMINDER_OPEN_WITH_ATTRS = re.compile(r"<system-reminder\s[^<>]*>")
-
 # Older Chrome clients persisted this generated preamble inside the user
 # message. Match only its leading, generated shape; quoted tags elsewhere
 # in a user's text remain part of the conversation.
@@ -26,56 +13,24 @@ _LEGACY_BROWSER_PREAMBLE = re.compile(
 
 
 def _is_whole_system_reminder(text: str) -> bool:
-    """Return True only if ``text``, once surrounding whitespace is
-    stripped, is a system-reminder block **from start to end** — i.e. the
-    entire piece of text is the harness-injected reminder, not a reminder
-    tag merely appearing somewhere inside otherwise-real text.
+    """Share input wrapping's whole-message boundary without eager imports."""
+    # The memory package imports session services, which use this classifier.
+    from siada.services.memory.holographic.marker import is_whole_system_reminder
 
-    This is a whole-string match, not a substring search-and-remove, by
-    design. Reminders are always injected as a dedicated, reminder-only
-    message or content part (see ``merge_goal_reminder_into_input``,
-    which appends the reminder as its own separate content part rather
-    than splicing it into existing text, and ``TodoReminderFilter``,
-    which injects a dedicated standalone message) — never spliced into
-    the middle of real user text. So "the whole part/message is exactly
-    one reminder block" is both sufficient and safe to detect.
-
-    Treating any *substring* occurrence as strippable would be unsafe in
-    two ways:
-    - It could erase real, legitimately-typed user text that happens to
-      contain a reminder-looking tag (e.g. a user quoting/pasting a
-      previously-rendered reminder back into a new message — that text
-      is real conversation history, not a harness nudge, even though it
-      contains the tag string).
-    - A combined regex like
-      ``<system[-_]reminder>.*?</system[-_]reminder>`` lets a hyphen
-      *opening* tag pair with an underscore *closing* tag (or vice
-      versa) when both spellings appear in the same string, silently
-      leaving part of the block un-stripped.
-
-    Matching only "starts with an opening tag AND ends with the *same
-    spelling's* closing tag" sidesteps both problems: mixed-content
-    messages are left completely untouched, and the two spellings can
-    never cross-pair.
-    """
-    if not isinstance(text, str):
-        return False
-    stripped = text.strip()
-    if any(
-        stripped.startswith(open_tag) and stripped.endswith(close_tag)
-        for open_tag, close_tag in _SYSTEM_REMINDER_WRAPPERS
-    ):
-        return True
-    # The hyphen spelling may also carry attributes naming its source (e.g.
-    # ``<system-reminder source="siada.runtime.repeated-tool">``); the
-    # closing tag must still be the same spelling's.
-    return bool(_SYSTEM_REMINDER_OPEN_WITH_ATTRS.match(stripped)) and stripped.endswith(
-        "</system-reminder>"
-    )
+    return is_whole_system_reminder(text)
 
 
 def is_hidden_runtime_text(text: Any) -> bool:
-    """Whether ``text`` is a whole system-reminder block, including Git snapshots."""
+    """Recognize whole reminders, including entrypoint-wrapped continuations."""
+    if isinstance(text, str):
+        from siada.services.memory.holographic.marker import USER_INPUT_BEGIN, USER_INPUT_END
+
+        # Internal SwitchEvent continuations historically passed through the
+        # same wrapper as human input. Unwrap only a whole enclosing pair;
+        # quoted reminder tags inside real text must remain visible.
+        stripped = text.strip()
+        if stripped.startswith(USER_INPUT_BEGIN) and stripped.endswith(USER_INPUT_END):
+            text = stripped[len(USER_INPUT_BEGIN):-len(USER_INPUT_END)]
     return _is_whole_system_reminder(text)
 
 
@@ -220,7 +175,7 @@ def format_native_items_for_display(
     ACP replay can opt into tool identity/input metadata to keep tools out
     of ordinary assistant text without changing the terminal history shape.
     - function_call items are formatted via ToolCallFormatterFactory
-    - function_call_output items are skipped
+    - function_call_output items inform edit_file status but are not standalone rows
     - User messages have <task>...</task> wrappers stripped, as well as
       the <user_input>...</user_input> tag added at every input entry
       point (TUI, Feishu) — see ``marker.wrap_user_input``
@@ -256,9 +211,18 @@ def format_native_items_for_display(
         render_apply_patch_history_preview,
     )
     from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
+    from siada.tools.coder.file_edit_presentation import (
+        RESULT_UNAVAILABLE,
+        is_file_edit_write,
+        render_file_edit_display,
+    )
 
     messages: List[Dict[str, Any]] = []
-    for item in items:
+    tool_outputs = {
+        item.get("call_id"): item.get("output")
+        for item in items if item.get("type") == "function_call_output" and item.get("call_id")
+    }
+    for item_index, item in enumerate(items):
         item_type = item.get("type", "")
         role = item.get("role", "assistant")
 
@@ -269,7 +233,13 @@ def format_native_items_for_display(
                 arguments = item.get("arguments", "{}")
                 call_id = item.get("call_id", item.get("id", ""))
                 formatter = ToolCallFormatterFactory.get_formatter(name)
-                content, _ = formatter.format_input(call_id, name, arguments)
+                if name == "edit_file" and is_file_edit_write(arguments):
+                    content = render_file_edit_display(
+                        call_id or f"history-edit-{item_index}", arguments,
+                        output=tool_outputs.get(call_id, RESULT_UNAVAILABLE), history=True,
+                    )
+                else:
+                    content, _ = formatter.format_input(call_id, name, arguments)
                 if content:
                     message: Dict[str, Any] = {
                         "role": "assistant",
@@ -283,8 +253,8 @@ def format_native_items_for_display(
                 pass
             continue
 
-        # Like edit_file, reconstruct a requested patch preview from the
-        # persisted tool input. The model-facing output remains skipped.
+        # Preserve the native patch's requested history preview. The
+        # model-facing output remains skipped as a standalone row.
         if item_type == "apply_patch_call":
             message = {
                 "role": "assistant",

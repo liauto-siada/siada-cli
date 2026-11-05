@@ -1,9 +1,16 @@
-"""Render full Markdown prompt templates with one-pass runtime substitution."""
+"""Render a full Markdown system prompt template with Siada session facts.
 
-from string import Template
+Full-template families ship their content under ``models/``;
+this renderer owns the shared substitution logic so the families cannot
+drift apart in how runtime values, safety rules and optional catalogs are
+spliced in. Dynamic values are substituted once and are never interpreted as
+template syntax themselves.
+"""
 
-from ..sections.memory import wrap_user_memory
-from ..sections.rules.shared import _GIT_SAFETY_SECTION, _HARNESS_SECTION, _OWASP_RULE
+from ..sections.language import render_language_section
+from .context import SystemPromptContext
+from .fragments import get_skills_catalog, render_memory_section, render_runtime_instructions
+from .template import render_optional_section, render_prompt_template
 
 
 _SKILLS_GUIDANCE = (
@@ -16,49 +23,35 @@ _SKILLS_GUIDANCE = (
 
 
 def render_markdown_template_prompt(
-    template: str,
-    *, cwd: str, os_name: str, home_dir: str, capabilities: str, interactive_mode: bool,
-    username: str | None, preferred_language: str | None, skills_section: str | None,
-    agents_section: str | None, user_memory: str | None,
+    template: str, context: SystemPromptContext, *,
+    template_values: dict[str, object] | None = None, skills_guidance: str = _SKILLS_GUIDANCE,
 ) -> str:
-    runtime = [
-        "# Runtime instructions",
-        "Use `edit_file` to inspect files and make text-file changes. "
-        "Never use shell or Python write commands when the dedicated file tool can express the change.",
-        _GIT_SAFETY_SECTION,
-        _HARNESS_SECTION,
-        _OWASP_RULE,
-    ]
-    if not interactive_mode:
-        runtime.append(
-            "## Interaction mode\n\nThis session is non-interactive, so you cannot ask the user anything. "
-            "Complete authorized work autonomously. When approval or a missing decision is required, "
-            "state the blocker in the final response; do not infer approval from elapsed time."
-        )
-
     skills = ""
-    if skills_section and skills_section.strip():
-        catalog = skills_section.partition("\n### How to use skills")[0].strip()
+    if context.skills_section and context.skills_section.strip():
+        catalog = get_skills_catalog(context.skills_section)
         catalog = catalog.removeprefix("## Skills\n").lstrip()
-        skills = f"\n\n# Skills\n\n{_SKILLS_GUIDANCE}\n\n{catalog}"
+        skills = f"\n\n# Skills\n\n{skills_guidance}\n\n{catalog}"
 
-    return Template(template).substitute(
-        capabilities=capabilities.strip(),
-        runtime_instructions="\n\n".join(runtime),
-        os=os_name,
-        cwd=cwd,
-        home_dir=home_dir,
-        windows_notes=(
+    values = {
+        **(template_values or {}),
+        "capabilities": context.capabilities.strip(),
+        "runtime_instructions": render_runtime_instructions(interactive_mode=context.interactive_mode),
+        "os": context.os_name,
+        "cwd": context.cwd,
+        "home_dir": context.home_dir,
+        "windows_notes": (
             "\nOn Windows, use `run_powershell` when explicit PowerShell syntax is needed "
             "and that tool is available. Prefer dedicated file tools for file operations.\n"
-            if os_name == "Windows" else ""
+            if context.os_name == "Windows" else ""
         ),
-        username_section=f"\nThe current user is {username}.\n" if username else "",
-        language_section=(
-            f"\n\n# PREFERRED LANGUAGE\n\nSpeak in {preferred_language}."
-            if preferred_language is not None else ""
+        "username_section": (
+            f"\nThe current user is {context.username}.\n" if context.username else ""
         ),
-        skills_section=skills,
-        agents_section=f"\n\n{agents_section.strip()}" if agents_section and agents_section.strip() else "",
-        memory_section=f"\n\n{wrap_user_memory(user_memory)}" if user_memory and user_memory.strip() else "",
-    ) + "\n"
+        "language_section": render_optional_section(
+            render_language_section(context.preferred_language), prefix="\n\n",
+        ),
+        "skills_section": skills,
+        "agents_section": render_optional_section(context.agents_section, prefix="\n\n"),
+        "memory_section": render_optional_section(render_memory_section(context.user_memory), prefix="\n\n"),
+    }
+    return render_prompt_template(template + "\n", values)

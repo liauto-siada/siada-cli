@@ -50,6 +50,7 @@ class FileSession(SessionABC):
         sessions_dir: str | Path = ".siada_sessions",
         on_items_added: Optional[Callable[[list], Awaitable[None]]] = None,
         project_root: Optional[str] = None,
+        model_name: Optional[str] = None,
     ):
         """Initialize the file session.
 
@@ -58,11 +59,14 @@ class FileSession(SessionABC):
             sessions_dir: Directory to store session files. Defaults to '.siada_sessions'
             on_items_added: Optional async callback function called after items are added to session
             project_root: Project root directory for metadata storage
+            model_name: Current model name; used to gate lpai-specific history
+                repair. Updated in place by /model switches.
         """
         self.session_id = session_id
         self.sessions_dir = Path(sessions_dir)
         self.on_items_added = on_items_added
         self.project_root = project_root
+        self.model_name = model_name
 
         # Create session-specific directory
         self.session_folder = self.sessions_dir / session_id
@@ -273,6 +277,7 @@ class FileSession(SessionABC):
         instance.context_file = session_file.parent / "api_message.json"
         instance.metadata_file = session_file.parent / "metadata.json"
         instance.on_items_added = None
+        instance.model_name = None
         instance.project_root = None
         instance._inject_info_file = session_file.parent / "inject_info.json"
         with instance._storage_guard():
@@ -540,7 +545,7 @@ class FileSession(SessionABC):
                     raise ValueError("invalid history format or identity")
             except (OSError, ValueError) as error:
                 raise SessionStorageError("Cannot admit messages into damaged UI history") from error
-            current["items"].extend(added)
+            current["items"].extend(self._filter_invalid_tool_calls(added, self.model_name))
             current["context_version"] += 1
             write_json(self.context_file, current)
             history["items"].extend(added)
@@ -592,6 +597,10 @@ class FileSession(SessionABC):
         A valid snapshot may end in a summary without a native anchor of its
         own. Its persisted history boundary, not matching summary contents,
         controls the one-time delta. Legacy files are retained untouched.
+        Reset tracking can be recovered from a unique signature or an exact
+        final snapshot item. Untrusted boundaries rebuild from native history
+        instead of guessing which tail the snapshot already covers. This may
+        restore previously compacted content; normal request filters still run.
         """
         with self._mutation("api_message.json"):
             if self.context_file.exists():
@@ -604,6 +613,7 @@ class FileSession(SessionABC):
                 if not isinstance(records, list) or not all(isinstance(item, dict) for item in records):
                     raise ValueError("invalid history items")
                 native = [item for item in records if not self._is_injected(item)]
+                fallback_reason = None
                 legacy_file = self.session_folder / "api_messages.json"
                 if legacy_file.exists():
                     snapshot = json.loads(legacy_file.read_bytes())
@@ -615,9 +625,11 @@ class FileSession(SessionABC):
                         isinstance(item, dict) and not self._is_injected(item) for item in items
                     ):
                         raise ValueError("invalid snapshot items")
-                    if type(index) is not int or not -1 <= index < len(native):
+                    if type(index) is not int:
                         raise ValueError("invalid snapshot boundary")
-                    if index == -1:
+                    if not -1 <= index < len(native):
+                        fallback_reason = "invalid_snapshot_boundary"
+                    elif index == -1:
                         if native or snapshot.get("last_signature", ""):
                             signature = snapshot.get("last_signature", "")
                             if signature:
@@ -631,16 +643,21 @@ class FileSession(SessionABC):
                                     if items and item == items[-1]
                                 ]
                             if len(boundaries) != 1:
-                                raise ValueError("snapshot has no trustworthy history boundary")
-                            index = boundaries[0]
-                            logger.info(
-                                "[effective-context][migration] session=%s recovered_last_index=%d anchor=%s",
-                                self.session_id, index, "signature" if signature else "snapshot_tail",
-                            )
+                                fallback_reason = "untrustworthy_snapshot_boundary"
+                            else:
+                                index = boundaries[0]
+                                logger.info(
+                                    "[effective-context][migration] session=%s recovered_last_index=%d anchor=%s",
+                                    self.session_id, index, "signature" if signature else "snapshot_tail",
+                                )
                     elif snapshot.get("last_signature") != compute_last_item_signature(native[:index + 1]):
-                        raise ValueError("snapshot history boundary signature mismatch")
-                    items = items + native[index + 1:]
-                    source = "legacy_snapshot"
+                        fallback_reason = "snapshot_signature_mismatch"
+                    if fallback_reason is not None:
+                        items = native
+                        source = "legacy_history_fallback"
+                    else:
+                        items = items + native[index + 1:]
+                        source = "legacy_snapshot"
                 elif allow_history_only:
                     items = native
                     source = "explicit_history_only"
@@ -656,8 +673,16 @@ class FileSession(SessionABC):
                 "routed_items": [item for item in records if self._is_injected(item)],
                 "migration_source": source,
             }
+            if fallback_reason is not None:
+                data["migration_fallback_reason"] = fallback_reason
             write_json(self.context_file, data)
-            return copy.deepcopy(data)
+        if fallback_reason is not None:
+            logger.warning(
+                "[effective-context][migration] session=%s action=rebuild_from_history "
+                "source=api_history.json reason=%s items=%d legacy_snapshot=retained",
+                self.session_id, fallback_reason, len(items),
+            )
+        return copy.deepcopy(data)
 
     async def migrate_legacy_context(self, *, allow_history_only: bool = False) -> dict:
         return await asyncio.to_thread(
@@ -918,6 +943,32 @@ class FileSession(SessionABC):
 
         return await asyncio.to_thread(_get_all_items_sync)
 
+    @staticmethod
+    def _filter_invalid_tool_calls(items: list, model_name: Optional[str] = None) -> list:
+        """Repair function_call items whose arguments are not valid JSON.
+
+        Full-list scan (not tail-only): a malformed call in the middle of the
+        history poisons every subsequent request just the same. This is the
+        persistence-side last line of defense — ``add_items`` receives the
+        runtime's raw items, which never passed through the context-filter
+        chain. Repair (not removal) keeps the call/output pairing intact so
+        the gateway's structural checks keep passing. No offload dir here:
+        the raw payload was already saved by MalformedToolCallFilter when the
+        item first flowed through the request path.
+
+        Uses the same model scope as the request filter, including lpai-*
+        and baidu-deepseek-v4.1-flash. Other models retain their raw history.
+        """
+        from siada.agent_hub.context_filter.malformed_tool_call_filter import (
+            should_repair_tool_call_arguments,
+            sanitize_malformed_tool_calls,
+        )
+
+        if not should_repair_tool_call_arguments(model_name):
+            return items
+        new_items, _ = sanitize_malformed_tool_calls(items, offload_dir=None)
+        return new_items
+
     def inject_items(
         self,
         items: list[TResponseInputItem],
@@ -1122,6 +1173,9 @@ class FileSession(SessionABC):
             current_items = self._read_session_data()
             _t_read = time.perf_counter()
             current_items.extend(items)
+            current_items = FileSession._filter_invalid_tool_calls(
+                current_items, model_name=self.model_name
+            )
             _t_filter = time.perf_counter()
             self._write_session_data(current_items)
             self._invalidate_prepared_context()

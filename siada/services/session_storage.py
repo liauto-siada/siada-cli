@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import errno
 import json
 import os
 import tempfile
@@ -54,19 +53,13 @@ def atomic_write(path: Path, content: bytes) -> None:
 
 def sync_directory(folder: Path) -> None:
     """Make rename/unlink boundaries durable on supported local filesystems."""
+    # Windows CRT cannot open directories for fsync. File contents are still
+    # flushed, but directory changes have weaker power-loss durability there.
     if os.name == "nt":
-        # Windows CRT cannot flush directories. File contents are still flushed,
-        # but rename/unlink boundaries have weaker power-loss durability there.
         return
     fd = os.open(folder, os.O_RDONLY)
     try:
-        try:
-            os.fsync(fd)
-        except OSError as error:
-            # Only filesystems that explicitly report directory flushing as
-            # unsupported may be skipped; real I/O failures must still surface.
-            if error.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP, errno.EINVAL):
-                raise
+        os.fsync(fd)
     finally:
         os.close(fd)
 
@@ -192,7 +185,7 @@ def storage_transaction(folder: Path, files: tuple[str, ...] = STORAGE_FILES) ->
                 for name in files:
                     path = folder / name
                     if path.exists():
-                        # "r+b" keeps the handle writable so Windows can flush it.
+                        # Windows _commit requires a writable file handle.
                         with path.open("r+b" if os.name == "nt" else "rb") as stream:
                             os.fsync(stream.fileno())
                 sync_directory(folder)

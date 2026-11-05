@@ -149,7 +149,6 @@ class TestOpenRouterEndToEnd:
         monkeypatch.setattr(chat_module, "AsyncOpenAI", create_client)
         provider = DefaultProvider()
         model = provider.get_model(model_name)
-
         async def run():
             try:
                 await model.get_response(

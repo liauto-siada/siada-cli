@@ -1,0 +1,824 @@
+
+setup.py
+
+siada/core/compatibility/issue_transformer.py:
+⋮
+│def transform_issue(issue: Optional[Dict[str, any]], system_context: SystemContext) -> Issue:
+⋮
+│def transform_issues(issues: Optional[List[Dict[str, any]]], system_context: SystemContext) -> List
+⋮
+│def extract_line_number(location: str) -> int:
+⋮
+│def get_contextual_lines(file_path: str, target_line_number: int, context_window: Optional[int] = 5
+⋮
+
+siada/core/config/config.py:
+⋮
+│CONFIG_MAPPING = [
+│    ("llm-config.yml", LLMConfig, "llm"),
+│    ("review-design.yml", CRDesignConfig, "cr_design_config"),
+│    ("review-repo-code.yml", CRRepoConfig, "cr_repo_config"),
+│    ("generate-code.yml", CGConfig, "cg_config")
+⋮
+│ASSISTANT_FOLDER = '.ai-assistant-config'
+│
+⋮
+│class Config(BaseModel):
+⋮
+│def load_yaml_file(file_path: Optional[str] = None, config_cls=None):
+⋮
+│def load_config(repo_dir: Optional[str] = None) -> Config:
+⋮
+
+siada/core/config/cr_repo_config.py:
+⋮
+│class GitAuthorFilter(BaseModel):
+⋮
+│class SpecSuffixFilter(BaseModel):
+⋮
+│class IncludeExcludeFilesFilter(BaseModel):
+⋮
+│class ReviewFilter(BaseModel):
+⋮
+│class RepoConfig(BaseModel):
+⋮
+│class CoreFuncConfig(BaseModel):
+⋮
+│class IssuesCategoryConfig(BaseModel):
+⋮
+│class ReportConfig(BaseModel):
+⋮
+│class ReviewerConfig(BaseModel):
+⋮
+│class SearchCaseConfig(BaseModel):
+⋮
+│class CRRepoConfig(BaseModel):
+⋮
+
+siada/core/config/llm_config.py:
+⋮
+│class LLMSettings(BaseModel):
+⋮
+│class LLMConfig(BaseModel):
+⋮
+
+siada/core/constant/ansi_art.py:
+│SIADA_ART = """
+⋮
+│SIADA_VERSION_CHECK = """
+│
+│当前SIADA版本为: {}
+│满足此命令的最低版本为: {}
+│请使用此条命令更新siada到最新版本：
+│curl -s https://bj.bcebos.com/prod-cnhb01-siada/install/remote_install.sh | sh
+│谢谢配合，祝您使用愉快 :)
+⋮
+
+siada/core/constant/siada_structure.py:
+⋮
+│KNOWLEDGE_FOLDER = 'knowledge'
+│
+│CR_REPORT_FOLDER = os.path.join(KNOWLEDGE_FOLDER, 'cr_report')
+│PLAN_CG_REPORT_FOLDER = os.path.join(KNOWLEDGE_FOLDER, 'plan')
+│CODE_CG_REPORT_FOLDER = os.path.join(KNOWLEDGE_FOLDER, 'code')
+│
+│PATCH_CR_REPORT_FOLDER = os.path.join(CR_REPORT_FOLDER, 'patch')
+│DESIGN_CR_REPORT_FOLDER = os.path.join(CR_REPORT_FOLDER, 'design')
+│REPO_CR_REPORT_FOLDER = os.path.join(CR_REPORT_FOLDER, 'repo')
+│
+│DEFAULT_SUMMARY_FILE_NAME = 'summary'
+│DEFAULT_ISSUE_FILE_NAME = 'issues'
+│
+
+siada/core/driver/cr_driver.py:
+⋮
+│class CRDriver(Driver):
+│
+│    def __init__(self, reviewer: Reviewer,
+│                 generator: Generator = None,
+│                 reporter: Reporter = None,
+⋮
+│    def do_start(self, system_context: SystemContext) -> Result:
+⋮
+│    def skip_generator(self, system_context: SystemContext) -> bool:
+⋮
+
+siada/core/driver/driver.py:
+⋮
+│class Driver(Entity, abc.ABC):
+│
+⋮
+│    def start(self, system_context: SystemContext) -> Result:
+│        result = self.do_start(system_context)
+│        return result
+│
+⋮
+│    @abc.abstractmethod
+│    def do_start(self, system_context: SystemContext) -> Result:
+⋮
+
+siada/core/driver/gen_driver.py:
+⋮
+│class GeneratorDriver(Driver):
+│
+│    def __init__(self, generator: Generator, reporter: Reporter = None):
+│        self.generator = generator
+⋮
+│    def do_start(self, system_context: SystemContext) -> Result:
+⋮
+
+siada/core/entrypoint/base_entrypoint.py:
+⋮
+│config_model_name = None
+│
+⋮
+│class BaseEntrypoint(Entity, ABC):
+│    repo_dir: str = None
+⋮
+│    @staticmethod
+│    def extend_options():
+⋮
+│    def get_command(self):
+⋮
+│    def get_handler(self):
+⋮
+│    def perform(self, driver: Driver) -> Result:
+⋮
+│    def do_perform(self, driver: Driver) -> Result:
+⋮
+│    def build_system_context(self, driver: Driver) -> SystemContext:
+⋮
+│    @abstractmethod
+│    def load_system_context(self, system_context: SystemContext):
+⋮
+│    @staticmethod
+│    def try_get_repo_object(repo_dir):
+⋮
+│    @staticmethod
+│    def common_options(func):
+⋮
+│    def process_common_options(self, ctx: Context, validate_repo_dir=True):
+⋮
+│    def handle_repo_dir_common_options(self, ctx):
+⋮
+
+siada/core/generator/generator.py:
+⋮
+│class Generator(Entity, abc.ABC):
+│
+⋮
+│    def generate(self, system_context: SystemContext, result: Result) -> Result:
+│        result = self.do_generate(system_context, result)
+│        return result
+│
+⋮
+│    @abc.abstractmethod
+│    def do_generate(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+
+siada/core/generator/issue_generator.py:
+⋮
+│class IssueGenerator(Generator):
+│
+│    def do_generate(self, system_context: SystemContext, result: Result) -> Result:
+│        workspace = system_context.repo_dir
+│
+│        id_to_issue_id = {}
+│        cr_issue_list = []
+│        # 从result中获取issue信息
+│
+│        for idx, issue in enumerate(result.issue_list):
+│            issue_id = idx + 1
+│            id_to_issue_id[issue.id] = issue_id
+⋮
+
+siada/core/model/ast_func.py:
+⋮
+│class ASTFunc(BaseModel):
+│    function_name: str
+⋮
+│    def function_id(self) -> str:
+⋮
+│    def __eq__(self, other):
+⋮
+│    def __hash__(self):
+⋮
+
+siada/core/model/case.py:
+⋮
+│class StFilter(BaseModel):
+⋮
+│class FilterFields(BaseModel):
+⋮
+│class Extension(BaseModel):
+⋮
+│class CaseSearchRequest(BaseModel):
+⋮
+│class LlMConceptItem(BaseModel):
+⋮
+│class IssueDetail(BaseModel):
+⋮
+│class Document(BaseModel):
+⋮
+│class Data(BaseModel):
+⋮
+│class CaseSearchResponse(BaseModel):
+⋮
+
+siada/core/model/code.py:
+⋮
+│class Code(BaseModel):
+⋮
+
+siada/core/model/context.py:
+⋮
+│EMPTY_SYSTEM_CONTEXT = {"job_id": "unknown", "job_type": "unknown", "repo_dir": "unknown"}
+│
+⋮
+│class JobType(Enum):
+⋮
+│class SystemContext(BaseModel):
+│    job_id: str  # 全局 job_id
+⋮
+│    @field_serializer("job_type")
+│    def serialize_job_type(self, job_type, _info):
+⋮
+│    @field_serializer("start_time", "end_time")
+│    def serialize_datetime(self, dt, _info):
+⋮
+│    def get_job_report_abs(self) -> str:
+⋮
+│    def get_job_report_repo_rel(self) -> str:
+⋮
+│    def get_job_report_folder(self) -> str:
+⋮
+│    def get_date_report_folder(self) -> str:
+⋮
+│    def get_cg_language(self) -> str:
+⋮
+
+siada/core/model/debug_info.py:
+⋮
+│class FilterInfo(BaseModel):
+⋮
+│class DebugInfo(BaseModel):
+⋮
+
+siada/core/model/file_issues.py:
+⋮
+│class FileIssue(BaseModel):
+│    id: str
+⋮
+│    def to_dict(self):
+⋮
+│class FileIssueGroup(BaseModel):
+⋮
+
+siada/core/model/file_patch.py:
+⋮
+│class CommitFilePatch(BaseModel):
+│    model_config = {"populate_by_name": True}
+│
+⋮
+│    def __init__(self, **data: Any):
+⋮
+│    def _add_line_numbers(self, code_str: str, start_line: int = 1) -> str:
+⋮
+│    def _compute_hunk_functions(self) -> List[ASTFunc]:
+⋮
+│    def _compute_hunk_patch_function_mappings(self):
+⋮
+│    def _lines_overlap(self, start1: int, end1: int, start2: int, end2: int) -> bool:
+⋮
+│    def _compute_hunk_function_blob_with_line(self) -> Optional[str]:
+⋮
+│    def _get_function_content_with_line_numbers(self, func: ASTFunc) -> str:
+⋮
+
+siada/core/model/file_patch_hunk.py:
+⋮
+│class CommitFileHunkPatch(BaseModel):
+│    hunk_range: "HunkRange"
+⋮
+│    def __hash__(self):
+⋮
+│    def __eq__(self, other):
+⋮
+│class HunkRange(BaseModel):
+│    """
+│    Represents the range information in a hunk header.
+⋮
+│    def __hash__(self):
+⋮
+│    def __eq__(self, other):
+⋮
+
+siada/core/model/issue.py:
+⋮
+│class Issue(BaseModel):
+⋮
+
+siada/core/model/patch.py:
+⋮
+│class CommitPatch(BaseModel):
+⋮
+│class Target(BaseModel):
+⋮
+│class CommitInfo(BaseModel):
+│    commit_id: str
+⋮
+│    def get_patch_description(self) -> str:
+⋮
+
+siada/core/model/report.py:
+⋮
+│class Report(BaseModel):
+⋮
+
+siada/core/model/result.py:
+⋮
+│class Result(BaseModel):
+⋮
+
+siada/core/reporter/local_repo_reporter.py:
+⋮
+│class LocalRepoReporter(Reporter):
+│    def __init__(self, reporters: List[Reporter] = None, writers: List[Writer] = None):
+│        self.reporters = reporters or []
+⋮
+│    def do_report(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+
+siada/core/reporter/reporter.py:
+⋮
+│class Reporter(Entity, ABC):
+│
+│    def report(self, system_context: SystemContext, result: Result) -> Result:
+│        result = self.do_report(system_context, result)
+⋮
+│    def do_report(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+
+siada/core/reporter/template/__init__.py:
+⋮
+│REPORTER_TEMPLATE_DIRS = [os.path.join(TEMPLATE_ROOT_DIR, 'reporter')]
+│REPORTER_COMPONENT_TEMPLATE_DIRS = [os.path.join(TEMPLATE_ROOT_DIR, 'reporter', 'component')]
+│REPORTER_TEMPLATE_MANAGER = TemplateManager(REPORTER_TEMPLATE_DIRS, REPORTER_COMPONENT_TEMPLATE_DIR
+│
+│PATCH_TEMPLATE_DIRS = [os.path.join(TEMPLATE_ROOT_DIR, 'patch')]
+│PATCH_COMPONENT_TEMPLATE_DIRS = [os.path.join(TEMPLATE_ROOT_DIR, 'patch', 'component')]
+│PATCH_TEMPLATE_MANAGER = TemplateManager(PATCH_TEMPLATE_DIRS, PATCH_COMPONENT_TEMPLATE_DIRS)
+│REMOTE_ADMIN_CLIENT = BaseClient(CHJ_DOMAIN, SIADA_ADMIN_SUB_DOMAIN)
+
+siada/core/reporter/template/cg_code_reporter.py:
+⋮
+│class CgCodeReporter(TemplateReporter):
+│    def __init__(self):
+⋮
+│    def generate_report(self, system_context: SystemContext, result: Result) -> List[Report]:
+⋮
+│    @staticmethod
+│    def set_output_files_and_return(system_context: SystemContext, result: Result):
+⋮
+
+siada/core/reporter/template/cg_plan_reporter.py:
+⋮
+│class CgPlanReporter(TemplateReporter):
+│
+│    def __init__(self):
+⋮
+│    def generate_report(self, system_context: SystemContext, result: Result) -> List[Report]:
+⋮
+│    @staticmethod
+│    def set_output_files_and_return(system_context: SystemContext, result: Result):
+⋮
+
+siada/core/reporter/template/filename_handler.py:
+⋮
+│class FilenameHandler(ABC):
+│
+│    @abstractmethod
+│    def get_path(self, original_file_path: str) -> str:
+⋮
+│class OriginalFilenameHandler(FilenameHandler):
+│
+│    def get_path(self, original_file_path: str) -> str:
+│        original_file_path_base, ext = os.path.splitext(original_file_path)
+⋮
+│class NormalizedFilenameHandler(FilenameHandler):
+│
+│    def get_path(self, original_file_path: str) -> str:
+│        original_file_path_base, ext = os.path.splitext(original_file_path)
+│        compressed_path = original_file_path_base.replace('/', '__')
+│        if len(compressed_path) > 100:
+│            compressed_path = compressed_path[-100:]
+⋮
+│class OnlyFilenameHandler(FilenameHandler):
+│
+│    def get_path(self, original_file_path: str) -> str:
+│        filename = os.path.basename(original_file_path)
+│        filename_base, ext = os.path.splitext(filename)
+⋮
+│class DefaultFilenameHandler(FilenameHandler):
+│
+│    def get_path(self, original_file_path: str) -> str:
+⋮
+
+siada/core/reporter/template/filepath_issue_reporter.py:
+⋮
+│class FilePathIssueReporter(PackedIssueReporter):
+│
+│    def __init__(self, filename_handler: FilenameHandler = NormalizedFilenameHandler()):
+⋮
+│    def generate_report(self, system_context: SystemContext, result: Result) -> List[Report]:
+⋮
+
+siada/core/reporter/template/packed_issue_reporter.py:
+⋮
+│class PackedIssueReporter(TemplateReporter):
+│
+│    def __init__(self, template_manager: TemplateManager = REPORTER_TEMPLATE_MANAGER,
+⋮
+│    def generate_report(self, system_context: SystemContext, result: Result) -> List[Report]:
+⋮
+│    def map_issue_list_to_file_groups(self, issue_list: List[Issue]) -> List[FileIssueGroup]:
+⋮
+│    @staticmethod
+│    def map_issue_to_file_issue(issue: Issue) -> FileIssue:
+⋮
+│    @staticmethod
+│    def get_category_md(_category: str):
+⋮
+
+siada/core/reporter/template/summary_reporter.py:
+⋮
+│class SummaryReporter(TemplateReporter):
+│
+│    def __init__(self, template_manager: TemplateManager = REPORTER_TEMPLATE_MANAGER,
+⋮
+│    def generate_report(self, system_context: SystemContext, result: Result) -> List[Report]:
+⋮
+│    def get_template_data(self, system_context: SystemContext, result) -> dict:
+⋮
+│    @staticmethod
+│    def _get_remote_url(report_id) -> str:
+⋮
+│    @staticmethod
+│    def _generate_summary_content(total_issue_cnt, high_level_issues_count):
+⋮
+│    @staticmethod
+│    def _generate_summary_content_json(template_data):
+⋮
+
+siada/core/reporter/template/template_manager.py:
+⋮
+│def _create_env(dirs: list = None, loader_cls=FileSystemLoader):
+⋮
+│class TemplateManager:
+│    def __init__(self, template_dirs: list = None, template_component_dirs: list = None):
+│        self.template_dirs = template_dirs
+│        self.template_component_dirs = template_component_dirs
+│
+│        self.template_env = _create_env(self.template_dirs, FileSystemLoader)
+⋮
+│    def render(self, template_name: str, original_data: dict = None, with_component: bool = True) -
+⋮
+│    def _get_default_kv(self):
+⋮
+│    def _render_component(self, data):
+⋮
+│class SuffixRemovingLoader(FileSystemLoader):
+│    def __init__(self, path, suffixes=('.md', '.txt')):
+│        super().__init__(path)
+⋮
+│    def get_source(self, environment, template):
+⋮
+│    def list_templates(self):
+⋮
+│    def _remove_suffix(self, template_name: str) -> str:
+⋮
+
+siada/core/reporter/template/template_reporter.py:
+⋮
+│class TemplateReporter(Reporter):
+│
+│    def __init__(self, template_manager: TemplateManager, template_file: str):
+│        self.template_manager = template_manager
+⋮
+│    def render(self, template_data: dict = None) -> str:
+⋮
+│    def do_report(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+│    @abstractmethod
+│    def generate_report(self, system_context: SystemContext, result: Result) -> List[Report]:
+⋮
+
+siada/core/retriever/local_repo_retriever.py:
+⋮
+│class LocalRepoRetriever:
+│
+│    DEFAULT_GIT_TYPES  = ['gerrit', 'gitlab', 'github']
+│
+│    def __init__(self, repo: git.Repo):
+⋮
+│    def has_uncommitted_changes(self) -> bool:
+⋮
+│    def get_remote_names(self) -> List[str]:
+⋮
+│    def get_latest_commit_id(self) -> str:
+⋮
+│    def get_latest_commit_author(self) -> str:
+⋮
+│    def get_latest_parent_commit_id(self) -> Optional[str]:
+⋮
+│    def get_parent_commit_id(self, commit_id: str) -> Optional[str]:
+⋮
+│    def get_full_commit_id(self, commit_id: str) -> Optional[str]:
+⋮
+│    def _get_commit_id(self, commit_id: str) -> Optional[str]:
+⋮
+│    def _get_commit_parent_id(self, commit_id: str) -> Optional[str]:
+⋮
+│    def get_local_username(self) -> str:
+⋮
+│    def _get_remote_url(self) -> Optional[str]:
+⋮
+│    def get_current_branch_name(self) -> Optional[str]:
+⋮
+│    def _parse_git_url(self) -> (str, str, str):
+⋮
+│    def get_local_repo_languages(self) -> str:
+⋮
+│    def _count_repo_languages(self, by='suffix') -> dict:
+⋮
+│    def check_local_git_status(self, exclude_conf_files: List[str]) -> bool:
+⋮
+│    def _exclude_config_files(self, config_files: List[str], operation: str = 'update'):
+⋮
+
+siada/core/retriever/remote_repo_retriever.py:
+⋮
+│class RemoteRepoRetriever(LocalRepoRetriever):
+│    def __init__(self, repo: git.Repo):
+⋮
+│    def build_repo_task_json(self):
+⋮
+│    def _gerrit_ssh_query(self):
+⋮
+
+siada/core/retriever/retriever.py:
+⋮
+│class Retriever(Entity, ABC):
+│
+│    def retrieve(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+│    @abstractmethod
+│    def do_retrieve(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+
+siada/core/reviewer/base_impl_reviewer.py:
+⋮
+│class BaseImplReviewer(Reviewer):
+│    """
+│    实现级reviewer基类
+⋮
+│    def do_review(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+│    def get_review_codes(self, system_context: SystemContext) -> dict:
+⋮
+│    def metric(self, review_codes: dict, system_context: SystemContext):
+⋮
+│    @abstractmethod
+│    def do_review_codes(self, system_context: SystemContext) -> dict:
+⋮
+│    def post_review_codes(self, system_context: SystemContext, review_codes: dict) -> dict:
+⋮
+│    @abstractmethod
+│    def get_file_content(self, system_context: SystemContext, file_path: str) -> str:
+⋮
+│    def get_prompt_data(self, func_info, file_path, full_code) -> dict:
+⋮
+│    def get_file_prompt_data(self, full_code) -> dict:
+⋮
+│    def get_func_prompt_data(self, func_info, file_path, full_code) -> dict:
+│
+⋮
+│    def post_issues(self, issues: list, func_info: dict, file_path: str):
+│        """
+│        对issue后置处理
+⋮
+│        def add_func_name(item):
+⋮
+│    def get_related_functions(self, func_info):
+⋮
+
+siada/core/reviewer/function_reviewer.py:
+⋮
+│class FunctionReviewer(BaseImplReviewer):
+│    def do_review_codes(self, system_context: SystemContext) -> dict:
+│        ast_wait_log()
+│
+│        file_paths = self.get_review_files(system_context)
+│        all_func_dict = {}
+│        for file_path in file_paths:
+│            logger.debug(f"start to get review codes of file : {file_path}")
+│            # add dict to all_func_dict
+│            file_func_dict = self.get_file_dict(system_context, file_path)
+│
+⋮
+│    def get_file_content(self, system_context, file_path: str) -> str:
+⋮
+│    def get_file_dict(self, system_context: SystemContext, file_path: str):
+⋮
+│    def handle_functon_reference(self, system_context: SystemContext, func_dict: dict, file_path: s
+⋮
+│    def set_func_info_code(self, func_infos: list[dict]):
+⋮
+│    @abstractmethod
+│    def get_review_files(self, system_context: SystemContext):
+⋮
+│    def get_related_functions(self, func_info):
+⋮
+
+siada/core/reviewer/review_code_filter.py:
+⋮
+│class ReviewCodeFilter(ABC):
+│
+│    @abstractmethod
+│    def filter(self, system_context: SystemContext, review_codes: dict) -> dict:
+⋮
+│class IncludeExcludeFilter(ReviewCodeFilter):
+│    def filter(self, system_context: SystemContext, review_codes: dict) -> dict:
+│        """
+│        根据配置文件过滤指定文件
+│        """
+│        if not system_context.config.cr_repo_config.repo.review_filter.include_exclude_filter.open:
+│            return review_codes
+│
+│        include_dirs = system_context.config.cr_repo_config.repo.review_filter.include_exclude_filt
+│        exclude_dirs = system_context.config.cr_repo_config.repo.review_filter.include_exclude_filt
+│        # include优先级大于exclude，存在include则exclude失效
+⋮
+│class SpecSuffixFilter(ReviewCodeFilter):
+│    def filter(self, system_context: SystemContext, review_codes: dict) -> dict:
+│        """
+│        过滤掉指定后缀的文件
+│        """
+│        if not system_context.config.cr_repo_config.repo.review_filter.spec_suffix_filter.open:
+│            return review_codes
+│
+│        spec_suffix = system_context.config.cr_repo_config.repo.review_filter.spec_suffix_filter.su
+│        review_codes = {key: value for key, value in review_codes.items() if
+│                        not any(key.endswith(suffix) for suffix in spec_suffix)}
+⋮
+│class GitAuthorFilter(ReviewCodeFilter):
+│    def filter(self, system_context: SystemContext, review_codes: dict) -> dict:
+│        """
+│        过滤掉非lixiang的代码片段
+│        """
+│        if not system_context.config.cr_repo_config.repo.review_filter.git_author_filter.open:
+│            return review_codes
+│
+│        filter_type = system_context.config.cr_repo_config.repo.review_filter.git_author_filter.fil
+│        if filter_type == "function":
+│            review_codes = git_author_function_filter(system_context, review_codes)
+⋮
+│FILTER_MAP = {
+│    "include_exclude_filter": IncludeExcludeFilter(),
+│    "spec_suffix_filter": SpecSuffixFilter(),
+│    "git_author_filter": GitAuthorFilter(),
+⋮
+│def filter_review_codes(system_context: SystemContext, review_codes: dict) -> object:
+⋮
+
+siada/core/reviewer/reviewer.py:
+⋮
+│class Reviewer(Entity, ABC):
+│
+│    def review(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+│    @abstractmethod
+│    def do_review(self, system_context: SystemContext, result: Result) -> Result:
+⋮
+
+siada/core/utils/http/client.py:
+⋮
+│T = TypeVar("T", bound=BaseModel)
+│
+⋮
+│class HTTPClient:
+│    def __init__(
+│            self,
+│            service_name: str,
+│            retry: int = 3,
+│            timeout: float = 5.0,
+│            max_connections: int = 3,
+│            max_keepalive_connections: int = 3
+⋮
+│    async def __aenter__(self):
+⋮
+│    async def __aexit__(self, exc_type, exc_val, exc_tb):
+⋮
+│    async def _send_request(self, method: str, url: str, **kwargs) -> httpx.Response:
+⋮
+│    async def request(
+│            self,
+│            method: str,
+│            url: str,
+│            response_model: Optional[Type[T]] = None,
+│            **kwargs
+⋮
+│    async def get(
+│            self,
+│            url: str,
+│            response_model: Optional[Type[T]] = None,
+│            **kwargs
+⋮
+│    async def post(
+│            self,
+│            url: str,
+│            response_model: Optional[Type[T]] = None,
+│            **kwargs
+⋮
+│    async def get_json(self, url: str, **kwargs) -> Any:
+⋮
+│    async def post_json(self, url: str, **kwargs) -> Any:
+⋮
+│    async def close(self):
+⋮
+
+siada/core/utils/http/service_config.py:
+│SERVICE_CONFIG = {
+⋮
+
+siada/core/utils/ignore.py:
+⋮
+│class IgnoreUtil:
+│    def __init__(self, ignore_patterns: List[str]):
+│        """
+│        初始化 IgnoreUtil 实例，加载并解析忽略模式列表。
+│
+│        参数:
+│            ignore_patterns (List[str]): 忽略模式列表，字符串形式。
+│        """
+│        if ignore_patterns:
+│            try:
+│                self.ignore_spec = pathspec.PathSpec.from_lines('gitwildmatch', ignore_patterns)
+⋮
+│    def filter(self, file_list: List[dict]) -> List[dict]:
+⋮
+
+siada/core/writer/cg_remote_writer.py:
+⋮
+│class CgRemoteWriter(Writer):
+│
+│    def do_write(self, system_context: SystemContext, result: Result) -> Result:
+│        try:
+│            LIMATE_ANALYSIS_CLIENT.push_cg_data_to_remote(system_context, result)
+│            logger.info(f">>> 远程数据上传成功!, job_id: {system_context.job_id}")
+│        except Exception as e:
+│            logger.error(f"代码生成数据上传失败，错误原因：{e}")
+⋮
+
+siada/core/writer/file_writer.py:
+⋮
+│class FileWriter(Writer):
+│    def do_write(self, system_context: SystemContext, result: Result) -> Result:
+│        if system_context.output_format == "json":
+│            self.write_json(system_context, result, system_context.login_type== "gerrit")
+│        else:
+│            self.write_markdown(system_context, result)
+│
+⋮
+│    def write_json(self, system_context, result, is_combined=True):
+⋮
+│    def write_markdown(self, system_context, result, is_combined=False):
+⋮
+
+siada/core/writer/remote_writer.py:
+⋮
+│class RemoteWriter(Writer):
+│
+│    def do_write(self, system_context: SystemContext, result: Result) -> Result:
+│        try:
+│            if system_context.is_upload:
+│                LIMATE_ANALYSIS_CLIENT.push_cr_report_data_to_remote(system_context, result)
+│                logger.info_process(f">>> 远程报告上传成功，请点击跳转查看： {result.remote_url}", level="debug")
+│            else:
+│                logger.info_process("Skip RemoteWriter.")
+│        except Exception as e:
+│            logger.error(f"远程报告上传失败，错误原因：{e}")
+│            if system_context.is_upload and system_context.login_type == "gerrit":
+⋮
+
+siada/core/writer/writer.py:
+⋮
+│class Writer(Entity, ABC):
+│
+│    def write(self, system_context: SystemContext, result: Result) -> Result:
+│        logger.info_process(f"start to write: {self.name}")
+│        result = self.do_write(system_context, result)
+⋮
+│    @abstractmethod
+│    def do_write(self, system_context: SystemContext, result: Result) -> Result:
+⋮

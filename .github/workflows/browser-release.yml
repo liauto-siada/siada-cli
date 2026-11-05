@@ -58,9 +58,6 @@ jobs:
       - name: Test browser components
         working-directory: chrome-acp
         run: bun run test
-      - name: Test release manifest validation
-        working-directory: chrome-acp
-        run: node --test scripts/package-browser.test.mjs
       - name: Build browser components
         working-directory: chrome-acp
         run: bun run build

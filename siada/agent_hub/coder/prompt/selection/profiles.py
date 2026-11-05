@@ -1,7 +1,7 @@
 """Select coding prompt content without coupling it to the file-tool protocol.
 
-To add a family, select it here, supply its intro/objective and rules renderers,
-and configure optional sections here. The formatter needs no model-specific code.
+To add a family, select it here and register its renderer in ``assembly/system.py``.
+The entry point collects runtime facts without family-specific rendering branches.
 """
 
 from dataclasses import dataclass
@@ -12,6 +12,7 @@ from siada.services.skills.models import SkillUsageProfile
 
 from ..models.gpt5.instructions import get_gpt5_extra_sections
 from .model_features import (
+    is_deepseek_profile_model,
     is_gpt5_model,
     is_gpt6_model,
     is_kimi_k3_or_newer_model,
@@ -26,6 +27,7 @@ class PromptFamily(Enum):
     GPT6 = "gpt6"
     GLM = "glm"
     KIMI_K3 = "kimi_k3"
+    DEEPSEEK = "deepseek"
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,8 @@ def resolve_prompt_profile(model_name: str | None) -> PromptProfile:
         family = PromptFamily.GLM
     elif is_kimi_k3_or_newer_model(model_name):
         family = PromptFamily.KIMI_K3
+    elif is_deepseek_profile_model(model_name):
+        family = PromptFamily.DEEPSEEK
     else:
         family = PromptFamily.DEFAULT
 

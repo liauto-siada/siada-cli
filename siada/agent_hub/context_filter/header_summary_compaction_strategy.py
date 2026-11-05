@@ -23,7 +23,7 @@ class SummarizeWithHeaderCompaction(CompactionStrategy):
     """
     Conservative summarize-and-keep-header compaction.
 
-    Triggers with at most 60k tokens remaining, preserves 30% of recent messages.
+    Uses the shared tiered trigger and preserves 30% of recent messages.
     Keeps the first user-assistant pair as a header in the compressed output,
     followed by an LLM-generated summary and the recent message tail.
 
@@ -156,7 +156,7 @@ class SummarizeWithHeaderCompaction(CompactionStrategy):
         _t_snap_boundary = time.perf_counter() - _t0
 
         if compress_before_index <= 1:
-            return CompactionResult(messages=real_api_messages, compacted=False)
+            return CompactionResult(messages=real_api_messages, compacted=False, reason="no_compressible_history")
 
         history_to_compress = real_api_messages[:compress_before_index]
         history_to_keep = real_api_messages[compress_before_index:]
@@ -187,7 +187,7 @@ class SummarizeWithHeaderCompaction(CompactionStrategy):
         _t_llm_summarize = time.perf_counter() - _t0
 
         if not summary:
-            return CompactionResult(messages=real_api_messages, compacted=False)
+            return CompactionResult(messages=real_api_messages, compacted=False, reason="empty_summary")
 
         # Fallback 2: trim history_to_keep if it is too large, so the final
         # compacted result won't still exceed context window.

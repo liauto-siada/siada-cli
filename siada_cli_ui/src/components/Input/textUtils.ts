@@ -456,7 +456,7 @@ export function clearWidthCache(): void {
  * Accurate visual width calculation including CJK and emoji
  * This is the primary function used by calculateLayout
  */
-import stringWidth from 'string-width';
+import stringWidth from '../../utils/terminalWidth.js';
 
 // Simple LRU cache implementation
 class SimpleLRUCache<K, V> {

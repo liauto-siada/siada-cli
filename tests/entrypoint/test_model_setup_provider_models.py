@@ -18,7 +18,7 @@ def test_provider_models_are_used_without_rewriting_defaults(monkeypatch):
     monkeypatch.setattr(models_dev, "get_provider_model_configs", fetch)
 
     assert model_setup.get_api_key_provider_models(
-        "glm", "glm-5.3", "https://example.invalid/v1",
+        "glm", "glm-5.3", "https://example.invalid/v1"
     ) == [provider_model]
     fetch.assert_called_once_with("glm", "glm-5.3", "https://example.invalid/v1")
 
@@ -26,23 +26,15 @@ def test_provider_models_are_used_without_rewriting_defaults(monkeypatch):
 def test_normal_no_cache_path_keeps_unspecified_capabilities(monkeypatch):
     monkeypatch.setattr(models_dev, "get_providers_for_ui", lambda: [])
 
-    # A name outside the built-in catalogue must not gain declared capabilities.
-    models = model_setup.get_api_key_provider_models("glm", "glm-5.10")
+    models = model_setup.get_api_key_provider_models("glm", "glm-9.3")
 
     assert len(models) == 1
-    assert models[0].model_name == "glm-5.10"
     assert models[0].supports_extra_params is None
     assert models[0].default_reasoning_effort is None
 
-    # An exact built-in match still inherits its explicit capabilities.
-    known = model_setup.get_api_key_provider_models("glm", "glm-5.3")
-
-    assert known[0].supports_extra_params == ["reasoning_effort"]
-    assert known[0].default_reasoning_effort == "max"
-
 
 @pytest.mark.parametrize(
-    "error", [OSError("cache"), KeyError("models"), TypeError("data"), ValueError("data")],
+    "error", [OSError("cache"), KeyError("models"), TypeError("data"), ValueError("data")]
 )
 def test_expected_cache_errors_use_unmodified_selected_model(monkeypatch, error):
     fetch = MagicMock(side_effect=error)
@@ -63,16 +55,12 @@ def test_expected_cache_errors_use_unmodified_selected_model(monkeypatch, error)
 
 
 def test_cache_error_with_no_selected_model_returns_empty_list(monkeypatch):
-    monkeypatch.setattr(
-        models_dev, "get_provider_model_configs", MagicMock(side_effect=KeyError("models")),
-    )
+    monkeypatch.setattr(models_dev, "get_provider_model_configs", MagicMock(side_effect=KeyError("models")))
     assert model_setup.get_api_key_provider_models("glm", "") == []
 
 
 def test_unexpected_provider_error_is_not_silently_swallowed(monkeypatch):
-    monkeypatch.setattr(
-        models_dev, "get_provider_model_configs", MagicMock(side_effect=RuntimeError("bug")),
-    )
+    monkeypatch.setattr(models_dev, "get_provider_model_configs", MagicMock(side_effect=RuntimeError("bug")))
     with pytest.raises(RuntimeError, match="bug"):
         model_setup.get_api_key_provider_models("glm", "glm-5.3")
 

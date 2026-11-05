@@ -33,15 +33,12 @@ from agents import (
 )
 
 from siada.foundation.code_agent_context import CodeAgentContext
-from siada.models.model_base_config import PROMPT_CACHE_TTL_SECONDS
 from siada.models.model_pricing import calculate_token_cost_breakdown
 
 logger = logging.getLogger(__name__)
 
-# Universal heuristic threshold for "ttl_expired" classification; the
-# canonical definition lives in model_base_config (shared with the
-# per-request context-window resolution).
-TTL_SECONDS = PROMPT_CACHE_TTL_SECONDS
+# Heuristic threshold for classifying a prompt cache as expired.
+TTL_SECONDS = 4 * 60 + 30
 
 
 class CacheStatusProcessor(AgentHooks):
@@ -51,8 +48,7 @@ class CacheStatusProcessor(AgentHooks):
     def _extract_token_data(usage) -> dict:
         """Pull input/output/cache_read/cache_write out of ModelResponse.usage.
 
-        Mirrors TokenUsageReporterProcessor._extract_token_data so that the
-        two stay aligned. cache_write is derived from total_tokens because
+        cache_write is derived from total_tokens because
         the openai-agents SDK normalizes the usage shape and only exposes
         cache_read directly via input_tokens_details.cached_tokens.
         """
@@ -116,6 +112,16 @@ class CacheStatusProcessor(AgentHooks):
                 model_name = cfg.llm_config.model_name or "unknown"
             except Exception:
                 pass
+
+            # Convert model name to li provider format for pricing lookup.
+            li_model_name = model_name
+            try:
+                from siada.provider.li.coverter import covert_to_li_model_name
+                converted = covert_to_li_model_name(model_name)
+                if converted:
+                    li_model_name = converted
+            except Exception:
+                pass  # Keep using original model_name; cost calculation will return 0.0
 
             data = self._extract_token_data(response.usage)
             now = time.time()
@@ -218,14 +224,14 @@ class CacheStatusProcessor(AgentHooks):
                 "reason": reason,
                 "idle_seconds": idle_seconds,
 
-                # 本次调用成本
+                # Cost of this request.
                 "input_cost": costs["input_cost"],
                 "output_cost": costs["output_cost"],
                 "cache_write_cost": costs["cache_write_cost"],
                 "cache_read_cost": costs["cache_read_cost"],
                 "total_cost": costs["total_cost"],
 
-                # 累计成本
+                # Accumulated cost.
                 "accumulated_input_cost": state["turn_accumulated_input_cost"],
                 "accumulated_output_cost": state["turn_accumulated_output_cost"],
                 "accumulated_cache_write_cost": state["turn_accumulated_cache_write_cost"],
@@ -233,7 +239,7 @@ class CacheStatusProcessor(AgentHooks):
                 "accumulated_total_cost": state["turn_accumulated_total_cost"],
                 "cost_time_seconds": cost_time_seconds,
 
-                # 累计 token 数（与上面的累计成本保持同一口径）
+                # Accumulated tokens using the same scope as accumulated cost.
                 "accumulated_input": state["turn_accumulated_input"],
                 "accumulated_output": state["turn_accumulated_output"],
                 "accumulated_cache_write": state["turn_accumulated_cache_write"],
@@ -311,14 +317,14 @@ class CacheStatusProcessor(AgentHooks):
 
             state = getattr(session.state, "cache_status_state", None) or {}
 
-            # 检测 turn 边界：turn_active 为 False 时表示新一轮 turn 开始
+            # An inactive turn marks the beginning of the next turn.
             if not state.get("turn_active"):
                 now = time.time()
                 state["turn_active"] = True
                 state["turn_start_time"] = now
                 state["turn_id"] = state.get("turn_id", 0) + 1
 
-                # 重置累计值
+                # Reset accumulated values.
                 state["turn_accumulated_input_cost"] = 0.0
                 state["turn_accumulated_output_cost"] = 0.0
                 state["turn_accumulated_cache_write_cost"] = 0.0
@@ -329,12 +335,6 @@ class CacheStatusProcessor(AgentHooks):
                 state["turn_accumulated_input"] = 0
                 state["turn_accumulated_output"] = 0
                 state["turn_accumulated_cache_write"] = 0
-
-                # NOTE: context_window resolution no longer happens here at
-                # the turn boundary. It is re-resolved per request inside
-                # ApiMessageTransferFilter (before the compaction check), so
-                # that requests 2..N of a cold-started turn already enjoy the
-                # extended window. See model_base_config.resolve_effective_context_window.
 
                 session.state.cache_status_state = state
                 logger.debug(
@@ -359,7 +359,7 @@ class CacheStatusProcessor(AgentHooks):
                 return
 
             state = getattr(session.state, "cache_status_state", None) or {}
-            # 关闭 turn 边界：下一次 on_agent_start 会据此判定新一轮 turn 开始
+            # Close this turn so the next agent start opens a new one.
             state["turn_active"] = False
             session.state.cache_status_state = state
         except Exception as e:

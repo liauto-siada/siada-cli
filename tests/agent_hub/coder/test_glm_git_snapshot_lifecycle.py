@@ -52,11 +52,12 @@ def _fake_git(monkeypatch):
     monkeypatch.delenv(GIT_SNAPSHOT_ENV, raising=False)
     capture = MagicMock(return_value=_snapshot())
     monkeypatch.setattr(git_snapshot, "capture_git_snapshot", capture)
+    # Tool discovery can query the local daemon; it is unrelated to Git snapshots.
     monkeypatch.setattr("siada.agent_hub.coder.code_gen_agent.get_available_lark_tools", lambda: [])
     return capture
 
 
-def _context(model_name="zhipuai/glm-5.3", real_messages=None, is_subagent=False):
+def _context(model_name="lpai-glm-5.3", real_messages=None, is_subagent=False):
     context = CodeAgentContext(root_dir="/tmp/ws")
     context.is_subagent = is_subagent
     state = TaskMessageState()
@@ -86,7 +87,7 @@ def _assert_merged_snapshot(item, text):
 # --------------------------------------------------------------------------- #
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("model_name", ["zhipuai/glm-5.3", "z-ai/glm-5.2", "claude-sonnet-5", "gpt-5.6-luna"])
+@pytest.mark.parametrize("model_name", ["lpai-glm-5.3", "kivy-glm-5.2", "claude-sonnet-5", "gpt-5.6-luna"])
 async def test_new_session_gets_one_snapshot_before_the_human_request(_fake_git, model_name):
     result = await CodeGenAgent()._maybe_prepend_git_snapshot(
         "fix the bug", _context(model_name=model_name), _session()
@@ -210,7 +211,7 @@ async def test_resumed_session_without_snapshot_gets_one_for_this_turn():
     "is_subagent, agent_name",
     [
         (True, "CodeGenAgent"),
-        (False, "ReviewFixtureAgent"),
+        (False, "GerritIssueFixAgent"),
     ],
     ids=["sub-agent", "other-agent"],
 )
@@ -348,7 +349,7 @@ async def test_passive_compaction_refreshes_a_merged_snapshot_without_losing_use
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("model_name", ["zhipuai/glm-5.3", "claude-sonnet-5", "z-ai/glm-5.2"])
+@pytest.mark.parametrize("model_name", ["lpai-glm-5.3", "claude-sonnet-5", "kivy-glm-5.2"])
 async def test_passive_compaction_keeps_exactly_one_fresh_snapshot(model_name):
     pre = [_OLD, {"role": "user", "content": "task"}]
     # The kept tail may still carry the outdated copy.

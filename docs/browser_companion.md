@@ -12,7 +12,7 @@ saves it in connection settings and connects automatically. The existing ACP
 handshake starts the configured CLI and reports connection failures.
 
 If the CLI is not logged in, the sidepanel displays the CLI's login options:
-API Key and Free Trial. The proxy runs `siada-cli --browser-login` and
+LiId, Device Code, and API Key. The proxy runs `siada-cli --browser-login` and
 relays the wizard's messages over an authorized local connection. Complete the
 wizard in Chrome; the CLI validates and saves the configuration. The sidepanel
 connects automatically after login. API keys are masked and are not saved in
@@ -26,10 +26,8 @@ If the local proxy is unavailable, the sidepanel shows the Chrome ACP icon and
 copyable installation commands. It retries discovery every five seconds.
 Choose **Already installed / Siada CLI on another device** at the bottom to
 open the connection settings and enter the server address and token.
-The public installer uses loopback networking. The Chrome guide provides Linux /
-macOS shell and Windows PowerShell commands hosted on the public GitHub Pages site.
-Preview commands select the matching TestPyPI wheel and browser release; dependencies
-are resolved from PyPI.
+The internal installation commands enable remote access with `0.0.0.0`;
+the page explains that this opens the corresponding network ports.
 For an existing installation, start its service:
 
 ```bash

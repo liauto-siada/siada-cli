@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 async def call_fast_llm(prompt: str, *, agent_name: str) -> str:
     """One-shot completion through the fast provider; returns raw text.
 
+    Returns "" on any failure (missing text, exception, timeout) so
+    callers can treat "no answer" uniformly without try/except everywhere.
     Matching/classification returns "" on request failure. Learning propagates
     failures to its durable queue and disables nested SDK retries.
 
@@ -30,10 +32,18 @@ async def call_fast_llm(prompt: str, *, agent_name: str) -> str:
     from siada.provider.fast_llm import fast_completion
     from siada.provider.one_shot import extract_response_text
 
-    learning = agent_name in ("browser_skill_reflector", "browser_skill_curator")
-
     # Bound both the standalone coroutine and its provider socket attempt so
     # the request cannot outlive the worker's lease.
+
+    learning = agent_name in ("browser_skill_reflector", "browser_skill_curator")
+
+    # NB: ``asyncio.timeout`` at the call sites cannot reliably interrupt
+    # litellm — its retry layer swallows the cancellation and the single-shot
+    # socket timeout defaults to LLM_API_POST_TIMEOUT (1200 s), so a slow
+    # gateway would hang this coroutine far beyond the caller's budget and
+    # the worker's lease. Pass an explicit short timeout so the failure
+    # surfaces at the socket layer instead: litellm aborts the connection
+    # and raises Timeout, which we swallow into "" as usual.
     try:
         response = await fast_completion(
             prompt, agent_name=agent_name, timeout=50,

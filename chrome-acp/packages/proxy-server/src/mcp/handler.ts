@@ -72,20 +72,14 @@ export function unregisterExecutor(ws: ExecutorLike): void {
 }
 
 /**
- * Send an out-of-band message to the extension's background worker (the
- * dedicated tool channel), so the extension can be asked to start/stop side
- * channels such as the live view. Only that worker can serve them: it is the
- * one holding the Chrome APIs. Returns false when no extension is connected.
- *
- * Deliberately does not fall back to `pickExecutor()`: every /ws client is
- * registered as a fallback executor and can therefore execute browser tools,
- * but a legacy client cannot start a CDP screencast. Routing the request there
- * would swallow it silently instead of reporting an honest failure.
+ * Send an out-of-band message to the connected extension (not a tool call), so
+ * the extension can be asked to start/stop side channels such as the live view.
+ * Returns false when no extension is connected.
  */
-export function sendToExtension(message: object): boolean {
-  const worker = dedicatedExecutor;
-  if (!worker || worker.readyState !== 1) return false;
-  worker.send(JSON.stringify(message));
+export function sendToExecutor(message: object): boolean {
+  const executor = dedicatedExecutor;
+  if (!executor || executor.readyState !== 1) return false;
+  executor.send(JSON.stringify(message));
   return true;
 }
 

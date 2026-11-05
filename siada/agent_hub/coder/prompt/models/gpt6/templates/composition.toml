@@ -24,6 +24,7 @@ permission_explanation_suffix = " Put this explanation in a short, separate para
 action_request_prefix = "When the user's prompt indicates a request for action, such as \"can you...\", \"I want to...\", \"help me...\" and similar expressions, treat these as instructions to do the work and take action. Do not stop at acknowledging capability (e.g. \"Yes…\"), proposing a plan, or offering to continue. "
 contrast_extra = ""
 personality_suffix = ""
+execution_preference = ""
 progress_final_clause = ""
 test_completion_rule = "- Run tests appropriate to the change and complete required checks. Once those pass, broaden or repeat testing only when new changes, failures, or unresolved concerns justify it; otherwise, continue toward completing the task."
 before_skills_separator = ""
@@ -63,3 +64,6 @@ authorization_continuation = ""
 [models."gpt-6.1-sol".values]
 contrast_extra = " or what something is not"
 personality_suffix = "\n\nAvoid unnecessary apologies and self-blame. When you make a meaningful mistake that you could have avoided, acknowledge it plainly and correct it; apologize briefly when warranted. Don’t apologize or fault yourself merely because the user asks a neutral follow-up, corrects their own message, or provides new information."
+
+[models."gpt-6.1-terra".values]
+execution_preference = "\n\nStrongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions."

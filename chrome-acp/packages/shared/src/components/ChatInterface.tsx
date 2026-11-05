@@ -708,7 +708,7 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
     // so the proxy-server can route this session's browser-skill trajectory
     // matching / proactive suggestions to the right tab.
     void getCurrentTabId().then((tabId) => {
-      const lastSessionId = initialSession?.sessionId;
+      const lastSessionId = client.retainedSessionId ?? initialSession?.sessionId;
       if (lastSessionId) {
         client
           .loadSession({

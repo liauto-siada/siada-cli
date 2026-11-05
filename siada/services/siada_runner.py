@@ -224,6 +224,8 @@ class SiadaRunner:
             running_session: The current running session.
         """
         context.session = running_session
+        # Cached contexts must follow this run's session, not process arguments.
+        context.interactive_mode = running_session.siada_config.interactive
         context.bound_session_id = running_session.session_id
         context.runtime_session = None
         context.runtime_source = runtime_source
@@ -820,7 +822,7 @@ class SiadaRunner:
                 
                 if global_mcp_task:
                     # Gather BOTH global and plugin connections concurrently.
-                    # Cap global MCP init at 8s so a slow server
+                    # Cap global MCP init at 8s so a slow server (e.g. li-mate 30s timeout)
                     # doesn't block the first turn indefinitely.
                     _GLOBAL_MCP_TIMEOUT = 8.0
                     bounded_global = asyncio.ensure_future(

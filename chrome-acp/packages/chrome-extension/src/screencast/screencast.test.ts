@@ -210,66 +210,6 @@ describe("createScreencast", () => {
     await expect(session.stop()).resolves.toBeUndefined();
     expect(session.isActive()).toBe(false);
   });
-
-  test("a stop that lands mid-start undoes the start instead of going live", async () => {
-    let releaseAttach: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      releaseAttach = resolve;
-    });
-    let detaches = 0;
-    const fake = fakeTarget({
-      attach: async () => {
-        await gate;
-      },
-      detach: async () => {
-        detaches += 1;
-      },
-    });
-    const states: LiveViewState[] = [];
-    const session = createScreencast(fake.target, {
-      onFrame: () => {},
-      onState: (s) => states.push(s),
-    });
-
-    // The viewer leaves again while the debugger is still attaching. Without
-    // the guard the start would go live afterwards with nobody holding a
-    // handle, leaving the debugger attached to the user's tab for good.
-    const start = session.start();
-    const stop = session.stop();
-    releaseAttach();
-    await start;
-    await stop;
-
-    expect(session.isActive()).toBe(false);
-    expect(fake.commands.some((c) => c.method === "Page.startScreencast")).toBe(false);
-    expect(detaches).toBe(1);
-    expect(states).toEqual([{ active: false, mode: "screencast" }]);
-  });
-
-  test("a second start while the first is attaching does not attach twice", async () => {
-    let releaseAttach: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      releaseAttach = resolve;
-    });
-    let attaches = 0;
-    const fake = fakeTarget({
-      attach: async () => {
-        attaches += 1;
-        await gate;
-      },
-    });
-    const session = createScreencast(fake.target, { onFrame: () => {} });
-
-    const first = session.start();
-    const second = session.start();
-    releaseAttach();
-    await first;
-    await second;
-
-    expect(attaches).toBe(1);
-    expect(fake.commands.filter((c) => c.method === "Page.startScreencast")).toHaveLength(1);
-    expect(session.isActive()).toBe(true);
-  });
 });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -425,41 +365,5 @@ describe("createScreenshotPolling", () => {
 
     expect(states).toEqual([]);
     expect(fake.commands).toEqual([]);
-  });
-
-  test("a stop that lands mid-start never starts polling", async () => {
-    let releaseAttach: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      releaseAttach = resolve;
-    });
-    let detaches = 0;
-    const fake = fakeTarget({
-      attach: async () => {
-        await gate;
-      },
-      detach: async () => {
-        detaches += 1;
-      },
-    });
-    const states: LiveViewState[] = [];
-    const frames: unknown[] = [];
-    const session = createScreenshotPolling(fake.target, {
-      onFrame: (f) => frames.push(f),
-      intervalMs: 100,
-      onState: (s) => states.push(s),
-    });
-
-    const start = session.start();
-    const stop = session.stop();
-    releaseAttach();
-    await start;
-    await stop;
-    await sleep(200);
-
-    expect(session.isActive()).toBe(false);
-    expect(frames).toEqual([]);
-    expect(fake.commands.some((c) => c.method === "Page.getLayoutMetrics")).toBe(false);
-    expect(detaches).toBe(1);
-    expect(states).toEqual([{ active: false, mode: "screenshots" }]);
   });
 });

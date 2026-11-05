@@ -2,7 +2,7 @@
 Tests for the sub-agent in-memory session + two cooperating compaction hooks.
 
 Covers:
-1. InMemorySession - get/add/pop/clear and logical-run input admission.
+1. InMemorySession - get/add/pop/clear, run-input admission, and context replacement.
 2. session_input_callback - seeds new_items into the session and returns the
    combined history + new list without performing compaction.
 3. call_model_input_filter - reads the session as the source of truth, compacts
@@ -19,8 +19,10 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from agents.run_config import CallModelData, ModelInputData
 
 import siada.tools.agent.sub_agent_compaction_filter as mod
@@ -33,6 +35,49 @@ from siada.tools.agent.sub_agent_compaction_filter import (
     make_sub_agent_compaction_filter,
     make_sub_agent_session_input_callback,
 )
+from siada.provider import provider_factory
+from siada.provider.token_counting import TokenCountingInfo
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("protocol", ["chat", "responses", "gemini"])
+async def test_filter_counts_configured_protocol_without_resolving_model(monkeypatch, protocol):
+    from siada.agent_hub.context_filter import utils
+    from siada.provider.gemini import counting
+
+    info = TokenCountingInfo("opaque-wire-alias", protocol)
+    provider = SimpleNamespace(
+        get_token_counting_info=MagicMock(return_value=info),
+        get_model=MagicMock(side_effect=AssertionError("Counting must not resolve a model")),
+    )
+    resolve = MagicMock(return_value=provider)
+    monkeypatch.setattr(provider_factory, "get_provider", resolve)
+    chat_counter = MagicMock(return_value=100)
+    native_counter = MagicMock(return_value=200)
+    monkeypatch.setattr(utils, "_calculate_tokens", chat_counter)
+    monkeypatch.setattr(counting, "estimate_input_tokens", native_counter)
+    should_compact = MagicMock(return_value=False)
+    monkeypatch.setattr(mod._STRATEGY, "should_compact", should_compact)
+    config = SimpleNamespace(model_name="google/gemini-3.5-flash", provider="synthetic", context_window=200_000)
+    items = [{"role": "user", "content": "synthetic task"}]
+    session = InMemorySession()
+    await session.add_items(items)
+    data = _make_call_model_data([], "# Synthetic instructions")
+
+    result = await make_sub_agent_compaction_filter(config, session)(data)
+
+    assert result.input == items == await session.get_items()
+    assert result.instructions == data.model_data.instructions
+    should_compact.assert_called_once_with(220 if protocol == "gemini" else 110, config)
+    resolve.assert_called_once_with("synthetic")
+    provider.get_token_counting_info.assert_called_once_with(config.model_name)
+    provider.get_model.assert_not_called()
+    if protocol == "gemini":
+        native_counter.assert_called_once_with(items, None)
+        chat_counter.assert_not_called()
+    else:
+        chat_counter.assert_called_once_with(info.model_name, items, tools=None)
+        native_counter.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -119,56 +164,86 @@ class TestInMemorySession(unittest.TestCase):
     def test_clear_session_resets_items_and_admissions(self):
         session = InMemorySession()
         a = _msg("user", "a")
-        self._run(session.add_items([a]))
+        self._run(session.admit_input("run-1", [a]))
 
         self._run(session.clear_session())
         self.assertEqual(self._run(session.get_items()), [])
 
-        # A full reset allows the same item to be added again.
+        # This is a full reset, not compaction: the SDK write is now fresh.
         self._run(session.add_items([a]))
         self.assertEqual(self._run(session.get_items()), [a])
 
-    def test_unique_session_ids(self):
-        self.assertNotEqual(InMemorySession().session_id, InMemorySession().session_id)
-
-    def test_admission_guard_survives_compaction_and_consumes_only_input(self):
+    def test_mixed_sdk_batch_skips_only_admitted_input(self):
         session = InMemorySession()
         new = [_msg("user", "a"), _msg("user", "b")]
-        summary = [_msg("user", "summary")] * 2
-        output = [_msg("assistant", "result")] * 2
-        self._run(session.admit_input("run", new))
-        self._run(session.replace_context_items(summary))
-        self._run(session.add_items(output))
-        with self.assertRaisesRegex(ValueError, "does not match"):
-            self._run(session.add_items(new[:1]))
-        self.assertEqual(self._run(session.get_items()), summary + output)
-        self._run(session.add_items(new + output))
-        self.assertEqual(self._run(session.get_items()), summary + output * 2)
+        outputs = [_msg("assistant", "result"), _msg("assistant", "result")]
+        self._run(session.admit_input("run-1", new))
+
+        self._run(session.add_items(new + outputs))
+
+        self.assertEqual(self._run(session.get_items()), new + outputs)
+        # Suppression is consumed once, not a global content blacklist.
         self._run(session.add_items(new))
-        self.assertEqual(self._run(session.get_items()), summary + output * 2 + new)
+        self.assertEqual(self._run(session.get_items()), new + outputs + new)
 
-    def test_admission_matches_native_input_and_detaches_nested_items(self):
-        session = InMemorySession()
-        native = {"role": "user", "content": [{"type": "input_text", "text": "task"}]}
-        decorated = {**native, "_agents_tool_title": "Title",
-                     "_agents_tool_description": "Description"}
-        self._run(session.admit_input("run", [decorated]))
-        self._run(session.add_items([native]))
-        native["content"][0]["text"] = "mutated"
-        returned = self._run(session.get_items())
-        self.assertEqual(returned[0]["content"][0]["text"], "task")
-        returned[0]["content"][0]["text"] = "mutated again"
-        self.assertEqual(self._run(session.get_items())[0]["content"][0]["text"], "task")
-
-    def test_replacement_failure_keeps_admission_and_context(self):
+    def test_output_only_save_does_not_consume_pending_input(self):
         session = InMemorySession()
         new = [_msg("user", "task")]
-        self._run(session.admit_input("run", new))
+        output = _msg("assistant", "result")
+        self._run(session.admit_input("run-1", new))
+        self._run(session.add_items([output]))
+        self._run(session.add_items([]))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), new + [output])
+
+    def test_sdk_input_matching_ignores_display_metadata(self):
+        session = InMemorySession()
+        new = _msg("user", "task")
+        decorated = {**new, "_agents_tool_title": "Title", "_agents_tool_description": "Description"}
+        self._run(session.admit_input("run-1", [decorated]))
+        self._run(session.add_items([new]))
+        self.assertEqual(self._run(session.get_items()), [decorated])
+
+    def test_partial_input_save_fails_without_consuming_admission(self):
+        session = InMemorySession()
+        new = [_msg("user", "a"), _msg("user", "b")]
+        self._run(session.admit_input("run-1", new))
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            self._run(session.add_items(new[:1]))
+        self.assertEqual(self._run(session.get_items()), new)
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), new)
+
+    def test_replace_context_preserves_admission_and_repeated_messages(self):
+        session = InMemorySession()
+        new = [_msg("user", "task")]
+        compacted = [_msg("user", "summary"), _msg("assistant", "answer")] * 2
+        self._run(session.admit_input("run-1", new))
+        self._run(session.replace_context_items(compacted))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), compacted)
+
+    def test_session_items_are_detached_from_callers(self):
+        session = InMemorySession()
+        item = {"role": "user", "content": [{"type": "input_text", "text": "task"}]}
+        self._run(session.add_items([item]))
+        item["content"][0]["text"] = "changed input"
+        returned = self._run(session.get_items())
+        returned[0]["content"][0]["text"] = "changed output"
+        self.assertEqual(self._run(session.get_items())[0]["content"][0]["text"], "task")
+
+    def test_replace_failure_preserves_context_and_input_admission(self):
+        session = InMemorySession()
+        new = [_msg("user", "task")]
+        self._run(session.admit_input("run-1", new))
         with patch.object(mod.copy, "deepcopy", side_effect=RuntimeError("copy failed")):
             with self.assertRaisesRegex(RuntimeError, "copy failed"):
                 self._run(session.replace_context_items([_msg("user", "summary")]))
         self._run(session.add_items(new))
         self.assertEqual(self._run(session.get_items()), new)
+
+    def test_unique_session_ids(self):
+        self.assertNotEqual(InMemorySession().session_id, InMemorySession().session_id)
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +292,40 @@ class TestSessionInputCallback(unittest.TestCase):
 
         self.assertEqual(self._run(session.get_items()), new)
 
-    def test_new_run_requires_confirmed_input_and_preserves_repeats(self):
+    def test_new_callback_preserves_identical_input(self):
+        session = InMemorySession()
+        new = [_msg("user", "task")]
+        first = make_sub_agent_session_input_callback(session)
+        second = make_sub_agent_session_input_callback(session)
+        self._run(first([], new))
+        self._run(session.add_items(new))
+        self._run(second(new, new))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), new + new)
+
+    def test_retry_after_compaction_does_not_readmit_original_input(self):
+        session = InMemorySession()
+        callback = make_sub_agent_session_input_callback(session)
+        new = [_msg("user", "task")]
+        compacted = [_msg("user", "summary")]
+        self._run(callback([], new))
+        self._run(session.replace_context_items(compacted))
+        self._run(session.add_items(new))
+        self._run(callback(compacted, new))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), compacted)
+
+    def test_callback_rejects_different_input_for_same_run(self):
+        session = InMemorySession()
+        callback = make_sub_agent_session_input_callback(session)
+        new = [_msg("user", "task")]
+        self._run(callback([], new))
+        with self.assertRaisesRegex(ValueError, "different input"):
+            self._run(callback(new, [_msg("user", "another task")]))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), new)
+
+    def test_new_run_rejects_unconfirmed_previous_input(self):
         session = InMemorySession()
         new = [_msg("user", "task")]
         first = make_sub_agent_session_input_callback(session)
@@ -225,32 +333,17 @@ class TestSessionInputCallback(unittest.TestCase):
         self._run(first([], new))
         with self.assertRaisesRegex(ValueError, "awaiting SDK persistence"):
             self._run(second(new, new))
-        with self.assertRaisesRegex(ValueError, "different input"):
-            self._run(first(new, [_msg("user", "changed")]))
         self._run(session.add_items(new))
         self._run(second(new, new))
-        self._run(session.add_items(new))
-        self.assertEqual(self._run(session.get_items()), new * 2)
+        self.assertEqual(self._run(session.get_items()), new + new)
 
-    def test_retry_after_replacement_does_not_readmit_input(self):
+    def test_empty_input_does_not_suppress_outputs(self):
         session = InMemorySession()
         callback = make_sub_agent_session_input_callback(session)
-        new = [_msg("user", "task")]
-        summary = [_msg("user", "summary")]
-        self._run(callback([], new))
-        self._run(session.replace_context_items(summary))
-        self._run(session.add_items(new))
-        self._run(callback(summary, new))
-        self._run(session.add_items(new))
-        self.assertEqual(self._run(session.get_items()), summary)
-
-    def test_empty_admission_preserves_duplicate_outputs(self):
-        session = InMemorySession()
-        callback = make_sub_agent_session_input_callback(session)
+        output = _msg("assistant", "result")
         self._run(callback([], []))
-        outputs = [_msg("assistant", "result")] * 2
-        self._run(session.add_items(outputs))
-        self.assertEqual(self._run(session.get_items()), outputs)
+        self._run(session.add_items([output, output]))
+        self.assertEqual(self._run(session.get_items()), [output, output])
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +496,22 @@ class TestHooksCooperation(unittest.TestCase):
 
         # The filter sees exactly what the callback seeded (the new input).
         self.assertEqual(result.input, new)
+
+    def test_compaction_retaining_input_does_not_consume_sdk_save_guard(self):
+        session = InMemorySession()
+        callback = make_sub_agent_session_input_callback(session)
+        new = [_msg("user", "task")]
+        self._run(callback([], new))
+        cfg = _make_model_run_config()
+        data = _make_call_model_data(new, "sys")
+        with patch.object(mod, "calculate_tokens", return_value=999_999), \
+             patch.object(mod._STRATEGY, "should_compact", return_value=True), \
+             patch.object(mod._STRATEGY, "compact", new=AsyncMock(
+                 return_value=CompactionResult(messages=new, compacted=True)
+             )):
+            self._run(make_sub_agent_compaction_filter(cfg, session)(data))
+        self._run(session.add_items(new))
+        self.assertEqual(self._run(session.get_items()), new)
 
 
 # ---------------------------------------------------------------------------

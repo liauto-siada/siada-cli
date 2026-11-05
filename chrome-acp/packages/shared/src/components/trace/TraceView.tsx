@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Ban, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { ScrollArea } from "../ui/scroll-area";
 import { Viewport } from "./Viewport";
-import { useFrameDiff, type FrameDiff } from "./useFrameDiff";
+import { useFrameDiff } from "./useFrameDiff";
 import { formatDuration, formatElapsed, shareOfTotal } from "../../trace/format";
 import type {
   FrameSource,
@@ -23,12 +23,6 @@ export interface TraceViewProps {
   density?: "auto" | "compact" | "full";
   /** Shown inside the stage before the first frame arrives. */
   placeholder?: ReactNode;
-  /**
-   * Called with the verdict of an actual picture comparison for a step (its
-   * own before/after pair, once decoded). The host records it on the step as
-   * the one page-change observation the viewer is allowed to show.
-   */
-  onPageChange?: (correlationId: string, changed: boolean) => void;
 }
 
 const statusIcon: Record<TraceStepStatus, ReactNode> = {
@@ -49,7 +43,6 @@ export function TraceView({
   className,
   density = "auto",
   placeholder,
-  onPageChange,
 }: TraceViewProps) {
   const [selected, setSelected] = useState<number | null>(null);
   const [, setFrameTick] = useState(0);
@@ -59,19 +52,6 @@ export function TraceView({
     () => frameSource.subscribe(() => setFrameTick((tick) => tick + 1)),
     [frameSource],
   );
-
-  // Identity of the run on screen. `runId` is minted per beginRun(), so two
-  // runs that start in the same millisecond are still told apart; traces
-  // without one (persisted before the field existed) fall back to their start
-  // time, which was the only identity available then.
-  const runIdentity = run.runId ?? `started-${run.startedAtMs}`;
-
-  // A new run replaces the timeline wholesale, so a step selected in the
-  // previous one must not survive: it would leave the detail panel pointing at
-  // an index the current run does not have.
-  useEffect(() => {
-    setSelected(null);
-  }, [runIdentity]);
 
   const activeIndex = selected ?? run.steps.at(-1)?.i ?? null;
   const activeStep = useMemo(
@@ -89,36 +69,10 @@ export function TraceView({
   // Prefer the selected step's own frame; fall back to the newest one so the
   // stage is never blank while frames trail the trace slightly.
   const frame = afterFrame ?? frameSource.current();
-  // Say which picture is on screen: a step's own after-frame, or the newest
-  // picture of the run — which is a picture, not an attribution.
-  const frameNote = frame
-    ? afterFrame
-      ? "picture linked to this step"
-      : "latest picture, not linked to a step"
-    : undefined;
 
   const [showChanges, setShowChanges] = useState(true);
-  // Diffing a step's own before/after pair is the only page-change evidence
-  // this viewer has; the verdict is reported back so the host can record it.
-  const diff = useFrameDiff(beforeFrame, afterFrame);
-  const overlays = showChanges ? diff.overlays : [];
-
-  const correlationId = activeStep?.correlationId;
-  const pairKey =
-    beforeFrame && afterFrame && beforeFrame.key !== afterFrame.key
-      ? `${beforeFrame.key}>${afterFrame.key}`
-      : null;
-  const reportedPair = useRef<string | null>(null);
-  useEffect(() => {
-    if (!onPageChange || !correlationId || !pairKey || diff.changed === null) return;
-    // The run is part of the identity: a new run may reuse the same
-    // correlation id and frame keys, and its pictures are new evidence that
-    // must be reported rather than suppressed as "already reported".
-    const key = `${runIdentity}::${correlationId}::${pairKey}`;
-    if (reportedPair.current === key) return;
-    reportedPair.current = key;
-    onPageChange(correlationId, diff.changed);
-  }, [onPageChange, runIdentity, correlationId, pairKey, diff.changed]);
+  const changeOverlays = useFrameDiff(beforeFrame, afterFrame);
+  const overlays = showChanges ? changeOverlays : [];
 
   const maxDur = run.steps.reduce((max, step) => Math.max(max, step.durMs ?? 0), 0);
 
@@ -139,13 +93,12 @@ export function TraceView({
             overlays={overlays}
             url={frame?.url ?? run.url}
             title={frame?.title ?? run.task}
-            note={frameNote}
             badge={run.endedAtMs === null ? "live" : undefined}
             placeholder={placeholder}
           />
           <StepDetail
             step={activeStep}
-            diff={diff}
+            changedRegions={changeOverlays.length}
             overlaysVisible={showChanges}
             onToggleOverlays={() => setShowChanges((visible) => !visible)}
           />
@@ -188,10 +141,6 @@ export function TraceView({
 function Summary({ run }: { run: TraceRun }) {
   const { metrics } = run;
   const attributed = shareOfTotal(metrics.toolMs, run.elapsedMs);
-  // "no change" is a count of comparisons that actually happened: a step whose
-  // before/after pictures were never compared is neither changed nor unchanged,
-  // so with nothing compared the metric reads "—" instead of a made-up 0.
-  const comparedSteps = metrics.changedSteps + metrics.wastedSteps;
 
   return (
     <div className="rounded-lg border bg-card p-3">
@@ -214,25 +163,12 @@ function Summary({ run }: { run: TraceRun }) {
 
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] sm:grid-cols-4">
         <Metric label="steps" value={String(metrics.stepCount)} />
-        <Metric
-          label="tool"
-          value={formatDuration(metrics.toolMs)}
-          hint="run time covered by observed tool calls; calls that run concurrently overlap and are counted once"
-        />
-        <Metric
-          label="outside tools"
-          value={formatDuration(metrics.gapMs)}
-          hint="run time not covered by observed tool calls: model thinking, browser work between steps, anything else the trace cannot see"
-        />
+        <Metric label="tool" value={formatDuration(metrics.toolMs)} />
+        <Metric label="model / wait" value={formatDuration(metrics.gapMs)} />
         <Metric
           label="no change"
-          value={comparedSteps > 0 ? String(metrics.wastedSteps) : "—"}
+          value={String(metrics.wastedSteps)}
           warn={metrics.wastedSteps > 0}
-          hint={
-            comparedSteps > 0
-              ? `of the ${comparedSteps} step(s) whose own before/after pictures were compared, this many showed no change above the diff threshold — a pixel verdict, not a claim that the action did nothing`
-              : "no step has a compared before/after picture pair yet"
-          }
         />
       </dl>
     </div>
@@ -243,15 +179,13 @@ function Metric({
   label,
   value,
   warn,
-  hint,
 }: {
   label: string;
   value: string;
   warn?: boolean;
-  hint?: string;
 }) {
   return (
-    <div className="flex min-w-0 items-baseline gap-1" title={hint}>
+    <div className="flex min-w-0 items-baseline gap-1">
       <dt className="truncate text-muted-foreground">{label}</dt>
       <dd
         className={cn(
@@ -321,12 +255,12 @@ function StepRow({
 
 function StepDetail({
   step,
-  diff,
+  changedRegions,
   overlaysVisible,
   onToggleOverlays,
 }: {
   step: TraceStep | null;
-  diff: FrameDiff;
+  changedRegions: number;
   overlaysVisible: boolean;
   onToggleOverlays: () => void;
 }) {
@@ -337,16 +271,6 @@ function StepDetail({
       </div>
     );
   }
-
-  const changedAreas = diff.overlays.length;
-  const diffNote =
-    diff.status === "pending"
-      ? "change overlay: comparing this step's before/after pictures…"
-      : diff.status === "unavailable"
-        ? `change overlay unavailable: ${diff.reason}`
-        : diff.status === "idle"
-          ? "change overlay: no before/after picture pair is linked to this step"
-          : null;
 
   return (
     <div className="rounded-lg border bg-card p-3">
@@ -364,26 +288,20 @@ function StepDetail({
         {step.value ? <span>value: {step.value}</span> : null}
         {step.pageChanged !== null ? (
           <span className={step.pageChanged ? "" : "text-amber-600"}>
-            {step.pageChanged
-              ? "page changed"
-              : "page diff: no change above threshold"}
+            page {step.pageChanged ? "changed" : "unchanged"}
           </span>
         ) : null}
-        {diff.status === "ready" && changedAreas > 0 ? (
+        {changedRegions > 0 ? (
           <button
             type="button"
             onClick={onToggleOverlays}
             className="rounded border px-1.5 py-0.5 hover:bg-muted"
           >
-            {overlaysVisible ? "hide" : "show"} {changedAreas} changed{" "}
-            {changedAreas === 1 ? "area" : "areas"}
+            {overlaysVisible ? "hide" : "show"} {changedRegions} changed{" "}
+            {changedRegions === 1 ? "area" : "areas"}
           </button>
         ) : null}
-        {diff.status === "ready" && changedAreas === 0 ? (
-          <span>page change: none found above the diff threshold</span>
-        ) : null}
       </div>
-      {diffNote ? <p className="mt-1 text-[11px] text-muted-foreground">{diffNote}</p> : null}
     </div>
   );
 }

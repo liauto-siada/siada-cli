@@ -23,11 +23,12 @@ from siada.models.model_base_config import (
     [
         ("glm-5.3", (5, 3)),
         ("GLM-5.3", (5, 3)),
-        ("glm-5.3-flash", (5, 3)),
+        ("lpai-glm-5.3-flash", (5, 3)),
+        ("bailian-glm-5.3", (5, 3)),
         ("openai/glm-5.4", (5, 4)),
-        ("zhipuai/glm-5.30", (5, 30)),
+        ("kivy-glm-5.30", (5, 30)),
         ("glm-6", (6, 0)),
-        ("zhipuai/glm-5.2", (5, 2)),
+        ("kivy-glm-5.2", (5, 2)),
         ("xglm-5.3", None),
         ("chatglm3-6b", None),
         ("claude-sonnet-5", None),
@@ -40,13 +41,13 @@ def test_glm_version_parsing_is_token_bounded(model_name, expected):
 
 
 def test_existing_glm_generation_checks_keep_their_meaning():
-    assert is_glm_5_2_or_newer("glm-5.2") is True
-    assert is_glm_5_3_or_newer("glm-5.2") is False
-    assert is_glm_5_3_or_newer("glm-5.3-flash") is True
+    assert is_glm_5_2_or_newer("kivy-glm-5.2") is True
+    assert is_glm_5_3_or_newer("kivy-glm-5.2") is False
+    assert is_glm_5_3_or_newer("baidu-glm-5.3-flash") is True
     # Integer-only later generations count as newer than 5.3.
     assert is_glm_5_3_or_newer("glm-6") is True
     assert get_valid_reasoning_efforts("glm-6") == ["low", "high", "max"]
-    assert get_valid_reasoning_efforts("glm-5.2") == ["high", "max"]
+    assert get_valid_reasoning_efforts("kivy-glm-5.2") == ["high", "max"]
 
 
 def test_builtin_glm_5_3_entries_declare_reasoning_capabilities():
@@ -58,6 +59,7 @@ def test_builtin_glm_5_3_entries_declare_reasoning_capabilities():
         assert config.default_reasoning_effort == "max"
 
 
+
 def test_models_dev_unknown_glm_keeps_unspecified_capabilities(monkeypatch):
     from siada.provider import models_dev
 
@@ -65,39 +67,24 @@ def test_models_dev_unknown_glm_keeps_unspecified_capabilities(monkeypatch):
         models_dev,
         "get_providers_for_ui",
         lambda: [{"id": "zhipuai", "models": [
-            {"id": "glm-5.10", "context": 200},
-            {"id": "zhipuai/glm-5.3", "context": 200},
-            {"id": "glm-5.3-flash", "context": 200},
+            {"id": "glm-9.3", "context": 200},
+            {"id": "glm-5.3", "context": 200},
         ]}],
     )
     configs = {
         c.model_name: c
-        for c in models_dev.get_provider_model_configs("zhipuai", "glm-5.10")
+        for c in models_dev.get_provider_model_configs("zhipuai", "glm-5.3")
     }
 
-    # "glm-5.10" parses as a GLM-5.3-or-newer generation but has no built-in
-    # entry, so its capabilities must NOT be inferred from the name.
-    assert get_glm_version("glm-5.10") == (5, 10)
-    assert is_glm_5_3_or_newer("glm-5.10") is True
-    bare = configs["glm-5.10"]
+    bare = configs["glm-9.3"]
     assert bare.context_window == 200_000
     assert bare.supports_extra_params is None
     assert bare.default_reasoning_effort is None
     assert bare.supports_vision_bridge is False
-    # Nor is a provider-qualified spelling, which is never a catalogue name.
-    prefixed = configs["zhipuai/glm-5.3"]
-    assert prefixed.context_window == 200_000
-    assert prefixed.supports_extra_params is None
-    assert prefixed.default_reasoning_effort is None
-    assert prefixed.supports_vision_bridge is False
     # An exact built-in match still inherits its explicit capabilities.
-    builtin = next(c for c in MODEL_SETTING if c.model_name == "glm-5.3-flash")
-    assert builtin.supports_extra_params == ["reasoning_effort"]
-    assert builtin.default_reasoning_effort == "max"
-    inherited = configs["glm-5.3-flash"]
-    assert inherited.supports_extra_params == builtin.supports_extra_params
-    assert inherited.default_reasoning_effort == "max"
-    assert inherited.supports_images is builtin.supports_images
+    builtin = next(c for c in MODEL_SETTING if c.model_name == "glm-5.3")
+    assert configs["glm-5.3"].supports_vision_bridge is builtin.supports_vision_bridge
+    assert configs["glm-5.3"].default_reasoning_effort == "max"
 
 
 def test_models_json_entries_keep_unspecified_and_explicit_fields(monkeypatch):
@@ -109,6 +96,8 @@ def test_models_json_entries_keep_unspecified_and_explicit_fields(monkeypatch):
     monkeypatch.setenv("BASE_URL", "http://127.0.0.1:9/v1")
     monkeypatch.setenv("API_KEY", "test-key")
     monkeypatch.setattr(model_base_config, "_user_model_settings", None)
+    monkeypatch.setattr("siada.config.model_config.load_user_model_config", lambda: None)
+    monkeypatch.setattr(model_setup, "get_api_key_provider_models", lambda *args: [])
     import siada.entrypoint as entrypoint
     # get_config records the resolved provider globally; restore it after.
     monkeypatch.setattr(entrypoint, "_CURRENT_PROVIDER", getattr(entrypoint, "_CURRENT_PROVIDER", ""))

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
 import hashlib
 import json
 
@@ -10,6 +10,9 @@ from siada.foundation.logging import logger
 from siada.provider.default.coverter import covert_to_litellm_model_name
 from siada.provider.reasoning_replay import should_replay_reasoning_content
 from siada.support.chat_compat_items import to_chat_compatible_item
+
+if TYPE_CHECKING:
+    from siada.provider.token_counting import TokenCountingInfo
 
 # Safety margin for char-based token estimation (20% buffer)
 _ESTIMATION_SAFETY_MARGIN = 1.2
@@ -83,8 +86,9 @@ def fix_tool_message_ordering(messages: List) -> List:
         an assistant message with 'tool_calls' must be followed by tool
         messages responding to each 'tool_call_id'
 
-    The normal streaming path already applies this repair
-    (``LitellmModel._fix_tool_message_ordering``); the compaction summarization
+    The normal streaming path already applies this repair (see
+    ``siada/internal/provider/li/li_provider.py`` →
+    ``LitellmModel._fix_tool_message_ordering``); the compaction summarization
     call needs it too.
 
     Repairs performed
@@ -196,7 +200,7 @@ def _normalize_to_responses_items(items: List) -> List:
       - function call output:    ``{type:"function_call_output", call_id, output}``
       - reasoning / item_reference / file_search_call / compaction
 
-    Some model-provider paths write ChatCompletion-style
+    Some siada provider paths (e.g. li/Bedrock/ADK) write ChatCompletion-style
     dicts into ``task_message_state``::
 
         {role:"assistant", content:"", tool_calls:[{id, function:{name, arguments}}]}
@@ -487,6 +491,7 @@ def calculate_tokens(
     *,
     tools: Optional[List[Tool]] = None,
     diagnostics: dict[str, Any] | None = None,
+    counting_info: TokenCountingInfo | None = None,
 ) -> int:
     """
     Count tokens using litellm when model_name is available,
@@ -505,6 +510,7 @@ def calculate_tokens(
         model_name: if provided, uses litellm model-aware tokenizer
         messages_or_text: list of API message items, or a plain string
         tools: optional list of agent Tool objects for accurate tool-token counting
+        counting_info: actual provider route; native estimation requires an explicit protocol
         diagnostics: optional request-local output for raw count, headroom, and
             counter provenance. No message content is retained.
 
@@ -517,6 +523,14 @@ def calculate_tokens(
                                budget_tokens=budget, tokenizer_source=source)
         return budget
 
+    from siada.provider.token_counting import estimate_provider_input_tokens
+
+    if counting_info is not None:
+        model_name = counting_info.model_name or model_name
+    estimate = estimate_provider_input_tokens(counting_info, messages_or_text, tools)
+    if estimate is not None:
+        raw, source = estimate
+        return counted(raw, int(raw * (1 + TOKEN_ESTIMATION_SAFETY_MARGIN)), source)
     if model_name is not None:
         try:
             raw = _calculate_tokens(model_name, messages_or_text, tools=tools)

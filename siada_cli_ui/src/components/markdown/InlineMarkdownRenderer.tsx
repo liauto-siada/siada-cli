@@ -8,7 +8,7 @@ import React from 'react';
 import { Text } from '@jrichman/ink';
 import { theme } from './theme.js';
 import { useThemeVersion } from '../../themes/index.js';
-import stringWidth from 'string-width';
+import stringWidth from '../../utils/terminalWidth.js';
 import { HighlightedText } from '../common/HighlightedText.js';
 import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
 

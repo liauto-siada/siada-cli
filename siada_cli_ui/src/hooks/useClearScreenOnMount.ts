@@ -13,17 +13,20 @@
  * MessageList.refreshStatic's clearTerminal + DEC 2026 sync-output hold.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useContext } from 'react';
+import { BottomPaneContext } from '../contexts/BottomPaneContext.js';
 import { useStdout } from '@jrichman/ink';
 import ansiEscapes from 'ansi-escapes';
 import { beginSyncOutput, endSyncOutput } from '../utils/stdio.js';
 
-export function useClearScreenOnMount(): boolean {
+export function useClearScreenOnMount(enabled = true): boolean {
+  const pane = useContext(BottomPaneContext);
+  enabled = enabled && !pane;
   const { stdout } = useStdout();
   const [cleared, setCleared] = useState(false);
 
   useEffect(() => {
-    if (cleared || !stdout) return;
+    if (!enabled || cleared || !stdout) return;
     // Hold DEC 2026 synchronized output so supporting terminals paint the
     // clear + repaint atomically (no blank flash). No-op elsewhere; the
     // sync channel also has a 1s safety timeout.
@@ -31,7 +34,7 @@ export function useClearScreenOnMount(): boolean {
     stdout.write(ansiEscapes.clearTerminal);
     setTimeout(endSyncOutput, 150);
     setCleared(true);
-  }, [stdout, cleared]);
+  }, [stdout, cleared, enabled]);
 
-  return cleared;
+  return !enabled || cleared;
 }

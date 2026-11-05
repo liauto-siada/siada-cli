@@ -3,8 +3,10 @@
 ``ResponsesModel`` (protocol layer) builds Responses API request params;
 a ``ResponsesTransport`` decides how to authenticate and where to send them:
 
-- ``DefaultResponsesTransport`` (default provider): plain OpenAI-compatible
-  endpoint configured via ``BASE_URL`` / ``API_KEY``.
+- ``LiProxyResponsesTransport`` (internal build): Li ID auth, X-Siada-*
+  tracing headers, sticky-node routing through the Li proxy cluster.
+- ``DefaultResponsesTransport`` (open-source default provider): plain
+  OpenAI-compatible endpoint configured via ``BASE_URL`` / ``API_KEY``.
 """
 from __future__ import annotations
 
@@ -30,7 +32,8 @@ class ResponsesTransport(ABC):
         """Convert the user-facing model name for this transport's upstream.
 
         Called at the transport boundary on every request, so environment-
-        specific naming rules stay out of the protocol layer.
+        specific naming rules (e.g. Li proxy's ``covert_to_li_model_name``)
+        stay out of the protocol layer.
         """
 
     @abstractmethod

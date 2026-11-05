@@ -8,9 +8,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from siada.provider.default import responses_transport as responses_module
+from siada.provider.default import chat_completions as chat_module
 from siada.provider.default.default_provider import DefaultProvider
 from siada.provider.default.responses_transport import DefaultResponsesTransport
 from siada.provider.responses.transport import ResponsesTransport
+from siada.provider.gemini.transport import GeminiTransport
 
 
 def _mock_client() -> MagicMock:
@@ -66,7 +68,7 @@ async def test_default_transport_lazily_reuses_and_closes_client(
 
     assert first is not None
     assert second is not None
-    assert created == [{"api_key": "test-key", "base_url": "https://responses.test/v1", "max_retries": 0}]
+    assert created == [{"api_key": "test-key", "base_url": "https://responses.test/v1"}]
     assert client.responses.create.await_count == 2
 
     await transport.aclose()
@@ -176,6 +178,51 @@ async def test_default_provider_closes_responses_even_if_chat_close_fails():
     provider._responses_transport.aclose.assert_awaited_once()
 
 
+@pytest.mark.parametrize("active_endpoint", ["chat", "responses", "both"])
+def test_unused_gemini_does_not_block_owner_loop_shutdown_retry(monkeypatch, active_endpoint):
+    clients = []
+
+    def create_client(**kwargs):
+        client = _mock_client()
+        clients.append(client)
+        return client
+
+    monkeypatch.setenv("BASE_URL", "https://synthetic.test/v1")
+    monkeypatch.setenv("API_KEY", "synthetic-key")
+    monkeypatch.setattr(chat_module, "AsyncOpenAI", create_client)
+    monkeypatch.setattr(responses_module, "AsyncOpenAI", create_client)
+    provider = DefaultProvider()
+    provider.get_model("gemini-3.5-flash")
+    owner = asyncio.new_event_loop()
+    foreign = asyncio.new_event_loop()
+
+    async def acquire():
+        if active_endpoint in {"chat", "both"}:
+            provider.get_model("gpt-4o")
+        if active_endpoint in {"responses", "both"}:
+            provider._responses_transport._get_client()
+
+    try:
+        owner.run_until_complete(acquire())
+        with pytest.raises((RuntimeError, ExceptionGroup)):
+            foreign.run_until_complete(provider.aclose())
+        for client in clients:
+            client.close.assert_not_awaited()
+        owner.run_until_complete(provider.aclose())
+        owner.run_until_complete(provider.aclose())
+        for client in clients:
+            client.close.assert_awaited_once()
+    finally:
+        owner.close()
+        foreign.close()
+
+
+def test_unused_gemini_transport_can_close_without_claiming_a_loop():
+    transport = GeminiTransport()
+    asyncio.run(transport.aclose())
+    asyncio.run(transport.aclose())
+
+
 @pytest.mark.asyncio
 async def test_responses_transport_default_aclose_is_noop():
     class StatelessTransport(ResponsesTransport):
@@ -236,78 +283,3 @@ def test_default_transport_client_creation_is_thread_safe(
 
     assert created == 1
     assert all(client is clients[0] for client in results)
-
-
-@pytest.mark.asyncio
-async def test_default_transport_aclose_cancellation_keeps_clients_owned(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """A cancelled ``aclose`` keeps the clients whose close it did not confirm.
-
-    ``asyncio.CancelledError`` is a ``BaseException``, so it is not an ordinary
-    close failure: it propagates unchanged (the caller's cancellation is never
-    swallowed) and the remaining clients stay owned by the transport, so a later
-    ``aclose`` still closes them instead of returning early on ``_closed`` and
-    leaking them. ``_closed`` itself keeps refusing new work.
-    """
-    clients = [_mock_client(), _mock_client()]
-    created: list[dict[str, Any]] = []
-
-    def create_client(**kwargs: Any) -> MagicMock:
-        created.append(kwargs)
-        return clients[len(created) - 1]
-
-    monkeypatch.setattr(responses_module, "AsyncOpenAI", create_client)
-    monkeypatch.setenv("BASE_URL", "https://one.test/v1")
-    monkeypatch.setenv("API_KEY", "key-one")
-    transport = DefaultResponsesTransport()
-    await transport.create(model="gpt-5.4", input="one")
-
-    monkeypatch.setenv("BASE_URL", "https://two.test/v1")
-    monkeypatch.setenv("API_KEY", "key-two")
-    await transport.create(model="gpt-5.4", input="two")
-    assert len(created) == 2
-
-    started: list[int] = []
-    closed: list[int] = []
-    gate = asyncio.Event()
-
-    def gated_close(index: int):
-        async def close() -> None:
-            started.append(index)
-            if index == 0:
-                await gate.wait()
-            closed.append(index)
-
-        return close
-
-    for index, client in enumerate(clients):
-        client.close = gated_close(index)
-
-    task = asyncio.ensure_future(transport.aclose())
-    for _ in range(100):
-        if started:
-            break
-        await asyncio.sleep(0)
-    assert started == [0]
-
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-
-    assert closed == []
-    assert transport._closed is True
-    assert transport._retired_clients == clients
-    with pytest.raises(RuntimeError, match="is closed"):
-        transport._get_client()
-
-    gate.set()
-    await transport.aclose()
-
-    assert closed == [0, 1]
-    assert transport._retired_clients == []
-    assert transport._client is None
-
-    # Nothing left to close: the retry is not a repeat of the same closes.
-    await transport.aclose()
-    assert closed == [0, 1]

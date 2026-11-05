@@ -725,6 +725,7 @@ class LarkAgentExecutor:
             # the message reader has stopped admitting tasks.
             if not ctrl.is_running:
                 return
+
             if t.cancelled():
                 logger.info("Task for task_key=%s was interrupted by user", _task_key)
                 asyncio.ensure_future(ctrl._card_sender.send_im(

@@ -1,4 +1,5 @@
 import React from 'react';
+import { t, useUiLanguage } from '../../i18n/index.js';
 import { Box, Text } from '@jrichman/ink';
 import type { TodoItem } from '../../hooks/useAcp/types.js';
 import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
@@ -27,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
  * Renders nothing when the todo list is empty.
  */
 export const TodoStatusBar: React.FC<TodoStatusBarProps> = ({ items }) => {
+  useUiLanguage();
   if (!items || items.length === 0) return null;
 
   const total = items.length;
@@ -42,7 +44,7 @@ export const TodoStatusBar: React.FC<TodoStatusBarProps> = ({ items }) => {
       flexShrink={0}
     >
       <Box>
-        <Text color="cyan" bold>Todos </Text>
+        <Text color="cyan" bold>{t('待办清单 ', 'Todos ')}</Text>
         <Text dimColor>{`[${done}/${total}]`}</Text>
         {inProgress && (
           <Box marginLeft={2}>

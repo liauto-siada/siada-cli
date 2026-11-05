@@ -105,19 +105,7 @@ export type FileChangesHandler = (changes: FileChange[]) => void;
 export type DirListingPushHandler = (path: string, items: FileItem[]) => void;
 // Handler for pictures of the controlled page pushed by the extension. Kept
 // trace-agnostic: the caller decides how a frame maps onto a trace step.
-//
-// The relay routes each picture to the viewer of the tab it came from and tags
-// it with that tab and the run it belongs to, so a consumer can reject a
-// picture that reach it late (after a session switch, say) instead of blending
-// it into the current timeline. Producers that do not tag their pictures leave
-// these undefined.
-export interface FrameEnvelope {
-  callId?: string;
-  tabId?: number;
-  sessionId?: string;
-  payload: FramePayload;
-}
-export type FrameHandler = (frame: FrameEnvelope) => void;
+export type FrameHandler = (frame: { callId?: string; payload: FramePayload }) => void;
 // Handler for live view state changes (the extension reports whether the
 // screencast actually started, and why not when it failed).
 export type ScreencastStateHandler = (state: {
@@ -125,20 +113,6 @@ export type ScreencastStateHandler = (state: {
   error?: string;
   mode?: LiveViewMode;
 }) => void;
-// What a second consumer (the trace collector) needs to know about a turn:
-// when a prompt starts and when/why it stops. A turn is what the protocol
-// actually ends with — `prompt_complete` carries the stop reason (including
-// "cancelled"), a proxy "error" message is a failed turn, and a dropped
-// connection ends the stream without either. Emitted *in addition to* the
-// single-handler prompt_complete/error setters, which ChatInterface already
-// owns.
-export type TurnLifecycleEvent =
-  | { kind: "started" }
-  | { kind: "completed"; stopReason: string }
-  | { kind: "failed"; message: string }
-  | { kind: "cancel-requested" }
-  | { kind: "disconnected"; error?: string };
-export type TurnLifecycleHandler = (event: TurnLifecycleEvent) => void;
 // Handler for session loaded/resumed events
 export type SessionLoadedHandler = (sessionId: string) => void;
 // Handler fired before switching the active session.
@@ -177,6 +151,7 @@ export class ACPClient {
   private settings: ACPSettings;
   private connectionState: ConnectionState = "disconnected";
   private sessionId: string | null = null;
+  private _retainedSessionId: string | null = null;
   private pendingSessionTarget: string | null = null;
   // Reference: Zed stores full agentCapabilities from initialize response
   // Used to check supports_load_session, supports_resume_session, etc.
@@ -203,8 +178,6 @@ export class ACPClient {
   private sessionUpdateListeners: Set<SessionUpdateHandler> = new Set();
   private onSessionCreated: SessionCreatedHandler | null = null;
   private onPromptComplete: PromptCompleteHandler | null = null;
-  // Additional consumers of the turn lifecycle (e.g. the trace collector).
-  private turnLifecycleHandlers: Set<TurnLifecycleHandler> = new Set();
   private onPermissionRequest: PermissionRequestHandler | null = null;
   private onError: ErrorHandler | null = null;
   private onBrowserToolCall: BrowserToolCallHandler | null = null;
@@ -235,9 +208,11 @@ export class ACPClient {
   private static readonly PONG_TIMEOUT_MS = 10_000;
   private static readonly MAX_MISSED_PONGS = 2;
 
-  constructor(settings: ACPSettings) {
+  constructor(settings: ACPSettings, private retentionId?: string) {
     this.settings = settings;
   }
+
+  get retainedSessionId(): string | null { return this._retainedSessionId; }
 
   updateSettings(settings: ACPSettings): void {
     this.settings = settings;
@@ -269,31 +244,6 @@ export class ACPClient {
 
   setPromptCompleteHandler(handler: PromptCompleteHandler): void {
     this.onPromptComplete = handler;
-  }
-
-  /**
-   * Observe the turn lifecycle (started / completed / failed / cancel
-   * requested / disconnected) without replacing the primary
-   * prompt_complete and error callbacks.
-   *
-   * @returns Unsubscribe function
-   */
-  addTurnLifecycleListener(handler: TurnLifecycleHandler): () => void {
-    this.turnLifecycleHandlers.add(handler);
-    return () => {
-      this.turnLifecycleHandlers.delete(handler);
-    };
-  }
-
-  private emitTurn(event: TurnLifecycleEvent): void {
-    for (const handler of this.turnLifecycleHandlers) {
-      try {
-        handler(event);
-      } catch (error) {
-        // A listener must never break the connection's own message handling.
-        console.error("[ACPClient] turn lifecycle listener failed:", error);
-      }
-    }
   }
 
   setModelChangedHandler(handler: ModelChangedHandler): void {
@@ -338,14 +288,7 @@ export class ACPClient {
   }
 
   private setState(state: ConnectionState, error?: string): void {
-    const wasConnected = this.connectionState === "connected";
     this.connectionState = state;
-    if (wasConnected && (state === "disconnected" || state === "error")) {
-      // The stream the run was following is gone; nothing else will report the
-      // turn as finished, so tell lifecycle listeners (e.g. the trace viewer)
-      // instead of leaving it "running" forever.
-      this.emitTurn({ kind: "disconnected", error });
-    }
     this.onConnectionStateChange?.(state, error);
   }
 
@@ -527,7 +470,10 @@ export class ACPClient {
             return;
           }
           console.log("[ACPClient] WebSocket connected, sending connect command");
-          this.send({ type: "connect" });
+          this.send({
+            type: "connect",
+            ...(this.retentionId ? { payload: { retentionId: this.retentionId } } : {}),
+          });
         };
 
         ws.onmessage = (event) => {
@@ -599,6 +545,7 @@ export class ACPClient {
     switch (response.type) {
       case "status":
         if (response.payload.connected) {
+          this._retainedSessionId = response.payload.retainedSessionId ?? null;
           // Reference: Zed stores full agentCapabilities from status message
           this._agentCapabilities = response.payload.capabilities ?? null;
           this.setState("connected");
@@ -643,7 +590,6 @@ export class ACPClient {
         this.pendingSessionTarget = null;
         // Surface runtime errors (e.g. prompt failures) to the UI
         this.onError?.(response.payload.message);
-        this.emitTurn({ kind: "failed", message: response.payload.message });
         // Reject pending session operations if any
         this.pendingSessionList?.reject(new Error(response.payload.message));
         this.pendingSessionList = null;
@@ -710,11 +656,7 @@ export class ACPClient {
       case "session_update":
         this.onSessionUpdate?.(response.payload.sessionId, response.payload.update);
         for (const listener of this.sessionUpdateListeners) {
-          try {
-            listener(response.payload.sessionId, response.payload.update);
-          } catch (error) {
-            console.error("[ACPClient] session update listener failed:", error);
-          }
+          listener(response.payload.sessionId, response.payload.update);
         }
         break;
 
@@ -723,7 +665,6 @@ export class ACPClient {
           this.activePrompt = null;
         }
         this.onPromptComplete?.(response.payload.stopReason, response.payload.sessionId, response.payload.requestId);
-        this.emitTurn({ kind: "completed", stopReason: response.payload.stopReason });
         break;
 
       case "steer_result": {
@@ -754,22 +695,12 @@ export class ACPClient {
         this.handleBrowserToolCall(response.callId, response.params);
         break;
 
-      case "frame": {
-        // Routing metadata the relay adds on top of the payload. The shared
-        // message type does not declare it yet, so it is read as an optional
-        // extra: a picture without it is passed on as-is rather than guessed at.
-        const relayed = response as { tabId?: unknown; sessionId?: unknown };
+      case "frame":
+        if (this.sessionId === null || this.pendingSessionTarget !== null || response.sessionId !== this.sessionId) break;
         for (const handler of this.frameHandlers) {
-          handler({
-            callId: response.callId,
-            tabId: typeof relayed.tabId === "number" ? relayed.tabId : undefined,
-            sessionId:
-              typeof relayed.sessionId === "string" ? relayed.sessionId : undefined,
-            payload: response.payload,
-          });
+          handler({ callId: response.callId, payload: response.payload });
         }
         break;
-      }
 
       case "screencast_state":
         for (const handler of this.screencastStateHandlers) {
@@ -906,9 +837,6 @@ export class ACPClient {
 
     this.send({ type: "prompt", payload: { content: contentBlocks, requestId } });
     this.activePrompt = { sessionId: this.sessionId, requestId };
-    // The protocol has no "turn started" notification; sending the prompt is
-    // the observable start of one.
-    this.emitTurn({ kind: "started" });
   }
 
   get supportsSteering(): boolean {
@@ -947,11 +875,6 @@ export class ACPClient {
 
   cancel(): void {
     this.send({ type: "cancel" });
-    // The agent answers a cancel with prompt_complete (stopReason
-    // "cancelled"), but that can take a while or never arrive (the prompt may
-    // already have failed agent-side). Report the request now; listeners that
-    // close a turn on it are expected to treat later events as idempotent.
-    this.emitTurn({ kind: "cancel-requested" });
   }
 
   /**
@@ -1187,7 +1110,7 @@ export class ACPClient {
     };
   }
 
-  disconnect(): void {
+  disconnect(options: { retainSession?: boolean } = {}): void {
     this.stopHeartbeat();
 
     // Reject any pending connect promise with a distinguishable error
@@ -1200,7 +1123,9 @@ export class ACPClient {
 
     if (this.ws) {
       try {
-        this.send({ type: "disconnect" });
+        if (!options.retainSession || !this.retentionId) {
+          this.send({ type: "disconnect" });
+        }
       } catch {
         // Ignore send errors during disconnect
       }
@@ -1213,6 +1138,7 @@ export class ACPClient {
       this.activePrompt = null;
     }
     this.sessionId = null;
+    this._retainedSessionId = null;
     this.pendingSessionTarget = null;
     this._modelState = null;
     this._modelConfigId = null;

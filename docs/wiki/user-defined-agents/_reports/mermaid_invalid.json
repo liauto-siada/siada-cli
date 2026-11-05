@@ -1,0 +1,57 @@
+{
+  "invalid_blocks": [
+    {
+      "file_path": "docs/wiki/user-defined-agents/01_user-agent-definition.md",
+      "code": "graph TD\n    A[\"工作目录 cwd\"] --> B[\"REPO 作用域\"]\n    A --> C[\"用户主目录\"]\n    B --> D[\"claude/agents\"]\n    B --> E[\"siada/agents\"]\n    B --> F[\"agents/agents\"]\n    B --> G[\"siada-cli/agents\"]\n    C --> H[\"claude/agents\"]\n    C --> I[\"agents/agents\"]\n    C --> J[\"siada-cli/agents\"]\n    D --> K[\"按名称去重\"]\n    E --> K\n    F --> K\n    G --> K\n    H --> K\n    I --> K\n    J --> K\n    K --> L[\"USER 优先，其次 REPO\"]\n    L --> M[\"AgentLoadOutcome\"]",
+      "start_line": 73,
+      "end_line": 93,
+      "error_message": "mmdc not found: mmdc",
+      "error_type": "cli_unavailable",
+      "error_line": null,
+      "fix_hint": "Install mermaid-cli: npm install -g @mermaid-js/mermaid-cli"
+    },
+    {
+      "file_path": "docs/wiki/user-defined-agents/01_user-agent-definition.md",
+      "code": "graph TD\n    A[\"discover_agent_files 递归扫描\"] --> B{\"frontmatter 存在?\"}\n    B -->|\"否\"| C[\"AgentDefinitionParseError\"]\n    B -->|\"是\"| D{\"name 与 description 合法?\"}\n    D -->|\"否\"| C\n    D -->|\"是\"| E[\"解析 tools 并做别名映射\"]\n    E --> F[\"解析 skills 转小写\"]\n    F --> G[\"解析 mcpServers 名称与内联定义\"]\n    G --> H[\"解析 background 与 effort\"]\n    H --> I[\"UserAgentDefinition\"]\n    C --> J[\"AgentDefinitionError 列表\"]",
+      "start_line": 107,
+      "end_line": 119,
+      "error_message": "mmdc not found: mmdc",
+      "error_type": "cli_unavailable",
+      "error_line": null,
+      "fix_hint": "Install mermaid-cli: npm install -g @mermaid-js/mermaid-cli"
+    },
+    {
+      "file_path": "docs/wiki/user-defined-agents/02_user-agent-call-graph.md",
+      "code": "graph TD\n    A[\"主 Agent 调用 run_subtask\"] --> B{\"sub_agent.enabled?\"}\n    B -->|\"否\"| C[\"返回禁用说明文本\"]\n    B -->|\"是\"| D{\"递归守卫通过?\"}\n    D -->|\"否\"| E[\"返回拒绝文本\"]\n    D -->|\"是\"| F{\"传入 agent 参数?\"}\n    F -->|\"否\"| G[\"通用子 Agent 路径\"]\n    F -->|\"是\"| H[\"resolve_user_agent_definition\"]\n    H --> I{\"找到定义?\"}\n    I -->|\"否\"| J[\"unknown_agent_message 列出可用名\"]\n    I -->|\"是\"| K{\"background 为 true?\"}\n    K -->|\"是\"| L[\"强制 async_mode\"]\n    K -->|\"否\"| M[\"按调用方 async 参数\"]\n    L --> N[\"run_subtask_impl\"]\n    M --> N\n    G --> N",
+      "start_line": 27,
+      "end_line": 44,
+      "error_message": "mmdc not found: mmdc",
+      "error_type": "cli_unavailable",
+      "error_line": null,
+      "fix_hint": "Install mermaid-cli: npm install -g @mermaid-js/mermaid-cli"
+    },
+    {
+      "file_path": "docs/wiki/user-defined-agents/02_user-agent-call-graph.md",
+      "code": "sequenceDiagram\n    participant Main as MainAgent\n    participant Tool as run_subtask\n    participant Impl as run_subtask_impl\n    participant Runtime as agents.runtime\n    participant Sub as SubTaskAgent\n    participant Runner as Runner\n\n    Main->>Tool: run_subtask(agent, instruction)\n    activate Tool\n    Tool->>Tool: resolve_user_agent_definition()\n    Tool->>Impl: run_subtask_impl(agent_definition)\n    deactivate Tool\n    activate Impl\n    Impl->>Impl: build_sub_agent_run_config(effort)\n    Impl->>Runtime: load_preloaded_skills()\n    Runtime-->>Impl: PreloadedSkill 列表\n    Impl->>Runtime: filter_tools_for_agent()\n    Runtime-->>Impl: 裁剪后的工具列表\n    Impl->>Runtime: open_agent_mcp_servers()\n    activate Runtime\n    Runtime->>Runtime: _split_mcp_specs() 复用或创建\n    Runtime-->>Impl: 已连接的 MCP 服务器\n    deactivate Runtime\n    Impl->>Sub: SubTaskAgent(定义正文, 技能, 工具, MCP)\n    activate Sub\n    Impl->>Runner: run_streamed(starting_agent=Sub)\n    Runner-->>Impl: 流式事件与最终摘要\n    deactivate Sub\n    Impl->>Runtime: aclose() 清理本次 MCP 连接\n    Impl-->>Main: 子 Agent 摘要\n    deactivate Impl",
+      "start_line": 64,
+      "end_line": 97,
+      "error_message": "mmdc not found: mmdc",
+      "error_type": "cli_unavailable",
+      "error_line": null,
+      "fix_hint": "Install mermaid-cli: npm install -g @mermaid-js/mermaid-cli"
+    },
+    {
+      "file_path": "docs/wiki/user-defined-agents/02_user-agent-call-graph.md",
+      "code": "graph TD\n    A[\"定义中的 mcpServers 条目\"] --> B{\"条目类型\"}\n    B -->|\"名称\"| C{\"全局已连接?\"}\n    B -->|\"内联定义\"| D[\"解析环境变量并建配置\"]\n    C -->|\"是\"| E[\"reused 直接复用\"]\n    C -->|\"否\"| F{\"在全局配置中?\"}\n    F -->|\"是\"| G[\"按配置创建服务器\"]\n    F -->|\"否\"| H[\"warning 并跳过\"]\n    D --> G\n    G --> I[\"MCPServerManager.connect_all\"]\n    E --> J[\"合并服务器列表\"]\n    I --> J\n    J --> K[\"预取工具列表并消解重名\"]\n    K --> L[\"挂载到 SubTaskAgent\"]\n    L --> M[\"运行结束 cleanup_all\"]",
+      "start_line": 145,
+      "end_line": 161,
+      "error_message": "mmdc not found: mmdc",
+      "error_type": "cli_unavailable",
+      "error_line": null,
+      "fix_hint": "Install mermaid-cli: npm install -g @mermaid-js/mermaid-cli"
+    }
+  ],
+  "total_invalid": 5,
+  "total_scanned": 5,
+  "files_affected": 2
+}

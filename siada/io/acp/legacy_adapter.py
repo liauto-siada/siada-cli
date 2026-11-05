@@ -117,12 +117,11 @@ class LegacyACPAdapter:
         """
         Ensure self._event_loop is a healthy, non-closed event loop.
         
-        After asyncio.run() has been called (e.g. by _send_if_acp_robust),
-        the previously cached event loop may already be closed or unusable.
-        This method detects that case and rebuilds the event loop.
+        After asyncio.run() has been called, the cached event loop may
+        already be closed or unusable. Detect that case and rebuild it.
         
         Returns:
-            asyncio.AbstractEventLoop: A healthy event loop
+            asyncio.AbstractEventLoop: A healthy event loop.
         """
         if self._event_loop is not None and not self._event_loop.is_closed():
             return self._event_loop
@@ -169,8 +168,8 @@ class LegacyACPAdapter:
     def _send_if_acp(self, message_func, *args, **kwargs):
         """Helper to send ACP message or fallback to console
         
-        Sends synchronously through transport.send_sync(),
-        with no dependency on the asyncio event loop, avoiding event loop state issues.
+        Send synchronously through transport.send_sync() without relying
+        on an asyncio event loop.
         """
         if not self.acp_enabled:
             return None
@@ -196,28 +195,28 @@ class LegacyACPAdapter:
         """
         Robust version of _send_if_acp for cleanup scenarios
         
-        Intended for cleanup paths such as finally blocks, ensuring the message is delivered.
-        Sends synchronously through transport.send_sync(), with no dependency on the asyncio event loop.
+        Ensure delivery in cleanup paths such as finally blocks.
+        Send synchronously without depending on the asyncio event loop.
         
         Differences from _send_if_acp:
-        1. More detailed logging, to help diagnose problems in cleanup paths
-        2. Explicitly flushes stdout, ensuring the message reaches the OS
-        3. More thorough exception handling and fallback behavior
+        1. Detailed logging for cleanup paths.
+        2. Explicit stdout flushing.
+        3. Additional exception handling and fallback behavior.
         
         Use cases:
-        - Sending a stop animation message from a finally block
-        - Cleanup messages as the process is about to exit
-        - Any critical path that must guarantee delivery
+        - Sending stop animation messages from finally blocks.
+        - Cleanup messages during process exit.
+        - Critical paths that require delivery confirmation.
         
         Args:
-            message_func: Message factory function (usually a lambda)
-            *args, **kwargs: Arguments passed to message_func
+            message_func: Message factory, usually a lambda.
+            *args, **kwargs: Arguments passed to message_func.
         
         Returns:
-            ACPMessage object, meaning the message was sent; None means sending failed or ACP is disabled
+            ACPMessage if sent, or None if sending failed or ACP is disabled.
         
         Example:
-            # Use inside a finally block
+            # Use inside a finally block.
             adapter._send_if_acp_robust(
                 lambda: builder.build_session_update(
                     reason="input_ready",

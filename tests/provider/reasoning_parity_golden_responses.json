@@ -1,5 +1,5 @@
 {
-  "gpt-6-luna|default": {
+  "gpt-5.6-luna|default": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -11,7 +11,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "max",
@@ -20,7 +20,7 @@
     "store": false,
     "tool_choice": "auto"
   },
-  "gpt-6-luna|effort_low": {
+  "gpt-5.6-luna|effort_low": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -32,7 +32,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "low",
@@ -41,7 +41,7 @@
     "store": false,
     "tool_choice": "auto"
   },
-  "gpt-6-luna|effort_low_tokens": {
+  "gpt-5.6-luna|effort_low_tokens": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -53,7 +53,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "low",
@@ -62,7 +62,7 @@
     "store": false,
     "tool_choice": "auto"
   },
-  "gpt-6-luna|effort_max": {
+  "gpt-5.6-luna|effort_max": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -74,7 +74,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "max",
@@ -83,7 +83,7 @@
     "store": false,
     "tool_choice": "auto"
   },
-  "gpt-6-luna|no_reasoning": {
+  "gpt-5.6-luna|no_reasoning": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -95,7 +95,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "low",
@@ -104,7 +104,7 @@
     "store": false,
     "tool_choice": "auto"
   },
-  "gpt-6-luna|thinking_off": {
+  "gpt-5.6-luna|thinking_off": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -116,7 +116,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "none"
@@ -124,7 +124,7 @@
     "store": false,
     "tool_choice": "auto"
   },
-  "gpt-6-luna|thinking_off_tokens": {
+  "gpt-5.6-luna|thinking_off_tokens": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -136,7 +136,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "none"
@@ -144,7 +144,7 @@
     "store": false,
     "tool_choice": "auto"
   },
-  "gpt-6-luna|tokens_2048": {
+  "gpt-5.6-luna|tokens_2048": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -156,7 +156,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "low",
@@ -165,7 +165,7 @@
     "store": false,
     "tool_choice": "auto"
   },
-  "gpt-6-luna|tokens_neg1": {
+  "gpt-5.6-luna|tokens_neg1": {
     "include": [
       "reasoning.encrypted_content"
     ],
@@ -177,7 +177,7 @@
     ],
     "instructions": "You are a test",
     "max_output_tokens": 65536,
-    "model": "gpt-6-luna",
+    "model": "gpt-5.6-luna",
     "reasoning": {
       "context": "all_turns",
       "effort": "low",

@@ -26,6 +26,7 @@ Two independent boolean parameters control how the sub-agent is launched:
 import asyncio
 import copy
 from dataclasses import dataclass
+from inspect import getattr_static
 from typing import Any, AsyncIterator, Optional
 
 from contextlib import AsyncExitStack, aclosing
@@ -39,10 +40,13 @@ from pydantic import Field
 
 from siada.agent_hub.coder.sub_task_agent import SubTaskAgent, _build_default_tools
 from siada.agent_hub.coder.prompt.selection.model_features import is_gpt6_or_newer_model
+from siada.agent_hub.coder.prompt.selection.profiles import PromptFamily, resolve_prompt_profile
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.foundation.logging import logger as logging
 from siada.foundation.setting import settings
+from siada.models.model_run_config import ModelRunConfig
 from siada.provider.retry import MissingFinalResponseError, is_retryable_model_error
+from siada.provider.token_counting import token_counting_info_from_config
 from siada.services.agents import (
     UserAgentDefinition,
     filter_tools_for_agent,
@@ -52,6 +56,7 @@ from siada.services.agents import (
     open_agent_mcp_servers,
 )
 from siada.services.sub_agent_run_config import (
+    SubAgentRunConfig,
     adapt_fork_tools_for_effective_model,
     build_sub_agent_run_config,
 )
@@ -122,6 +127,12 @@ Returns:
     When async is True: a short acknowledgement that the sub-agent was started in
     the background; the actual summary arrives later as an injected notification.
 """
+
+NEUTRAL_RUN_SUBTASK_DOCS = (
+    RUN_SUBTASK_DOCS.partition("\n\n")[0]
+    + "\n\n" + RUN_SUBTASK_DOCS[RUN_SUBTASK_DOCS.index("Args:"):]
+)
+
 
 # Adapted from Codex V2's spawn_agent description, commit 83086188ae0614bd882818ff1aa23f3194962012.
 # OpenAI Codex, Copyright 2025 OpenAI. Apache-2.0; see docs/CREDITS.md.
@@ -263,6 +274,7 @@ def _clone_context_for_subagent(
     *,
     depth: int = 1,
     self_id: Optional[str] = None,
+    llm_config: Optional[Any] = None,
 ) -> CodeAgentContext:
     """Build the sub-agent's own CodeAgentContext, marked ``is_subagent=True``.
 
@@ -284,16 +296,28 @@ def _clone_context_for_subagent(
     depth-2 spawn) hard-requires ``context.session`` to source the LLM
     config. Gating this on ``allow_recursive_subagents`` keeps the default
     (off) path's cloned context exactly as before (``session=None``).
+
+    ``llm_config`` is this run's *effective* LLM configuration (the model
+    the spawned sub-agent will actually run on — which may differ from the
+    root session's model via a named-agent ``model`` or
+    ``sub_agent.llm_config`` override). It is stored as the clone's
+    ``subagent_llm_config`` so a grandchild spawned from that context
+    inherits its direct parent's effective model/provider instead of the
+    root session's. Like ``session``, it is only propagated when recursion
+    is enabled, keeping the default path's clone unchanged.
     """
     return CodeAgentContext(
         root_dir=agent_context.root_dir,
         is_subagent=True,
-        interactive_mode=False,
+        interactive_mode=True,
         subagent_depth=depth,
         root_session_id=agent_context.root_session_id,
         allow_recursive_subagents=agent_context.allow_recursive_subagents,
         subagent_self_id=self_id,
         session=agent_context.session if agent_context.allow_recursive_subagents else None,
+        subagent_llm_config=(
+            llm_config if agent_context.allow_recursive_subagents else None
+        ),
     )
 
 
@@ -331,6 +355,44 @@ async def _build_fork_materials(run_ctx: RunContextWrapper[CodeAgentContext]):
     return tools, instructions, history
 
 
+def _sub_agent_model_name(model: Any) -> Optional[str]:
+    """Find a named model through wrappers without resolving a new model."""
+    seen: set[int] = set()
+    while not isinstance(model, str):
+        if model is None:
+            return None
+        if id(model) in seen:
+            raise ValueError("Sub-agent model wrappers contain a cycle.")
+        seen.add(id(model))
+        # Avoid creating synthetic wrapper attributes through __getattr__.
+        if getattr_static(model, "wrapped_model", None) is not None:
+            wrapped = getattr(model, "wrapped_model", None)
+            if wrapped is not None:
+                model = wrapped
+                continue
+        name = getattr(model, "model", None)
+        return name if isinstance(name, str) and name else None
+    return model or None
+
+
+def _sub_agent_model_matches_config(model: Any, config: ModelRunConfig) -> bool:
+    """Compare configured names and provider-normalized model identities."""
+    selected = _sub_agent_model_name(model)
+    configured = getattr(config, "model_name", None)
+    if not selected or not isinstance(configured, str) or selected == configured:
+        return True
+
+    configured_route = token_counting_info_from_config(config)
+    if not isinstance(model, str) and selected == configured_route.model_name:
+        return True
+    selected_route = token_counting_info_from_config(config, model_name=selected)
+    return bool(
+        configured_route.model_name
+        and selected_route.model_name
+        and selected_route == configured_route
+    )
+
+
 # ---- Implementation function --------------------------------
 
 async def run_subtask_impl(
@@ -338,6 +400,7 @@ async def run_subtask_impl(
     agent_context: Optional[CodeAgentContext] = None,
     run_config: Optional[RunConfig] = None,
     *,
+    model_run_config: Optional[ModelRunConfig] = None,
     fork: bool = False,
     run_ctx: Optional[RunContextWrapper[CodeAgentContext]] = None,
     child_depth: int = 1,
@@ -353,6 +416,9 @@ async def run_subtask_impl(
             working directory is created.
         run_config: RunConfig to use. When None, one is built from the session
             config (requires an active agent session).
+        model_run_config: Effective model configuration for an explicitly
+            supplied RunConfig. Supply this when its model or provider differs
+            from the parent session and the RunConfig was not built by Siada.
         fork: When True, aligns the sub-agent's tools / system prompt / seeded
             history with the parent agent's current turn (see
             ``_build_fork_materials``) so the model provider's prompt cache can
@@ -392,6 +458,26 @@ async def run_subtask_impl(
             model=agent_definition.model if agent_definition is not None else None,
         )
 
+    # Effective LLM configuration for this sub-agent run, resolved once here:
+    #   - an explicit ``model_run_config`` argument (tests / custom RunConfig
+    #     callers),
+    #   - the SubAgentRunConfig built from the session + definition/conf
+    #     overrides (the normal path),
+    #   - the parent's own effective config (bare RunConfig whose model was
+    #     already validated to match the parent's).
+    # It drives both the compaction hooks below and — when recursion is
+    # enabled — the cloned context handed to this run, so a grandchild
+    # spawned from it inherits this run's effective model/provider instead
+    # of the root session's model.
+    if model_run_config is not None:
+        effective_llm_config: Optional[Any] = model_run_config
+    elif isinstance(run_config, SubAgentRunConfig):
+        effective_llm_config = run_config.model_run_config
+    elif agent_context is not None and agent_context.session is not None:
+        effective_llm_config = agent_context.model_run_config
+    else:
+        effective_llm_config = None
+
     # Create an in-memory session for this sub-agent run. It accumulates history
     # across turns (replacing the default no-session / RunState-only path) and
     # serves as the write-back target for the compaction callback below.
@@ -405,11 +491,29 @@ async def run_subtask_impl(
     #   - call_model_input_filter: performs the actual per-model-call compaction,
     #     reading from (and writing back to) the session.
     if agent_context and agent_context.session:
+        if effective_llm_config is not None:
+            # Per-run snapshot: compaction must follow the model THIS run
+            # selected even if the parent session's model changes later.
+            compaction_model_config = copy.copy(effective_llm_config)
+        else:
+            # Unnamed custom models can explicitly supply their configuration;
+            # otherwise they retain the inherited settings used by legacy callers.
+            compaction_model_config = copy.copy(agent_context.model_run_config)
+
+        if not _sub_agent_model_matches_config(run_config.model, compaction_model_config):
+            if model_run_config is None and not isinstance(run_config, SubAgentRunConfig):
+                raise ValueError(
+                    "An explicit RunConfig with a different model requires "
+                    "model_run_config for sub-agent compaction."
+                )
+            raise ValueError(
+                "Sub-agent model and compaction model configuration do not match."
+            )
         run_config.session_input_callback = make_sub_agent_session_input_callback(
             in_memory_session
         )
         run_config.call_model_input_filter = make_sub_agent_compaction_filter(
-            agent_context.model_run_config, in_memory_session
+            compaction_model_config, in_memory_session
         )
 
     logging.info(
@@ -475,8 +579,8 @@ async def run_subtask_impl(
         # Seed the fork's own in-memory session with the parent's real
         # (post-compaction) message history BEFORE the run starts, so the
         # first model call's history-layer prefix matches the parent's.
-        # Preserve repeated messages: inherited history is not a new-run input
-        # admission and must not be deduplicated by content.
+        # Preserve order and repeated messages; fork history is not a new-run
+        # input admission and must not be deduplicated by content.
         await in_memory_session.add_items(seeded_history)
 
     sa_item = start_sub_agent(agent_context, instruction)
@@ -584,7 +688,10 @@ async def run_subtask_impl(
                 ),
                 input=instruction,
                 context=_clone_context_for_subagent(
-                    agent_context, depth=child_depth, self_id=sa_item.id
+                    agent_context,
+                    depth=child_depth,
+                    self_id=sa_item.id,
+                    llm_config=effective_llm_config,
                 ),
                 run_config=run_config,
                 hooks=usage_hooks,
@@ -903,8 +1010,12 @@ async def run_subtask(
 
 def create_run_subtask_tool(model_name: str | None) -> FunctionTool:
     """Select per-agent wording while preserving SDK invocation and error policies."""
-    if not is_gpt6_or_newer_model(model_name):
+    if is_gpt6_or_newer_model(model_name):
+        description = GPT6_RUN_SUBTASK_DOCS
+    elif resolve_prompt_profile(model_name).family is PromptFamily.DEEPSEEK:
+        description = NEUTRAL_RUN_SUBTASK_DOCS
+    else:
         return run_subtask
     adapted = copy.copy(run_subtask)
-    adapted.description = GPT6_RUN_SUBTASK_DOCS
+    adapted.description = description
     return adapted

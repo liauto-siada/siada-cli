@@ -3,7 +3,7 @@ SiadaBasicAgentHooks
 
 A lightweight, extensible composite hook intended for agents that do **not**
 need the full processor chain of `SiadaAgentHooks` (which bundles spinner,
-token telemetry, context tracking, etc.), but still want the per-LLM-call
+cache status, context tracking, etc.), but still want the per-LLM-call
 `AGENT_NAME` scoping that `AgentNameProcessor` provides — plus the ability to
 plug in additional processors later without re-implementing the delegation
 boilerplate.

@@ -47,11 +47,6 @@ interface Run {
  * `threshold`. That is deliberately coarse — it ignores antialiasing and
  * compression noise, which is exactly the kind of churn a viewer should not be
  * shown.
- *
- * An empty result is ambiguous on purpose, so callers must not read `[]` as
- * "nothing changed": it is also what an unusable pair (different or zero
- * dimensions) returns. The viewer therefore checks the picture sizes itself and
- * reports "unavailable" rather than "no change" when the two do not match.
  */
 export function changedRegions(
   before: Pixels,

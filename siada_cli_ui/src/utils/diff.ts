@@ -16,6 +16,7 @@ export function getSimplePatch(
   filePath: string,
   oldString: string,
   newString: string,
+  maxEditLength?: number,
 ): StructuredPatchHunk[] {
   const result = structuredPatch(
     filePath,
@@ -24,7 +25,7 @@ export function getSimplePatch(
     escapeForDiff(newString),
     undefined,
     undefined,
-    { context: CONTEXT_LINES },
+    { context: CONTEXT_LINES, ...(maxEditLength === undefined ? {} : { maxEditLength }) },
   );
   if (!result) return [];
   return result.hunks.map(h => ({
@@ -44,6 +45,67 @@ export interface FileCreateInfo {
   filePath: string;
   newString: string;
   isComplete: boolean;
+}
+
+export interface FileEditPresentation {
+  callId: string;
+  action: 'create' | 'update' | 'undo';
+  path: string;
+  status: 'pending' | 'completed' | 'failed' | 'unverified';
+  error?: string;
+  details?: string;
+  argumentsComplete?: boolean;
+  executionStatus?: 'pending' | 'completed' | 'failed' | 'unknown';
+  hunks: StructuredPatchHunk[];
+}
+
+/** A JSON error may be known before the SDK emits its execution result. */
+export function isFileEditAwaitingResult(edit: FileEditPresentation): boolean {
+  return edit.status === 'pending' || edit.executionStatus === 'pending';
+}
+
+/** Parse result-aware edit_file data without guessing partial JSON or file text. */
+export function parseFileEditPresentation(content: string): FileEditPresentation | null {
+  const startMarker = '<!-- siada-file-edit:start -->';
+  const endMarker = '<!-- siada-file-edit:end -->';
+  const start = content.indexOf(startMarker);
+  const end = content.indexOf(endMarker);
+  if (start < 0 || end <= start || content.slice(end + endMarker.length).trim()) return null;
+  try {
+    const data = JSON.parse(content.slice(start + startMarker.length, end).trim());
+    if (!data || typeof data.callId !== 'string' || !data.callId || typeof data.path !== 'string' ||
+        !['create', 'update', 'undo'].includes(data.action) ||
+        !['pending', 'completed', 'failed', 'unverified'].includes(data.status) ||
+        (data.error !== undefined && typeof data.error !== 'string') ||
+        (data.details !== undefined && typeof data.details !== 'string') ||
+        (data.argumentsComplete !== undefined && typeof data.argumentsComplete !== 'boolean') ||
+        (data.executionStatus !== undefined && !['pending', 'completed', 'failed', 'unknown'].includes(data.executionStatus)) ||
+        (data.insertLine !== undefined && (!Number.isInteger(data.insertLine) || data.insertLine < 0))) return null;
+    let hunks: StructuredPatchHunk[] = [];
+    let details = data.details;
+    if (data.status === 'completed' && (data.argumentsComplete === false ||
+        (data.executionStatus !== undefined && data.executionStatus !== 'completed'))) return null;
+    if (data.status === 'completed' && (data.oldString !== undefined || data.newString !== undefined)) {
+      if (typeof data.oldString !== 'string' || typeof data.newString !== 'string') return null;
+      // Character limits alone do not bound the cost of unrelated line sequences.
+      hunks = getSimplePatch(data.path, data.oldString, data.newString, 1000);
+      if (!hunks.length && data.oldString !== data.newString) {
+        details = 'Diff omitted to keep the display responsive.';
+      }
+      if (data.insertLine !== undefined) {
+        hunks = hunks.map(hunk => ({
+          ...hunk,
+          oldStart: hunk.oldStart + data.insertLine,
+          newStart: hunk.newStart + data.insertLine,
+        }));
+      }
+    }
+    return { callId: data.callId, action: data.action, path: data.path, status: data.status,
+      error: data.error, details, argumentsComplete: data.argumentsComplete,
+      executionStatus: data.executionStatus, hunks };
+  } catch {
+    return null;
+  }
 }
 
 export type ApplyPatchAction = 'create' | 'update' | 'delete' | 'move' | 'failed' | 'unknown';
@@ -228,6 +290,8 @@ export function parseFileCreateContent(content: string): FileCreateInfo | null {
 
 /** Whether a completed tool-call body renders as a file diff in Message. */
 export function isRenderableToolDiff(content: string): boolean {
+  const presentation = parseFileEditPresentation(content);
+  if (presentation) return !isFileEditAwaitingResult(presentation);
   const cleanContent = content.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
   if (parseApplyPatchContent(cleanContent)) return true;
 

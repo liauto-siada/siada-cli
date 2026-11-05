@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Text, useApp, useStdout } from '@jrichman/ink';
 import Spinner from 'ink-spinner';
 import { MainLayout } from './layouts/MainLayout.js';
+import { Scrollable } from './common/Scrollable.js';
+import { BottomPaneContext } from '../contexts/BottomPaneContext.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { SessionBrowser } from './SessionBrowser/index.js';
 import { PluginManager } from './PluginManager/index.js';
 import type { PluginManagerData } from './PluginManager/index.js';
@@ -14,6 +17,7 @@ import { ThemeSelector } from './ThemeSelector/index.js';
 import type { SideQuestionItem } from './SideQuestion/index.js';
 import { useACP } from '../hooks/useACP.js';
 import { useThemeVersion } from '../themes/index.js';
+import { t, useUiLanguage } from '../i18n/index.js';
 import { ClientConfig, Message } from '../types/index.js';
 import { getIcons } from '../constants/icons.js';
 import { logger } from '../utils/logger.js';
@@ -21,6 +25,7 @@ import { useMemoryMonitor } from '../hooks/useMemoryMonitor.js';
 import { useBackendExit } from '../hooks/useBackendExit.js';
 import { useAdapterEvents } from '../hooks/useAdapterEvents.js';
 import { useKeypress } from '../hooks/useKeypress.js';
+import { useQuitShortcut } from '../hooks/useQuitShortcut.js';
 import { AppProvider } from '../store/context.js';
 import { Banner } from './Banner/Banner.js';
 import { promptQueueStore } from '../store/promptQueueStore.js';
@@ -28,6 +33,7 @@ import { inputRestoreStore } from '../store/inputRestoreStore.js';
 import { usePromptDrain } from '../hooks/usePromptDrain.js';
 import { usePromptQueueSnapshot } from '../hooks/usePromptQueueSnapshot.js';
 import { recordFlicker } from '../utils/flickerMonitor.js';
+import { slashCommandService } from '../services/slashCommandService.js';
 
 const LoadingView: React.FC<{ message: string; footer?: string }> = ({ message, footer }) => (
   <Box flexDirection="column" padding={1}>
@@ -53,6 +59,7 @@ const ErrorView: React.FC<{ title: string; message: string; hint: string; exitHi
 
 export interface AppProps {
   config: ClientConfig;
+  initialPrompt?: string;
   onExit?: (sessionId: string | null) => void;
 }
 
@@ -64,10 +71,12 @@ export interface AppProps {
  */
 const LOGIN_SUBMIT_TIMEOUT_MS = 60_000;
 
-export const App: React.FC<AppProps> = ({ config, onExit }) => {
+export const App: React.FC<AppProps> = ({ config, initialPrompt, onExit }) => {
   const { exit } = useApp();
   useThemeVersion(); // repaint the whole tree when the theme changes
+  useUiLanguage();
   const [isCollapsed, setIsCollapsed] = useState(true); // default compact mode
+  const initialPromptSubmittedRef = useRef(false);
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
   const [loginSubmitError, setLoginSubmitError] = useState<string | null>(null);
   const loginSubmitTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,7 +116,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
   // backend. The hint is deliberately NOT pushed into `sideQuestions`, so it
   // never pollutes the side-question history list and never opens the panel.
   const showSideQuestionUsage = useCallback(() => {
-    setSideQuestionNotice('Usage: /btw <your question>');
+    setSideQuestionNotice(t('用法：/btw <你的问题>', 'Usage: /btw <your question>'));
   }, []);
 
   // Auto-clear the transient /btw usage notice a few seconds after it shows.
@@ -154,6 +163,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     messages,
     connectionStatus,
     loading,
+    startupComplete,
     activeStep,
     bannerInfo,
     tokenUsage,
@@ -182,21 +192,27 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
   useEffect(() => {
     if (goalState?.notice) {
       setGoalNotice(goalState.notice);
+    } else if (goalState?.goal === null) {
+      setGoalNotice(null);
     }
-  }, [goalState?.notice]);
+  }, [goalState?.notice, goalState?.goal]);
 
-  // Backend pushed a structured achieved/not-yet-achieved result — turn this
-  // into a persistent collapsible chat message (frontend-only; NOT written
-  // to backend session history, so resumed sessions won't replay it — an
-  // accepted limitation per explicit product decision for this iteration).
+  // Result identity survives reconnects. Check the current messages rather
+  // than a process-local seen set, since restoring history replaces them.
   useEffect(() => {
-    if (goalState?.result) {
-      const r = goalState.result;
+    const results = [...(goalState?.results ?? []), ...(goalState?.result ? [goalState.result] : [])];
+    const existing = new Set(messages.filter(message => message.metadata?.subtype === 'goal_result')
+      .map(message => message.id));
+    for (const r of results) {
+      const identity = r.id ?? JSON.stringify({ createdAt: goalState?.goal?.createdAt, result: r });
+      const id = `goal_result_${identity}`;
+      if (existing.has(id)) continue;
+      existing.add(id);
       addMessage({
-        id: `goal_result_${Date.now()}`,
+        id,
         type: 'system',
         content: '',
-        timestamp: new Date().toISOString(),
+        timestamp: r.timestamp ?? new Date().toISOString(),
         author: 'System',
         metadata: {
           subtype: 'goal_result',
@@ -204,7 +220,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
         },
       });
     }
-  }, [goalState?.result]);
+  }, [goalState, messages, addMessage]);
 
   // /btw: called when backend sends ui/showSideQuestion — update matching pending item
   const appendSideQuestion = useCallback(
@@ -255,7 +271,6 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
 
   useAdapterEvents(client, {
     setShowSessionBrowser,
-    addMessage,
     setModelSelectorData,
     setEffortSelectorData,
     setThemeSelectorData,
@@ -267,6 +282,10 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
 
   const stableSendMessage = useCallback((message: string, imagePaths?: string[]) => {
     const trimmed = message.trim();
+    if (/^\/effort(?:\s|$)/.test(trimmed)) {
+      sendMessage(message);
+      return;
+    }
     // /btw always bypasses the queue and runs concurrently
     if (trimmed.startsWith('/btw ') || trimmed === '/btw') {
       const question = trimmed.startsWith('/btw ') ? trimmed.slice(5).trim() : '';
@@ -279,6 +298,11 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
       }
       appendPendingSideQuestion(question);
       setTimeout(() => sendMessage(message, imagePaths), 0);
+      return;
+    }
+
+    if (slashCommandService.isImmediateCommand(message)) {
+      sendMessage(message, imagePaths);
       return;
     }
 
@@ -457,7 +481,8 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
       loginSubmitTimerRef.current = null;
       setIsSubmittingLogin(false);
       setLoginSubmitError(
-        'Login timed out — the backend did not respond. Please retry, or press Esc to cancel.'
+        t('登录超时，后端未响应。请重试，或按 Esc 取消。',
+          'Login timed out — the backend did not respond. Please retry, or press Esc to cancel.')
       );
       logger.warn('[handleLoginSelect] login submit watchdog fired', {
         choice,
@@ -465,7 +490,7 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
       });
     }, LOGIN_SUBMIT_TIMEOUT_MS);
     try {
-      const payload = choice === '3' || choice === '4' ? apiKey : undefined;
+      const payload = choice === '3' ? apiKey : undefined;
       if (loginRequestId) {
         await activeClient.sendLoginChoice(choice, payload, loginRequestId);
       } else {
@@ -494,66 +519,59 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
 
   useMemoryMonitor(messages, config.workingDir, config.model);
 
-  const ctrlCCountRef = useRef(0);
-  const ctrlCTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined;
+  const modalActive = Boolean(pluginManagerData || modelSelectorData || effortSelectorData ||
+    themeSelectorData || taskSelectorTasks !== null || showSessionBrowser || sideQuestionPanelVisible ||
+    loginState?.phase === 'selecting' || loginState?.phase === 'waiting');
+
+  const interruptCurrentRun = useCallback(() => {
+    const restoreUnansweredInput = lastMessage?.type === 'user';
+    if (restoreUnansweredInput) {
+      removeMessage(lastMessage.id);
+      inputRestoreStore.request(lastMessage.content);
+    }
+    recordFlicker('ctrl_c_interrupt', 'Ctrl+C: stopExecution + queue clear', {
+      messageCount: messages.length, metadata: { restoreUnansweredInput },
+    });
+    stableStopExecution();
+  }, [lastMessage, messages.length, removeMessage, stableStopExecution]);
+
+  const exitApplication = useCallback(() => {
+    recordFlicker('ctrl_c_interrupt', 'Ctrl+C (double): exit app', { messageCount: messages.length });
+    setPluginManagerData(null);
+    setModelSelectorData(null);
+    setEffortSelectorData(null);
+    setThemeSelectorData(null);
+    setTaskSelectorTasks(null);
+    setShowSessionBrowser(false);
+    onExit?.(sessionId);
+    exit();
+  }, [exit, messages.length, onExit, sessionId]);
+
+  const quitShortcut = useQuitShortcut({
+    running: loading || Boolean(goalState?.verifying) || Boolean(interactiveInput) || promptQueue.length > 0,
+    onStop: interruptCurrentRun, onExit: exitApplication, active: !modalActive,
+  });
 
   const handleKeypress = useCallback((key: any) => {
-    if (key.ctrl && key.name === 'c') {
-      ctrlCCountRef.current += 1;
-      if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current);
-      if (ctrlCCountRef.current === 1) {
-        // If the user's input hasn't been answered yet (their bubble is the
-        // last rendered message), cancel that bubble and push the text back
-        // into the input box so it can be edited and resent instead of being
-        // lost. The backend's restore_input notification for the same
-        // interrupt is deduped in inputRestoreStore.
-        const restoreUnansweredInput = lastMessage?.type === 'user';
-        if (restoreUnansweredInput) {
-          removeMessage(lastMessage.id);
-          inputRestoreStore.request(lastMessage.content);
-        }
-        recordFlicker('ctrl_c_interrupt', 'Ctrl+C: stopExecution + system message + queue clear', {
-          messageCount: messages.length,
-          metadata: { restoreUnansweredInput },
-        });
-        stableStopExecution();
-        ctrlCTimerRef.current = setTimeout(() => { ctrlCCountRef.current = 0; }, 2000);
-      } else {
-        recordFlicker('ctrl_c_interrupt', 'Ctrl+C (double): exit app — clearing overlays before exit', {
-          messageCount: messages.length,
-        });
-        // Clear overlay views before exit so they are removed from the React
-        // tree before process.exit fires, preventing yoga WASM crashes during
-        // Ink's final render pass.
-        setPluginManagerData(null);
-        setModelSelectorData(null);
-        setEffortSelectorData(null);
-        setTaskSelectorTasks(null);
-        setShowSessionBrowser(false);
-        onExit?.(sessionId);
-        exit();
-      }
-      return;
+    // MainLayout routes Ctrl+C after local input and detail-view cancellation.
+    if (key.ctrl && key.name === 'c' && !modalActive && (!connectionStatus.ready || !bannerInfo)) {
+      quitShortcut.onCtrlC();
     }
-
-    if (key.ctrl && key.name === 'o') {
+    if (key.ctrl && key.name === 'o' && !modalActive) {
       setIsCollapsed(prev => {
         recordFlicker('ctrl_o_collapse', `Ctrl+O: toggle collapse mode ${prev} → ${!prev}`, {
           messageCount: messages.length,
         });
-        // NOTE: screen clearing is handled by MessageList's refreshStatic(),
-        // which reacts to the isCollapsed change via useEffect. Clearing here
-        // as well caused a double flicker.
         return !prev;
       });
     }
-  }, [stableStopExecution, removeMessage, onExit, sessionId, exit, messages.length, lastMessage]);
+  }, [bannerInfo, connectionStatus.ready, messages.length, modalActive, quitShortcut.onCtrlC]);
 
   useKeypress(handleKeypress);
 
   const startupError = messages.find(m =>
-    m.type === 'error' || m.metadata?.type === 'startup_error'
+    m.metadata?.type === 'startup_error' || (!bannerInfo && m.type === 'error')
   );
 
   type ViewState =
@@ -582,21 +600,41 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     return 'main';
   })();
 
+  useEffect(() => {
+    if (
+      initialPromptSubmittedRef.current || !initialPrompt?.trim()
+      || viewState !== 'main' || !client || !connectionStatus.connected
+      || !connectionStatus.ready || !startupComplete || loading
+    ) return;
+
+    // Use the normal submit path, including slash commands, only once per launch.
+    initialPromptSubmittedRef.current = true;
+    stableSendMessage(initialPrompt);
+  }, [
+    initialPrompt, viewState, client, connectionStatus.connected,
+    connectionStatus.ready, startupComplete, loading, stableSendMessage,
+  ]);
+
+  const paneSize = useTerminalSize();
+  const paneHeight = Math.max(8, Math.min(viewState === 'effort_selector' ? 12 : 16, paneSize.rows - 5));
+  let bottomView: React.ReactNode = null;
   switch (viewState) {
     case 'connecting':
-      return <LoadingView message="Connecting to siada-cli..." footer={`Working directory: ${config.workingDir}`} />;
+      return <LoadingView message={t('正在连接 siada-cli…', 'Connecting to siada-cli…')}
+        footer={t(`工作目录：${config.workingDir}`, `Working directory: ${config.workingDir}`)} />;
 
     case 'initializing':
-      return <LoadingView message="Initializing agent..." footer="Please wait while the agent starts up" />;
+      return <LoadingView message={t('正在初始化智能体…', 'Initializing agent…')}
+        footer={t('请稍候，智能体正在启动', 'Please wait while the agent starts up')} />;
 
     case 'connection_error':
       return (
         <ErrorView
           errorIcon={icons.error}
-          title="Connection Failed"
+          title={t('连接失败', 'Connection Failed')}
           message={connectionStatus.error ?? ''}
-          hint="Make sure siada-cli is installed and accessible in your PATH."
-          exitHint="Press ESC to exit"
+          hint={t('请确认已安装 siada-cli，且 PATH 中包含其所在目录。', 'Make sure siada-cli is installed and accessible in your PATH.')}
+          exitHint={t('按 Esc 退出', 'Press ESC to exit')}
         />
       );
 
@@ -604,25 +642,31 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
       return (
         <ErrorView
           errorIcon={icons.error}
-          title="Startup Error"
-          message={startupError?.content || 'Unknown error during startup'}
-          hint="Please check your configuration and try again."
-          exitHint="Press Ctrl+C to exit"
+          title={t('启动失败', 'Startup Error')}
+          message={startupError?.content || t('启动时发生未知错误', 'Unknown error during startup')}
+          hint={t('请检查配置后重试。', 'Please check your configuration and try again.')}
+          exitHint={t('按 Ctrl+C 退出', 'Press Ctrl+C to exit')}
         />
       );
 
     case 'login_selecting': {
       const s = loginState as Extract<typeof loginState, { phase: 'selecting' }>;
+      if (s.cancelable) {
+        bottomView = <LoginSelector onSelect={handleLoginSelect} providers={s.providers as any}
+          cancelable liidDisabled={s.liidDisabled} submitting={isSubmittingLogin} submitError={loginSubmitError} />;
+        break;
+      }
       return (
         <Box flexDirection="column">
           <Banner
             version={bannerInfo?.version}
             workingDir={bannerInfo?.workingDir || config.workingDir}
             agent={bannerInfo?.agent || 'coder'}
-            provider={bannerInfo?.provider || 'li'}
+            provider={bannerInfo?.provider || 'default'}
             model={bannerInfo?.model || config.model}
             isCollapsed={isCollapsed}
             showAgentInfo={false}
+            interactive
           />
           <Box marginTop={1}>
             <LoginSelector
@@ -630,7 +674,6 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               providers={s.providers as any}
               cancelable={s.cancelable}
               liidDisabled={s.liidDisabled}
-              freeTrialModels={s.freeTrialModels}
               submitting={isSubmittingLogin}
               submitError={loginSubmitError}
             />
@@ -647,10 +690,11 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
             version={bannerInfo?.version}
             workingDir={bannerInfo?.workingDir || config.workingDir}
             agent={bannerInfo?.agent || 'coder'}
-            provider={bannerInfo?.provider || 'li'}
+            provider={bannerInfo?.provider || 'default'}
             model={bannerInfo?.model || config.model}
             isCollapsed={isCollapsed}
             showAgentInfo={false}
+            interactive
           />
           <Box marginTop={1}>
             <LoginWaiting url={s.url} openBrowser={s.openBrowser} />
@@ -660,10 +704,10 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
     }
 
     case 'loading_config':
-      return <LoadingView message="Loading configuration..." />;
+      return <LoadingView message={t('正在加载配置…', 'Loading configuration…')} />;
 
     case 'plugin_manager':
-      return (
+      bottomView = (
         <PluginManager
           data={pluginManagerData!}
           installProgress={installProgress}
@@ -671,50 +715,59 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
           onExit={handleClosePluginManager}
         />
       );
+      break;
 
     case 'task_selector':
-      return (
+      bottomView = (
         <TaskSelector
           tasks={taskSelectorTasks!}
+          availableRows={paneHeight}
           onSelect={handleSelectTask}
           onExit={handleCloseTaskSelector}
         />
       );
+      break;
 
     case 'model_selector':
-      return (
+      bottomView = (
         <ModelSelector
           models={modelSelectorData!.models}
           currentModel={modelSelectorData!.currentModel}
           modelNotes={modelSelectorData!.modelNotes}
+          embedded availableRows={paneHeight}
           onSelect={handleSelectModel}
           onExit={() => setModelSelectorData(null)}
         />
       );
+      break;
 
     case 'effort_selector':
-      return (
+      bottomView = (
         <EffortSelector
           model={effortSelectorData!.model}
           efforts={effortSelectorData!.efforts}
           current={effortSelectorData!.current}
+          embedded
           onSelect={handleSelectEffort}
           onExit={() => setEffortSelectorData(null)}
         />
       );
+      break;
 
     case 'theme_selector':
-      return (
+      bottomView = (
         <ThemeSelector
           themes={themeSelectorData!.themes}
           current={themeSelectorData!.current}
+          embedded
           onSelect={handleSelectTheme}
           onExit={() => setThemeSelectorData(null)}
         />
       );
+      break;
 
     case 'session_browser':
-      return (
+      bottomView = (
         <SessionBrowser
           projectRoot={config.workingDir}
           onResume={handleResumeSession}
@@ -722,12 +775,24 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
           currentSessionId={undefined}
         />
       );
+      break;
 
     default:
-      return (
+      break;
+  }
+  return (
         <AppProvider>
-          <Box flexDirection="column" height="95%" flexShrink={0} flexGrow={0} overflow="hidden">
+          <Box flexDirection="column" flexShrink={0} flexGrow={0}>
             <MainLayout
+              demoPresentation
+              fullStatusBar
+              bannerInHistory
+              demoOverlayHeight={paneHeight}
+              demoOverlay={bottomView ? <BottomPaneContext.Provider value={{ ...paneSize, rows: paneHeight }}>
+                <Scrollable height={paneHeight} width={paneSize.columns} hasFocus mouseOnly scrollToBottom={false}>
+                  {bottomView}
+                </Scrollable>
+              </BottomPaneContext.Provider> : null}
               version={bannerInfo?.version || "0.0.0"}
               workingDir={bannerInfo?.workingDir || config.workingDir}
               agent={bannerInfo?.agent || "coder"}
@@ -744,6 +809,8 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
               onAddMessage={stableAddMessage}
               onUpdateMessage={stableUpdateMessage}
               onStopExecution={stableStopExecution}
+              onCtrlC={quitShortcut.onCtrlC}
+              interruptNotice={quitShortcut.notice}
               onFlushQueueAndRun={stableFlushQueueAndRun}
               onCancelPendingQueue={cancelPendingQueue}
               isCollapsed={isCollapsed}
@@ -774,5 +841,4 @@ export const App: React.FC<AppProps> = ({ config, onExit }) => {
           </Box>
         </AppProvider>
       );
-  }
 };

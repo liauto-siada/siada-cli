@@ -26,7 +26,7 @@
  * Usage: bun run scripts/vendor-pdf-viewer.ts [--force]
  */
 import { createHash } from "node:crypto";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -51,17 +51,6 @@ function run(cmd: string[], description: string): void {
     throw new Error(
       `${description} failed (exit ${result.exitCode}): ${result.stderr.toString().slice(0, 500)}`,
     );
-  }
-}
-
-async function removeSourceMaps(directory: string): Promise<void> {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const filename = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      await removeSourceMaps(filename);
-    } else if (entry.name.endsWith(".map")) {
-      await rm(filename);
-    }
   }
 }
 
@@ -91,29 +80,31 @@ export async function vendorPdfViewer(force = false): Promise<void> {
     await writeFile(zipPath, zipBytes);
 
     const extracted = path.join(tmp, "extracted");
-    run(
-      [process.env.PYTHON || (process.platform === "win32" ? "python" : "python3"),
-       "-m", "zipfile", "-e", zipPath, extracted],
-      "extract pdf.js archive",
-    );
+    run(["unzip", "-q", zipPath, "-d", extracted], "unzip");
 
     // Rebuild the vendor dir from scratch for determinism.
     await rm(VENDOR_DIR, { recursive: true, force: true });
-    await mkdir(path.join(VENDOR_DIR, "build"), { recursive: true });
+    run(["mkdir", "-p", path.join(VENDOR_DIR, "build")], "mkdir");
 
     // build/: runtime modules only (skip .map files).
     for (const file of ["pdf.mjs", "pdf.worker.mjs", "pdf.sandbox.mjs"]) {
-      await cp(path.join(extracted, "build", file), path.join(VENDOR_DIR, "build", file));
+      run(
+        ["cp", path.join(extracted, "build", file), path.join(VENDOR_DIR, "build", file)],
+        `copy build/${file}`,
+      );
     }
 
     // web/: everything except source maps and the bundled demo PDF.
-    await cp(path.join(extracted, "web"), path.join(VENDOR_DIR, "web"), { recursive: true });
-    await removeSourceMaps(path.join(VENDOR_DIR, "web"));
+    run(["cp", "-R", path.join(extracted, "web"), path.join(VENDOR_DIR, "web")], "copy web/");
+    run(
+      ["find", path.join(VENDOR_DIR, "web"), "-name", "*.map", "-delete"],
+      "strip web/*.map",
+    );
     await rm(path.join(VENDOR_DIR, "web", "compressed.tracemonkey-pldi-09.pdf"), {
       force: true,
     });
 
-    await cp(path.join(extracted, "LICENSE"), path.join(VENDOR_DIR, "LICENSE"));
+    run(["cp", path.join(extracted, "LICENSE"), path.join(VENDOR_DIR, "LICENSE")], "copy LICENSE");
 
     // Patch: allow the viewer to open cross-origin files. The stock generic
     // viewer rejects `?file=` whose origin differs from the viewer origin —

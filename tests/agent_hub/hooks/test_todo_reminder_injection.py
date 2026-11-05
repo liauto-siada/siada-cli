@@ -76,10 +76,10 @@ async def _run(processor, context, input_items, agent=None):
 
 # Proactive reminders are limited to GLM, including prefixed and older versions.
 GLM_EMPTY_TODOS_MODELS = [
-    "zhipuai/glm-5.3",
+    "lpai-glm-5.3",
     "baidu-glm-5.3-flash",
     "openai/glm-6",
-    "z-ai/glm-5.2",
+    "kivy-glm-5.2",
 ]
 
 OTHER_EMPTY_TODOS_MODELS = [
@@ -89,7 +89,7 @@ OTHER_EMPTY_TODOS_MODELS = [
     "deepseek-v4_1-flash",
     "claude-sonnet-4",
     "gpt-5.6-luna",
-    "deepseek/deepseek-v4-flash-0731",
+    "kivy-deepseek-v4-flash-0731",
     "xglm-5.3",
     None,
 ]
@@ -150,7 +150,7 @@ async def test_empty_todos_without_model_config_are_not_reminded():
 async def test_empty_list_opt_out_restores_the_previous_behaviour(monkeypatch, value):
     monkeypatch.setenv(TODO_EMPTY_LIST_REMINDER_ENV, value)
     processor = TodoReminderProcessor()
-    context = _make_context("zhipuai/glm-5.3", goal=_active_goal())
+    context = _make_context("lpai-glm-5.3", goal=_active_goal())
     input_items = _make_input_items(TURNS_SINCE_WRITE_THRESHOLD + 1)
 
     await _run(processor, context, input_items)
@@ -164,7 +164,7 @@ async def test_empty_list_opt_out_restores_the_previous_behaviour(monkeypatch, v
 @pytest.mark.asyncio
 async def test_first_request_is_never_reminded():
     processor = TodoReminderProcessor()
-    context = _make_context("zhipuai/glm-5.3")
+    context = _make_context("lpai-glm-5.3")
     input_items = [{"role": "user", "content": "first request"}]
 
     await _run(processor, context, input_items)
@@ -177,12 +177,12 @@ async def test_first_request_is_never_reminded():
 async def test_empty_todos_below_either_threshold_are_not_reminded():
     processor = TodoReminderProcessor()
 
-    context = _make_context("zhipuai/glm-5.3")
+    context = _make_context("lpai-glm-5.3")
     input_items = _make_input_items(TURNS_SINCE_WRITE_THRESHOLD - 1)
     await _run(processor, context, input_items)
     assert _reminders_in(input_items) == []
 
-    context = _make_context("zhipuai/glm-5.3")
+    context = _make_context("lpai-glm-5.3")
     context.todo_turns_since_reminder = TURNS_BETWEEN_REMINDERS_THRESHOLD - 2
     input_items = _make_input_items(TURNS_SINCE_WRITE_THRESHOLD + 1)
     await _run(processor, context, input_items)
@@ -192,7 +192,7 @@ async def test_empty_todos_below_either_threshold_are_not_reminded():
 @pytest.mark.asyncio
 async def test_empty_todos_without_registered_todo_write_are_not_reminded():
     processor = TodoReminderProcessor()
-    context = _make_context("zhipuai/glm-5.3")
+    context = _make_context("lpai-glm-5.3")
     input_items = _make_input_items(TURNS_SINCE_WRITE_THRESHOLD + 1)
 
     await _run(processor, context, input_items, agent=_make_agent(("run_cmd",)))
@@ -205,7 +205,7 @@ async def test_empty_todos_without_registered_todo_write_are_not_reminded():
 async def test_retried_call_stages_a_single_pending_reminder():
     """A retried on_llm_start recomputes the reminder; only one is persisted."""
     processor = TodoReminderProcessor()
-    context = _make_context("zhipuai/glm-5.3")
+    context = _make_context("lpai-glm-5.3")
 
     first_attempt = _make_input_items(TURNS_SINCE_WRITE_THRESHOLD + 1)
     await _run(processor, context, first_attempt)
@@ -220,7 +220,7 @@ async def test_retried_call_stages_a_single_pending_reminder():
 
 @pytest.mark.asyncio
 async def test_retry_with_non_glm_model_drops_pending_empty_list_reminder():
-    context = _make_context("zhipuai/glm-5.3")
+    context = _make_context("lpai-glm-5.3")
     processor = TodoReminderProcessor()
     first_attempt = _make_input_items(TURNS_SINCE_WRITE_THRESHOLD + 1)
     await _run(processor, context, first_attempt)
@@ -235,7 +235,7 @@ async def test_retry_with_non_glm_model_drops_pending_empty_list_reminder():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("model_name", ["claude-sonnet-5", "claude-sonnet-4", "zhipuai/glm-5.3"])
+@pytest.mark.parametrize("model_name", ["claude-sonnet-5", "claude-sonnet-4", "lpai-glm-5.3"])
 async def test_existing_todos_get_the_update_reminder(model_name):
     """A model that already used todo_write keeps getting the update reminder."""
     processor = TodoReminderProcessor()
@@ -259,7 +259,7 @@ async def test_existing_todos_get_the_update_reminder(model_name):
 async def test_opt_out_does_not_suppress_existing_list_reminder(monkeypatch):
     monkeypatch.setenv(TODO_EMPTY_LIST_REMINDER_ENV, "off")
     context = _make_context(
-        "zhipuai/glm-5.3", todos=[SimpleNamespace(status="pending", content="task A")]
+        "lpai-glm-5.3", todos=[SimpleNamespace(status="pending", content="task A")]
     )
     input_items = _make_input_items(TURNS_SINCE_WRITE_THRESHOLD + 1)
 

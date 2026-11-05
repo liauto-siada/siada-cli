@@ -1,6 +1,6 @@
 import { useEffect, MutableRefObject, Dispatch, SetStateAction } from 'react';
 import { SiadaACPClient } from '../../../acp/client.js';
-import { ClientConfig, Message, ConnectionStatus, type AgentMessageSubtype } from '../../../types/index.js';
+import { ClientConfig, Message, ConnectionStatus, type AgentMessageSubtype, type ACPStreamEnd } from '../../../types/index.js';
 import { logger } from '../../../utils/logger.js';
 import { recordFlicker } from '../../../utils/flickerMonitor.js';
 import { TokenUsage, InteractiveInputRequest, LoginState, TodoItem, BannerInfo, TodoMessageRange, CacheStatusData, GoalState, SubAgentItem, SubAgentMessageEntry } from '../types.js';
@@ -8,6 +8,7 @@ import { mergeSubAgentEntry } from '../../../utils/subAgentMessages.js';
 import { promptQueueStore } from '../../../store/promptQueueStore.js';
 import { inputRestoreStore } from '../../../store/inputRestoreStore.js';
 import { removeLastUserMessage } from './messageRemoval.js';
+import { appendCommandResult, type CommandResult } from './commandResult.js';
 import { setTerminalTitle } from '../../../utils/terminalTitle.js';
 import { isThemeName, setActiveTheme } from '../../../themes/index.js';
 import type { ThinkingStep } from '../../../constants/phrases.js';
@@ -17,6 +18,7 @@ interface EventHandlers {
   setClient: Dispatch<SetStateAction<SiadaACPClient | null>>;
   setConnectionStatus: Dispatch<SetStateAction<ConnectionStatus>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
+  setStartupComplete: Dispatch<SetStateAction<boolean>>;
   setActiveStep?: Dispatch<SetStateAction<ThinkingStep | null>>;
   setTokenUsage: Dispatch<SetStateAction<TokenUsage | null>>;
   setInteractiveInput: Dispatch<SetStateAction<InteractiveInputRequest | null>>;
@@ -39,20 +41,21 @@ interface EventHandlers {
   handleAgentMessage: (message: Message) => void;
   handleToolUse: (toolData: any) => void;
   handleStreamAborted: (data: { streamStartId?: string; reason?: string }) => void;
+  handleStreamEnd: (data: ACPStreamEnd) => void;
   flushStreamingNow: () => void;
   resetStreaming: () => void;
 }
 
 export function useClientEvents(config: ClientConfig, handlers: EventHandlers): void {
   const {
-    setClient, setConnectionStatus, setLoading, setActiveStep, setTokenUsage,
+    setClient, setConnectionStatus, setLoading, setStartupComplete, setActiveStep, setTokenUsage,
     setInteractiveInput, setLoginState, setMessages,
     setTodoItems, setTodoMessageRanges, setGoalState, setSubAgentItems, setSubAgentMessages, messagesRef,
     clientRef, currentSessionIdRef,
     pendingHistoryRef, historyBufferRef, pendingUserMessageIdRef, pullHistoryTimeoutRef,
     setBannerInfo,
     setCacheStatus,
-    handleAgentMessage, handleToolUse, handleStreamAborted, flushStreamingNow, resetStreaming,
+    handleAgentMessage, handleToolUse, handleStreamAborted, handleStreamEnd, flushStreamingNow, resetStreaming,
   } = handlers;
 
   useEffect(() => {
@@ -70,6 +73,9 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
         // Make acpClient available immediately so login-choice can be sent
         // during the startup window (before waitForReady / banner_info resolves).
         clientRef.current = acpClient;
+        setStartupComplete(false);
+        const todoItemsLocal: { current: TodoItem[] } = { current: [] };
+        const todoRangesLocal: { current: Map<string, TodoMessageRange> } = { current: new Map() };
 
         acpClient.on('connected', () => {
           if (mounted) {
@@ -92,6 +98,17 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
           }
         });
 
+        acpClient.adapter.on('ui:commandResult', (result: CommandResult) => {
+          if (!mounted) return;
+          if (typeof result?.queueId === 'string') promptQueueStore.removeById(result.queueId);
+          setMessages(previous => appendCommandResult(previous, result));
+        });
+
+        // Register before connect: startup replay can finish in its stdout chunk.
+        acpClient.adapter.on('ui:startupComplete', () => {
+          if (mounted) setStartupComplete(true);
+        });
+
         // A cold --resume can send ui/loadHistory immediately after its first
         // (restored) banner_info. Register before connect() resolves; App's
         // later useAdapterEvents effect would miss history arriving in the
@@ -101,7 +118,9 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
           const rawMessages = params?.messages;
           logger.info('Received ui:loadHistory', { messageCount: rawMessages?.length ?? 0 });
           recordFlicker('clearMessages', `ui:loadHistory — replacing messages with ${rawMessages?.length ?? 0} history items`);
-          setMessages(Array.isArray(rawMessages) ? rawMessages.filter(msg => msg.role && msg.content).map(msg => ({
+          // The backend follows restored history with the matching Goal snapshot.
+          setGoalState(null);
+          const historyMessages: Message[] = Array.isArray(rawMessages) ? rawMessages.filter(msg => msg.role && msg.content).map(msg => ({
             id: `history-${Date.now()}-${Math.random()}`,
             type: msg.role === 'user' ? 'user' : 'agent',
             content: msg.content,
@@ -111,7 +130,11 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
               subtype: msg.subtype as AgentMessageSubtype,
               ...(msg.subtype === 'tool_use' && isRenderableToolDiff(msg.content) ? { streamEnd: true } : {}),
             } : undefined,
-          })) : []);
+          })) : [];
+          // State snapshots can arrive in the same chunk as history replay.
+          // Keep range anchors in sync before React commits the replacement.
+          messagesRef.current = historyMessages;
+          setMessages(historyMessages);
         });
 
         acpClient.on('toolUse', (toolData: any) => {
@@ -155,6 +178,12 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
 
             if (isSessionChange) {
               setMessages([]);
+              messagesRef.current = [];
+              todoItemsLocal.current = [];
+              todoRangesLocal.current.clear();
+              setTodoItems([]);
+              setTodoMessageRanges(new Map());
+              setGoalState(null);
               setSubAgentItems([]);
               setSubAgentMessages(new Map());
               setTokenUsage(null);
@@ -233,6 +262,10 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
           } else if (data.messageType === 'tool_call' || data.messageType === 'tool_use' || data.messageType === 'tool_result') {
             setActiveStep?.('tool_execution');
           }
+        });
+
+        acpClient.on('stream:end', (data: ACPStreamEnd) => {
+          if (mounted) handleStreamEnd(data);
         });
 
         // Backend aborted a bad stream (repetition loop, deepseek-v4-flash
@@ -377,23 +410,25 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
         });
 
         // Login events must be registered before connect() — they fire during the startup window
+        let embeddedLogin = false;
         acpClient.adapter.on('ui:showLoginSelector', (params: any) => {
           if (mounted) {
             // Clear the terminal BEFORE the state update so Ink renders the login
             // view onto a clean screen (not appended below the main view content).
-            process.stdout?.write('\x1b[2J\x1b[H');
+            embeddedLogin = !!params?.cancelable;
+            if (!embeddedLogin) process.stdout?.write('\x1b[2J\x1b[H');
             setLoginState({
               phase: 'selecting',
               requestId: typeof params?.requestId === 'string' ? params.requestId : undefined,
               providers: params?.providers,
               cancelable: params?.cancelable ?? false,
               liidDisabled: params?.liidDisabled ?? false,
-              freeTrialModels: params?.freeTrialModels,
             });
           }
         });
         acpClient.adapter.on('ui:loginDeviceUrl', (params: any) => {
           if (mounted) {
+            embeddedLogin = false;
             process.stdout?.write('\x1b[2J\x1b[H');
             setLoginState({ phase: 'waiting', url: params?.url || '', openBrowser: !!params?.openBrowser });
           }
@@ -401,13 +436,15 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
         acpClient.adapter.on('ui:loginSuccess', () => {
           if (mounted) {
             // Clear login UI before switching back to main view
-            process.stdout?.write('\x1b[2J\x1b[H');
+            if (!embeddedLogin) process.stdout?.write('\x1b[2J\x1b[H');
+            embeddedLogin = false;
             setLoginState(null);
           }
         });
         acpClient.adapter.on('ui:loginDismiss', () => {
           if (mounted) {
-            process.stdout?.write('\x1b[2J\x1b[H');
+            if (!embeddedLogin) process.stdout?.write('\x1b[2J\x1b[H');
+            embeddedLogin = false;
             setLoginState(null);
           }
         });
@@ -474,9 +511,6 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
         });
 
         // Todo state tracking: record message index ranges per todo step
-        const todoItemsLocal: { current: TodoItem[] } = { current: [] };
-        const todoRangesLocal: { current: Map<string, TodoMessageRange> } = { current: new Map() };
-
         const handleTodoState = (params: { todos: TodoItem[] }) => {
           if (!mounted) return;
           const newItems: TodoItem[] = params?.todos ?? [];
@@ -517,9 +551,7 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
 
           todoItemsLocal.current = newItems;
           setTodoItems([...newItems]);
-          // Merge into existing React state so we don't wipe ranges accumulated by the
-          // streaming path (handleToolUse isFinal). Local `ranges` only contains transitions
-          // seen via ACP notifications in this closure — other ranges survive.
+          // Preserve earlier task ranges when applying confirmed transitions.
           setTodoMessageRanges(prev => {
             const merged = new Map(prev);
             for (const [key, range] of ranges.entries()) {
@@ -536,10 +568,15 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
         // directly into React state. Unlike todoState, there's no ranges/
         // transitions bookkeeping to do here — the backend already computed
         // the full { goal, verifying, notice? } shape.
-        const handleGoalState = (params: { goal: { objective: string; status: string; createdAt?: string; turns?: number } | null; verifying: boolean; notice?: string }) => {
+        const handleGoalState = (params: GoalState) => {
 
           if (!mounted) return;
-          setGoalState(params as GoalState);
+          setGoalState(previous => ({
+            ...params,
+            latestResult: params.latestResult ?? params.result ??
+              (params.goal?.createdAt && params.goal.createdAt === previous?.goal?.createdAt
+                ? previous.latestResult ?? previous.result : undefined),
+          }));
           logger.debug('[GoalState] updated', { status: params?.goal?.status, verifying: params?.verifying });
         };
 
@@ -578,7 +615,10 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
               content: m.content || '',
               timestamp: m.timestamp || new Date().toISOString(),
               author: m.author || (m.role === 'user' ? 'You' : 'Siada'),
-              metadata: m.subtype ? { subtype: m.subtype } : undefined,
+              metadata: m.subtype ? {
+                subtype: m.subtype,
+                ...(m.subtype === 'tool_use' && isRenderableToolDiff(m.content || '') ? { streamEnd: true } : {}),
+              } : undefined,
             }));
 
             // Always render immediately (pullHistoryDone now handles buffered flow)

@@ -49,3 +49,27 @@ export function useStatusBarDialog(): UseStatusBarDialogReturn {
     handleToggle,
   };
 }
+
+export interface UseStatusDialogReturn {
+  isOpen: boolean;
+  openDialog: () => void;
+  closeDialog: () => void;
+}
+
+export function useStatusDialog(): UseStatusDialogReturn {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const openDialog = useCallback(() => {
+    setIsOpen(true);
+  }, []);
+
+  const closeDialog = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+
+  return {
+    isOpen,
+    openDialog,
+    closeDialog,
+  };
+}

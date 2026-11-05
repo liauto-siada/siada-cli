@@ -1,6 +1,7 @@
-"""Serialize SDK startup without patching tool or response dispatch.
+"""Serialize SDK startup and configure recoverable missing-tool calls.
 
-Unknown tool recovery is configured through RunConfig.
+Unknown tool recovery is configured through RunConfig, with a lazy adapter for
+native/custom calls that the pinned SDK does not recover through that setting.
 Provider-specific compatibility patches remain separate from SDK initialization.
 """
 
@@ -14,13 +15,24 @@ logger = logging.getLogger(__name__)
 
 
 def configure_sdk_run_config(run_config=None):
-    """Use the SDK's public missing-tool recovery without changing caller state."""
+    """Enable recovery while preserving dictionary configs and provider ownership."""
     import copy
 
     from agents import RunConfig
+    from siada.foundation.tool_recovery import install_missing_tool_recovery, missing_tool_formatter
 
+    install_missing_tool_recovery()
+    if isinstance(run_config, dict):
+        # Let Runner normalize the dictionary and own a provider it creates.
+        config = dict(run_config)
+        config["tool_not_found_behavior"] = "return_error_to_model"
+        if config.get("tool_error_formatter") is None:
+            config["tool_error_formatter"] = missing_tool_formatter
+        return config
     config = copy.copy(run_config) if run_config is not None else RunConfig()
     config.tool_not_found_behavior = "return_error_to_model"
+    if config.tool_error_formatter is None:
+        config.tool_error_formatter = missing_tool_formatter
     return config
 
 
@@ -196,13 +208,28 @@ def _patch_disable_gemini_function_call_id_forwarding() -> None:
     ``gemini-3.5-flash`` is classified as gemini-3+ because litellm only checks
     for the substring ``"gemini-3"``.
 
-    Some compatible gateways serve Gemini traffic through Vertex AI, which
-    rejects the extra ``id`` field with an HTTP 400::
+    Our li-mate gateway sets ``custom_llm_provider == "gemini"`` but actually
+    serves Gemini traffic through Vertex AI, which rejects the extra ``id`` field
+    with an HTTP 400::
 
         Unknown name "id" at 'contents[..].parts[0].function_call': Cannot find field.
 
-    Disable forwarding for compatibility with those gateways. This leaves the
-    existing API-key transport and URL unchanged.
+    Since siada never talks to Google AI Studio directly, force the forwarding
+    off so the ``id`` is never emitted, regardless of model / provider.
+
+    Why patch instead of alternatives:
+    - Changing ``custom_llm_provider`` to ``vertex_ai`` would also disable the
+      forwarding, but it switches litellm's whole request pipeline (URL path
+      ``/publishers/google/models/...`` + GCP OAuth auth) away from the AI Studio
+      ``/v1beta`` + API-key protocol expected by Gemini-compatible gateways, so it
+      is a cross-service change, not a drop-in fix.
+    - litellm exposes no public flag for this behavior (only this private
+      static method), so a monkey-patch is the least-invasive client-side fix.
+
+    Long-term / cleaner fix: have the li-mate gateway strip the ``id`` from
+    ``function_call`` / ``function_response`` parts before forwarding to Vertex.
+    That removes the client-side dependency on a litellm private method entirely,
+    at which point this patch can be dropped.
 
     NOTE: this depends on litellm's private ``_forward_gemini_function_call_id``;
     re-check it when bumping litellm. The caller in ``apply_litellm_patches`` wraps

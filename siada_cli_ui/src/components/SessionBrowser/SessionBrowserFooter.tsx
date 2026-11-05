@@ -4,7 +4,9 @@
  */
 
 import React from 'react';
-import { Box, Text } from '@jrichman/ink';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
+import { PickerFooter, pickerHint } from '../Picker/Picker.js';
 import { SessionBrowserFooterProps } from '../../types/session.js';
 
 export const SessionBrowserFooter: React.FC<SessionBrowserFooterProps> = ({
@@ -12,35 +14,23 @@ export const SessionBrowserFooter: React.FC<SessionBrowserFooterProps> = ({
   hasResults,
   scope,
 }) => {
-  // wrap="truncate" keeps the footer at exactly 4 rows (margin 1 + border 3)
-  // even on narrow terminals — the SessionBrowser row budget relies on this.
+  useUiLanguage();
   if (isSearchMode) {
     return (
-      <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-        <Text color="gray" dimColor wrap="truncate">
-          Type to search · Enter to confirm · Esc to cancel
-        </Text>
-      </Box>
+      <PickerFooter>{t('Enter 确定 · Esc 返回 · 输入关键词搜索', 'Enter confirm · Esc back · Type to search')}</PickerFooter>
     );
   }
 
   if (!hasResults) {
     return (
-      <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-        <Text color="gray" dimColor wrap="truncate">
-          Ctrl+A {scope === 'current' ? 'all projects' : 'current only'} · Esc to exit
-        </Text>
-      </Box>
+      <PickerFooter>{PANEL_TIPS.sessionEmpty(scope === 'current' ? t('所有项目', 'all projects') : t('仅当前项目', 'current only'))}</PickerFooter>
     );
   }
 
-  const scopeHint = scope === 'current' ? 'all projects' : 'current only';
+  const scopeHint = scope === 'current' ? t('所有项目', 'all projects') : t('仅当前项目', 'current only');
 
   return (
-    <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-      <Text color="gray" dimColor wrap="truncate">
-        ↑↓/j/k navigate · Enter resume · Ctrl+R rename · s sort · Ctrl+A {scopeHint} · / search · Esc exit
-      </Text>
-    </Box>
+    <PickerFooter>{pickerHint('vertical', 'resume')} · {t(`/ 搜索 · s 排序 · Ctrl+R 重命名 · Ctrl+A ${scopeHint}`,
+      `/ search · s sort · Ctrl+R rename · Ctrl+A ${scopeHint}`)}</PickerFooter>
   );
 };

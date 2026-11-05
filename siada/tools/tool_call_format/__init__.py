@@ -1,11 +1,11 @@
 """
-Tool Call Formatter module.
+Tool call formatter module.
 
-Provides tool call argument formatting, including:
-- ToolCallFormatter abstract base class interface
-- ToolCallFormatterFactory factory class
-- Various concrete formatter implementations
-- ParameterInterceptor argument interception decorator
+Format tool call arguments with:
+- The ToolCallFormatter interface.
+- The ToolCallFormatterFactory registry.
+- Concrete formatter implementations.
+- The ParameterInterceptor decorator.
 """
 
 from .tool_call_formatter import ToolCallFormatter
@@ -37,7 +37,7 @@ from .formatters import (
 
 # Auto-register all formatters
 def _register_all_formatters():
-    """Automatically register all available formatters."""
+    """Register all available formatters."""
     formatters = [
         DefaultFormatter,
         SearchFormatter,

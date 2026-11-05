@@ -1,53 +1,22 @@
 ---
 title: Supported Agents
-description: AI agents that work with the chrome-acp proxy.
+description: AI agents that work with Chrome ACP.
 ---
 
-`chrome-acp` works with any [ACP-compatible agent](https://agentclientprotocol.com/get-started/agents) — the proxy takes an agent command and runs it as a subprocess. In a Siada CLI installation that command is **`siada-cli --acp`**.
-
----
-
-## siada-cli (Default)
-
-Siada CLI's browser add-on always runs Siada's own ACP entry point, so the side panel is a normal Siada session (memory, skills, MCP servers, tools) with browser control on top.
-
-```bash
-# Install once: this is the proxy that Siada CLI spawns for you
-siada-browser setup /path/to/siada-cli/chrome-acp
-# or: siada-cli --browser-setup /path/to/siada-cli/chrome-acp
-
-# Start / restart / inspect it
-siada-browser start
-siada-browser status
-```
-
-**Requirements:** a working Siada CLI configuration (model provider, API keys) — the browser add-on adds nothing extra.
-
-**Features:** everything Siada CLI can do, plus the [browser tools](/guides/browser-tools/).
-
----
-
-## Using Another Agent
-
-The proxy is agent-agnostic: pass any command that speaks ACP over stdin/stdout, for example `acp-proxy <agent-command> -- <agent-args>`. Two things to keep in mind:
-
-- Stop the Siada-managed proxy first if you want to bind the same port: `siada-browser stop`
-- A proxy you launch yourself prints its own token and URLs; the extension connects to `ws://localhost:<port>/ws` (or `wss://` with `--https`) plus that token
-
-The examples below use the proxy that `siada-browser setup` installed; substitute `packages/proxy-server/dist/cli/bin.js` if you are running straight from a checkout.
+Chrome ACP works with any [ACP-compatible agent](https://agentclientprotocol.com/get-started/agents). Here are setup instructions for popular agents.
 
 ---
 
 ## Claude Code
 
-Anthropic's agentic coding tool, driven through its ACP adapter.
+Anthropic's agentic coding tool.
 
 ```bash
-# Install the agent (the proxy is already installed)
-npm install -g @anthropic-ai/claude-code @zed-industries/claude-code-acp
+# Install
+npm install -g @chrome-acp/proxy-server @anthropic-ai/claude-code @zed-industries/claude-code-acp
 
-# Run the proxy with it
-node ~/.siada-cli/browser/proxy/dist/cli/bin.js --no-auth claude-code-acp
+# Run
+acp-proxy --no-auth claude-code-acp
 ```
 
 **Requirements:** `ANTHROPIC_API_KEY` environment variable
@@ -62,10 +31,10 @@ OpenAI's coding agent.
 
 ```bash
 # Install
-npm install -g @openai/codex @zed-industries/codex-acp
+npm install -g @chrome-acp/proxy-server @openai/codex @zed-industries/codex-acp
 
 # Run
-node ~/.siada-cli/browser/proxy/dist/cli/bin.js --no-auth codex-acp
+acp-proxy --no-auth codex-acp
 ```
 
 **Requirements:** `OPENAI_API_KEY` environment variable
@@ -78,10 +47,11 @@ Open-source terminal AI assistant with multi-provider support.
 
 ```bash
 # Install
+npm install -g @chrome-acp/proxy-server
 curl -fsSL https://opencode.ai/install | bash
 
 # Run
-node ~/.siada-cli/browser/proxy/dist/cli/bin.js --no-auth opencode -- acp
+acp-proxy --no-auth opencode acp
 ```
 
 ---
@@ -92,10 +62,10 @@ Google's AI agent with a generous free tier.
 
 ```bash
 # Install
-npm install -g @google/gemini-cli
+npm install -g @chrome-acp/proxy-server @google/gemini-cli
 
 # Run
-node ~/.siada-cli/browser/proxy/dist/cli/bin.js --no-auth gemini -- --experimental-acp
+acp-proxy --no-auth gemini -- --experimental-acp
 ```
 
 **Requirements:** `GOOGLE_API_KEY` or Google Cloud credentials
@@ -108,10 +78,10 @@ Free coding agent using Qwen models (no API key required).
 
 ```bash
 # Install
-npm install -g @qwen-code/qwen-code@latest
+npm install -g @chrome-acp/proxy-server @qwen-code/qwen-code@latest
 
 # Run
-node ~/.siada-cli/browser/proxy/dist/cli/bin.js --no-auth qwen -- --acp
+acp-proxy --no-auth qwen -- --acp
 ```
 
 ---
@@ -122,17 +92,17 @@ AI coding agent by Augment.
 
 ```bash
 # Install
-npm install -g @augmentcode/auggie
+npm install -g @chrome-acp/proxy-server @augmentcode/auggie
 
 # Run
-node ~/.siada-cli/browser/proxy/dist/cli/bin.js --no-auth auggie -- --acp
+acp-proxy --no-auth auggie -- --acp
 ```
 
 ---
 
 ## Agent Capabilities
 
-Agents can declare their capabilities when creating a session. `chrome-acp` supports:
+Agents can declare their capabilities when creating a session. Chrome ACP supports:
 
 ### Image Support
 
@@ -179,10 +149,10 @@ Thought chunks are displayed in a collapsible "Thinking" section.
 
 ## Custom Agents
 
-Any ACP-capable command works with `chrome-acp`:
+Any ACP-compatible agent works with Chrome ACP:
 
 ```bash
-node ~/.siada-cli/browser/proxy/dist/cli/bin.js --no-auth /path/to/your/agent
+acp-proxy --no-auth /path/to/your/agent
 ```
 
 ### Requirements
@@ -218,15 +188,11 @@ See [Architecture](/reference/architecture/) for MCP protocol details.
 ### Agent doesn't start
 
 ```bash
-# Check the proxy state and where the agent failed
-siada-browser status
-tail -n 50 ~/.siada-cli/browser/acp-proxy.log
-
 # Test the agent directly
-siada-cli --acp
+claude-code-acp
 
 # Check if it accepts stdin
-echo '{"request":"new_session","requestId":"1"}' | siada-cli --acp
+echo '{"request":"new_session","requestId":"1"}' | claude-code-acp
 ```
 
 ### Missing API key
@@ -244,7 +210,8 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 Enable debug mode to see detailed logs:
 ```bash
-node ~/.siada-cli/browser/proxy/dist/cli/bin.js --debug --no-auth claude-code-acp
+acp-proxy --debug --no-auth claude-code-acp
 ```
 
-Check logs in `.acp-proxy/` in the working directory, and the proxy's own log at `~/.siada-cli/browser/acp-proxy.log`.
+Check logs in `.acp-proxy/` directory.
+

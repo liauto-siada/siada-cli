@@ -632,8 +632,7 @@ class SmartSearchMemoryFormatter(ToolCallFormatter):
         try:
             args = json.loads(arguments)
             query = args.get("query", "")
-            display_query = query[:80] + "..." if len(query) > 80 else query
-            return f"Searching memory: {display_query}", True
+            return f"Searching memory: {query}", True
         except json.JSONDecodeError:
             return "Searching memory", True
 
@@ -668,8 +667,7 @@ class SearchMemoryFormatter(ToolCallFormatter):
         try:
             args = json.loads(arguments)
             query = args.get("query", "")
-            display_query = query[:80] + "..." if len(query) > 80 else query
-            return f"Searching memory: {display_query}", True
+            return f"Searching memory: {query}", True
         except json.JSONDecodeError:
             return "Searching memory", True
 
@@ -689,8 +687,7 @@ class MemoryWriteFormatter(ToolCallFormatter):
             action = args.get("action", "")
             target = args.get("target", "")
             content = args.get("content") or ""
-            preview = content[:60] + "..." if len(content) > 60 else content
-            return f"Save to memory [{action}/{target}]: {preview}", True
+            return f"Save to memory [{action}/{target}]: {content}", True
         except json.JSONDecodeError:
             return "Save to memory", True
 
@@ -712,7 +709,7 @@ class FactStoreFormatter(ToolCallFormatter):
         text = (text or "").strip()
         return text[:limit] + "..." if len(text) > limit else text
 
-    def _summarize(self, args: dict) -> str:
+    def _summarize(self, args: dict, *, compact: bool = True) -> str:
         """Build the action-aware detail suffix, e.g. ``[add/project] ...``."""
         action = (args.get("action") or "").strip()
         content = args.get("content") or ""
@@ -721,13 +718,15 @@ class FactStoreFormatter(ToolCallFormatter):
         entities = args.get("entities") or []
         category = args.get("category") or ""
         fact_id = args.get("fact_id")
+        content_detail = self._preview(content) if compact else content
+        query_detail = self._preview(query, 80) if compact else query
 
         if action == "add":
-            detail = self._preview(content)
+            detail = content_detail
             tag = f"[add/{category}]" if category else "[add]"
             return f"{tag} {detail}".rstrip()
         if action == "search":
-            return f"[search] {self._preview(query, 80)}".rstrip()
+            return f"[search] {query_detail}".rstrip()
         if action == "probe":
             return f"[probe] {entity}".rstrip()
         if action == "related":
@@ -739,7 +738,7 @@ class FactStoreFormatter(ToolCallFormatter):
             return "[contradict]"
         if action == "update":
             base = f"[update] #{fact_id}" if fact_id is not None else "[update]"
-            detail = self._preview(content)
+            detail = content_detail
             return f"{base} {detail}".rstrip()
         if action == "remove":
             return f"[remove] #{fact_id}" if fact_id is not None else "[remove]"
@@ -752,7 +751,7 @@ class FactStoreFormatter(ToolCallFormatter):
     ) -> Tuple[str, bool]:
         try:
             args = json.loads(arguments)
-            return f"Fact memory {self._summarize(args)}".rstrip(), True
+            return f"Fact memory {self._summarize(args, compact=False)}".rstrip(), True
         except json.JSONDecodeError:
             return "Fact memory", True
 
@@ -779,14 +778,14 @@ class FactStoreFormatter(ToolCallFormatter):
 class FactFeedbackFormatter(ToolCallFormatter):
     """Formatter for the fact_feedback function (trust-score feedback)."""
 
-    def _summarize(self, args: dict) -> str:
+    def _summarize(self, args: dict, *, compact: bool = True) -> str:
         fact_id = args.get("fact_id")
         action = (args.get("action") or "").strip()
         comment = args.get("comment") or ""
         base = f"#{fact_id}" if fact_id is not None else ""
         detail = f"{base} {action}".strip()
         if comment:
-            preview = comment[:60] + "..." if len(comment) > 60 else comment
+            preview = comment[:60] + "..." if compact and len(comment) > 60 else comment
             detail = f"{detail}: {preview}".strip(": ").strip()
         return detail
 
@@ -795,7 +794,7 @@ class FactFeedbackFormatter(ToolCallFormatter):
     ) -> Tuple[str, bool]:
         try:
             args = json.loads(arguments)
-            return f"Fact feedback {self._summarize(args)}".rstrip(), True
+            return f"Fact feedback {self._summarize(args, compact=False)}".rstrip(), True
         except json.JSONDecodeError:
             return "Fact feedback", True
 

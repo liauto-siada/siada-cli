@@ -10,6 +10,7 @@ from inspect import signature
 from runpy import run_path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -138,7 +139,20 @@ async def chat_transport(request: pytest.FixtureRequest, monkeypatch: pytest.Mon
         max_retries=0,
     )
     factory = SimpleNamespace(get_client=lambda *args: client)
-    if request.param == "default":
+    if request.param == "li":
+        from siada.provider.li import chat_completions as li_module
+
+        monkeypatch.setattr(li_module, "ensure_valid_auth", AsyncMock())
+        monkeypatch.setattr(
+            li_module, "_build_extra_headers", lambda request_id: {"uuid": request_id}
+        )
+        monkeypatch.setattr(li_module, "_get_version", lambda: "test-version")
+        monkeypatch.setattr(li_module, "_generate_session_fingerprint", lambda: "test-dedup")
+
+        def make_model(model_name: str):
+            return li_module.LiOpenAIChatCompletionsModel(model_name, factory)
+
+    elif request.param == "default":
 
         def make_model(model_name: str):
             return DefaultOpenAIChatCompletionsModel(

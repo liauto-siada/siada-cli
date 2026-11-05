@@ -1,0 +1,158 @@
+{
+  "[null, \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "52afa10dd1627f00fabda3f325de74fa044dd51676814866a5d503114bbd0e9a"
+  },
+  "[null, \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "1dba79555a92667f2108202ab65ef2177ad72ef5aad4a0fb0d695eeac1183648"
+  },
+  "[null, \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "2868eb2eaeee3ed6a1cf5577d3afc980c7c1e38e52c3d8d2065a3568900c0420"
+  },
+  "[\"claude-sonnet-5\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "52afa10dd1627f00fabda3f325de74fa044dd51676814866a5d503114bbd0e9a"
+  },
+  "[\"claude-sonnet-5\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "1dba79555a92667f2108202ab65ef2177ad72ef5aad4a0fb0d695eeac1183648"
+  },
+  "[\"claude-sonnet-5\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "2868eb2eaeee3ed6a1cf5577d3afc980c7c1e38e52c3d8d2065a3568900c0420"
+  },
+  "[\"gpt-5.4\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "feb606233bbb1c0948befeb5b993ea3bcf00df7d82f34aa3da4d64379367e8dc"
+  },
+  "[\"gpt-5.4\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "a38ebf9a5b948932eefaf4ab72f57322f6edc6f6032cd0516cd06009f453ad76"
+  },
+  "[\"gpt-5.4\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "75620c07777dea5d686f5604c91a72f9505126ed0a355d3546dad40b9a1b497e"
+  },
+  "[\"gpt-6-astra\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "4053a388a41f3cae6fa4448341710d7f96d2738beb5ee3b656b976a718bf6754"
+  },
+  "[\"gpt-6-astra\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "b3887fdb670015a2cf01957f9856f5b4318feee00355317d1dfab5cb8b836646"
+  },
+  "[\"gpt-6-astra\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "3808565daa3cc7fbf5e5c03328f084ea6ea37701982fcce1eba39f94589ae5dd"
+  },
+  "[\"astra\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "4053a388a41f3cae6fa4448341710d7f96d2738beb5ee3b656b976a718bf6754"
+  },
+  "[\"astra\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "b3887fdb670015a2cf01957f9856f5b4318feee00355317d1dfab5cb8b836646"
+  },
+  "[\"astra\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "3808565daa3cc7fbf5e5c03328f084ea6ea37701982fcce1eba39f94589ae5dd"
+  },
+  "[\"gpt-6-sol\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "a427ab14757dcd1ca5d573e7fad9ddafd6320edc23f452e6dc7cb1f9ea7a980c"
+  },
+  "[\"gpt-6-sol\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "20c3b53f37cde0d36eb4e213006e511b8aeb062c8798ab123f3a8479cf62959e"
+  },
+  "[\"gpt-6-sol\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "5216f2d98fe64d53595c5979c001caa6680fa30d01c1b3d6a3542f2d704dc11a"
+  },
+  "[\"gpt-6-luna\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "41f9600e8bb499ffc200120f39fe2d907181916e873e2e3d0d22c0bc65d4c853"
+  },
+  "[\"gpt-6-luna\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "678b92bf64095cbcb9d7b4160284f2273173ab91d8b3f5fea98acfede047cbf5"
+  },
+  "[\"gpt-6-luna\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "3a73311e6fc8414dbe45843a7cc533d2bde3b6d438e0c7faa6ee9eadc36885b3"
+  },
+  "[\"vendor/gpt-6.1-sol\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "10a4629c35eeca05464c38fa2b922e60d14597b1589f991998bc56c0d81fb19f"
+  },
+  "[\"vendor/gpt-6.1-sol\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "9099ec45544af07f627135a749d8363b00695426002c95939e28c73969c82dec"
+  },
+  "[\"vendor/gpt-6.1-sol\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "e3c5a47984ec30ee29a7764099ae6ac4da0d05045fbb4415c3bbe73baf4fb62a"
+  },
+  "[\"glm-5.3\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "df0be0ca956e0c01da0e087bf3661da6c79b58464456f077bd3830cb6094aead"
+  },
+  "[\"glm-5.3\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "0161ff370eaa7197884bc9ed191aa3522f9ebe6aa320270fa658819f2c0c6282"
+  },
+  "[\"glm-5.3\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "0d1db5d74ffc388e5c3497d49a70e66404829747c67ce9868450252ffe1f8a74"
+  },
+  "[\"kimi-k3.5\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "878a527e0d32d90dd8e8af231a3bb5d5cb4f97027b568c8b3da6874132660d15"
+  },
+  "[\"kimi-k3.5\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "f61de6fb2aa4281298ee48c6441f85c198c972342414720cd1eb6182488cc89a"
+  },
+  "[\"kimi-k3.5\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "aa3d6a74d6cab2c0943e1c84bf1ae6ff614249c869b8553430a1f2103fe6e36f"
+  },
+  "[\"deepseek-v4-flash\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "374b863d0cba0819c58dcce14a2949b107f284f98574580eeb3ed877bbea38f6"
+  },
+  "[\"deepseek-v4-flash\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "4931fa2b630675a4283ea0ab3f69f47bcf30ea4d3c2455d27b9225211eb82260"
+  },
+  "[\"deepseek-v4-flash\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "20f6d68330aaa13f1d5a63d10e2b8def41a6e8f759afc4e84fc0550b76d9998c"
+  },
+  "[\"vendor/deepseek-${cwd}\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "ea3a91c25ffb2e21d65159c57a9c5a710f4e7399ce2d3a2780714a30540ec051"
+  },
+  "[\"vendor/deepseek-${cwd}\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "448767093a708554338eff57d1c2016a4bd142437817258751ad564369399be7"
+  },
+  "[\"vendor/deepseek-${cwd}\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "ef5ae8be224c98afbc2b4e5d19607cef4aad48dbdbaf8812d38557e0d1022654"
+  },
+  "[\"gpt-7-nova\", \"Darwin\"]": {
+    "cases": 1440,
+    "sha256": "aa340017dfcfa5bede820799e6e7a93cdf2c40a585a444725882d223f9f17bc3"
+  },
+  "[\"gpt-7-nova\", \"Linux\"]": {
+    "cases": 1440,
+    "sha256": "3d78625c909ac47a80131ca27b33789ada1e8a18c2431a3c975cc3110b1928de"
+  },
+  "[\"gpt-7-nova\", \"Windows\"]": {
+    "cases": 1440,
+    "sha256": "81f78df8a8a93df855d7d209e8c7b72720ea531f4faa3b2204a4f490fe74b84e"
+  }
+}

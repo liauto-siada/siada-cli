@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { useStdout } from 'ink';
+import { useStdout } from '@jrichman/ink';
 import { ClientConfig, Message } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { recordFlicker } from '../../utils/flickerMonitor.js';
@@ -7,6 +7,7 @@ import { UseACPResult } from './types.js';
 import { useACPState } from './state/index.js';
 import { useStreamingMessages } from './streaming/index.js';
 import { useClientEvents } from './events/index.js';
+import { slashCommandService } from '../../services/slashCommandService.js';
 
 export * from './types.js';
 
@@ -19,12 +20,13 @@ export function useACP(config: ClientConfig): UseACPResult {
     state.messagesRef.current = state.messages;
   }, [state.messages]);
 
-  const { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse, handleStreamAborted } = useStreamingMessages({
+  const { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse, handleStreamAborted, handleStreamEnd } = useStreamingMessages({
     setMessages: state.setMessages,
     setBannerInfo: state.setBannerInfo,
     stdout,
     workingDir: config.workingDir,
     model: config.model,
+    boundedViewport: true,
     pullHistoryTimeoutRef: state.pullHistoryTimeoutRef,
     messagesRef: state.messagesRef,
     setTodoItems: state.setTodoItems,
@@ -36,6 +38,7 @@ export function useACP(config: ClientConfig): UseACPResult {
     setClient: state.setClient,
     setConnectionStatus: state.setConnectionStatus,
     setLoading: state.setLoading,
+    setStartupComplete: state.setStartupComplete,
     setActiveStep: state.setActiveStep,
     setTokenUsage: state.setTokenUsage,
     setInteractiveInput: state.setInteractiveInput,
@@ -58,6 +61,7 @@ export function useACP(config: ClientConfig): UseACPResult {
     handleAgentMessage,
     handleToolUse,
     handleStreamAborted,
+    handleStreamEnd,
     flushStreamingNow,
     resetStreaming,
   });
@@ -81,6 +85,20 @@ export function useACP(config: ClientConfig): UseACPResult {
         timestamp: new Date().toISOString(),
         author: 'System',
       }]);
+      return;
+    }
+
+    // Queries have their own result event: no history pull or main-turn state.
+    if (/^\/effort(?:\s|$)/.test(content.trim()) || slashCommandService.isImmediateCommand(content)) {
+      try {
+        await state.client.sendMessage(content, imagePaths, options);
+      } catch (error) {
+        state.setMessages(previous => [...previous, {
+          id: `command_error_${Date.now()}`, type: 'error',
+          content: `Failed to send command: ${error instanceof Error ? error.message : error}`,
+          timestamp: new Date().toISOString(), author: 'System',
+        }]);
+      }
       return;
     }
 
@@ -160,12 +178,17 @@ export function useACP(config: ClientConfig): UseACPResult {
         content,
         timestamp: new Date().toISOString(),
         author: 'You',
+        metadata: { sendPending: true },
       }]);
     }
 
     try {
       await state.client.sendMessage(content, imagePaths, options);
+      if (!isBtwCommand) state.setMessages(previous => previous.map(message =>
+        message.id === userMsgId ? { ...message, metadata: { ...message.metadata, sendPending: false } } : message));
     } catch (error) {
+      if (!isBtwCommand) state.setMessages(previous => previous.map(message =>
+        message.id === userMsgId ? { ...message, metadata: { ...message.metadata, sendPending: false, sendFailed: true } } : message));
       state.setMessages(prev => [...prev, {
         id: `error_${Date.now()}`,
         type: 'error',
@@ -181,9 +204,8 @@ export function useACP(config: ClientConfig): UseACPResult {
     state.client?.cancelPendingQueue();
   }, [state.client]);
 
-  // showInterruptMessage controls whether the "Execution interrupted" system
-  // hint is rendered. Ctrl+C shows it; Esc (flush queue and run) suppresses it
-  // because the queued prompt will be rendered on screen instead.
+  // Keep the durable interrupt notice separate from the expiring quit shortcut.
+  // Esc (flush queue and run) suppresses it because a queued prompt replaces it.
   const stopExecution = useCallback(async (showInterruptMessage: boolean = true) => {
     if (!state.client || !state.client.isConnected()) return;
     try {
@@ -193,7 +215,7 @@ export function useACP(config: ClientConfig): UseACPResult {
         state.setMessages(prev => [...prev, {
           id: `system_${Date.now()}`,
           type: 'system',
-          content: 'Execution interrupted, Ctrl+C again to exit',
+          content: 'Execution interrupted',
           timestamp: new Date().toISOString(),
           author: 'System',
         }]);
@@ -246,6 +268,7 @@ export function useACP(config: ClientConfig): UseACPResult {
     messages: state.messages,
     connectionStatus: state.connectionStatus,
     loading: state.loading,
+    startupComplete: state.startupComplete,
     activeStep: state.activeStep,
     bannerInfo: state.bannerInfo,
     tokenUsage: state.tokenUsage,

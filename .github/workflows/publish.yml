@@ -3,15 +3,15 @@ name: Publish to PyPI
 on:
   workflow_dispatch:
     inputs:
-        tag:
-            description: "Enter existing tag to publish (e.g., v3.1.2)"
-            required: true
-            type: string
-        test:
-            description: "Publish to Test PyPI (default: false)"
-            required: false
-            type: boolean
-            default: false
+      tag:
+        description: "Enter existing tag to publish (e.g., v1.7.41)"
+        required: true
+        type: string
+      test:
+        description: "Publish to Test PyPI"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,39 +22,31 @@ jobs:
       name: pypi
       url: https://pypi.org/p/siada-cli
     permissions:
-      id-token: write # Important for trusted publishing to PyPI
+      id-token: write
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
-        with: 
-            ref: ${{ github.event.inputs.tag }}
-
+        with:
+          ref: ${{ github.event.inputs.tag }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install and configure Poetry
         uses: snok/install-poetry@v1
-
       - name: Install Dependencies
         run: poetry install
-
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: "npm"
           cache-dependency-path: siada_cli_ui/package-lock.json
-
       - name: Build terminal UI
         run: |
           npm --prefix siada_cli_ui ci
           npm --prefix siada_cli_ui run build:all
-
       - name: Build release distributions
         run: poetry build
-
       - name: Publish release distributions to Test PyPI
         if: ${{ github.event.inputs.test == 'true' }}
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -62,7 +54,6 @@ jobs:
           packages-dir: dist/
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
-
       - name: Publish release distributions to PyPI
         if: ${{ github.event.inputs.test != 'true' }}
         uses: pypa/gh-action-pypi-publish@release/v1

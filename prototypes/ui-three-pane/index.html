@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Siada · 三分区交互 Demo</title>
+  <style>
+    :root { color-scheme:dark; --bg:#191b1f; --surface:#262a30; --raised:#333333; --line:#4b5563; --text:#e6e6e6; --muted:#b9c2cc; --tertiary:#8f97a1; --accent:#3b82f6; --blue:#87d7ff; --green:#76e5c0; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:14px/1.7 "SFMono-Regular",Consolas,"Liberation Mono","PingFang SC",monospace; }
+    button, textarea, input { font:inherit; }
+    button { color:var(--muted); background:transparent; border:1px solid transparent; border-radius:4px; padding:5px 9px; cursor:pointer; }
+    button:hover { color:var(--text); background:var(--surface); }
+    button:focus-visible, summary:focus-visible, textarea:focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
+    button:disabled { opacity:.45; cursor:default; }
+    [hidden] { display:none !important; }
+    .app { max-width:1160px; height:100dvh; margin:auto; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; background:var(--bg); padding:0 28px; }
+    .chrome { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:17px 0 14px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .logo { color:var(--blue); font-size:17px; font-weight:600; letter-spacing:-.5px; }
+    .logo em { font-style:normal; color:var(--green); }
+    .badge { font-size:11px; color:var(--tertiary); }
+    .menu-wrap { position:relative; }
+    .more-menu { position:absolute; right:0; top:35px; z-index:10; width:175px; padding:6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); box-shadow:0 8px 24px #0004; display:flex; flex-direction:column; }
+    .more-menu button { text-align:left; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; }
+    .controls button { font-size:12px; }
+    .pinned { padding:10px 14px 12px; background:var(--raised); min-height:0; border-radius:3px; }
+    .section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--muted); font-size:11px; margin-bottom:9px; }
+    .section-title { display:flex; align-items:center; gap:9px; }
+    .pin-icon { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.5; }
+    .pin-content { display:flex; gap:10px; }
+    .pin-prefix { color:var(--text); }
+    .pin-text { margin:0; color:var(--text); white-space:pre-wrap; overflow-wrap:anywhere; max-height:3.4em; overflow:hidden; flex:1; min-width:0; }
+    .pinned.expanded .pin-text { max-height:min(24dvh,190px); overflow:auto; scrollbar-color:var(--line) transparent; }
+    .pin-actions { display:flex; gap:5px; align-items:center; }
+    .pin-actions button { padding:1px 7px; font-size:11px; }
+    .middle { min-height:0; position:relative; display:flex; flex-direction:column; }
+    .toolbar { padding:9px 26px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); }
+    .toolbar .controls { gap:6px; }
+    .toolbar button { border-color:transparent; padding:2px 7px; }
+    .scroll { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:var(--line) var(--bg); padding:6px 0 50px; }
+    .turn { padding:22px 0 12px; }
+    .user { background:var(--raised); padding:8px 14px; margin-bottom:18px; white-space:pre-wrap; overflow-wrap:anywhere; border-radius:3px; }
+    .turn:last-child .user { display:none; }
+    .user-label { color:var(--tertiary); font-size:11px; margin-bottom:4px; display:block; }
+    .response-label { color:var(--accent); font-size:14px; margin-bottom:10px; display:flex; gap:8px; align-items:center; }
+    .response-label small { color:var(--muted); }
+    details { margin:4px 0 8px; color:var(--muted); }
+    summary { cursor:pointer; padding:3px 2px; font-size:13px; user-select:none; display:flex; align-items:center; gap:8px; list-style:none; }
+    summary::-webkit-details-marker { display:none; }
+    summary::before { content:"●"; font-size:10px; flex-shrink:0; }
+    summary::after { content:"›"; color:var(--tertiary); margin-left:2px; }
+    details[open] summary::after { content:"⌄"; }
+    summary:hover { color:var(--text); }
+    .summary-hint { font-size:11px; color:var(--tertiary); margin-left:3px; }
+    .detail-body { margin:7px 0 14px 20px; border:1px solid var(--line); border-radius:8px; padding:12px 16px; white-space:pre-wrap; overflow-wrap:anywhere; max-height:230px; overflow:auto; font-size:13px; scrollbar-width:thin; }
+    .tool summary::before,.tool summary strong { color:#06b6d4; }
+    .tool summary { color:var(--text); }
+    .answer { white-space:pre-wrap; overflow-wrap:anywhere; padding:12px 0 12px 20px; line-height:1.85; }
+    .code { font-size:12px; white-space:pre; color:var(--green); }
+    .live-cursor::after { content:"▍"; color:var(--accent); animation:blink 1s steps(2) infinite; }
+    @keyframes blink { 50% { opacity:0; } }
+    .highlight .user { box-shadow:inset 0 0 0 1px var(--blue); }
+    .jump { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:var(--surface); border-color:var(--line); border-radius:5px; color:var(--blue); white-space:nowrap; padding:5px 13px; font-size:12px; }
+    .composer { padding:8px 0 15px; background:var(--bg); }
+    .editor { display:flex; align-items:flex-end; gap:12px; border:1px solid var(--line); border-radius:9px; padding:12px 14px; background:var(--bg); }
+    .editor:focus-within { border-color:var(--blue); }
+    .prompt-sign { color:var(--blue); align-self:flex-start; font-size:16px; }
+    textarea { resize:none; flex:1; width:100%; min-width:0; height:26px; max-height:90px; border:0; background:none; color:var(--text); outline:none; line-height:1.7; padding:0; }
+    textarea::placeholder { color:var(--muted); }
+    .primary { color:var(--blue); padding:0 7px; font-size:12px; }
+    #stop { padding:0 7px; font-size:12px; color:var(--muted); }
+    .primary:hover { background:var(--surface); }
+    .footer { display:flex; justify-content:space-between; gap:10px; margin-top:8px; font-size:11px; color:var(--muted); }
+    .status { color:var(--tertiary); }
+    .composer-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:0 2px 7px; font-size:11px; min-height:20px; }
+    .location { color:var(--tertiary); }
+    dialog { background:var(--surface); color:var(--text); border:1px solid var(--line); border-radius:8px; width:min(630px,calc(100vw - 32px)); max-height:75dvh; padding:22px; }
+    dialog::backdrop { background:#05080bbf; }
+    .dialog-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
+    .dialog-head h2 { font-size:16px; margin:0; }
+    .history-list { display:flex; flex-direction:column; gap:9px; max-height:45dvh; overflow:auto; }
+    .history-list button { text-align:left; display:flex; gap:15px; padding:12px; }
+    .history-list span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .history-list small { color:var(--blue); white-space:nowrap; }
+    .help-list { padding-left:20px; color:var(--muted); }
+    .help-list li { margin:12px 0; }
+    .compact .turn { padding-top:12px; }
+    .compact .answer { line-height:1.6; }
+    .light { color-scheme:light; --bg:#ffffff; --surface:#f0f1f3; --raised:#e9edf2; --line:#c8d1da; --text:#1f2328; --muted:#4b5563; --tertiary:#6e7781; --accent:#0969da; --blue:#0969da; --green:#1a7f37; }
+    @media(max-width:640px) {
+      .app { padding-inline:14px; }
+      .chrome { padding:10px 0; gap:6px; }
+      .badge { display:none; }
+      .chrome .controls { gap:4px; }
+      .chrome button { padding:3px 6px; font-size:11px; }
+      .pinned { padding:9px 11px; }
+      .composer { padding:7px 0 10px; }
+      .scroll { padding-inline:0; }
+      .pin-actions { gap:2px; }
+      .pin-actions button { min-width:27px; padding:2px 5px; }
+      .summary-hint { display:none; }
+      .toolbar { padding:7px 10px; }
+      .toolbar .section-title { gap:5px; }
+      .toolbar .controls { gap:0; }
+      .toolbar button { font-size:11px; padding:3px 5px; }
+      .footer .keyboard-hint { display:none; }
+      .section-head { font-size:10px; }
+      .editor { gap:8px; }
+    }
+    @media(max-height:560px) {
+      .chrome { padding-block:6px; }
+      .pinned { padding-block:8px; }
+      .pin-text { max-height:1.7em; }
+      .pinned.expanded .pin-text { max-height:15dvh; }
+      .composer { padding-block:7px; }
+      textarea { height:30px; }
+      .section-head { margin-bottom:5px; }
+    }
+    /* Shared terminal grid: one marker column and one content column. */
+    body { font-size:14px; line-height:21px; --muted:#969ba5; --tertiary:#727782; }
+    .app { max-width:1060px; padding-inline:24px; }
+    .chrome { padding:9px 0; height:40px; }
+    .logo { font-size:14px; letter-spacing:0; color:var(--text); }
+    .logo em { color:var(--text); }
+    .brand { gap:14px; }
+    .badge { font-size:12px; }
+    .pinned { position:relative; padding:10px 12px; background:#26282d; border-radius:0; }
+    .section-head { position:absolute; right:9px; top:8px; margin:0; }
+    .section-title { display:none; }
+    .pin-actions { gap:0; }
+    .pin-actions button { font-size:12px; padding:2px 7px; }
+    .pin-content { gap:0; }
+    .pin-prefix { width:24px; flex-shrink:0; color:var(--blue); }
+    .pin-text { padding-right:175px; max-height:42px; line-height:21px; }
+    .pinned.expanded .pin-text { padding-right:0; margin-top:28px; }
+    .scroll { padding:0 0 22px; }
+    .turn { padding:16px 0 0; }
+    .user { position:relative; margin:0 0 12px; padding:7px 12px; background:#23252a; border-radius:0; }
+    .user-label { display:block; margin:0 0 2px 24px; font-size:12px; }
+    .turn-context { color:var(--tertiary); font-size:12px; padding:0 12px 10px 36px; }
+    .response-label { display:none; }
+    details { margin:0; padding:0 12px; font-size:14px; }
+    summary { font-size:14px; line-height:21px; padding:0; gap:0; min-height:25px; }
+    summary::before { width:24px; font-size:10px; }
+    summary::after { margin-left:8px; font-size:13px; }
+    .thinking summary { color:var(--muted); font-style:italic; }
+    .thinking summary::before { content:"›"; font-size:16px; }
+    .tool summary::before,.tool summary strong { color:var(--muted); }
+    .tool summary strong { margin-right:7px; font-weight:500; }
+    .summary-hint { margin-left:10px; font-size:12px; }
+    .detail-body { margin:5px 0 10px 24px; padding:0 0 0 12px; border:0; border-left:1px solid var(--line); border-radius:0; font-size:13px; line-height:20px; color:var(--muted); max-height:210px; }
+    .code { color:var(--muted); }
+    .answer { position:relative; padding:10px 12px 0 36px; line-height:21px; }
+    .answer::before { content:"●"; position:absolute; left:12px; top:10px; font-size:10px; color:var(--blue); }
+    .answer p { margin:0 0 9px; white-space:pre-wrap; }
+    .answer p:last-child { margin-bottom:0; }
+    .answer-code { margin:9px 0; padding:8px 12px; background:#202227; color:#a8b8c9; font-size:13px; line-height:20px; overflow:auto; white-space:pre; border-left:1px solid var(--line); }
+    .composer { padding:10px 0 9px; }
+    .composer-meta { display:none; }
+    .editor { border-radius:0; border-left:0; border-right:0; padding:9px 12px; gap:0; min-height:46px; align-items:center; }
+    .prompt-sign { width:24px; flex-shrink:0; font-size:14px; align-self:flex-start; line-height:26px; }
+    textarea { font-size:14px; line-height:21px; padding-top:2px; }
+    .primary,#stop { font-size:12px; padding:0 4px 0 12px; }
+    .footer { margin-top:5px; padding:0 12px; font-size:12px; color:var(--tertiary); min-height:21px; }
+    .footer-right { display:flex; gap:14px; }
+    .jump { border:0; border-radius:0; padding:3px 12px; background:#303238; color:var(--text); }
+    .light .pinned,.light .user { background:var(--raised); }
+    .light .answer-code { background:var(--surface); color:var(--text); }
+    @media(max-width:640px) {
+      .app { padding-inline:12px; }
+      .pin-text { padding-right:105px; }
+      .pin-actions button { font-size:11px; padding:2px 4px; min-width:22px; }
+      #pin-turn { display:none; }
+      .footer-right .keyboard-hint { display:none; }
+      .footer { font-size:11px; }
+      .badge { display:none; }
+    }
+    @media(max-height:560px) {
+      .chrome { height:32px; }
+      .composer { padding-block:6px; }
+      .pinned { padding-block:8px; }
+    }
+    @media(prefers-reduced-motion:reduce) { *,*::after { animation:none !important; scroll-behavior:auto !important; } }
+  </style>
+</head>
+<body>
+  <main class="app" id="app" data-screen-label="Siada 上下三分区">
+    <header class="chrome">
+      <div class="brand"><span class="logo">Siada <em>CLI</em></span><span class="badge">siada-agenthub · ui-three-pane</span></div>
+      <div class="menu-wrap">
+        <button id="more" aria-label="更多选项" aria-expanded="false" aria-controls="more-menu">···</button>
+        <div class="more-menu" id="more-menu" hidden>
+          <button id="arrivals">模拟新回复</button>
+          <button id="long-prompt">长消息示例</button>
+          <button id="theme" aria-label="切换明暗主题">切换明暗主题</button>
+          <button id="help-open">验证指引</button>
+          <button id="reset">重置对话</button>
+        </div>
+      </div>
+    </header>
+    <section class="pinned" id="pinned" aria-label="固定的最新用户消息">
+      <div class="section-head">
+        <div class="section-title">
+          <svg class="pin-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2h6l-1 4 3 3H3l3-3-1-4ZM8 9v5"></path></svg>
+          <span>最新消息</span>
+        </div>
+        <div class="pin-actions">
+          <button id="previous" aria-label="跳到上一条用户消息" title="上一轮 · Alt+↑">↑</button>
+          <button id="next" aria-label="跳到下一条用户消息" title="下一轮 · Alt+↓">↓</button>
+          <button id="history-open" title="用户消息目录 · Ctrl+J"><span id="pin-turn">第 6 轮</span> ⌄</button>
+          <button id="pin-expand" aria-expanded="false">展开</button>
+        </div>
+      </div>
+      <div class="pin-content"><span class="pin-prefix" aria-hidden="true">&gt;</span><p class="pin-text" id="pin-text"></p></div>
+    </section>
+    <section class="middle" aria-label="可滚动的消息区">
+      <div class="scroll" id="scroll" tabindex="0" aria-label="消息历史"></div>
+      <button class="jump" id="jump" hidden>↓ 回到底部</button>
+    </section>
+    <section class="composer" aria-label="固定输入区">
+      <div class="composer-meta"><span class="location">~/siada-agenthub</span><span class="status" id="status" role="status">就绪</span></div>
+      <form class="editor" id="form">
+        <span class="prompt-sign" aria-hidden="true">▸</span>
+        <textarea id="input" aria-label="用户输入" placeholder="输入消息…" rows="1"></textarea>
+        <button type="button" id="stop" hidden>停止</button>
+        <button type="submit" class="primary" id="send">↵ <span>发送</span></button>
+      </form>
+      <div class="footer"><span id="position">最新回复</span><span class="footer-right"><span class="keyboard-hint">alt+↑↓ 历史 · ctrl+o 详情</span><span id="footer-status">本地演示</span></span></div>
+    </section>
+  </main>
+  <dialog id="history-dialog" aria-labelledby="history-title">
+    <div class="dialog-head"><h2 id="history-title">跳转到用户消息</h2><button data-close="history-dialog">关闭</button></div>
+    <p style="color:var(--muted);font-size:12px">浏览旧轮次时，顶部仍保留最后一条用户消息。</p>
+    <div class="history-list" id="history-list"></div>
+  </dialog>
+  <dialog id="help-dialog" aria-labelledby="help-title">
+    <div class="dialog-head"><h2 id="help-title">验证这三个区域</h2><button data-close="help-dialog">关闭</button></div>
+    <ol class="help-list">
+      <li>向上滚动或从目录跳到第 1 轮，检查顶部最新用户消息和底部输入是否保持原位。</li>
+      <li>点击 Thinking 标题，单独展开一条思考；其他消息保持原有展开状态。</li>
+      <li>先输入一段草稿，再从右上角“···”选择“模拟新回复”。浏览位置和草稿保持，新回复按钮更新计数。</li>
+      <li>点“回到底部”，继续跟随回复。发送新消息，检查顶部内容是否替换。</li>
+      <li>从“···”选择“长消息示例”并展开全文，再缩小窗口，检查三区都仍可用。</li>
+    </ol>
+    <p style="font-size:12px;color:var(--muted)">本页面用于验证交互和布局。回复为本地模拟；终端渲染性能与内存需要在 Siada 实现中另行验证。</p>
+  </dialog>
+  <script>
+    "use strict";
+    const $ = id => document.getElementById(id);
+    const viewport = $("scroll");
+    let turns = [], activeIndex = 0, following = true, unread = new Set(), timer = null, liveTurn = null, sequence = 0;
+    const initialPrompts = [
+      "帮我定位长会话中消息列表的内存增长。",
+      "给我看看更新链路，先不要改代码。",
+      "历史记录和正在生成的回复应该怎样分开？",
+      "Thinking 要能单独点击展开，工具输出默认收起。",
+      "向上读历史时保留位置，新回复到了再提示我。",
+      "按三分区做原型。最新用户消息固定在顶部，输入固定在底部。"
+    ];
+    const initialAnswers = [
+      "先检查两个方向：流式片段是否保留了重复快照，以及历史消息是否每次都重新生成展示节点。\n\n三分区可以隔离布局更新。内存上限还取决于历史加载和缓存策略。",
+      "更新链路可以拆成三个边界：\n\n模型事件 → 消息数据 → 当前视口\n\n历史记录使用稳定 ID；流式片段只更新当前回复。展开与主题变化再触发对应内容的计算。",
+      "已完成的回复作为历史块保存，正在生成的回复保留一个可变尾部。\n\n视口只挂载附近的内容；离开视口后释放展示缓存，原始记录仍可按需读取。",
+      "展开状态绑定到每个内容块。点击 Thinking 只影响当前思考；工具结果独立展开。\n\n长内容保留高度上限，让输入区始终可用。",
+      "向上滚动后暂停自动跟随，继续接收当前回复。\n\n只有离开底部时才出现新回复提示；点击提示恢复跟随。输入中的草稿保持。",
+      "原型已就绪。最新问题固定在顶部，中间独立滚动，底部始终可以输入。\n\n可以点击思考摘要和工具记录查看详情，使用 ↑ ↓ 浏览轮次。历史阅读时，顶部问题保持不变。\n\n下面是建议的布局边界："
+    ];
+    const initialTools = [
+      ["Explore", "消息渲染 · 3 个文件", "Read MessageList.tsx\nRead Message.tsx\nRead useChatMessages.ts\n\n示例检索结果：消息数据、展示节点和布局分别处理。"],
+      ["Read", "useChatMessages.ts", "onUpdate(event)\n  → mergeByMessageId(event)\n  → updateActiveReply()\n\n示例更新链路，非当前生产代码。"],
+      ["Explore", "历史加载 · 2 个入口", "loadBefore(messageId)\nreleaseOutsideViewport()\n\n合成方案片段。"],
+      ["Read", "ThinkingBlock.tsx", "thinkingId → expanded\nblockId    → toolExpanded\n\n展开状态按内容块保存。"],
+      ["Check", "滚动位置与草稿", "history position  preserved\ndraft text        preserved\nnew reply count   grouped by turn"],
+      ["Preview", "三分区布局", "顶部问题      固定\n消息视口      独立滚动\n用户输入      固定\n\n本地交互原型，未连接模型。"]
+    ];
+    function renderAnswer(node, content) {
+      node.replaceChildren();
+      content.split("\n\n").forEach(paragraph => node.append(textNode("p", "", paragraph)));
+    }
+    function textNode(tag, className, text) {
+      const node = document.createElement(tag); node.className = className; node.textContent = text; return node;
+    }
+    function makeDetails(title, body, kind) {
+      const details = document.createElement("details"); details.className = kind;
+      const summary = textNode("summary", "", "");
+      if (kind === "tool") {
+        const [action, ...description] = title.split(" · ");
+        summary.append(textNode("strong", "", action), textNode("span", "", description.join(" · ")));
+      } else {
+        summary.append(textNode("span", "", title));
+      }
+      details.append(summary, textNode("div", "detail-body" + (kind === "tool" ? " code" : ""), body));
+      return details;
+    }
+    function appendTurn(prompt, answer, thinking) {
+      const turn = { id:++sequence, prompt, answer, node:null, answerNode:null, extra:0 };
+      const article = textNode("article", "turn", ""); article.dataset.turn = String(turn.id);
+      const user = textNode("div", "user", ""); user.append(textNode("span", "user-label", "第 " + turn.id + " 轮"), document.createTextNode("> " + prompt));
+      const reason = thinking || "先检查本轮需要保持的状态，再确定更新边界。\n\n已发送的问题、正在阅读的轮次和输入草稿分别保存。滚动历史只改变视口，展开只改变对应内容块。\n\n这是合成思考内容，用于验证点击展开。";
+      const tool = initialTools[(turn.id - 1) % initialTools.length];
+      article.append(user, textNode("div", "turn-context", "第 " + turn.id + " 轮 · 回复"),
+        makeDetails("思考了 " + (3 + turn.id) + " 秒", reason, "thinking"),
+        makeDetails(tool[0] + " · " + tool[1], tool[2], "tool"));
+      turn.answerNode = textNode("div", "answer", ""); renderAnswer(turn.answerNode, answer); article.append(turn.answerNode);
+      if (turn.id === 6) turn.answerNode.append(textNode("pre", "answer-code", "PinnedPrompt   最新已发送的问题\nMessageView    历史块 + 当前回复\nComposer       草稿 + 一行状态"));
+      viewport.append(article); turn.node = article; turns.push(turn);
+      return turn;
+    }
+    function updatePin() {
+      const turn = turns[turns.length - 1]; $("pin-text").textContent = turn.prompt;
+      $("pin-turn").textContent = "第 " + turn.id + " 轮"; $("pinned").classList.remove("expanded");
+      $("pin-expand").textContent = "展开"; $("pin-expand").setAttribute("aria-expanded", "false");
+      $("pin-expand").hidden = turn.prompt.length < 90 && !turn.prompt.includes("\n");
+    }
+    function atBottom() { return viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop < 12; }
+    function syncPosition() {
+      $("jump").hidden = following && unread.size === 0;
+      $("jump").textContent = unread.size ? "↓ " + unread.size + " 个新回复 · 回到底部" : "↓ 回到底部";
+      $("position").textContent = following ? "最新回复" : "正在查看第 " + (activeIndex + 1) + " 轮";
+    }
+    function bottom() {
+      following = true; unread.clear(); viewport.scrollTop = viewport.scrollHeight;
+      activeIndex = turns.length - 1; syncPosition();
+    }
+    function afterGrowth(turn) {
+      if (following) { viewport.scrollTop = viewport.scrollHeight; }
+      else { unread.add(turn.id); }
+      syncPosition();
+    }
+    function jumpTo(index) {
+      activeIndex = Math.max(0, Math.min(index, turns.length - 1)); following = false;
+      const node = turns[activeIndex].node;
+      viewport.scrollTop += node.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 12;
+      turns.forEach(turn => turn.node.classList.toggle("highlight", turn === turns[activeIndex]));
+      syncPosition();
+    }
+    function clearStream(cancelled) {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
+      if (liveTurn) liveTurn.answerNode.classList.remove("live-cursor");
+      liveTurn = null; $("send").disabled = false; $("arrivals").disabled = false;
+      $("long-prompt").disabled = false; $("stop").hidden = true;
+      $("status").textContent = cancelled ? "已停止 · 部分回复已保留" : "就绪";
+      $("footer-status").textContent = cancelled ? "已停止" : "本地演示";
+    }
+    function stream(turn, content, append) {
+      if (timer !== null) return;
+      following = atBottom();
+      syncPosition();
+      liveTurn = turn; $("send").disabled = true; $("arrivals").disabled = true;
+      $("long-prompt").disabled = true; $("stop").hidden = false; $("status").textContent = "正在生成模拟回复";
+      $("footer-status").textContent = "生成中";
+      turn.answerNode.classList.add("live-cursor");
+      const prefix = append ? turn.answer + "\n\n" : "";
+      const chars = Array.from(content); let offset = 0;
+      timer = setInterval(() => {
+        offset = Math.min(offset + 3, chars.length);
+        turn.answer = prefix + chars.slice(0, offset).join("");
+        renderAnswer(turn.answerNode, turn.answer);
+        afterGrowth(turn);
+        if (offset === chars.length) clearStream(false);
+      }, 28);
+    }
+    function sendPrompt(prompt) {
+      if (!prompt.trim() || timer !== null) return;
+      const turn = appendTurn(prompt.trim(), ""); updatePin(); activeIndex = turns.length - 1;
+      $("input").value = ""; bottom();
+      $("input").style.height = "26px";
+      stream(turn, "收到，这一轮的用户消息已固定在顶部。\n\n你可以现在向上滚动，展开其他轮次的 Thinking，或者输入下一段草稿。生成中的回复只在中间区域更新。\n\n固定区不会因为滚动、跳转历史或新回复增长而离开顶部。点击“回到底部”可以继续跟随当前回复。\n\n这是一段本地模拟回复，用于验证布局和交互。", false);
+    }
+    viewport.addEventListener("scroll", () => {
+      following = atBottom(); if (following) unread.clear();
+      const top = viewport.getBoundingClientRect().top;
+      let visibleIndex = turns.findIndex(turn => turn.node.getBoundingClientRect().bottom > top + 20);
+      if (visibleIndex >= 0) activeIndex = visibleIndex;
+      syncPosition();
+    }, { passive:true });
+    $("jump").addEventListener("click", bottom);
+    $("previous").addEventListener("click", () => jumpTo(activeIndex - 1));
+    $("next").addEventListener("click", () => jumpTo(activeIndex + 1));
+    $("pin-expand").addEventListener("click", () => {
+      const expanded = $("pinned").classList.toggle("expanded");
+      $("pin-expand").textContent = expanded ? "收起" : "展开";
+      $("pin-expand").setAttribute("aria-expanded", String(expanded));
+      if (following) viewport.scrollTop = viewport.scrollHeight;
+    });
+    $("form").addEventListener("submit", event => { event.preventDefault(); sendPrompt($("input").value); });
+    $("input").addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); sendPrompt($("input").value); }
+    });
+    document.addEventListener("keydown", event => {
+      if (event.ctrlKey && event.key === "End" && !document.querySelector("dialog[open]")) { event.preventDefault(); bottom(); }
+      if (document.querySelector("dialog[open]") || event.isComposing) return;
+      if (event.altKey && ["ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault(); jumpTo(activeIndex + (event.key === "ArrowUp" ? -1 : 1));
+      }
+      if (event.ctrlKey && event.key.toLowerCase() === "j") { event.preventDefault(); $("history-open").click(); }
+      if (event.ctrlKey && event.key.toLowerCase() === "o") {
+        event.preventDefault();
+        const visible = turns.filter(turn => {
+          const box = turn.node.getBoundingClientRect(), view = viewport.getBoundingClientRect();
+          return box.bottom > view.top && box.top < view.bottom;
+        }).flatMap(turn => [...turn.node.querySelectorAll("details")]);
+        const expand = visible.some(detail => !detail.open);
+        visible.forEach(detail => { detail.open = expand; });
+      }
+    });
+    $("input").addEventListener("input", () => {
+      $("input").style.height = "26px";
+      $("input").style.height = Math.min($("input").scrollHeight, 90) + "px";
+    });
+    function closeMenu() {
+      $("more-menu").hidden = true; $("more").setAttribute("aria-expanded", "false");
+    }
+    $("more").addEventListener("click", () => {
+      const open = $("more-menu").hidden; $("more-menu").hidden = !open;
+      $("more").setAttribute("aria-expanded", String(open));
+    });
+    document.addEventListener("click", event => {
+      if (!event.target.closest(".menu-wrap") || event.target.closest(".more-menu button")) closeMenu();
+    });
+    document.addEventListener("keydown", event => { if (event.key === "Escape") closeMenu(); });
+    $("stop").addEventListener("click", () => clearStream(true));
+    $("arrivals").addEventListener("click", () => {
+      const turn = turns[turns.length - 1]; turn.extra++;
+      stream(turn, "补充回复 " + turn.extra + "：这段内容在你浏览历史时继续到达。\n\n如果你已向上滚动，阅读位置和输入草稿会保持，回到底部按钮显示新回复提示。同一轮的连续片段合并计数。\n\n顶部固定的用户消息保持不变。", true);
+    });
+    $("long-prompt").addEventListener("click", () => {
+      const prompt = "验证超长用户消息：顶部保持固定，全文展开后也不能挤掉输入区。\n\n" +
+        Array.from({ length:14 }, (_, i) => (i + 1) + ". 请检查历史滚动、Thinking 展开和新回复到达时，三区布局都保持可用。").join("\n");
+      sendPrompt(prompt);
+    });
+    $("history-open").addEventListener("click", () => {
+      const list = $("history-list"); list.replaceChildren();
+      turns.forEach((turn, index) => {
+        const button = document.createElement("button");
+        button.append(textNode("small", "", "第 " + turn.id + " 轮"), textNode("span", "", turn.prompt));
+        button.addEventListener("click", () => { $("history-dialog").close(); jumpTo(index); });
+        list.append(button);
+      });
+      $("history-dialog").showModal();
+    });
+    $("help-open").addEventListener("click", () => $("help-dialog").showModal());
+    document.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => $(button.dataset.close).close()));
+    $("theme").addEventListener("click", () => document.documentElement.classList.toggle("light"));
+    function reset() {
+      clearStream(false); viewport.replaceChildren(); turns = []; sequence = 0; unread.clear();
+      initialPrompts.forEach((prompt, index) => appendTurn(prompt, initialAnswers[index]));
+      updatePin(); $("input").value = ""; requestAnimationFrame(bottom);
+      $("input").style.height = "26px";
+    }
+    $("reset").addEventListener("click", reset);
+    new ResizeObserver(() => { if (following) viewport.scrollTop = viewport.scrollHeight; }).observe(viewport);
+    reset();
+  </script>
+</body>
+</html>

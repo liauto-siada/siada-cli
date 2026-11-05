@@ -1,5 +1,5 @@
 #!/bin/sh
-# Public browser-first installation; safe to invoke with curl ... | sh.
+# Public browser-first installation.
 set -eu
 case "$(uname -s)" in
   Darwin|Linux) ;;

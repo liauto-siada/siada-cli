@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+// Test-only OS handler: capture arguments without launching a browser or Feishu.
+import { appendFileSync } from 'node:fs';
+appendFileSync(process.env.BANNER_TEST_URL_CAPTURE, JSON.stringify(process.argv.slice(2)) + '\n');

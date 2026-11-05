@@ -45,11 +45,7 @@ class SiadaRunHooks(RunHooks):
                 runtime_session.capture_pending_contexts(pending)
             for ctx_text in pending:
                 input_items.append({"role": "system", "content": ctx_text})
-                logger.info(
-                    "[SiadaRunHooks] additionalContext injected at index=%d, "
-                    "total_items=%d, chars=%d",
-                    len(input_items) - 1, len(input_items), len(ctx_text),
-                )
+                logger.info(f"[SiadaRunHooks] additionalContext injected at index={len(input_items)-1}, total_items={len(input_items)}: {ctx_text[:120]}")
             if getattr(code_ctx, "runtime_session", None) is None:
                 code_ctx.hook_pending_contexts.clear()
 

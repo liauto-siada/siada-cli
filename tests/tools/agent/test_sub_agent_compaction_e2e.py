@@ -1,8 +1,8 @@
 """
 End-to-end multi-turn compaction tests for the sub-agent in-memory session.
 
-Strategy: drive a real ``agents.Runner.run`` with a self-contained FakeModel
-(no network / no real LLM), the real ``InMemorySession`` and the two real hooks
+Strategy: drive real ``agents.Runner.run`` and ``Runner.run_streamed`` calls
+with a FakeModel (no network / no real LLM), the real ``InMemorySession`` and hooks
 (``session_input_callback`` + ``call_model_input_filter``) wired into RunConfig
 exactly as ``run_subtask`` wires them.
 
@@ -26,7 +26,7 @@ import copy
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from agents import Agent, Runner, RunConfig, function_tool
+from agents import Agent, Runner, RunConfig, RunResult, RunResultStreaming, function_tool
 from agents.items import ModelResponse
 from agents.models.interface import Model
 from agents.usage import Usage
@@ -88,7 +88,7 @@ def _text(text: str, message_id: str = "msg_final") -> ResponseOutputMessage:
 class _ScriptedModel(Model):
     """Fake Model returning a pre-scripted output list per turn, recording inputs."""
 
-    def __init__(self, scripted_outputs: list[list]):
+    def __init__(self, scripted_outputs: list[list | Exception]):
         self._scripted = scripted_outputs
         self._turn = 0
         self.received_inputs: list = []
@@ -107,11 +107,17 @@ class _ScriptedModel(Model):
     async def stream_response(self, system_instructions, input, *args, **kwargs):
         result = await self.get_response(system_instructions, input, *args, **kwargs)
         yield ResponseCompletedEvent(
-            type="response.completed", sequence_number=0,
+            type="response.completed",
+            sequence_number=0,
             response=Response(
-                id=f"response-{self._turn}", created_at=0, model="scripted-model",
-                object="response", output=result.output, parallel_tool_calls=False,
-                tool_choice="auto", tools=[],
+                id=f"response-{self._turn}",
+                created_at=0,
+                model="scripted-model",
+                object="response",
+                output=result.output,
+                parallel_tool_calls=False,
+                tool_choice="auto",
+                tools=[],
             ),
         )
 
@@ -132,8 +138,16 @@ def _build_run_config(session: InMemorySession, cfg) -> RunConfig:
     )
 
 
-async def _run_agent(agent, session, run_config, *, streamed, input="start", max_turns=6):
-    """Consume the real SDK loop without making network calls."""
+async def _run_agent(
+    agent: Agent,
+    session: InMemorySession,
+    run_config: RunConfig,
+    *,
+    streamed: bool,
+    input: str = "start",
+    max_turns: int = 6,
+) -> RunResult | RunResultStreaming:
+    """Exercise both SDK loops while fully consuming streamed execution."""
     if streamed:
         result = Runner.run_streamed(
             agent, input=input, run_config=run_config, max_turns=max_turns, session=session
@@ -154,6 +168,130 @@ class TestSubAgentCompactionE2E(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         _TOOL_CALLS.clear()
+
+    async def test_first_call_compaction_does_not_restore_original_input(self):
+        """The SDK's initial save must not resurrect an input replaced by a summary."""
+        for streamed in (False, True):
+            for fork in (False, True):
+                with self.subTest(streamed=streamed, fork=fork):
+                    _TOOL_CALLS.clear()
+                    session = InMemorySession()
+                    if fork:
+                        await session.add_items([
+                            {"role": "user", "content": "old task"},
+                            {"role": "assistant", "content": "old answer"},
+                        ])
+                    model = _ScriptedModel([
+                        [_tool_call("c1", "n1")], [_text("done")],
+                    ])
+                    agent = Agent(name="first-compact", model=model, tools=[record_tool])
+                    compacted = [{"role": "user", "content": "[[SUMMARY]]"}]
+                    config = _build_run_config(session, _make_model_run_config())
+                    with patch.object(mod, "calculate_tokens", side_effect=[900, 10]), \
+                         patch.object(mod._STRATEGY, "compact", new=AsyncMock(
+                             return_value=CompactionResult(messages=compacted, compacted=True)
+                         )) as compact:
+                        result = await _run_agent(agent, session, config, streamed=streamed)
+
+                    compact.assert_awaited_once()
+                    self.assertEqual(result.final_output, "done")
+                    self.assertEqual(model.received_inputs[0], compacted)
+                    final_items = await session.get_items()
+                    for items in [*model.received_inputs, final_items]:
+                        self.assertNotIn({"role": "user", "content": "start"}, items)
+                    self.assertEqual(len(model.received_inputs[1]), 3)
+                    self.assertEqual(len(final_items), 4)
+                    self.assertEqual(_TOOL_CALLS, ["n1"])
+                    self.assertEqual(final_items[1]["call_id"], "c1")
+                    self.assertEqual(final_items[2]["output"], "tool-result-1")
+
+    async def test_fork_preserves_repeated_history_and_new_instruction(self):
+        """Identical content in history is not an input-admission identity."""
+        history = [
+            {"role": "user", "content": "repeat"},
+            {"role": "assistant", "content": "previous answer"},
+        ] * 2
+        for streamed in (False, True):
+            with self.subTest(streamed=streamed):
+                session = InMemorySession()
+                await session.add_items(copy.deepcopy(history))
+                model = _ScriptedModel([[_text("done")]])
+                agent = Agent(name="fork-repeat", model=model)
+                config = _build_run_config(session, _make_model_run_config())
+                with patch.object(mod, "calculate_tokens", return_value=10):
+                    await _run_agent(agent, session, config, streamed=streamed, input="repeat")
+                expected = history + [{"role": "user", "content": "repeat"}]
+                self.assertEqual(model.received_inputs[0], expected)
+                self.assertEqual((await session.get_items())[:-1], expected)
+
+    async def test_identical_input_in_new_runs_is_preserved(self):
+        """A fresh callback represents a new logical run, even with identical input."""
+        for streamed in (False, True):
+            with self.subTest(streamed=streamed):
+                session = InMemorySession()
+                for index in range(2):
+                    model = _ScriptedModel([[_text("done", message_id=f"msg-{index}")]])
+                    agent = Agent(name="repeat-runs", model=model)
+                    config = _build_run_config(session, _make_model_run_config())
+                    with patch.object(mod, "calculate_tokens", return_value=10):
+                        await _run_agent(agent, session, config, streamed=streamed, input="repeat")
+                items = await session.get_items()
+                self.assertEqual(len(items), 4)
+                self.assertEqual(items[0], {"role": "user", "content": "repeat"})
+                self.assertEqual(items[2], items[0])
+
+    async def test_model_failure_after_compaction_retry_keeps_summary(self):
+        """Retrying the same admitted input cannot restore it after model failure."""
+        for streamed in (False, True):
+            with self.subTest(streamed=streamed):
+                session = InMemorySession()
+                compacted = [{"role": "user", "content": "[[SUMMARY]]"}]
+                config = _build_run_config(session, _make_model_run_config())
+                failed_model = _ScriptedModel([RuntimeError("synthetic model failure")])
+                failed_agent = Agent(name="failed", model=failed_model)
+                with patch.object(mod, "calculate_tokens", return_value=900), \
+                     patch.object(mod._STRATEGY, "compact", new=AsyncMock(
+                         return_value=CompactionResult(messages=compacted, compacted=True)
+                     )):
+                    with self.assertRaisesRegex(RuntimeError, "synthetic model failure"):
+                        await _run_agent(failed_agent, session, config, streamed=streamed)
+                self.assertEqual(await session.get_items(), compacted)
+
+                retry_model = _ScriptedModel([[_text("recovered")]])
+                retry_agent = Agent(name="retry", model=retry_model)
+                with patch.object(mod, "calculate_tokens", return_value=10):
+                    result = await _run_agent(retry_agent, session, config, streamed=streamed)
+                self.assertEqual(result.final_output, "recovered")
+                self.assertEqual(retry_model.received_inputs[0], compacted)
+                final_items = await session.get_items()
+                self.assertEqual(len(final_items), 2)
+                self.assertNotIn({"role": "user", "content": "start"}, final_items)
+
+    async def test_mid_run_streamed_compaction_preserves_new_tool_results(self):
+        """Later compaction does not restore old turns or lose newly generated items."""
+        session = InMemorySession()
+        model = _ScriptedModel([
+            [_tool_call("c1", "n1")],
+            [_tool_call("c2", "n2")],
+            [_text("done")],
+        ])
+        agent = Agent(name="mid-run-stream", model=model, tools=[record_tool])
+        config = _build_run_config(session, _make_model_run_config())
+        compacted = [{"role": "user", "content": "[[SUMMARY]]"}]
+        with patch.object(mod, "calculate_tokens", side_effect=[10, 900, 10]), \
+             patch.object(mod._STRATEGY, "compact", new=AsyncMock(
+                 return_value=CompactionResult(messages=compacted, compacted=True)
+             )) as compact:
+            result = await _run_agent(agent, session, config, streamed=True)
+        compact.assert_awaited_once()
+        self.assertEqual(result.final_output, "done")
+        self.assertEqual(model.received_inputs[1], compacted)
+        self.assertEqual(model.received_inputs[2][1]["call_id"], "c2")
+        self.assertEqual(model.received_inputs[2][2]["output"], "tool-result-2")
+        final_items = await session.get_items()
+        self.assertEqual(len(final_items), 4)
+        self.assertNotIn({"role": "user", "content": "start"}, final_items)
+        self.assertEqual(_TOOL_CALLS, ["n1", "n2"])
 
     async def test_no_compaction_session_accumulates_and_run_completes(self):
         """Below threshold: compact never runs, session grows, run finishes."""

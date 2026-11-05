@@ -71,7 +71,8 @@ class CodeAgentContext(BaseModel):
     memory_store: Optional[Any] = None
 
     # Holographic structured fact memory provider; None when holographic disabled.
-    # See siada/services/memory/holographic/provider.py.
+    # See siada/services/memory/holographic/provider.py and
+    # design_docs/siada-holographic-memory-introduction.md.
     holographic_provider: Optional[Any] = None
 
     # Maximum number of turns for the code agent (None means use default from settings)
@@ -113,6 +114,16 @@ class CodeAgentContext(BaseModel):
     # "parent_id" when THIS agent itself spawns a nested child, so the
     # on-disk persistence index can reconstruct the sub-agent tree shape.
     subagent_self_id: Optional[str] = None
+
+    # The effective LLM config (a ModelRunConfig) of THIS sub-agent's own run,
+    # set only on contexts spawned by run_subtask. A sub-agent may run on a
+    # different model than the root session (named-agent ``model`` field,
+    # conf.yaml ``sub_agent.llm_config``); any grandchild it spawns (under
+    # ``allow_recursive_subagents``) must inherit this effective config — not
+    # the root session's llm_config — so the model chain follows direct
+    # parentage. None for the main agent and for non-recursive sub-agents,
+    # where the root session's config remains the single source of truth.
+    subagent_llm_config: Optional[Any] = Field(default=None, exclude=True, repr=False)
 
     # Hook control state — populated by PluginHookGuardrails during tool execution.
     # hook_pending_contexts: texts to inject as system messages on next LLM call.
@@ -188,6 +199,13 @@ class CodeAgentContext(BaseModel):
 
     @property
     def model_run_config(self):
+        # A sub-agent context with its own effective LLM config (see
+        # ``subagent_llm_config``) must not leak the root session's config
+        # through this property: consumers (web-tool provider resolution,
+        # compaction fallbacks, grandchild spawn config) all need the model
+        # this agent actually runs on.
+        if self.subagent_llm_config is not None:
+            return self.subagent_llm_config
         return self.session.siada_config.llm_config
 
     def save_checkpoints(self):

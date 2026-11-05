@@ -1,5 +1,5 @@
 """
-File Recommendation Service - @ file recommendation feature
+File recommendation service for @ references.
 
 This package provides intelligent file path auto-completion for @ commands.
 When users type @ followed by text, the system provides real-time file and directory suggestions.

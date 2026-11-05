@@ -4,7 +4,29 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { SiadaACPAdapter } from '../adapter.js';
+import { SiadaACPClient } from '../client.js';
 import { logger } from '../../utils/logger.js';
+
+describe('command output during a live model stream', () => {
+  it('does not use slash-command buffers or stop the active animation', () => {
+    const adapter = new SiadaACPAdapter();
+    const result = vi.fn(), stop = vi.fn(), message = vi.fn();
+    adapter.on('ui:commandResult', result);
+    adapter.on('animation:stop', stop);
+    adapter.on('message', message);
+    const stream = { isActive: true, content: ['unfinished model output'] };
+    (adapter as any).streamingBuffer = stream;
+    const params = { commandId: 'q', command: 'status', content: 'Model: synthetic' };
+    (adapter as any).tryParseACPJson(JSON.stringify({
+      jsonrpc: '2.0', method: 'ui/commandResult', params,
+    }));
+    expect(result).toHaveBeenCalledWith(params);
+    expect((adapter as any).streamingBuffer).toBe(stream);
+    expect((adapter as any).slashCommandBuffer).toBeNull();
+    expect(stop).not.toHaveBeenCalled();
+    expect(message).not.toHaveBeenCalled();
+  });
+});
 
 describe('ACP log correlation', () => {
   it('transmits a unique request identifier without altering prompt or image fields', async () => {
@@ -45,6 +67,47 @@ describe('ACP log correlation', () => {
 });
 
 describe('SiadaACPAdapter handleACPSessionUpdate', () => {
+  it.each(['notification', 'blocked', 'stopped'])('routes %s hook feedback independently of errors and tools', status => {
+    const client = new SiadaACPClient({} as any);
+    const adapter = client.adapter;
+    const received: any[] = [];
+    const messages: any[] = [];
+    client.on('agentMessage', message => messages.push(message));
+    adapter.on('message', event => received.push(event));
+    (adapter as any).tryParseACPJson(JSON.stringify({
+      jsonrpc: '2.0', method: 'session/update',
+      params: { reason: 'lifecycle_event', type: 'hook', content: 'Synthetic hook notice',
+        hook_event: 'PreToolUse', hook_status: status, timestamp: 123 },
+    }));
+    expect(received).toHaveLength(1);
+    expect(received[0].data).toMatchObject({
+      content: 'Synthetic hook notice', subtype: 'hook', isStreaming: false, streamEnd: true,
+      metadata: { eventType: 'hook', hookEvent: 'PreToolUse', hookStatus: status },
+    });
+    expect(messages).toHaveLength(1);
+    expect(messages[0].metadata).toMatchObject({
+      subtype: 'hook', eventType: 'hook', hookEvent: 'PreToolUse', hookStatus: status,
+    });
+  });
+
+  it('preserves lifecycle errors as errors instead of tool output', () => {
+    const adapter = new SiadaACPAdapter();
+    const received: any[] = [];
+    adapter.on('message', event => received.push(event));
+    (adapter as any).tryParseACPJson(JSON.stringify({
+      jsonrpc: '2.0', method: 'session/update',
+      params: { reason: 'lifecycle_event', type: 'error',
+        content: 'The system is currently experiencing high demand.',
+        timestamp: '2026-01-01T00:00:00Z' },
+    }));
+    expect(received).toHaveLength(1);
+    expect(received[0].data).toMatchObject({
+      content: 'The system is currently experiencing high demand.',
+      subtype: 'error', isStreaming: false, streamEnd: true,
+      metadata: { eventType: 'error' },
+    });
+  });
+
   it.each(['ui/loginDismiss', 'ui/loginCancelled', 'ui/loginError'])(
     'closes the login selector on %s',
     method => {

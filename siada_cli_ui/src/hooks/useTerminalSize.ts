@@ -9,7 +9,8 @@
  * for adaptive layouts and re-rendering.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
+import { BottomPaneContext } from '../contexts/BottomPaneContext.js';
 import { useStdout } from '@jrichman/ink';
 import { logger } from '../utils/logger.js';
 
@@ -35,6 +36,7 @@ export interface TerminalSize {
  * ```
  */
 export function useTerminalSize(): TerminalSize {
+  const pane = useContext(BottomPaneContext);
   const { stdout } = useStdout();
   
   // Initialize with current terminal size
@@ -90,5 +92,5 @@ export function useTerminalSize(): TerminalSize {
     };
   }, [stdout]); // Only re-run if stdout changes
 
-  return size;
+  return pane ?? size;
 }

@@ -6,7 +6,7 @@ turn after turn without adapting to new information. This processor
 periodically injects a lightweight reminder into the LLM input nudging the
 model to vary its approach instead of repeating itself unchanged.
 
-Currently scoped to the deepseek-v4-flash family —
+Currently scoped to the deepseek-v4-flash family (kivy / baidu gateways) —
 these are the sole models observed to exhibit this behaviour in practice.
 Other models are left untouched to avoid polluting their context with an
 irrelevant reminder.
@@ -34,8 +34,9 @@ from siada.foundation.logging import logger
 # Models this processor is scoped to. Keep as a set so more models can be
 # added later without changing the trigger logic.
 _TARGET_MODELS = {
-    "deepseek-v4-flash",
-    "deepseek-v4-flash-0731",
+    "kivy-deepseek-v4-flash",
+    "kivy-deepseek-v4-flash-0731",
+    "baidu-deepseek-v4-flash-0731",
 }
 
 # Remind every N LLM calls, starting from the very first one (call #1, #21,
@@ -115,9 +116,6 @@ class ModelHallucinationSuppressionProcessor(AgentHooks):
         any other processor's hook registration / ordering.
         """
         siada_context = context.context
-        # Uncommitted reminders must remain available to the bridge on retry.
-        if getattr(siada_context, "runtime_session", None) is not None:
-            return
         pending = getattr(siada_context, "pending_hallucination_reminder_items", None) or []
         try:
             await persist_pending_reminder_items(

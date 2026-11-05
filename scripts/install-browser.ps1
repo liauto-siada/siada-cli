@@ -6,7 +6,6 @@ function Invoke-Checked {
     & $Command @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE" }
 }
-
 if ($Version -ne "latest" -and $Version -notmatch '^\d+\.\d+\.\d+((a|b|rc)\d+)?$') {
     throw "Invalid Siada version."
 }
@@ -14,7 +13,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     $LocalBin = Join-Path $env:USERPROFILE ".local\bin"
     $UvPath = Join-Path $LocalBin "uv.exe"
     if (-not (Test-Path $UvPath)) {
-        & ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing "https://astral.sh/uv/install.ps1").Content))
+        & ([scriptblock]::Create((New-Object System.Net.WebClient).DownloadString("https://astral.sh/uv/install.ps1")))
     }
     $env:PATH = "$LocalBin;$env:PATH"
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw "uv installation failed." }

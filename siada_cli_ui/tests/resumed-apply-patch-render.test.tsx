@@ -56,7 +56,7 @@ function render(content: string, isCollapsed = true): string {
 }
 
 describe('file edit tool diffs', () => {
-  it.each([true, false])('renders legacy and fenced Markdown edits with compact mode %s', collapsed => {
+  it.each([true, false])('renders legacy and fenced Markdown edits as diffs with compact mode %s', collapsed => {
     for (const content of [
       'In the file `docs/notes.md``, replace the string:\nold\nwith:\nnew',
       'In the file `docs/notes.md``, replace the string:\n```markdown\nold\n```\nwith:\n```markdown\nnew\n```',
@@ -71,7 +71,7 @@ describe('file edit tool diffs', () => {
     }
   });
 
-  it('keeps unfinished Markdown replacements out of the diff view', () => {
+  it('keeps an unfinished Markdown replacement out of the diff view', () => {
     const message = toolMessage('In the file `docs/notes.md``, replace the string:\nold\nwith:\nnew');
     message.metadata = { subtype: 'tool_use', streamEnd: false, isStreaming: true };
     const output = renderToStaticMarkup(<MessageList messages={[message]} isCollapsed />);

@@ -30,17 +30,18 @@ Moonshot rejects the whole request with::
 
 Fix
 ---
-One way to solve this is at the message level, by applying
-``LitellmModel._fix_tool_message_ordering`` for kimi/moonshot models inside
-``_fetch_response``.  The default provider's legacy LiteLLM path builds requests
-through the SDK's ``LitellmModel._fetch_response``, which applies that fix only
-for anthropic/claude/gemini models.  The direct Chat Completions adapter instead
+The legacy ``li`` provider solves this at the message level by applying
+``LitellmModel._fix_tool_message_ordering`` for kimi/moonshot models
+(``siada/internal/provider/li/li_provider.py::_fetch_response``). The default
+provider's legacy LiteLLM path builds requests through the SDK's
+``LitellmModel._fetch_response``, which applies that fix only for
+anthropic/claude/gemini models. The direct Chat Completions adapter instead
 uses the provider-neutral input-ordering mixin in ``chat_completions.py``.
 
 ``KimiToolOrderingLitellmMixin`` re-pairs items at the *input* level: each
 ``function_call_output`` is moved to directly follow the ``function_call``
 holding the same ``call_id``.  After the SDK's own conversion this yields
-exactly the message list the endpoint requires::
+exactly the message list the li provider produces::
 
     assistant(tool_calls=[A]), tool(A), assistant(text, tool_calls=[B]), tool(B)
 
@@ -67,7 +68,9 @@ if TYPE_CHECKING:
     from agents.tracing.span_data import GenerationSpanData
 
 # Model-family keywords whose Chat-Completions endpoints require tool outputs
-# to immediately follow the assistant message declaring the tool call.
+# to immediately follow the assistant message declaring the tool call.  Keep in
+# sync with the kimi/moonshot entries of the list in
+# siada/internal/provider/li/li_provider.py (_fetch_response).
 _KIMI_TOOL_ORDERING_MODEL_KEYWORDS: tuple[str, ...] = ("kimi", "moonshot")
 
 
@@ -104,8 +107,9 @@ class KimiToolOrderingLitellmMixin:
 
         For kimi/moonshot models, ``function_call_output`` input items are moved
         to directly follow their ``function_call`` before the SDK converts items
-        into Chat-Completions messages. Everything else is delegated unchanged
-        to ``LitellmModel``.
+        into Chat-Completions messages.  This mirrors (item-level) what the li
+        provider does (message-level) with ``_fix_tool_message_ordering``.
+        Everything else is delegated unchanged to ``LitellmModel``.
         """
         model_lower = self.model.lower()
         if (

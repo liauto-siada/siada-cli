@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Run an explicit offline session baseline in a disposable user environment.
-
-``REGRESSION_TESTS`` lists reviewed public tests. The baseline uses synthetic
-sessions and in-memory models, and rejects unexpected network connections.
-"""
+"""Run an explicit offline session baseline in a disposable user environment."""
 
 from __future__ import annotations
 
@@ -41,6 +37,8 @@ REGRESSION_TESTS = (
     "tests/agent_hub/context_filter/test_header_summary_parallel_toolcall_bug.py",
     "tests/agent_hub/context_filter/test_goal_reminder_after_compaction.py",
     "tests/agent_hub/context_filter/test_fix_tool_message_ordering.py",
+    "tests/agent_hub/context_filter/test_tool_output_offload.py",
+    "tests/agent_hub/context_filter/test_oversized_tool_output_e2e.py",
     "tests/agent_hub/context_filter/test_pending_user_input_filter.py",
     "tests/agent_hub/context_filter/test_pending_user_input_image_guard.py",
     "tests/tools/agent/test_sub_agent_compaction_filter.py",
@@ -112,6 +110,7 @@ def main() -> int:
             "SIADA_CLI_LOG_DIR": str(Path(sandbox) / "logs"),
             "XDG_CACHE_HOME": str(Path(sandbox) / "cache"),
             "SIADA_REMOTE_MODEL_CONFIG": "0",
+            # Keep real tokenizer-based simulations offline during imports.
             "LITELLM_LOCAL_MODEL_COST_MAP": "True",
         })
         previous_path = list(sys.path)

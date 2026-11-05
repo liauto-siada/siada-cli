@@ -15,19 +15,14 @@ still propagate after three model calls. The wrapper does not refresh credential
 Explicit non-transient stream error codes, such as invalid input or insufficient
 quota, are propagated.
 This covers stream creation and consumption until answer text, tool events, or
-unknown events reach the caller. Thinking deltas remain visible in real time;
-reasoning item/part events also do not stop retries. Thinking from another
-attempt may appear after a failure. Once answer or tool output is exposed, the
-error propagates to avoid duplicating it. Empty message/reasoning items and empty text
+unknown events reach the caller. Thinking remains visible in real time and does
+not stop retries; thinking from another attempt may appear after a failure.
+Once answer or tool output is exposed, the error propagates to avoid duplicating
+it. Empty message/reasoning items and empty text
 parts are buffered along with lifecycle events, so a deployment disconnect
 (`RemoteProtocolError`, including `incomplete chunked read`) during these start
-events can still retry. Attempts that fail before exposing any events discard
-their response and item IDs; retries after thinking emit a fresh response
-lifecycle. The buffer holds at most 64 empty start events and flushes when full
-without ending the retry window. Reasoning-only streams that end without a final
-response can also retry. Retry delays are 1–2 seconds and 2–3 seconds.
-Completed reasoning item events are held until commitment, so failed attempts'
-items cannot enter conversation history through the Runner's empty-output fallback.
+events can still retry. Reasoning-only streams that end without a final response
+can also retry. Retry delays are 1–2 seconds and 2–3 seconds.
 Context admission runs once; nested wrappers
 share one transport retry budget. Direct completion clients retain their own
 retry policies. See the [provider routing and retry wiki](wiki/17_provider-routing-retries.md)
@@ -35,7 +30,7 @@ for the protocol routes and exception matrix.
 
 Responses error logs include bounded error message/code/type/param fields,
 available request and trace IDs, model, response ID, last stream event, and whether
-answer, tool, or unknown events have been exposed. Request bodies, full error bodies, and authentication
+output has been exposed. Request bodies, full error bodies, and authentication
 headers are excluded from these diagnostic records. Protocol `error` and
 `response.failed` events follow the same retry rules as SDK exceptions.
 
@@ -47,20 +42,6 @@ new input was not admitted, recovery retains the original input. Persistent
 interruptions still report an error; cancellation stops recovery immediately.
 Recovery also stops if saved history was rewritten or an unsupported message
 shape prevents verifying input admission, rather than resending uncertain input.
-
-## Try Free Models
-
-On first sign-in or through `/configure`, **Free Trial** lets you choose a free
-model through [Kilo Gateway](https://kilo.ai) without registering or entering an
-API key. Laguna S 2.1 is the default; North Mini Code and Nemotron 3 Super are
-also available, alongside the other curated models in the selector.
-Your selection is saved for the next launch, and `/model` can switch between
-the trial models. Use `/configure → Configure API Key` to switch to your own
-provider. Trial requests omit the Authorization header and go to
-`https://api.kilo.ai/api/gateway`. Free availability and rate limits may change;
-if a model is unavailable, select another model or configure your own provider.
-The trial uses a conservative 32,000-token local context budget, not a claim
-about the gateway's maximum context.
 
 ## Configure DeepSeek with an API Key
 
@@ -180,16 +161,16 @@ An array of model configurations, each model contains the following fields:
 - **Example**: `true`, `false`
 
 This capability controls both user-attached images and image reads through
-`edit_file`. For Chat Completions conversions, including the `default` provider,
-already-produced tool-result images are always preserved for every model.
-Conversion does not check `supports_images` or require request context, so a
-false or missing capability cannot discard images from tool results. The stored
-history is unchanged.
+`edit_file`. For Chat Completions conversions, including the `li` and `default`
+providers, already-produced tool-result images are always preserved for every
+model. Conversion does not check `supports_images` or require request context,
+so a false or missing capability cannot discard images from tool results.
+The stored history is unchanged.
 
 The Chat Completions endpoint must accept image content in `role: tool`
-messages. Supporting images in user messages alone does not ensure support for
-tool-result images; the standard OpenAI Chat Completions protocol does not
-support them. An incompatible endpoint needs a separate message-protocol
+messages. Supporting images in user messages alone does not ensure
+support for tool-result images; the standard OpenAI Chat Completions protocol
+does not support them. An incompatible endpoint needs a separate message-protocol
 adaptation. Existing vision-bridge behavior for text-only models is unchanged.
 
 #### supports_prompt_cache (Optional)
@@ -232,6 +213,14 @@ adaptation. Existing vision-bridge behavior for text-only models is unchanged.
 - **Prerequisite**: `supports_extra_params` must include `"reasoning_effort"`
 - **Example**: `"low"`
 
+#### effort_choices (Optional)
+
+- **Type**: Non-empty array of `"low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`
+- **Description**: Overrides the inferred model-family effort levels. `/effort` input hints, the selector and validation use exactly these choices. A persisted effort from another model maps to an allowed level.
+- **Default**: `null` (use model-family inference)
+- **Prerequisite**: `supports_extra_params` must include `"reasoning_effort"`. Set `default_reasoning_effort` to one of the choices.
+- **Example**: `"effort_choices": ["max"]`
+
 ## Model Naming Convention
 
 Model names support two formats: **Standard model name** and **Full format** (protocol/model_name).
@@ -245,8 +234,8 @@ The full format of a model name is: `protocol/model_name`
 
 Examples:
 - `anthropic/claude-3-opus` - Access Claude 3 Opus using Anthropic native protocol
-- `openai/gpt-4-turbo` - Access GPT-4 Turbo using OpenAI Chat Completions
-- `deepseek/deepseek-coder` - Access DeepSeek Coder using an OpenAI-compatible endpoint
+- `openai/gpt-4-turbo` - Access GPT-4 Turbo using OpenAI native protocol
+- `deepseek/deepseek-coder` - Access DeepSeek Coder using DeepSeek native protocol
 
 ### Automatic Protocol Mapping
 
@@ -255,7 +244,7 @@ To simplify configuration, the system automatically adds protocol prefixes for t
 | Model Name Prefix | Automatically Mapped To | API Protocol |
 |-------------------|-------------------------|--------------|
 | `claude-*` | `anthropic/claude-*` | Anthropic |
-| `gpt-*` | `openai/gpt-*` | OpenAI Chat Completions, except GPT-5+ Responses models |
+| `gpt-*` | `openai/gpt-*` | OpenAI Chat Completions, except GPT-5+ Responses-only models |
 | `o3-*` | `openai/o3-*` | OpenAI Chat Completions |
 | `deepseek-*` | `deepseek/deepseek-*` | OpenAI-compatible Chat Completions |
 | `gemini-*` | `google/gemini-*` | Gemini native/LiteLLM |
@@ -265,13 +254,9 @@ To simplify configuration, the system automatically adds protocol prefixes for t
 
 ### Usage Notes
 
-- Standard model names (such as `gpt-4`) are mapped to a provider/model form. OpenAI Chat Completions requests send the endpoint's model ID without the LiteLLM routing prefix.
-- Claude and Gemini keep their existing LiteLLM/native routes. Other default-provider models must use an endpoint that accepts OpenAI Chat Completions; a LiteLLM-native protocol prefix alone does not make an endpoint compatible.
-- GPT-5 and newer use the Responses API. Other Responses-only aliases are not sent to Chat Completions.
-- Responses requests use `store: false` and replay the full saved history. When
-  reasoning is enabled, `reasoning.context` is normalized to `all_turns` and
-  encrypted reasoning is requested for replay. Caller settings cannot enable
-  server-side storage or restrict reasoning replay to the current turn.
+- Standard model names (such as `gpt-4`) are mapped to a provider/model form; OpenAI Chat Completions requests send the endpoint's model ID without the LiteLLM routing prefix
+- Claude and Gemini keep their existing LiteLLM/native routes. Other default-provider models must use an endpoint that accepts OpenAI Chat Completions; a LiteLLM-native protocol prefix alone does not make an endpoint compatible
+- GPT-5 and newer use the Responses API. Other Responses-only aliases are not sent to Chat Completions
 - For complete configuration examples, please refer to the [Configuration Example](#configuration-example) section above
 
 ## Usage Guide
@@ -339,65 +324,28 @@ siada
 
 ## Git Snapshot (All Models)
 
-For all models, the main coding agent appends a bounded Git snapshot (branch,
-HEAD, worktree summary and capture time) as a hidden `<system-reminder>`-wrapped
-`input_text` content part on the first user request in a Git workspace. It is
-stored in the session's `api_history.json`, reused on later turns and after
-`/resume`, and refreshed in the prepared model context (`api_message.json`)
-after compaction. Legacy sessions use `api_messages.json` until migration.
-Older sessions with a standalone snapshot message remain supported.
-If the workspace is not a Git repository or capture fails, no snapshot is added.
-The snapshot is context data, not additional authorization; it is never sent as
-a mid-conversation system message or shown in chat history. Set
-`SIADA_GIT_SNAPSHOT=0` (or `false` / `off`) to disable it.
+For **all models**, the main coding agent appends a bounded Git snapshot (branch, HEAD, worktree summary and capture time) as a hidden `<system-reminder>`-wrapped `input_text` content part on the first user request in a Git workspace, rather than creating another user message. It is stored in the session's `api_history.json`, reused on subsequent turns and after `/resume`, and refreshed in the model-visible `api_messages.json` after context compaction. Older sessions with a standalone snapshot message remain supported. If the workspace is not a Git repository or capture fails, no snapshot is added. The hidden content part is never sent as a mid-conversation system message or shown in chat history. Set `SIADA_GIT_SNAPSHOT=0` (or `false` / `off`) to disable it independently of the model prompt.
 
 ## GLM-5.2 and Later
 
-Siada recognizes GLM-5.2 and later generations, such as `glm-5.2`,
-`glm-5.2-flash`, `glm-5.3`, and `glm-6`, including names with a vendor prefix.
-GLM-5.1 and older keep their previous prompt and repeated-tool behavior. These
-prompt adaptations do not change a model's reasoning capabilities or provider
-settings. GLM-5.3 and later use Chat Completions.
+Siada recognizes GLM-5.2 and every later generation (for example `glm-5.2`, `glm-5.2-flash`, `glm-5.3`, `glm-6`, with or without a provider prefix such as `z-ai/`). GLM-5.1 and older keep the previous prompt and repeated-tool behavior; the empty todo-list reminder below applies to all GLM generations. This agent-level change does not alter model-specific reasoning capabilities or provider settings. Only the chat-completions protocol is used for GLM-5.3-and-later models.
 
-Custom model names do not automatically imply reasoning support or effort
-defaults. Built-in GLM-5.3 entries retain their explicit settings. For a custom
-`models.json` entry, configure `supports_extra_params: ["reasoning_effort"]` to
-use `/effort`, and `default_reasoning_effort` to select a default level. Without
-an explicit default, the gateway determines the default reasoning behavior.
-API-key provider models without a matching built-in entry also leave these
-settings unset.
+**Own-key model settings.** Siada does not infer reasoning capabilities or effort defaults from a custom model's name. Built-in GLM-5.3 entries retain their explicit settings. For a custom `models.json` entry, configure `supports_extra_params: ["reasoning_effort"]` if you want to use `/effort`, and set `default_reasoning_effort` if you want Siada to use a configured default level; otherwise, the gateway determines the default reasoning behavior. API-key provider entries with no matching built-in model also leave these fields unset.
 
-On GLM-5.2 and later, the main coding agent builds the system prompt from the
-ZCode CLI system prompt template (identity renamed to Siada), while preserving
-Siada's `edit_file` tools, Git safety, non-interactive approval rules, skill and
-agent catalogs, and combined memory. After three consecutive tool calls with
-identical arguments, a hidden user-role reminder asks the model to use the
-results or change approach.
-The GLM prompt and repeated-call reminder have no separate opt-out switches.
+**Agent adaptations.** For the main coding agent on these models, Siada:
 
-GLM models of any generation can receive an empty-list reminder after at least
-ten assistant turns without `todo_write`, with at least ten turns between
-reminders. Set `SIADA_TODO_EMPTY_LIST_REMINDER=0` (or `false` / `off`) to disable
-this behavior. Other models receive reminders only when a todo list already
-exists; this switch does not disable existing-list reminders. Reminders are
-hidden runtime context, not system-role messages or additional authorization.
+- builds the system prompt from the ZCode CLI system prompt template (identity renamed to Siada), while preserving Siada's `edit_file` tools, Git safety, non-interactive approval rules, skill and agent catalogs, and combined memory;
+- adds one hidden reminder as a user message after three consecutive, identical tool calls, asking the model to use the results or change its approach.
+
+The GLM reminder is also a hidden `role=user` message; it is never sent as a mid-conversation system message or shown in chat history. The GLM prompt profile and repeated-tool reminder are enabled whenever the model is GLM-5.2 or later; they have no separate opt-out switches.
+
+`SIADA_TODO_EMPTY_LIST_REMINDER=0` (or `false` / `off`) turns off the proactive empty-list reminder for GLM models of any generation. When enabled, after at least 10 assistant turns without `todo_write` (and 10 turns since the previous reminder), Siada also reminds a GLM model when its todo list is still empty. Other models only receive reminders for existing todo lists. Turning off this switch does not disable reminders for existing lists.
 
 ## Kimi K3 and Later
 
-The main coding agent uses a Kimi Code-based prompt for Kimi K3 and later
-generations, including `kimi-k3`, `kimi-k3.1`, `kimi-k3.5`, and `kimi-k4`.
-Detection is case-insensitive and accepts vendor prefixes
-(`vendor-kimi-k4`, `openai/kimi-k3.5`), underscores (`kimi_k3.1`), and suffixes
-such as `-preview`. Short aliases `k3`, `k3.1`, `k3.5`, and `k4`, including
-slash-qualified forms such as `openai/k4`, select the same prompt. Configure the
-exact model ID accepted by the endpoint; prompt recognition does not rewrite
-aliases into API model IDs.
+The main coding agent uses a Kimi Code-based prompt for Kimi K3 and every later generation, including `kimi-k3`, `kimi-k3.1`, `kimi-k3.5`, and `kimi-k4`. Detection is case-insensitive and accepts provider prefixes (`vendor-kimi-k4`, `openai/kimi-k3.5`), underscore separators (`kimi_k3.1`), and suffixes such as `-preview`. Short aliases `k3`, `k3.1`, `k3.5`, and `k4`, including slash-qualified forms such as `openai/k4`, select the same prompt. Configure the exact model ID accepted by your endpoint; prompt recognition does not translate aliases into API model IDs.
 
-Kimi K2 and older retain the generic prompt. The Kimi prompt uses terminal
-communication and relevant-skill guidance in place of the generic four-line
-response limit and strict skill-trigger block. It retains Siada's `edit_file`
-tools, Git safety, permission boundaries, non-interactive blocker handling,
-skill and agent catalogs, and combined memory.
+Kimi K2 and older retain the generic prompt. The Kimi prompt replaces the generic four-line response limit and strict skill usage block with terminal communication and relevant-skill guidance, while preserving Siada's `edit_file` tools, Git safety, non-interactive approval rules, skill and agent catalogs, and combined memory.
 
 ## Configuration Priority
 
@@ -413,4 +361,4 @@ The configuration priority order is:
 - **Configuration File Format**: Ensure the JSON format is correct, you can use online JSON validators to check
 - **Model Names**: `model_name` must exactly match the model names supported by your API provider
 - **API Configuration**: When using the default provider, you must configure `BASE_URL` and `API_KEY`
-- **Compatibility**: Model parameters must match the endpoint's capabilities. Except for Claude/Gemini and GPT-5+ Responses routes, the default provider requires an OpenAI Chat Completions-compatible endpoint; arbitrary LiteLLM-native providers are not automatically supported.
+- **Compatibility**: The configured model parameters should match the actual capabilities of the API provider's models. Except for the retained Claude/Gemini and GPT-5+ Responses paths, the default provider requires an OpenAI Chat Completions-compatible endpoint; arbitrary LiteLLM-native providers are not automatically supported

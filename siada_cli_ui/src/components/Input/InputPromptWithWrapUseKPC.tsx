@@ -34,13 +34,15 @@
  *   /export, /export <filename> Export conversation to a .txt file
  */
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Box, Text, useStdout } from '@jrichman/ink';
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { Box, Text, useStdout, type DOMElement } from '@jrichman/ink';
 import { githubTheme } from './theme.js';
 import { useThemeVersion } from '../../themes/index.js';
 import chalk from 'chalk';
 import { useCommandCompletion } from '../../hooks/useCommandCompletion.js';
 import { SuggestionsDisplay } from '../AutoComplete/SuggestionsDisplay.js';
+import { LanguageSelector } from '../LanguageSelector/LanguageSelector.js';
+import { useUiLanguage, saveUiLanguage, t, type UiLanguage } from '../../i18n/index.js';
 import { CompletionMode } from '../../types/autocomplete.js';
 import { useAppState, useAppDispatch } from '../../store/context.js';
 import { toggleShellMode, setShellMode } from '../../store/reducers.js';
@@ -49,7 +51,7 @@ import { useShellCommand } from '../../hooks/useShellCommand.js';
 import { useShellHistory } from '../../hooks/useShellHistory.js';
 import { useEnhancedTextBuffer } from './TextBuffer.js';
 import { EditorDialog, useEditorDialog } from '../EditorDialog/index.js';
-import { StatusBarDialog, useStatusBarDialog } from '../StatusBarDialog/index.js';
+import { StatusBarDialog, StatusDialog, useStatusBarDialog, useStatusDialog } from '../StatusBarDialog/index.js';
 import { resolveEditorCommand } from '../../utils/editor.js';
 import { configManager } from '../../utils/config.js';
 import { writeFileSync, unlinkSync, mkdtempSync, readFileSync, rmdirSync } from 'fs';
@@ -59,13 +61,18 @@ import { spawnSync, execSync } from 'child_process';
 import { logger } from '../../utils/logger.js';
 import { Message } from '../../types/index.js';
 import { useKeypress, type Key } from '../../hooks/useKeypress.js';
+import type { CtrlCContext } from '../../hooks/useQuitShortcut.js';
+import type { SelectionSurface } from '../../utils/conversationSelection.js';
+import { DemoCompletionList } from '../layouts/DemoCompletionList.js';
 import { cpLen, cpSlice } from './textUtils.js';
-import { getImageFromClipboard, getTextFromClipboard, copyTextToClipboard } from '../../utils/clipboard.js';
+import { isClipboardPasteKey, useClipboard } from '../../hooks/useClipboard.js';
 import { promptQueueStore } from '../../store/promptQueueStore.js';
 import { inputRestoreStore } from '../../store/inputRestoreStore.js';
 import { TodoDisplay } from '../Todo/TodoDisplay.js';
 import { SubAgentDisplay } from '../SubAgent/SubAgentDisplay.js';
 import { slashCommandService } from '../../services/slashCommandService.js';
+import { INPUT_TIPS } from '../../constants/tips.js';
+import { useEditorTerminal } from '../../hooks/useEditorTerminal.js';
 
 /** Matches a fully-typed slash command name with no argument yet, e.g.
  * "/goal" or "/goal  " — used to decide when to show the dimmed inline
@@ -115,6 +122,13 @@ function collectImagePaths(text: string, map: Map<number, string>): string[] {
 }
 
 export interface InputPromptWithWrapUseKPCProps {
+  onTipChange?: (tip: string | null) => void;
+  interactionActive?: boolean;
+  onDemoFocusStatus?: () => void;
+  onDemoCompletion?: (content: React.ReactNode | null, dialog?: boolean, dialogHeight?: number) => void;
+  selectionRootOverride?: React.RefObject<DOMElement | null>;
+  demoPresentation?: boolean;
+  fullStatusBar?: boolean;
   onSubmit: (value: string, imagePaths?: string[]) => void;
   onAddMessage?: (message: Message) => void;
   onUpdateMessage?: (id: string, updates: Partial<Message>) => void;
@@ -132,6 +146,9 @@ export interface InputPromptWithWrapUseKPCProps {
   disabledMessage?: string;
   focus?: boolean;
   maxLines?: number;
+  /** Reserve history navigation bindings for the surrounding conversation view. */
+  conversationNavigation?: boolean;
+  selectionSurface?: React.RefObject<SelectionSurface>;
   width?: number; // Terminal width for border
   cwd?: string; // Current working directory for @ completion
   mcpResources?: Array<{ // MCP resources for @ completion
@@ -142,6 +159,7 @@ export interface InputPromptWithWrapUseKPCProps {
   }>;
   loading?: boolean; // Agent is responding (spinning animation active)
   onStopExecution?: () => void; // Callback to stop current execution
+  onCtrlC?: (context?: CtrlCContext) => void;
   // Esc while busy: interrupt the current run but KEEP the queue so the backend
   // flushes and runs the queued prompts one-by-one.
   onFlushQueueAndRun?: () => void;
@@ -155,6 +173,8 @@ export interface InputPromptWithWrapUseKPCProps {
     message: string;
   };
   model?: string; // Current model name
+  agent?: string; // Current agent name
+  sessionId?: string | null; // Current session ID
   reasoningEffort?: string; // Current reasoning effort level, shown next to model
   thinkingEnabled?: boolean | null; // Whether thinking is explicitly OFF via /thinking off
   quotaUsage?: string | null;
@@ -171,21 +191,33 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   onAddMessage,
   onUpdateMessage,
   onExport,
-  placeholder = 'Type your message, /command, or @path/to/file ...',
+  placeholder = t('输入消息、/命令或 @文件路径…', 'Type your message, /command, or @path/to/file ...'),
   disabled = false,
-  disabledMessage = 'Waiting for response...',
+  disabledMessage = t('等待回复…', 'Waiting for response...'),
   focus = true,
   maxLines = 20,
+  conversationNavigation = false,
+  selectionSurface,
+  demoPresentation = false,
+  fullStatusBar = false,
+  interactionActive = true,
+  onDemoFocusStatus,
+  onDemoCompletion,
+  onTipChange,
+  selectionRootOverride,
   width,
   cwd = process.cwd(),
   mcpResources = [],
   loading = false,
   onStopExecution,
+  onCtrlC,
   onFlushQueueAndRun,
   onCancelPendingQueue,
   tokenUsage,
 
   model,
+  agent,
+  sessionId,
   reasoningEffort,
   thinkingEnabled,
   quotaUsage = null,
@@ -197,25 +229,31 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   workingDir,
 }) => {
   useThemeVersion(); // repaint on theme change (memo blocks prop-driven re-renders)
+  const uiLanguage = useUiLanguage();
+  const [languageDialogOpen, setLanguageDialogOpen] = useState(false);
+  const closeLanguageDialog = useCallback(() => setLanguageDialogOpen(false), []);
   const CursorAwareText = Text as React.FC<React.ComponentProps<typeof Text> & {
     terminalCursorFocus?: boolean;
     terminalCursorPosition?: number;
   }>;
   const { stdout } = useStdout();
   const terminalWidth = width ?? stdout?.columns ?? 80;
+  const selectionRoot = useRef<DOMElement>(null);
+  const selectionLines = useRef(new Map<number, DOMElement>());
 
   const editorDialog = useEditorDialog();
   const statusBarDialog = useStatusBarDialog();
+  const statusDialog = useStatusDialog();
 
-  // ---- Status bar helpers ----
+  // ---- 状态栏辅助函数 ----
 
-  // Format a cost amount
+  // 格式化成本金额
   const formatCost = (cny: number): string => `¥${cny.toFixed(4)}`;
 
-  // Format a token count (thousands separators)
+  // 格式化 token 数量（千分位）
   const formatTokenCount = (count: number): string => count.toLocaleString('en-US');
 
-  // Format a duration
+  // 格式化耗时
   const formatDuration = (seconds: number): string => {
     if (seconds < 60) return `${seconds.toFixed(1)}s`;
     const m = Math.floor(seconds / 60);
@@ -223,20 +261,19 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     return `${m}m${s}s`;
   };
 
-  // Abbreviate a workspace path (~ replaces home)
+  // 缩写 workspace 路径（用 ~ 替换 home）
   const formatWorkspace = (dir: string): string => {
     const home = homedir();
     return dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir;
   };
 
-  // Get the git branch
+  // 获取 git 分支
   const getGitBranch = (dir: string): string | null => {
     try {
       const result = execSync('git branch --show-current', {
         cwd: dir,
         encoding: 'utf-8',
         timeout: 2000,
-        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim();
       return result || null;
     } catch {
@@ -244,19 +281,19 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     }
   };
 
-  // Cache the git branch with useMemo
+  // git branch 用 useMemo 缓存
   const gitBranch = useMemo(() => {
     if (!workingDir) return null;
     return getGitBranch(workingDir);
   }, [workingDir]);
 
-  // Build the visible status-bar item list — monochrome, logical groups divided by
-  // │ and items joined by two spaces. Groups: ① model/balance ② 5 cost items ③ hit_rate/cost_time ④ git/workspace
+  // 构建可见的状态栏项列表——保持单色，按逻辑分组用 │ 分割线区分，
+  // 组内仍用双空格连接。分组：① model/balance ② 5 项成本 ③ hit_rate/cost_time ④ git/workspace
   //
-  // 3-tier adaptive shrink: on overflow drop whole groups by priority (① ④ kept first):
-  //   Tier 1 (full): all groups
-  //   Tier 2: drop ②'s 5 cost details (in/out/cw/cr/cost)
-  //   Tier 3: also drop ③ hit_rate/cost_time
+  // 3 档自适应伸缩：宽度不够时按优先级逐组丢弃（① ④ 优先保留）：
+  //   档1（完整）：全部分组
+  //   档2：丢弃 ② 5 项成本明细 (in/out/cw/cr/cost)
+  //   档3：再丢弃 ③ hit_rate/cost_time
   const GROUP_SEPARATOR = '  │  ';
   const ITEM_SEPARATOR = '  ';
 
@@ -272,6 +309,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   };
 
   const statusBarParts = useMemo(() => {
+    if (demoPresentation && !fullStatusBar) return { segments: [{ key: 'model', text: model || 'offline', group: 1 }], right: null };
     const parts: { key: string; text: string; group: number }[] = [];
     const visibleKeys = statusBarDialog.visibleItems;
     const cs = cacheStatus;
@@ -304,24 +342,24 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     addIfVisible('git_branch', gitBranch ? `⎇ ${gitBranch}` : null, 4);
     addIfVisible('workspace', workingDir ? formatWorkspace(workingDir) : null, 4);
 
-    // token_usage is handled separately (rendered on the right)
+    // token_usage 单独处理（放在右侧）
     const rightText = visibleKeys.includes('token_usage') && tu?.message ? tu.message : null;
 
-    // Available width: terminal width minus padding (1 per side) and right text
+    // 可用宽度：终端宽度减去左右 padding(各1) 和右侧文本占位
     const available = Math.max(terminalWidth - 2 - (rightText ? rightText.length + 2 : 0), 0);
 
     let segments = parts;
     if (measureWidth(segments) > available) {
-      // Tier 2: drop the 4 cost details (in/out/cw/cr), keep the cost total
+      // 档2：丢弃 4 项成本明细 (in/out/cw/cr)，保留 cost 汇总
       segments = segments.filter((seg) => seg.group !== 2 || seg.key === 'total_cost');
     }
     if (measureWidth(segments) > available) {
-      // Tier 3: also drop hit_rate/cost_time (group 3)
+      // 档3：再丢弃 hit_rate/cost_time (group 3)
       segments = segments.filter((seg) => seg.group !== 3);
     }
 
     return { segments, right: rightText };
-  }, [model, reasoningEffort, thinkingEnabled, quotaUsage, cacheStatus, tokenUsage, gitBranch, workingDir, statusBarDialog.visibleItems, terminalWidth]);
+  }, [model, reasoningEffort, thinkingEnabled, quotaUsage, cacheStatus, tokenUsage, gitBranch, workingDir, statusBarDialog.visibleItems, terminalWidth, demoPresentation, fullStatusBar]);
 
   const FRAME_PADDING_AND_BORDER = 4;
   const PROMPT_PREFIX_WIDTH = 2;
@@ -362,6 +400,39 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   // Stores temp image file paths for image paste placeholders: id → filePath
   const imagePathsRef = useRef<Map<number, string>>(new Map());
   const nextImageIdRef = useRef(1);
+  const clearedDraftTextRef = useRef<string | null>(null);
+  const deleteStreak = useRef({ count: 0, lastAt: 0, shownAt: 0 });
+  const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tipGeneration = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      tipGeneration.current++;
+      if (tipTimer.current) clearTimeout(tipTimer.current);
+      onTipChange?.(null);
+    };
+  }, [onTipChange]);
+  const showTip = useCallback((tip: string, duration = 2200) => {
+    if (!mounted.current) return;
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+    onTipChange?.(tip);
+    if (duration > 0) {
+      tipTimer.current = setTimeout(() => {
+        tipTimer.current = null;
+        onTipChange?.(null);
+      }, duration);
+    }
+  }, [onTipChange]);
+  const interruptedDraftRef = useRef<{
+    text: string;
+    pastedTexts: Map<number, string>;
+    nextPasteId: number;
+    imagePaths: Map<number, string>;
+    nextImageId: number;
+    shellMode: boolean;
+  } | null>(null);
   const [expandedIndex, setExpandedIndex] = useState(-1);
 
   // Todo panel state
@@ -373,6 +444,35 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   const appState = useAppState();
   const dispatch = useAppDispatch();
   const shellModeActive = appState.shellModeActive;
+  const clipboard = useClipboard({
+    active: focus && !disabled && interactionActive && !editorDialog.isOpen &&
+      !statusBarDialog.isOpen && !statusDialog.isOpen && !languageDialogOpen &&
+      !todoFocused && !subAgentFocused,
+    owner: `${sessionId ?? ''}\0${cwd}\0${buffer.text}\0${buffer.cursorRow}:${buffer.cursorCol}`,
+    onPaste: content => {
+      if (content.kind === 'image') {
+        const imageId = nextImageIdRef.current++;
+        imagePathsRef.current.set(imageId, content.image.filePath);
+        buffer.insert(formatImageRef(imageId));
+        showTip(INPUT_TIPS.imagePasted);
+      } else {
+        const text = content.text;
+        const numLines = text.split('\n').length;
+        if (text.length > PASTE_THRESHOLD || numLines > PASTE_LINE_THRESHOLD) {
+          const pasteId = nextPasteIdRef.current++;
+          pastedTextsRef.current.set(pasteId, text);
+          buffer.insert(formatPasteRef(pasteId, numLines));
+        } else {
+          buffer.insert(text);
+        }
+        showTip(INPUT_TIPS.textPasted);
+      }
+    },
+  });
+  const clipboardStatusMessage = onTipChange ? '' : clipboard.message;
+  useEffect(() => {
+    if (clipboard.message) showTip(clipboard.message, 5000);
+  }, [clipboard.message, showTip]);
 
   // Use ref to always access latest shellModeActive value
   const shellModeRef = useRef(shellModeActive);
@@ -442,7 +542,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     inputText: buffer.text,
     cursorPosition: cursorOffset,
     cwd,
-    enabled: focus && !disabled,
+    enabled: focus && !disabled && interactionActive,
     mcpResources,
   });
 
@@ -475,6 +575,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
 
   const [visualRow, visualCol] = buffer.visualCursor;
 
+  const runInEditorTerminal = useEditorTerminal();
   const openExternalEditor = useCallback(async () => {
     if (disabled) return;
 
@@ -483,7 +584,9 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     const currentText = buffer.text;
     
     try {
-      writeFileSync(filePath, currentText, 'utf-8');
+      // Give the file its own final newline so Vim's automatic end-of-line
+      // does not become an extra blank prompt line on each editing round trip.
+      writeFileSync(filePath, `${currentText}\n`, 'utf-8');
       
       const preferredEditor = configManager.getPreferredEditor();
       const { command, args, source } = resolveEditorCommand(preferredEditor);
@@ -496,10 +599,10 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       });
       
       const editorArgs = [...args, filePath];
-      const result = spawnSync(command, editorArgs, {
+      const result = runInEditorTerminal(() => spawnSync(command, editorArgs, {
         stdio: 'inherit',
         shell: process.platform === 'win32',
-      });
+      }));
       
       if (result.error) {
         logger.error('[InputPromptWithWrapUseKPC] Editor launch failed', {
@@ -516,7 +619,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
         });
       }
       
-      const newText = readFileSync(filePath, 'utf-8');
+      const newText = readFileSync(filePath, 'utf-8').replace(/\r?\n$/, '');
       buffer.setText(newText);
       
       logger.info('[InputPromptWithWrapUseKPC] Editor closed, content updated', {
@@ -537,18 +640,46 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
         // Ignore cleanup errors
       }
     }
-  }, [buffer, disabled]);
+  }, [buffer, disabled, runInEditorTerminal]);
 
   const handleSubmit = useCallback(async () => {
     const trimmed = buffer.text.trim();
     if (!trimmed || disabled) return;
 
+    if (trimmed === '/language' || trimmed.startsWith('/language ')) {
+      const value = trimmed.slice('/language'.length).trim().toLowerCase();
+      if (!value) {
+        buffer.clear();
+        resetCompletion();
+        setLanguageDialogOpen(true);
+      } else if (value === 'en' || value === 'zh-cn') {
+        try {
+          saveUiLanguage(value === 'en' ? 'en' : 'zh-CN');
+          buffer.clear();
+          resetCompletion();
+        } catch (error) {
+          showTip(t('无法保存界面语言，请重试。', 'Could not save interface language. Please retry.'));
+        }
+      } else {
+        showTip(t('用法：/language [en | zh-CN]', 'Usage: /language [en | zh-CN]'));
+      }
+      return;
+    }
+
     if (trimmed === '/editor' || trimmed === '/edit') {
+      resetCompletion();
       editorDialog.openDialog();
       return;
     }
 
+    if (trimmed === '/status') {
+      resetCompletion();
+      statusDialog.openDialog();
+      return;
+    }
+
     if (trimmed === '/statusbar') {
+      resetCompletion();
       statusBarDialog.openDialog();
       return;
     }
@@ -624,7 +755,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
         const errorShellMessage: Message = {
           id: `shell-error-${Date.now()}`,
           type: 'tool',
-          content: `Failed: ${command}`,
+          content: t(`执行失败：${command}`, `Failed: ${command}`),
           timestamp: new Date().toISOString(),
           author: 'system',
           metadata: {
@@ -676,6 +807,9 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     resetShellHistoryIndex,
     editorDialog.openDialog,
     statusBarDialog.openDialog,
+    statusDialog.openDialog,
+    resetCompletion,
+    showTip,
     loading,
     onAddMessage,
     onUpdateMessage,
@@ -683,8 +817,69 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
 
 
   useKeypress((key: Key) => {
-    if (editorDialog.isOpen || statusBarDialog.isOpen) return;
-    if (disabled || !focus) return;
+    // Wheel input belongs to the viewport, not draft/history or clipboard state.
+    if (key.name === 'wheelup' || key.name === 'wheeldown') return;
+    // Reserve conversation scrolling before completion and history handle arrows.
+    if (conversationNavigation && key.ctrl && !key.alt && !key.shift && !key.cmd &&
+      (key.name === 'up' || key.name === 'down')) return;
+    if (key.name === 'mousemiddle' && !isClipboardPasteKey(key)) return;
+    if (key.name === 'mouseright' && (key.ctrl || key.cmd || key.alt || key.shift)) return;
+    if (!['mousemove', 'mouserelease', 'selectioncopy', 'selectionclear'].includes(key.name)) clipboard.onKey(key);
+    const isCtrlC = key.ctrl && key.name === 'c';
+    if (!isCtrlC) clearedDraftTextRef.current = null;
+    if (isCtrlC && onCtrlC && (editorDialog.isOpen || statusBarDialog.isOpen || statusDialog.isOpen || languageDialogOpen)) {
+      editorDialog.closeDialog();
+      statusBarDialog.closeDialog();
+      statusDialog.closeDialog();
+      closeLanguageDialog();
+      onCtrlC('modal');
+      return;
+    }
+    if (editorDialog.isOpen || statusBarDialog.isOpen || statusDialog.isOpen || languageDialogOpen) return;
+    if (disabled || !focus || !interactionActive) return;
+    if (key.name === 'mouseright') {
+      if (!showSuggestions) clipboard.pasteOnRightClick();
+      return;
+    }
+    if (key.name === 'mousemiddle') {
+      clipboard.paste();
+      return;
+    }
+    if (['mousemove', 'mouserelease', 'selectioncopy', 'selectionclear'].includes(key.name)) return;
+    if (key.name !== 'backspace' && key.name !== 'delete') deleteStreak.current.count = 0;
+    if (demoPresentation && onDemoFocusStatus && key.name === 'tab' &&
+      buffer.text.trim() === '' && !showSuggestions) {
+      onDemoFocusStatus();
+      return;
+    }
+    if (isCtrlC && onCtrlC) {
+      if (showSuggestions) {
+        resetCompletion();
+        onCtrlC('modal');
+        return;
+      }
+      if (todoFocused || subAgentFocused) {
+        setTodoFocused(false);
+        setSubAgentFocused(false);
+        onCtrlC('modal');
+        return;
+      }
+      setTodoFocused(false);
+      setSubAgentFocused(false);
+      if (buffer.text.length > 0 && clearedDraftTextRef.current !== buffer.text) {
+        interruptedDraftRef.current = {
+          text: buffer.text, pastedTexts: new Map(pastedTextsRef.current), nextPasteId: nextPasteIdRef.current,
+          imagePaths: new Map(imagePathsRef.current), nextImageId: nextImageIdRef.current, shellMode: shellModeActive,
+        };
+        clearedDraftTextRef.current = buffer.text;
+        buffer.clear();
+        setHistoryIndex(-1);
+        onCtrlC('draft');
+      } else {
+        onCtrlC('main');
+      }
+      return;
+    }
 
     // Todo / SubAgent panel keyboard routing.
     // Tab (empty input, no suggestions) cycles focus: input → todos → subAgents → input.
@@ -771,6 +966,15 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     }
 
 
+    const trimmedInput = buffer.text.trim();
+    const activeSuggestion = showSuggestions ? suggestions[activeIndex]?.value : undefined;
+    if ((key.name === 'return' || key.name === 'enter') && !key.shift && !key.alt && !key.ctrl &&
+      ['/language', '/status', '/statusbar', '/editor', '/edit', '/effort'].includes(trimmedInput) &&
+      (!showSuggestions || !activeSuggestion || `/${activeSuggestion}` === trimmedInput)) {
+      handleSubmit();
+      return;
+    }
+
     if (showSuggestions) {
       if (key.name === 'up') {
         completionNavigateUp();
@@ -833,6 +1037,18 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       return;
     }
 
+    if (key.name === 'up' && !showSuggestions && buffer.text.length === 0 && interruptedDraftRef.current) {
+      const draft = interruptedDraftRef.current;
+      interruptedDraftRef.current = null;
+      pastedTextsRef.current = draft.pastedTexts;
+      nextPasteIdRef.current = draft.nextPasteId;
+      imagePathsRef.current = draft.imagePaths;
+      nextImageIdRef.current = draft.nextImageId;
+      dispatch(setShellMode(draft.shellMode));
+      buffer.setText(draft.text);
+      setHistoryIndex(-1);
+      return;
+    }
     if (key.name === 'up' && !showSuggestions && visualRow === 0) {
       if (shellModeActive) {
         const cmd = shellHistoryUp();
@@ -914,10 +1130,11 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     if (key.ctrl && key.name === 'x') { openExternalEditor(); return; }
     if (key.ctrl && key.name === 'd') { buffer.clear(); return; }
     if (key.ctrl && key.name === 'b') {
-      const textToCopy = buffer.text;
-      if (textToCopy) {
-        void copyTextToClipboard(textToCopy);
-      }
+      // Copy expanded text rather than internal paste/image placeholder tokens.
+      let textToCopy = buffer.text;
+      textToCopy = expandPasteRefs(textToCopy, pastedTextsRef.current);
+      textToCopy = textToCopy.replace(/\[Image #(\d+)\]/g, (match, id) => imagePathsRef.current.get(Number(id)) ?? match);
+      clipboard.copy(textToCopy);
       return;
     }
 
@@ -926,11 +1143,24 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     if (key.name === 'right' && (key.alt || key.ctrl)) { buffer.moveCursor('wordRight'); return; }
     if (key.alt && key.name === 'b') { buffer.moveCursor('wordLeft');  return; }
     if (key.alt && key.name === 'f') { buffer.moveCursor('wordRight'); return; }
+    if (conversationNavigation && (
+      ['pageup', 'pagedown', 'mouseclick', 'wheelup', 'wheeldown'].includes(key.name) ||
+      (key.alt && ['up', 'down'].includes(key.name)) ||
+      (key.ctrl && ['g', 'end'].includes(key.name))
+    )) return;
     if (key.name === 'up'    && !showSuggestions) { buffer.moveCursor('up');    return; }
     if (key.name === 'down'  && !showSuggestions) { buffer.moveCursor('down');  return; }
     if (key.name === 'left')  { buffer.moveCursor('left');  return; }
     if (key.name === 'right') { buffer.moveCursor('right'); return; }
     if (key.name === 'backspace' || key.name === 'delete') {
+      const now = Date.now();
+      const streak = deleteStreak.current;
+      streak.count = buffer.text && now - streak.lastAt < 900 ? streak.count + 1 : 1;
+      streak.lastAt = now;
+      if (streak.count === 5 && buffer.text.length >= 12 && now - streak.shownAt > 12000) {
+        streak.shownAt = now;
+        showTip(INPUT_TIPS.repeatedDelete, 3500);
+      }
       // If cursor is immediately after a paste or image placeholder, delete the whole token
       const beforeCursor = buffer.text.slice(0, cursorOffset);
       const pasteMatch = PASTE_REF_SUFFIX_RE.exec(beforeCursor);
@@ -951,44 +1181,13 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     if (key.name === 'pageup')   { buffer.scroll(-5); return; }
     if (key.name === 'pagedown') { buffer.scroll(5);  return; }
 
-    // Ctrl+V / Cmd+V: explicitly read from OS clipboard (supports image paste)
-    if ((key.ctrl || key.cmd) && key.name === 'v') {
+    // Ctrl+V / Cmd+V: read the host clipboard with visible failure feedback.
+    if (isClipboardPasteKey(key)) {
       logger.info('[InputPromptWithWrapUseKPC] Ctrl/Cmd+V detected, reading clipboard', {
         ctrl: key.ctrl,
         cmd: key.cmd,
       });
-      void (async () => {
-        try {
-          const image = await getImageFromClipboard();
-          logger.info('[InputPromptWithWrapUseKPC] getImageFromClipboard result', {
-            hasImage: !!image,
-            filePath: image?.filePath,
-            mediaType: image?.mediaType,
-          });
-          if (image) {
-            const imageId = nextImageIdRef.current++;
-            imagePathsRef.current.set(imageId, image.filePath);
-            buffer.insert(formatImageRef(imageId));
-            return;
-          }
-          // No image — fall back to reading text from clipboard
-          // Normalize line endings so multi-line clipboard text keeps its structure
-          const text = (await getTextFromClipboard())?.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-          logger.info('[InputPromptWithWrapUseKPC] getTextFromClipboard result', { length: text?.length ?? 0 });
-          if (text) {
-            const numLines = text.split('\n').length;
-            if (text.length > PASTE_THRESHOLD || numLines > PASTE_LINE_THRESHOLD) {
-              const pasteId = nextPasteIdRef.current++;
-              pastedTextsRef.current.set(pasteId, text);
-              buffer.insert(formatPasteRef(pasteId, numLines));
-            } else {
-              buffer.insert(text);
-            }
-          }
-        } catch (err) {
-          logger.error('[InputPromptWithWrapUseKPC] clipboard read error', String(err));
-        }
-      })();
+      clipboard.paste();
       return;
     }
 
@@ -1003,23 +1202,7 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
 
       // Empty bracketed paste = clipboard may contain an image (macOS Cmd+V with image)
       if (!text) {
-        void (async () => {
-          try {
-            const image = await getImageFromClipboard();
-            logger.info('[InputPromptWithWrapUseKPC] empty-paste getImageFromClipboard result', {
-              hasImage: !!image,
-              filePath: image?.filePath,
-              mediaType: image?.mediaType,
-            });
-            if (image) {
-              const imageId = nextImageIdRef.current++;
-              imagePathsRef.current.set(imageId, image.filePath);
-              buffer.insert(formatImageRef(imageId));
-            }
-          } catch (err) {
-            logger.error('[InputPromptWithWrapUseKPC] empty-paste getImageFromClipboard error', String(err));
-          }
-        })();
+        clipboard.paste();
         return;
       }
 
@@ -1042,30 +1225,93 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
     if (key.insertable && key.sequence && !key.ctrl && !key.alt) {
       buffer.insert(key.sequence);
     }
-  }, { isActive: focus && !disabled });
+  }, { isActive: focus && !disabled && interactionActive });
 
+
+  const selectLanguage = useCallback((language: UiLanguage) => {
+    try {
+      saveUiLanguage(language);
+      closeLanguageDialog();
+    } catch (error) {
+      showTip(t('无法保存界面语言，请重试。', 'Could not save interface language. Please retry.'));
+    }
+  }, [closeLanguageDialog, showTip]);
+  const languagePanel = useMemo(() => languageDialogOpen
+    ? <LanguageSelector onSelect={selectLanguage} onClose={closeLanguageDialog} />
+    : null, [languageDialogOpen, selectLanguage, closeLanguageDialog, uiLanguage]);
+  const demoCompletion = useMemo(() => !demoPresentation ? null : languageDialogOpen
+    ? languagePanel
+    : editorDialog.isOpen
+    ? <EditorDialog currentEditor={editorDialog.currentEditor} onSelect={editorDialog.handleSelect}
+        onCancel={editorDialog.closeDialog} />
+    : statusBarDialog.isOpen
+      ? <StatusBarDialog visibleItems={statusBarDialog.visibleItems} onToggle={statusBarDialog.handleToggle}
+          onClose={statusBarDialog.closeDialog} />
+    : statusDialog.isOpen
+      ? <StatusDialog model={model} agent={agent} sessionId={sessionId} workingDir={workingDir || cwd}
+          onClose={statusDialog.closeDialog} />
+    : showSuggestions ? <DemoCompletionList suggestions={suggestions} activeIndex={activeIndex} width={terminalWidth} />
+    : null, [demoPresentation, languageDialogOpen, languagePanel,
+      uiLanguage, editorDialog.isOpen, editorDialog.currentEditor, editorDialog.handleSelect,
+      editorDialog.closeDialog, statusBarDialog.isOpen, statusBarDialog.visibleItems, statusBarDialog.handleToggle,
+      statusBarDialog.closeDialog, statusDialog.isOpen, statusDialog.closeDialog, model, agent, sessionId, workingDir, cwd,
+      showSuggestions, suggestions, activeIndex,
+      isCompletionLoading, terminalWidth, visibleStartIndex, expandedIndex]);
+  useLayoutEffect(() => {
+    onDemoCompletion?.(demoCompletion, editorDialog.isOpen || statusBarDialog.isOpen || statusDialog.isOpen || languageDialogOpen,
+      statusDialog.isOpen ? 9 : undefined);
+  }, [demoCompletion, onDemoCompletion]);
+  useEffect(() => () => onDemoCompletion?.(null), [onDemoCompletion]);
 
   const borderColor = disabled 
     ? githubTheme.border.disabled
-    : (focus ? githubTheme.border.focused : githubTheme.border.default);
+    : (focus ? demoPresentation && !interactionActive ? '#8aa8c8'
+      : githubTheme.border.focused : githubTheme.border.default);
   
   const promptChar = shellModeActive ? '! ' : '▸ ';
 
+  useLayoutEffect(() => {
+    if (!selectionSurface) return;
+    const fragments = new Map<DOMElement, { start: number; end: number }>();
+    for (const [visualIndex, container] of selectionLines.current) {
+      const node = container.childNodes.find(child => child.nodeName === 'ink-text') as DOMElement | undefined;
+      if (!node) continue;
+      const mapping = buffer.visualToLogicalMap[visualIndex];
+      if (!mapping) continue;
+      const [row, column] = mapping;
+      const start = buffer.lines.slice(0, row).reduce((count, line) => count + line.length + 1, 0) +
+        cpSlice(buffer.lines[row] ?? '', 0, column).length;
+      fragments.set(node, { start, end: start + (buffer.visualLines[visualIndex]?.length ?? 0) });
+    }
+    selectionSurface.current.root = selectionRootOverride?.current ?? selectionRoot.current;
+    selectionSurface.current.source = { text: buffer.text, fragments };
+    selectionSurface.current.onUpdate?.();
+  });
+  useEffect(() => () => {
+    if (!selectionSurface) return;
+    selectionSurface.current.root = null;
+    selectionSurface.current.source = undefined;
+    selectionSurface.current.onUpdate?.();
+  }, [selectionSurface]);
+
   if (disabled) {
     return (
-      <Box flexDirection="column">
-        <ShellModeIndicator active={shellModeActive} cwd={cwd} />
+      <Box ref={selectionRoot} flexDirection="column" flexShrink={0} opaque>
+        <Box userSelect="none"><ShellModeIndicator active={shellModeActive} cwd={cwd} /></Box>
         
         <Box
-          borderStyle="round"
+          borderStyle={conversationNavigation ? 'single' : 'round'}
+          borderLeft={!conversationNavigation}
+          borderRight={!conversationNavigation}
           borderColor={borderColor}
           paddingX={1}
           width={terminalWidth}
           flexDirection="row"
           alignItems="flex-start"
           minHeight={3}
+          flexShrink={0}
         >
-          <Text color={githubTheme.input.prompt}>{promptChar}</Text>
+          <Box userSelect="none"><Text color={githubTheme.input.prompt}>{promptChar}</Text></Box>
           <Box flexGrow={1} flexDirection="column">
             <Text color={githubTheme.text.secondary}>{disabledMessage}</Text>
           </Box>
@@ -1076,47 +1322,51 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
 
   if (buffer.text.length === 0) {
     return (
-      <Box flexDirection="column">
-        <ShellModeIndicator active={shellModeActive} cwd={cwd} />
+      <Box ref={selectionRoot} flexDirection="column" flexShrink={0} opaque>
+        <Box userSelect="none"><ShellModeIndicator active={shellModeActive} cwd={cwd} /></Box>
         
         <Box
-          borderStyle="round"
+          borderStyle={conversationNavigation ? 'single' : 'round'}
+          borderLeft={!conversationNavigation}
+          borderRight={!conversationNavigation}
           borderColor={borderColor}
           paddingX={1}
           width={terminalWidth}
           flexDirection="row"
           alignItems="flex-start"
           minHeight={3}
+          flexShrink={0}
         >
-          <Text color={githubTheme.input.prompt}>{promptChar}</Text>
-          <Box flexGrow={1} flexDirection="column">
+          <Box userSelect="none"><Text color={githubTheme.input.prompt}>{promptChar}</Text></Box>
+          <Box userSelect="none" flexGrow={1} flexDirection="column">
             {focus ? (
               <Text>
                 {chalk.inverse(' ')}
-                <Text color={githubTheme.input.placeholder}>
-                  {shellModeActive ? 'Enter shell command...' : placeholder}
+                <Text color={githubTheme.input.placeholder} wrap={conversationNavigation ? 'truncate-end' : 'wrap'}>
+                  {shellModeActive ? t('输入终端命令…', 'Enter shell command...') : placeholder}
                 </Text>
               </Text>
             ) : (
               <Text color={githubTheme.input.placeholder}>
-                {shellModeActive ? 'Enter shell command...' : placeholder}
+                {shellModeActive ? t('输入终端命令…', 'Enter shell command...') : placeholder}
               </Text>
             )}
           </Box>
         </Box>
 
         {/* Status bar — expanded 12-item display, grouped with │ dividers between groups */}
-        {!editorDialog.isOpen && !statusBarDialog.isOpen && !showSuggestions && statusBarParts.segments.length > 0 && (
-          <Box marginTop={0} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between">
-            <Text>
-              {statusBarParts.segments.map((seg, idx) => (
+        {!editorDialog.isOpen && !statusBarDialog.isOpen && !statusDialog.isOpen && (clipboardStatusMessage || ((!showSuggestions || demoPresentation) && statusBarParts.segments.length > 0)) && (
+          <Box marginTop={0} paddingLeft={1} paddingRight={1} height={1} flexShrink={0}
+            overflow="hidden" flexDirection="row" justifyContent="space-between">
+            <Text color={clipboardStatusMessage ? 'yellow' : undefined} wrap="truncate-end">
+              {clipboardStatusMessage || statusBarParts.segments.map((seg, idx) => (
                 <Text key={seg.key}>
                   {idx > 0 && (seg.group !== statusBarParts.segments[idx - 1].group ? '  │  ' : '  ')}
                   {seg.text}
                 </Text>
               ))}
             </Text>
-            {statusBarParts.right && (
+            {!clipboardStatusMessage && statusBarParts.right && (
               <Text color="cyan" dimColor>
                 {statusBarParts.right}
               </Text>
@@ -1125,9 +1375,10 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
         )}
 
         {/* Todo display — shown below input when todos exist */}
-        {!editorDialog.isOpen && todoItems.length > 0 && (
+        {!demoPresentation && !editorDialog.isOpen && todoItems.length > 0 && (
           <Box marginTop={0}>
             <TodoDisplay
+              compact={conversationNavigation}
               items={todoItems}
               activeIndex={todoFocused ? todoActiveIndex : -1}
               width={terminalWidth}
@@ -1141,9 +1392,10 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
         )}
 
         {/* Sub agent display — shown below todo display when sub agents exist */}
-        {!editorDialog.isOpen && subAgentItems.length > 0 && (
+        {!demoPresentation && !editorDialog.isOpen && subAgentItems.length > 0 && (
           <Box marginTop={0}>
             <SubAgentDisplay
+              compact={conversationNavigation}
               items={subAgentItems}
               activeIndex={subAgentFocused ? subAgentActiveIndex : -1}
               width={terminalWidth}
@@ -1159,23 +1411,26 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
   const [cursorVisualRowAbsolute, cursorVisualColAbsolute] = buffer.visualCursor;
 
   return (
-    <Box flexDirection="column">
+    <Box ref={selectionRoot} flexDirection="column" flexShrink={0} opaque>
       {!editorDialog.isOpen && (
-        <ShellModeIndicator active={shellModeActive} cwd={cwd} />
+        <Box userSelect="none"><ShellModeIndicator active={shellModeActive} cwd={cwd} /></Box>
       )}
 
       {!editorDialog.isOpen && (
         <>
           <Box
-            borderStyle="round"
+            borderStyle={conversationNavigation ? 'single' : 'round'}
+            borderLeft={!conversationNavigation}
+            borderRight={!conversationNavigation}
             borderColor={borderColor}
             paddingX={1}
             width={terminalWidth}
             flexDirection="row"
             alignItems="flex-start"
             minHeight={3}
+            flexShrink={0}
           >
-            <Text color={githubTheme.input.prompt}>{promptChar}</Text>
+            <Box userSelect="none"><Text color={githubTheme.input.prompt}>{promptChar}</Text></Box>
             <Box flexGrow={1} flexDirection="column">
               {linesToRender.map((lineText, visualIdxInRenderedSet) => {
                 const absoluteVisualIdx = scrollVisualRow + visualIdxInRenderedSet;
@@ -1271,7 +1526,11 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
                     : cursorVisualColAbsolute;
 
                 return (
-                  <Box key={`line-${visualIdxInRenderedSet}`} height={1}>
+                  <Box key={`line-${visualIdxInRenderedSet}`} height={1}
+                      ref={(node: DOMElement | null) => {
+                        if (node) selectionLines.current.set(absoluteVisualIdx, node);
+                        else selectionLines.current.delete(absoluteVisualIdx);
+                      }}>
                     <CursorAwareText
                       terminalCursorFocus={focus && isOnCursorLine}
                       terminalCursorPosition={imePosition}
@@ -1290,17 +1549,18 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       }
 
       {/* Status bar — expanded 12-item display, grouped with │ dividers between groups */}
-      {!editorDialog.isOpen && !statusBarDialog.isOpen && !showSuggestions && statusBarParts.segments.length > 0 && (
-        <Box marginTop={0} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between">
-          <Text>
-            {statusBarParts.segments.map((seg, idx) => (
+      {!editorDialog.isOpen && !statusBarDialog.isOpen && !statusDialog.isOpen && (clipboardStatusMessage || ((!showSuggestions || demoPresentation) && statusBarParts.segments.length > 0)) && (
+        <Box marginTop={0} paddingLeft={1} paddingRight={1} height={1} flexShrink={0}
+          overflow="hidden" flexDirection="row" justifyContent="space-between">
+          <Text color={clipboardStatusMessage ? 'yellow' : undefined} wrap="truncate-end">
+            {clipboardStatusMessage || statusBarParts.segments.map((seg, idx) => (
               <Text key={seg.key}>
                 {idx > 0 && (seg.group !== statusBarParts.segments[idx - 1].group ? '  │  ' : '  ')}
                 {seg.text}
               </Text>
             ))}
           </Text>
-          {statusBarParts.right && (
+          {!clipboardStatusMessage && statusBarParts.right && (
             <Text color="cyan" dimColor>
               {statusBarParts.right}
             </Text>
@@ -1309,9 +1569,10 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       )}
 
       {/* Todo display */}
-      {!editorDialog.isOpen && todoItems.length > 0 && (
+      {!demoPresentation && !editorDialog.isOpen && todoItems.length > 0 && (
         <Box marginTop={0}>
           <TodoDisplay
+            compact={conversationNavigation}
             items={todoItems}
             activeIndex={todoFocused ? todoActiveIndex : -1}
             width={terminalWidth}
@@ -1325,9 +1586,10 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       )}
 
       {/* Sub agent display */}
-      {!editorDialog.isOpen && subAgentItems.length > 0 && (
+      {!demoPresentation && !editorDialog.isOpen && subAgentItems.length > 0 && (
         <Box marginTop={0}>
           <SubAgentDisplay
+            compact={conversationNavigation}
             items={subAgentItems}
             activeIndex={subAgentFocused ? subAgentActiveIndex : -1}
             width={terminalWidth}
@@ -1336,14 +1598,14 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       )}
 
       {/* Autocomplete suggestions */}
-      {!editorDialog.isOpen && showSuggestions && (
+      {!demoPresentation && !editorDialog.isOpen && showSuggestions && (
         <Box marginTop={0}>
           <SuggestionsDisplay
             suggestions={suggestions}
             activeIndex={activeIndex}
             isLoading={isCompletionLoading}
-            maxHeight={8}
-            width={terminalWidth}
+            maxHeight={demoPresentation ? 6 : 8}
+            width={demoPresentation ? Math.min(terminalWidth, 58) : terminalWidth}
             scrollOffset={visibleStartIndex}
             expandedIndex={expandedIndex}
             dualColumnLayout={completionMode === CompletionMode.SLASH || completionMode === CompletionMode.PROMPT}
@@ -1352,7 +1614,10 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       )}
 
       {/* Editor Dialog */}
-      {editorDialog.isOpen && (
+      {!demoPresentation && languageDialogOpen && (
+        <LanguageSelector onSelect={selectLanguage} onClose={closeLanguageDialog} />
+      )}
+      {!demoPresentation && editorDialog.isOpen && (
         <Box marginTop={1}>
           <EditorDialog
             currentEditor={editorDialog.currentEditor}
@@ -1363,12 +1628,25 @@ export const InputPromptWithWrapUseKPC: React.FC<InputPromptWithWrapUseKPCProps>
       )}
 
       {/* StatusBar Dialog */}
-      {statusBarDialog.isOpen && (
+      {!demoPresentation && statusBarDialog.isOpen && (
         <Box marginTop={1}>
           <StatusBarDialog
             visibleItems={statusBarDialog.visibleItems}
             onToggle={statusBarDialog.handleToggle}
             onClose={statusBarDialog.closeDialog}
+          />
+        </Box>
+      )}
+
+      {/* Status Dialog */}
+      {!demoPresentation && statusDialog.isOpen && (
+        <Box marginTop={1}>
+          <StatusDialog
+            model={model}
+            agent={agent}
+            sessionId={sessionId}
+            workingDir={workingDir || cwd}
+            onClose={statusDialog.closeDialog}
           />
         </Box>
       )}

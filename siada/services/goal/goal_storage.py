@@ -10,8 +10,9 @@ simplified to a single object instead of a list.
 goal.json only ever holds the CURRENT goal — a goal can be overwritten by a
 new /goal <objective> at any time, regardless of its status (active,
 blocked, or complete), and every overwrite/clear resets the slate for a
-fresh goal. So callers that replace or clear a goal (SlashCommands.cmd_goal,
-Controller._maybe_reset_goal_on_new_turn) archive the outgoing goal to
+fresh goal. Completed goals remain until the next user conversation or an
+explicit clear/replacement. SlashCommands.cmd_goal and
+turn_hooks.maybe_reset_goal_on_new_turn archive the outgoing goal to
 <session_dir>/goal_history.jsonl (append-only, one JSON object per line)
 via append_goal_history() BEFORE overwriting/clearing goal.json, so the
 full lifecycle of every goal that ever existed in this session is still
@@ -106,11 +107,11 @@ def clear_goal(session_dir: Path) -> None:
 def append_goal_history(session_dir: Path, goal: Goal) -> None:
     """Append ``goal``'s final state to ``<session_dir>/goal_history.jsonl``.
 
-    Call this BEFORE overwriting or clearing ``goal.json`` (see cmd_goal /
-    Controller._maybe_reset_goal_on_new_turn) so the goal being replaced
-    isn't lost — goal.json only ever holds the current goal, so this
-    append-only log is the only place a session's full goal lifecline
-    (every objective ever set, and the status it ended on) is recoverable.
+    Call this BEFORE overwriting or clearing ``goal.json`` (see cmd_goal
+    and turn_hooks.maybe_reset_goal_on_new_turn)
+    so the goal being replaced isn't lost — goal.json only ever holds the
+    current goal. This append-only log keeps every objective and its final
+    state recoverable.
 
     Best-effort: a history-write failure must not block the goal
     replace/clear it's recording.

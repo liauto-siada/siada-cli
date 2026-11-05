@@ -72,6 +72,20 @@ class TestPendingUserInputInjector:
         assert injected == {"role": "user", "content": "<user_input>hello agent</user_input>"}
 
     @pytest.mark.asyncio
+    async def test_whole_reminder_is_injected_and_persisted_without_human_wrapper(self):
+        reminder = "<system-reminder>Continue verification.</system-reminder>"
+        _mod._pending_injections.append((None, reminder, None))
+        injector = PendingUserInputInjector()
+        model_data = _make_model_data()
+        ctx = _make_context()
+
+        await injector.filter(model_data, agent=None, context=ctx)
+
+        injected = {"role": "user", "content": reminder}
+        assert model_data.input[-1] == injected
+        ctx.session.openai_session.add_items.assert_awaited_once_with([injected])
+
+    @pytest.mark.asyncio
     async def test_image_paths_produce_multimodal_content(self, tmp_path):
         # Reuses the same _build_multimodal_input() as the normal (non-queued)
         # turn flow, so images are read and embedded as base64 data URLs.

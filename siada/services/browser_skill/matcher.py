@@ -15,7 +15,7 @@ Algorithm (cheap-first):
    events AND at least one candidate hasn't been reminded yet in this
    session, spend one LLM call to semantically confirm a match.
 4. On confirmed match, mark that capacity as "reminded" for this session so
-   it is only suggested once (design doc §7 "single reminder").
+   it is only suggested once.
 """
 
 from __future__ import annotations

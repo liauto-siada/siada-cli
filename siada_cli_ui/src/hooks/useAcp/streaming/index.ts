@@ -1,6 +1,6 @@
 import { useRef, useCallback, Dispatch, SetStateAction, MutableRefObject } from 'react';
 import { Writable } from 'stream';
-import { Message } from '../../../types/index.js';
+import { Message, type ACPStreamEnd } from '../../../types/index.js';
 import { BannerInfo, TodoItem, TodoMessageRange } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 import {
@@ -13,8 +13,7 @@ import {
   isRepetitionGuardModel,
 } from '../../../utils/streamRepetition.js';
 import { COMPACTION_CONTENT_PATTERN, COMPACTION_COMPLETE_PATTERN, ThinkingStep } from '../../../constants/phrases.js';
-import { isRenderableToolDiff } from '../../../utils/diff.js';
-import { parseTodoWriteContent } from '../../../utils/todoWrite.js';
+import { isFileEditAwaitingResult, isRenderableToolDiff, parseFileEditPresentation } from '../../../utils/diff.js';
 
 // Throttle interval for streaming message flushes.
 // 50-120ms is the sweet spot: lower causes too-frequent redraws, higher hurts the "typing" feel.
@@ -31,6 +30,8 @@ interface StreamingDeps {
   setTodoItems: Dispatch<SetStateAction<TodoItem[]>>;
   setTodoMessageRanges: Dispatch<SetStateAction<Map<string, TodoMessageRange>>>;
   setActiveStep?: Dispatch<SetStateAction<ThinkingStep | null>>;
+  /** The conversation viewport handles wrapping and virtualization instead of Static. */
+  boundedViewport?: boolean;
 }
 
 
@@ -68,11 +69,12 @@ function classifyAgentStep(message: Message): ThinkingStep {
   return 'system_processing';
 }
 
-export function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, model, pullHistoryTimeoutRef, messagesRef, setTodoItems, setTodoMessageRanges, setActiveStep }: StreamingDeps) {
+export function useStreamingMessages({ setMessages, setBannerInfo, stdout, workingDir, model, pullHistoryTimeoutRef, messagesRef, setActiveStep, boundedViewport = false }: StreamingDeps) {
   const toolMessageIdCounterRef = useRef(0);
   const currentStreamingMessageRef = useRef<{
     id: string;
     type: 'answer' | 'thinking' | 'tool_use' | null;
+    messageId?: string;
   } | null>(null);
   const accumulatedContentRef = useRef<string>('');
   const splitCounterRef = useRef<number>(0);
@@ -101,6 +103,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
     }
 
     const subtype = streamTargetSubtypeRef.current;
+    const targetId = currentStreamingMessageRef.current?.id;
 
     if (subtype === 'answer') {
       // Repetition guard hold: don't flush suspicious content to the screen.
@@ -128,7 +131,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       const terminalHeight = stdout?.rows || 50;
       const maxDynamicLines = Math.max(terminalHeight / 2, 5);
 
-      if (afterLines > maxDynamicLines) {
+      if (!boundedViewport && afterLines > maxDynamicLines) {
         logger.debug('flushStreamingNow skipped — answer content too tall for pending area', {
           component: 'Streaming',
           operation: 'flush_skip',
@@ -142,7 +145,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       setMessages(prev => {
         for (let i = prev.length - 1; i >= 0; i--) {
           const m = prev[i];
-          if (m.type === 'agent' && m.metadata?.subtype === 'answer') {
+          if (m.type === 'agent' && m.metadata?.subtype === 'answer' && (!targetId || m.id === targetId)) {
             const updated = [...prev];
             updated[i] = { ...m, content: fullContent };
             return updated;
@@ -166,7 +169,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       // Scan from the tail to find the latest message with the same subtype, avoiding index races
       for (let i = prev.length - 1; i >= 0; i--) {
         const m = prev[i];
-        if (m.type === 'agent' && m.metadata?.subtype === subtype) {
+        if (m.type === 'agent' && m.metadata?.subtype === subtype && (!targetId || m.id === targetId)) {
           const updated = [...prev];
           updated[i] = { ...m, content: (m.content || '') + append };
           return updated;
@@ -174,7 +177,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       }
       return prev;
     });
-  }, [setMessages, stdout]);
+  }, [boundedViewport, setMessages, stdout]);
 
   const scheduleStreamingFlush = useCallback(() => {
     if (streamFlushTimerRef.current) return;
@@ -203,6 +206,39 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
     streamHeldRef.current = false;
     setActiveStep?.(null);
   }, [setActiveStep]);
+
+  const handleStreamEnd = useCallback((data: ACPStreamEnd) => {
+    if (data.messageType !== 'thinking' && data.messageType !== 'answer' && data.messageType !== 'tool_use') return;
+    const current = currentStreamingMessageRef.current;
+    const endsCurrent = current?.type === data.messageType && current.messageId === data.messageId;
+    if (endsCurrent) flushStreamingNow();
+    setMessages(previous => {
+      let index = previous.length - 1;
+      while (index >= 0) {
+        const message = previous[index];
+        if (message.type === 'agent' && message.metadata?.subtype === data.messageType &&
+            message.metadata?.messageId === data.messageId) break;
+        index--;
+      }
+      if (index < 0) return previous;
+      const message = previous[index];
+      // The bounded viewport holds one message per wire stream. Static may have
+      // split that stream, so its final fragment must retain its own text.
+      const content = boundedViewport ? data.totalContent : message.content;
+      if (message.content === content && message.metadata?.streamEnd && !message.metadata?.isStreaming) return previous;
+      const next = [...previous];
+      next[index] = { ...message, content, metadata: { ...message.metadata, streamEnd: true, isStreaming: false } };
+      return next;
+    });
+    if (endsCurrent) {
+      streamTargetSubtypeRef.current = null;
+      streamPendingAppendRef.current = '';
+      currentStreamingMessageRef.current = null;
+      accumulatedContentRef.current = '';
+      repetitionDetectorRef.current = null;
+      streamHeldRef.current = false;
+    }
+  }, [boundedViewport, flushStreamingNow, setMessages]);
 
   const handleAgentMessage = useCallback((message: Message) => {
     if (message.metadata?.reason === 'quota_update') {
@@ -247,8 +283,13 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
     if (setActiveStep) setActiveStep(classifyAgentStep(message));
 
     if (isStreamingChunk) {
+      const activeStream = currentStreamingMessageRef.current;
+      const messageId = message.metadata?.messageId;
+      const sameStream = activeStream?.type === subtype &&
+        (!messageId || !activeStream.messageId || activeStream.messageId === messageId);
       const shouldStartNewStream = !currentStreamingMessageRef.current ||
                                    currentStreamingMessageRef.current.type !== subtype ||
+                                   !sameStream ||
                                    streamEnd;
 
       if (!shouldStartNewStream) {
@@ -259,7 +300,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           accumulatedContentRef.current += message.content;
 
           // Repetition guard (whitelisted models: deepseek-v4-flash family,
-          // glm-5.3): once the tail of this stream is a repeating loop,
+          // lpai-glm-5.3): once the tail of this stream is a repeating loop,
           // stop flushing to the screen and wait for the backend verdict
           // (stream_aborted vs normal streamEnd).
           if (isRepetitionGuardModel(model)) {
@@ -283,6 +324,11 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
               });
               return;
             }
+          }
+
+          if (boundedViewport) {
+            scheduleStreamingFlush();
+            return;
           }
 
           // If inside an unfinished code block, only render the stable content before it
@@ -359,7 +405,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
             setMessages(prev => [...prev, newMessage]);
             accumulatedContentRef.current = afterText;
             streamPendingAppendRef.current = '';
-            currentStreamingMessageRef.current = { id: newMessage.id, type: 'answer' };
+            currentStreamingMessageRef.current = { id: newMessage.id, type: 'answer', messageId };
           } else {
             scheduleStreamingFlush();
           }
@@ -367,9 +413,15 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           scheduleStreamingFlush();
         }
 
-        currentStreamingMessageRef.current!.id = message.id;
       } else {
+        if (streamEnd && sameStream && subtype === 'answer') {
+          // Lifecycle messages carry deltas; the legacy final packet repeats
+          // the full response and must replace the accumulated text.
+          if (messageId) accumulatedContentRef.current += message.content;
+          else if (message.content) accumulatedContentRef.current = message.content;
+        }
         flushStreamingNow();
+        const finalAnswer = sameStream ? accumulatedContentRef.current : '';
         streamTargetSubtypeRef.current = null;
         streamPendingAppendRef.current = '';
 
@@ -377,12 +429,14 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           setMessages(prev => {
             for (let i = prev.length - 1; i >= 0; i--) {
               const m = prev[i];
-              if (m.type === 'agent' && m.metadata?.subtype === subtype) {
+              if (m.type === 'agent' && m.metadata?.subtype === subtype &&
+                  (sameStream ? m.id === activeStream!.id :
+                    messageId ? m.metadata?.messageId === messageId : true)) {
                 const updated = [...prev];
                 updated[i] = {
                   ...m,
                   content: subtype === 'answer'
-                    ? (accumulatedContentRef.current || m.content || message.content)
+                    ? (finalAnswer || m.content || message.content)
                     : ((m.content || '') + (message.content || '')),
                   metadata: { ...m.metadata, ...message.metadata, streamEnd: true, isStreaming: false },
                 };
@@ -401,6 +455,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
           currentStreamingMessageRef.current = {
             id: message.id,
             type: subtype as 'answer' | 'thinking' | 'tool_use',
+            messageId,
           };
           streamTargetSubtypeRef.current = subtype as 'answer' | 'thinking' | 'tool_use';
           setMessages(prev => [...prev, message]);
@@ -421,7 +476,7 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       accumulatedContentRef.current = '';
       setMessages(prev => [...prev, message]);
     }
-  }, [setMessages, setBannerInfo, stdout, workingDir, model, flushStreamingNow, scheduleStreamingFlush, setActiveStep]);
+  }, [boundedViewport, setMessages, setBannerInfo, stdout, workingDir, model, flushStreamingNow, scheduleStreamingFlush, setActiveStep]);
 
   /**
    * Backend confirmed the current stream was bad (repetition loop) and is
@@ -470,6 +525,34 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
     const chunkIndex = toolData.metadata?.chunkIndex ?? 0;
     const isFinal = toolData.metadata?.streamEnd;
     const content = toolData.content || '';
+
+    const fileEdit = parseFileEditPresentation(content);
+    if (fileEdit) {
+      flushStreamingNow();
+      streamTargetSubtypeRef.current = null;
+      streamPendingAppendRef.current = '';
+      currentStreamingMessageRef.current = null;
+      accumulatedContentRef.current = '';
+      setActiveStep?.('tool_execution');
+      const awaitingResult = isFileEditAwaitingResult(fileEdit);
+      const id = `tool_${Date.now()}_${toolMessageIdCounterRef.current++}`;
+      setMessages(prev => {
+        const index = prev.findIndex(message => message.metadata?.subtype === 'tool_use' &&
+          message.metadata?.toolCallId === fileEdit.callId);
+        const metadata = { subtype: 'tool_use' as const, toolCallId: fileEdit.callId,
+          argumentsComplete: fileEdit.argumentsComplete, executionStatus: fileEdit.executionStatus,
+          streamEnd: !awaitingResult, isStreaming: awaitingResult };
+        if (index < 0) return [...prev, { id, type: 'agent' as const, content,
+          timestamp: new Date().toISOString(), author: 'Siada', metadata }];
+        // Late pending updates must not overwrite an already terminal result.
+        if (prev[index]!.metadata?.streamEnd && awaitingResult) return prev;
+        if (prev[index]!.content === content) return prev;
+        const next = [...prev];
+        next[index] = { ...prev[index]!, content, metadata };
+        return next;
+      });
+      return;
+    }
 
     setActiveStep?.(classifyAgentStep({
       ...toolData,
@@ -529,45 +612,9 @@ export function useStreamingMessages({ setMessages, setBannerInfo, stdout, worki
       streamPendingAppendRef.current = '';
       currentStreamingMessageRef.current = null;
       accumulatedContentRef.current = '';
-
-      // Parse todo_write content and update todo state immediately (before ACP notification arrives)
-      // Use setMessages functional form to read the latest state after flushStreamingNow
-      setMessages(prev => {
-        let finalContent = content;
-        for (let i = prev.length - 1; i >= 0; i--) {
-          if (prev[i].metadata?.subtype === 'tool_use') {
-            finalContent = prev[i].content || content;
-            break;
-          }
-        }
-        const parsed = parseTodoWriteContent(finalContent);
-        if (parsed !== null) {
-          setTodoItems(parsed);
-          const currentMsgCount = prev.length;
-          setTodoMessageRanges(prevRanges => {
-            const next = new Map(prevRanges);
-            // Close previously open in_progress ranges that are no longer in_progress
-            for (const [key, range] of next.entries()) {
-              if (range.endIdx === null) {
-                const stillInProgress = parsed.some(t => t.content === key && t.status === 'in_progress');
-                if (!stillInProgress) {
-                  next.set(key, { ...range, endIdx: currentMsgCount });
-                }
-              }
-            }
-            // Open new in_progress ranges
-            for (const todo of parsed) {
-              if (todo.status === 'in_progress' && !next.has(todo.content)) {
-                next.set(todo.content, { startIdx: currentMsgCount, endIdx: null });
-              }
-            }
-            return next;
-          });
-        }
-        return prev; // messages state unchanged, we only read it
-      });
+      // Tool input can fail validation; context/todoState owns the saved list.
     }
-  }, [setMessages, flushStreamingNow, setTodoItems, setTodoMessageRanges, setActiveStep]);
+  }, [setMessages, flushStreamingNow, setActiveStep]);
 
-  return { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse, handleStreamAborted };
+  return { flushStreamingNow, resetStreaming, handleAgentMessage, handleToolUse, handleStreamAborted, handleStreamEnd };
 }

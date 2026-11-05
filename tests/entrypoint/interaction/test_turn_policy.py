@@ -7,10 +7,10 @@ TurnPolicy owns no UI: notifications go through the injected callback, a
 WaitingSpinner was removed from the background-await path, and an ownership
 conflict makes execute() return None (stop-animation is the controller's job).
 """
-import concurrent.futures
+import asyncio
 from contextlib import contextmanager
 from types import SimpleNamespace
-from unittest.mock import Mock, call, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
 
@@ -18,7 +18,6 @@ import pytest
 # slash_commands, avoiding a circular import (checkpoint_tracker <->
 # session_manager) that the old controller import used to mask.
 from siada.entrypoint.interaction.turn_policy import TurnPolicy
-from siada.entrypoint.interaction.turn.conversation_turn import ConversationTurn
 from siada.entrypoint.interaction.turn.models import (
     TurnOutput,
     TurnType,
@@ -43,13 +42,13 @@ class _FakeHookRunner:
     def run(self, event, context=None):
         self.events.append((event, "run", context))
 
-    def run_with_result_sync(self, event, context=None):
-        self.events.append((event, "sync", context))
+    async def run_with_result(self, event, context=None):
+        self.events.append((event, "sync" if event in ("UserPromptSubmit", "Stop") else "run", context))
         return self._responses
 
 
 def _make_policy(hook_runner=None, send_notification=None, acp_mode=False):
-    config = SimpleNamespace(acp_mode=acp_mode, io=SimpleNamespace(acp_adapter=None, print_error=Mock(), print_warning=Mock()))
+    config = SimpleNamespace(acp_mode=acp_mode, io=SimpleNamespace(acp_adapter=None, print_error=Mock(), print_warning=Mock(), print_hook=Mock()))
     slash_commands = (
         SimpleNamespace(hook_runner=hook_runner)
         if hook_runner is not None
@@ -64,6 +63,7 @@ def _make_policy(hook_runner=None, send_notification=None, acp_mode=False):
 
 def _make_turn(execute_result=None, exc=None, turn_type=TurnType.CONVERSATION):
     turn = Mock()
+    turn.execute = AsyncMock()
     turn.get_turn_type.return_value = turn_type
     if exc is not None:
         turn.execute.side_effect = exc
@@ -89,6 +89,20 @@ def _ignored_monitor_and_hooks():
 
 
 class TestExecuteHooksOrder:
+    def test_prompt_and_stop_notifications_are_not_errors(self):
+        runner = _FakeHookRunner([SimpleNamespace(additional_context="Synthetic hook notice")])
+        policy = _make_policy(hook_runner=runner)
+        result = TurnOutput(output="done", metadata={}, next_action=None)
+        with patch.object(TurnPolicy, "_maybe_run_goal_verifier", return_value=result), \
+             patch.object(TurnPolicy, "_maybe_await_background_subtask_summary", return_value=result), \
+             _ignored_monitor_and_hooks():
+            assert asyncio.run(policy.execute(_make_turn(result), "hello", _make_session())) is result
+        assert policy.config.io.print_hook.call_args_list == [
+            call("Synthetic hook notice", "UserPromptSubmit"),
+            call("Synthetic hook notice", "Stop"),
+        ]
+        policy.config.io.print_error.assert_not_called()
+
     @pytest.mark.parametrize("user_initiated", [False, True])
     def test_execute_passes_input_origin_to_goal_reset(self, user_initiated):
         policy = _make_policy()
@@ -100,7 +114,7 @@ class TestExecuteHooksOrder:
         ), patch.object(
             TurnPolicy, "_maybe_await_background_subtask_summary", return_value=result,
         ), _ignored_monitor_and_hooks():
-            assert policy.execute(turn, "feedback", session, user_initiated=user_initiated) is result
+            assert asyncio.run(policy.execute(turn, "feedback", session, user_initiated=user_initiated)) is result
 
         reset.assert_called_once_with(turn, session, None, user_initiated=user_initiated)
 
@@ -116,7 +130,7 @@ class TestExecuteHooksOrder:
                  TurnPolicy, "_maybe_await_background_subtask_summary", return_value=result
              ) as await_bg, \
              _ignored_monitor_and_hooks() as set_active:
-            out = policy.execute(turn, "hello", session)
+            out = asyncio.run(policy.execute(turn, "hello", session))
 
         assert out is result
         assert runner.events == [
@@ -144,7 +158,7 @@ class TestExecuteHooksOrder:
                  TurnPolicy, "_maybe_await_background_subtask_summary", return_value=result
              ), \
              _ignored_monitor_and_hooks():
-            out = policy.execute(turn, ["pending", "input"], _make_session())
+            out = asyncio.run(policy.execute(turn, ["pending", "input"], _make_session()))
 
         assert out is result
         events = [e for e, _, _ in runner.events]
@@ -166,7 +180,7 @@ class TestExecuteHooksOrder:
         with patch.object(TurnPolicy, "_maybe_run_goal_verifier") as verifier, \
              patch.object(TurnPolicy, "_maybe_await_background_subtask_summary") as await_bg, \
              _ignored_monitor_and_hooks():
-            out = policy.execute(turn, "hello", _make_session())
+            out = asyncio.run(policy.execute(turn, "hello", _make_session()))
 
         assert isinstance(out.output, SwitchEvent)
         verifier.assert_not_called()
@@ -184,7 +198,7 @@ class TestExecuteExceptionCleanup:
         ), patch("siada.io.stdin_interrupt_monitor.set_agent_running") as set_running, \
              patch("siada.services.plugins.hook_runner.set_active") as set_active:
             with pytest.raises(type(exc)):
-                policy.execute(turn, "hello", _make_session())
+                asyncio.run(policy.execute(turn, "hello", _make_session()))
         return runner, set_running, set_active
 
     def test_exception_runs_on_error_hook_and_cleans_up(self):
@@ -202,7 +216,7 @@ class TestExecuteExceptionCleanup:
         """KeyboardInterrupt is a BaseException: it bypasses the OnError hook
         (only `except Exception` triggers it) but the finally block must still
         clear the monitor flag and the active hook runner."""
-        runner, set_running, set_active = self._run_with_exc(KeyboardInterrupt())
+        runner, set_running, set_active = self._run_with_exc(asyncio.CancelledError())
 
         assert not any(e[0] == "OnError" for e in runner.events)
         set_running.assert_has_calls([call(True), call(False)])
@@ -225,7 +239,7 @@ class TestExecuteOwnershipConflict:
         with patch(
             "siada.session.ownership.SessionOwnershipManager.owned_turn", _conflict
         ), _ignored_monitor_and_hooks() as set_active:
-            out = policy.execute(turn, "hello", _make_session())
+            out = asyncio.run(policy.execute(turn, "hello", _make_session()))
 
         assert out is None
         # turn.execute never ran; Stop/PostTurn/OnError hooks must not run.
@@ -239,7 +253,7 @@ class TestSessionLifecycle:
         policy = _make_policy(hook_runner=runner)
         session = _make_session(session_id="sess-start", workspace="/ws")
 
-        policy.start_session(session)
+        asyncio.run(policy.start_session(session))
 
         starts = [e for e in runner.events if e[0] == "SessionStart"]
         assert len(starts) == 1
@@ -253,8 +267,8 @@ class TestSessionLifecycle:
         policy = _make_policy(hook_runner=runner)
         session = _make_session(session_id="sess-end-once")
 
-        policy.end_session(session, "normal")
-        policy.end_session(session, "error")
+        asyncio.run(policy.end_session(session, "normal"))
+        asyncio.run(policy.end_session(session, "error"))
 
         ends = [e for e in runner.events if e[0] == "SessionEnd"]
         assert len(ends) == 1
@@ -262,35 +276,23 @@ class TestSessionLifecycle:
         assert ends[0][2]["exit_reason"] == "normal"
         assert ends[0][2]["session_id"] == "sess-end-once"
 
-    def test_end_session_shuts_down_background_subtasks_on_dedicated_loop(self):
-        """end_session must dispatch the background sub-agent shutdown onto
-        ConversationTurn's dedicated loop (run_coroutine_threadsafe) -- the
-        same cleanup the controller's _fire_session_end used to do."""
+    def test_end_session_shuts_down_background_subtasks_on_current_loop(self):
+        """Children are awaited directly on the owning session loop."""
         runner = _FakeHookRunner()
         policy = _make_policy(hook_runner=runner)
         session = _make_session(session_id="sess-cleanup")
 
-        class _FakeLoop:
-            def is_closed(self):
-                return False
-
-        fake_loop = _FakeLoop()
-        future = concurrent.futures.Future()
-        future.set_result(None)
-
         with patch(
             "siada.tools.agent.subagent_async.has_pending_background_subtasks",
             return_value=True,
-        ), patch.object(ConversationTurn, "_dedicated_loop", fake_loop), patch(
-            "asyncio.run_coroutine_threadsafe", return_value=future
-        ) as run_coro, patch(
+        ), patch(
             "siada.tools.agent.subagent_async.shutdown_session_background_subtasks",
-            Mock(return_value="shutdown-coro"),
+            AsyncMock(),
         ) as shutdown:
-            policy.end_session(session, "normal")
+            asyncio.run(policy.end_session(session, "normal"))
 
         shutdown.assert_called_once_with("sess-cleanup")
-        run_coro.assert_called_once_with("shutdown-coro", fake_loop)
+        shutdown.assert_awaited_once_with("sess-cleanup")
 
         ends = [e for e in runner.events if e[0] == "SessionEnd"]
         assert len(ends) == 1
@@ -298,13 +300,13 @@ class TestSessionLifecycle:
 
     def test_end_session_hook_error_does_not_crash(self):
         class _BoomRunner(_FakeHookRunner):
-            def run(self, event, context=None):
+            async def run_with_result(self, event, context=None):
                 if event == "SessionEnd":
                     raise RuntimeError("hook failed")
-                super().run(event, context)
+                return await super().run_with_result(event, context)
 
         policy = _make_policy(hook_runner=_BoomRunner())
-        policy.end_session(_make_session(), "normal")  # must not raise
+        asyncio.run(policy.end_session(_make_session(), "normal"))
         assert policy._session_end_fired is True
 
 def test_hook_context_is_still_displayed_to_user():
@@ -314,10 +316,11 @@ def test_hook_context_is_still_displayed_to_user():
     with _ignored_monitor_and_hooks(), patch.object(
         policy, "_maybe_run_goal_verifier", side_effect=lambda t, s, d, r: r,
     ):
-        policy.execute(turn, "hello", _make_session())
-    assert policy.config.io.print_error.call_args_list == [
-        call("hook warning"), call("hook warning"),
+        asyncio.run(policy.execute(turn, "hello", _make_session()))
+    assert policy.config.io.print_hook.call_args_list == [
+        call("hook warning", "UserPromptSubmit"), call("hook warning", "Stop"),
     ]
+    policy.config.io.print_error.assert_not_called()
 
 
 def test_hook_setup_error_clears_running_flag():
@@ -328,6 +331,6 @@ def test_hook_setup_error_clears_running_flag():
         "siada.io.stdin_interrupt_monitor.set_agent_running",
     ) as running, patch("siada.services.plugins.hook_runner.set_active") as active:
         with pytest.raises(ValueError, match="bad workspace"):
-            policy.execute(_make_turn(), "hello", _make_session())
+            asyncio.run(policy.execute(_make_turn(), "hello", _make_session()))
     assert running.call_args_list == [call(True), call(False)]
     active.assert_called_with(None)

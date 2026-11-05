@@ -14,33 +14,48 @@ Siada CLI incorporates and adapts from the following open source projects. We ar
 
 ### [OpenHands](https://github.com/All-Hands-AI/OpenHands)
 - **License**: MIT
-- **Attribution**: Copyright (c) 2025 OpenHands contributors (as stated in the upstream [LICENSE](https://github.com/All-Hands-AI/OpenHands/blob/main/LICENSE)).
 - **Contribution & Modifications**: Quoted the code from its file editing tool and modified its parameters to adapt to the openai-agent-sdk.
 
 ### [Codex](https://github.com/openai/codex)
 - **License**: Apache 2.0
 - **Contribution & Modifications**: Referenced its skills module implementation and adapted it to our own skills system, including the field limits, prompt wording, and the skills list rendering budget and degradation design.
+- **GPT-6 templates**: Adapted the corresponding GPT-6 Astra, GPT-6.1 Sol, GPT-6 Sol, and GPT-6 Luna prompt sections from commit `2fdf047c9631c9ed01a31b62efb7891718a931a8`. Identity, tool names, message channels, skill providers, and unavailable question/connector/plugin/approval-review mechanisms are adapted to Siada. See `siada/agent_hub/coder/prompt/models/gpt6/templates/README.md` for source paths and modifications.
+- **GPT-6.1 Terra**: Reuses its Astra-equivalent main template and adapts the additional execution preference from `model_messages.collaboration_modes.default` in models catalog commit `126a0ee92ed2c5e73cd8a8f7e37563e8527552d7`. The Codex-only Default-mode qualifier is omitted for Siada's coding prompt.
 - **GPT-6 and later delegation policy**: Adapted the V2 explicit-request delegation rule from commit `83086188ae0614bd882818ff1aa23f3194962012` (`codex-rs/prompts/src/model_messages/multi_agent.rs`) and the neutral tool introduction from `codex-rs/core/src/tools/handlers/multi_agents_spec.rs` to Siada's `run_subtask` tool.
 - **Attribution (from the Codex NOTICE file)**: OpenAI Codex, Copyright 2025 OpenAI.
-- **GPT-5 personality guidance**: adapted `codex-rs/core/templates/personalities/gpt-5.2-codex_pragmatic.md` and `gpt-5.2-codex_friendly.md` at commit `2dbcab90e24bbe3c710ad41ffab7bb372256827b`, changing the identity and tool guidance for Siada. The Apache-2.0 license and Codex attribution above apply.
-- **GPT-6 templates**: the packaged GPT-6 templates (`siada/agent_hub/coder/prompt/models/gpt6/templates/`) are modified versions of Codex's `model_messages.instructions_template` entries in `codex-rs/models-manager/models.json` (source commit `2fdf047c9631c9ed01a31b62efb7891718a931a8`, 2026-10-08; models catalog commit `d63a9b8344cfe58bc78bbe319b560378fc8756ef`, 2026-10-06). They stay under the Apache 2.0 license and the attribution above; the individual modifications are listed in that directory's `README.md`.
+
+### [@napi-rs/clipboard](https://github.com/Brooooooklyn/Clipboard)
+
+- **License**: MIT.
+- **Usage**: Unchanged native clipboard bindings, based on
+  [arboard](https://github.com/1Password/arboard) (MIT OR Apache-2.0), provide
+  desktop text clipboard reads and writes. The packaged helper includes the
+  original package metadata and a license notice.
+
+### [@mariozechner/clipboard](https://github.com/badlogic/clipboard)
+
+- **License**: MIT.
+- **Usage**: Native desktop image clipboard reads and PNG encoding. Version
+  0.3.6 supplies the prebuilt modules used by the image helper. It is based on
+  [CrossCopy/clipboard](https://github.com/CrossCopy/clipboard) and
+  [clipboard-rs](https://github.com/ChurchTao/clipboard-rs).
 
 ### [ZCode](https://github.com/zai-org/ZCode)
-- **License**: Apache 2.0 ([LICENSE](https://github.com/zai-org/ZCode/blob/main/LICENSE); the repository states that its first-party code is Apache-2.0 in [NOTICE.md](https://github.com/zai-org/ZCode/blob/main/NOTICE.md), section "第三方许可与版权声明").
-- **Attribution**: Copyright 2026 Z.AI Co., Ltd, as stated in the LICENSE at commit `29628c9acdb81b703bbd4080c207a0e7ce5e276e`; the Apache-2.0 license text below applies.
-- **Contribution & Modifications**: the GLM-5.2-and-later system prompt template (`siada/agent_hub/coder/prompt/models/glm/templates/system.md`) copies the identity and harness text (including the security notice) and the communication and context-management sections of the public ZCode CLI at commit 29628c9 (`apps/zcode-cli/packages/core/src/context/sections/identity.ts` and `.../context/dynamic-sections.ts`), and follows the environment-section layout of `.../context/sections/env-info.ts`; the product identity is renamed to Siada and Siada's own runtime facts (primary working directory, platform, home directory, username) are rendered in place of ZCode's environment fields. The one-line CLI prefix message (`.../context/sections/cli-prefix.ts`), the git-status snapshot, and the persistent-memory and tool-specific sections are not copied; Siada's own capabilities, safety rules and catalogs apply.
-- **Todo reminder**: adapted `apps/zcode-cli/packages/core/src/runtime/helpers/runtime-reminders.ts` at the same commit, changing tool names and the reminder's presentation for Siada.
+- **License**: Apache 2.0
+- **Contribution & Modifications**: The GLM-5.2-and-later system prompt copies its CLI system prompt (commit 29628c9: `apps/zcode-cli/packages/core/src/context/sections/identity.ts`, `dynamic-sections.ts`, and the `env-info.ts` layout) with the product identity renamed to Siada and runtime facts (working directory, platform, home directory, username) substituted by Siada. Its one-line CLI prefix message, git-status snapshot, persistent-memory, and tool-specific sections are not copied; Siada's own capabilities, safety rules, and catalogs apply. Also referenced its runtime todo reminder behavior for empty todo lists.
 
 ### [Kimi Code](https://github.com/MoonshotAI/kimi-code)
-- **License**: MIT ([LICENSE](https://github.com/MoonshotAI/kimi-code/blob/main/LICENSE)).
-- **Attribution**: Copyright (c) 2026 Moonshot AI. The MIT permission notice is reproduced below and applies to the adapted template.
-- **Contribution & Modifications**: adapted the system-prompt template structure for the Kimi K3-and-later prompt (`siada/agent_hub/coder/prompt/models/kimi_k3/templates/system.md`); runtime facts and the available tools are adapted to Siada.
 
-### [chrome-acp](https://github.com/Areo-Joe/chrome-acp)
 - **License**: MIT
-- **Attribution**: Copyright (c) 2025 Areo-Joe.
-- **Contribution & Modifications**: Adapted the browser extension and proxy for Siada, including browser tools, recording, remote access, and the activity trace. Its original [license](../chrome-acp/LICENSE) is retained.
-- **Third-party components**: the extension, proxy and PWA bundles ship their own notices and license texts, see [chrome-acp/THIRD_PARTY_NOTICES.md](../chrome-acp/THIRD_PARTY_NOTICES.md).
+- **Contribution & Modifications**: Adapted `packages/agent-core-v2/src/app/agentProfileCatalog/system.md` and its terminal reply style from commit `72fc1d0a3` for the Kimi K3 prompt. Identity, tools, environment, compaction behavior, skills, and memory injection are adapted to Siada.
+- **Copyright**: Copyright (c) 2026 Moonshot AI. The MIT permission notice is reproduced below and applies to the adapted template.
+
+### [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
+
+- **License**: MIT
+- **Contribution & Modifications**: Adapted the `dsh@0.2.1-rc.2` system-prompt identity, coding persona, file/search/command guidance, skill-loading instructions, delegation guidance, and web-content trust instructions from commit `687f282e8625c6b8d11ff58211a90524be2e4317`. Identity and tool contracts are adapted to Siada; unsupported Harness tools and Web-only context are omitted. Source paths and modifications are listed in `siada/agent_hub/coder/prompt/models/deepseek/templates/README.md`.
+- **Copyright**: Copyright (c) 2026 DeepSeek. The MIT permission notice reproduced below applies to the adapted templates.
+
 
 ## Open Source licenses
 

@@ -1,6 +1,8 @@
 """/btw side question — lightweight read-only fork of the main agent.
 
 Entry point: run_side_question(session, question) -> str
+
+Design doc: design_docs/siada-btw-side-question-design.md
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ from siada.foundation.logging import logger
 
 if TYPE_CHECKING:
     from siada.foundation.code_agent_context import CodeAgentContext
+    from siada.provider.token_counting import TokenCountingInfo
 
 # Process-level monotonic counter for /btw session ids. Starts at 0 and keeps
 # incrementing for the lifetime of the process. Guarded by a lock because each
@@ -98,10 +101,10 @@ def _wrap_tools_with_deny(tools: list) -> list:
 
 class _BtwReadonlySession:
     """
-    Read-only stand-in for the main session that exposes only siada_config, which system_prompt and build_sub_agent_run_config read.
+    Read-only session stand-in exposing siada_config for prompt and run configuration.
 
-    Deliberately not exposed: state, task_message_state, checkpoint_tracker, openai_session.
-    Any downstream code touching them hits an immediate AttributeError instead of silently corrupting the main session.
+    State, task_message_state, checkpoint_tracker and openai_session are not
+    exposed. Access raises AttributeError instead of corrupting the main session.
     """
 
     def __init__(self, real_session):
@@ -173,7 +176,9 @@ def _btw_boundary_indices(items: list) -> list:
 
 
 
-def _keep_recent_within_budget(items: list, model_name: str, budget: int) -> list:
+def _keep_recent_within_budget(
+    items: list, model_name: str, budget: int, *, counting_info: TokenCountingInfo | None = None,
+) -> list:
     """Keep the most recent messages whose token count fits within *budget*.
 
     Trims from the front, snapping the cut to a safe boundary (a user message,
@@ -188,9 +193,9 @@ def _keep_recent_within_budget(items: list, model_name: str, budget: int) -> lis
     if not boundaries:
         return items
 
-    for b in boundaries:
-        if calculate_tokens(model_name, items[b:]) <= budget:
-            return items[b:]
+    for boundary in boundaries:
+        if calculate_tokens(model_name, items[boundary:], counting_info=counting_info) <= budget:
+            return items[boundary:]
 
     # Even the most-recent boundary suffix exceeds the budget — keep that
     # minimal suffix anyway (cannot trim further without splitting a turn).
@@ -215,6 +220,7 @@ def _prepare_btw_snapshot(items: list, context: "CodeAgentContext") -> list:
     Pure, synchronous, zero LLM calls — safe to call from the btw thread.
     """
     from siada.agent_hub.context_filter.utils import calculate_tokens
+    from siada.provider.token_counting import context_token_counting_info
 
     if not items:
         return items
@@ -223,10 +229,11 @@ def _prepare_btw_snapshot(items: list, context: "CodeAgentContext") -> list:
     items = _strip_in_progress_assistant(list(items))
 
     # Threshold comparison
-    model_name = context.model_run_config.model_name
+    counting_info = context_token_counting_info(context)
+    model_name = counting_info.model_name
     context_window = context.model_run_config.context_window
     threshold = int(context_window * _BTW_TOKEN_THRESHOLD_RATIO)
-    token_count = calculate_tokens(model_name, items)
+    token_count = calculate_tokens(model_name, items, counting_info=counting_info)
 
     if token_count < threshold:
         logger.info(
@@ -236,7 +243,7 @@ def _prepare_btw_snapshot(items: list, context: "CodeAgentContext") -> list:
         return items
 
     # Over threshold: keep only the most recent messages that fit the budget.
-    trimmed = _keep_recent_within_budget(items, model_name, threshold)
+    trimmed = _keep_recent_within_budget(items, model_name, threshold, counting_info=counting_info)
     logger.warning(
         "[btw] snapshot exceeds threshold (%d >= %d tokens); trimmed to recent "
         "%d/%d messages (context_window=%d, ratio=%.1f)",
@@ -308,10 +315,10 @@ async def _run_async(
 
     t0 = time.perf_counter()
 
-    # 1. Get the main Agent instance (hits _agent_cache and already includes MCP tools)
+    # Get the main agent instance, including its MCP tools.
     agent = await SiadaRunner.get_agent(agent_name)
 
-    # 2. Get the main CodeAgentContext (hits _context_cache, read-only, reproduces the fields system_prompt depends on)
+    # Read the main context to reproduce the fields used by the system prompt.
     parent_key = (agent.name, workspace, stub_session.parent_session_id)
     parent_ctx = SiadaRunner._context_cache.get(parent_key)
     if parent_ctx is None:
@@ -357,7 +364,7 @@ async def _run_async(
     #    is rejected BEFORE execution (zero side effects). This mirrors Claude
     #    Code's `canUseTool: deny` — DO NOT clear tools or set tool_choice="none",
     #    both mutate the Anthropic cache key and bust the cache.
-    #    Not using dataclasses.replace (see the comment in siada_agent.py: subclass __init__ conflict)
+    #    Avoid dataclasses.replace because subclass constructors conflict.
     from agents import RunContextWrapper
 
     forked_agent = copy.copy(agent)
@@ -425,13 +432,13 @@ async def _run_async(
     forked_agent.tools = _wrap_tools_with_deny(all_tools)
 
 
-    # 5. Assemble fork input: the trimmed history prefix (critical for prompt cache) + the /btw user message
+    # Preserve the trimmed history prefix for prompt caching, then add /btw.
     prefix = _prepare_btw_snapshot(snapshot_messages, fork_ctx)
     fork_input = list(prefix) + [
         {"role": "user", "content": _BTW_REMINDER + question}
     ]
 
-    # 6. RunConfig (build_sub_agent_run_config does not include context_capture_filter).
+    # build_sub_agent_run_config does not include context_capture_filter.
     #    NOTE: do NOT override tool_choice. Keeping model_settings byte-identical
     #    to the main thread (tool_choice stays "auto") preserves the Anthropic
     #    prompt-cache key. Tool execution is blocked by the per-tool deny
@@ -455,7 +462,7 @@ async def _run_async(
             # response. A tool attempt cannot be recovered within the budget and
             # raises MaxTurnsExceeded — handled just below (see fork_ctx comment).
             max_turns=1,
-            session=None,   # ★ do not write openai_session / FileSession
+            session=None,   # ★ 不写 openai_session / FileSession
         )
 
         answer = (result.final_output or "").strip()
@@ -486,12 +493,12 @@ async def _run_async(
 
 def run_side_question(session, question: str) -> str:
     """
-    Synchronous entry point: runs the side agent in a separate thread + event loop and returns the answer string.
+    Run the side agent on a separate thread and event loop, returning its answer.
 
-    All reads of mutable fields on the main session happen on the main thread (snapshot),
-    and the fork thread no longer touches the main session, avoiding concurrency races.
+    Snapshot mutable session fields on the main thread.
+    The fork thread does not touch the main session, avoiding races.
     """
-    # Main-thread snapshot (the fork thread must not read the main session's mutable fields)
+    # Snapshot mutable session fields before entering the fork thread.
     llm_config   = session.siada_config.llm_config
     workspace    = session.siada_config.workspace
     agent_name   = session.siada_config.agent_name
@@ -516,7 +523,7 @@ def run_side_question(session, question: str) -> str:
 
         loop = asyncio.new_event_loop()
         try:
-            # contextvars are not inherited across threads, so they must be set again in the fork thread
+            # Restore contextvars because they are not inherited across threads.
             set_context_var(LLM_CONFIG, llm_config)
             set_session_id(stub_session.session_id)
 

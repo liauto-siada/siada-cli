@@ -1,11 +1,17 @@
 import React, { useInsertionEffect } from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
 import { Box, Text, useStdout } from '@jrichman/ink';
 import { useKeypress } from '../../hooks/useKeypress.js';
+import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { useMouseTracking } from '../../hooks/useMouseTracking.js';
 import { MessageList } from '../Chat/MessageList.js';
+import { Scrollable } from '../common/Scrollable.js';
 import type { Message } from '../../types/index.js';
 import type { TodoItem, TodoMessageRange } from '../../hooks/useAcp/types.js';
 import { recordFlicker } from '../../utils/flickerMonitor.js';
 import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
+import { useNoAltScreen } from '../../contexts/TerminalModeContext.js';
 
 export interface TodoDetailViewProps {
   todo: TodoItem;
@@ -13,6 +19,8 @@ export interface TodoDetailViewProps {
   range: TodoMessageRange | undefined;
   terminalWidth: number;
   onClose: () => void;
+  /** The enclosing layout already owns its terminal buffer. */
+  embedded?: boolean;
 }
 
 const STATUS_ICONS: Record<string, string> = {
@@ -33,27 +41,27 @@ export const TodoDetailView: React.FC<TodoDetailViewProps> = ({
   range,
   terminalWidth,
   onClose,
+  embedded = false,
 }) => {
+  useUiLanguage();
   const { stdout } = useStdout();
+  const { rows } = useTerminalSize();
+  const noAltScreen = useNoAltScreen();
+  useMouseTracking();
 
-  // Switch to alternate screen buffer on mount so Static history doesn't bleed through.
-  // useInsertionEffect (NOT useEffect/useLayoutEffect): reconciler triggers onRender
-  // between mutation/layout phases. With useEffect, the FIRST frame is written to the
-  // MAIN screen before the alt screen is entered, leaking content. Insertion effects
-  // run during the mutation phase, so ENTER_ALT_SCREEN reaches the terminal before
-  // the first frame does. (Pattern borrowed from claude-code's AlternateScreen.)
+  // Mouse reporting is shared with the parent; only standalone views own the buffer.
   useInsertionEffect(() => {
-    recordFlicker('manual_clear', 'TodoDetailView: entering alternate screen buffer (\\x1b[?1049h\\x1b[2J\\x1b[H)', {
-      captureStack: false,
-    });
-    stdout?.write('\x1b[?1049h\x1b[2J\x1b[H');
+    if (!embedded && !noAltScreen) {
+      recordFlicker('manual_clear', 'TodoDetailView: entering alternate screen buffer', { captureStack: false });
+      stdout?.write('\x1b[?1049h\x1b[2J\x1b[H');
+    }
     return () => {
-      recordFlicker('manual_clear', 'TodoDetailView: leaving alternate screen buffer (\\x1b[?1049l)', {
-        captureStack: false,
-      });
-      stdout?.write('\x1b[?1049l');
+      if (!embedded && !noAltScreen) {
+        recordFlicker('manual_clear', 'TodoDetailView: leaving alternate screen buffer', { captureStack: false });
+        stdout?.write('\x1b[?1049l');
+      }
     };
-  }, [stdout]);
+  }, [embedded, stdout, noAltScreen]);
 
   useKeypress((key) => {
     if (key.name === 'escape') onClose();
@@ -67,18 +75,14 @@ export const TodoDetailView: React.FC<TodoDetailViewProps> = ({
   const iconColor = STATUS_COLORS[todo.status] ?? 'white';
   const msgCount = slicedMessages.length;
 
-  // Pattern matches MainLayout's input-box arrangement: MessageList uses Static
-  // (writes messages to alt-buffer cursor, naturally scrolling), then header +
-  // footer are rendered as the Ink live frame right after — like the input box.
-  // No height/flexGrow constraint: Static items don't participate in flex layout,
-  // so a parent height={rows} would make Ink paint a full-screen live frame that
-  // pushes Static items off-screen, leaving messages invisible.
+  // Reserve three header rows and one footer row; long records stay in the viewport.
   return (
-    <Box flexDirection="column" width={terminalWidth}>
+    <Box flexDirection="column" width={terminalWidth} height={Math.max(1, rows - 1)}>
       {/* Message area */}
+      <Scrollable width={terminalWidth} height={Math.max(1, rows - 5)} hasFocus scrollToBottom>
       {slicedMessages.length === 0 ? (
         <Box paddingX={2} paddingY={1}>
-          <Text color="gray">No messages recorded for this step.</Text>
+          <Text color="gray">{t('此步骤暂无消息记录。', 'No messages recorded for this step.')}</Text>
         </Box>
       ) : (
         <MessageList
@@ -88,8 +92,9 @@ export const TodoDetailView: React.FC<TodoDetailViewProps> = ({
           noStatic
         />
       )}
+      </Scrollable>
 
-      {/* Task header (input-box position: live frame right after Static messages) */}
+      {/* Task header */}
       <Box
         borderStyle="single"
         borderColor="cyan"
@@ -98,17 +103,21 @@ export const TodoDetailView: React.FC<TodoDetailViewProps> = ({
         justifyContent="space-between"
         flexShrink={0}
       >
-        <Box>
-          <Text color={iconColor}>{icon} </Text>
-          <Text color="cyan" bold>{decodeHtmlEntities(todo.content)}</Text>
-          <Text color="gray">  [{todo.status}]</Text>
+        <Box flexGrow={1} flexShrink={1} overflowX="hidden">
+          <Text wrap="truncate-end">
+            <Text color={iconColor}>{icon} </Text>
+            <Text color="cyan" bold>{decodeHtmlEntities(todo.content)}</Text>
+            <Text color="gray">  [{todo.status}]</Text>
+          </Text>
         </Box>
-        <Text color="gray">{msgCount} message{msgCount !== 1 ? 's' : ''}</Text>
+        <Box flexShrink={0}>
+          <Text color="gray" wrap="truncate-end">{msgCount} message{msgCount !== 1 ? 's' : ''}</Text>
+        </Box>
       </Box>
 
       {/* Footer hint */}
       <Box paddingX={1} flexShrink={0}>
-        <Text color="gray">Esc close</Text>
+        <Text color="gray" wrap="truncate-end">{PANEL_TIPS.todoDetail}</Text>
       </Box>
     </Box>
   );

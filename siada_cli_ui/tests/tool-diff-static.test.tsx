@@ -25,6 +25,7 @@ import { FileChangeSetView } from '../src/components/diff/FileChangeSetView.js';
 import { parseApplyPatchContent } from '../src/utils/diff.js';
 
 const EDIT = 'In the file `src/a.ts``, replace the string:\n```ts\nold\n```\nwith:\n```ts\nnew\n```';
+const MARKDOWN_EDIT = 'In the file `docs/notes.md``, replace the string:\nold\nwith:\nnew';
 const CREATE = 'Create the file `src/new.ts`` with the following content:\n```ts\nnew\n```';
 const PATCH = `Apply patch: 1 file changed
 
@@ -179,15 +180,15 @@ describe('completed tool diff metadata', () => {
     handleToolUse!({ content: 'src/a.ts`', metadata: { chunkIndex: 1, streamEnd: true } });
     expect(messages[6]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1 });
 
-    const markdownEdit = 'In the file `docs/notes.md``, replace the string:\nold\nwith:\nnew';
-    handleToolUse!({ content: markdownEdit, metadata: { chunkIndex: 0, streamEnd: true } });
+    handleToolUse!({ content: MARKDOWN_EDIT, metadata: { chunkIndex: 0, streamEnd: true } });
     expect(messages[7]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 0, streamEnd: true });
     expect(renderList(messages.slice(7))).toMatch(/data-area="static"[\s\S]*data-id=/);
 
-    handleToolUse!({ content: 'In the file `docs/notes.md``, replace the string:\nold', metadata: { chunkIndex: 0, streamEnd: false } });
+    const markdownStart = 'In the file `docs/notes.md``, replace the string:\nold';
+    handleToolUse!({ content: markdownStart, metadata: { chunkIndex: 0, streamEnd: false } });
     expect(renderList(messages.slice(8), false, true)).toMatch(/<\/section><p data-id=/);
     handleToolUse!({ content: '\nwith:\nnew\n\n', metadata: { chunkIndex: 1, streamEnd: true } });
-    expect(messages[8]?.content).toBe(`${markdownEdit}\n\n`);
+    expect(messages[8]?.content).toBe(`${MARKDOWN_EDIT}\n\n`);
     expect(messages[8]?.metadata).toEqual({ subtype: 'tool_use', chunkIndex: 1, streamEnd: true, isStreaming: false });
     expect(renderList(messages.slice(8), false, true)).toMatch(/data-area="static"[\s\S]*data-id=/);
   });

@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 import random
 import sys
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, TypeVar
 
 import httpx
@@ -17,7 +15,6 @@ from openai import APIConnectionError, APIError, APIStatusError
 from siada.foundation.logging import logger
 
 _MAX_RETRIES = 2
-_REQUEST_MAX_RETRIES: ContextVar[int | None] = ContextVar("siada_request_max_retries", default=None)
 _LIFECYCLE_EVENTS = frozenset({"response.created", "response.in_progress"})
 _REASONING_EVENTS = frozenset({
     "response.reasoning_summary_text.delta", "response.reasoning_summary_text.done",
@@ -32,6 +29,7 @@ _TRANSIENT_API_ERRORS = frozenset({
     "rate_limit_error", "timeout", "request_timeout",
 })
 _UPSTREAM_AUTH_ERROR = "gateway cannot authenticate upstream services."
+_PREMATURE_CLOSE_MESSAGE = "connection prematurely closed during response"
 
 
 class MissingFinalResponseError(ModelBehaviorError):
@@ -89,6 +87,10 @@ def is_retryable_model_error(error: Exception) -> bool:
     """Retry transient API failures as well as typed transport failures."""
     if isinstance(error, MissingFinalResponseError):
         return not error.output_exposed
+    from siada.provider.gemini.errors import GeminiRequestError
+
+    if isinstance(error, GeminiRequestError):
+        return error.retryable
     if is_retryable_transport_error(error):
         return True
     if isinstance(error, APIError):
@@ -119,12 +121,41 @@ def is_retryable_model_error(error: Exception) -> bool:
 
 
 def is_retryable_transport_error(error: Exception) -> bool:
-    """Recognize typed transport failures without retrying arbitrary parser bugs."""
+    """Recognize transport failures, including API-reported stream disconnects."""
     if isinstance(error, (
         TimeoutError, APIConnectionError, httpx.TimeoutException,
         httpx.NetworkError, httpx.RemoteProtocolError,
     )):
         return True
+    # OpenAI 3 uses httpx2, whose exceptions do not inherit from httpx.
+    # A raised httpx2 exception implies the optional module is already loaded.
+    httpx2 = sys.modules.get("httpx2")
+    if httpx2 is not None and isinstance(error, (
+        httpx2.TimeoutException, httpx2.NetworkError, httpx2.RemoteProtocolError,
+    )):
+        return True
+    if isinstance(error, APIError) and not isinstance(error, APIStatusError):
+        # Gateways can report a disconnected HTTP 200 SSE stream as an APIError.
+        # Keep explicit quota/parameter codes and HTTP status handling intact.
+        details = api_error_details(error)
+        code = details.get("code")
+        error_type = details.get("type")
+        if code == "stream_error":
+            return True
+        if code and code not in _TRANSIENT_API_ERRORS:
+            return False
+        if not code and error_type:
+            if error_type == "stream_error":
+                return True
+            if error_type not in _TRANSIENT_API_ERRORS:
+                return False
+        body = error.body
+        if isinstance(body, dict) and isinstance(body.get("error"), dict):
+            body = body["error"]
+        message = body.get("message") if isinstance(body, dict) else body
+        if not isinstance(message, str):
+            message = error.message
+        return message.strip().casefold() == _PREMATURE_CLOSE_MESSAGE
     # An existing LiteLLM exception implies its module has already been loaded.
     # This also recognizes provider-defined subclasses without a heavy import.
     exceptions = sys.modules.get("litellm.exceptions")
@@ -136,28 +167,11 @@ def is_retryable_transport_error(error: Exception) -> bool:
     return False
 
 
-def _retry_limit() -> int:
-    requested = _REQUEST_MAX_RETRIES.get()
-    return _MAX_RETRIES if requested is None else min(requested, _MAX_RETRIES)
-
-
-@contextmanager
-def model_retry_scope(num_retries: int | None) -> Iterator[None]:
-    """Let durable workflows own retries without forwarding options to the SDK."""
-    if num_retries is not None and (type(num_retries) is not int or num_retries < 0):
-        raise ValueError("num_retries must be a non-negative integer")
-    token = _REQUEST_MAX_RETRIES.set(num_retries)
-    try:
-        yield
-    finally:
-        _REQUEST_MAX_RETRIES.reset(token)
-
-
 async def _backoff(retry_index: int, error: Exception) -> None:
     delay = 2**retry_index + random.uniform(0, 1)
     logger.warning(
         "Model request retry %s/%s after %s; delay=%.2fs; details=%r",
-        retry_index + 1, _retry_limit(), type(error).__name__, delay,
+        retry_index + 1, _MAX_RETRIES, type(error).__name__, delay,
         api_error_details(error),
     )
     await asyncio.sleep(delay)
@@ -167,12 +181,11 @@ async def retry_model_call(
     call: Callable[..., Awaitable[_Result]], **kwargs: Any
 ) -> _Result:
     """Retry only the provider call; admission and input processing stay outside."""
-    max_retries = _retry_limit()
-    for attempt in range(max_retries + 1):
+    for attempt in range(_MAX_RETRIES + 1):
         try:
             return await call(**kwargs)
         except Exception as error:
-            if attempt == max_retries or not is_retryable_model_error(error):
+            if attempt == _MAX_RETRIES or not is_retryable_model_error(error):
                 raise
             await _backoff(attempt, error)
     raise AssertionError("Unreachable retry state")
@@ -245,8 +258,7 @@ async def retry_model_stream(
     Hold completed reasoning items until commitment so Runner's empty-output
     fallback cannot persist items belonging to a failed attempt.
     """
-    max_retries = _retry_limit()
-    for attempt in range(max_retries + 1):
+    for attempt in range(_MAX_RETRIES + 1):
         stream = None
         pending: list[_Result] = []
         pending_reasoning_items: list[_Result] = []
@@ -311,7 +323,7 @@ async def retry_model_stream(
                 )
             return
         except Exception as error:
-            if committed or attempt == max_retries or not is_retryable_model_error(error):
+            if committed or attempt == _MAX_RETRIES or not is_retryable_model_error(error):
                 raise
             retry_error = error
         finally:

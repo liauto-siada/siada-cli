@@ -2,26 +2,21 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { cn } from "../../lib/utils";
 import type { TraceFrame, TraceOverlay } from "../../trace/types";
 
-/** Fallback aspect ratio before the first picture arrives (roughly 1120x780). */
+/** Fallback aspect ratio before the first frame arrives (roughly 1120x780). */
 const DEFAULT_ASPECT = 1120 / 780;
 
 export interface ViewportProps {
   /** Picture channel. `null` renders the placeholder instead. */
   frame: TraceFrame | null;
   /**
-   * Overlays in the pixel coordinates of the picture they mark. Scaling is
-   * handled here, so callers never need to know the rendered size.
+   * Overlays in frame pixel coordinates. Scaling is handled here, so callers
+   * never need to know the rendered size.
    */
   overlays?: TraceOverlay[];
   /** Shown in the fake location bar. */
   url?: string;
   /** Shown in the footer. */
   title?: string;
-  /**
-   * Short provenance line next to the title, e.g. whether the picture on
-   * screen belongs to the selected step or is just the latest one.
-   */
-  note?: string;
   /** Short badge in the location bar, e.g. "LIVE". */
   badge?: string;
   /** Rendered inside the stage when there is no frame yet. */
@@ -35,40 +30,28 @@ export interface ViewportProps {
  * The picture half of the viewer: a decorative browser frame around whatever
  * the frame source provides. The window chrome is drawn in CSS rather than
  * captured, so no browser UI pixels are ever needed.
- *
- * Geometry (the stage's aspect ratio and the overlay scale) comes from the
- * loaded picture's own pixel size, never from `frame.width/height`: those are
- * the producer's CSS viewport metadata, while the picture itself is scaled by
- * the device pixel ratio and clamped by the capture limits (a screencast is
- * capped at 1280px wide, for example). Trusting the metadata would distort the
- * picture and slide the overlays off the areas they mark, so the metadata is
- * kept as provenance only.
  */
 export function Viewport({
   frame,
   overlays = [],
   url,
   title,
-  note,
   badge,
   placeholder,
   children,
   className,
 }: ViewportProps) {
-  // The picture's own pixel size, learned once the image has decoded.
-  const [picture, setPicture] = useState<{
-    key: string;
-    width: number;
-    height: number;
-  } | null>(null);
-  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const [measuredAspect, setMeasuredAspect] = useState<number | null>(null);
 
-  const size = frame && picture?.key === frame.key ? picture : null;
-  const failed = frame !== null && failedKey === frame.key;
-  const aspect = size ? size.width / size.height : DEFAULT_ASPECT;
-  // Overlays are only meaningful once the picture's pixel space is known and
-  // the picture is actually on screen.
-  const canPlaceOverlays = frame !== null && size !== null && !failed;
+  // The producer may not know the content-area size; fall back to the image's
+  // own aspect ratio once it loads so nothing is ever stretched.
+  const reportedAspect =
+    frame && frame.width > 0 && frame.height > 0
+      ? frame.width / frame.height
+      : null;
+  const aspect = reportedAspect ?? measuredAspect ?? DEFAULT_ASPECT;
+  const canPlaceOverlays =
+    frame !== null && frame.width > 0 && frame.height > 0;
 
   return (
     <div
@@ -97,34 +80,27 @@ export function Viewport({
         className="relative w-full overflow-hidden bg-muted"
         style={{ aspectRatio: String(aspect) } as CSSProperties}
       >
-        {frame && !failed ? (
+        {frame ? (
           <img
             key={frame.key}
             src={frame.dataUrl}
             alt={title ?? "Captured page"}
-            className="absolute inset-0 size-full object-contain"
+            className="absolute inset-0 size-full"
             draggable={false}
             onLoad={(event) => {
               const image = event.currentTarget;
               if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-                setPicture({
-                  key: frame.key,
-                  width: image.naturalWidth,
-                  height: image.naturalHeight,
-                });
+                setMeasuredAspect(image.naturalWidth / image.naturalHeight);
               }
             }}
-            onError={() => setFailedKey(frame.key)}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-muted-foreground">
-            {failed
-              ? "This captured picture could not be displayed."
-              : (placeholder ?? "No frame captured yet")}
+            {placeholder ?? "No frame captured yet"}
           </div>
         )}
 
-        {canPlaceOverlays
+        {frame && canPlaceOverlays
           ? overlays.map((overlay, index) => (
               <div
                 key={`${overlay.kind}-${index}`}
@@ -135,10 +111,10 @@ export function Viewport({
                     : "border-amber-400 bg-amber-400/20",
                 )}
                 style={{
-                  left: `${(overlay.rect.x / size.width) * 100}%`,
-                  top: `${(overlay.rect.y / size.height) * 100}%`,
-                  width: `${(overlay.rect.w / size.width) * 100}%`,
-                  height: `${(overlay.rect.h / size.height) * 100}%`,
+                  left: `${(overlay.rect.x / frame.width) * 100}%`,
+                  top: `${(overlay.rect.y / frame.height) * 100}%`,
+                  width: `${(overlay.rect.w / frame.width) * 100}%`,
+                  height: `${(overlay.rect.h / frame.height) * 100}%`,
                 }}
               >
                 {overlay.label ? (
@@ -153,10 +129,9 @@ export function Viewport({
         {children}
       </div>
 
-      {title || note ? (
-        <div className="flex items-center gap-2 border-t px-3 py-1.5 text-[11px] text-muted-foreground">
-          <span className="truncate">{title}</span>
-          {note ? <span className="ml-auto shrink-0 truncate">{note}</span> : null}
+      {title ? (
+        <div className="truncate border-t px-3 py-1.5 text-[11px] text-muted-foreground">
+          {title}
         </div>
       ) : null}
     </div>

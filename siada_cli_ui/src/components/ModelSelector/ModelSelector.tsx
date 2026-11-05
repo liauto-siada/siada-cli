@@ -4,13 +4,18 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Box, Text } from '@jrichman/ink';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
+import { Text } from '@jrichman/ink';
+import { PickerFrame, PickerRow, PickerScrollHint, pickerHint, calculatePickerVisibleCount } from '../Picker/Picker.js';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { useClearScreenOnMount } from '../../hooks/useClearScreenOnMount.js';
 import { calculateVisibleRange } from '../../utils/sessionUtils.js';
 
 export interface ModelSelectorProps {
+  embedded?: boolean;
+  availableRows?: number;
   models: string[];
   currentModel: string;
   modelNotes?: Record<string, string>;
@@ -18,20 +23,9 @@ export interface ModelSelectorProps {
   onExit: () => void;
 }
 
-/**
- * Row budget for everything except the model rows themselves: header (6)
- * + footer (4) + scroll indicators (2) = 12, plus one extra row for the
- * renderer's trailing newline (the frame is written as `frame + '\n'`; a
- * frame exactly `terminalRows` tall scrolls its first line into scrollback
- * on every redraw). Each model renders exactly 1 row (all texts use
- * wrap="truncate"), so the rendered frame stays within
- * `terminalRows - 1` — otherwise Ink redraws the frame bottom-aligned and
- * the top of the list (including the active item) is pushed out of view.
- */
-const CHROME_ROWS = 13;
-
+/** Share the picker chrome budget; each model occupies exactly one row. */
 export function calculateVisibleModelCount(terminalRows: number): number {
-  return Math.max(1, terminalRows - CHROME_ROWS);
+  return calculatePickerVisibleCount(terminalRows, { summary: true });
 }
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
@@ -40,14 +34,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   modelNotes,
   onSelect,
   onExit,
+  embedded = false,
+  availableRows,
 }) => {
   // Start selection on the current model if present, otherwise 0
+  useUiLanguage();
   const initialIndex = Math.max(0, models.indexOf(currentModel));
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const { rows: terminalRows } = useTerminalSize();
   // Fullscreen view: clear the screen on mount and paint the first frame
   // from row 1 instead of mid-screen (where it would scroll its top off).
-  const cleared = useClearScreenOnMount();
+  const cleared = useClearScreenOnMount(!embedded);
 
   const moveSelection = useCallback((delta: number) => {
     setActiveIndex(prev => {
@@ -80,14 +77,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   if (models.length === 0) {
     return (
-      <Box flexDirection="column" paddingX={1}>
-        <Box marginBottom={1} borderStyle="single" borderColor="yellow" paddingX={1}>
-          <Text color="yellow" bold>No Models Available</Text>
-        </Box>
-        <Box paddingX={1}>
-          <Text color="gray" dimColor>Press Esc or q to close</Text>
-        </Box>
-      </Box>
+      <PickerFrame title={t('切换模型', 'Switch Model')} hint={PANEL_TIPS.close}>
+        <Text>{t('暂无可用模型', 'No Models Available')}</Text>
+      </PickerFrame>
     );
   }
 
@@ -97,7 +89,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   // Height-limited window centered on the active item (same approach as
   // SessionBrowser): the terminal only shows the bottom of a frame taller
   // than itself, so an unwindowed list hides the active item.
-  const visibleCount = calculateVisibleModelCount(terminalRows);
+  const visibleCount = calculateVisibleModelCount(availableRows ?? terminalRows);
   const { startIndex, endIndex } = calculateVisibleRange(
     models.length,
     activeIndex,
@@ -106,28 +98,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const visibleModels = models.slice(startIndex, endIndex);
 
   return (
-    <Box flexDirection="column">
-      {/* Header */}
-      <Box flexDirection="column" marginBottom={1}>
-        <Box borderStyle="single" borderColor="cyan" paddingX={1}>
-          <Text bold color="cyan" wrap="truncate">Switch Model</Text>
-        </Box>
-        <Box paddingX={1} marginTop={1}>
-          <Text color="gray" dimColor wrap="truncate">
-            Current: <Text color="green">{currentModel}</Text>
-            {'  '}·{'  '}
-            {models.length} models available
-          </Text>
-        </Box>
-      </Box>
-
-      {/* Model list (windowed so the frame fits the terminal) */}
-      <Box flexDirection="column" paddingX={1}>
-        {startIndex > 0 && (
-          <Box paddingX={1}>
-            <Text color="gray" dimColor>↑ More above...</Text>
-          </Box>
-        )}
+    <PickerFrame title={t('切换模型', 'Switch Model')}
+      summary={`${t('当前：', 'Current: ')}${currentModel} · ${t(`${models.length} 个可用模型`, `${models.length} models available`)}`}
+      hint={pickerHint('vertical')}>
+        <PickerScrollHint visible={startIndex > 0} direction="up" />
         {visibleModels.map((model, idx) => {
           const index = startIndex + idx;
           const isActive = index === activeIndex;
@@ -136,43 +110,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           const note = modelNotes?.[model] ? `(${modelNotes[model]})` : '';
 
           return (
-            <Box key={`${model}-${index}`} flexDirection="row">
-              <Text color={isActive ? 'cyan' : 'white'}>
-                {isActive ? '▶ ' : '  '}
-              </Text>
-              <Text
-                color={isActive ? 'cyan' : isCurrent ? 'green' : 'white'}
-                bold={isActive}
-                wrap="truncate"
-              >
-                {model}
-              </Text>
-              {note && (
-                <Text color={isActive ? 'cyan' : isCurrent ? 'green' : 'white'} wrap="truncate">
-                  {'  '}{note}
-                </Text>
-              )}
-              {isCurrent && (
-                <Text color="green" dimColor wrap="truncate">
-                  {'  '}(current)
-                </Text>
-              )}
-            </Box>
+            <PickerRow key={`${model}-${index}`} active={isActive} current={isCurrent}>
+              {model}{note ? `  ${note}` : ''}
+            </PickerRow>
           );
         })}
-        {endIndex < models.length && (
-          <Box paddingX={1}>
-            <Text color="gray" dimColor>↓ More below...</Text>
-          </Box>
-        )}
-      </Box>
-
-      {/* Footer */}
-      <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-        <Text color="gray" dimColor wrap="truncate">
-          ↑↓/j/k navigate · Enter select · Esc/q exit
-        </Text>
-      </Box>
-    </Box>
+        <PickerScrollHint visible={endIndex < models.length} direction="down" />
+    </PickerFrame>
   );
 };

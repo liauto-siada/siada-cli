@@ -2,7 +2,6 @@
   "name": "Siada",
   "description": "Browser companion for Siada CLI. Chat with any ACP-compatible AI agent through a local proxy server.",
   "version": "1.7.37",
-  "version_name": "1.7.37",
   "manifest_version": 3,
   "permissions": [
     "sidePanel",
@@ -30,7 +29,8 @@
         "<all_urls>"
       ],
       "js": [
-        "dist/explain/content-script.js"
+        "dist/explain/content-script.js",
+        "dist/floating/content-script.js"
       ],
       "run_at": "document_idle"
     }
@@ -41,7 +41,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "dist/pdf/web/viewer.html"
+        "dist/pdf/web/viewer.html",
+        "icons/icon48.png"
       ],
       "matches": [
         "<all_urls>"

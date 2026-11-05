@@ -4,7 +4,7 @@
  * CLI entry point for siada-cli-ui.
  *
  * Responsibilities:
- *  - readVersion:     uses the bundled release version or checkout metadata
+ *  - readVersion:     reads the package version from pyproject.toml
  *  - configureLogger: maps --debug / --log-level flags to internal LogLevel
  *  - parseSiadaArgs:  shell-like tokenizer for the --siada-args passthrough string
  *  - buildConfig:     resolves launch mode (executable vs. module) and builds ClientConfig
@@ -25,6 +25,12 @@ import { printTerminalWarning, getTerminalInfoString } from './utils/terminalDet
 import { KeypressProvider } from './contexts/KeypressContext.js';
 import { createWorkingStdio } from './utils/stdio.js';
 import { setTerminalTitle } from './utils/terminalTitle.js';
+import { EditorTerminalContext } from './hooks/useEditorTerminal.js';
+import { initializeWindowsRendering } from './utils/terminalWidth.js';
+import { getTerminalInput, initializeWindowsInput } from './services/windowsConsole.js';
+import { NoAltScreenContext } from './contexts/TerminalModeContext.js';
+import { resolveTerminalMode } from './utils/terminalMode.js';
+import { DISABLE_MOUSE_TRACKING } from './utils/terminalMouse.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,9 +39,6 @@ const __dirname = dirname(__filename);
 const _T0 = Date.now();
 
 function readVersion(): string {
-  if (process.env.CLI_VERSION) {
-    return process.env.CLI_VERSION;
-  }
   try {
     const content = readFileSync(join(__dirname, '../../pyproject.toml'), 'utf-8');
     const match = content.match(/^version\s*=\s*"([^"]+)"/m);
@@ -72,13 +75,11 @@ function parseSiadaArgs(raw: string): string[] | undefined {
     }
   }
   if (current) args.push(current);
-  // Count only: the raw --siada-args string may contain credentials
-  // (e.g. `--set-env API_KEY=...`) and must never be written to the log.
-  logger.debug('Parsed siada-args', { argCount: args.length });
+  logger.debug('Parsed siada-args', { count: args.length });
   return args;
 }
 
-function buildConfig(workingDir: string, options: any, siadaArgs?: string[]) {
+function buildConfig(workingDir: string, options: any) {
   const pythonPath = options.pythonPath || process.env.SIADA_PYTHON_PATH;
   const siadaModule = options.siadaModule || process.env.SIADA_MODULE_PATH;
   const useModuleMode = options.useModuleMode || (pythonPath && siadaModule) || false;
@@ -96,11 +97,21 @@ function buildConfig(workingDir: string, options: any, siadaArgs?: string[]) {
     siadaModule,
     useModuleMode,
     acpMode: options.acpMode,
-    siadaArgs: siadaArgs ?? parseSiadaArgs(options.siadaArgs),
+    siadaArgs: parseSiadaArgs(options.siadaArgs),
   });
 }
 
-function renderApp(config: any, options: any): void {
+async function renderApp(config: any, options: any): Promise<void> {
+  const { noAltScreen, alternateBuffer: useAlternateBuffer } = resolveTerminalMode(options);
+  const consoleState = initializeWindowsRendering(
+    config.pythonPath || process.env.SIADA_PYTHON_PATH,
+    join(__dirname, '../../siada/entrypoint/windows_terminal_probe.py'),
+  );
+  await initializeWindowsInput(
+    config.pythonPath || process.env.SIADA_PYTHON_PATH,
+    join(__dirname, '../../siada/entrypoint/windows_console_input.py'),
+    Boolean(consoleState) && !noAltScreen,
+  );
   const { stdout: inkStdout, stderr: inkStderr } = createWorkingStdio();
   let sessionIdOnExit: string | null = null;
 
@@ -109,27 +120,38 @@ function renderApp(config: any, options: any): void {
   // this later.
   setTerminalTitle('cli');
 
-  const AppWithProvider = React.createElement(
-    KeypressProvider,
-    null,
-    React.createElement(App, { config, onExit: (id) => { sessionIdOnExit = id; } })
+  // The fixed three-pane layout uses a bounded full-screen frame. Ink can
+  // update changed terminal rows without replaying the accumulated history.
+  const app = React.createElement(
+    EditorTerminalContext.Provider,
+    { value: useAlternateBuffer },
+    React.createElement(
+      KeypressProvider,
+      null,
+      React.createElement(App, {
+        config,
+        initialPrompt: options.initialPrompt,
+        onExit: (id) => { sessionIdOnExit = id; },
+      })
+    )
   );
-
-  // alternateBuffer defaults to false (scrollable mode with terminal history).
-  // incrementalRendering must stay in sync: enabling it without alternateBuffer
-  // causes frequent eraseLines and is unsafe.
-  const useAlternateBuffer = options.alternateBuffer === true;
+  const AppWithProvider = React.createElement(
+    NoAltScreenContext.Provider, { value: noAltScreen }, app,
+  );
+  // Clear inherited pointer reporting before input starts. Nested components
+  // cannot reacquire it while --no-alt-screen is active.
+  if (noAltScreen && inkStdout.isTTY) inkStdout.write(DISABLE_MOUSE_TRACKING);
 
   logger.info(`[ui-timing] phase=render_called        elapsed_ms=${Date.now() - _T0}`);
   const { waitUntilExit } = render(AppWithProvider, {
     stdout: inkStdout,
     stderr: inkStderr,
-    stdin: process.stdin,
+    stdin: getTerminalInput(),
     patchConsole: false,
     exitOnCtrlC: false,
     alternateBuffer: useAlternateBuffer,
     incrementalRendering: useAlternateBuffer,
-    maxFps: 30,
+    maxFps: useAlternateBuffer ? 60 : 30,
     onRender: ({ renderTime }: { renderTime: number }) => {
       if (renderTime > 100) logger.warn(`Slow render detected: ${renderTime}ms`);
     },
@@ -157,6 +179,7 @@ function createProgram(): Command {
     .description('Terminal UI for siada-cli')
     .version(readVersion())
     .argument('[working-dir]', 'Working directory', process.cwd())
+    .option('--initial-prompt <message>', 'Submit an initial message after the interactive UI is ready')
     .option('-m, --model <model>', 'AI model to use')
     .option('-t, --temperature <temperature>', 'Model temperature', parseFloat)
     .option('--max-tokens <tokens>', 'Maximum tokens', parseInt)
@@ -167,13 +190,14 @@ function createProgram(): Command {
     .option('--no-parallel-tool-calls', 'Disable parallel tool calls')
     .option('--siada-path <path>', 'Path to siada-cli executable')
     .option('--python-path <path>', 'Path to Python interpreter (for module mode)')
-    .option('--siada-module <path>', 'Path to Siada CLI module directory')
+    .option('--siada-module <path>', 'Path to siada-agenthub module directory')
     .option('--use-module-mode', 'Use Python module mode instead of executable')
     .option('--siada-args <args>', 'Additional arguments for siada-cli', '')
-    .option('--acp-mode', 'Enable ACP mode for Siada CLI communication (enabled by default)', true)
+    .option('--acp-mode', 'Enable ACP mode for siada-agenthub communication (enabled by default)', true)
     .option('--no-acp-mode', 'Disable ACP mode')
     .option('--alternate-buffer', 'Use alternate screen buffer (full-screen mode)')
-    .option('--no-alternate-buffer', 'Disable alternate buffer (scrollable mode, preserves history, enabled by default)', true)
+    .option('--no-alternate-buffer', 'Disable alternate buffer (redraw the bounded frame in the main screen)')
+    .option('--no-alt-screen', 'Append output to terminal scrollback without alternate screen or mouse capture')
     .option('--debug', 'Enable debug logging')
     .option('--log-level <level>', 'Log level (debug, info, warn, error)', 'info');
 }
@@ -194,30 +218,16 @@ function main(): void {
       configureLogger(options);
       logger.info(`[ui-timing] phase=logger_configured  elapsed_ms=${Date.now() - _T0}`);
 
-      // Log only non-sensitive startup metadata. `options` carries
-      // --siada-args verbatim, which may embed credentials (e.g.
-      // `--set-env API_KEY=...`), so it is reduced to an arg count here.
-      const siadaArgs = parseSiadaArgs(options.siadaArgs);
-      logger.info('Starting siada-cli-ui', {
-        workingDir,
-        acpMode: options.acpMode !== false,
-        alternateBuffer: options.alternateBuffer === true,
-        useModuleMode: options.useModuleMode === true,
-        debug: options.debug === true,
-        logLevel: options.logLevel,
-        siadaArgsCount: siadaArgs?.length ?? 0,
-      });
+      logger.info('Starting siada-cli-ui', { workingDir, options });
 
-      const config = buildConfig(workingDir, options, siadaArgs);
+      const config = buildConfig(workingDir, options);
       logger.info(`[ui-timing] phase=config_built        elapsed_ms=${Date.now() - _T0}`);
       logger.info(getTerminalInfoString());
 
-      try {
-        renderApp(config, options);
-      } catch (error) {
+      void renderApp(config, options).catch(error => {
         logger.error('Failed to render application', error);
         process.exit(1);
-      }
+      });
     })
     .parse();
 }

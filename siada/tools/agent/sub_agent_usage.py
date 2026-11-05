@@ -70,9 +70,15 @@ class SubAgentUsageHooks(RunHooks):
             if reasoning_tokens is not None:
                 self.reasoning_tokens += reasoning_tokens
 
-            # Raw configured names preserve user-defined pricing; the public
-            # provider set has no gateway alias, so the name is used as-is.
-            if get_model_pricing(self.model_name) is None:
+            # Raw configured names preserve user-defined pricing. The provider
+            # alias is only a fallback, following the main agent's pricing path.
+            fallback = self.model_name
+            try:
+                from siada.provider.li.coverter import covert_to_li_model_name
+                fallback = covert_to_li_model_name(self.model_name) or self.model_name
+            except Exception:
+                pass
+            if get_model_pricing(self.model_name, fallback) is None:
                 self.unknown_cost_requests += 1
                 cost_text = "Cost: unavailable (model pricing not configured)"
             else:
@@ -80,6 +86,7 @@ class SubAgentUsageHooks(RunHooks):
                     self.model_name, data["input"], data["output"],
                     cache_write_tokens=data["cache_write"],
                     cache_read_tokens=data["cache_read"],
+                    fallback_model_name=fallback,
                 )
                 self.total_cost = round(self.total_cost + costs["total_cost"], 4)
                 cost_text = (

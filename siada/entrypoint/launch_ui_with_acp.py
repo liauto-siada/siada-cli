@@ -16,6 +16,12 @@ warnings.filterwarnings("ignore", category=SyntaxWarning, module="jieba")
 
 _LAUNCH_START = _time.perf_counter()
 
+
+def _cli_args_before_separator() -> list[str]:
+    """Exclude literal positional text after -- from option-only routing."""
+    args = sys.argv[1:]
+    return args[:args.index("--")] if "--" in args else args
+
 # ---------------------------------------------------------------------------
 # Agents-SDK bootstrap gate — only needed for in-process agent modes.
 #
@@ -31,7 +37,7 @@ _LAUNCH_START = _time.perf_counter()
 # carry the same gate in their own processes. Gating unconditionally would add
 # ~1 s to every ``siada-cli`` launch for nothing.
 # ---------------------------------------------------------------------------
-if "--acp" in sys.argv:
+if "--acp" in _cli_args_before_separator():
     from siada.foundation.sdk_patches import (
         ensure_agents_imported as _ensure_sdk,
     )
@@ -43,7 +49,7 @@ if "--acp" in sys.argv:
 # from the event-loop thread mid-turn (Windows loader lock). Preload the
 # holographic provider — which transitively imports numpy — up front while the
 # process is still single-threaded.
-if "--acp" in sys.argv:
+if "--acp" in _cli_args_before_separator():
     try:
         import siada.services.memory.holographic.provider as _holo_preload  # noqa: F401
     except Exception:
@@ -51,7 +57,10 @@ if "--acp" in sys.argv:
 
 
 from siada.foundation.logging import logger, remove_console_handler, get_log_directory  # noqa: E402
-from siada.entrypoint.env_assignments import parse_env_assignments as _parse_env_assignments  # noqa: E402
+from siada.entrypoint.helpers.startup_guard import (  # noqa: E402
+    missing_launch_directory_error,
+    workspace_argument,
+)
 
 
 
@@ -113,6 +122,10 @@ class UILauncher:
         if hasattr(config_args, "env_file") and config_args.env_file:
             args.extend(["--env-file", self._quote_arg(config_args.env_file)])
 
+        if hasattr(config_args, "set_env") and config_args.set_env:
+            for env_val in config_args.set_env:
+                args.extend(["--set-env", self._quote_arg(env_val)])
+
         if hasattr(config_args, "model") and config_args.model:
             args.extend(["--model", config_args.model])
 
@@ -173,31 +186,35 @@ class UILauncher:
                 else "--no-disable-console-output"
             )
 
+        # Headroom proxy integration: forward these flags to the Python backend
+        # so that launching via the `siada` entrypoint (which spawns the Node UI,
+        # which in turn spawns the backend) still activates headroom. Without
+        # this passthrough, `siada --headroom` is parsed here but never reaches
+        # the backend, so the proxy never starts.
+        if hasattr(config_args, "headroom") and config_args.headroom:
+            args.append("--headroom")
+
+        if hasattr(config_args, "no_headroom") and config_args.no_headroom:
+            args.append("--no-headroom")
+
+        if hasattr(config_args, "headroom_port") and config_args.headroom_port is not None:
+            args.extend(["--headroom-port", str(config_args.headroom_port)])
+
+        if hasattr(config_args, "headroom_budget") and config_args.headroom_budget is not None:
+            args.extend(["--headroom-budget", str(config_args.headroom_budget)])
+
         return args
 
 
     def _find_local_node(self) -> str:
-        """Resolve an installed runtime without downloading at UI startup."""
+        """Return the Node.js binary installed by the siada install script."""
         from siada.foundation.node_runtime import find_node
 
-        try:
-            return find_node(_expected_node_path())
-        except FileNotFoundError as exc:
-            raise RuntimeError(str(exc)) from exc
+        return find_node(_expected_node_path())
 
     def _setup_node_env(self) -> Dict[str, str]:
         """Setup environment variables for Node.js execution."""
         env = os.environ.copy()
-        # Credentials supplied with --set-env travel through the environment,
-        # rather than the UI and backend subprocess command lines.
-        assignments = _parse_env_assignments(self.config.get("args"))
-        env.update(assignments)
-        # Send names only so the backend can preserve explicit CLI values
-        # while loading .env files, without duplicating credential payloads.
-        if assignments:
-            env["_SIADA_CLI_ENV_KEYS"] = json.dumps(list(assignments))
-        else:
-            env.pop("_SIADA_CLI_ENV_KEYS", None)
         venv_dir = Path(sys.executable).parent.parent
 
         # Snapshot the user's original env *before* any siada-specific
@@ -289,33 +306,103 @@ class UILauncher:
         if siada_args:
             cmd.extend(["--siada-args", " ".join(siada_args)])
 
+        initial_prompt = getattr(self.config.get("args"), "initial_prompt", None)
+        if self._use_native_history():
+            cmd.append("--no-alt-screen")
+        if initial_prompt is not None:
+            # Pass literal text as one argv value, not shell-tokenized backend args.
+            cmd.extend(["--initial-prompt", initial_prompt])
+
         cmd.append(str(workspace))
         return cmd
+
+    def _use_native_history(self) -> bool:
+        """Resolve the UI-only flag without loading backend configuration."""
+        if getattr(self.config.get("args"), "no_alt_screen", False):
+            return True
+
+        from siada.config.conf_store import get_conf_value
+
+        value = get_conf_value("ui.no_alt_screen", default=False)
+        if not isinstance(value, bool):
+            logger.warning("conf.yaml ui.no_alt_screen must be a boolean; using false")
+            return False
+        return value
 
 
 def _raise_missing_node() -> str:
     node = _expected_node_path()
     raise RuntimeError(
         f"Node.js {_NODE_VERSION} not found at {node}.\n"
-        "Install a maintained Node.js LTS release from https://nodejs.org/ "
-        "and add its bin directory to PATH."
+        "Please reinstall Siada CLI to restore its bundled runtime:\n"
+        "  uv tool install --force --python python3.12 siada-cli"
     )
+
 
 
 # ---------------------------------------------------------------------------
 # First-run initialization
-#
-# The launcher never manages other processes.  The proactive daemon belongs to
-# ``siada.agent_hub.proactive.daemon_manager.DaemonManager`` and its explicit
-# backend commands (``--stop-daemon`` / ``--restart-daemon`` /
-# ``--daemon-status``); normal startup lets the backend start it, honoring
-# ``--no-daemon`` (see ``siadahub.main()``).  The version-upgrade path used to
-# kill every matching ``siada.agent_hub.proactive`` process from here and
-# respawn one — racing the daemon's own auto-updater and, because the scan
-# matches the whole process table, reaching processes the launcher does not
-# own.  That must never happen on a plain CLI start.
 # ---------------------------------------------------------------------------
 
+
+def _kill_proactive_processes() -> None:
+    """Kill any running siada.agent_hub.proactive processes, then re-spawn
+    a fresh one using the current venv.
+
+    Context: this helper runs from the version-change one-time setup path
+    (see ``_run_first_time_setup_if_needed``).  The original intent is to
+    make sure no daemon is left running old bytecode after an upgrade.
+    However the proactive daemon's auto-updater may have **already**
+    spawned a helper that restarted the daemon on the new version; in that
+    case blindly killing it here would leave the user with no daemon at
+    all until the next CLI invocation re-creates one.
+
+    To stay safe in both scenarios we:
+      1. Kill every matching process (the original behaviour), so any
+         orphaned old-bytecode daemon is cleaned up.
+      2. Immediately re-spawn a fresh daemon from the *current* venv via
+         ``DaemonManager.start_daemon()``.  This guarantees that after
+         this function returns there is exactly one daemon running the
+         current version.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return
+
+    killed: list[int] = []
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            cmdline = " ".join(proc.info.get("cmdline") or [])
+            if "siada.agent_hub.proactive" in cmdline:
+                proc.kill()
+                killed.append(proc.info["pid"])
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    if killed:
+        logger.info(f"[siada] Terminated {len(killed)} stale proactive process(es): {killed}")
+
+    # Compensate: re-spawn a daemon from the current venv so we don't leave
+    # the user daemon-less.  Fire-and-forget; failures are non-fatal.
+    try:
+        from siada.foundation.constants import SIADA_HOME
+        from siada.agent_hub.proactive.daemon_manager import DaemonManager
+        from pathlib import Path as _Path
+
+        pid_file = SIADA_HOME / "siada-daemon.pid"
+        daemon_script = (
+            _Path(__file__).parent.parent / "agent_hub/proactive/daemon.py"
+        )
+        manager = DaemonManager(pid_file, daemon_script)
+        # Small grace delay so the OS has fully reaped the killed processes
+        # before our scanner in start_daemon() checks whether one is alive.
+        import time as _time
+        _time.sleep(0.3)
+        if manager.start_daemon():
+            logger.info("[siada] Re-spawned proactive daemon from current venv")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"[siada] Failed to re-spawn proactive daemon: {exc}")
 
 def _locate_siada_cli_ui_dir() -> Path | None:
     """Locate the installed ``siada_cli_ui`` directory.
@@ -370,34 +457,60 @@ def _check_ui_bundle() -> None:
 
 
 def _expected_node_path() -> Path:
-    """Return the legacy runtime location for existing installations."""
-    from siada.foundation.node_runtime import legacy_node
+    """Return the expected Node.js binary path inside the siada venv.
 
-    return legacy_node()
+    Two layouts are supported:
+    1. Prebuilt tarball: ``venv/node/bin/node``  (bundled by build_venv_tarball.sh)
+    2. nvm-installed:    ``venv/nvm/versions/node/v{ver}/bin/node``  (runtime fallback)
+    """
+    venv_dir = Path(sys.executable).parent.parent
+    if sys.platform == "win32":
+        # tarball layout
+        p = venv_dir / "node" / "node.exe"
+        if p.exists():
+            return p
+        return venv_dir / "nvm" / "versions" / "node" / f"v{_NODE_VERSION}" / "node.exe"
+    # tarball layout first
+    p = venv_dir / "node" / "bin" / "node"
+    if p.exists():
+        return p
+    # nvm layout fallback
+    return venv_dir / "nvm" / "versions" / "node" / f"v{_NODE_VERSION}" / "bin" / "node"
+
+
+def _install_node_unix() -> bool:
+    """Retained compatibility hook; resolve a runtime without changing the host."""
+    return _ensure_nodejs()
+
+
+def _install_node_windows() -> bool:
+    """Retained compatibility hook; resolve a runtime without changing the host."""
+    return _ensure_nodejs()
+
+
+def _ensure_nodejs() -> bool:
+    """Check a user-provided or browser runtime without downloading installers."""
+    from siada.foundation.node_runtime import find_node
+
+    try:
+        find_node(_expected_node_path())
+        return True
+    except FileNotFoundError as exc:
+        logger.error(str(exc))
+        return False
 
 
 def _run_first_time_setup_if_needed() -> None:
-    """Record the initialized version and check the UI bundle once per version.
+    """Run one-time setup tasks when the installed version changes."""
+    from siada import __version__
 
-    Deliberately limited to local bookkeeping: the launcher neither manages
-    other processes (see the note above) nor installs toolchains.  Node.js is
-    resolved from the venv install layout or from ``PATH`` at UI launch time
-    (see ``UILauncher._find_local_node``), and a missing Node fails with the
-    launcher's install guidance instead of an implicit download.
-    """
-    import importlib.metadata
-
-    try:
-        current_version = importlib.metadata.version("siada-cli")
-    except importlib.metadata.PackageNotFoundError:
-        current_version = "dev"
-    # Defensive: importlib.metadata.version() may return None in rare cases
-    # (e.g. broken package METADATA), which would crash marker_file.write_text().
-    if not current_version:
-        current_version = "dev"
+    current_version = __version__
 
     marker_dir = Path.home() / ".siada-cli"
     marker_file = marker_dir / ".setup_version"
+
+    if not _expected_node_path().exists():
+        _ensure_nodejs()
 
     if marker_file.exists():
         try:
@@ -410,7 +523,7 @@ def _run_first_time_setup_if_needed() -> None:
 
     try:
         marker_dir.mkdir(parents=True, exist_ok=True)
-        marker_file.write_text(str(current_version) if current_version else "dev")
+        marker_file.write_text(current_version)
     except OSError:
         pass
 
@@ -441,10 +554,71 @@ _BACKEND_ONLY_ARGS = {
 }
 
 
+# Grace period the backend child gets to finish the shutdown it starts after
+# receiving Ctrl+C, before the launcher escalates to terminate/kill.
+_BACKEND_INTERRUPT_GRACE_SECONDS = 10.0
+_BACKEND_TERMINATE_GRACE_SECONDS = 5.0
+
+
+def _terminate_backend(proc: subprocess.Popen, timeout: float = _BACKEND_TERMINATE_GRACE_SECONDS) -> None:
+    """Stop a backend child that did not react to Ctrl+C, escalating to SIGKILL."""
+    if proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=timeout)
+        return
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        pass
+    proc.kill()
+    try:
+        proc.wait()
+    except KeyboardInterrupt:
+        pass
+
+
+def _wait_for_backend_shutdown(proc: subprocess.Popen) -> bool:
+    """Wait for the backend to finish the graceful shutdown Ctrl+C triggered.
+
+    Ctrl+C reaches both processes because the launcher and the backend share
+    the foreground process group, and the backend handles the signal itself
+    (cancelling the run, ending the session, closing MCP servers). Returns
+    ``True`` when the child exited on its own, ``False`` when it ignored the
+    signal or the user interrupted the wait with another Ctrl+C.
+    """
+    try:
+        proc.wait(timeout=_BACKEND_INTERRUPT_GRACE_SECONDS)
+        return True
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        return False
+
+
 def _run_backend() -> int:
-    """Delegate to the Python backend (siadahub) as a subprocess."""
-    result = subprocess.run([sys.executable, "-m", "siada.entrypoint.siadahub", *sys.argv[1:]])
-    return result.returncode
+    """Delegate to the Python backend (siadahub) as a subprocess.
+
+    ``subprocess.run()`` kills the child and re-raises ``KeyboardInterrupt``
+    when ``wait()`` is interrupted. In non-interactive mode that printed a
+    launcher traceback after the backend had already shut down cleanly, so the
+    child is waited on explicitly: the launcher lets the backend own the Ctrl+C
+    shutdown and only kills it if it keeps running.
+    """
+    proc = subprocess.Popen([sys.executable, "-m", "siada.entrypoint.siadahub", *sys.argv[1:]])
+    try:
+        return proc.wait()
+    except KeyboardInterrupt:
+        pass
+    except BaseException:
+        _terminate_backend(proc)
+        raise
+
+    try:
+        if _wait_for_backend_shutdown(proc):
+            return proc.returncode
+    except KeyboardInterrupt:
+        # An interrupt during the grace period escalates immediately.
+        pass
+    _terminate_backend(proc)
+    return 130
 
 
 def _fast_git_root(path=None):
@@ -465,38 +639,18 @@ def _fast_git_root(path=None):
 
 def _resolve_workspace() -> tuple:
     """Return (workspace, git_root) derived from --workspace or the cwd."""
-    import argparse
-
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument(
-        "--workspace", "-w", nargs="?", const=".", default=os.environ.get("SIADA_WORKSPACE")
-    )
-    temp_args, _ = parser.parse_known_args()
-
-    workspace = os.path.abspath(temp_args.workspace or os.getcwd())
+    workspace = os.path.abspath(workspace_argument() or os.getcwd())
     # Git discovery is for environment loading, not workspace selection.
     git_root = _fast_git_root(workspace)
     return workspace, git_root
 
 
 def _parse_args(git_root):
-    """Build the full argument parser and parse sys.argv.
-
-    This deliberately runs *before* ``_run_first_time_setup_if_needed()``:
-    ``--version`` is an argparse ``action="version"`` and ``-h``/``--help`` are
-    the parser's default help action, so they print and exit here — a plain
-    version/help query never reaches the one-time setup (no marker file, no
-    bundle check), the backend or the Node UI.  Argparse errors behave the
-    same way: an invalid invocation exits before any setup work.
-    """
+    """Build the full argument parser and parse sys.argv."""
     from siada.entrypoint.args_parser.args import get_parser
 
     parser = get_parser(default_config_files=[], git_root=git_root)
-    args, _ = parser.parse_known_args()
-    try:
-        _parse_env_assignments(args)
-    except ValueError as exc:
-        parser.error(str(exc))
+    args = parser.parse_args()
     return args
 
 
@@ -584,19 +738,30 @@ def _launch_ui(workspace: str, args) -> int:
 
 def main():
     """Main entry point for siada-cli command."""
-    if "--browser-login" in sys.argv:
-        remove_console_handler()
-        from siada.entrypoint.browser_login import main as browser_login_main
-        return browser_login_main(reconfigure="--reconfigure" in sys.argv)
-    if "--browser-check" in sys.argv:
-        remove_console_handler()
-        from siada.entrypoint.browser_check import main as browser_check_main
+    # A version query must not perform setup or restart background services.
+    if "--version" in _cli_args_before_separator():
+        from siada import __version__
 
-        return browser_check_main()
-    if "--acp" in sys.argv:
+        print(f"siada-cli {__version__}")
+        return 0
+
+    if "--acp" in _cli_args_before_separator():
         from siada.acp_server.main import main as acp_server_main
         acp_server_main()
         return 0
+
+    backend_only = _BACKEND_ONLY_ARGS.intersection(
+        arg.partition("=")[0] for arg in _cli_args_before_separator()
+    )
+
+    # Fail fast when the launch directory has been deleted: every later
+    # workspace lookup (git root detection, session storage) would raise
+    # FileNotFoundError. Backend-only commands guard themselves after their
+    # pre-init handlers, and an existing absolute --workspace keeps the UI
+    # launch usable without the launch directory.
+    if not backend_only and (error := missing_launch_directory_error(workspace_argument())):
+        print(error, file=sys.stderr)
+        return 1
 
     remove_console_handler()
     _t0 = _time.perf_counter()
@@ -608,22 +773,17 @@ def main():
     except Exception:
         pass
 
-    if _BACKEND_ONLY_ARGS.intersection(sys.argv):
+    _run_first_time_setup_if_needed()
+    logger.debug(f"[PERF][launcher] first_time_setup done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
+
+    if backend_only:
         return _run_backend()
 
     workspace, git_root = _resolve_workspace()
     logger.debug(f"[PERF][launcher] resolve_workspace done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
 
-    # Parse before any one-time setup work: argparse answers ``--version`` /
-    # ``--help`` / ``-h`` (print and exit) and reports invalid invocations here,
-    # so a plain version/help query never writes to ``~/.siada-cli``, checks the
-    # bundle or launches the Node UI.  Only then does the version-change setup
-    # run, still before the UI backend is started (see ``_parse_args``).
     args = _parse_args(git_root)
     logger.debug(f"[PERF][launcher] parse_args done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
-
-    _run_first_time_setup_if_needed()
-    logger.debug(f"[PERF][launcher] first_time_setup done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
 
     if rc := _check_resume_workspace(workspace, args):
         return rc
@@ -638,4 +798,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

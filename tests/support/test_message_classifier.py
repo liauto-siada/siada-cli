@@ -17,7 +17,48 @@ regex let a hyphen-opening tag pair with an underscore-closing tag (or
 vice versa), leaving the rest of the outer block dangling in the render.
 """
 
-from siada.support.message_classifier import format_native_items_for_display
+import pytest
+
+from siada.support.message_classifier import format_native_items_for_display, is_hidden_runtime_text
+
+
+@pytest.mark.parametrize("tag", ["system-reminder", "system_reminder"])
+@pytest.mark.parametrize("content_list", [False, True])
+def test_user_input_wrapped_verifier_feedback_is_hidden(tag, content_list):
+    feedback = f"<user_input><{tag}>Completion verifier result: not passed.</{tag}></user_input>"
+    content = [{"type": "input_text", "text": feedback}] if content_list else feedback
+
+    assert is_hidden_runtime_text(feedback)
+    assert format_native_items_for_display([{"role": "user", "content": content}]) == []
+
+
+def test_wrapped_feedback_part_does_not_hide_sibling_human_input():
+    items = [{"role": "user", "content": [
+        {"type": "input_text", "text": "<user_input>continue the task</user_input>"},
+        {"type": "input_text", "text": "<user_input><system-reminder>retry</system-reminder></user_input>"},
+    ]}]
+
+    assert format_native_items_for_display(items) == [{"role": "user", "content": "continue the task"}]
+
+
+def test_wrapped_human_quote_of_reminder_is_preserved():
+    text = "Please explain <system-reminder>retry</system-reminder>"
+    wrapped = f"<user_input>{text}</user_input>"
+
+    assert not is_hidden_runtime_text(wrapped)
+    assert format_native_items_for_display([{"role": "user", "content": wrapped}]) == [
+        {"role": "user", "content": text}
+    ]
+
+
+def test_wrapped_reminder_with_source_attribute_is_hidden():
+    text = '<user_input><system-reminder source="siada.runtime.retry">retry</system-reminder></user_input>'
+    assert is_hidden_runtime_text(text)
+
+
+def test_wrapped_mismatched_reminder_tags_are_not_hidden():
+    text = '<user_input><system-reminder>retry</system_reminder></user_input>'
+    assert not is_hidden_runtime_text(text)
 
 
 def test_strips_system_reminder_from_list_content_user_message():

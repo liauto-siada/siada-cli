@@ -29,21 +29,14 @@ The validator accepts all of the above email formats as valid, allowing potentia
 import asyncio
 import os
 import tempfile
-
 from siada.services.siada_runner import SiadaRunner
 
 
-# Workspace used by this demo script. It defaults to a synthetic directory under
-# the system temp dir so the script never points at a developer's local checkout.
-DEMO_WORKSPACE = os.environ.get(
-    "SIADA_DEMO_WORKSPACE",
-    os.path.join(tempfile.gettempdir(), "siada-demo-workspace"),
-)
-
-
 async def run_bugfix():
-    # 演示工作目录（合成路径）
-    current_dir = DEMO_WORKSPACE
+    # Use a synthetic workspace unless the caller explicitly supplies one.
+    current_dir = os.environ.get(
+        "SIADA_DEMO_WORKSPACE", os.path.join(tempfile.gettempdir(), "siada-demo-workspace")
+    )
 
     # Define the user input and agent name
     agent_name: str = "bugfix"

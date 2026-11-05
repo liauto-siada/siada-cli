@@ -327,8 +327,7 @@ def _extract_date_from_path(path: str) -> str:
 
 
 def _group_session_hits(hits, current_session_path=None):
-    """Deduplicate while preserving the original FTS ORDER BY rank order,
-    excluding the current session, up to 5 items."""
+    """Deduplicate up to five session hits in rank order, excluding this session."""
     seen = set()
     ordered = []
     for hit in hits:
@@ -341,8 +340,7 @@ def _group_session_hits(hits, current_session_path=None):
 
 
 def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) -> str:
-    """Truncate to max_chars, preferring regions dense with query keyword hits.
-    Uses jieba tokenization to support Chinese."""
+    """Retain a window dense with query hits, using jieba for Chinese tokenization."""
     if len(content) <= max_chars:
         return content
 
@@ -367,7 +365,7 @@ def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) 
 
     positions.sort()
 
-    # Sliding window to find the region with the densest hits.
+    # Find the window with the densest hits.
     best_start = 0
     best_count = 0
     left = 0
@@ -377,8 +375,7 @@ def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) 
         count = right - left + 1
         if count > best_count:
             best_count = count
-            # Bias forward by 25%: start the window a bit earlier, keeping
-            # more of the following context.
+            # Start the window earlier to retain surrounding context.
             bias = max_chars // 4
             best_start = max(0, positions[left] - bias)
 
@@ -389,8 +386,7 @@ def _truncate_around_matches(content: str, query: str, max_chars: int = 80_000) 
 
 
 async def _summarize_session(content: str, query: str, path: str, detail_level: str) -> str:
-    """Summarize a single session via fast_completion; on failure, fall back to
-    the first 500 characters of the original text."""
+    """Summarize a session, falling back to its first 500 characters on failure."""
     from siada.provider.fast_llm import fast_completion
     from siada.provider.one_shot import extract_response_text
 
@@ -428,7 +424,7 @@ async def _summarize_sessions_parallel(
     detail_level: str,
     max_concurrency: int = 3,
 ) -> list:
-    """Summarize multiple sessions in parallel, returning List[(path, summary_text)]"""
+    """Summarize sessions concurrently, returning (path, summary) pairs."""
     semaphore = asyncio.Semaphore(max_concurrency)
 
     async def _bounded(path: str, content: str):
@@ -444,8 +440,7 @@ async def _summarize_sessions_parallel(
 
 
 def _get_recent_sessions(limit: int = 10) -> str:
-    """List the N most recent files in the session/ directory, returning a
-    formatted string (zero LLM calls)."""
+    """Format the most recent session files without calling a model."""
     session_dir = Path.home() / ".siada-cli" / "workspace" / "memory" / "session"
     if not session_dir.exists():
         return "No session history found."
@@ -462,24 +457,23 @@ def _get_recent_sessions(limit: int = 10) -> str:
         except Exception:
             preview = "(unreadable)"
         lines.append(f"{i}. **{date_str}** session/{f.name}")
-        lines.append(f"   Preview: {preview}\n")
+        lines.append(f"   预览：{preview}\n")
 
     return "\n".join(lines)
 
 
 async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
-    """New search_memory main implementation: FTS → session grouping →
-    parallel LLM summarization."""
+    """Search, group session hits and summarize the results concurrently."""
     start = time.time()
     logger.info(f"[SearchMemory] START query={query!r} detail_level={detail_level}")
 
-    # Recent mode: list recent sessions when the query is empty.
+    # List recent sessions when the query is empty.
     if not query or not query.strip():
         result = _get_recent_sessions()
         logger.debug(f"[SearchMemory] DONE (recent mode) elapsed={time.time()-start:.1f}s")
         return result
 
-    # Get the current session's relative path, used to exclude itself.
+    # Resolve the current session path to exclude it from results.
     memory_dir = Path.home() / ".siada-cli" / "workspace" / "memory"
     abs_path = get_global_cache(LAST_MEMORY_NAME)
     current_session_rel = None
@@ -489,7 +483,7 @@ async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
         except ValueError:
             pass
 
-    # FTS retrieval.
+    # Retrieve full-text search matches.
     memory_search = None
     try:
         memory_search = MemorySearch()
@@ -503,12 +497,12 @@ async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
     if not results:
         return f"No results found for query: {query}"
 
-    # Group by session, preserving the FTS relevance order.
+    # Group by session while preserving relevance order.
     session_paths = _group_session_hits(results, current_session_path=current_session_rel)
     if not session_paths:
         return f"No results found for query: {query}"
 
-    # Load file contents and truncate.
+    # Load and truncate file contents.
     tasks = []
     for rel_path in session_paths:
         full_path = memory_dir / rel_path
@@ -523,7 +517,7 @@ async def _search_memory_impl_v2(context, query: str, detail_level: str) -> str:
     if not tasks:
         return f"No results found for query: {query}"
 
-    # Parallel LLM summarization.
+    # Summarize sessions concurrently.
     summaries = await _summarize_sessions_parallel(tasks, query, detail_level)
 
     # Format the output.

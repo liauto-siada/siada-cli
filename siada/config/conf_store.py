@@ -99,9 +99,7 @@ def read_conf_dict(
             f"in {path}; treating it as empty. Please fix the file."
         )
     except (OSError, UnicodeError) as exc:
-        return _fail(
-            f"Failed to read {path}: {type(exc).__name__}; treating it as empty."
-        )
+        return _fail(f"Failed to read {path}: {type(exc).__name__}; treating it as empty.")
     if data is None:
         return {}
     if not isinstance(data, dict):

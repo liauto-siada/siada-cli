@@ -15,3 +15,4 @@ class LogCategory(str, Enum):
     
     GENERAL = "general"           # General application logs (default)
     MODEL_ERROR = "model_error"   # Model/API error logs
+    FILE_ONLY = "file_only"       # Diagnostics written to log files but never the console

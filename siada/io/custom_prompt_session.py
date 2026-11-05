@@ -1,5 +1,5 @@
 """
-Custom PromptSession that adds a border around the input area only
+Custom PromptSession that adds a border around the input area only.
 """
 import re
 from functools import partial
@@ -51,7 +51,7 @@ from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 
 
 class AtFileReferenceLexer(Lexer):
-    """Custom lexer for highlighting @ file references (moved here from io.py)."""
+    """Highlight @ file references; moved here from io.py."""
 
     def __init__(self):
         self.at_pattern = re.compile(r'@[^\s]+')
@@ -90,7 +90,7 @@ class AtFileReferenceLexer(Lexer):
 
 def _split_multiline_prompt(get_prompt_text):
     """
-    Helper functions copied from the original prompt.py
+    Helper functions copied from the original prompt.py.
     """
     from prompt_toolkit.layout.utils import explode_text_fragments
     
@@ -134,12 +134,12 @@ class _RPrompt(Window):
 
 class CustomFloatContainer(FloatContainer):
     """
-    Custom FloatContainer that enforces a minimum height for floats (e.g. the completion menu)
+    Custom FloatContainer that enforces a minimum height for floats.
     """
     
     def __init__(self, content, floats, min_float_height=3, **kwargs):
         """
-        :param min_float_height: Minimum height of a float, in lines
+        :param min_float_height: Minimum float height, in lines.
         """
         self.min_float_height = min_float_height
         super().__init__(content, floats, **kwargs)
@@ -155,7 +155,7 @@ class CustomFloatContainer(FloatContainer):
         z_index: int | None,
     ) -> None:
         """
-        Override _draw_float to enforce the minimum float height
+        Override _draw_float to enforce the minimum float height.
         """
         from prompt_toolkit.application.current import get_app
         
@@ -288,7 +288,7 @@ class CustomCompletionsMenu(CompletionsMenu):
         super().__init__(**kwargs)
     
     def __pt_container__(self):
-        """Return the container, patching its height on the first call."""
+        """Return the container, updating its height on the first call."""
         container = super().__pt_container__()
         
         # Modify only once
@@ -341,9 +341,9 @@ class RoundedBorder(Border):
 
 class RoundedFrame:
     """
-    Frame with rounded corners
+    Frame with rounded corners.
     
-    Modified version of the Frame class that uses rounded border characters
+    Modified Frame class that uses rounded border characters.
     """
     def __init__(
         self,
@@ -436,7 +436,7 @@ class RoundedFrame:
 
 class CustomPromptSession(PromptSession):
     """
-    Custom PromptSession that adds a border around the input area only
+    Custom PromptSession with a border around the input area only.
     
     Usage:
         session = CustomPromptSession(message='> ')
@@ -652,9 +652,9 @@ if __name__ == "__main__":
     
     # Create custom style
     style = Style.from_dict({
-        'frame.border': 'cyan',  # cyan border
+        'frame.border': 'cyan',  # Cyan border.
         # 'prompt': '#00aaff bold',   # blue prompt
-        'placeholder': '#888888',  # gray placeholder
+        'placeholder': '#888888',  # Gray placeholder.
     })
     
     # Create completer
@@ -677,17 +677,17 @@ if __name__ == "__main__":
     
     print("Custom PromptSession example")
     print("Type 'exit' to quit")
-    print("The border wraps only the input area\n")
+    print("The border surrounds only the input area\n")
     
     while True:
         try:
             result = session.prompt()
             if result.lower() == 'exit':
                 break
-            print(f'You typed: {result}')
+            print(f'You entered: {result}')
         except KeyboardInterrupt:
-            print('\nUser pressed Ctrl+C')
+            print('\nCtrl+C pressed')
             break
         except EOFError:
-            print('\nUser pressed Ctrl-D')
+            print('\nCtrl+D pressed')
             break

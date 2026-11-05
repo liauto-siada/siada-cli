@@ -6,6 +6,13 @@ from `codex-rs/models-manager/models.json`, field
 `2fdf047c9631c9ed01a31b62efb7891718a931a8` (2026-10-08); models catalog commit:
 `d63a9b8344cfe58bc78bbe319b560378fc8756ef` (2026-10-06).
 
+GPT-6.1 Terra comes from models catalog commit
+`126a0ee92ed2c5e73cd8a8f7e37563e8527552d7` (2026-10-26). Its main
+`instructions_template` is byte-identical to Astra. Its additional execution
+preference comes from `model_messages.collaboration_modes.default`.
+Terra selection accepts provider-qualified names, case differences, and dotted
+or underscore minor versions, including `azure-gpt-6_1-terra`.
+
 OpenAI Codex, Copyright 2025 OpenAI. The Apache-2.0 license and attribution
 are reproduced in the repository's `docs/CREDITS.md` and packaged with Siada.
 
@@ -30,6 +37,7 @@ Python's standard library; no template engine or new dependency is used.
 | GPT-6 Sol | Uses the `scannable` group, its own testing/completion rule and correction guidance, and its original extra blank line before skills. |
 | GPT-6 Luna | Uses the `scannable` group, the shorter initial permission paragraph, and testing only on user request. |
 | GPT-6.1 Sol | Adds its contrastive-writing wording and apology paragraph. |
+| GPT-6.1 Terra | Uses the Astra defaults and adds the Default-mode preference for making reasonable assumptions and executing the user's request. |
 
 The `scannable` group moves personality before permissions, changes writing
 style, omits technical/PR communication, and selects its distinct authorization,
@@ -82,6 +90,11 @@ and readable snapshots track intentional content changes.
 - Identity: Codex becomes Siada.
 - Communication: Codex's commentary/final channel wording becomes ordinary
   progress updates and a final response, matching Siada's message transport.
+- Terra: place its additional execution preference in the autonomy section.
+  Omit the "In Default mode" qualifier because Siada's coding prompt has no
+  Codex collaboration-mode switch. Existing permission and runtime constraints
+  still apply; connector-specific browser/wallet confirmation policies are
+  outside this prompt adaptation.
 - Tools: question-tool guidance and standalone async message-tool references
   are omitted because Siada does not expose those tools. Command
   guidance uses `run_cmd`; Promise-based `functions.exec` batching becomes

@@ -16,6 +16,7 @@ from siada.foundation import sdk_patches
 
 def test_configure_sdk_run_config_keeps_caller_settings_and_uses_public_recovery():
     from agents import RunConfig, ToolExecutionConfig
+    from siada.foundation.tool_recovery import missing_tool_formatter
 
     original = RunConfig(
         tracing_disabled=True,
@@ -31,12 +32,27 @@ def test_configure_sdk_run_config_keeps_caller_settings_and_uses_public_recovery
     assert configured.tracing_disabled is True
     assert configured.workflow_name == "existing-workflow"
     assert configured.tool_execution is original.tool_execution
+    assert configured.tool_error_formatter is missing_tool_formatter
+    assert original.tool_error_formatter is None
 
 
 def test_configure_sdk_run_config_creates_defaults_when_not_provided():
     configured = sdk_patches.configure_sdk_run_config()
     assert configured.tool_not_found_behavior == "return_error_to_model"
     assert configured.tool_execution is None
+
+
+def test_dictionary_run_config_preserves_implicit_provider_ownership():
+    from siada.foundation.tool_recovery import missing_tool_formatter
+
+    original = {"tracing_disabled": True, "model_settings": {"temperature": 0.2}}
+    configured = sdk_patches.configure_sdk_run_config(original)
+    assert configured is not original
+    assert isinstance(configured, dict)
+    assert "model_provider" not in configured
+    assert configured["tool_not_found_behavior"] == "return_error_to_model"
+    assert configured["tool_error_formatter"] is missing_tool_formatter
+    assert original == {"tracing_disabled": True, "model_settings": {"temperature": 0.2}}
 
 
 @pytest.fixture

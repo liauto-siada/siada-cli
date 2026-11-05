@@ -1,0 +1,114 @@
+project:
+  name: "siada-agenthub"
+  description: "用户自定义 Agent（.agents/agents/*.md）的定义加载与 run_subtask 调用链路：定义文件格式、加载优先级、工具/skills/mcpServers/background/effort/model 如何生效。"
+  ref_commit_hash: "0e67ede2d0170b8819086cd02778373b10bfa249"
+  updated_at: "2026-09-23"
+  language: "zh-CN"
+
+pages:
+  - id: user_agents_01_definition
+    title: "用户自定义 Agent 定义"
+    filename: "01_user-agent-definition.md"
+    description: "定义文件格式、字段语义、加载路径与优先级，以及主 Agent 提示词中的 Agent 目录注入"
+    source_files:
+      - "siada/services/agents/config.py"
+      - "siada/services/agents/models.py"
+      - "siada/services/agents/loader.py"
+      - "siada/services/agents/renderer.py"
+      - "siada/services/agents/__init__.py"
+      - "siada/agent_hub/coder/prompt/code_gen_prompt.py"
+      - "siada/agent_hub/coder/prompt/base/prompt_builder.py"
+    sections:
+      - id: user_agents_01_definition_format
+        title: "定义文件格式与字段"
+        description: "agents/*.md 的 YAML frontmatter 字段、取值范围与容错策略"
+        autogen: true
+        diagrams_needed: false
+        diagram_types: []
+      - id: user_agents_01_definition_discovery
+        title: "加载路径与优先级"
+        description: "仓库级/用户级搜索路径、作用域优先级与同名去重规则"
+        autogen: true
+        diagrams_needed: true
+        diagram_types: ["flowchart"]
+      - id: user_agents_01_definition_parse
+        title: "解析流程与错误处理"
+        description: "文件发现、frontmatter 校验、字段解析与错误上报"
+        autogen: true
+        diagrams_needed: true
+        diagram_types: ["flowchart"]
+      - id: user_agents_01_definition_prompt
+        title: "主 Agent 提示词注入"
+        description: "AGENT TYPES 目录如何渲染并进入主 Agent 的系统提示词"
+        autogen: true
+        diagrams_needed: false
+        diagram_types: []
+    related_pages:
+      - user_agents_02_call_graph
+
+  - id: user_agents_02_call_graph
+    title: "用户自定义 Agent 调用链路"
+    filename: "02_user-agent-call-graph.md"
+    description: "从 run_subtask 工具入口到 SubTaskAgent 运行的完整调用关系：工具裁剪、skills 预加载、MCP 服务器连接、model 覆盖、effort 映射与 background 强制"
+    source_files:
+      - "siada/tools/agent/run_subtask.py"
+      - "siada/services/agents/runtime.py"
+      - "siada/agent_hub/coder/sub_task_agent.py"
+      - "siada/services/sub_agent_run_config.py"
+    sections:
+      - id: user_agents_02_entry
+        title: "工具入口与参数解析"
+        description: "run_subtask 的 agent 参数、定义解析与未知 Agent 的模型可见报错"
+        autogen: true
+        diagrams_needed: true
+        diagram_types: ["flowchart"]
+      - id: user_agents_02_spawn
+        title: "run_subtask_impl 调用链路"
+        description: "定义驱动的一次 spawn 从参数到 Runner.run_streamed 的调用序列"
+        autogen: true
+        diagrams_needed: true
+        diagram_types: ["sequence"]
+      - id: user_agents_02_tools
+        title: "工具裁剪（tools）"
+        description: "filter_tools_for_agent 的裁剪规则、文件工具组与兜底策略"
+        autogen: true
+        diagrams_needed: false
+        diagram_types: []
+      - id: user_agents_02_skills
+        title: "skills 预加载"
+        description: "load_preloaded_skills 如何解析技能并内联到子 Agent 提示词"
+        autogen: true
+        diagrams_needed: false
+        diagram_types: []
+      - id: user_agents_02_mcp
+        title: "mcpServers 解析与连接"
+        description: "按名称复用已连接服务器、内联定义现场创建并连接、运行结束清理"
+        autogen: true
+        diagrams_needed: true
+        diagram_types: ["flowchart"]
+      - id: user_agents_02_effort
+        title: "effort 映射与 RunConfig"
+        description: "model 覆盖与 effort 如何映射到目标模型档位并写入 ModelSettings，且不污染父会话配置"
+        autogen: true
+        diagrams_needed: false
+        diagram_types: []
+      - id: user_agents_02_background
+        title: "background 强制后台"
+        description: "background: true 如何把 spawn 切到后台任务通道"
+        autogen: true
+        diagrams_needed: false
+        diagram_types: []
+      - id: user_agents_02_prompt
+        title: "SubTaskAgent 提示词组装"
+        description: "定义正文、运行时规则、工作目录与预加载技能如何拼装为系统提示词"
+        autogen: true
+        diagrams_needed: false
+        diagram_types: []
+      - id: user_agents_02_tests
+        title: "测试覆盖"
+        description: "新增单测覆盖的字段、边界与回归点"
+        autogen: true
+        diagrams_needed: false
+        diagram_types: []
+    related_pages:
+      - user_agents_01_definition

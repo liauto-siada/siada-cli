@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { KeypressHandler, Key } from '../contexts/KeypressContext.js';
 import { useKeypressContext } from '../contexts/KeypressContext.js';
+import { useNoAltScreen } from '../contexts/TerminalModeContext.js';
 
 export type { Key };
 
@@ -38,6 +39,7 @@ export function useKeypress(
 ) {
   const { isActive = true } = options;
   const { subscribe, unsubscribe } = useKeypressContext();
+  const noAltScreen = useNoAltScreen();
 
   // Avoid re-subscribing on every render:
   // 1) hold latest handler in a ref
@@ -49,8 +51,10 @@ export function useKeypress(
   }, [onKeypress]);
 
   const stableHandler = useCallback<KeypressHandler>((key: Key) => {
+    // Ignore stray reports inherited from a multiplexer or an earlier program.
+    if (noAltScreen && /^(mouse|wheel)/.test(key.name)) return;
     handlerRef.current(key);
-  }, []);
+  }, [noAltScreen]);
 
   useEffect(() => {
     if (!isActive) return;

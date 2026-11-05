@@ -115,6 +115,8 @@ async def test_filter_repairs_orphan_output_before_assigning_model_input():
     filter_ = ApiMessageTransferFilter()
 
     with patch.object(
+        filter_, "_resolve_effective_context_window"
+    ), patch.object(
         filter_,
         "_build_real_message_state",
         AsyncMock(return_value=(messages, 100, 3, "signature")),
@@ -191,8 +193,7 @@ async def test_try_compact_reinjects_reminder_when_compaction_occurs():
     )
 
     context = _make_context(goal=_make_goal())
-    context.model_run_config = MagicMock()
-    context.model_run_config.context_window = 200_000
+    context.model_run_config = MagicMock(context_window=200_000)
 
     filter_ = ApiMessageTransferFilter()
     with patch(
@@ -221,8 +222,7 @@ async def test_try_compact_skips_reinjection_when_should_compact_is_false():
     strategy.should_compact.return_value = False
 
     context = _make_context(goal=_make_goal())
-    context.model_run_config = MagicMock()
-    context.model_run_config.context_window = 200_000
+    context.model_run_config = MagicMock(context_window=200_000)
 
     filter_ = ApiMessageTransferFilter()
     with patch(

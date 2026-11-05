@@ -262,7 +262,7 @@ async def test_failed_periodic_analysis_logs_its_input_but_not_review_start(base
 
 
 @pytest.mark.asyncio
-async def test_memory_export_logs_truncation_without_generated_file_name(baseline, monkeypatch, caplog):
+async def test_memory_export_logs_truncation_and_file_correlation(baseline, monkeypatch, caplog):
     items = [{"role": "user", "content": text} for text in ("synthetic private old", "synthetic private new")]
     memory = MemoryService(memory_dir=baseline.root / "memory", max_session_tokens=1)
     path = baseline.root / "synthetic-session.md"
@@ -273,9 +273,7 @@ async def test_memory_export_logs_truncation_without_generated_file_name(baselin
 
     assert await memory.save_session_memory(view) == str(path)
 
-    assert "[memory-source][export] session=memory-session messages=1 truncated=True" in caplog.text
-    # The conversation-derived slug file name must never reach the logs.
-    assert path.name not in caplog.text
+    assert f"[memory-source][export] session=memory-session file={path.name} messages=1 truncated=True" in caplog.text
     assert save.await_args.kwargs["was_truncated"] is True
     assert save.await_args.args[0] == items[-1:]
     assert "synthetic private" not in caplog.text

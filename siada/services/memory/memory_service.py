@@ -160,8 +160,8 @@ class MemoryService:
             if not memory_file:
                 return None
             logger.info(
-                "[memory-source][export] session=%s messages=%d truncated=%s",
-                file_session.session_id, len(all_messages), was_truncated,
+                "[memory-source][export] session=%s file=%s messages=%d truncated=%s",
+                file_session.session_id, Path(memory_file).name, len(all_messages), was_truncated,
             )
             
             # Step 4: Post-save operations (indexing and derived memory)

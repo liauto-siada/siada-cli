@@ -5,9 +5,12 @@
  */
 
 import React, { useState } from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
 import { Box, Text } from '@jrichman/ink';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { ShortcutTextInput } from '../Input/ShortcutTextInput.js';
+import { PickerFrame, PickerHeader, PickerFooter, PickerRow, PickerScrollHint, pickerHint, usePickerWindow } from '../Picker/Picker.js';
 
 // ── Exported types ─────────────────────────────────────────────────────────────
 
@@ -25,16 +28,15 @@ export interface ProviderInfo {
   models: ModelInfo[];
 }
 
-export type LoginChoice = '1' | '2' | '3' | '4' | 'skip' | 'cancel';
+export type LoginChoice = '1' | '2' | '3' | 'skip' | 'cancel';
 
 export interface LoginSelectorProps {
   onSelect: (choice: LoginChoice, apiKey?: string) => void;
   /** Provider/model data from backend (models.dev cache). Overrides bundled snapshot when provided. */
   providers?: ProviderInfo[];
-  freeTrialModels?: ModelInfo[];
   /** When true (reconfigure flow), Esc cancels without error instead of sending 'skip'. */
   cancelable?: boolean;
-  /** Legacy flag retained for compatibility with existing ACP notifications. */
+  /** When true, hide LiId / Device Code options and only allow API key configuration. */
   liidDisabled?: boolean;
   /** When true, temporarily disable input while the selection is being submitted. */
   submitting?: boolean;
@@ -49,7 +51,7 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
     id: 'kimi',
     name: 'Kimi (Moonshot AI)',
     baseUrl: 'https://api.moonshot.cn/v1',
-    apiKeyHint: 'Enter API key like sk-...',
+    get apiKeyHint() { return t('请输入 API Key，例如 sk-…', 'Enter API key like sk-...'); },
     models: [
       { id: 'kimi-k2.5',             name: 'Kimi K2.5',              context: 262 },
       { id: 'kimi-k2-thinking',       name: 'Kimi K2 Thinking',       context: 262 },
@@ -62,7 +64,7 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
     id: 'deepseek',
     name: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/v1',
-    apiKeyHint: 'Enter API key from platform.deepseek.com',
+    get apiKeyHint() { return t('请输入从 platform.deepseek.com 获取的 API Key', 'Enter API key from platform.deepseek.com'); },
     models: [
       { id: 'deepseek-flash', name: 'DeepSeek Flash', context: 1000 },
       { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', context: 1000 },
@@ -72,7 +74,7 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
     id: 'glm',
     name: 'GLM (ZhipuAI)',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    apiKeyHint: 'Enter API key from zhipuai.cn',
+    get apiKeyHint() { return t('请输入从 zhipuai.cn 获取的 API Key', 'Enter API key from zhipuai.cn'); },
     models: [
       { id: 'glm-5',         name: 'GLM-5',         context: 204 },
       { id: 'glm-4.7',       name: 'GLM-4.7',       context: 204 },
@@ -85,7 +87,7 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
     id: 'minimax',
     name: 'MiniMax',
     baseUrl: 'https://api.minimax.chat/v1',
-    apiKeyHint: 'Enter API key from minimax.io',
+    get apiKeyHint() { return t('请输入从 minimax.io 获取的 API Key', 'Enter API key from minimax.io'); },
     models: [
       { id: 'MiniMax-M2.5',           name: 'MiniMax M2.5',           context: 204 },
       { id: 'MiniMax-M2.5-highspeed', name: 'MiniMax M2.5 Highspeed', context: 204 },
@@ -97,7 +99,7 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
     id: 'openai',
     name: 'OpenAI',
     baseUrl: 'https://api.openai.com/v1',
-    apiKeyHint: 'Enter API key like  sk-...',
+    get apiKeyHint() { return t('请输入 API Key，例如 sk-…', 'Enter API key like sk-...'); },
     models: [
       { id: 'gpt-4o',      name: 'GPT-4o',      context: 128 },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', context: 128 },
@@ -110,7 +112,7 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
     id: 'claude',
     name: 'Claude (Anthropic)',
     baseUrl: 'https://api.anthropic.com',
-    apiKeyHint: 'Enter API key like sk-ant-...',
+    get apiKeyHint() { return t('请输入 API Key，例如 sk-ant-…', 'Enter API key like sk-ant-...'); },
     models: [
       { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', context: 200 },
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', context: 200 },
@@ -122,7 +124,7 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
     id: 'gemini',
     name: 'Gemini (Google)',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    apiKeyHint: 'Enter API key like AIza...',
+    get apiKeyHint() { return t('请输入 API Key，例如 AIza…', 'Enter API key like AIza...'); },
     models: [
       { id: 'gemini-2.5-flash',      name: 'Gemini 2.5 Flash',      context: 1048 },
       { id: 'gemini-2.5-pro',        name: 'Gemini 2.5 Pro',        context: 1048 },
@@ -132,9 +134,9 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
   },
   {
     id: 'custom',
-    name: 'Custom Provider',
+    get name() { return t('自定义服务商', 'Custom Provider'); },
     baseUrl: '',
-    apiKeyHint: 'your API key',
+    get apiKeyHint() { return t('请输入你的 API Key', 'Enter your API key'); },
     models: [],
   },
 ];
@@ -142,15 +144,18 @@ const PROVIDERS_SNAPSHOT: ProviderInfo[] = [
 // ── Main options ───────────────────────────────────────────────────────────────
 
 const OPTIONS = [
-  { id: '3' as const, label: 'Configure API Key',        description: 'Use your own API key (kimi, deepseek, openai, claude...)' },
-  { id: '4' as const, label: 'Free Trial', description: 'Try free models through Kilo — no API key required' },
+  { id: '1' as const, get label() { return t('使用 LiId 登录', 'Sign in with LiId'); },
+    get description() { return t('自动打开浏览器', 'Opens browser automatically'); } },
+  { id: '2' as const, get label() { return t('使用设备码登录', 'Sign in with Device Code'); },
+    get description() { return t('显示登录链接，可在其他设备上打开', 'Print URL — works without a browser'); } },
+  { id: '3' as const, get label() { return t('配置 API Key', 'Configure API Key'); },
+    get description() { return t('使用自己的 API Key（Kimi、DeepSeek、OpenAI、Claude 等）', 'Use your own API key (kimi, deepseek, openai, claude...)'); } },
 ];
 
 // ── Phase type ─────────────────────────────────────────────────────────────────
 
 type Phase =
   | 'selecting'
-  | 'free-model-select'
   | 'provider-select'
   | 'model-select'
   | 'baseurl-input'
@@ -159,10 +164,11 @@ type Phase =
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, freeTrialModels = [], cancelable, submitting = false, submitError = null }) => {
+export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, cancelable, liidDisabled, submitting = false, submitError = null }) => {
+  useUiLanguage();
   const effectiveProviders =
     providers && providers.length > 0 ? providers : PROVIDERS_SNAPSHOT;
-  const visibleOptions = OPTIONS.filter(option => option.id !== '4' || freeTrialModels.length > 0);
+  const visibleOptions = liidDisabled ? OPTIONS.filter(option => option.id === '3') : OPTIONS;
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('selecting');
@@ -170,6 +176,9 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
   const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
   const [customBaseUrl, setCustomBaseUrl] = useState('');
   const [customModelName, setCustomModelName] = useState('');
+  const selectionCount = phase === 'provider-select' ? effectiveProviders.length
+    : phase === 'model-select' ? selectedProvider?.models.length ?? 0 : visibleOptions.length;
+  const { startIndex, endIndex } = usePickerWindow(selectionCount, activeIndex, { summary: true });
 
   const clamp = (val: number, len: number) => Math.min(Math.max(0, val), len - 1);
   const isSubmitKey = (key: { name: string }) => key.name === 'return' || key.name === 'enter';
@@ -190,26 +199,13 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         if (choice === '3') {
           setPhase('provider-select');
           setActiveIndex(0);
-        } else if (choice === '4') {
-          setPhase('free-model-select');
-          setActiveIndex(0);
+        } else {
+          onSelect(choice);
         }
       } else if (key.name === 'escape' || (key.ctrl && key.name === 'c') || key.sequence === 'q') {
         onSelect(cancelable ? 'cancel' : 'skip');
       }
 
-    } else if (phase === 'free-model-select') {
-      if (key.name === 'up' || key.sequence === 'k') {
-        setActiveIndex(i => clamp(i - 1, freeTrialModels.length));
-      } else if (key.name === 'down' || key.sequence === 'j') {
-        setActiveIndex(i => clamp(i + 1, freeTrialModels.length));
-      } else if (isSubmitKey(key)) {
-        const model = freeTrialModels[activeIndex];
-        if (model) onSelect('4', JSON.stringify({ model: model.id }));
-      } else if (key.name === 'escape') {
-        setPhase('selecting');
-        setActiveIndex(1);
-      }
     } else if (phase === 'provider-select') {
       if (key.name === 'up' || key.sequence === 'k') {
         setActiveIndex(i => clamp(i - 1, effectiveProviders.length));
@@ -247,7 +243,6 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         setPhase('provider-select');
         setActiveIndex(idx >= 0 ? idx : 0);
       }
-
     }
   }, { isActive: !submitting });
 
@@ -262,101 +257,47 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
 
   // ── Renders ──────────────────────────────────────────────────────────────────
 
-  if (phase === 'free-model-select') {
-    // Keep the selected item visible without growing a twelve-model menu
-    // beyond a typical terminal's height.
-    const start = Math.max(0, Math.min(activeIndex - 2, freeTrialModels.length - 5));
-    return (
-      <Box flexDirection="column">
-        <Box borderStyle="single" borderColor="cyan" paddingX={1}>
-          <Text bold color="cyan">Free Trial — Choose Model</Text>
-        </Box>
-        <Box paddingX={1}><Text dimColor>Kilo · No API key required · Free availability may change</Text></Box>
-        <Box flexDirection="column" paddingX={1}>
-          {freeTrialModels.slice(start, start + 5).map((model, offset) => (
-            <Box key={model.id}>
-              <Text color={start + offset === activeIndex ? 'cyan' : 'white'}>
-                {start + offset === activeIndex ? '▶ ' : '  '}{model.name}
-              </Text>
-            </Box>
-          ))}
-        </Box>
-        <Box paddingX={1}><Text dimColor>{activeIndex + 1}/{freeTrialModels.length} · {freeTrialModels[activeIndex]?.id}</Text></Box>
-        {submitError ? <Text color="red">{submitError}</Text> : null}
-        <Box borderStyle="single" borderColor="gray" paddingX={1}>
-          <Text dimColor>{submitting ? 'Submitting login... (Esc to cancel)' : '↑↓/j/k navigate · Enter try · Esc back'}</Text>
-        </Box>
-      </Box>
-    );
-  }
-
   if (phase === 'provider-select') {
     return (
-      <Box flexDirection="column">
-        <Box borderStyle="single" borderColor="cyan" paddingX={1} marginBottom={1}>
-          <Text bold color="cyan">Configure API Key — Choose Provider</Text>
-        </Box>
-        <Box paddingX={1} marginBottom={1}>
-          <Text dimColor>Select your model provider:</Text>
-        </Box>
-        <Box flexDirection="column" paddingX={1}>
-          {effectiveProviders.map((p, i) => {
-            const isActive = i === activeIndex;
+      <PickerFrame title={t('配置 API Key · 选择服务商', 'Configure API Key — Choose Provider')}
+        summary={t('请选择模型服务商：', 'Select your model provider:')} hint={pickerHint('vertical')}>
+          <PickerScrollHint visible={startIndex > 0} direction="up" />
+          {effectiveProviders.slice(startIndex, endIndex).map((p, i) => {
+            const isActive = i + startIndex === activeIndex;
             return (
-              <Box key={p.id} flexDirection="row" marginBottom={0}>
-                <Text color={isActive ? 'cyan' : 'white'}>{isActive ? '▶ ' : '  '}</Text>
-                <Text color={isActive ? 'cyan' : 'white'} bold={isActive}>{p.name}</Text>
-                {p.models.length > 0 ? (
-                  <Text dimColor>{'  '}{p.models.length} models</Text>
-                ) : null}
-              </Box>
+              <PickerRow key={p.id} active={isActive}>{p.name}
+                {p.models.length > 0 ? `  ${t(`${p.models.length} 个模型`, `${p.models.length} models`)}` : ''}
+              </PickerRow>
             );
           })}
-        </Box>
-        <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-          <Text color="gray" dimColor>↑↓/j/k navigate · Enter select · Esc back</Text>
-        </Box>
-      </Box>
+          <PickerScrollHint visible={endIndex < effectiveProviders.length} direction="down" />
+      </PickerFrame>
     );
   }
 
   if (phase === 'model-select') {
     const models = selectedProvider?.models ?? [];
     return (
-      <Box flexDirection="column">
-        <Box borderStyle="single" borderColor="cyan" paddingX={1} marginBottom={1}>
-          <Text bold color="cyan">{selectedProvider?.name ?? 'Provider'} — Choose Model</Text>
-        </Box>
-        <Box paddingX={1} marginBottom={1}>
-          <Text dimColor>Select a model:</Text>
-        </Box>
-        <Box flexDirection="column" paddingX={1}>
-          {models.map((m, i) => {
-            const isActive = i === activeIndex;
+      <PickerFrame title={`${selectedProvider?.name ?? t('服务商', 'Provider')}${t(' · 选择模型', ' — Choose Model')}`}
+        summary={t('请选择模型：', 'Select a model:')} hint={pickerHint('vertical')}>
+          <PickerScrollHint visible={startIndex > 0} direction="up" />
+          {models.slice(startIndex, endIndex).map((m, i) => {
+            const isActive = i + startIndex === activeIndex;
             return (
-              <Box key={m.id} flexDirection="row" marginBottom={0}>
-                <Text color={isActive ? 'cyan' : 'white'}>{isActive ? '▶ ' : '  '}</Text>
-                <Text color={isActive ? 'cyan' : 'white'} bold={isActive}>{m.id}</Text>
-                <Text dimColor>{'  '}{m.name} · {m.context}K ctx</Text>
-              </Box>
+              <PickerRow key={m.id} active={isActive}>{m.id}{`  ${m.name} · ${m.context}K ${t('上下文', 'ctx')}`}</PickerRow>
             );
           })}
-        </Box>
-        <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-          <Text color="gray" dimColor>↑↓/j/k navigate · Enter select · Esc back</Text>
-        </Box>
-      </Box>
+          <PickerScrollHint visible={endIndex < models.length} direction="down" />
+      </PickerFrame>
     );
   }
 
   if (phase === 'baseurl-input') {
     return (
-      <Box flexDirection="column">
-        <Box borderStyle="single" borderColor="cyan" paddingX={1} marginBottom={1}>
-          <Text bold color="cyan">Custom Provider — Base URL</Text>
-        </Box>
+      <Box flexDirection="column" paddingX={1} width="100%">
+        <PickerHeader title={t('自定义服务商 · API 地址', 'Custom Provider — Base URL')} />
         <Box paddingX={1} marginBottom={1}>
-          <Text dimColor>Enter provider base URL (OpenAI-compatible):</Text>
+          <Text dimColor>{t('请输入服务商的 API 地址（兼容 OpenAI）：', 'Enter provider base URL (OpenAI-compatible):')}</Text>
         </Box>
         <ShortcutTextInput
           key="baseurl-input"
@@ -374,30 +315,26 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
             setActiveIndex(idx >= 0 ? idx : 0);
           }}
         />
-        <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-          <Text color="gray" dimColor>Enter confirm · Esc back · Ctrl+A/E/K/U/W editing shortcuts</Text>
-        </Box>
+        <PickerFooter>{PANEL_TIPS.loginEdit}</PickerFooter>
       </Box>
     );
   }
 
   if (phase === 'model-name-input') {
     return (
-      <Box flexDirection="column">
-        <Box borderStyle="single" borderColor="cyan" paddingX={1} marginBottom={1}>
-          <Text bold color="cyan">Custom Provider — Model Name</Text>
-        </Box>
+      <Box flexDirection="column" paddingX={1} width="100%">
+        <PickerHeader title={t('自定义服务商 · 模型名称', 'Custom Provider — Model Name')} />
         <Box paddingX={1} marginBottom={0}>
-          <Text dimColor>Base URL: </Text>
+          <Text dimColor>{t('API 地址：', 'Base URL: ')}</Text>
           <Text color="cyan">{customBaseUrl}</Text>
         </Box>
         <Box paddingX={1} marginBottom={1}>
-          <Text dimColor>Enter model name (e.g. gpt-4o, llama-3-70b):</Text>
+          <Text dimColor>{t('请输入模型名称（例如 gpt-4o、llama-3-70b）：', 'Enter model name (e.g. gpt-4o, llama-3-70b):')}</Text>
         </Box>
         <ShortcutTextInput
           key="model-name-input"
           initialValue={customModelName}
-          placeholder="e.g. gpt-4o, llama-3-70b"
+          placeholder={t('例如 gpt-4o、llama-3-70b', 'e.g. gpt-4o, llama-3-70b')}
           active={!submitting}
           onSubmit={(val) => {
             if (!val) return;
@@ -406,31 +343,27 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
           }}
           onCancel={() => setPhase('baseurl-input')}
         />
-        <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-          <Text color="gray" dimColor>Enter confirm · Esc back</Text>
-        </Box>
+        <PickerFooter>{PANEL_TIPS.loginConfirm}</PickerFooter>
       </Box>
     );
   }
 
   if (phase === 'apikey-input') {
-    const providerName = selectedProvider?.name ?? 'Provider';
+    const providerName = selectedProvider?.name ?? t('服务商', 'Provider');
     const hint = selectedProvider?.apiKeyHint ?? '';
     const modelDesc = selectedProvider?.id === 'custom' ? customModelName : (selectedModel?.id ?? '');
     return (
-      <Box flexDirection="column">
-        <Box borderStyle="single" borderColor="cyan" paddingX={1} marginBottom={1}>
-          <Text bold color="cyan">{providerName} — API Key</Text>
-        </Box>
+      <Box flexDirection="column" paddingX={1} width="100%">
+        <PickerHeader title={`${providerName} — API Key`} />
         {modelDesc ? (
           <Box paddingX={1} marginBottom={0}>
-            <Text dimColor>Model: </Text>
+            <Text dimColor>{t('模型：', 'Model: ')}</Text>
             <Text color="cyan">{modelDesc}</Text>
           </Box>
         ) : null}
         {hint ? (
           <Box paddingX={1} marginBottom={1}>
-            <Text dimColor>Format: {hint}</Text>
+            <Text dimColor>{hint}</Text>
           </Box>
         ) : null}
         <ShortcutTextInput
@@ -463,43 +396,26 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
             <Text color="red">{submitError}</Text>
           </Box>
         ) : null}
-        <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-          <Text color="gray" dimColor>{submitting ? 'Submitting login... (Esc to cancel)' : 'Enter submit · Esc back'}</Text>
-        </Box>
+        <PickerFooter>{submitting ? PANEL_TIPS.loginSubmitting : PANEL_TIPS.loginSubmit}</PickerFooter>
       </Box>
     );
   }
 
   // Default: 'selecting'
   return (
-    <Box flexDirection="column">
-      <Box borderStyle="single" borderColor="cyan" paddingX={1} marginBottom={1}>
-        <Text bold color="cyan">Sign In</Text>
-      </Box>
-      <Box paddingX={1} marginBottom={1}>
-          <Text dimColor>
-            Choose how to connect your model:
-          </Text>
-      </Box>
-      <Box flexDirection="column" paddingX={1}>
-          {visibleOptions.map((opt, index) => {
-          const isActive = index === activeIndex;
+    <PickerFrame title={t('登录', 'Sign In')}
+      summary={liidDisabled
+              ? t('尚未登录，请配置 API Key 后继续：', 'You are not signed in. Please configure an API key to continue:')
+              : t('尚未登录，请选择登录方式：', 'You are not signed in. Choose a sign-in method:')}
+      hint={cancelable ? pickerHint('vertical') : PANEL_TIPS.loginSkip}>
+          <PickerScrollHint visible={startIndex > 0} direction="up" />
+          {visibleOptions.slice(startIndex, endIndex).map((opt, index) => {
+          const isActive = index + startIndex === activeIndex;
           return (
-            <Box key={opt.id} flexDirection="row" marginBottom={0}>
-              <Text color={isActive ? 'cyan' : 'white'}>{isActive ? '▶ ' : '  '}</Text>
-              <Text color={isActive ? 'cyan' : 'white'} bold={isActive}>{opt.label}</Text>
-              <Text dimColor>{'  '}{opt.description}</Text>
-            </Box>
+            <PickerRow key={opt.id} active={isActive}>{opt.label}{`  ${opt.description}`}</PickerRow>
           );
         })}
-      </Box>
-      <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
-        <Text color="gray" dimColor>
-          {cancelable
-            ? '↑↓/j/k navigate · Enter select · Esc cancel'
-            : '↑↓/j/k navigate · Enter select · Esc/q skip'}
-        </Text>
-      </Box>
-    </Box>
+          <PickerScrollHint visible={endIndex < visibleOptions.length} direction="down" />
+    </PickerFrame>
   );
 };

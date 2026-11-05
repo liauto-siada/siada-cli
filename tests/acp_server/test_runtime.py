@@ -151,6 +151,45 @@ def test_non_goal_ai_analysis_handoff_stays_a_bare_wrapped_prompt(monkeypatch, t
     assert calls[0]["user_input"] == "<user_input>analyze this codebase</user_input>"
 
 
+@pytest.mark.parametrize("prompt", [
+    "<system-reminder>Completion verifier result: not passed.</system-reminder>",
+    '<system-reminder source="siada.runtime.retry">Continue.</system-reminder>',
+    "<system_reminder>Continue verification.</system_reminder>",
+])
+def test_internal_reminder_handoff_reaches_runner_without_user_input_wrapper(
+    monkeypatch, tmp_path, prompt,
+):
+    from siada.support.message_classifier import format_native_items_for_display
+    from siada.support.slash_commands import SwitchEvent
+
+    runner = SiadaTurnRunner(agent_name="test-agent")
+    calls = []
+
+    class EmptyStreamResult:
+        async def stream_events(self):
+            if False:
+                yield None
+
+    async def fake_run_agent(**kwargs):
+        calls.append(kwargs)
+        return EmptyStreamResult()
+
+    monkeypatch.setattr("siada.services.siada_runner.SiadaRunner.run_agent", fake_run_agent)
+    runner.create_session("acp-retry", str(tmp_path))
+    _install_fake_slash_commands(
+        runner, "acp-retry", SwitchEvent(ai_analysis_prompt=prompt),
+    )
+
+    updates = _collect_slash_updates(runner, "acp-retry", "/retry")
+
+    assert updates == []
+    assert len(calls) == 1
+    assert calls[0]["user_input"] == prompt
+    assert format_native_items_for_display([
+        {"role": "user", "content": calls[0]["user_input"]},
+    ]) == []
+
+
 def _make_stream_result(monkeypatch, events):
     class FakeStreamResult:
         async def stream_events(self):
@@ -286,7 +325,7 @@ def test_list_available_models_returns_known_model_names():
 
     models = runner.list_available_models()
 
-    assert "claude-sonnet-4-6" in models
+    assert "claude-sonnet-4.6" in models
 
 
 def test_set_model_switches_the_session_llm_config(tmp_path):

@@ -23,6 +23,19 @@ def test_save_and_load_round_trip(temp_session_dir):
     assert loaded == goal
 
 
+def test_verification_records_survive_save_archive_and_clear(temp_session_dir):
+    goal = Goal.create("verify the feature")
+    goal.verification_results = [{
+        "id": "check-1", "outcome": "not_achieved", "achieved": False,
+        "reason": "Missing test evidence", "nextAction": "Run the tests",
+    }]
+    assert goal_storage.save_goal(temp_session_dir, goal)
+    assert goal_storage.load_goal(temp_session_dir).verification_results == goal.verification_results
+    goal_storage.append_goal_history(temp_session_dir, goal)
+    goal_storage.clear_goal(temp_session_dir)
+    assert goal_storage.load_goal_history(temp_session_dir)[0]["verification_results"] == goal.verification_results
+
+
 def test_load_returns_none_when_missing(temp_session_dir):
     assert goal_storage.load_goal(temp_session_dir) is None
 

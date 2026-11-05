@@ -66,6 +66,7 @@ def _popen_detach_kwargs() -> dict[str, Any]:
 
 _DEFAULT_HOST = "127.0.0.1"
 _LOOPBACK_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
+_CHROME_WEB_STORE_EXTENSION_ID = "nejmbmicpkooppjnflcfbmcihhooelep"
 
 
 def _is_loopback(host: str) -> bool:
@@ -275,8 +276,8 @@ def start() -> str:
     env["SIADA_PROXY_LOG_DIR"] = str(paths.log_directory())
     env["SIADA_PROXY_MANAGED"] = "1"
     # Chromium hashes the absolute load-unpacked path unless the manifest
-    # contains a public key. Trust that installed extension, plus explicit IDs
-    # supplied for a separately installed store/development extension.
+    # contains a public key. Trust that installed extension and the official
+    # Chrome Web Store release, plus explicitly configured development IDs.
     manifest_path = paths.extension_dir() / "manifest.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -294,7 +295,9 @@ def start() -> str:
     digest = hashlib.sha256(identity).hexdigest()[:32]
     extension_id = "".join(chr(ord("a") + int(char, 16)) for char in digest)
     explicit_ids = env.get("SIADA_BROWSER_EXTENSION_IDS", "")
-    env["SIADA_BROWSER_EXTENSION_IDS"] = ",".join(filter(None, (extension_id, explicit_ids)))
+    env["SIADA_BROWSER_EXTENSION_IDS"] = ",".join(
+        filter(None, (extension_id, _CHROME_WEB_STORE_EXTENSION_ID, explicit_ids))
+    )
 
     # The proxy's cwd becomes the sidepanel's default workspace (file tree +
     # agent sessions). NEVER use $HOME: ~/Library contains TCC-protected

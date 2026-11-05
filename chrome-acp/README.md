@@ -1,23 +1,38 @@
-# chrome-acp
+# Chrome ACP
 
-The browser addon for **Siada CLI**: a Chrome (MV3) extension plus a local
-proxy server that let the Siada agent see and drive the browser session you are
-already signed in to.
+A Chrome extension to chat with AI agents. Give them the power to see and interact with your browser.
 
-The CLI installs both parts into `~/.siada-cli/browser/` and manages the proxy
-for you:
+Built on [ACP](https://agentclientprotocol.com).
 
-- the **extension** runs in Chrome (side panel chat, page tools, trajectory
-  recording) and connects to the proxy over WebSocket;
-- the **proxy server** (`acp-proxy`) spawns the ACP agent subprocess
-  (`siada-acp`) and bridges browser ↔ agent, and serves the browser tools to the
-  agent over MCP.
+## Quick Start
 
-Chrome extensions cannot spawn subprocesses — that is what the proxy is for.
-See [docs/](./docs) for the rendered documentation site source.
+To use Chrome ACP, you need:
+- `@chrome-acp/proxy-server` — The proxy that bridges browser ↔ agent
+- An ACP-compatible agent (e.g. Claude Code + its ACP adapter)
+
+```bash
+# Install
+npm install -g @chrome-acp/proxy-server @anthropic-ai/claude-code @zed-industries/claude-code-acp
+
+# Start
+acp-proxy --no-auth claude-code-acp
+```
+
+Then open http://localhost:9315 in your browser.
+
+### Use the Chrome Extension
+
+For full browser control (reading tabs, executing scripts), use the extension:
+
+1. Download `chrome-acp.zip` from [Releases](https://github.com/Areo-Joe/chrome-acp/releases)
+2. Unzip and load in `chrome://extensions` (enable Developer mode → Load unpacked)
+3. Click the extension icon → Connect to your running proxy
 
 ## Features
 
+- **Works with any ACP-compatible agent** — Claude Code, OpenCode, Gemini CLI, and more
+- **Runs anywhere with Node.js** — Local machine, server, even Termux on Android
+- **Operates as you** — Agents interact with pages using your real browser session (spoiler: crawler!)
 - **History with Siada** — Reopening a session shows your questions and agent
   replies. Generated page context and internal reminders stay hidden, including
   page preambles in older sessions. Tool calls appear as collapsed cards that
@@ -56,141 +71,131 @@ graph LR
     C <-->|stdin/stdout| D[ACP Agent]
 ```
 
-## Install
-
-The normal path is through Siada CLI, from a checkout of this directory:
-
-```bash
-# install the proxy + unpacked extension into ~/.siada-cli/browser/
-siada-browser setup .
-
-# equivalently, from siada-cli itself
-siada-cli --browser-setup .
-
-# then manage the proxy
-siada-browser start | stop | restart | status
-```
-
-`setup` starts the proxy, opens `chrome://extensions` and prints (also copying
-to the clipboard) two things you need once:
-
-1. the unpacked-extension directory to select via **Load unpacked**
-   (`~/.siada-cli/browser/extension` on macOS/Linux);
-2. the local auth token to paste into the extension's side panel → **Settings**
-   (keep it private: it is the credential Chrome uses to reach your local
-   siada-cli).
-
-Once the matching Siada release has browser assets, `siada-browser setup`
-downloads its `browser-manifest.json` from GitHub Releases and installs one
-platform ZIP containing Node.js, the proxy, production dependencies, the web
-client, and the extension. These new packages have not yet been published.
-For candidate testing, `--base-url <https-directory>` overrides the release
-directory. See [Browser installation](../docs/browser-installation.md).
-
-### From source
-
-```bash
-bun install
-bun run test             # package-specific DOM and proxy test environments
-bun run build            # all packages (or build:extension / build:proxy / build:web)
-bun run dev              # extension with hot reload
-
-# run a proxy against any ACP-capable agent command
-node packages/proxy-server/dist/cli/bin.js --no-auth <agent-command>
-```
-
-`just pack` builds and produces `siada-browser-<cli-version>-<platform>.zip`
-and `browser-manifest.json`. With components already built, run
-`node scripts/package-browser.mjs pack [output-directory]`. The packer downloads
-Node.js 24.13.0, verifies its official checksum, installs locked production
-dependencies, and checks the staged proxy CLI. The manifest carries the ZIP's
-SHA-256. The root browser release workflow builds each configured platform;
-those remote builds still require validation.
-
-## Browser tools
-
-The proxy exposes these tools to the agent over MCP (all require the extension):
-
-| Tool | Description |
-|------|-------------|
-| `browser_tabs` | List all open tabs (id, url, title, active status) |
-| `browser_read` | Read a tab's content as simplified Markdown (paginated) |
-| `browser_execute` | Execute JavaScript in a tab's page context |
-| `browser_replay` | Replay one recorded pipeline step (click/input/select/keydown/scroll/navigate) |
-| `browser_screenshot` | Capture the tab's visible viewport and return it as an image |
-| `browser_paragraphs` | Extract the main readable paragraphs as an indexed list |
-| `browser_annotate` | Render agent-authored content into the page (immersive-translate style) |
-| `browser_pdf_render` | Open a PDF (http/https/file) in the built-in pdf.js viewer and screenshot it |
-
-**Usage flow:** the agent lists tabs (`browser_tabs`), reads page content
-(`browser_read`, `browser_paragraphs`), then interacts through
-`browser_execute` / `browser_replay` — verifying visually with
-`browser_screenshot` when needed.
-
-## Trajectory recording
-
-The extension can record what the user does and replay it deterministically:
-
-- `recorder/` — action log, DOM mutation summaries, resilient selectors, and
-  input masking (`data-acp-mask`; password inputs are always masked);
-- `replay/` — locates a recorded target and performs one pipeline step, both in
-  the injected page script and under test;
-- `explain/` — explains page content to the agent;
-- the proxy writes the trajectory to disk (`trajectory-writer`).
-
-## Browser activity trace
-
-The side panel and the web client share a **Trace** tab: a timeline of what the
-agent did in the browser, next to real pictures of the controlled tab.
-
-- steps, durations, targets and values come from the ACP session stream
-  (`packages/shared/src/trace/`), so they describe tool calls that really ran;
-- the picture is a real capture: a before/after pair around each mutating call,
-  plus an optional live view (**Go live**) that streams the tab through the
-  Chrome debugger while it is enabled (needs the `debugger` permission, off by
-  default);
-- a picture is only tied to a step when the capture reports the same
-  correlation id as the ACP tool call, so the change-region overlay — a pixel
-  diff of that step's own before/after pair — appears when such a pair exists.
-  Pictures that carry no matching id are shown as the latest picture of the run,
-  and the viewer says so rather than attributing them to a step;
-- the timeline is a turn: it goes live when a prompt is sent and ends when the
-  protocol ends it (prompt completion, cancel, error, dropped connection).
-
-The trace only observes and displays. It does not learn from runs, keeps no
-trained or persisted model, and never replays anything on its own — replaying a
-recorded step is what the separate `browser_replay` tool does.
-
-## Proxy options
+## CLI Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--port` | `9315` | Server port |
 | `--host` | `localhost` | Host to bind (use `0.0.0.0` for network access) |
-| `--https` | `false` | Enable HTTPS with an auto-generated self-signed certificate (required for the camera on mobile) |
-| `--public-url` | - | Public WebSocket URL for the QR code (e.g. `wss://example.com/ws`) |
-| `--no-auth` | `false` | Disable authentication (safe on localhost, dangerous remotely) |
-| `--termux` | `false` | Auto-launch the PWA via Termux on Android |
+| `--https` | `false` | Enable HTTPS with self-signed certificate (for LAN only) |
+| `--public-url` | - | Public WebSocket URL for QR code (e.g., `wss://example.com/ws`) |
+| `--no-auth` | `false` | Disable authentication (safe for localhost, dangerous for remote) |
+| `--termux` | `false` | Auto-launch PWA via Termux on Android |
 | `--debug` | `false` | Enable debug logging to file |
 
-## Remote access
+## Remote Access
 
-To drive the browser from another device (e.g. a phone):
+For accessing from other devices on your network (e.g., mobile):
 
 ```bash
 acp-proxy --https --host 0.0.0.0 <agent-command>
 ```
 
-The server prints tokenised URLs and a QR code for the mobile client. HTTPS is
-required for camera access (QR scanning). See
-[docs/docs/guides/remote-access.md](./docs/docs/guides/remote-access.md).
+The server prints URLs with embedded auth tokens and a QR code for mobile connection.
 
-## Agents
+> **Note:** HTTPS is required for camera access (QR scanning) on mobile devices.
 
-The proxy is agent-agnostic: it launches whatever ACP command you give it. In
-Siada CLI that command is `siada-acp`, and the CLI starts the proxy with the
-right arguments and token for you. See
-[docs/docs/guides/supported-agents.md](./docs/docs/guides/supported-agents.md).
+### Termux (Android)
+
+```bash
+acp-proxy --termux <agent-command>
+```
+
+Auto-launches the PWA after server starts.
+
+## Browser Tools
+
+The extension exposes browser tools to agents via MCP:
+
+| Tool | Description |
+|------|-------------|
+| `browser_tabs` | List all open tabs (id, url, title, active status) |
+| `browser_read` | Read DOM content of a tab as simplified Markdown |
+| `browser_execute` | Execute JavaScript in a tab's page context |
+
+**Usage flow:**
+1. Agent calls `browser_tabs` to list available tabs
+2. Agent calls `browser_read` with a `tabId` to read page content
+3. Agent calls `browser_execute` with a `tabId` and `script` to interact with the page
+
+> **Note:** Browser tools require the Chrome extension. They are not available in the web client.
+
+## Supported Agents
+
+<details>
+<summary><b>Claude Code</b> — Anthropic's agentic coding tool</summary>
+
+```bash
+npm install -g @chrome-acp/proxy-server @anthropic-ai/claude-code @zed-industries/claude-code-acp
+acp-proxy --no-auth claude-code-acp
+```
+</details>
+
+<details>
+<summary><b>Codex CLI</b> — OpenAI's coding agent</summary>
+
+```bash
+npm install -g @chrome-acp/proxy-server @openai/codex @zed-industries/codex-acp
+acp-proxy --no-auth codex-acp
+```
+</details>
+
+<details>
+<summary><b>OpenCode</b> — Open-source terminal AI assistant</summary>
+
+```bash
+npm install -g @chrome-acp/proxy-server
+curl -fsSL https://opencode.ai/install | bash
+acp-proxy --no-auth opencode acp
+```
+</details>
+
+<details>
+<summary><b>Gemini CLI</b> — Google's AI agent (free tier available)</summary>
+
+```bash
+npm install -g @chrome-acp/proxy-server @google/gemini-cli
+acp-proxy --no-auth gemini -- --experimental-acp
+```
+</details>
+
+<details>
+<summary><b>Qwen Code</b> — Free coding agent using Qwen models</summary>
+
+```bash
+npm install -g @chrome-acp/proxy-server @qwen-code/qwen-code@latest
+acp-proxy --no-auth qwen -- --acp
+```
+</details>
+
+<details>
+<summary><b>Augment Code</b> — AI coding agent by Augment</summary>
+
+```bash
+npm install -g @chrome-acp/proxy-server @augmentcode/auggie
+acp-proxy --no-auth auggie -- --acp
+```
+</details>
+
+Any [ACP-compatible agent](https://agentclientprotocol.com/get-started/agents) works with Chrome ACP.
+
+## Development
+
+```bash
+# Build all packages
+bun run build
+
+# Build individual packages
+bun run build:extension  # Chrome extension
+bun run build:proxy      # Proxy server
+bun run build:web        # Web client
+
+# Development mode (extension with hot reload)
+bun run dev
+
+# Release new version
+just release <version>
+```
 
 ## Packages
 
@@ -198,16 +203,11 @@ This is a Bun monorepo with four packages:
 
 | Package | Description |
 |---------|-------------|
-| [`packages/chrome-extension`](./packages/chrome-extension) | Chrome MV3 extension: side panel chat UI, page tools, recorder/replay/explain |
-| [`packages/web-client`](./packages/web-client) | PWA web client served by the proxy server |
-| [`packages/shared`](./packages/shared) | Shared UI components and utilities |
-| [`packages/proxy-server`](./packages/proxy-server) | WebSocket proxy server + MCP tool bridge (`acp-proxy`) |
+| [`packages/chrome-extension`](./packages/chrome-extension) | Chrome extension with sidepanel chat UI |
+| [`packages/web-client`](./packages/web-client) | PWA web client served by proxy server |
+| [`packages/shared`](./packages/shared) | Shared UI components and utilities (`@chrome-acp/shared`) |
+| [`packages/proxy-server`](./packages/proxy-server) | WebSocket proxy server (npm: `@chrome-acp/proxy-server`) |
 
-## License & attribution
+## License
 
-MIT — see [LICENSE](./LICENSE).
-
-This component is derived from the MIT-licensed **Chrome ACP** project
-(© 2025 Areo-Joe) and has been modified for Siada CLI: Siada-side
-install/manager integration, the browser tools and MCP wiring above, the
-trajectory recorder/replay/explain modules, remote-host handling and UI work.
+MIT

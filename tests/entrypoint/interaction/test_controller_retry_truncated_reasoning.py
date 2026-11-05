@@ -19,7 +19,7 @@ attempts, and placed BEFORE the result is ever handed to
 TurnPolicy._maybe_run_goal_verifier.
 """
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 # Import turn_policy first: it pulls in siada.session before turn.models
 # touches siada.support.slash_commands, avoiding a circular import
@@ -155,6 +155,7 @@ def _make_full_controller():
 
 def _make_turn_mock(execute_result):
     turn = Mock()
+    turn.execute = AsyncMock()
     turn.get_turn_type.return_value = TurnType.CONVERSATION
     turn.execute.return_value = execute_result
     return turn
@@ -182,7 +183,8 @@ class TestExecuteTurnWithOwnershipDoesNotInterfereWithGoalVerifier:
 
         with patch.object(TurnPolicy, "_maybe_run_goal_verifier") as mock_verifier, \
              patch("siada.io.stdin_interrupt_monitor.is_monitor_active", return_value=False):
-            out = controller.execute(turn, "hello", session)
+            import asyncio
+            out = asyncio.run(controller.execute(turn, "hello", session))
 
         mock_verifier.assert_not_called()
         assert isinstance(out.output, SwitchEvent)
@@ -200,7 +202,8 @@ class TestExecuteTurnWithOwnershipDoesNotInterfereWithGoalVerifier:
         ) as mock_verifier, patch(
             "siada.io.stdin_interrupt_monitor.is_monitor_active", return_value=False
         ):
-            out = controller.execute(turn, "hello", session)
+            import asyncio
+            out = asyncio.run(controller.execute(turn, "hello", session))
 
         mock_verifier.assert_called_once()
         assert out is healthy
@@ -222,7 +225,8 @@ class TestExecuteTurnWithOwnershipDoesNotInterfereWithGoalVerifier:
         ) as mock_verifier, patch(
             "siada.io.stdin_interrupt_monitor.is_monitor_active", return_value=False
         ):
-            out = controller.execute(turn, "hello", session)
+            import asyncio
+            out = asyncio.run(controller.execute(turn, "hello", session))
 
         mock_verifier.assert_called_once()
         assert out is flagged

@@ -76,6 +76,7 @@ function PdfHandlerToggle() {
 }
 
 interface ACPConnectProps {
+  retentionId?: string;
   onStartupStateChange?: (state: StartupState) => void;
   onClientReady?: (client: ACPClient | null) => void;
   onConnectingChange?: (connecting: boolean) => void;
@@ -84,7 +85,7 @@ interface ACPConnectProps {
   onConnectInitiated?: (source: "auto" | "manual") => void;
 }
 
-export function ACPConnect({ onClientReady, onConnectingChange, expanded, onExpandedChange, onConnectInitiated, onStartupStateChange }: ACPConnectProps) {
+export function ACPConnect({ onClientReady, onConnectingChange, expanded, onExpandedChange, onConnectInitiated, onStartupStateChange, retentionId }: ACPConnectProps) {
   // Load persisted settings before first render so the shared component
   // initializes with them (and the background worker reads the same values).
   const [initialSettings, setInitialSettings] = useState<Partial<ACPSettings> | null>(null);
@@ -155,6 +156,7 @@ export function ACPConnect({ onClientReady, onConnectingChange, expanded, onExpa
     {startupState === "checking" && <div role="status" className="flex flex-1 items-center justify-center text-muted-foreground">正在检测本机 Siada…</div>}
     {startupState === "install" && <InstallGuide onConnect={() => { setManualConnection(true); onExpandedChange(true); }} />}
     {startupState === "connection" && initialSettings !== null && <SharedACPConnect
+      retentionId={retentionId}
       key={connectionKey}
       onClientReady={onClientReady}
       onConnectingChange={onConnectingChange}

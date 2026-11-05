@@ -6,6 +6,7 @@
  */
 
 import { isSynchronizedOutputSupported } from './terminalDetector.js';
+import { terminalLayoutColumns } from './terminalWidth.js';
 
 // Capture the original stdout and stderr write methods before any monkey patching occurs.
 const originalStdoutWrite = process.stdout.write.bind(process.stdout);
@@ -162,6 +163,12 @@ export function createWorkingStdio() {
     get(target, prop, receiver) {
       if (prop === 'write') {
         return writeToStdout;
+      }
+      if (prop === 'columns') {
+        return terminalLayoutColumns(target.columns);
+      }
+      if (prop === '__siadaBottomAnchored') {
+        return true;
       }
       const value = Reflect.get(target, prop, receiver);
       if (typeof value === 'function') {

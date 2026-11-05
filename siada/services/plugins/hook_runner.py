@@ -1,6 +1,8 @@
 from __future__ import annotations
 import asyncio
 import json
+import os
+import signal
 import subprocess
 from collections import defaultdict
 from siada.foundation.logging import logger
@@ -148,6 +150,7 @@ class HookRunner:
         stdin_json: str,
     ) -> HookResponse:
         """Run hook command, capture stdout, parse JSON response."""
+        proc = None
         try:
             proc = await asyncio.create_subprocess_shell(
                 entry.command,
@@ -156,6 +159,7 @@ class HookRunner:
                 stderr=asyncio.subprocess.PIPE,
                 env=self._make_env(plugin_path),
                 cwd=self._workspace,
+                start_new_session=os.name == "posix",
             )
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(stdin_json.encode()),
@@ -186,6 +190,9 @@ class HookRunner:
         except Exception as e:
             logger.warning(f"Hook '{event}' from plugin '{plugin_name}' failed: {e}")
             return HookResponse.default()
+        finally:
+            if proc is not None and proc.returncode is None:
+                await self._terminate_process(proc)
 
     async def _execute_async(
         self,
@@ -196,6 +203,7 @@ class HookRunner:
         stdin_json: str,
     ) -> None:
         """Fire-and-forget async hook execution. Stdout is ignored."""
+        proc = None
         try:
             proc = await asyncio.create_subprocess_shell(
                 entry.command,
@@ -204,6 +212,7 @@ class HookRunner:
                 stderr=asyncio.subprocess.PIPE,
                 env=self._make_env(plugin_path),
                 cwd=self._workspace,
+                start_new_session=os.name == "posix",
             )
             _, stderr = await asyncio.wait_for(
                 proc.communicate(stdin_json.encode()),
@@ -220,3 +229,18 @@ class HookRunner:
             )
         except Exception as e:
             logger.warning(f"Async hook '{event}' from plugin '{plugin_name}' failed: {e}")
+        finally:
+            if proc is not None and proc.returncode is None:
+                await self._terminate_process(proc)
+
+    @staticmethod
+    async def _terminate_process(proc) -> None:
+        """Reap the hook and its shell children before runtime shutdown."""
+        try:
+            if os.name == "posix":
+                os.killpg(proc.pid, signal.SIGKILL)
+            else:
+                proc.kill()
+        except ProcessLookupError:
+            pass
+        await proc.wait()

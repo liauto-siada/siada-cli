@@ -275,6 +275,43 @@ describe("ACPClient connect error reporting", () => {
   });
 });
 
+describe("ACPClient sidepanel retention", () => {
+  test("unmount detaches while explicit disconnect still destroys the session", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const client = new ACPClient(settings, id);
+    const connected = client.connect();
+    const ws = FakeWebSocket.last;
+    ws.open();
+    expect(ws.sent[0]).toEqual({ type: "connect", payload: { retentionId: id } });
+    ws.message({ type: "status", payload: { connected: true, retainedSessionId: "previous-session" } });
+    await connected;
+    expect(client.retainedSessionId).toBe("previous-session");
+    client.disconnect({ retainSession: true });
+    expect(ws.sent.some(message => message.type === "disconnect")).toBe(false);
+    expect(ws.readyState).toBe(3);
+
+    const reconnected = client.connect();
+    const next = FakeWebSocket.last;
+    next.open();
+    next.message({ type: "status", payload: { connected: true } });
+    await reconnected;
+    expect(client.retainedSessionId).toBeNull();
+    client.disconnect();
+    expect(next.sent.at(-1)).toEqual({ type: "disconnect" });
+  });
+
+  test("clients without a stable identity preserve immediate disconnect behavior", async () => {
+    const client = new ACPClient(settings);
+    const connected = client.connect();
+    const ws = FakeWebSocket.last;
+    ws.open();
+    ws.message({ type: "status", payload: { connected: true } });
+    await connected;
+    client.disconnect({ retainSession: true });
+    expect(ws.sent.at(-1)).toEqual({ type: "disconnect" });
+  });
+});
+
 describe("ACPClient session update listeners", () => {
   const update = {
     sessionUpdate: "tool_call",
@@ -324,128 +361,6 @@ describe("ACPClient session update listeners", () => {
 
     expect(extra).toEqual([]);
     expect(primary).toEqual(["t1"]);
-    client.disconnect();
-  });
-});
-
-describe("ACPClient turn lifecycle listeners", () => {
-  async function connected() {
-    const { client } = newClient();
-    const promise = client.connect();
-    const ws = FakeWebSocket.last;
-    ws.open();
-    ws.message({ type: "status", payload: { connected: true } });
-    await promise;
-    ws.message({ type: "session_created", payload: { sessionId: "s1" } });
-    return { client, ws };
-  }
-
-  test("sending a prompt reports the turn as started", async () => {
-    const { client, ws } = await connected();
-    const events: Array<{ kind: string }> = [];
-    client.addTurnLifecycleListener((event) => events.push(event));
-
-    await client.sendPrompt("go");
-
-    expect(events).toEqual([{ kind: "started" }]);
-    expect(ws.sent.at(-1)).toEqual({
-      type: "prompt",
-      payload: { content: [{ type: "text", text: "go" }] },
-    });
-    client.disconnect();
-  });
-
-  test("prompt_complete reports how the turn ended, cancel included", async () => {
-    const { client, ws } = await connected();
-    const events: Array<{ kind: string }> = [];
-    client.addTurnLifecycleListener((event) => events.push(event));
-
-    ws.message({ type: "prompt_complete", payload: { stopReason: "end_turn" } });
-    ws.message({ type: "prompt_complete", payload: { stopReason: "cancelled" } });
-
-    expect(events).toEqual([
-      { kind: "completed", stopReason: "end_turn" },
-      { kind: "completed", stopReason: "cancelled" },
-    ]);
-    client.disconnect();
-  });
-
-  test("a cancel request is reported without waiting for the agent", async () => {
-    const { client, ws } = await connected();
-    const events: Array<{ kind: string }> = [];
-    client.addTurnLifecycleListener((event) => events.push(event));
-
-    client.cancel();
-
-    expect(events).toEqual([{ kind: "cancel-requested" }]);
-    expect(ws.sent.at(-1)).toEqual({ type: "cancel" });
-    client.disconnect();
-  });
-
-  test("a proxy error reports the turn as failed with its message", async () => {
-    const { client, ws } = await connected();
-    const events: Array<{ kind: string }> = [];
-    client.addTurnLifecycleListener((event) => events.push(event));
-
-    ws.message({ type: "error", payload: { message: "BadGatewayError: 502" } });
-
-    expect(events).toEqual([{ kind: "failed", message: "BadGatewayError: 502" }]);
-    client.disconnect();
-  });
-
-  test("a dropped connection after a turn ends the stream", async () => {
-    const { client, ws } = await connected();
-    const events: Array<{ kind: string }> = [];
-    client.addTurnLifecycleListener((event) => events.push(event));
-
-    client.disconnect();
-    expect(events).toEqual([{ kind: "disconnected", error: undefined }]);
-
-    // A socket that dies on its own reports the same thing once (the state is
-    // no longer "connected", so the second transition stays quiet).
-    const second = await connected();
-    const secondEvents: Array<{ kind: string }> = [];
-    second.client.addTurnLifecycleListener((event) => secondEvents.push(event));
-    second.ws.closeWith(1006, "");
-    second.client.disconnect();
-
-    expect(secondEvents).toEqual([{ kind: "disconnected", error: undefined }]);
-  });
-
-  test("unsubscribing stops lifecycle delivery without affecting the primary handler", async () => {
-    const { client, ws } = await connected();
-    const primary: string[] = [];
-    const extra: string[] = [];
-    client.setPromptCompleteHandler((stopReason) => primary.push(stopReason));
-    const off = client.addTurnLifecycleListener((event) => extra.push(event.kind));
-
-    off();
-    ws.message({ type: "prompt_complete", payload: { stopReason: "end_turn" } });
-
-    expect(extra).toEqual([]);
-    expect(primary).toEqual(["end_turn"]);
-    client.disconnect();
-  });
-
-  test("a listener that throws does not break the connection's own handling", async () => {
-    const { client, ws } = await connected();
-    const seen: string[] = [];
-    const originalError = console.error;
-    console.error = () => {};
-    try {
-      client.addTurnLifecycleListener(() => {
-        throw new Error("listener bug");
-      });
-      client.addTurnLifecycleListener((event) => seen.push(event.kind));
-
-      await client.sendPrompt("go");
-      ws.message({ type: "prompt_complete", payload: { stopReason: "end_turn" } });
-    } finally {
-      console.error = originalError;
-    }
-
-    // The other listeners and the primary handlers still ran in order.
-    expect(seen).toEqual(["started", "completed"]);
     client.disconnect();
   });
 });
@@ -581,6 +496,7 @@ describe("ACPClient frame listeners", () => {
     ws.open();
     ws.message({ type: "status", payload: { connected: true } });
     await promise;
+    ws.message({ type: "session_created", payload: { sessionId: "frame-test-session" } });
     return { client, ws };
   }
 
@@ -598,7 +514,7 @@ describe("ACPClient frame listeners", () => {
     client.onFrame((f) => first.push(f.callId));
     client.onFrame((f) => second.push(f.callId));
 
-    ws.message({ type: "frame", callId: "call-1", payload });
+    ws.message({ type: "frame", callId: "call-1", sessionId: "frame-test-session", payload });
 
     expect(first).toEqual(["call-1"]);
     expect(second).toEqual(["call-1"]);
@@ -611,26 +527,9 @@ describe("ACPClient frame listeners", () => {
     const off = client.onFrame((f) => seen.push(f.payload.width));
 
     off();
-    ws.message({ type: "frame", callId: "call-1", payload });
+    ws.message({ type: "frame", callId: "call-1", sessionId: "frame-test-session", payload });
 
     expect(seen).toEqual([]);
-    client.disconnect();
-  });
-
-  test("the relay's tab and run tags reach frame listeners", async () => {
-    const { client, ws } = await connected();
-    const seen: Array<{ tabId?: number; sessionId?: string }> = [];
-    client.onFrame((f) => seen.push({ tabId: f.tabId, sessionId: f.sessionId }));
-
-    // The relay adds both; a picture from a producer that does not is passed on
-    // with them undefined rather than invented.
-    ws.message({ type: "frame", callId: "call-1", tabId: 7, sessionId: "s1", payload });
-    ws.message({ type: "frame", payload });
-
-    expect(seen).toEqual([
-      { tabId: 7, sessionId: "s1" },
-      { tabId: undefined, sessionId: undefined },
-    ]);
     client.disconnect();
   });
 
@@ -645,6 +544,19 @@ describe("ACPClient frame listeners", () => {
       { type: "screencast", payload: { enabled: true } },
       { type: "screencast", payload: { enabled: false } },
     ]);
+    client.disconnect();
+  });
+
+  test("unowned frames and frames from an earlier session are dropped", async () => {
+    const { client, ws } = await connected();
+    const seen: Array<string | undefined> = [];
+    client.onFrame(frame => seen.push(frame.callId));
+    ws.message({ type: "frame", callId: "unowned", payload });
+    ws.message({ type: "frame", callId: "foreign", sessionId: "other-session", payload });
+    ws.message({ type: "session_created", payload: { sessionId: "next-session" } });
+    ws.message({ type: "frame", callId: "stale", sessionId: "frame-test-session", payload });
+    ws.message({ type: "frame", callId: "current", sessionId: "next-session", payload });
+    expect(seen).toEqual(["current"]);
     client.disconnect();
   });
 

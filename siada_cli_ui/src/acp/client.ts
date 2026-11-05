@@ -6,7 +6,7 @@
 import { EventEmitter } from 'events';
 import { randomUUID } from 'node:crypto';
 import { SiadaACPAdapter } from './adapter.js';
-import { ClientConfig, ACPMessage, ACPEvent, Message } from '../types/index.js';
+import { ClientConfig, ACPMessage, ACPEvent, Message, type ACPStreamEnd } from '../types/index.js';
 import { logger, LogLevel } from '../utils/logger.js';
 
 export class SiadaACPClient extends EventEmitter {
@@ -98,6 +98,10 @@ export class SiadaACPClient extends EventEmitter {
 
     this.adapter.on('stream:start', (data: { messageId: string; messageType: string }) => {
       this.emit('stream:start', data);
+    });
+
+    this.adapter.on('stream:end', (data: ACPStreamEnd) => {
+      this.emit('stream:end', data);
     });
 
     this.adapter.on('stream:aborted', (data: { streamStartId?: string; reason?: string }) => {
@@ -241,8 +245,11 @@ export class SiadaACPClient extends EventEmitter {
             isStreaming: event.data.isStreaming, // Include isStreaming flag
             streamEnd: event.data.streamEnd,
             streamStartId: event.data.metadata?.streamStartId, // Read from correct path
+            messageId: event.data.metadata?.messageId,
             chunkIndex: event.data.metadata?.chunkIndex,
             eventType: event.data.metadata?.eventType,
+            hookEvent: event.data.metadata?.hookEvent,
+            hookStatus: event.data.metadata?.hookStatus,
             // Add banner_info fields
             reason: event.data.metadata?.reason,
             type: event.data.metadata?.type,

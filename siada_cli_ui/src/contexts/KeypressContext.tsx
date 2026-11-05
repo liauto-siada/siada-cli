@@ -13,8 +13,10 @@ import React, {
   useEffect,
   useRef,
 } from 'react';
-import { useStdin } from '@jrichman/ink';
+import { useApp, useStdin } from '@jrichman/ink';
 import { logger } from '../utils/logger.js';
+import { getTerminalInput } from '../services/windowsConsole.js';
+import { createJediTermWheelFilter, isJediTerm, type DisposableKeypressHandler } from '../utils/jediTermWheel.js';
 
 // Timeouts for buffering sequences
 export const ESC_TIMEOUT = 50;           // ESC key disambiguation timeout
@@ -250,7 +252,7 @@ function isKittyProtocolEnabled(): boolean {
  * Only for terminals that properly handle the push/pop stack — same list as
  * KITTY_PROTOCOL_TERMINALS plus Kitty itself.
  */
-function shouldEnableKittyKeyboard(): boolean {
+export function shouldEnableKittyKeyboard(): boolean {
   return isKittyProtocolEnabled();
 }
 
@@ -274,10 +276,8 @@ function parseMouseEvent(sequence: string): boolean {
 
 /**
  * Filter out non-keyboard events (mouse and focus events).
- * Exception: SGR mouse wheel events (button 64 = wheel up, 65 = wheel down)
- * are converted to wheelup/wheeldown key events instead of being dropped —
- * views that enable mouse reporting (e.g. SubAgentDetailView) rely on them
- * for wheel scrolling, mirroring claude-code's parse-keypress behavior.
+ * SGR motion, wheel events and button presses become named,
+ * non-insertable events for views that enable mouse reporting.
  */
 function nonKeyboardEventFilter(
   keypressHandler: KeypressHandler,
@@ -286,12 +286,35 @@ function nonKeyboardEventFilter(
     const mouseMatch = SGR_MOUSE_REGEX.exec(key.sequence);
     if (mouseMatch) {
       const button = parseInt(mouseMatch[1], 10);
-      if (button === 64) {
-        keypressHandler({ ...key, name: 'wheelup' });
-      } else if (button === 65) {
-        keypressHandler({ ...key, name: 'wheeldown' });
+      // Reworked JediTerm omits the motion bit on no-button mouse movement.
+      // Restrict normalization to its identity; button 3 is ambiguous elsewhere.
+      const jediTermHover = (button & ~28) === 3 && mouseMatch[4] === 'M' &&
+        isJediTerm();
+      const normalizedButton = jediTermHover ? button | 32 : button;
+      const baseButton = normalizedButton & ~28;
+      const mouseKey = {
+        ...key, shift: Boolean(button & 4), alt: Boolean(button & 8),
+        ctrl: Boolean(button & 16), insertable: false,
+        sequence: jediTermHover
+          ? `\x1b[<${normalizedButton};${mouseMatch[2]};${mouseMatch[3]}M`
+          : key.sequence,
+      };
+      if ((baseButton & 32) && !(baseButton & 64) && mouseMatch[4] === 'M') {
+        keypressHandler({ ...mouseKey, name: 'mousemove' });
+      } else if (baseButton === 64) {
+        keypressHandler({ ...mouseKey, name: 'wheelup' });
+      } else if (baseButton === 65) {
+        keypressHandler({ ...mouseKey, name: 'wheeldown' });
+      } else if (baseButton === 0 && mouseMatch[4] === 'M') {
+        keypressHandler({ ...mouseKey, name: 'mouseclick' });
+      } else if (baseButton === 1 && mouseMatch[4] === 'M') {
+        keypressHandler({ ...mouseKey, name: 'mousemiddle' });
+      } else if (baseButton === 2 && mouseMatch[4] === 'M') {
+        keypressHandler({ ...mouseKey, name: 'mouseright' });
+      } else if (baseButton === 0 && mouseMatch[4] === 'm') {
+        keypressHandler({ ...mouseKey, name: 'mouserelease' });
       }
-      // All other mouse events are still filtered out.
+      // Middle/right releases never activate a control or paste a second time.
       return;
     }
     if (
@@ -313,6 +336,11 @@ function nonKeyboardEventFilter(
 function bufferFastReturn(keypressHandler: KeypressHandler): KeypressHandler {
   let lastKeyTime = 0;
   return (key: Key) => {
+    // Pointer reports must not turn the next Enter into a pasted newline.
+    if (parseMouseEvent(key.sequence) || key.sequence === FOCUS_IN || key.sequence === FOCUS_OUT) {
+      keypressHandler(key);
+      return;
+    }
     const now = Date.now();
     if (key.name === 'return' && now - lastKeyTime <= FAST_RETURN_TIMEOUT) {
       keypressHandler({
@@ -523,6 +551,14 @@ export function* emitKeys(
       if (!escaped) {
         name = 'j';
         ctrl = true;
+        logger.debug('🔥 Ctrl+J detected (line feed)', {
+          component: 'KeypressContext',
+          operation: 'parse_ctrl_j',
+          charCode: ch.charCodeAt(0),
+          hexCode: '\\x0a',
+          parsedName: 'j',
+          ctrl: true,
+        });
       } else {
         name = 'enter';
         alt = escaped;
@@ -543,8 +579,15 @@ export function* emitKeys(
     } else if (!escaped && ch <= '\x1a') {
       name = String.fromCharCode(ch.charCodeAt(0) + 'a'.charCodeAt(0) - 1);
       ctrl = true;
-      // No per-keystroke log here: the parsed control character plus its
-      // char code identify the key that was pressed, which is key content.
+      
+      logger.debug('🔥 Control character parsed', {
+        component: 'KeypressContext',
+        operation: 'parse_control_char',
+        charCode: ch.charCodeAt(0),
+        hexCode: '\\x' + ch.charCodeAt(0).toString(16).padStart(2, '0'),
+        parsedName: name,
+        ctrl: true,
+      });
     } else if (/^[0-9A-Za-z]$/.exec(ch) !== null) {
       name = ch.toLowerCase();
       shift = /^[A-Z]$/.exec(ch) !== null;
@@ -653,9 +696,7 @@ function bufferPaste(keypressHandler: KeypressHandler): KeypressHandler {
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n');
 
-      // Lengths only — the cleaned content itself (e.g. a pasted API key or
-      // password) must never reach the log file, not even a preview of it.
-      logger.info('[KeypressContext] bufferPaste done', {
+      logger.debug('[KeypressContext] bufferPaste done', {
         rawBufferLength: buffer.length,
         cleanedBufferLength: cleanedBuffer.length,
         isEmpty: cleanedBuffer.length === 0,
@@ -727,6 +768,14 @@ function bufferBackslashEnter(
 interface KeypressContextValue {
   subscribe: (handler: KeypressHandler) => void;
   unsubscribe: (handler: KeypressHandler) => void;
+}
+
+/** Build the input chain independently of stdin so protocol behavior is testable. */
+export function createKeypressProcessor(keypressHandler: KeypressHandler): DisposableKeypressHandler {
+  const wheelFilter = createJediTermWheelFilter(keypressHandler);
+  let processor = nonKeyboardEventFilter(wheelFilter);
+  if (!isKittyProtocolEnabled()) processor = bufferFastReturn(processor);
+  return Object.assign(bufferPaste(bufferBackslashEnter(processor)), { dispose: wheelFilter.dispose });
 }
 
 const KeypressContext = createContext<KeypressContextValue | undefined>(
@@ -807,6 +856,7 @@ export function KeypressProvider({
   children: React.ReactNode;
 }) {
   const { stdin, setRawMode } = useStdin();
+  const { selection } = useApp();
 
   const subscribers = useRef<Set<KeypressHandler>>(new Set()).current;
   
@@ -822,76 +872,63 @@ export function KeypressProvider({
   
   const broadcast = useCallback(
     (key: Key) => {
-      // 🔥 INFO: Log broadcast metadata only (especially Ctrl+C).
-      // Never log key.sequence or single-character names, including shortcuts:
-      // they can reveal typed secrets character by character.
-      // Length/flags keep the diagnostic value without carrying content.
-      logger.info('🔥 Broadcasting key event', {
-        component: 'KeypressContext',
-        operation: 'broadcast',
-        keyName: !key.insertable && Array.from(key.name).length > 1 ? key.name : undefined,
-        insertable: key.insertable,
-        ctrl: key.ctrl,
-        alt: key.alt,
-        cmd: key.cmd,
-        shift: key.shift,
-        sequenceLength: key.sequence.length,
-        subscriberCount: subscribers.size,
-      });
+      // Resolve once before broadcasting: copying can synchronously clear the
+      // selection, but later subscribers must not reinterpret this click as paste.
+      const rightCopy = key.name === 'mouseright' && !key.ctrl && !key.cmd &&
+        !key.alt && !key.shift;
+      if ((((key.ctrl || key.cmd) && key.name === 'c') || rightCopy) &&
+        selection && !selection.isCollapsed) {
+        key = { ...key, name: 'selectioncopy', insertable: false };
+      } else if (key.name === 'escape' && selection && !selection.isCollapsed) {
+        key = { ...key, name: 'selectionclear', insertable: false };
+      }
+      if (key.name !== 'mousemove') {
+        logger.debug('🔥 Broadcasting key event', {
+          component: 'KeypressContext',
+          operation: 'broadcast',
+          key: {
+            name: key.name,
+            ctrl: key.ctrl,
+            alt: key.alt,
+            cmd: key.cmd,
+            shift: key.shift,
+            sequenceLength: key.sequence.length,
+          },
+          subscriberCount: subscribers.size,
+        });
+      }
       
       subscribers.forEach((handler) => handler(key));
     },
-    [subscribers],
+    [subscribers, selection],
   );
 
   useEffect(() => {
     const wasRaw = stdin.isRaw;
+    const terminalInput = getTerminalInput();
     
     if (wasRaw === false) {
       setRawMode(true);
     }
 
-    // Build the processing chain (order matters!)
-    // 1. First filter out non-keyboard events (mouse, focus)
-    let processor = nonKeyboardEventFilter(broadcast);
-    
-    // 2. Then handle fast return keys (for terminals without paste bracketing)
-    // Skip this for Kitty terminal which has better paste support
-    if (!isKittyProtocolEnabled()) {
-      processor = bufferFastReturn(processor);
-    }
-    
-    // 3. Then handle backslash+enter sequences
-    processor = bufferBackslashEnter(processor);
-    
-    // 4. Then handle paste bracketing
-    processor = bufferPaste(processor);
-    
-    // 5. Finally create the data listener that feeds the chain
+    const processor = createKeypressProcessor(broadcast);
     const dataListener = createDataListener(processor);
 
-    /**
-     * Use process.stdin directly instead of Ink's stdin
-     * 
-     * Reason: Ink's stdin may be locked in paused mode on Ubuntu/Linux,
-     * preventing reliable input handling. Using process.stdin directly
-     * ensures consistent behavior across all platforms.
-     */
+    // Preserve the direct-stdin path on ordinary terminals. Native Windows
+    // uses the shared bridge stream so libuv cannot consume Win32 records.
     
-    logger.info('🔥 Using process.stdin directly', {
+    logger.info('Using terminal input stream', {
       component: 'KeypressContext',
-      operation: 'use_process_stdin',
-      reason: 'Bypass Ink stdin paused mode issue on Ubuntu/Linux',
+      operation: 'use_terminal_input',
+      source: terminalInput === process.stdin ? 'stdin' : 'native-console',
       inkStdinFlowing: stdin.readableFlowing,
-      processStdinFlowing: process.stdin.readableFlowing,
+      processStdinFlowing: terminalInput.readableFlowing,
     });
     
-    // Configure process.stdin for raw mode input when available.
-    // In some non-interactive/dev environments process.stdin exists but does not
-    // expose setRawMode(), which would otherwise crash the whole UI on mount.
-    const canSetProcessRawMode = typeof (process.stdin as NodeJS.ReadStream).setRawMode === 'function';
-    if (!process.stdin.isRaw && canSetProcessRawMode) {
-      process.stdin.setRawMode(true);
+    // Piped/development input can lack a raw-mode interface.
+    const canSetProcessRawMode = typeof terminalInput.setRawMode === 'function';
+    if (!terminalInput.isRaw && canSetProcessRawMode) {
+      terminalInput.setRawMode(true);
       logger.info('🔥 Set process.stdin to raw mode', {
         component: 'KeypressContext',
         operation: 'set_raw_mode',
@@ -901,13 +938,13 @@ export function KeypressProvider({
         component: 'KeypressContext',
         operation: 'set_raw_mode_unavailable',
         inkStdinIsRaw: stdin.isRaw,
-        processStdinIsTTY: process.stdin.isTTY,
+        processStdinIsTTY: terminalInput.isTTY,
       });
     }
     
     // Set encoding and ensure flowing mode
-    process.stdin.setEncoding('utf8');
-    process.stdin.resume();
+    terminalInput.setEncoding('utf8');
+    terminalInput.resume();
     
     // Enable Bracketed Paste Mode
     // When enabled, the terminal wraps pasted text with ESC[200~ ... ESC[201~
@@ -939,42 +976,36 @@ export function KeypressProvider({
       component: 'KeypressContext',
       operation: 'configure_process_stdin',
       encoding: 'utf8',
-      flowingAfter: process.stdin.readableFlowing,
-      isRaw: process.stdin.isRaw,
+      flowingAfter: terminalInput.readableFlowing,
+      isRaw: terminalInput.isRaw,
     });
     
-    // Register data event listener.
-    // The handler is kept in a named binding so the effect cleanup removes
-    // *this* listener instead of the parser closure from createDataListener()
-    // (which was never registered on stdin, leaving a dangling listener per
-    // mount/unmount cycle).
-    const onStdinData = (chunk: Buffer | string) => {
+    // Register data event listener
+    const handleData = (chunk: Buffer | string) => {
       const data = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
       
-      // Metadata only: logging the chunk (or its hex dump) recorded every
-      // keystroke — including typed/pasted passwords and API keys — into
-      // ~/.siada-cli/ui-logs/siada-ui.log.
-      logger.info('🔥 Process.stdin data received', {
-        component: 'KeypressContext',
-        operation: 'process_stdin_data',
-        chunkLength: data.length,
-        containsCtrlC: data.includes('\x03'),
-        containsEscape: data.includes('\x1b'),
-      });
+      // All-motion tracking can produce hundreds of reports per second.
+      if (!/^(?:\x1b\[<\d+;\d+;\d+[mM])+$/.test(data)) {
+        logger.debug('🔥 Process.stdin data received', {
+          component: 'KeypressContext',
+          operation: 'process_stdin_data',
+          chunkLength: data.length,
+          containsCtrlC: data.includes('\x03'),
+        });
+      }
       
       dataListener(data);
     };
-
-    // Register data event listener
-    process.stdin.on('data', onStdinData);
+    terminalInput.on('data', handleData);
     
     logger.info('✅ Process.stdin listener registered', {
       component: 'KeypressContext',
       operation: 'listener_registration',
-      listenerCount: process.stdin.listenerCount('data'),
+      listenerCount: terminalInput.listenerCount('data'),
     });
 
     return () => {
+      processor.dispose();
       // Disable Bracketed Paste Mode on cleanup
       if (process.stdout.isTTY) {
         process.stdout.write('\x1b[?2004l'); // Disable bracketed paste mode
@@ -983,7 +1014,7 @@ export function KeypressProvider({
       if (kittyEnabled) {
         process.stdout.write('\x1b[<u'); // Pop Kitty keyboard protocol
       }
-      process.stdin.removeListener('data', onStdinData);
+      terminalInput.removeListener('data', handleData);
       if (wasRaw === false) {
         setRawMode(false);
       }

@@ -15,8 +15,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
-    "declarationMap": false,
-    "sourceMap": false,
+    "declarationMap": true,
+    "sourceMap": true,
 
     // Best practices
     "strict": true,

@@ -32,6 +32,9 @@ import {
 // Self-wiring module: applies the persisted default-PDF-handler toggle
 // (DNR redirect rules) at startup and follows storage changes.
 import "./pdf/pdf-handler";
+import { registerFloatingLauncher } from "./floating/background";
+
+registerFloatingLauncher(chrome);
 
 const TRAJECTORY_BUFFER_KEY = "trajectory_buffer";
 const STORAGE_BUFFER_CAP = 5000; // drop oldest beyond this
@@ -54,9 +57,7 @@ let bufferChain: Promise<void> = Promise.resolve();
 async function trajectoryWsUrl(): Promise<string> {
   const stored = await loadStoredSettings();
   const settings = resolveProxySettings(stored);
-  // The trajectory endpoint sits behind the same token gate as /ws; carry the
-  // token the user configured for the tool channel or the proxy refuses us.
-  return trajectoryWsUrlFor(settings.proxyUrl, settings.token);
+  return trajectoryWsUrlFor(settings.proxyUrl);
 }
 
 async function connectWs(urlOverride?: string) {
@@ -254,18 +255,6 @@ let liveView: {
 // debugger session (another extension or DevTools).
 const attachedTabs = new Set<number>();
 
-// Starting and stopping a stream are each a pair of async Chrome API calls, so
-// two overlapping requests can interleave (stop during attach, two starts) and
-// leave a stream running that nothing references any more. Requests are run one
-// after another instead; the sessions themselves also abort a start that is
-// stopped mid-flight, for the paths that do not go through this queue.
-let liveViewQueue: Promise<unknown> = Promise.resolve();
-function queueLiveViewRequest(task: () => Promise<void>): void {
-  liveViewQueue = liveViewQueue
-    .then(task, task)
-    .catch((error) => console.warn("[live-view] request failed:", error));
-}
-
 function debuggerTarget(tabId: number): ScreencastTarget {
   const target = { tabId };
   let unsubscribe: (() => void) | null = null;
@@ -300,18 +289,9 @@ function debuggerTarget(tabId: number): ScreencastTarget {
   };
 }
 
-/**
- * Send a tab-scoped message over the tool channel. The proxy routes pictures
- * and live-view state by the tab they belong to and drops untagged ones, so
- * every frame/state send must name its tab here.
- */
-function sendTabMessage(socket: WebSocket, tabId: number, message: object): void {
+function sendScreencastState(socket: WebSocket, state: LiveViewState, tabId = liveView?.tabId): void {
   if (socket.readyState !== WebSocket.OPEN) return;
-  socket.send(JSON.stringify({ ...message, tabId }));
-}
-
-function sendScreencastState(socket: WebSocket, tabId: number, state: LiveViewState): void {
-  sendTabMessage(socket, tabId, { type: "screencast_state", payload: state });
+  socket.send(JSON.stringify({ type: "screencast_state", payload: { ...state, tabId } }));
 }
 
 /** Stop the running stream, if any. `session.stop()` reports the state change. */
@@ -326,36 +306,26 @@ async function handleScreencastRequest(
   socket: WebSocket,
   payload: { enabled?: boolean; tabId?: number },
 ): Promise<void> {
-  const requestedTabId = typeof payload.tabId === "number" ? payload.tabId : undefined;
-
   if (!payload.enabled) {
-    // A stop names the tab it stops: a viewer disconnecting from another tab
-    // must not kill the user's running stream. The proxy always sends the tab
-    // it had bound; a legacy stop without one falls back to the single stream.
-    if (liveView && requestedTabId !== undefined && liveView.tabId !== requestedTabId) {
-      sendScreencastState(socket, requestedTabId, { active: false });
-      return;
-    }
     if (!liveView) {
-      if (requestedTabId !== undefined) {
-        sendScreencastState(socket, requestedTabId, { active: false });
-      }
+      sendScreencastState(socket, { active: false });
       return;
     }
     await stopLiveView();
     return;
   }
 
-  const tabId = requestedTabId;
+  const tabId = payload.tabId;
   if (tabId === undefined) {
-    // The proxy answers a start without a bound tab itself and never forwards
-    // one, and a state message without a tab could not be routed back anyway.
-    console.warn("[live-view] start request without a tab was ignored");
+    sendScreencastState(socket, {
+      active: false,
+      error: "No tab was provided for the live view.",
+    });
     return;
   }
 
   if (liveView?.tabId === tabId && liveView.session.isActive()) {
-    sendScreencastState(socket, tabId, { active: true });
+    sendScreencastState(socket, { active: true });
     return;
   }
 
@@ -371,9 +341,10 @@ async function handleScreencastRequest(
     quality: 60,
     maxWidth: 1280,
     onFrame: (frame: { dataUrl: string; width: number; height: number; tsMs: number }) => {
-      sendTabMessage(socket, tabId, { type: "frame", payload: frame });
+      if (socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ type: "frame", tabId, payload: frame }));
     },
-    onState: (state: LiveViewState) => sendScreencastState(socket, tabId, state),
+    onState: (state: LiveViewState) => sendScreencastState(socket, state, tabId),
   };
   const session = tab?.active
     ? createScreencast(debuggerTarget(tabId), options)
@@ -382,10 +353,8 @@ async function handleScreencastRequest(
   liveView = { session, tabId, socket };
   await session.start();
 
-  // start() already reported the failure and detached; just drop the handle —
-  // unless a later request replaced it in the meantime, in which case dropping
-  // it would leave that running stream with nobody able to stop it.
-  if (!session.isActive() && liveView?.session === session) liveView = null;
+  // start() already reported the failure and detached; just drop the handle.
+  if (!session.isActive()) liveView = null;
 }
 
 // Chrome detaches on its own when a tab closes or navigates in some cases;
@@ -450,7 +419,7 @@ async function connectToolWs(urlOverride?: string): Promise<void> {
         return;
       }
       if (msg.type === "screencast") {
-        queueLiveViewRequest(() => handleScreencastRequest(socket, msg.payload ?? {}));
+        await handleScreencastRequest(socket, msg.payload ?? {});
         return;
       }
       if (msg.type !== "browser_tool_call" || msg.callId === undefined) return;
@@ -470,23 +439,18 @@ async function connectToolWs(urlOverride?: string): Promise<void> {
       socket.send(JSON.stringify({ type: "browser_tool_result", callId: msg.callId, result }));
 
       // Frames go to the UI, the tool result goes to the agent; they are sent
-      // separately for that reason. Each frame is tagged with the tab the tool
-      // ran in, so the proxy hands it to that tab's client only.
+      // separately for that reason.
       if (beforeFrame) {
-        sendTabMessage(socket, params.tabId!, {
-          type: "frame",
-          callId: msg.callId,
-          payload: beforeFrame,
-        });
+        socket.send(
+          JSON.stringify({ type: "frame", tabId: params.tabId, callId: msg.callId, payload: beforeFrame }),
+        );
       }
       if (watchPage) {
         const afterFrame = await captureFrame(params.tabId!, "after");
         if (afterFrame) {
-          sendTabMessage(socket, params.tabId!, {
-            type: "frame",
-            callId: msg.callId,
-            payload: afterFrame,
-          });
+          socket.send(
+            JSON.stringify({ type: "frame", tabId: params.tabId, callId: msg.callId, payload: afterFrame }),
+          );
         }
       }
     })();

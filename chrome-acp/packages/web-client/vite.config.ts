@@ -1,32 +1,12 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "path";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const buildInputAudit: Plugin = {
-  name: "chrome-acp-build-inputs",
-  generateBundle(_options, bundle) {
-    const chunks = Object.fromEntries(
-      Object.entries(bundle)
-        .filter(([, output]) => output.type === "chunk")
-        .map(([name, output]) => [name, Object.keys(output.modules)]),
-    );
-    const auditDir = resolve(__dirname, "../../.build-audit");
-    mkdirSync(auditDir, { recursive: true });
-    writeFileSync(resolve(auditDir, "web-inputs.json"), JSON.stringify(chunks, null, 2));
-  },
-};
+const __dirname = new URL(".", import.meta.url).pathname;
 
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    ...(process.env.CHROME_ACP_BUILD_AUDIT === "1" ? [buildInputAudit] : []),
-  ],
+  plugins: [react(), tailwindcss()],
   root: "src",
   base: "/app/", // Serve from /app/ path on the proxy server
   publicDir: false, // We'll handle public assets manually
@@ -38,7 +18,7 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, "../proxy-server/public"),
     emptyOutDir: true,
-    sourcemap: false,
+    sourcemap: true,
     rollupOptions: {
       input: {
         main: resolve(__dirname, "src/index.html"),

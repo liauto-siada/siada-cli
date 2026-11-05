@@ -99,5 +99,11 @@ def uses_glm_repeated_tool_reminder(model_name: Optional[str]) -> bool:
     return is_glm_profile_model(model_name)
 
 
+def is_deepseek_profile_model(model_name: str | None) -> bool:
+    if not model_name or _gpt_main_version(model_name) is not None:
+        return False
+    return re.search(r"(?:^|[^a-z0-9])deepseek(?=$|[^a-z0-9])", str(model_name).lower()) is not None
+
+
 def resolve_skill_usage_profile(model_name: Optional[str]) -> SkillUsageProfile:
     return SkillUsageProfile.GPT6 if is_gpt6_model(model_name) else SkillUsageProfile.STRICT

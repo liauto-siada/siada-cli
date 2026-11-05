@@ -89,9 +89,15 @@ class MCPConfigLoader:
         """
         config_files = []
         
-        # 1. Check project root directory
-        project_config = Path.cwd() / "siada_mcp_config.json"
-        if project_config.exists():
+        # 1. Check project root directory. When the launch directory has been
+        # deleted, Path.cwd() raises OSError; the user-level config below is
+        # still usable, so skip only the project-level lookup.
+        try:
+            project_dir = Path.cwd()
+        except OSError:
+            project_dir = None
+        project_config = project_dir / "siada_mcp_config.json" if project_dir else None
+        if project_config is not None and project_config.exists():
             logger.debug(f"Found MCP config in project root: {project_config}")
             config_files.append(project_config)
         

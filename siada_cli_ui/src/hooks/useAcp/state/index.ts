@@ -13,6 +13,7 @@ export function useACPState() {
     ready: false,
   });
   const [loading, setLoading] = useState(false);
+  const [startupComplete, setStartupComplete] = useState(false);
   /** Current agent activity step (reasoning / tool execution / system
    * processing / compaction) driving the thinking indicator's step label. */
   const [activeStep, setActiveStep] = useState<ThinkingStep | null>(null);
@@ -42,6 +43,7 @@ export function useACPState() {
     messages, setMessages,
     connectionStatus, setConnectionStatus,
     loading, setLoading,
+    startupComplete, setStartupComplete,
     activeStep, setActiveStep,
     tokenUsage, setTokenUsage,
     cacheStatus, setCacheStatus,

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import './helpers/chineseLocale.js';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render } from '@jrichman/ink';
@@ -26,7 +27,7 @@ describe('sub-agent detail real Ink rendering', () => {
     const instance = render(view(), { stdout, debug: true });
     const screen = () => [...writes].reverse().find(write => write.includes('Stream test')) ?? '';
     try {
-      expect(screen()).toContain('No messages recorded');
+      expect(screen()).toContain('暂无消息记录');
       entries = mergeSubAgentEntry(entries, {
         id: 'r1', kind: 'thinking', text: 'REASONING-FIRST', isComplete: false,
       });

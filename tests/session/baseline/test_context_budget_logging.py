@@ -12,13 +12,13 @@ from agents.usage import Usage
 
 from siada.agent_hub.context_filter import api_message_transfer_filter as transfer
 from siada.agent_hub.context_filter import request_token_estimator as estimator
-from siada.agent_hub.context_filter.compaction_strategy import CompactionResult, CompactionStrategy
+from siada.agent_hub.context_filter.compaction_strategy import CompactionError, CompactionResult, CompactionStrategy
 from siada.agent_hub.context_filter.header_summary_compaction_strategy import SummarizeWithHeaderCompaction
 from siada.provider.token_counting import TokenCountingInfo, token_counting_info_from_model
 from siada.services import session_runtime_state as state
 from siada.services.session_storage import SessionStorageError
 
-from tests.session.baseline.test_default_context_cutover import run_default
+from test_default_context_cutover import run_default
 
 
 _REAL_TRY_COMPACT = transfer.ApiMessageTransferFilter._try_compact_real_api_messages
@@ -204,7 +204,7 @@ async def test_info_logs_pair_tool_loop_and_resumed_budgets(baseline, monkeypatc
         assert f"session={session.session_id} request={request}" in anchor.getMessage()
         assert "anchored=True baseline_source=server_usage restore_generation=0" in anchor.getMessage()
     assert "token_mode=recount_all reason=no_baseline" in effective[0].getMessage()
-    assert "total=210" in effective[0].getMessage()
+    assert f"total={315 if native else 210}" in effective[0].getMessage()
     assert "prefix_items=2 input_tokens=900 response_tokens=100 baseline_tokens=1000" in committed[0].getMessage()
     assert "token_mode=delta_only baseline_source=server_usage" in effective[1].getMessage()
     assert "baseline_count=2 input_tokens=900 response_tokens=100 baseline_tokens=1000 delta_count=1 delta_tokens=25 total=1025" in effective[1].getMessage()
@@ -235,6 +235,7 @@ async def test_info_logs_distinguish_saved_usage_without_anchor(baseline, monkey
     assert len(committed) == 1 and committed[0].levelno == logging.INFO
     assert "anchored=False baseline_source=unavailable" in committed[0].getMessage()
     assert "prefix_items=0 input_tokens=0 response_tokens=0 baseline_tokens=0" in committed[0].getMessage()
+    assert "reported_input_tokens=120 reported_cached_tokens=20 reported_output_tokens=30 reported_total_tokens=150" in committed[0].getMessage()
     assert "token_mode=recount_all reason=signature_unavailable" in caplog.text
     assert "token_mode=delta_only" not in caplog.text
     assert session.state.context_token_baseline is None
@@ -283,6 +284,7 @@ async def test_failed_admission_never_logs_success_or_content(baseline, monkeypa
 @pytest.mark.asyncio
 @pytest.mark.parametrize("outcome", ["noop", "failure", "cancelled"])
 async def test_strategy_trace_preserves_noop_and_error_contract(baseline, monkeypatch, caplog, outcome):
+    caplog.set_level(logging.INFO, logger=__name__)
     session = baseline.session()
     original = [{"role": "user", "content": "synthetic sensitive history"}]
     strategy = SummarizeWithHeaderCompaction()
@@ -301,6 +303,92 @@ async def test_strategy_trace_preserves_noop_and_error_contract(baseline, monkey
         assert "stage=aborted" in caplog.text and "stage=complete" not in caplog.text
     assert "synthetic sensitive history" not in caplog.text
     assert "synthetic sensitive failure" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["skip", "prepared", "noop", "failed", "cancelled"])
+async def test_info_compaction_decision_and_result_are_correlated(baseline, monkeypatch, caplog, outcome):
+    caplog.set_level(logging.INFO, logger=__name__)
+    session = baseline.session()
+    context = baseline.context(session)
+    context.runtime_session = SimpleNamespace(request_identity="synthetic-admission:request:0")
+    context.model_run_config.context_window = 61_000
+    original = [{"role": "user", "content": "synthetic sensitive input"}]
+    compacted = [{"role": "user", "content": "synthetic sensitive summary"}]
+    strategy = SummarizeWithHeaderCompaction()
+    error = asyncio.CancelledError("synthetic sensitive failure") if outcome == "cancelled" else RuntimeError("synthetic sensitive failure")
+    implementation = AsyncMock(
+        side_effect=error if outcome in {"failed", "cancelled"} else None,
+        return_value=CompactionResult(messages=compacted, summary=compacted[0]["content"], compacted=outcome == "prepared"),
+    )
+    monkeypatch.setattr(strategy, "_compact_impl", implementation)
+    monkeypatch.setattr(transfer, "get_compaction_strategy", lambda _: strategy)
+    monkeypatch.setattr(CompactionStrategy, "calculate_fixed_overhead", lambda *args, **kwargs: 0)
+    tokens = 999 if outcome == "skip" else 1000
+    call = _REAL_TRY_COMPACT(transfer.ApiMessageTransferFilter(), context, original, tokens, context.model_run_config)
+    if outcome in {"failed", "cancelled"}:
+        with pytest.raises(asyncio.CancelledError if outcome == "cancelled" else CompactionError):
+            await call
+    else:
+        result = await call
+        assert result is (compacted if outcome == "prepared" else original)
+
+    decision = next(record for record in caplog.records if "[CTX-COMPACT][decision]" in record.getMessage())
+    assert decision.levelno == logging.INFO
+    assert f"tokens={tokens} context_window=61000 threshold=1000 remaining={61000 - tokens}" in decision.getMessage()
+    assert "request=synthetic-admission:request:0 model=baseline-model auto_compact=True" in decision.getMessage()
+    assert f"reason={'below_threshold' if outcome == 'skip' else 'threshold_reached'}" in decision.getMessage()
+    results = [record for record in caplog.records if "[CTX-COMPACT][result]" in record.getMessage()]
+    if outcome == "skip":
+        assert not results
+        implementation.assert_not_awaited()
+    else:
+        assert len(results) == 1
+        assert f"session={session.session_id} request=synthetic-admission:request:0 status={outcome}" in results[0].getMessage()
+        assert results[0].levelno == (logging.WARNING if outcome == "failed" else logging.INFO)
+        implementation.assert_awaited_once()
+    assert "synthetic sensitive" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_info_compaction_disabled_is_visible_without_counting(baseline, monkeypatch, caplog, stream):
+    caplog.set_level(logging.INFO, logger=__name__)
+    session = baseline.session()
+    session.siada_config.auto_compact = False
+    context = baseline.context(session)
+    counter = Mock()
+    monkeypatch.setattr(estimator, "calculate_tokens", counter)
+    model = baseline.model(session, [[baseline.text("synthetic sensitive answer")]])
+
+    await run_default(baseline, session, model, stream=stream, context=context)
+
+    counter.assert_not_called()
+    decision = next(record for record in caplog.records if "[CTX-COMPACT][decision]" in record.getMessage())
+    assert decision.levelno == logging.INFO
+    assert "action=skip reason=auto_compact_disabled" in decision.getMessage()
+    assert f"request={context.runtime_session.admission_id}:request:0 model=baseline-model context_window=1000000" in decision.getMessage()
+    assert len(model.requests) == 1
+    assert "synthetic sensitive" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_window_resolution_failure_is_visible_and_keeps_current_window(baseline, monkeypatch, caplog, stream):
+    caplog.set_level(logging.INFO, logger=__name__)
+    session = baseline.session()
+    context = baseline.context(session)
+    monkeypatch.setattr(estimator, "calculate_tokens", lambda *args, **kwargs: 10)
+    monkeypatch.setattr(transfer.ApiMessageTransferFilter, "_resolve_effective_context_window", Mock(side_effect=RuntimeError("synthetic sensitive failure")))
+    model = baseline.model(session, [[baseline.text("synthetic sensitive answer")]])
+
+    await run_default(baseline, session, model, stream=stream, context=context)
+
+    warning = next(record for record in caplog.records if "[CTX-COMPACT][window]" in record.getMessage())
+    assert warning.levelno == logging.WARNING
+    assert "status=resolve_failed error_type=RuntimeError context_window=1000000" in warning.getMessage()
+    assert len(model.requests) == 1
+    assert "synthetic sensitive" not in caplog.text
 
 
 @pytest.mark.asyncio

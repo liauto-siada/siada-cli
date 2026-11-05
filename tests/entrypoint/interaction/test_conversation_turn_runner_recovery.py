@@ -7,9 +7,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import httpx
+import httpx2
 import pytest
 from agents import Agent, RunConfig, Runner, function_tool
 from agents.models.interface import Model
+from openai import APIError
 from openai.types.responses import (
     Response, ResponseCompletedEvent, ResponseCreatedEvent,
     ResponseFunctionToolCall, ResponseFunctionCallArgumentsDeltaEvent,
@@ -51,7 +53,10 @@ class InterruptedModel(Model):
                     name="record_action", arguments="{}",
                 )]
             elif index == 2:
-                if self.failure == "tool":
+                if self.failure in {
+                    "tool", "stream_error_tool", "httpx2_timeout_tool",
+                    "httpx2_connect_tool", "httpx2_protocol_tool",
+                }:
                     yield ResponseOutputItemAddedEvent(
                         type="response.output_item.added", sequence_number=1, output_index=0,
                         item=ResponseFunctionToolCall(
@@ -71,6 +76,23 @@ class InterruptedModel(Model):
                     )
                 if self.failure == "timeout":
                     raise httpx.ReadTimeout("synthetic interruption")
+                httpx2_errors = {
+                    "httpx2_timeout_text": httpx2.ReadTimeout,
+                    "httpx2_timeout_tool": httpx2.ReadTimeout,
+                    "httpx2_connect_tool": httpx2.ConnectError,
+                    "httpx2_protocol_tool": httpx2.RemoteProtocolError,
+                }
+                if self.failure in httpx2_errors:
+                    raise httpx2_errors[self.failure]("synthetic interruption")
+                if self.failure in {"stream_error_text", "stream_error_tool"}:
+                    raise APIError(
+                        "Connection prematurely closed DURING response",
+                        request=httpx.Request("POST", "https://model.test"),
+                        body={
+                            "message": "Connection prematurely closed DURING response",
+                            "code": "stream_error", "type": "server_error",
+                        },
+                    )
                 return
             else:
                 response.output = [ResponseOutputMessage(
@@ -86,8 +108,9 @@ class InterruptedModel(Model):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["text", "tool", "timeout"])
+@pytest.mark.parametrize("render_stream", [True, False])
 async def test_real_runner_preserves_completed_tools_and_drops_unfinished_calls(
-    failure, tmp_path, monkeypatch,
+    failure, render_stream, tmp_path, monkeypatch,
 ):
     actions = []
 
@@ -102,6 +125,7 @@ async def test_real_runner_preserves_completed_tools_and_drops_unfinished_calls(
     model = InterruptedModel(failure)
     agent = Agent(name="recovery", model=ModelWrapper(model), tools=[record_action])
     turn = ConversationTurn.__new__(ConversationTurn)
+    turn.render_stream = render_stream
     turn.config = SimpleNamespace(
         agent_name="recovery", workspace=str(tmp_path),
         llm_config=SimpleNamespace(model_name="synthetic"),
@@ -155,4 +179,8 @@ async def test_real_runner_preserves_completed_tools_and_drops_unfinished_calls(
     starts = [call.args[0] for call in turn._send_lifecycle_event.call_args_list
               if call.args[0]["type"] == "message_start"]
     assert len({event["message_id"] for event in starts}) == len(starts)
+    if not render_stream:
+        assert starts == []
+        turn._live_incremental_response.assert_not_called()
+        turn.config.io.print_tool_call_all_stages.assert_not_called()
     turn.config.io.print_warning.assert_called_once()

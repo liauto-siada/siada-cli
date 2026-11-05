@@ -150,12 +150,12 @@ export function useParticleMorph(pattern: string[], width: number, height: numbe
           const delay = ((p.seed % 25) / 25) * STAGGER;
           const w = Math.max(0, Math.min(1, (v - delay) / (1 - delay)));
           if (w < EXPLODE_RATIO) {
-            // Explode phase: scatter outward quickly
+            // 炸开阶段：快速向外散开
             const e = easeOutCubic(w / EXPLODE_RATIO);
             p.x = p.fromX + (p.scatterX - p.fromX) * e;
             p.y = p.fromY + (p.scatterY - p.fromY) * e;
           } else {
-            // Converge phase: sweep in from off-canvas to the target point
+            // 汇聚阶段：从画布外大范围收拢到目标点
             const e = easeInOutCubic((w - EXPLODE_RATIO) / (1 - EXPLODE_RATIO));
             p.x = p.scatterX + (p.targetX - p.scatterX) * e;
             p.y = p.scatterY + (p.targetY - p.scatterY) * e;

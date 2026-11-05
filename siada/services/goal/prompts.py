@@ -72,8 +72,8 @@ def build_goal_reminder_text(
             model reads), and again inside the "Completion verifier result"
             block alongside the full reason — mirrors how a human reviewer
             leads with the ask before restating the full finding.
-        elapsed_seconds: seconds since ``goal.created_at`` (see
-            ``verifier.elapsed_seconds_since``), rendered inside the
+        elapsed_seconds: accumulated active duration from
+            ``Goal.elapsed_seconds()``, rendered inside the
             "Completion verifier result" block. Token usage/budget were
             deliberately dropped from this (and build_verifier_request_message
             below) — the session-usage figures behind them aren't reliable
@@ -319,8 +319,8 @@ def build_verifier_request_message(
     untrusted data (<untrusted_objective>) since it originates from the
     user's /goal argument, not a trusted instruction.
 
-    elapsed_seconds is a real session-usage figure the caller (verifier.py)
-    resolves from goal.created_at. Token usage/budget were deliberately
+    elapsed_seconds is the accumulated active duration the caller (verifier.py)
+    resolves from Goal.elapsed_seconds(). Token usage/budget were deliberately
     dropped from this Goal state block (and from build_goal_reminder_text
     above) — the session-usage figures behind them aren't reliable enough
     to show the model as fact.

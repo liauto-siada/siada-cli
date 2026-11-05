@@ -260,8 +260,6 @@ class RepeatedToolReminderProcessor(AgentHooks):
     ) -> None:
         """Persist the delivered reminder into the Session, then clear the queue."""
         siada_context = context.context
-        if getattr(siada_context, "runtime_session", None) is not None:
-            return
         pending = getattr(siada_context, "pending_repeated_tool_reminder_items", None) or []
         try:
             await persist_pending_reminder_items(

@@ -7,6 +7,7 @@ Uses Strategy pattern to separate different compression approaches:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -28,6 +29,9 @@ from siada.agent_hub.context_filter.utils import (
 )
 from siada.provider.one_shot import extract_response_text, one_shot_completion
 from siada.foundation.logging import logger
+from siada.support.chat_compat_items import item_type_of
+from siada.support.provider_metadata import without_provider_metadata
+from siada.provider.token_counting import context_token_counting_info, token_counting_info_from_config
 
 # Event-type marker used in the X-Siada-Event-Type header for compaction LLM calls.
 # Overrides AGENT_NAME for the duration of call_llm_to_compact() so server-side
@@ -59,6 +63,7 @@ class CompactionResult:
     messages: List
     summary: Optional[str] = None       # generated summary (for persistence / cascading)
     compacted: bool = False             # whether compaction actually happened
+    reason: str | None = None           # content-free outcome for no-op diagnostics
 
 
 class CompactionStrategy(ABC):
@@ -83,7 +88,7 @@ class CompactionStrategy(ABC):
         ...
 
     def should_compact(self, tokens_count: int, model_config: "ModelRunConfig") -> bool:
-        """Compact when the context window has at most 60k tokens remaining."""
+        """Apply the shared fixed-headroom / 75%-utilization threshold."""
         threshold = get_compaction_token_threshold(model_config.context_window)
         return tokens_count >= threshold
 
@@ -124,7 +129,7 @@ class CompactionStrategy(ABC):
         """
         working_copy = list(real_api_messages)
         started = time.perf_counter()
-        logger.debug(
+        logger.info(
             "[CTX-COMPACT][strategy] stage=start strategy=%s items=%d "
             "context_window=%s fixed_overhead_tokens=%d",
             type(self).__name__, len(real_api_messages), getattr(model_run_config, "context_window", None),
@@ -135,17 +140,21 @@ class CompactionStrategy(ABC):
                 model_run_config, working_copy, fixed_overhead_tokens=fixed_overhead_tokens,
             )
         except BaseException as error:
-            logger.debug(
-                "[CTX-COMPACT][strategy] stage=aborted strategy=%s error_type=%s elapsed_ms=%.1f",
+            logger.info(
+                "[CTX-COMPACT][strategy] stage=aborted strategy=%s error_type=%s elapsed_ms=%.1f "
+                "status=%s before_items=%d after_items=%d",
                 type(self).__name__, type(error).__name__, (time.perf_counter() - started) * 1000,
+                "cancelled" if isinstance(error, asyncio.CancelledError) else "failed",
+                len(real_api_messages), len(real_api_messages),
             )
             raise
-        logger.debug(
+        logger.info(
             "[CTX-COMPACT][strategy] stage=complete strategy=%s compacted=%s "
-            "before_items=%d after_items=%d summary_chars=%d elapsed_ms=%.1f",
+            "before_items=%d after_items=%d summary_chars=%d elapsed_ms=%.1f reason=%s",
             type(self).__name__, result.compacted, len(real_api_messages),
             len(result.messages) if result.compacted else len(real_api_messages),
             len(result.summary) if result.summary else 0, (time.perf_counter() - started) * 1000,
+            "completed" if result.compacted else result.reason or "unspecified_noop",
         )
         if not result.compacted:
             # No-op: hand back the TRUE original object regardless of what
@@ -154,7 +163,7 @@ class CompactionStrategy(ABC):
             # never see anything other than their own original reference
             # on the no-op path.
             return CompactionResult(
-                messages=real_api_messages, summary=result.summary, compacted=False,
+                messages=real_api_messages, summary=result.summary, compacted=False, reason=result.reason,
             )
         return result
 
@@ -215,10 +224,14 @@ class CompactionStrategy(ABC):
         """
         _t_overhead_start = time.perf_counter()
         overhead = 0
-        model_name = context.model_run_config.model_name
+        info = context_token_counting_info(context)
+        model_name = info.model_name
+
+        if info.protocol == "gemini":
+            return calculate_tokens(model_name, instructions or "", tools=tools, counting_info=info)
 
         if instructions:
-            instruction_tokens = calculate_tokens(model_name, instructions)
+            instruction_tokens = calculate_tokens(model_name, instructions, counting_info=info)
             overhead += instruction_tokens
             logger.info(
                 "[calculate_fixed_overhead] instruction_tokens=%d, model=%s",
@@ -283,6 +296,7 @@ class CompactionStrategy(ABC):
             or CompactionStrategy._is_native_apply_patch_item(
                 message, "apply_patch_call"
             )
+            or item_type_of(message) == "custom_tool_call"
         )
 
     @staticmethod
@@ -293,6 +307,7 @@ class CompactionStrategy(ABC):
             or CompactionStrategy._is_native_apply_patch_item(
                 message, "apply_patch_call_output"
             )
+            or item_type_of(message) == "custom_tool_call_output"
         )
 
     @staticmethod
@@ -319,7 +334,7 @@ class CompactionStrategy(ABC):
             raise ValueError("Fraction must be between 0 and 1")
 
         content_lengths = [
-            len(json.dumps(content, sort_keys=True, ensure_ascii=False))
+            len(json.dumps(without_provider_metadata(content), sort_keys=True, ensure_ascii=False))
             for content in history
         ]
         total_characters = sum(content_lengths)
@@ -371,7 +386,8 @@ class CompactionStrategy(ABC):
                 # Find the start of this tool call sequence
                 # We need to include: function_response, function_call (assistant), and all assistant messages before
 
-                # Parallel results belong to the same assistant response group.
+                # Parallel results may precede the last result. Rewind over all
+                # of them before finding the shared assistant response group.
                 result_start = idx
                 while result_start > 0 and self.is_function_response(messages[result_start - 1]):
                     result_start -= 1
@@ -470,6 +486,7 @@ class CompactionStrategy(ABC):
         # Log the compact call details
         compact_msg_tokens = calculate_tokens(
             model, [{"role": "system", "content": system_instructions}] + compact_input,
+            counting_info=token_counting_info_from_config(model_run_config, model_name=model),
         )
         logger.info(
             "[call_llm_to_compact] Sending %d messages (%d tokens) to model '%s'",
@@ -532,13 +549,13 @@ class CompactionStrategy(ABC):
         """
         ids: set = set()
         if isinstance(msg, dict):
-            if msg.get("type") in ("tool_use", "function_call", "apply_patch_call"):
+            if msg.get("type") in ("tool_use", "function_call", "apply_patch_call", "custom_tool_call"):
                 tid = msg.get("call_id") or msg.get("id")
                 if tid:
                     ids.add(tid)
         else:
             msg_type = getattr(msg, "type", None)
-            if msg_type in ("tool_use", "function_call", "apply_patch_call"):
+            if msg_type in ("tool_use", "function_call", "apply_patch_call", "custom_tool_call"):
                 tid = getattr(msg, "call_id", None) or getattr(msg, "id", None)
                 if tid:
                     ids.add(tid)
@@ -572,8 +589,8 @@ class CompactionStrategy(ABC):
             [reasoning] -> [output_message] -> function_call -> function_call_output
         When an orphan function_call is removed, its preceding reasoning and
         output_message from the same response group must also be removed.
-        Kept tails may start with assistant/tool items because their user header
-        and summary are supplied separately by the compaction assembler.
+        Kept tails may start with assistant/tool items because the compaction
+        assembler supplies their user header and summary separately.
         """
         if not messages:
             return messages
@@ -641,8 +658,8 @@ class CompactionStrategy(ABC):
         to inflate counts, so all budget comparisons automatically include
         safety headroom.
         """
-        model_name = model_run_config.model_name if model_run_config is not None else None
-        return calculate_tokens(model_name, messages)
+        info = token_counting_info_from_config(model_run_config)
+        return calculate_tokens(info.model_name, messages, counting_info=info)
 
     # ── prune / trim helpers (shared by subclasses) ─────────────────
 

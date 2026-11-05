@@ -55,6 +55,10 @@ def get_capabilities_for_profile(
     profile: PromptProfile, subagent_enabled: bool = True
 ) -> str:
     """Describe the file tools selected for this run without reclassifying the model."""
+    if profile.family is PromptFamily.DEEPSEEK:
+        return _get_edit_file_capabilities_section(
+            subagent_enabled=subagent_enabled, subagent_bullet=""
+        )
     if profile.family in (PromptFamily.KIMI_K3, PromptFamily.GLM):
         return _get_edit_file_capabilities_section(subagent_enabled=subagent_enabled)
     if profile.native_patch_file_tools:
@@ -69,8 +73,10 @@ def get_capabilities_for_profile(
     return _get_default_capabilities_section(subagent_enabled=subagent_enabled)
 
 
-def _get_edit_file_capabilities_section(subagent_enabled: bool = True) -> str:
-    """Concise edit_file tool surface for full-template families."""
+def _get_edit_file_capabilities_section(
+    subagent_enabled: bool = True, subagent_bullet: str = _DEFAULT_SUBAGENT_BULLET,
+) -> str:
+    """Concise edit_file tool surface for the full-template families."""
     return f"""===
 
 # CAPABILITIES
@@ -80,7 +86,7 @@ def _get_edit_file_capabilities_section(subagent_enabled: bool = True) -> str:
 - You can use `list_code_definition_names` to inspect source definitions.
 - You can use `run_cmd` to execute CLI commands, builds, and tests on the user's computer.
 - You can use `todo_write` to track multi-step work and mark each task completed as soon as it is done.
-{_DEFAULT_SUBAGENT_BULLET if subagent_enabled else ""}
+{subagent_bullet if subagent_enabled else ""}
 
 ===
 """

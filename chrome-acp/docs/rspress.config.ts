@@ -3,8 +3,8 @@ import { defineConfig } from '@rspress/core';
 export default defineConfig({
   root: 'docs',
   base: '/chrome-acp/',
-  title: 'Siada Browser Add-on (chrome-acp)',
-  description: 'chrome-acp is the Siada CLI browser add-on: a Chrome extension plus a local proxy server that connect your browser to ACP agents such as siada-cli.',
+  title: 'Chrome ACP',
+  description: 'A Chrome extension to chat with AI agents. Give them the power to see and interact with your browser.',
   icon: '/favicon.png',
   logo: '/logo.png',
   // Enable llms.txt generation for AI/LLM consumption
@@ -12,18 +12,18 @@ export default defineConfig({
   themeConfig: {
     lastUpdated: true,
     editLink: {
-      docRepoBaseUrl: 'https://github.com/liauto-siada/siada-cli/edit/main/chrome-acp/docs/docs',
+      docRepoBaseUrl: 'https://github.com/Areo-Joe/chrome-acp/edit/main/docs/docs',
       text: 'Edit this page on GitHub',
     },
     socialLinks: [
       {
         icon: 'github',
         mode: 'link',
-        content: 'https://github.com/liauto-siada/siada-cli',
+        content: 'https://github.com/Areo-Joe/chrome-acp',
       },
     ],
     footer: {
-      message: '© 2026 Siada CLI — chrome-acp browser add-on (MIT)',
+      message: '© 2026 Chrome ACP',
     },
   },
   markdown: {

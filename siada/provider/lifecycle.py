@@ -10,7 +10,8 @@ class EventLoopOwnership:
     def __init__(self) -> None:
         self._owner: weakref.ReferenceType | None = None
 
-    def check(self) -> None:
+    def check(self, *, bind: bool = True) -> None:
+        """Validate ownership without binding unused pools during shutdown."""
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -19,6 +20,7 @@ class EventLoopOwnership:
             # Model construction may occur in synchronous configuration code.
             return
         if self._owner is None:
-            self._owner = weakref.ref(loop)
+            if bind:
+                self._owner = weakref.ref(loop)
         elif self._owner() is not loop:
             raise RuntimeError("Model client belongs to a different event loop")

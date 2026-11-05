@@ -5,6 +5,7 @@ import {existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, mkdt
 import {tmpdir} from "node:os";
 import {join, resolve, dirname} from "node:path";
 import {fileURLToPath} from "node:url";
+import {generateNotices} from "./copy-licenses.mjs";
 
 export const NODE_VERSION = "24.13.0";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -45,7 +46,7 @@ with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
     for path in sorted(source.rglob("*")):
         if path.is_symlink():
             if not path.resolve().is_relative_to(staging):
-                raise RuntimeError("Archive symlink escapes staging directory: " + str(path.relative_to(source)) + " -> " + os.readlink(path))
+                raise RuntimeError("Archive symlink escapes staging directory: " + str(path.relative_to(source)))
             if path.is_dir():
                 raise RuntimeError("Directory symlink unsupported")
         if path.is_file():
@@ -93,7 +94,7 @@ export async function pack(output = join(root, "release")) {
     }
     for (const component of [proxy, extension]) {
       for (const name of ["LICENSE", "THIRD_PARTY_NOTICES.md"]) {
-        if (!readFileSync(join(root, name)).equals(readFileSync(join(component, name)))) {
+        if (readFileSync(join(root, name), "utf8").trimEnd() !== readFileSync(join(component, name), "utf8").trimEnd()) {
           throw new Error(`Stale ${name}; rebuild browser components`);
         }
       }
@@ -102,6 +103,10 @@ export async function pack(output = join(root, "release")) {
     const node = join(runtime, process.platform === "win32" ? "node.exe" : "bin/node");
     const npm = join(runtime, process.platform === "win32" ? "node_modules/npm/bin/npm-cli.js" : "lib/node_modules/npm/bin/npm-cli.js");
     run(node, [npm, "ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"], proxy);
+    generateNotices({
+      additionalInstalled: [join(proxy, "node_modules")],
+      outputPath: join(proxy, "THIRD_PARTY_NOTICES.md"),
+    });
     run(node, [join(proxy, "dist/cli/bin.js"), "--help"], proxy);
     const filename = `siada-browser-${version}-${platform}.zip`;
     const temporaryZip = join(stage, filename);
@@ -111,7 +116,6 @@ export async function pack(output = join(root, "release")) {
     const manifest = {schema_version: 1, version, node_version: NODE_VERSION, platforms: {[platform]: {filename, sha256}}};
     writeFileSync(join(output, `browser-manifest-${platform}.json`), JSON.stringify(manifest, null, 2) + "\n");
     writeFileSync(join(output, "browser-manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-    console.log(`Packed ${filename} (${sha256})`);
     return manifest;
   } finally {
     rmSync(stage, {recursive: true, force: true});

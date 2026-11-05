@@ -119,6 +119,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
         _print("       accept the warning via \"Advanced → Proceed\"; or import ~/.acp-proxy/cert.pem into the system trust store")
         _print(f"    (the local Chrome extension is unaffected: it still uses ws://localhost:{args.port}/ws and needs no trusted certificate)")
 
+
     # if args.no_wait:
     #     _print("\n✅ Setup complete. After loading the extension as described above, check the connection with `siada-browser status`.")
     #     return 0

@@ -16,59 +16,53 @@ Siada CLI is a professional command-line AI workflow tool designed specifically 
 
 **Method 1: Default Configuration**
    - The system reads default configuration from `agent_config.yaml` file
-   - Current defaults: model `claude-sonnet-5`, provider `default`
-   - On first launch, choose a provider and enter your API key. The selected
-     endpoint and model are saved in `~/.siada-cli/conf.yaml`.
+   - Current defaults: model `claude-sonnet-4.5`, provider `li`
 
    **Method 2: Customize via Configuration File**
    - Regular Users
       - Edit configuration file `~/.siada-cli/conf.yaml`
-         ```yaml
+         ```bash
+         # 1. Create configuration file in user home directory
+         cd ~
+         mkdir -p ~/.siada-cli
+         touch ~/.siada-cli/conf.yaml
+
+         # 2. Configuration file content example
          llm_config:
-            provider: "default"
-            provider_id: "openai"
-            model: "gpt-4o-mini"  # Use a model available at your endpoint
-            base_url: "https://api.openai.com/v1"
-            api_key: "YOUR_API_KEY"
+            model: "claude-sonnet-4.5"          # Change to your desired model
+            provider: "li"
          ```
    - Developer Mode
       - Edit the `llm_config` section in `agent_config.yaml` file:
          ```yaml
          llm_config:
-            provider: "default"
-            model_name: "claude-sonnet-5"     # Change to your desired model
+            provider: "li"
+            model_name: "claude-sonnet-4.5"     # Change to your desired model
          ```
 
    **Method 3: Via Environment Variables**
    ```bash
    # Set model
-   export SIADA_MODEL="gpt-4o-mini"
+   export SIADA_MODEL="claude-sonnet-4.5"
    
    # Set provider
-   export SIADA_PROVIDER="default"
-
-   # Provider credentials for this terminal session
-   export BASE_URL="https://api.openai.com/v1"
-   export API_KEY="YOUR_API_KEY"
+   export SIADA_PROVIDER="li"
    ```
 
    **Method 4: Via Command Line Parameters (Highest Priority)**
    ```bash
    # Only change model (keep provider unchanged)
-   siada-cli --model gpt-4o-mini
+   siada-cli --model claude-sonnet-4
    
    # Change both model and provider
-   siada-cli --model gpt-4o-mini --provider default
+   siada-cli --model gpt-4.1 --provider li
    
    # Only change provider (keep model unchanged)
-   siada-cli --provider default
+   siada-cli --provider li
    ```
 
    > **Important Notes:**
-   > - Model/provider priority: command line parameters > `SIADA_MODEL` /
-   >   `SIADA_PROVIDER` > `~/.siada-cli/conf.yaml` > bundled defaults.
-   > - Non-empty `BASE_URL` and `API_KEY` override the corresponding stored
-   >   credentials. Both are required to sign in without the configuration prompt.
+   > - **Complete Priority**: `Command line parameters` > `Environment variables (SIADA_ prefix)` > `Configuration file (agent_config.yaml)`
 
 When using Siada through chrome-acp, selecting a model saves it to
 `llm_config.model` in `~/.siada-cli/conf.yaml`. New sessions and agent restarts
@@ -100,13 +94,37 @@ goal:
   max_turns: 6
 ```
 
-The default is `6`. Two consecutive verifier system errors remain a separate,
+The default is `6`. A transient verifier system error automatically schedules
+another goal turn. Two consecutive verifier system errors trigger a separate,
 faster safety breaker. Internal follow-up turns, including background task
-results, do not reactivate a blocked goal; a new user message does. When there
+results, do not reactivate a blocked goal; a new user message does. Completed
+goals retain their final status, elapsed time and verification rounds while
+waiting, including after session restoration. The next user conversation
+archives the completed goal and removes its status bar; verification records
+stay in history. Use `/goal clear` to remove it sooner, or `/goal <objective>`
+to replace it. When there
 is a goal to clear, `/goal clear` persists a hidden reminder in the session
 history so the model knows not to resume it. If the history write fails, the
 goal is still cleared and a warning is shown; the model may not receive the
 reminder on its next turn.
+
+To test Goal retry transitions, start the CLI with forced verification errors:
+
+```bash
+SIADA_GOAL_VERIFIER_FORCE_ERROR=1 siada-cli
+```
+
+Start a fresh Goal with `/goal <objective>`. Every verification attempt raises
+an injected exception: the first schedules another goal turn, and the second
+consecutive error stops automatic continuation with `blocked`. An existing Goal
+may already have errors counted. Unset the variable and restart the CLI to
+restore normal verification.
+
+`/resume <id>` and `siada-cli --resume <id>` restore the goal status and current
+todo list immediately. Resuming alone does not restart a blocked goal; your
+next conversational message reactivates it and resumes verification. Internal
+verification reminders remain hidden in the TUI. Todo lists that have already
+been cleared or completed are not revived from older history.
 
 ### External Model Configuration
 
@@ -115,23 +133,6 @@ If you need to configure custom external models (such as privately deployed mode
 - API connection configuration
 - Protocol mapping explanation
 - Configuration examples
-
-### Sub-agent Model Configuration
-
-Sub-agents use the parent session's model and provider by default. To select
-a different model, add this section to `~/.siada-cli/conf.yaml`:
-
-```yaml
-sub_agent:
-  enabled: true
-  llm_config:
-    model: "gpt-4o-mini"
-```
-
-When `provider` is omitted, the sub-agent inherits the parent's provider.
-If a configured provider is unavailable in this distribution, it tries the
-parent's active provider and then `default`, which uses your configured
-`BASE_URL` and `API_KEY`. Available explicit providers retain priority.
 
 ### Standalone Model Requests
 
@@ -190,8 +191,8 @@ agents:
     enabled: true
 
 llm_config:
-  provider: "default"
-  model_name: "claude-sonnet-5"
+  provider: "li"
+  model_name: "claude-sonnet-4.5"
   repo_map_tokens: 8192
   repo_map_mul_no_files: 16
   repo_verbose: true
@@ -204,7 +205,7 @@ Set environment variables to configure behavior:
 ```bash
 # Siada-specific settings (use SIADA_ prefix)
 export SIADA_AGENT="coder"
-export SIADA_MODEL="gpt-4o-mini"
+export SIADA_MODEL="claude-sonnet-4.5"
 export SIADA_THEME="dark"
 
 # Unset environment variables in current terminal session
@@ -268,8 +269,9 @@ Siada CLI provides checkpoint tracking functionality to automatically save sessi
 
 Siada CLI integrates MCP (Model Context Protocol) service to provide extended tools and resources for AI agents.
 
-The MCP configuration loader reads JSON configuration sources only. MCP servers
-provided by installed plugins are loaded separately by the plugin runtime.
+The MCP configuration loader reads JSON configuration sources only; it does not
+inject servers from installed plugins. Plugin-provided MCP servers are loaded
+separately by the plugin runtime.
 
 **MCP Configuration File `~/.siada-cli/mcp_config.json`**
 
@@ -350,13 +352,131 @@ Interactive sessions use the Node.js terminal UI launched by `siada-cli`, with
 an ACP-connected Python backend. The legacy Rich/prompt_toolkit interactive UI
 is no longer supported. Non-interactive `--prompt` execution is unchanged.
 
+To keep output in the terminal's native scrollback, launch:
+
+```bash
+siada-cli --no-alt-screen
+```
+
+Completed content is appended to terminal history. Long streaming replies also
+append stable complete lines while the unfinished tail stays editable on screen.
+Use the terminal's scrollbar or mouse wheel to read earlier output, select text,
+and use its native copy/paste commands. Resizing, opening a picker, or switching
+sessions does not erase or reprint already emitted history. The input, keyboard
+pickers, and full conversation export remain available. Over SSH, use terminal
+paste (often Ctrl+Shift+V or the Paste menu).
+This mode disables alternate-screen rendering and mouse capture in nested views.
+The UI-only `--no-alternate-buffer` option still uses the application message
+viewport and permits mouse capture.
+
+The default fullscreen interactive view keeps the composer at the bottom and scrolls conversation
+history above it. The original Banner appears at the beginning of the history.
+When a question scrolls above the viewport, it sticks to the first row while you
+read its replies. The next question replaces it when that turn reaches the top;
+scrolling upward restores the earlier question, then the Banner at the beginning.
+Drafts and queued prompts do not become sticky questions.
+Drag the thin scrollbar on the right to move through history, or click its track
+to jump to a position. The drag continues when the pointer moves sideways and
+ends when you release the mouse. Reaching the bottom resumes following new replies.
+Use the mouse wheel or Ctrl+Up/Down to scroll three lines at a time, and
+PageUp/PageDown to scroll one page (usually Fn+Up/Down on Mac keyboards).
+Ctrl+Up/Down also works over SSH when the terminal forwards these keys, without
+moving the draft cursor or navigating input history and completions.
+Use Alt+Up/Down to jump between
+user turns, Ctrl+G to open the user-message directory, and Ctrl+End or the bottom
+hint to return to the latest reply. Reasoning labels preview the opening text,
+and single-line commands display once without a disclosure control. Click reasoning,
+file updates, or multi-line commands to expand their details. Reasoning opens on
+the same background as user messages; collapsed titles have no permanent background.
+Tool details use the same label without adding another action heading. Details expand into the conversation, and the
+wheel continues to scroll conversation history. Click a pinned question to jump
+to its full text in the history.
+Consecutive tool calls appear as a summary with a tree of individual tools.
+File updates and multi-line commands retain individual expand/collapse controls.
+Drag across conversation text to select it; releasing the mouse copies the selected
+text to the clipboard. A drag selects text without activating the tool under it.
+You can start a drag in indentation, after a line, or on blank rows in the history;
+the start snaps to a text boundary. Clicking blank space without dragging does not copy.
+Single-clicking text establishes an empty anchor. Character dragging selects between
+text boundaries, so moving to the next Chinese character selects only the preceding one.
+Double-click message text to select a word, or triple-click to select its logical line.
+Continue dragging to extend by words or lines, or Shift-click to extend the existing
+selection. A vertical drag at the top or bottom edge scrolls the history; a horizontal
+drag keeps it stationary. Wheel scrolling pauses automatic edge scrolling.
+Selected text keeps its displayed version while new replies arrive and remains selected
+when you scroll or resize. Esc clears it and returns to the current history.
+Ctrl+C copies the selection if needed and clears it after confirmed clipboard delivery.
+If copying fails or is only sent through OSC 52, the selection remains available.
+The draft and the status, task, and sub-agent text below it support the same drag,
+word, and line selection. Copy preserves the draft and insertion position; wrapped
+drafts copy with their original logical newlines. Input borders, cursor, placeholder,
+directory, and navigation controls are excluded. Empty selections are ignored.
+Confirmation prompts use the same draft selection and copy behavior.
+While confirmation input or command suggestions are open, you can still use the
+mouse to read, select, and scroll visible messages. Suggestions cover only their
+displayed area; the keyboard continues to edit or confirm the input.
+Clipboard writes time out and are cancelled when the view closes.
+Local copies use the system clipboard, falling back to OSC 52 if it is unavailable.
+SSH sessions attempt OSC 52 even when the terminal is identified as Unknown.
+The status reports that text was sent, since terminal support and permission control acceptance.
+Ctrl+Home returns to the Banner at the beginning.
+Hover over a clickable heading, pinned question, directory entry, or return-to-latest
+hint to emphasize it in the same neutral tones and see the click action in the bottom row. Moving away restores
+its usual appearance. Hover feedback requires a terminal that reports mouse motion.
+Reasoning and tool labels respond only within the displayed label's row and columns;
+tree indentation and trailing blank space do not activate them.
+With no selection or popup, Ctrl+C stops active work and discards queued prompts.
+It shows a hint in the navigation row; press Ctrl+C again within one second to exit.
+Other keys cancel this hint. With a draft, the first press clears the input instead;
+Up restores its text and pasted attachments. Popups and task details consume Ctrl+C
+to close before the stop/exit shortcut is used.
+
+The UI uses the alternate screen buffer by default and restores the preceding
+terminal screen on exit. Conversation history is browsed inside the app.
+The UI executable's `--no-alternate-buffer` option redraws the same bounded
+layout in the main terminal buffer. With an empty draft, Tab moves between Goal,
+Todo, and Agents; Enter opens the selected entry and Esc returns to the input.
+Agents remain below the input. Todo is a read-only list; finished plans move into
+collapsible `Plan completed` messages and disappear from the live list. The Goal
+status bar stays visible after completion with frozen time and rounds until the
+next user conversation. Its verification result remains in the conversation.
+Goal appears above Todo with the objective and an English activity label, followed by
+the current state (`active`, `blocked`, `paused`, or `complete`), elapsed active time
+and verification rounds, for example `In progress (active · 1m 2s · 2 turns)`.
+Narrow terminals shorten the objective first; the turn count can use `2t` for `2 turns`.
+A round counts when verification starts, and verification time is included. Time
+freezes when the goal is blocked, paused, or achieved; resuming a blocked goal
+continues its accumulated time without counting the blocked wait. Interrupting a
+turn — or quitting the CLI — pauses an active goal so the idle gap is not
+counted; your next conversation message resumes it with its accumulated time and
+failure count intact. Older saved goals initialize duration from their available
+creation and last-update timestamps.
+Verification updates that same row to `Verifying…` with the Thinking animation.
+`Not achieved` records indicate whether work
+continues automatically. Expand a record or open Goal to read the reason and next
+action. New verification records survive session restoration, including archived
+goals; older sessions without saved verification records retain their goal status.
+`Automatic continuation stopped` means a new message is needed to retry.
+`/goal clear` removes the live goal and displays `Goal cleared`.
+Model, effort, theme, task, plugin, session, editor, and status-bar pickers keep
+their existing controls inside the bottom pane, preserving the conversation and draft.
+`/status` shows the model, agent, session ID, workspace, and project hash in a
+compact bottom panel. Press Esc to close it.
+`/effort` opens its settings immediately, including while the agent is running.
+Effort commands bypass the message queue; selecting a level applies it to the next
+turn. Effort still uses Left/Right to select a level. Tips sit immediately above the input:
+shortcuts on the right and a separate centered return-to-bottom control.
+
 ### Mermaid Diagrams
 
 Closed `mermaid` or `mmd` code blocks in terminal answers render as Unicode
 diagrams, including Chinese labels. Supported types are flowcharts, state,
-sequence, class, and entity relationship diagrams. Unclosed blocks, unsupported
-syntax, and diagrams that exceed the available width or message height keep
-their source text. Widen the terminal to display a diagram that did not fit.
+sequence, class, and entity relationship diagrams. Wide diagrams show a slice
+that fits the terminal. Click the `◀` and `▶` arrows below the diagram to move
+left or right; the adjacent numbers show the visible columns and total width.
+Each step keeps a small overlap to help follow connectors. Unclosed blocks,
+unsupported syntax, and diagrams that exceed the message height keep their
+source text.
 
 Ask Siada to answer with a Mermaid code block, for example:
 
@@ -370,24 +490,29 @@ flowchart LR
 ### Working Directory
 
 By default, Siada CLI uses the directory where you run `siada-cli` as its
-workspace in interactive and non-interactive modes. Launching from a Git
-repository subdirectory keeps that subdirectory as the workspace.
+workspace, in both interactive and non-interactive modes. Launching from a Git
+repository subdirectory does not switch the workspace to the repository root.
 Git-root discovery is still used by the existing `.env` loading logic.
-
-To use another directory, pass `--workspace` or `-w`, or set `SIADA_WORKSPACE`.
-Relative paths are resolved from the launch directory. The command-line option
-takes precedence over the environment variable.
-
-The directory argument is optional: `siada-cli -w` or `siada-cli --workspace`
-explicitly selects the current directory, even when `SIADA_WORKSPACE` is set.
 
 ```bash
 cd ./my-project/src
 siada-cli
+```
+
+To use another directory, pass `--workspace` or its short form `-w` (relative
+paths are resolved from the launch directory), or set `SIADA_WORKSPACE`. The
+command-line option takes precedence over the environment variable.
+
+The directory argument is optional: `siada-cli -w` (or `siada-cli --workspace`)
+explicitly selects the current directory, even when `SIADA_WORKSPACE` is set.
+Providing a directory still selects that directory.
+
+```bash
 siada-cli -w
 siada-cli -w --prompt "Inspect the current directory"
-siada-cli --workspace ./another-project
-siada-cli -w ./another-project --prompt "Inspect the project"
+siada-cli --workspace ./my-project
+siada-cli -w ./my-project
+siada-cli --workspace ./my-project --prompt "Inspect the project"
 ```
 
 Sessions are associated with their workspace. To resume a session previously
@@ -398,7 +523,28 @@ with `--workspace`.
 
 **Features:**
 - One-time execution: Execute a single task and automatically exit
-- Stateless: Does not retain session context
+- Uses the same streaming execution and turn policies as interactive mode,
+  including automatic recovery and retry checks
+- Shows intermediate execution progress and the final answer; detailed traces
+  are also recorded in the daily `agent_trace-YYYYMMDD.log` and
+  `subtask_trace-YYYYMMDD.log` files under `~/.siada-cli/logs/`
+- When pursuing a goal, prints its start or continuation, each verification
+  round, verdict, completion, blocking, and pause events. Progress includes
+  elapsed time, verifier feedback, next actions, and token usage when available.
+  Rounds count goal verification attempts, not individual tool calls. Progress
+  is flushed promptly even when stdout is redirected to a file or pipe.
+- Use `--prompt "/goal <objective>"` to create a goal before starting work. The
+  start state is printed immediately; verification starts only after an agent
+  turn finishes. Interrupting before that point prints a pause, not a verdict.
+- Retains session history and supports `--resume` for continuation
+- Checkpointing is always disabled, even when enabled by CLI options or configuration
+- No interactive input loop, slash-command UI, or mid-turn user input
+- Shell commands receive no input from the launching terminal, even when Siada
+  is started from a terminal. Use non-interactive flags or supply input through
+  pipes or redirection when needed.
+- Returns a nonzero exit code on failure (`130` when interrupted)
+- When a resumed goal becomes blocked after verification, reports that the goal
+  was not achieved and exits with code `1`, even if the model produced an answer
 - Use cases: Automation scripts, CI/CD pipelines, single task execution
 
 **Usage:**
@@ -408,6 +554,9 @@ siada-cli --agent coder --prompt "Fix login errors in auth.py"
 
 # Combine with other parameters
 siada-cli --agent coder --model claude-sonnet-4.5 --prompt "Create a REST API endpoint"
+
+# Start goal execution with automatic verification and continuation
+siada-cli --agent coder --prompt "/goal Fix the failing tests"
 ```
 
 ### Interactive Mode
@@ -418,19 +567,25 @@ siada-cli --agent coder --model claude-sonnet-4.5 --prompt "Create a REST API en
 - Real-time interaction: Supports slash commands, editor mode, and other advanced features
 - Use cases: Exploratory programming, complex tasks, development work requiring multiple rounds of dialogue
 
-With saved API-key configuration, the input interface can become ready while
-model libraries finish initializing in the background. A message sent immediately
-after startup may briefly wait for that initialization.
-
-Press **Ctrl+O** to switch between compact and expanded tool views. The compact
-and expanded banners both show the agent and model without the provider.
-Conversation exports use the same banner fields.
-
 **Usage:**
 ```bash
 # Start directly (defaults to interactive mode)
 siada-cli --agent coder
+
+# Open the interactive UI and automatically submit the first message
+siada-cli "Hello"
+siada-cli --agent coder "Inspect this project"
+
+# Initial messages also use the normal slash-command handling
+siada-cli "/goal Fix the failing tests"
 ```
+
+The initial message is submitted once the UI is connected and startup login or
+session selection has finished. The UI remains open for follow-up messages.
+Use `--resume SESSION_ID "Continue the task"` to start with an existing session.
+Quote messages containing spaces; use `-- "MESSAGE"` when the message starts
+with `-`. A positional message cannot be combined with `--prompt`/`-p`, which
+still selects non-interactive execution.
 
 **Interactive Process:**
 ```
@@ -442,31 +597,99 @@ siada-cli --agent coder
 [AI response...]
 ```
 
-### Task Execution and Blockers
+### Native Terminal History
 
-Siada executes tools within the requested task scope and the tool's permission
-checks. The coding agent sends progress, results, and blockers through ordinary
-assistant messages. You can send additional instructions while it works,
-including a request to review a plan before execution. There is no separate
-interactive question tool or planning-mode panel.
+Start with `siada-cli --no-alt-screen` to append output to the terminal's native
+history and use the terminal's scrollbar, text selection and mouse actions.
+This mode disables the alternate screen and mouse capture.
 
-All `run_subtask` modes (normal, forked, background and recursive) run unattended
-and report unresolved blockers to their calling agent.
+To enable it by default, add this setting to `~/.siada-cli/conf.yaml`:
+
+```yaml
+ui:
+  no_alt_screen: true
+```
+
+If a `ui` section already exists, add the key to that section. Use unquoted YAML
+booleans. The default is `false`; `--no-alt-screen` always enables this mode.
+Restart the CLI after changing the setting; no daemon restart is needed.
+
+### Copy and Paste
+
+Use the terminal's Paste command for text (commonly Ctrl+Shift+V on Linux/Windows
+and Cmd+V on macOS). This also works over SSH because the terminal sends the text
+to Siada. Large pastes appear as placeholders and expand when submitted.
+
+Ctrl+V reads the clipboard on the machine running the UI, including images.
+Text reads and copies use a bundled native backend on Linux, macOS and Windows;
+Linux desktop users do not need to install `wl-paste` or `xclip` for text.
+The desktop clipboard must be accessible: Wayland requires a supported
+data-control protocol or XWayland. Image reads also prefer a bundled native
+backend, which preserves dimensions and encodes PNG; Linux native image reads
+support X11/XWayland. Existing platform tools are fallbacks. WSL uses the Windows clipboard
+through PowerShell. Over SSH, Siada shows a hint to use terminal paste instead.
+Clipboard failures appear below the input.
+
+Ctrl+B copies the current input, expanding pasted-text placeholders. Local
+desktop sessions use the system clipboard. SSH and tmux sessions request copying
+through the terminal; native-copy failures also fall back to the terminal.
+The terminal must allow OSC 52 clipboard writes, or tmux must support clipboard
+forwarding. “Requested” means a request was sent, not that delivery was confirmed.
+
+Press the middle mouse button to paste clipboard images or text into the active
+input, using the same clipboard as Ctrl+V. Standalone single-line fields paste
+text only. A selection is not required, and pasting does not submit the input.
+The terminal must forward mouse events; modified middle clicks retain terminal
+behavior. Mouse selection and Ctrl+C remain available for copying.
+
+With selected text, right-click its message or input surface to copy. Confirmed
+copies clear the selection; failed or unconfirmed terminal copies keep it available
+for another right-click or Ctrl+C, without changing the reading position.
+With no selection, an unmodified right-click pastes text into the active editable
+input on local Linux, macOS and Windows sessions. SSH and recognized VS Code
+terminals use the terminal's Paste command instead. If you type, paste from the
+terminal, switch sessions or leave the input while a clipboard read is pending,
+Siada discards that read. Modified right-clicks are ignored by Siada; use your
+terminal's mouse override (often Shift+right-click) for its native menu.
+
+### Exporting a Conversation
+
+Use `/export [filename]` to save the full conversation as a `.txt` file in the
+working directory. The export uses the current TUI layout, terminal width,
+language, tool grouping, and compact/expanded state, including blocks expanded
+individually. Markdown, code, tables, and file diffs use the same rendering as
+the conversation view. Text files retain spacing and symbols; terminal colors
+and interactive controls are not embedded.
+
+### Autonomous Execution
+
+Hook feedback appears in its own message block, for example
+`Hook · PreToolUse · Notice`. Tool-call blocks and turn stops use the labels
+`Blocked` and `Stopped`. Hook notices remain visible in compact mode, and
+conversation exports retain their hook event and status.
+
+Siada executes tools directly within the requested task scope by default
+(YOLO mode). The coding agent has no interactive question tools or question
+panel. Progress and results use ordinary assistant messages; you can send
+additional instructions while the agent works.
+
+All `run_subtask` modes (normal, forked, background and recursive) are
+unattended. Subtasks report unresolved blockers to the calling agent.
 
 ### Browser Context in ACP Conversations
 
-When a browser client supplies a leading `<browser-context>` preamble, the ACP
-runtime separates it from the user's literal input. A turn with both page context
-and browser-skill experience suggestions reaches the agent as three independent
-user-role input items: `<user_input>` containing the user's message, a
-`<system-reminder>` containing page context, and another containing experience
-suggestions. Missing context items are omitted; ordinary prompts retain their
-existing input shape.
+When a browser client supplies a leading `<browser-context>` preamble, the
+ACP runtime separates it from the user's literal input. A turn with both page
+context and browser-skill experience suggestions reaches the agent as three
+independent user-role input items: `<user_input>` containing only the user's
+message, a `<system-reminder>` containing the page context, and another
+`<system-reminder>` containing the experience suggestions. Missing context
+items are omitted; ordinary prompts retain their existing input shape.
 
-These reminder tags mark low-trust runtime context, not a system wire role or
-additional authorization. The context items are saved with the turn but hidden
-from history replay. `@file` expansion processes the user's message without
-merging the context items back into it.
+The reminder tags mark low-trust runtime context, not a system wire role or
+additional authorization. The two context items are saved with the turn but
+hidden from conversation-history replay. `@file` expansion processes the
+user's message without merging the context items back into it.
 
 ## Daemon and Scheduled Tasks
 
@@ -552,25 +775,47 @@ siada-cli --check-update       # Check and prompt for updates on startup (enable
 
 In the CLI, you can use slash commands for additional functionality:
 
+- `/shell` - Switch to shell mode to execute system commands (type `exit` or `quit` to exit shell mode)
 - `!<command>` - Execute a single shell command without switching modes
 - `/model` - Show model selector or switch model (`/model <model_name>`)
 - `/editor` or `/edit` - Open editor for multiline input
-- `/init [--force]` - Analyze the project and create a tailored `SIADA.md` file
-- `/compact` - Compact conversation context; the terminal displays message counts and the number removed beneath the compaction status. The activity indicator shows compaction while it runs, then returns to model reasoning.
+- `/init [--force]` - Analyze the project and create a tailored siada.md file
+- `/compact` - Compact conversation context; the terminal UI displays message counts and the number removed as tree branches below the compaction status. The activity indicator shows compaction only while it runs and returns to model reasoning when it finishes.
 - `/restore <checkpoint_file>` - Restore session state from a checkpoint file (requires checkpoint tracking enabled)
 - `/undo <checkpoint_file>` - Undo changes made by a checkpoint, restoring to the state before the checkpoint was created (requires checkpoint tracking enabled)
 - `/compare <checkpoint_file>` - Compare current state with a checkpoint file to see differences
-- `/context-file-refresh` - Refresh `SIADA.md` and `AGENTS.md` context files and show a content overview
-- `/rule-status` - Show the discovered `siada_rule.md` hierarchy and its configuration
+- `/memory-refresh` - Refresh user memory content from siada.md file
+- `/memory-status` - Display current user memory status (file info, size, loaded status)
 - `/status` - Display current session status (model, agent, session ID, and workspace)
 - `/lang` - View current language configuration
   - `/lang zh` - Switch to Chinese
   - `/lang en` - Switch to English
 - `/exit` - Exit the application
 
-### Execute Shell Commands
+In the terminal UI, `/status` and `/help` can run while the agent is responding.
+They do not interrupt the response or become model input. Commands that change
+the session, such as `/clear` and `/model`, wait until the active turn finishes.
 
-Use the `!` prefix to execute a single system command from the prompt:
+### Shell Mode Usage Guide
+
+Siada CLI provides two ways to execute system commands:
+
+#### Method 1: Use `/shell` to switch to shell mode
+Switch to persistent shell mode where you can continuously execute multiple system commands:
+
+```bash
+> /shell
+# After entering shell mode, you can execute multiple commands
+ls -la
+cd my-project
+npm install
+git status
+# Use exit or quit to exit shell mode
+exit
+```
+
+#### Method 2: Use `!` prefix to execute commands directly
+Execute single system commands directly in interactive mode without switching modes:
 
 ```bash
 > !ls -la
@@ -578,9 +823,18 @@ Use the `!` prefix to execute a single system command from the prompt:
 > !npm run dev
 ```
 
-After the command finishes, the prompt returns to the conversation. The `/shell` command for persistent shell mode is disabled in this build.
+Differences between the two methods:
+- **`/shell`**: Suitable for scenarios requiring continuous execution of multiple system commands, switch once and use persistently
+- **`!<command>`**: Suitable for occasionally executing single system commands, returns to AI conversation mode immediately after execution
 
 ### Language Configuration
+
+The terminal interface defaults to English. Use `/language` to open the English / 中文
+selector, or `/language en` and `/language zh-CN` to switch directly. The choice takes
+effect immediately and is saved in `~/.siada-cli/ui-config.json` as `language` for
+future launches. Commands, model names, and user content keep their original text.
+
+`/lang` controls the language of AI responses separately:
 
 **coder agent** supports language switching in **interactive mode** using slash commands
 
@@ -605,10 +859,7 @@ General-purpose code development agent for creating new features, fixing bugs, r
 ### Custom Agents (`.agents/agents/`)
 In addition to the built-in agent types, you can define your own named sub-agents in Markdown files under `.agents/agents/` (or `~/.siada-cli/agents/`). Each definition carries its own system prompt plus `tools`, `skills`, `mcpServers`, `background` and `effort` settings, and the main agent delegates to it through `run_subtask`. See the [Custom Agents Guide](./USER_AGENTS.md) for the file format, field reference, priority rules and examples.
 
-Each `run_subtask` execution uses an isolated in-memory context that can be
-compacted as it grows. Later SDK saves do not restore summarized task input.
-Identical messages remain distinct, including repeated messages in inherited
-(`fork`) history.
+Each `run_subtask` execution has an isolated in-memory context that can be compacted as it grows. Compaction does not restore the original task input through later SDK saves. Identical message content is not merged, including repeated messages in inherited (`fork`) history.
 
 For GPT-6 and later models (including the `astra` alias), the system prompt
 requires you or applicable `SIADA.md`/`AGENTS.md`/skill instructions to explicitly
@@ -619,11 +870,11 @@ delegation.
 ## Examples
 
 ### Activate Virtual Environment (Developer Mode Only)
-First, enter the siada-cli project directory and activate the virtual environment:
+First, enter the siada-agenthub project directory and activate the virtual environment:
 
 ```bash
 # Enter project directory
-cd ~/path/to/siada-cli
+cd ~/path/to/siada-agenthub
 
 # Activate virtual environment (recommended method)
 source $(poetry env info --path)/bin/activate
@@ -725,22 +976,52 @@ If setup reports HTTP 404, update Siada and retry. For a custom download source,
 use `siada-browser setup --base-url <release-directory>`; the equivalent CLI option
 is `siada-cli --browser-setup --browser-base-url <release-directory>`.
 
+**Reopening the browser side panel:**
+
+Closing the Siada side panel retains its agent and session for five minutes.
+Reopening it in the same browser window reuses the agent and restores the
+conversation history. After the retention period, the next open starts a new
+agent and restores saved history. Clicking **Disconnect** releases the agent
+immediately. Closing the panel cancels active requests and pending permissions
+and stops live view; the retention period keeps the agent ready for reopening.
+
 **Model API errors:**
 - Check your internet connection
 
-**Legacy session migration reports `snapshot has no trustworthy history boundary`:**
+**The model calls an unavailable tool:**
 
-- This is a local session-storage error. Older `/model` and resume paths could reset the saved snapshot boundary before migration.
-- Switching models and resuming now preserve that boundary. If it was already reset, migration accepts a unique saved signature or an exact, unique match for the snapshot's final item in native history, retaining the snapshot plus its pending tail.
-- Summary-only snapshots without a saved signature, ambiguous matches, and damaged snapshots still require manual recovery. Back up the session directory before recovery; do not delete `api_messages.json` or guess `last_index`, as this can restore discarded context or omit recent messages.
+Siada returns a tool error and the currently available tool names to the model,
+then continues the same agent run. This includes an unavailable `apply_patch`
+call. The missing tool is not executed, and completed tool calls are not replayed.
+Normal turn limits still apply if the model keeps choosing unavailable tools.
+After recovery, the saved tool history remains usable when switching to a
+Chat Completions model or using one for context compaction.
+
+**Connection prematurely closed DURING response:**
+
+The upstream connection closed while the model response was streaming. Siada
+automatically retries up to twice with exponential backoff when no answer text
+or tool events have been exposed yet, including when the gateway reports
+`stream_error`. Thinking can remain visible across attempts.
+
+If answer text or tool events have already appeared, the conversation can
+continue from saved history and completed tool results, with up to two recovery
+attempts. An unfinished tool call is discarded. Recovery stops if saved history
+cannot be verified, storage fails, or you cancel the request.
+
+**Resuming an older session with an unverifiable context snapshot:**
+
+- Older versions could save a snapshot boundary that no longer matches the full history, including after large tool outputs were truncated. This is a local compatibility issue, not a model API failure.
+- Siada preserves a verifiable snapshot and its pending history tail. If its boundary cannot be verified, or the snapshot is missing, Siada automatically rebuilds context from the full native history without asking for confirmation. Normal tool-output filtering and configured automatic compaction still apply before the model request.
+- Rebuilding can reintroduce content previously removed from effective context by compaction. The original history and any legacy `api_messages.json` are retained; a boundary fallback is recorded as `action=rebuild_from_history` in the logs.
+- Damaged session files, identity mismatches, and storage failures still stop recovery. Back up the session directory before manual repair; do not delete snapshots or guess `last_index`.
 
 **Model response stream ended without a final response:**
 
 The stream ended without its terminal response event, even if some text was
-already displayed. Siada retries up to twice when only lifecycle events have
-arrived. Once text, reasoning, or tool events have been exposed, it reports the
-failure without replaying the request. Check displayed content and tool results
-before retrying. The error shows the actual log path (normally
+already displayed. Siada uses the same retry and saved-history recovery policy
+described above. If recovery fails, check displayed content and tool results
+before retrying manually. The error shows the actual log path (normally
 `~/.siada-cli/logs/errors.log`; `SIADA_CLI_LOG_DIR` can override the directory).
 Diagnostics include the model, response ID, last event, and output exposure.
 
@@ -762,25 +1043,3 @@ conversion error. Siada constrains `markdownify` to a compatible version.
 For a developer checkout, run `poetry install` with the committed lockfile,
 then restart Siada and retry reading the document.
 
-**Markdown file-edit display:**
-
-Completed Markdown string replacements display as line diffs in both compact and expanded views, including resumed sessions. Embedded code blocks and blank lines are preserved. Incomplete edits remain in the tool text view until the stream finishes. Older unfenced display text with ambiguous `with:` separators falls back to the text view instead of showing a guessed diff.
-
-**Patch context mismatch (`Invalid Context` / `Invalid EOF Context`):**
-
-Native patch failures return recovery guidance:
-
-- Old and context lines must match complete lines in the current file. The
-  matcher does not interpret JSON fields or line fragments.
-- Read the target region again and generate a patch from the current text.
-  Exclude reader line numbers and truncation markers; do not repeat an unchanged
-  failed patch.
-- Matching tolerates leading/trailing whitespace and common Unicode punctuation
-  or space differences while preserving untouched text. Different values and
-  JSON formatting are not equivalent.
-- Each native operation is validated before its writes. A batch is not a
-  transaction: failed operations do not roll back successful ones, and the SDK
-  may attempt later operations. Check each result and the current files before
-  retrying.
-
-For more detailed troubleshooting, check logs and use the `--verbose` flag for additional debug information.

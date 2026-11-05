@@ -91,13 +91,17 @@ def test_noninteractive_exit_drains_children_before_provider_close(
 ):
     from siada.entrypoint import siadahub
     from siada.entrypoint.interaction.nointeractive_controller import NoInteractiveController
+    from siada.entrypoint.interaction.running_config import RunningConfig
+    from siada.services.file_session import FileSession
     from siada.services.siada_runner import SiadaRunner
+    from siada.session.session_models import RunningSession
 
     events, instances = lifecycle
     monkeypatch.setattr(siadahub, "_ensure_litellm_ready", lambda: None)
     monkeypatch.setattr(siadahub, "_ensure_agents_ready", lambda: None)
 
     async def run_agent(**kwargs):
+        assert kwargs["stream"] is True
         provider_factory.get_provider("synthetic")
         started = asyncio.Event()
 
@@ -112,11 +116,20 @@ def test_noninteractive_exit_drains_children_before_provider_close(
         await started.wait()
         if failure:
             raise ValueError("synthetic CLI failure")
-        return "synthetic answer"
+        async def stream_events():
+            yield SimpleNamespace(type="synthetic_event")
+
+        return SimpleNamespace(final_output="synthetic answer", stream_events=stream_events)
 
     monkeypatch.setattr(SiadaRunner, "run_agent", run_agent)
-    config = SimpleNamespace(agent_name="coder", workspace=str(tmp_path), io=MagicMock())
-    controller = NoInteractiveController(config, SimpleNamespace())
+    config = RunningConfig(
+        llm_config=SimpleNamespace(model_name="synthetic"),
+        agent_name="coder", workspace=str(tmp_path), io=MagicMock(),
+        interactive=False, memory_enabled=False,
+    )
+    session = RunningSession(config, session_id="synthetic-cli-lifecycle")
+    session.state.openai_session = FileSession(session.session_id, tmp_path)
+    controller = NoInteractiveController(config, session)
     assert controller.run("synthetic question") == int(failure)
     assert events == ["child drained", "provider closed"]
     assert instances[1].close_loop.is_closed()
@@ -243,18 +256,13 @@ async def test_lark_stop_drains_active_stream_and_background_child_before_discon
     assert not controller.is_running
 
 
-def test_legacy_tui_loop_finalizer_drains_children_and_closes_provider(lifecycle):
-    from siada.entrypoint.interaction.turn.conversation_turn import ConversationTurn
-
-    class IsolatedTurn(ConversationTurn):
-        _dedicated_loop = None
-        _dedicated_thread = None
-
+def test_tui_runtime_drains_children_and_closes_provider(lifecycle):
     events, instances = lifecycle
-    IsolatedTurn._ensure_dedicated_loop()
-    loop = IsolatedTurn._dedicated_loop
+    loop = None
 
     async def start():
+        nonlocal loop
+        loop = asyncio.get_running_loop()
         provider_factory.get_provider("synthetic")
         started = asyncio.Event()
 
@@ -268,13 +276,9 @@ def test_legacy_tui_loop_finalizer_drains_children_and_closes_provider(lifecycle
         asyncio.create_task(child())
         await started.wait()
 
-    try:
-        asyncio.run_coroutine_threadsafe(start(), loop).result(timeout=3)
-    finally:
-        IsolatedTurn._cleanup_dedicated_loop()
+    asyncio.run(provider_factory.run_in_provider_runtime(start()))
     assert events == ["child drained", "provider closed"]
     assert loop.is_closed()
-    assert not IsolatedTurn._dedicated_thread.is_alive()
     assert instances[1].close_loop is loop
     instances[0].aclose.assert_not_called()
 

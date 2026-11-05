@@ -24,7 +24,7 @@ def registered(monkeypatch):
 
     prototype = Provider()
     monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
-    monkeypatch.setattr(provider_factory, "provider_map", {"default": prototype, "other": prototype})
+    monkeypatch.setattr(provider_factory, "provider_map", {"li": prototype, "default": prototype, "other": prototype})
     return prototype, instances
 
 
@@ -37,7 +37,7 @@ def test_sequential_loops_share_with_children_but_not_each_other(registered):
 
             async def child():
                 await asyncio.sleep(0)
-                return provider_factory.get_provider("default")
+                return provider_factory.get_provider("openai_agents")
 
             assert all(p is root for p in await asyncio.gather(*(child() for _ in range(6))))
             other = provider_factory.get_provider("other")
@@ -64,9 +64,9 @@ def test_concurrent_controller_loops_are_isolated(registered):
 
     async def run():
         async with provider_factory.provider_runtime():
-            provider = provider_factory.get_provider("default")
+            provider = provider_factory.get_provider("li")
             await asyncio.to_thread(barrier.wait, 3)
-            assert provider_factory.get_provider("default") is provider
+            assert provider_factory.get_provider("li") is provider
             return provider
 
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -80,10 +80,10 @@ def test_concurrent_controller_loops_are_isolated(registered):
 @pytest.mark.asyncio
 async def test_nested_runtime_does_not_close_siblings_or_providers(registered):
     async with provider_factory.provider_runtime():
-        provider = provider_factory.get_provider("default")
+        provider = provider_factory.get_provider("li")
         sibling = asyncio.create_task(asyncio.Event().wait())
         async with provider_factory.provider_runtime():
-            assert provider_factory.get_provider("default") is provider
+            assert provider_factory.get_provider("li") is provider
         assert not sibling.done()
         provider.aclose.assert_not_called()
     assert sibling.cancelled()
@@ -102,7 +102,7 @@ async def test_runtime_drains_children_before_close_and_stops_admission(register
             await asyncio.Event().wait()
         finally:
             with pytest.raises(RuntimeError, match="shutting down"):
-                provider_factory.get_provider("default")
+                provider_factory.get_provider("li")
             await asyncio.sleep(0)
             events.append("child drained")
 
@@ -112,7 +112,7 @@ async def test_runtime_drains_children_before_close_and_stops_admission(register
 
     async def run():
         async with provider_factory.provider_runtime():
-            provider = provider_factory.get_provider("default")
+            provider = provider_factory.get_provider("li")
             provider.aclose.side_effect = close
             task = asyncio.create_task(child())
             await started.wait()
@@ -132,12 +132,12 @@ async def test_runtime_drains_children_before_close_and_stops_admission(register
 async def test_runtime_closes_all_providers_after_cleanup_failure(registered):
     with pytest.raises(OSError, match="synthetic close failure"):
         async with provider_factory.provider_runtime():
-            first = provider_factory.get_provider("default")
+            first = provider_factory.get_provider("li")
             second = provider_factory.get_provider("other")
             first.aclose.side_effect = OSError("synthetic close failure")
     second.aclose.assert_awaited_once()
     with pytest.raises(RuntimeError, match="shutting down"):
-        provider_factory.get_provider("default")
+        provider_factory.get_provider("li")
     await provider_factory.aclose_providers()
 
 
@@ -159,7 +159,7 @@ def test_dedicated_runtime_closes_abandoned_stream_before_provider(registered):
             events.append("stream closed")
 
     async def start():
-        provider = provider_factory.get_provider("default")
+        provider = provider_factory.get_provider("li")
 
         async def close():
             assert events == ["stream closed", "stream helper drained"]

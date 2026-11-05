@@ -8,8 +8,10 @@ compaction for GPT-5/Astra sessions.
 """
 from __future__ import annotations
 
+import json
+from copy import deepcopy
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from agents import ModelResponse
@@ -19,6 +21,7 @@ from openai.types.responses import ResponseOutputMessage
 from siada.agent_hub.context_filter.header_summary_compaction_strategy import (
     SummarizeWithHeaderCompaction,
 )
+from siada.provider import one_shot
 
 
 def _model_config() -> SimpleNamespace:
@@ -162,3 +165,70 @@ class TestCompactedHistoryChatReplay:
         result = _calculate_tokens("gpt-4o-mini", self._compacted_history())
 
         assert isinstance(result, int) and result > 0
+
+
+def _custom_history() -> list:
+    return [
+        {"role": "user", "content": "synthetic task"},
+        {"type": "custom_tool_call", "id": "custom-item", "call_id": "custom-call",
+         "name": "unavailable_custom", "input": "raw patch\nnot JSON"},
+        {"type": "custom_tool_call_output", "call_id": "custom-call", "output": "not found"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_custom_history_reaches_real_compaction_chat_boundary(monkeypatch):
+    from agents.models.chatcmpl_converter import Converter
+    from openai.types.responses import Response, ResponseCompletedEvent
+
+    monkeypatch.delenv("SIADA_COMPACT_MODEL", raising=False)
+    history = _custom_history()
+    original = deepcopy(history)
+    seen = []
+
+    async def stream_response(**kwargs):
+        messages = Converter.items_to_messages(kwargs["input"])
+        seen.extend(messages)
+        response = Response.model_construct(
+            id="summary-response", object="response", created_at=0, model="gpt-4o-mini",
+            status="completed", output=[ResponseOutputMessage.model_validate({
+                "id": "summary", "type": "message", "role": "assistant", "status": "completed",
+                "content": [{"type": "output_text", "text": "<context>summary</context>", "annotations": []}],
+            })], usage=None,
+        )
+        yield ResponseCompletedEvent(type="response.completed", response=response, sequence_number=0)
+
+    model = SimpleNamespace(model="gpt-4o-mini", stream_response=stream_response)
+    provider = SimpleNamespace(get_model=Mock(return_value=model))
+    monkeypatch.setattr(one_shot, "get_provider", lambda name: provider)
+    summary = await SummarizeWithHeaderCompaction().call_llm_to_compact(_model_config(), history)
+    assert summary == "<context>summary</context>"
+    call = next(message["tool_calls"][0] for message in seen if message.get("tool_calls"))
+    assert call["function"]["name"] == "unavailable_custom"
+    assert json.loads(call["function"]["arguments"]) == {"input": "raw patch\nnot JSON"}
+    assert next(message for message in seen if message["role"] == "tool") == {
+        "role": "tool", "tool_call_id": "custom-call", "content": "not found",
+    }
+    assert history == original
+
+
+def test_custom_history_token_counting_uses_converter():
+    from siada.agent_hub.context_filter.utils import _calculate_tokens
+
+    assert _calculate_tokens("gpt-4o-mini", _custom_history()) > 0
+
+
+@pytest.mark.parametrize("orphan_type", ["custom_tool_call", "custom_tool_call_output"])
+def test_compaction_removes_orphan_custom_tool_items(orphan_type):
+    strategy = SummarizeWithHeaderCompaction()
+    history = _custom_history()
+    assert strategy._repair_tool_pairs(history) == history
+    orphan = next(item for item in history if item.get("type") == orphan_type)
+    assert strategy._repair_tool_pairs([history[0], orphan]) == history[:1]
+
+
+def test_compaction_preserves_complete_trailing_custom_pair():
+    strategy = SummarizeWithHeaderCompaction()
+    history = _custom_history()
+    assert strategy.adjust_compression_index_for_boundary_cases(history, len(history)) == 1
+    assert strategy._repair_tool_pairs(history[1:], require_user_start=False) == history[1:]

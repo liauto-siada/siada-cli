@@ -1,7 +1,10 @@
 import React from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
 import { Box, Text } from '@jrichman/ink';
 import type { TodoItem } from '../../hooks/useAcp/types.js';
 import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
+import { getTodoVisibleRange } from '../../utils/todoDisplay.js';
 
 export interface TodoDisplayProps {
   items: TodoItem[];
@@ -9,6 +12,7 @@ export interface TodoDisplayProps {
   width?: number;
   onSelect: (index: number) => void;
   onClose: () => void;
+  compact?: boolean;
 }
 
 const STATUS_ICONS: Record<string, string> = {
@@ -23,30 +27,17 @@ const STATUS_COLORS: Record<string, string> = {
   completed:   'green',
 };
 
-const MAX_VISIBLE = 5;
-
 export const TodoDisplay: React.FC<TodoDisplayProps> = ({
   items,
   activeIndex,
   width,
+  compact = false,
 }) => {
+  useUiLanguage();
   if (!items || items.length === 0) return null;
 
   const total = items.length;
-  let effectiveActive = activeIndex;
-  if (effectiveActive < 0) {
-    // No row focused: auto-scroll to the current in-progress/pending item
-    // so the visible window follows task progress instead of staying at top.
-    const inProgressIdx = items.findIndex(item => item.status === 'in_progress');
-    if (inProgressIdx >= 0) {
-      effectiveActive = inProgressIdx;
-    } else {
-      const pendingIdx = items.findIndex(item => item.status === 'pending');
-      effectiveActive = pendingIdx >= 0 ? pendingIdx : total - 1;
-    }
-  }
-  const start = Math.max(0, Math.min(effectiveActive - 2, total - MAX_VISIBLE));
-  const end = Math.min(total, start + MAX_VISIBLE);
+  const { start, end } = getTodoVisibleRange(items, activeIndex);
   const visible = items.slice(start, end);
 
   const hasAbove = start > 0;
@@ -54,16 +45,16 @@ export const TodoDisplay: React.FC<TodoDisplayProps> = ({
   const displayPos = activeIndex >= 0 ? `${activeIndex + 1}` : '-';
 
   return (
-    <Box flexDirection="column" paddingX={1} width={width}>
+    <Box flexDirection="column" paddingX={compact ? 0 : 1} width={width}>
       {/* Header */}
-      <Box justifyContent="space-between">
-        <Text color="cyan" dimColor>Todos</Text>
+      {!compact && <Box justifyContent="space-between">
+        <Text color="cyan" dimColor>{t('待办清单', 'Todos')}</Text>
         <Text color="cyan" dimColor>
           {hasAbove ? ' ▲ ' : '   '}
           ({displayPos}/{total})
           {hasBelow ? ' ▼' : '  '}
         </Text>
-      </Box>
+      </Box>}
 
       {/* Items */}
       {visible.map((item, visIdx) => {
@@ -73,26 +64,31 @@ export const TodoDisplay: React.FC<TodoDisplayProps> = ({
         const iconColor = STATUS_COLORS[item.status] ?? 'white';
 
         return (
-          <Box key={globalIdx} flexDirection="row">
-            <Text color={isActive ? 'cyan' : 'gray'}>
-              {isActive ? '▶ ' : '  '}
-            </Text>
-            <Text color={iconColor}>{icon} </Text>
-            <Text
-              color={isActive ? 'cyan' : undefined}
-              bold={isActive}
-              dimColor={item.status === 'completed' && !isActive}
-            >
-              {decodeHtmlEntities(item.content)}
-            </Text>
+          <Box key={globalIdx} flexDirection="row" height={1} flexShrink={0} overflowX="hidden">
+            <Box flexShrink={0}>
+              <Text color={isActive ? 'cyan' : 'gray'}>
+                {isActive ? '▶ ' : '  '}
+              </Text>
+              <Text color={iconColor}>{icon} </Text>
+            </Box>
+            <Box flexGrow={1} flexShrink={1} overflowX="hidden">
+              <Text
+                color={isActive ? 'cyan' : undefined}
+                bold={isActive}
+                dimColor={item.status === 'completed' && !isActive}
+                wrap="truncate-end"
+              >
+                {decodeHtmlEntities(item.content).replace(/\s+/g, ' ').trim()}
+              </Text>
+            </Box>
           </Box>
         );
       })}
 
       {/* Footer */}
-      <Box>
-        <Text color="gray">↑↓ navigate • Tab focus • Enter open • Esc close</Text>
-      </Box>
+      {!compact && <Box>
+        <Text color="gray">{PANEL_TIPS.todo}</Text>
+      </Box>}
     </Box>
   );
 };

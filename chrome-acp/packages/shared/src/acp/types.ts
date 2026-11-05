@@ -216,7 +216,7 @@ export type BrowserToolResult =
 // Messages sent TO the proxy server
 // Reference: Zed's MessageEditor.contents() builds Vec<acp::ContentBlock>
 export type ProxyMessage =
-  | { type: "connect" }
+  | { type: "connect"; payload?: { retentionId: string } }
   | { type: "disconnect" }
   | { type: "new_session"; payload?: { cwd?: string; tabId?: number } }
   | { type: "prompt"; payload: { content: ContentBlock[]; requestId?: string } }
@@ -282,6 +282,7 @@ export interface ProxyStatusMessage {
     agentInfo?: { name?: string; version?: string };
     /** Full agent capabilities from initialize response */
     capabilities?: AgentCapabilities;
+    retainedSessionId?: string | null;
   };
 }
 
@@ -355,6 +356,8 @@ export interface ProxyModelChangedMessage {
 export interface ProxyFrameMessage {
   type: "frame";
   callId?: string;
+  tabId?: number;
+  sessionId?: string | null;
   payload: FramePayload;
 }
 

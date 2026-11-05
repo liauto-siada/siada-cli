@@ -18,7 +18,6 @@ from openai.types.shared import Reasoning
 from siada.foundation.context import agent_name_scope
 from siada.provider.chat_completions import reorder_tool_call_output_items
 from siada.provider.provider_factory import get_provider, resolve_provider_by_model
-from siada.provider.retry import model_retry_scope
 from siada.services.input_processor import process_input
 from siada.services.model_wrapper import ModelProviderWrapper
 from siada.support.chat_compat_items import to_chat_compatible_items
@@ -157,7 +156,6 @@ async def one_shot_completion(
     agent_name: str | None = None,
     tracing: ModelTracing = ModelTracing.DISABLED,
     stream: bool = True,
-    num_retries: int | None = None,
     **kwargs: Any,
 ) -> ModelResponse:
     """Make one model call and return its final response, borrowing the provider.
@@ -180,7 +178,7 @@ async def one_shot_completion(
 
     # The scope starts before model resolution: some providers select endpoints
     # and headers from the agent-name context while constructing their models.
-    with model_retry_scope(num_retries), agent_name_scope(agent_name):
+    with agent_name_scope(agent_name):
         base_provider = get_provider(resolve_provider_by_model(model, provider))
         request_scope = nullcontext()
         if base_url is not None or api_key is not None:
@@ -196,17 +194,8 @@ async def one_shot_completion(
                 base_provider=base_provider, input_processor=process_input
             )
             selected_model = wrapped_provider.get_model(model)
-            if num_retries is not None:
-                # LiteLLM has an independent retry layer. Native SDK clients
-                # disable it at construction; retained vendor adapters need
-                # their own option so the durable learning queue owns retries.
-                from agents.extensions.models.litellm_model import LitellmModel
-
-                if isinstance(selected_model.wrapped_model, LitellmModel):
-                    extra_args = dict(settings.extra_args or {})
-                    extra_args["num_retries"] = 0
-                    settings = settings.resolve({"extra_args": extra_args})
-            if isinstance(input_items, list) and not selected_model.supports_native_responses_items:
+            if (isinstance(input_items, list) and not selected_model.supports_native_responses_items
+                    and getattr(selected_model, "request_protocol", None) != "gemini"):
                 # Compaction can replay interleaved completed tool pairs into any
                 # Chat adapter, not only Kimi. Repair item order before conversion.
                 input_items = reorder_tool_call_output_items(to_chat_compatible_items(input_items))

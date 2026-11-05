@@ -51,7 +51,7 @@ async def test_same_run_tool_loop_resolves_fresh_equivalent_models(baseline, mon
     provider.get_token_counting_info.assert_called_once_with("configured-alias")
     assert all(call.args[0] == "glm-effective" for call in counter.call_args_list)
     assert counter.call_count == 3
-    assert counter.call_args_list[2].kwargs == {"diagnostics": {}}
+    assert counter.call_args_list[2].kwargs == {"diagnostics": {}, "counting_info": TokenCountingInfo("glm-effective")}
     assert counter.call_args_list[2].args[1][0]["type"] == "function_call_output"
     assert session.state.context_token_baseline is not None
     assert config.model == "configured-alias"
@@ -110,7 +110,7 @@ async def test_mismatch_aborts_warm_budget_without_committing_hook_queue(baselin
     assert reminder not in await session.openai_session.get_history_items()
     assert load_state(session.openai_session.session_folder, session.session_id)["usage"] == saved["usage"]
     assert counter.call_count == 1
-    counter.assert_called_once_with("glm-effective", [{"role": "user", "content": "continue"}], diagnostics={})
+    counter.assert_called_once_with("glm-effective", [{"role": "user", "content": "continue"}], diagnostics={}, counting_info=info)
     if change == "projection":
         transport.create.assert_not_called()
     else:
@@ -177,7 +177,7 @@ async def test_reconfigured_route_recounts_incompatible_durable_anchor_after_mis
     assert len(second.requests) == 1
     assert second.requests[0]["input"].count({"role": "user", "content": "continue"}) == 1
     assert counter.call_count == 2
-    assert counter.call_args_list[0].kwargs == {"tools": [], "diagnostics": {}}
+    assert counter.call_args_list[0].kwargs == {"tools": [], "diagnostics": {}, "counting_info": TokenCountingInfo("glm-second")}
     assert counter.call_args_list[0].args[1] == second.requests[0]["input"]
     assert all(call.args[0] == "glm-second" for call in counter.call_args_list)
     assert session.state.context_token_baseline.signature != old_anchor.signature

@@ -32,9 +32,11 @@ import { getSemanticToolCallDisplay } from '../../utils/toolCallDisplay.js';
 import { recordFlicker } from '../../utils/flickerMonitor.js';
 import { beginSyncOutput, endSyncOutput } from '../../utils/stdio.js';
 import { extractCleanContent } from '../../utils/contentCleaner.js';
-import { isRenderableToolDiff } from '../../utils/diff.js';
+import { isFileEditAwaitingResult, isRenderableToolDiff, parseFileEditPresentation } from '../../utils/diff.js';
 import { colors } from '../../utils/colors.js';
 import { useThemeVersion } from '../../themes/index.js';
+import { isHookMessage } from '../../utils/hookMessage.js';
+import { isErrorMessage } from '../../utils/errorMessage.js';
 
 // Virtual Scrolling: Only render recent messages to prevent Terminal.app crashes
 // Terminal.app's NSMutableAttributedString has severe memory corruption issues
@@ -251,7 +253,15 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       }
 
       // In compact mode, aggregate consecutive tool_use messages
+      if (isHookMessage(msg) || isErrorMessage(msg)) {
+        groups.push({ type: msg.type, message: msg });
+        continue;
+      }
       const isToolUse = msg.metadata?.subtype === 'tool_use';
+      if (isToolUse && parseFileEditPresentation(msg.content || '')) {
+        groups.push({ type: msg.type, message: msg });
+        continue;
+      }
       
       if (collapsed && isToolUse) {
         const cleanContent = (msg.content || '').replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim();
@@ -353,6 +363,18 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
           break;
         }
       }
+    }
+
+    const pendingEditIndex = allGroups.findIndex(group => {
+      if (group.message.metadata?.subtype !== 'tool_use') return false;
+      const edit = parseFileEditPresentation(group.message.content || '');
+      return edit !== null && isFileEditAwaitingResult(edit);
+    });
+    if (pendingEditIndex >= 0) {
+      // Static is append-only: hold the entire suffix until earlier edits finish.
+      if (needsRemount) setTimeout(() => refreshStatic(), 0);
+      lastStaticGroupSignaturesRef.current = currentSignatures.slice(0, pendingEditIndex);
+      return { staticGroups: allGroups.slice(0, pendingEditIndex), pendingGroups: allGroups.slice(pendingEditIndex) };
     }
 
     const lastGroup = allGroups[allGroups.length - 1];
@@ -659,12 +681,25 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
           key={group.message.id}
           message={group.message}
           isNewGroup={isNewGroup}
-          disableTruncation={isStatic}
+          disableTruncation={isStatic || noStatic}
           isCollapsed={isCollapsed}
+          terminalWidth={terminalWidth}
         />
       );
     },
-    [isCollapsed]
+    [isCollapsed, noStatic, terminalWidth]
+  );
+
+
+  const hasPendingFileEdit = pendingGroups.some(group => {
+    if (group.message.metadata?.subtype !== 'tool_use') return false;
+    const edit = parseFileEditPresentation(group.message.content || '');
+    return edit !== null && isFileEditAwaitingResult(edit);
+  });
+  const terminalRows = stdout?.rows || 24;
+  const pendingMaxHeight = Math.max(Math.min(Math.floor(terminalRows / 2), terminalRows - 14), 1);
+  const pendingContent = pendingGroups.map((group, index) =>
+    renderGroup(group, staticGroups.length + index, false)
   );
 
 
@@ -674,11 +709,9 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
   if (noStatic) {
     return (
       <Box ref={scrollRef} flexDirection="column" padding={0}>
-        {headerProps && <Banner {...headerProps} isCollapsed={isCollapsed} />}
+        {headerProps && <Banner {...headerProps} />}
         {staticGroups.map((group, idx) => renderGroup(group, idx, false))}
-        {pendingGroups.map((group, idx) =>
-          renderGroup(group, staticGroups.length + idx, false)
-        )}
+        {pendingContent}
       </Box>
     );
   }
@@ -697,7 +730,7 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
         {(item, index) => {
           // First item is always the header sentinel — render banner if headerProps present, else skip
           if (index === 0 && 'type' in item && item.type === 'header') {
-            if (headerProps) return <Banner key="header" {...headerProps} isCollapsed={isCollapsed} />;
+            if (headerProps) return <Banner key="header" {...headerProps} />;
             return <React.Fragment key="no-header" />;
           }
           // Other items are message groups
@@ -706,9 +739,11 @@ export const MessageList: React.FC<MessageListProps> = React.memo(({ messages, h
       </Static>
       
       {/* OPTIMIZATION: Dynamic rendering for pending (last) group if small enough */}
-      {pendingGroups.map((group, idx) =>
-        renderGroup(group, staticGroups.length + idx, false)
-      )}
+      {hasPendingFileEdit ? (
+        <Box flexDirection="column" maxHeight={pendingMaxHeight} overflowY="hidden" flexShrink={0}>
+          <Box flexDirection="column" flexShrink={0}>{pendingContent}</Box>
+        </Box>
+      ) : pendingContent}
     </Box>
   );
 }); // Close React.memo

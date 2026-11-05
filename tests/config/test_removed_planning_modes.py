@@ -29,6 +29,7 @@ def test_old_planning_config_is_ignored_and_normal_settings_still_load(tmp_path,
     monkeypatch.setattr("siada.config.config_loader._ensure_config_up_to_date", lambda _: None)
     monkeypatch.setattr("siada.config.config_loader.MCPConfigLoader.load_config", lambda: None)
     monkeypatch.setattr("siada.config.config_loader.load_user_model_config", lambda: None)
+    monkeypatch.setattr("siada.config.config_loader._load_sub_agent_registry_config", lambda: None)
 
     config = load_conf(config_path)
 

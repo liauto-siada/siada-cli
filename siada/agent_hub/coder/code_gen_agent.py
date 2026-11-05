@@ -183,17 +183,14 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             model_name=model_name,
             activated_skill_names=run_context.context.activated_skill_names,
             subagent_enabled=getattr(run_context.context, "subagent_enabled", True),
+            available_tool_names={tool.name for tool in self.tools},
         )
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
         current_working_dir = os.getcwd()
-        interactive_mode = self.get_interactive_mode()
-
-        context = CodeAgentContext(
-            root_dir=current_working_dir,
-            interactive_mode=interactive_mode
-        )
+        # SiadaRunner binds execution mode from the owning session before each run.
+        context = CodeAgentContext(root_dir=current_working_dir)
         return context
 
     @staticmethod
@@ -423,8 +420,8 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         # Holographic prefetch injection — runs once per agent ``run()`` (vs.
         # per-LLM-call), so the prefix gets persisted into the conversation
         # alongside the user message and we never accumulate duplicate blocks
-        # on subsequent turns. See ``_inject_holographic_prefetch`` below and
-        # ``siada/services/memory/holographic/provider.py``.
+        # on subsequent turns. See
+        # design_docs/siada-holographic-memory-introduction.md §11.
         #
         # Temporarily disabled: the prefetch facts block is no longer appended
         # to the user input. ``assemble_user_input`` now returns the input

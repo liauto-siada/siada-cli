@@ -2,6 +2,7 @@
  * StatusBarDialog exports
  */
 
-export { StatusBarDialog } from './StatusBarDialog.js';
-export { useStatusBarDialog } from './useStatusBarDialog.js';
-export type { UseStatusBarDialogReturn } from './useStatusBarDialog.js';
+export { StatusBarDialog, StatusDialog } from './StatusBarDialog.js';
+export type { StatusDialogProps } from './StatusBarDialog.js';
+export { useStatusBarDialog, useStatusDialog } from './useStatusBarDialog.js';
+export type { UseStatusBarDialogReturn, UseStatusDialogReturn } from './useStatusBarDialog.js';

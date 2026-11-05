@@ -137,6 +137,7 @@ class ResumeService:
                     sessions_dir=session_data.session_path.parent,
                     on_items_added=old_session.on_items_added,
                     project_root=session_data.project_root or self.project_root,
+                    model_name=running_session.siada_config.llm_config.model_name,
                 )
             # Step 1: adopt the restored session's ID
             running_session.session_id = session_data.session_id
@@ -259,6 +260,8 @@ class ResumeService:
 
             # Step 4: restore RealApiMessage from api_messages.json.
             # (see _align_last_index for how the tracking anchor is derived)
+            # FileSession migration owns the persisted boundary. Legacy mirrors
+            # may be aligned in memory but must not rewrite its migration source.
             # Filtered-out items are never compacted, so they appear verbatim at the
             # tail of api_messages. Strip them from the tail before restoring.
             if session_data.api_messages and filtered_items:
@@ -290,8 +293,9 @@ class ResumeService:
                 ]
                 persisted_last_index = self._align_last_index(native_items, api_messages_to_use)
                 if persisted_last_index is None:
-                    # FileSession owns the persisted migration boundary even
-                    # when a legacy summary cannot align with UI history.
+                    # Unaligned legacy mirrors need a full refresh. FileSession's
+                    # persisted boundary remains available to the request bridge,
+                    # even when a summary has no counterpart in UI history.
                     logger.info(
                         "Could not align legacy api_messages mirror with history on resume; "
                         "resetting in-memory tracking"

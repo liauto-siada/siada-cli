@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
 import { Box, Text, useStdout } from '@jrichman/ink';
 import Spinner from 'ink-spinner';
 import { spawn } from 'node:child_process';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { MarkdownText } from '../common/MarkdownText.js';
 import { colors } from '../../utils/colors.js';
-import { useThemeVersion } from '../../themes/index.js';
+import { Scrollable } from '../common/Scrollable.js';
+import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { useMouseTracking } from '../../hooks/useMouseTracking.js';
 
 export interface SideQuestionItem {
   id:       string;
@@ -24,9 +27,9 @@ export interface SideQuestionPanelProps {
   /** 'x' shortcut — keeps only the currently focused (newest) item. */
   onClearHistory?: () => void;
   onFork?:  (item: SideQuestionItem) => void;
+  /** Total rendered rows, including the header and footer. */
+  height?: number;
 }
-
-const VIEWPORT_LINES = 12;
 
 export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
   items,
@@ -34,21 +37,20 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
   onRemove,
   onClearHistory,
   onFork,
+  height: availableHeight,
 }) => {
   const { stdout } = useStdout();
+  const { rows } = useTerminalSize();
+  const height = Math.max(3, availableHeight ?? Math.min(17, Math.floor(rows / 2)));
+  const spacing = height >= 6 ? 1 : 0;
+  useMouseTracking(true);
   // The newest item (last) is always the focused / highlighted one.
   // Older items are rendered as collapsed history entries (title only).
   const activeIndex = items.length - 1;
-  const [scrollOffset, setScrollOffset] = useState(0);
   // Transient flash shown for 3s after the user presses 'c' to copy the
   // answer to the clipboard. While true the footer renders a green
   // "Copied to clipboard" badge instead of the regular shortcut hint.
   const [copiedFlash, setCopiedFlash] = useState(false);
-
-  // Reset scroll when a new item is appended.
-  useEffect(() => {
-    setScrollOffset(0);
-  }, [items.length]);
 
   // Auto-clear the copied-flash 3 seconds after it was triggered.
   useEffect(() => {
@@ -60,13 +62,6 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
 
   const activeItem = items[activeIndex];
   const isAnswering = activeItem?.answer === null;
-
-  const answerLines = useMemo(() => {
-    if (!activeItem?.answer) return [];
-    return activeItem.answer.split('\n');
-  }, [activeItem?.answer]);
-
-  const maxScroll = Math.max(0, answerLines.length - VIEWPORT_LINES);
 
   const handleKeypress = useCallback((key: any) => {
     // Esc / Ctrl+C / Ctrl+D: hide the panel without clearing history.
@@ -105,18 +100,8 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
         return;
       }
 
-      // Scroll up one line in the active answer body
-      if (key.name === 'up' || (key.ctrl && key.name === 'p')) {
-        setScrollOffset(o => Math.max(0, o - 1));
-        return;
-      }
-      // Scroll down one line in the active answer body
-      if (key.name === 'down' || (key.ctrl && key.name === 'n')) {
-        setScrollOffset(o => Math.min(maxScroll, o + 1));
-        return;
-      }
     }
-  }, [activeItem, isAnswering, maxScroll, onHide, onClearHistory]);
+  }, [activeItem, isAnswering, onHide, onClearHistory]);
 
   // The panel only mounts while it is visible (controlled by the parent),
   // so it can unconditionally own keyboard input here. Esc fires onHide
@@ -128,7 +113,14 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
 
   return (
     // paddingLeft=1 aligns /btw with the ThinkingIndicator spinner
-    <Box flexDirection="column" paddingLeft={1} paddingRight={1} marginTop={1}>
+    <Box flexDirection="column" paddingLeft={1} paddingRight={1} paddingTop={spacing}
+      height={height} flexShrink={0} overflowY="hidden">
+      <Box height={1} flexShrink={0} overflowX="hidden">
+        <Text color={colors.secondary} bold>/btw </Text>
+        <Text wrap="truncate-end">{activeItem.question.replace(/\s+/g, ' ')}</Text>
+      </Box>
+      <Box height={spacing} flexShrink={0} />
+      <Scrollable key={activeItem.id} height={height - 2 - 3 * spacing} hasFocus scrollToBottom={false}>
       {/* History list — only the newest item is rendered with full body;
           older /btw queries are collapsed to question-title rows. */}
       {items.map((item, index) => {
@@ -138,57 +130,46 @@ export const SideQuestionPanel: React.FC<SideQuestionPanelProps> = ({
         if (!isCurrentActive) {
           // Collapsed history row — title only, dimmed.
           return (
-            <Box key={item.id}>
+            <Box key={item.id} height={1} flexShrink={0} overflowX="hidden">
               <Text color={colors.content.secondary} bold>/btw </Text>
-              <Text color={colors.content.secondary}>{item.question}</Text>
+              <Text color={colors.content.secondary} wrap="truncate-end">{item.question.replace(/\s+/g, ' ')}</Text>
             </Box>
           );
         }
 
         // Active (newest) item — full body or answering spinner.
-        const itemAnswerLines = item.answer ? item.answer.split('\n') : [];
-        const itemVisibleAnswer = itemAnswerLines
-          .slice(scrollOffset, scrollOffset + VIEWPORT_LINES)
-          .join('\n');
-
         return (
-          <Box key={item.id} flexDirection="column" marginTop={index > 0 ? 1 : 0}>
-            {/* Header: /btw question (highlighted) */}
-            <Box>
-              <Text color={colors.secondary} bold>/btw </Text>
-              <Text>{item.question}</Text>
-            </Box>
-
+          <Box key={item.id} flexDirection="column" flexShrink={0} marginTop={index > 0 ? 1 : 0}>
             {/* Body: answering spinner or markdown answer */}
-            <Box marginTop={1} marginLeft={2} flexDirection="column">
+            <Box marginLeft={2} flexDirection="column" flexShrink={0}>
               {isAnsweringItem ? (
                 <Box>
                   <Text color={colors.secondary}><Spinner type="dots" /></Text>
                   <Text color={colors.secondary}> Answering...</Text>
                 </Box>
               ) : (
-                <MarkdownText content={itemVisibleAnswer}
-                  availableWidth={Math.max((stdout.columns || 80) - 4, 0)}
-                  maxDiagramHeight={VIEWPORT_LINES} />
+                <MarkdownText content={item.answer ?? ''}
+                  availableWidth={Math.max((stdout.columns || 80) - 5, 1)} />
               )}
             </Box>
           </Box>
         );
       })}
+      </Scrollable>
 
       {/* Footer hint — panel is always interactive while mounted.
           When the user just pressed 'c' to copy, swap the regular
           shortcut hint for a green "Copied to clipboard" badge for 3s. */}
-      <Box marginTop={1}>
+      <Box marginTop={spacing} height={1} flexShrink={0} overflowX="hidden">
         {copiedFlash ? (
-          <Text color={colors.content.secondary}>
-            ↑/↓ to scroll · <Text color={colors.success}>Copied to clipboard</Text> · x to clear history · Esc to close
+          <Text color={colors.content.secondary} wrap="truncate-end">
+            {PANEL_TIPS.sideQuestionCopiedPrefix}<Text color={colors.success}>{PANEL_TIPS.sideQuestionCopied}</Text>{PANEL_TIPS.sideQuestionCopiedSuffix}
           </Text>
         ) : (
-          <Text color={colors.content.secondary}>
+          <Text color={colors.content.secondary} wrap="truncate-end">
             {isAnswering
-              ? 'x to clear history · Esc to close'
-              : '↑/↓ scroll · c copy · x clear history · Esc close'}
+              ? PANEL_TIPS.sideQuestionBusy
+              : PANEL_TIPS.sideQuestion}
           </Text>
         )}
       </Box>

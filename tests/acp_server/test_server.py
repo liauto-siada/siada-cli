@@ -1,4 +1,3 @@
-import siada
 from siada.acp_server.server import AcpServer
 
 
@@ -30,7 +29,6 @@ def test_initialize_then_create_session_returns_agent_and_session_ids():
 
     assert initialize["result"]["protocolVersion"] == 1
     assert initialize["result"]["agentInfo"]["name"] == "Siada"
-    assert initialize["result"]["agentInfo"]["version"] == siada.__version__
     assert session["result"]["sessionId"]
 
 

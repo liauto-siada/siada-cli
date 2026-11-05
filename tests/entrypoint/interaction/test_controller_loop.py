@@ -17,6 +17,7 @@ Nothing here touches a real model, stdin, terminal or network:
 """
 
 import signal
+import asyncio
 import sys
 from contextlib import contextmanager
 from types import ModuleType, SimpleNamespace
@@ -36,13 +37,8 @@ from siada.support.slash_commands import SwitchEvent
 # --------------------------------------------------------------------------- #
 # Test doubles
 # --------------------------------------------------------------------------- #
-class _SimulatedExit(SystemExit):
-    """Raised by test doubles to end ``Controller.run()`` deterministically.
-
-    Deriving from ``SystemExit`` means the loop's ``except Exception`` never
-    swallows it, yet the ``finally`` block still runs exactly like a real
-    process exit - leaving ``exit_reason == "normal"`` untouched.
-    """
+class _SimulatedExit(EOFError):
+    """Close the simulated input stream without terminating the event loop."""
 
 
 class _FakeIO:
@@ -55,8 +51,8 @@ class _FakeIO:
         self.error_lines = []
         self.acp_adapter = None
 
-    def get_input(self, display_rule=False, wakeup_event=None):
-        self.get_input_calls.append((display_rule, wakeup_event))
+    async def get_input_async(self):
+        self.get_input_calls.append(True)
         if self.inputs:
             return self.inputs.pop(0)
         raise _SimulatedExit("simulated input stream exhausted")
@@ -87,16 +83,16 @@ class _FakeTurnPolicy:
         self.user_initiated = []
         self.results = iter(())  # queued TurnOutput-like results
 
-    def start_session(self, session):
+    async def start_session(self, session):
         self.started_sessions.append(session)
 
-    def end_session(self, session, exit_reason):
+    async def end_session(self, session, exit_reason):
         if self._session_end_fired:
             return
         self._session_end_fired = True
         self.ended.append((session, exit_reason))
 
-    def execute(self, turn, user_input, session, *, user_initiated=True):
+    async def execute(self, turn, user_input, session, *, user_initiated=True):
         self.executed.append(user_input)
         self.user_initiated.append(user_initiated)
         try:
@@ -153,7 +149,7 @@ def test_legacy_question_state_does_not_trigger_automatic_continuation(tmp_path)
     )
     policy.results = iter([SimpleNamespace(output=None)])
 
-    with _run_loop_patches(), pytest.raises(_SimulatedExit):
+    with _run_loop_patches():
         controller.run()
 
     assert policy.executed == ["continue the task"]
@@ -166,7 +162,7 @@ def test_in_session_resume_waits_for_the_next_user_input():
     config, _io = _make_config(inputs=["/resume saved-session", "continue the task"])
     controller, _ui, policy, _monitor = _make_controller(config, SimpleNamespace(), session=_make_session("session"))
     policy.results = iter([SimpleNamespace(output=None), SimpleNamespace(output=None)])
-    with _run_loop_patches(), pytest.raises(_SimulatedExit):
+    with _run_loop_patches():
         controller.run()
     assert policy.executed == ["/resume saved-session", "continue the task"]
     assert policy.user_initiated == [True, True]
@@ -200,8 +196,9 @@ def _make_controller(
         # stream once pytest tears the capture handlers down).
         stack.enter_context(patch.object(Controller, "_release_cli_ownership"))
         if active_monitor:
-            monitor = SimpleNamespace(handlers=[])
+            monitor = SimpleNamespace(handlers=[], effort_handlers=[])
             monitor.set_btw_handler = monitor.handlers.append
+            monitor.set_effort_handler = monitor.effort_handlers.append
             stack.enter_context(
                 patch(
                     "siada.io.stdin_interrupt_monitor.is_monitor_active",
@@ -223,6 +220,35 @@ def _make_controller(
     controller._preload_complete.set()
     controller._preload_success = True
     return controller, ui, policy, monitor
+
+
+@pytest.mark.parametrize("level", ["", "low", "high"])
+def test_effort_intercept_uses_current_session_without_starting_a_turn(level):
+    config, _io = _make_config()
+    slash_commands = SimpleNamespace(cmd_effort=Mock())
+    controller, ui, policy, monitor = _make_controller(
+        config, slash_commands, session=_make_session("before-resume"), active_monitor=True,
+    )
+    current_session = _make_session("after-resume")
+    controller.session = current_session
+    monitor.effort_handlers[0](level)
+    slash_commands.cmd_effort.assert_called_once_with(current_session, level)
+    assert policy.executed == []
+    ui.send_banner_info.assert_not_called()
+
+
+def test_effort_intercept_reports_failure_and_accepts_the_next_command():
+    config, io = _make_config()
+    slash_commands = SimpleNamespace(cmd_effort=Mock(side_effect=[RuntimeError("synthetic failure"), None]))
+    controller, _ui, policy, monitor = _make_controller(
+        config, slash_commands, session=_make_session("effort-session"), active_monitor=True,
+    )
+    handler = monitor.effort_handlers[0]
+    handler("low")
+    handler("high")
+    assert len(io.error_lines) == 1
+    assert slash_commands.cmd_effort.call_count == 2
+    assert policy.executed == []
 
 
 def _fake_turn_factory_module():
@@ -285,8 +311,7 @@ class TestRunLifecycle:
         )
 
         with _run_loop_patches():
-            with pytest.raises(_SimulatedExit):
-                ctrl.run()
+            ctrl.run()
 
         assert policy.started_sessions == [session]
         assert policy.ended == [(session, "normal")]
@@ -295,7 +320,7 @@ class TestRunLifecycle:
         # Both input polls carried the controller's real wakeup event; the
         # second one exhausted the simulated stream and ended the loop.
         assert len(io.get_input_calls) == 2
-        assert io.get_input_calls == [(False, ctrl._bg_wakeup_event)] * 2
+        assert io.get_input_calls == [True, True]
         ui.register_notification_handler.assert_called_once()
         ui.set_processing.assert_any_call(True)
         ui.close.assert_called_once()
@@ -315,7 +340,7 @@ class TestRunLoopPriorityAndWakeup:
 
         origins = []
 
-        def fake_execute(turn, user_input, session, *, user_initiated=True):
+        async def fake_execute(turn, user_input, session, *, user_initiated=True):
             executed.append(user_input)
             origins.append(user_initiated)
             if len(executed) == 1:
@@ -336,8 +361,7 @@ class TestRunLoopPriorityAndWakeup:
         policy.notes = ["bg-result-note"]
 
         with _run_loop_patches():
-            with pytest.raises(_SimulatedExit):
-                ctrl.run()
+            ctrl.run()
 
         # The queued retry continuation ran BEFORE the background note; the
         # concurrent wakeup must never displace `pending_input`.
@@ -363,17 +387,17 @@ class TestRunLoopPriorityAndWakeup:
 
         seen_wakeup_events = []
 
-        def fake_get_input(display_rule=False, wakeup_event=None):
-            seen_wakeup_events.append(wakeup_event)
+        async def fake_get_input():
+            seen_wakeup_events.append(ctrl._bg_wakeup_event)
             # Background task completes while the input poll is blocked.
             ctrl._on_background_subtask_wakeup()
             return BACKGROUND_WAKEUP_SENTINEL
 
-        io.get_input = fake_get_input
+        io.get_input_async = fake_get_input
 
         executed = []
 
-        def fake_execute(turn, user_input, session, *, user_initiated=True):
+        async def fake_execute(turn, user_input, session, *, user_initiated=True):
             executed.append(user_input)
             assert user_initiated is False
             raise _SimulatedExit()
@@ -381,8 +405,7 @@ class TestRunLoopPriorityAndWakeup:
         policy.execute = fake_execute
 
         with _run_loop_patches():
-            with pytest.raises(_SimulatedExit):
-                ctrl.run()
+            ctrl.run()
 
         assert seen_wakeup_events == [ctrl._bg_wakeup_event]
         assert executed == ["BACKGROUND_FEEDBACK::bg-sentinel-note"]
@@ -399,7 +422,7 @@ class TestRunLoopPriorityAndWakeup:
             SimpleNamespace(output="human reply"),
         ])
 
-        with _run_loop_patches(), pytest.raises(_SimulatedExit):
+        with _run_loop_patches():
             ctrl.run()
 
         assert policy.executed == ["first message", "auto feedback", "human follow-up"]
@@ -508,23 +531,22 @@ class TestInterruptAndBtw:
         ctrl, ui, policy, _ = _make_controller(
             config, SimpleNamespace(), session=session
         )
-        io.get_input = Mock(side_effect=KeyboardInterrupt())
+        async def interrupt_input():
+            ctrl.keyboard_interrupt()
+            ctrl.keyboard_interrupt()
+            await asyncio.sleep(0)
+
+        io.get_input_async = interrupt_input
 
         fake_mcp = ModuleType("siada.services.mcp.manager_service")
         fake_mcp._mcp_manager_service = SimpleNamespace(
             is_initialized=False, shutdown=Mock()
         )
 
-        def fake_exit(code):
-            raise SystemExit(code)
-
         with patch.dict(
             sys.modules, {"siada.services.mcp.manager_service": fake_mcp}
-        ), patch("signal.signal") as set_sigint, patch(
-            "sys.exit", side_effect=fake_exit
-        ):
-            with pytest.raises(SystemExit):
-                ctrl.run()
+        ), patch("signal.signal") as set_sigint:
+            ctrl.run()
 
         # First Ctrl+C was recorded; the second triggered the force-exit path.
         assert policy.ended == [(session, "interrupt")]
@@ -532,7 +554,7 @@ class TestInterruptAndBtw:
             "Execution interrupted by user (Ctrl+C)"
         )
         ui.close.assert_called()
-        set_sigint.assert_called_once_with(signal.SIGINT, signal.SIG_IGN)
+        assert set_sigint.call_count >= 2
         fake_mcp._mcp_manager_service.shutdown.assert_not_called()
 
         out = capsys.readouterr().out
@@ -604,6 +626,7 @@ def test_interactive_entrypoint_cleans_failed_login_and_preserves_exit_code(
         controller.run.assert_not_called()
     else:
         controller.run.assert_called_once()
+        controller.ui.send_notification.assert_called_once_with("ui/startupComplete", {})
 
 
 def test_interactive_cold_resume_announces_only_the_restored_session():
@@ -617,6 +640,9 @@ def test_interactive_cold_resume_announces_only_the_restored_session():
     controller.run.return_value = 0
     controller.show_announcements.side_effect = lambda: events.append(
         ("banner", session.session_id)
+    )
+    controller.ui.send_notification.side_effect = lambda method, params: events.append(
+        ("startup_complete", session.session_id, method)
     )
     commands = Mock()
     commands._send_history_to_ui.side_effect = lambda items: events.append(
@@ -647,9 +673,11 @@ def test_interactive_cold_resume_announces_only_the_restored_session():
         ("restore", "startup-session"),
         ("banner", "saved-session"),
         ("history", "saved-session", history.items),
+        ("startup_complete", "saved-session", "ui/startupComplete"),
     ]
     controller.show_announcements.assert_called_once_with()
     commands._push_resumed_goal_state_to_ui.assert_called_once_with(session)
+    commands._push_resumed_todo_state_to_ui.assert_called_once_with(session)
 
 
 def test_startup_error_still_closes_ui_and_ends_session():
@@ -674,7 +702,6 @@ def test_sdk_initialization_precedes_preload_and_title_generation():
         order.attach_mock(ui.send_session_title_async, "title")
         with patch.object(ctrl, "wait_for_preload") as preload:
             order.attach_mock(preload, "preload")
-            with pytest.raises(_SimulatedExit):
-                ctrl.run()
+            ctrl.run()
     assert [entry[0] for entry in order.mock_calls] == ["litellm", "agents", "preload", "title"]
 

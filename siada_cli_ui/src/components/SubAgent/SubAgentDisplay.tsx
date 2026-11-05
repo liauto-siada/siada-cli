@@ -1,4 +1,6 @@
 import React from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
 import { Box, Text } from '@jrichman/ink';
 import type { SubAgentItem } from '../../hooks/useAcp/types.js';
 
@@ -6,6 +8,7 @@ export interface SubAgentDisplayProps {
   items: SubAgentItem[];
   activeIndex: number;  // -1 = panel visible but no row focused
   width?: number;
+  compact?: boolean;
 }
 
 const STATUS_ICONS: Record<string, string> = {
@@ -28,7 +31,9 @@ export const SubAgentDisplay: React.FC<SubAgentDisplayProps> = ({
   items,
   activeIndex,
   width,
+  compact = false,
 }) => {
+  useUiLanguage();
   if (!items || items.length === 0) return null;
 
   const total = items.length;
@@ -38,8 +43,9 @@ export const SubAgentDisplay: React.FC<SubAgentDisplayProps> = ({
     const runningIdx = items.findIndex(item => item.status === 'running');
     effectiveActive = runningIdx >= 0 ? runningIdx : total - 1;
   }
-  const start = Math.max(0, Math.min(effectiveActive - 2, total - MAX_VISIBLE));
-  const end = Math.min(total, start + MAX_VISIBLE);
+  const count = compact ? 1 : MAX_VISIBLE;
+  const start = Math.max(0, Math.min(effectiveActive - (compact ? 0 : 2), total - count));
+  const end = Math.min(total, start + count);
   const visible = items.slice(start, end);
 
   const hasAbove = start > 0;
@@ -49,14 +55,14 @@ export const SubAgentDisplay: React.FC<SubAgentDisplayProps> = ({
   return (
     <Box flexDirection="column" paddingX={1} width={width}>
       {/* Header */}
-      <Box justifyContent="space-between">
-        <Text color="cyan" dimColor>Sub Agents</Text>
+      {!compact && <Box justifyContent="space-between">
+        <Text color="cyan" dimColor>{t('子智能体', 'Sub Agents')}</Text>
         <Text color="cyan" dimColor>
           {hasAbove ? ' ▲ ' : '   '}
           ({displayPos}/{total})
           {hasBelow ? ' ▼' : '  '}
         </Text>
-      </Box>
+      </Box>}
 
       {/* Items */}
       {visible.map((item, visIdx) => {
@@ -75,6 +81,7 @@ export const SubAgentDisplay: React.FC<SubAgentDisplayProps> = ({
               color={isActive ? 'cyan' : undefined}
               bold={isActive}
               dimColor={item.status === 'completed' && !isActive}
+              wrap={compact ? 'truncate-end' : 'wrap'}
             >
               {item.title}
             </Text>
@@ -83,9 +90,9 @@ export const SubAgentDisplay: React.FC<SubAgentDisplayProps> = ({
       })}
 
       {/* Footer */}
-      <Box>
-        <Text color="gray">↑↓ navigate • Tab focus • Enter open • Esc close</Text>
-      </Box>
+      {!compact && <Box>
+        <Text color="gray">{PANEL_TIPS.agent}</Text>
+      </Box>}
     </Box>
   );
 };

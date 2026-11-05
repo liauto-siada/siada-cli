@@ -72,17 +72,6 @@ class SiadaAgent(Agent[Generic[TContext]], ABC):
         """
         pass
 
-    def get_interactive_mode(self) -> bool:
-        """
-        Get the current interactive mode status
-        
-        Returns:
-            bool: True for interactive mode, False for non-interactive mode
-        """
-        # Check if there's a --prompt argument, if so it's non-interactive mode
-        import sys
-        return '--prompt' not in sys.argv and '-p' not in sys.argv
-
     def get_repo_map_model_name(self) -> str:
         """
         Get the model name used for repo map generation

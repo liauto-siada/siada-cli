@@ -17,6 +17,7 @@ EXPECTED_TEMPLATE_SHA256 = {
     "gpt-6-luna": "838c23accb9eae215017c41d347b0ff6e1c42093462ad90318eb356293349a31",
     "gpt-6-sol": "74a14e6eb7736485b77c5beed1b002b270df927874cea667af69bdf6992744ae",
     "gpt-6.1-sol": "2cf311504e94a9e5e13f7171a99bfcf4bf5ab484a4f69cafaa6908b680492cd9",
+    "gpt-6.1-terra": "bb54e53d6a2fc117661e89983ffb2899a6b5f9fdf906899844a076eab872d1b0",
 }
 
 

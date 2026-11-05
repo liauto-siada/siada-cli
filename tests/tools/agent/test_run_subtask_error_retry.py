@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 from agents import Model, RunConfig, function_tool
-from openai import APIStatusError, PermissionDeniedError
+from openai import APIError, APIStatusError, PermissionDeniedError
 from openai.types.responses import (
     Response,
     ResponseCompletedEvent,
@@ -44,6 +44,11 @@ def no_delay(monkeypatch):
 @pytest.mark.parametrize("error", [
     httpx.ReadTimeout("synthetic timeout"),
     httpx.RemoteProtocolError("synthetic disconnect"),
+    APIError(
+        "Connection prematurely closed DURING response",
+        request=httpx.Request("POST", "https://model.test"),
+        body={"code": "stream_error", "type": "server_error"},
+    ),
     subtask.MissingFinalResponseError(
         model="synthetic", response_id="response-1",
         last_event="response.output_text.delta", output_exposed=True,

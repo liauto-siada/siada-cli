@@ -70,8 +70,8 @@ def test_sub_task_agent_prompt_has_no_tool_use_section():
 
 def test_kimi_models_parallel_tool_calls_enabled():
     # Kimi K2.6 was retired from the local catalog; cover the current K3
-    # entry instead of accidentally relying on a stale remote catalog.
-    for model_name in ("kimi-k3",):
+    # variants instead of accidentally relying on a stale remote catalog.
+    for model_name in ("kivy-kimi-k3", "bailian-kimi-k3"):
         config = get_model_config(model_name)
         assert config is not None
         assert config.parallel_tool_calls is True, model_name

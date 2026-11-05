@@ -1,3 +1,4 @@
+import './helpers/chineseLocale.js';
 import React from 'react';
 import { PassThrough } from 'node:stream';
 import ansiEscapes from 'ansi-escapes';
@@ -21,6 +22,37 @@ function toolMessage(content: string): ChatMessage {
 }
 
 describe('real Ink static layout', () => {
+  it.each([48, 80])('renders a Markdown replacement as a static line diff at %i columns', async terminalColumns => {
+    const stdout = Object.assign(new PassThrough(), { columns: terminalColumns, rows: 24 });
+    const frames: string[] = [];
+    const content = 'In the file `docs/notes.md``, replace the string:\nobsolete heading\n\nkept content\nwith:\nkept content';
+    const originalColumns = process.stdout.columns;
+    Object.defineProperty(process.stdout, 'columns', { value: terminalColumns, configurable: true });
+    const app = render(
+      <Box width={terminalColumns} flexDirection="column">
+        <MessageList messages={[toolMessage(content)]} terminalWidth={terminalColumns} isCollapsed />
+      </Box>,
+      { stdout, stdin: new PassThrough(), patchConsole: false, exitOnCtrlC: false, maxFps: 0,
+        onRender: ({ staticOutput }) => { if (staticOutput) frames.push(staticOutput); } },
+    );
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 80));
+      const text = frames.join('').replace(/\x1b\[[0-9;]*m/g, '');
+      expect(text).toContain('● Update docs/notes.md (+0 -2)');
+      expect(text).toContain('-obsolete heading');
+      expect(text).toContain('kept content');
+      expect(text).not.toContain('replace the string:');
+      expect(text).not.toContain('with:');
+      expect(text).not.toMatch(/[╭╮╰╯│]/);
+      expect(Math.max(...text.split('\n').map(stringWidth))).toBeLessThan(terminalColumns);
+    } finally {
+      app.unmount();
+      app.cleanup();
+      Object.defineProperty(process.stdout, 'columns', { value: originalColumns, configurable: true });
+    }
+  });
+
   it.each([32, 80])('appends compaction result branches directly below their status at %i columns', async terminalColumns => {
     const stdout = Object.assign(new PassThrough(), { columns: terminalColumns, rows: 24 });
     const frames: string[] = [];
@@ -47,8 +79,8 @@ describe('real Ink static layout', () => {
       await new Promise(resolve => setTimeout(resolve, 80));
       const text = (frames.join('') + dynamicFrames[dynamicFrames.length - 1]).replace(/\x1b\[[0-9;]*m/g, '');
       const lines = text.split('\n');
-      expect(text).toContain('● Compacting context...\n  ├─ messages: 100 → 22\n  └─ removed: 78');
-      expect(text.match(/Compacting context/g)).toHaveLength(1);
+      expect(text).toContain('● 正在压缩上下文…\n  ├─ messages: 100 → 22\n  └─ removed: 78');
+      expect(text.match(/正在压缩上下文/g)).toHaveLength(1);
       expect(text).not.toMatch(/[╭╮╰╯│]/);
       expect(Math.max(...lines.map(stringWidth))).toBeLessThan(terminalColumns);
     } finally {
@@ -260,9 +292,9 @@ describe('real Ink static layout', () => {
       await new Promise(resolve => setTimeout(resolve, 80));
       const output = frames.join('');
       const lines = output.replace(/\x1b\[[0-9;]*m/g, '').split('\n');
-      expect(lines.join('\n')).toContain('● Run command (timeout:110s)');
+      expect(lines.join('\n')).toContain('● Run command');
       expect(lines.join('\n')).toContain("print('*literal* 中🙂')");
-      expect(lines.filter(line => line.includes('timeout:')).length).toBe(1);
+      expect(lines.join('\n')).not.toContain('timeout:');
       expect(lines.join('\n')).not.toContain('Run the following command:');
       expect(lines.join('\n')).not.toContain('```');
       expect(lines.join('\n')).not.toMatch(/[╭╮╰╯│]/);

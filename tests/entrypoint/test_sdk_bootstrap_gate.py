@@ -75,7 +75,7 @@ def test_launcher_gate_is_scoped_to_acp_mode():
 
     assert _GATE_IMPORT_MULTILINE in source
     gate_position = source.index(_GATE_IMPORT_MULTILINE)
-    guard_position = source.index('if "--acp" in sys.argv:')
+    guard_position = source.index('if "--acp" in _cli_args_before_separator():')
 
     assert guard_position < gate_position, "gate must live inside the --acp branch"
     # It must still precede the in-process ACP preload that imports siada code.
@@ -124,6 +124,21 @@ def test_launcher_acp_mode_initializes_sdk():
 
     assert completed.returncode == 0, completed.stderr[-2000:]
     assert "ACP_GATE_OK" in completed.stdout
+
+
+def test_launcher_literal_acp_message_skips_sdk():
+    code = (
+        "import importlib, sys\n"
+        "sys.argv = ['siada-cli', '--', '--acp']\n"
+        "importlib.import_module('siada.entrypoint.launch_ui_with_acp')\n"
+        "assert 'agents' not in sys.modules\n"
+        "print('LITERAL_MESSAGE_OK')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=300,
+    )
+    assert completed.returncode == 0, completed.stderr[-2000:]
+    assert "LITERAL_MESSAGE_OK" in completed.stdout
 
 
 @pytest.mark.parametrize("module_name", _AGENT_PROCESS_MODULES)
@@ -225,7 +240,7 @@ def test_gated_concurrent_imports_sdk_and_siada_chain():
         "def load_siada():\n"
         "    barrier.wait()\n"
         "    try:\n"
-        "        import siada.models.model_setting_converter  # noqa: F401\n"
+        "        import siada.internal.provider.li.li_provider\n"
         "    except BaseException as exc:\n"
         "        errors.append(repr(exc))\n"
         "def load_agents():\n"

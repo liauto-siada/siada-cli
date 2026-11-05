@@ -41,7 +41,7 @@ def _native_item(item: dict) -> dict:
 
 
 async def configure_effective_run(storage, config: RunConfig, *, agent: Agent):
-    """Install the default bridge without guessing an old history-only boundary."""
+    """Install the default bridge, rebuilding legacy history when needed."""
     if not isinstance(storage, FileSession):
         logger.info(
             "[effective-context][run] session=%s mode=passthrough bridge=disabled storage=%s",
@@ -49,8 +49,7 @@ async def configure_effective_run(storage, config: RunConfig, *, agent: Agent):
         )
         return storage, config
     if not storage.has_prepared_context:
-        history = await storage.get_history_items()
-        await storage.migrate_legacy_context(allow_history_only=not history)
+        await storage.migrate_legacy_context(allow_history_only=True)
     bridge = EffectiveContextSession(storage)
     return bridge, bridge.configure_run(config, agent=agent)
 
@@ -76,6 +75,10 @@ class EffectiveContextSession(SessionABC):
         self._request_signature_components: dict[str, str] = {}
         self._request_agent: Any = None
         self._request_instructions: str | None = None
+        # Only this bridge's serial request admission owns these diagnostics.
+        # Retain counts and a digest, not a second input copy or model state;
+        # reset before each filter and consume on response, including retries.
+        self._request_budget: tuple[int, str, str, str] | None = None
         self.token_counting_info: TokenCountingInfo | None = None
         self.token_budget_model_settings: Any = None
         self._pending_contexts: list[str] = []
@@ -103,8 +106,64 @@ class EffectiveContextSession(SessionABC):
             signature_components=self._request_signature_components,
         )
 
+    @staticmethod
+    def _budget_input_signature(items: list[dict], instructions: str | None) -> str:
+        from siada.agent_hub.context_filter.utils import compute_message_signature
+
+        return compute_message_signature({
+            "items": [{key: value for key, value in item.items()
+                       if key not in {"_agents_tool_description", "_agents_tool_title"}} for item in items],
+            "instructions": instructions or "",
+        })
+
+    def record_request_budget(
+        self, tokens: int, token_mode: str, protocol: str, items: list[dict], instructions: str | None,
+    ) -> None:
+        """Record the filter's budget, without recounting after hooks/compaction."""
+        self._request_budget = (tokens, token_mode, protocol, self._budget_input_signature(items, instructions))
+
+    def _log_response_budget(self, response: Any) -> None:
+        from siada.agent_hub.context_filter.request_token_estimator import RequestTokenBaseline
+
+        usage = getattr(response, "usage", None)
+        # Reuse usage validation even when input overrides prohibit an anchor.
+        counted = RequestTokenBaseline.from_response("diagnostic", [], usage, session_id=self.session_id)
+
+        def safe_count(value: Any) -> int | str:
+            return value if type(value) is int and value >= 0 else "unavailable"
+
+        budget = self._request_budget
+        self._request_budget = None
+        input_matches = budget is not None and self._request_input is not None and budget[3] == self._budget_input_signature(
+            self._request_input, self._request_instructions,
+        )
+        difference: int | str = "unavailable"
+        comparison = "unavailable"
+        if budget is None:
+            reason = "budget_not_counted"
+        elif counted is None:
+            reason = "invalid_server_usage"
+        elif not input_matches:
+            reason = "admitted_input_changed"
+        else:
+            difference = budget[0] - counted.input_tokens
+            comparison = "matched" if difference == 0 else "underestimate" if difference < 0 else "overestimate"
+            reason = "cache_inclusive_server_usage"
+        logger.info(
+            "[CTX-BUILD][response] session=%s request=%s request_budget_tokens=%s server_input_tokens=%s "
+            "reported_input_tokens=%s cached_tokens=%s protocol=%s token_mode=%s "
+            "budget_scope=filter_input input_matches=%s comparison=%s reason=%s budget_minus_server_tokens=%s",
+            self.session_id, self.request_identity, budget[0] if budget is not None else "unavailable",
+            counted.input_tokens if counted is not None else "unavailable",
+            safe_count(getattr(usage, "input_tokens", None)),
+            safe_count(getattr(getattr(usage, "input_tokens_details", None), "cached_tokens", None)),
+            budget[2] if budget is not None else getattr(self.token_counting_info, "protocol", "unavailable"),
+            budget[1] if budget is not None else "unavailable", input_matches, comparison, reason, difference,
+        )
+
     async def response_received(self, response: Any) -> None:
         """Stage response metadata after usage commits, before SDK message saves."""
+        self._log_response_budget(response)
         self._pending_response = (
             response, self.token_baseline_from_response(response),
             [_native_item(item) for item in response.to_input_items()],
@@ -244,13 +303,17 @@ class EffectiveContextSession(SessionABC):
             logger.info(
                 "[CTX-BUILD][anchor] session=%s request=%s admission_id=%s stage=response_committed "
                 "anchored=%s baseline_source=%s restore_generation=%d prefix_items=%d "
-                "input_tokens=%d response_tokens=%d baseline_tokens=%d",
+                "input_tokens=%d response_tokens=%d baseline_tokens=%d "
+                "reported_input_tokens=%d reported_cached_tokens=%d reported_output_tokens=%d reported_total_tokens=%d",
                 self.session_id, request, self.admission_id, baseline is not None,
                 "server_usage" if baseline is not None else "unavailable", self._restore_generation or 0,
                 len(baseline.items) if baseline is not None else 0,
                 baseline.input_tokens if baseline is not None else 0,
                 baseline.response_tokens if baseline is not None else 0,
                 baseline.context_tokens if baseline is not None else 0,
+                pending_response[0].usage.input_tokens,
+                pending_response[0].usage.input_tokens_details.cached_tokens,
+                pending_response[0].usage.output_tokens, pending_response[0].usage.total_tokens,
             )
             if added and self.storage.on_items_added:
                 try:
@@ -462,6 +525,7 @@ class EffectiveContextSession(SessionABC):
                 pending, _ = self._pending_finalization
                 await self.finalize_request_input([*(self._request_input or []), *pending])
             self._request_context = data.context
+            self._request_budget = None
             if data.context is not None:
                 data.context.runtime_session = self
                 self._pending_contexts = []
