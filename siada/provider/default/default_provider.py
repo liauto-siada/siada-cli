@@ -36,7 +36,7 @@ def _register_custom_claude_model(model_name: str):
         return
 
     lower_name = model_name.lower()
-    if "aws-claude" in lower_name or "gemini" in lower_name:
+    if "claude" in lower_name or "gemini" in lower_name:
         litellm.register_model({model_name: {"supports_reasoning": True}})
 
 
@@ -62,6 +62,9 @@ class DefaultProvider(ModelProvider):
         self._responses_transport = DefaultResponsesTransport()
         self._gemini_transport = None
         self._gemini_closed = False
+        self._pinned_chat_client_factories = {}
+        self._pinned_gemini_transports = {}
+        self._closed = False
 
     def _refresh_credentials(self):
         """Refresh credentials from environment for runtime login / reconfigure flows."""
@@ -146,7 +149,22 @@ class DefaultProvider(ModelProvider):
         """
         self._refresh_credentials()
         base_url, api_key = get_default_credentials()
+        return self._build_model(model_name, base_url=base_url, api_key=api_key, pinned=False)
 
+    def get_model_with_credentials(
+        self, model_name: str | None, *, base_url: str | None = None, api_key: str | None = None
+    ) -> Model:
+        """Pin explicit credentials without modifying process-global state."""
+        active_base_url, active_api_key = get_default_credentials()
+        return self._build_model(
+            model_name, base_url=base_url if base_url is not None else active_base_url,
+            api_key=api_key if api_key is not None else active_api_key, pinned=True,
+        )
+
+    def _build_model(self, model_name: str | None, *, base_url: str | None, api_key: str | None, pinned: bool) -> Model:
+        """Keep native routing while binding persistent fast models to credentials."""
+        if self._closed:
+            raise RuntimeError("DefaultProvider is closed")
         # Responses-API-only models (GPT-5.x family) go through the native
         # Responses protocol layer instead of LiteLLM's responses bridge.
         raw_model_name = model_name or os.getenv("MODEL_NAME") or ""
@@ -161,25 +179,41 @@ class DefaultProvider(ModelProvider):
 
             if self._gemini_transport is None:
                 self._gemini_transport = DefaultGeminiTransport()
+            if pinned:
+                from siada.provider.default.gemini_transport import PinnedDefaultGeminiTransport
+
+                credentials = (base_url, api_key)
+                transport = self._pinned_gemini_transports.get(credentials)
+                if transport is None:
+                    transport = PinnedDefaultGeminiTransport(base_url, api_key)
+                    self._pinned_gemini_transports[credentials] = transport
+                return GeminiModel(model=effective_model_name, transport=transport)
             return GeminiModel(model=effective_model_name, transport=self._gemini_transport)
         if route == "responses":
+            if pinned and (base_url, api_key) != get_default_credentials():
+                raise ValueError(
+                    "fast_llm_config credentials cannot be applied to a bare "
+                    "Responses-API-only model. Use fast_completion() for isolated "
+                    "Responses requests, or a chat-completions model."
+                )
             return ResponsesModel(
                 model=raw_model_name,
                 transport=self._responses_transport,
             )
 
         if route == "chat":
+            client_factory = self._chat_client_factory
+            if pinned:
+                credentials = (base_url, api_key)
+                client_factory = self._pinned_chat_client_factories.get(credentials)
+                if client_factory is None:
+                    client_factory = DefaultChatClientFactory(base_url=base_url, api_key=api_key)
+                    self._pinned_chat_client_factories[credentials] = client_factory
             return DefaultOpenAIChatCompletionsModel(
                 model=effective_model_name,
-                client_factory=self._chat_client_factory,
+                client_factory=client_factory,
                 should_replay_reasoning_content=should_replay_reasoning_content,
             )
-
-        if not effective_model_name.startswith("openrouter/"):
-            # Direct vendor routing — set up any provider-specific env vars.
-            # (OpenRouter routing needs none; skip it so the OpenRouter key
-            # does not leak into DEEPSEEK/MOONSHOT env vars.)
-            self._apply_provider_specific_env(effective_model_name)
 
         from siada.entrypoint import _configure_litellm
         _configure_litellm()
@@ -201,17 +235,24 @@ class DefaultProvider(ModelProvider):
         """Close all model clients owned by this provider."""
         if self._gemini_transport is not None:
             self._gemini_transport._loop.check(bind=False)
+        for transport in self._pinned_gemini_transports.values():
+            transport._loop.check(bind=False)
+        self._closed = True
         self._gemini_closed = True
         errors: list[Exception] = []
         for close in (
             self._chat_client_factory.aclose,
             self._responses_transport.aclose,
             *((self._gemini_transport.aclose,) if self._gemini_transport is not None else ()),
+            *(factory.aclose for factory in self._pinned_chat_client_factories.values()),
+            *(transport.aclose for transport in self._pinned_gemini_transports.values()),
         ):
             try:
                 await close()
             except Exception as exc:
                 errors.append(exc)
+        self._pinned_chat_client_factories.clear()
+        self._pinned_gemini_transports.clear()
 
         if len(errors) == 1:
             raise errors[0]
@@ -249,20 +290,20 @@ class DefaultClient(LLMClient):
         Returns:
             LitellmModelResponse: The completion response
         """
-        self._refresh_credentials()
-
-        # Set api_base and api_key if available
-        if self.base_url:
-            kwargs["api_base"] = self.base_url
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
-
+        base_url, api_key = get_default_credentials()
+        if base_url and not kwargs.get("api_base"):
+            kwargs["api_base"] = base_url
+        if api_key and not kwargs.get("api_key"):
+            kwargs["api_key"] = api_key
         model_name = kwargs.get("model")
-        if isinstance(model_name, str) and self.api_key:
-            if "deepseek" in model_name:
-                os.environ["DEEPSEEK_API_KEY"] = self.api_key
-            if "moonshot/" in model_name or model_name.startswith("kimi-"):
-                os.environ["MOONSHOT_API_KEY"] = self.api_key
+        if isinstance(model_name, str) and not kwargs.get("custom_llm_provider"):
+            model_name = covert_to_litellm_model_name(model_name)
+            if "openrouter.ai" in (kwargs.get("api_base") or ""):
+                if not model_name.startswith("openrouter/"):
+                    model_name = f"openrouter/{model_name}"
+            elif "/" not in model_name:
+                kwargs["custom_llm_provider"] = "openai"
+            kwargs["model"] = model_name
 
         import litellm
         # Use litellm's native async method for better performance

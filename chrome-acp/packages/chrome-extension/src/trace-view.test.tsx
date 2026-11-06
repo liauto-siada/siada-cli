@@ -2,7 +2,7 @@
 // (absent under happy-dom), which is exactly the code path worth pinning: it
 // must degrade to "no overlays" rather than crash the panel.
 
-import { describe, expect, test, beforeEach } from "bun:test";
+import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { TraceView, Viewport } from "@chrome-acp/shared/components";
@@ -19,12 +19,52 @@ import {
 
 let container: HTMLDivElement;
 let root: Root;
+const originalImage = globalThis.Image;
+const originalContext = HTMLCanvasElement.prototype.getContext;
 
 beforeEach(() => {
   document.body.innerHTML = "";
   container = document.createElement("div");
   document.body.append(container);
 });
+
+afterEach(() => {
+  if (root) act(() => root.unmount());
+  globalThis.Image = originalImage;
+  HTMLCanvasElement.prototype.getContext = originalContext;
+});
+
+function loadDisplayedImage(width: number, height: number) {
+  const image = container.querySelector("img")!;
+  Object.defineProperty(image, "naturalWidth", { configurable: true, value: width });
+  Object.defineProperty(image, "naturalHeight", { configurable: true, value: height });
+  act(() => { image.dispatchEvent(new Event("load")); });
+}
+
+/** Simulate decoded pixels, never fetch an image or use a real browser canvas. */
+function enablePixelDecoding() {
+  globalThis.Image = class {
+    naturalWidth = 4;
+    naturalHeight = 4;
+    sample = 0;
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    set src(value: string) {
+      this.sample = value.includes("bright") ? 255 : 0;
+      if (value.includes("wide")) this.naturalWidth = 8;
+      queueMicrotask(() => this.onload?.());
+    }
+  } as unknown as typeof Image;
+  HTMLCanvasElement.prototype.getContext = (() => {
+    let image: { sample: number; naturalWidth: number; naturalHeight: number };
+    return {
+      drawImage: (value: typeof image) => { image = value; },
+      getImageData: () => ({
+        data: new Uint8ClampedArray(image.naturalWidth * image.naturalHeight * 4).fill(image.sample),
+      }),
+    };
+  }) as unknown as typeof originalContext;
+}
 
 function render(element: React.ReactElement): void {
   act(() => {
@@ -97,7 +137,7 @@ describe("Viewport", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
-  test("renders the frame and scales overlays into percentages", () => {
+  test("scales overlays using decoded image pixels rather than viewport metadata", () => {
     render(
       <Viewport
         frame={frame("after-1", "after")}
@@ -107,16 +147,17 @@ describe("Viewport", () => {
     );
 
     expect(container.querySelector("img")?.getAttribute("src")).toContain("data:image/jpeg");
+    expect(container.querySelector(".border-amber-400")).toBeNull();
+    loadDisplayedImage(2000, 1200);
     const overlay = container.querySelector(".border-amber-400") as HTMLElement | null;
     expect(overlay).not.toBeNull();
-    // 100/1000 -> 10%, 500/1000 -> 50%, 150/600 -> 25%, 300/600 -> 50%
-    expect(overlay!.style.left).toBe("10%");
-    expect(overlay!.style.width).toBe("50%");
-    expect(overlay!.style.top).toBe("25%");
-    expect(overlay!.style.height).toBe("50%");
+    expect(overlay!.style.left).toBe("5%");
+    expect(overlay!.style.width).toBe("25%");
+    expect(overlay!.style.top).toBe("12.5%");
+    expect(overlay!.style.height).toBe("25%");
   });
 
-  test("skips overlays when the producer did not report a frame size", () => {
+  test("unknown viewport dimensions use the image size once decoded", () => {
     render(
       <Viewport
         frame={{ ...frame("after-1", "after"), width: 0, height: 0 }}
@@ -125,6 +166,8 @@ describe("Viewport", () => {
     );
 
     expect(container.querySelector(".border-amber-400")).toBeNull();
+    loadDisplayedImage(100, 100);
+    expect(container.querySelector(".border-amber-400")).not.toBeNull();
   });
 });
 
@@ -201,5 +244,61 @@ describe("TraceView", () => {
     expect(container.textContent).toContain("step 1");
     expect(container.textContent).toContain("target: Where from?");
     expect(container.textContent).toContain("page changed");
+  });
+
+  test("an unavailable canvas produces no page-change verdict", async () => {
+    const frames = createBufferedFrameSource();
+    frames.push(frame("before-1", "before"));
+    frames.push(frame("after-1", "after", "data:image/jpeg;base64,BBBB"));
+    const seen: boolean[] = [];
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<TraceView run={run({ steps: [run().steps[0]!], runId: "no-canvas" })}
+        frameSource={frames} onPageChange={(_id, changed) => seen.push(changed)} />);
+    });
+    expect(seen).toEqual([]);
+    expect(container.textContent).toContain("comparison unavailable");
+  });
+
+  for (const [sample, verdict] of [["dark", false], ["bright", true]] as const) {
+    test(`reports ${verdict} only after a successful comparison`, async () => {
+      enablePixelDecoding();
+      const frames = createBufferedFrameSource();
+      frames.push(frame("before-1", "before", "data:image/png;base64,comparison-before-dark"));
+      frames.push(frame("after-1", "after", `data:image/png;base64,${sample}-after-${sample}`));
+      const seen: Array<[string, boolean, string | undefined]> = [];
+      await act(async () => {
+        root = createRoot(container);
+        root.render(<TraceView run={run({ steps: [run().steps[0]!], runId: `comparison-${sample}` })}
+          frameSource={frames} onPageChange={(id, changed, runId) => seen.push([id, changed, runId])} />);
+      });
+      expect(seen).toEqual([["t1", verdict, `comparison-${sample}`]]);
+    });
+  }
+
+  test("different decoded dimensions are unavailable rather than unchanged", async () => {
+    enablePixelDecoding();
+    const frames = createBufferedFrameSource();
+    frames.push(frame("before-1", "before", "data:image/png;base64,size-dark"));
+    frames.push(frame("after-1", "after", "data:image/png;base64,size-wide"));
+    const seen: boolean[] = [];
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<TraceView run={run({ steps: [run().steps[0]!] })}
+        frameSource={frames} onPageChange={(_id, value) => seen.push(value)} />);
+    });
+    expect(seen).toEqual([]);
+    expect(container.textContent).toContain("different sizes");
+  });
+
+  test("a new run in the same millisecond resets the selected step", async () => {
+    const frames = createBufferedFrameSource();
+    render(<TraceView run={run({ runId: "old" })} frameSource={frames} />);
+    act(() => { (container.querySelector("li button") as HTMLButtonElement).click(); });
+    expect(container.textContent).toContain("step 1");
+    await act(async () => {
+      root.render(<TraceView run={run({ runId: "new" })} frameSource={frames} />);
+    });
+    expect(container.textContent).toContain("step 2");
   });
 });

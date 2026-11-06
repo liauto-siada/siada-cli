@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 from datetime import datetime
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
@@ -334,22 +335,17 @@ def _get_default_config_path() -> Path:
 _DEFAULT_CONFIG_TEMPLATE = """# Siada Configuration File
 # This file contains the main configuration for Siada
 
-# User Information
-# Your user identifier for telemetry and tracking (internal use only)
-# Format: username@domain.com
-# user_id: "user@example.com"
-
 # LLM Configuration
 # Configure your Language Model provider settings
 llm_config:
   # Model name (e.g., claude-3-5-sonnet-20241022, gpt-4, etc.)
   # model: "claude-3-5-sonnet-20241022"
   
-  # Provider name (e.g., anthropic, openai, etc.)
-  # provider: "anthropic"
+  # The public build uses the default provider with your chosen API endpoint.
+  # provider: "default"
   
   # Base URL for the API endpoint (optional, use default if not specified)
-  # base_url: "https://api.anthropic.com"
+  # base_url: "https://api.openai.com/v1"
   
   # API key for authentication (required for most providers)
   # api_key: "your-api-key-here"
@@ -361,17 +357,6 @@ llm_config:
   # API parameter. Valid values: "low" / "medium" / "high".
   # (priority: CLI --reasoning-effort > conf.yaml > model default)
   # reasoning_effort: high
-
-  # NOTE on reasoning_effort for li provider:
-  # litellm only recognizes "reasoning_effort" as a top-level param for models
-  # whose provider supports it (gemini, gpt-5.x). For OpenAI-provider models
-  # such as deepseek/qwen/glm/kimi, litellm's openai provider does NOT list it
-  # in supported_params, and since drop_params=True is set globally, a top-level
-  # reasoning_effort would be silently dropped. The li provider therefore
-  # routes reasoning_effort through extra_body for those models, so it reaches
-  # the gateway even though the model's supports_extra_params only declares
-  # "thinking_tokens". This is why the value still takes effect on deepseek v4
-  # flash even though the model config does not list "reasoning_effort".
 
   # Dedicated vision engine for text-only main models (open-source vision
   # bridge): attached images are transcribed by this image-capable model and
@@ -499,7 +484,7 @@ auto_update:
 #     prefetch_limit: 5               # top-N facts injected into each user message
 #     custom_dict:                    # extra jieba terms (project / tool names)
 #       - my-project
-#       - authli
+#       - example_tool
 
 # Web Tools Configuration (web_search / web_fetch)
 #
@@ -542,22 +527,18 @@ auto_update:
 #   no_alt_screen: false
 
 # Lark IM Configuration
-# Configure Lark bot integration mode
+# Configure the public Lark WebSocket integration.
 # lark:
-#   # Mode: "relay" (via IM Gateway) or "direct" (Lark WS SDK)
-#   mode: relay
+#   mode: direct
 #   # workspace: /path/to/your/workspace  # Optional, defaults to ~/.siada-cli/workspace/lark
 #
-#   # Direct mode settings (only needed when mode=direct)
-#   # direct:
-#   #   app_id: "your_app_id"
-#   #   app_secret: "your_app_secret"
-#   #
-#   #   # DM access control (only for direct mode)
-#   #   access:
-#   #     dm_policy: open  # open | allowlist
-#   #     allow_from:
-#   #       - "ou_xxx"
+#   direct:
+#     app_id: "${LARK_APP_ID}"
+#     app_secret: "${LARK_APP_SECRET}"
+#   access:
+#     dm_policy: allowlist  # open | allowlist
+#     allow_from:
+#       - "ou_example"
 #
 """
 
@@ -633,9 +614,7 @@ def _backup_config_file(config_path: Path, max_backups: int = 10) -> None:
 class HeadroomConfig:
     """Headroom proxy integration configuration (from conf.yaml `headroom`).
 
-    NOTE: upstream URLs are intentionally NOT part of this config — they are
-    hard-coded in siada.internal.services.headroom_proxy_manager and cannot be
-    overridden by the user.
+    Legacy settings are accepted for configuration compatibility.
     """
     enabled: bool = False
     host: str = "127.0.0.1"
@@ -700,8 +679,8 @@ class Config:
 def _load_lark_config(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Extract lark config from raw conf.yaml data.
 
-    Relay defaults are merged lazily in build_relay_config() at runtime.
-    ``mode`` is optional here — callers default to "relay" when absent.
+    Environment references are resolved without changing the stored configuration.
+    Public callers default to direct mode when ``mode`` is absent.
 
     Returns:
         Dict with structure {"lark": {...}}, or None if no valid lark config.
@@ -711,12 +690,22 @@ def _load_lark_config(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
     # Wrap in {"lark": ...} for backward compatibility with callers.
-    # Do NOT gate on mode presence: a lark section without an explicit mode
-    # is valid and will default to "relay" in create_if_configured().
-    # Requiring mode here silently drops access.idle_session_timeout and
-    # other sub-keys that users configure alongside a default-relay setup.
-    lark_config = {"lark": lark_section}
-    mode = lark_section.get("mode", "relay")
+    # Preserve access settings even when callers rely on the default direct mode.
+    def resolve(value: Any) -> Any:
+        if isinstance(value, str):
+            return re.sub(
+                r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}",
+                lambda match: os.environ.get(match.group(1), ""),
+                value,
+            )
+        if isinstance(value, dict):
+            return {key: resolve(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [resolve(item) for item in value]
+        return value
+
+    lark_config = {"lark": resolve(lark_section)}
+    mode = lark_section.get("mode", "direct")
     # Keep this diagnostic in siada_cli.log only. Config loading happens more
     # than once per startup, so printing it would duplicate lines on every run's
     # console without telling the user anything they need before the turn.
@@ -757,10 +746,12 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
     from siada.config.conf_store import read_conf_dict
 
     def _notify_conf_error(message: str) -> None:
+        print(f"Warning: {message}", file=sys.stderr)
         try:
             io = InputOutput.get_instance()
-            if io:
-                io.print_error(f"Warning: {message}")
+            adapter = getattr(io, "acp_adapter", None)
+            if adapter:
+                adapter.error(f"Warning: {message}")
         except Exception:
             pass
 
@@ -777,6 +768,9 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
 
     if data:
         llm_config = _load_section('llm_config', data.get('llm_config'), llm_config)
+        for name, value in (('BASE_URL', llm_config.base_url), ('API_KEY', llm_config.api_key)):
+            if value and not os.environ.get(name, '').strip():
+                os.environ[name] = value
         checkpoint_config = _load_section('checkpoint_config', data.get('checkpoint_config'), checkpoint_config)
         proactive_config = _load_section('proactive', data.get('proactive'), proactive_config)
         auto_update_config = _load_section('auto_update', data.get('auto_update'), auto_update_config)

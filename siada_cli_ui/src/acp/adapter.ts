@@ -248,7 +248,7 @@ export class SiadaACPAdapter extends EventEmitter {
           component: 'Adapter',
           operation: 'buildCommand',
           configModel: config.model,
-          siadaArgs: config.siadaArgs,
+          siadaArgsCount: config.siadaArgs?.length ?? 0,
         });
       }
     }

@@ -65,19 +65,20 @@ class DefaultResponsesTransport(ResponsesTransport):
             if has_request_credentials():
                 client = self._request_clients.get(key)
                 if client is None:
-                    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+                    client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
                     self._request_clients[key] = client
                 return client
             if self._client is None or self._client_key != key:
                 if self._client is not None:
                     self._retired_clients.append(self._client)
-                self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+                self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
                 self._client_key = key
             return self._client
 
     async def aclose(self) -> None:
+        """Retain clients whose cleanup was interrupted so it can be retried."""
         with self._lock:
-            if self._closed:
+            if self._closed and self._client is None and not self._retired_clients and not self._request_clients:
                 return
             self._loop_ownership.check()
             self._closed = True
@@ -91,11 +92,15 @@ class DefaultResponsesTransport(ResponsesTransport):
                 self._client_key = None
 
         errors: list[Exception] = []
-        for client in clients:
+        for index, client in enumerate(clients):
             try:
                 await client.close()
             except Exception as exc:
                 errors.append(exc)
+            except BaseException:
+                with self._lock:
+                    self._retired_clients.extend(clients[index:])
+                raise
 
         if len(errors) == 1:
             raise errors[0]

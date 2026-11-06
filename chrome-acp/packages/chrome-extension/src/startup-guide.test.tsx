@@ -42,14 +42,21 @@ async function mount(element: React.ReactNode) {
   return container;
 }
 
-test("install guide displays icon, exact commands and remote access explanation", async () => {
+test("install guide displays public installer commands and local access explanation", async () => {
   chromeFixture();
   const container = await mount(<InstallGuide onConnect={() => {}} />);
   expect(container.querySelector("img")?.alt).toBe("Chrome ACP");
   expect(container.textContent).toContain(INSTALL_COMMANDS.unix);
   expect(container.textContent).toContain(INSTALL_COMMANDS.windows);
   expect(container.textContent).toContain("Windows（PowerShell）");
-  expect(container.textContent).toContain("对外开放");
+  expect(container.textContent).toContain("默认仅允许本机连接");
+  expect(INSTALL_COMMANDS.unix).toContain("https://liauto-siada.github.io/siada-cli/scripts/install-browser.sh");
+  expect(INSTALL_COMMANDS.unix).toMatch(/SIADA_VERSION=\d+\.\d+\.\d+ sh$/);
+  expect(INSTALL_COMMANDS.windows).toContain("https://liauto-siada.github.io/siada-cli/scripts/install-browser.ps1");
+  expect(INSTALL_COMMANDS.windows).toContain("DownloadString(");
+  expect(INSTALL_COMMANDS.windows).toMatch(/-Version '\d+\.\d+\.\d+'$/);
+  expect(container.textContent).not.toContain("https://li.auto/");
+  expect(container.textContent).not.toContain("0.0.0.0");
   let opened = false;
   await act(async () => root?.render(<InstallGuide onConnect={() => { opened = true; }} />));
   await act(async () => (Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("其它设备")) as HTMLButtonElement).click());

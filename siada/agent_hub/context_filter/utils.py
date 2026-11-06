@@ -86,10 +86,7 @@ def fix_tool_message_ordering(messages: List) -> List:
         an assistant message with 'tool_calls' must be followed by tool
         messages responding to each 'tool_call_id'
 
-    The normal streaming path already applies this repair (see
-    ``siada/internal/provider/li/li_provider.py`` →
-    ``LitellmModel._fix_tool_message_ordering``); the compaction summarization
-    call needs it too.
+    Normal streaming adapters and compaction summarization both require this repair.
 
     Repairs performed
     -----------------

@@ -6,6 +6,7 @@ import inspect
 from typing import TYPE_CHECKING, Dict, Any, Tuple, Optional
 
 from siada.foundation.context import get_context_var, MODEL_PROVIDER_NAME, LLM_CONFIG
+from siada.foundation.logging import logger
 from siada.provider.llm_client import LLMClient
 
 if TYPE_CHECKING:
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
 
 CLIENT_DIR = os.path.dirname(__file__)
 client_map: Dict[str, LLMClient] = {}
+DEFAULT_PROVIDER_KEY = "default"
+_unknown_providers_warned: set[str] = set()
 
 def _discover_clients():
     """
@@ -32,7 +35,7 @@ def _discover_clients():
                             if inspect.isclass(attr) and issubclass(attr, LLMClient) and attr is not LLMClient:
                                 client_map[client_key] = attr()
                     except ImportError as e:
-                        print(f"Error importing client module {module_name}: {e}")
+                        logger.warning("Client module could not be imported: %s", type(e).__name__)
 
 _discover_clients()
 
@@ -56,6 +59,12 @@ def get_client(p_type: provider_type | None = None) -> LLMClient:
     """
     if p_type and p_type in client_map:
         return client_map[p_type]
+    default_client = client_map.get(DEFAULT_PROVIDER_KEY)
+    if default_client is not None:
+        if p_type and p_type not in _unknown_providers_warned:
+            logger.warning("Provider unavailable; using the configured default endpoint")
+            _unknown_providers_warned.add(p_type)
+        return default_client
 
     raise ValueError("No LLM clients found or registered.")
 

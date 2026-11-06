@@ -162,7 +162,7 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         # The parent's effective context must have been seeded into the
         # session object passed to Runner.run_streamed.
         _, run_streamed_kwargs = mock_run_streamed.call_args
-        self.assertTrue(run_streamed_kwargs["context"].interactive_mode)
+        self.assertFalse(run_streamed_kwargs["context"].interactive_mode)
         seeded_session = run_streamed_kwargs["session"]
         items = await seeded_session.get_items()
         self.assertEqual(items, history)
@@ -199,7 +199,7 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         _, kwargs = mock_subtask_agent_cls.call_args
         self.assertIsNone(kwargs["fork_tools"])
         self.assertIsNone(kwargs["fork_instructions"])
-        self.assertTrue(mock_run_streamed.call_args.kwargs["context"].interactive_mode)
+        self.assertFalse(mock_run_streamed.call_args.kwargs["context"].interactive_mode)
 
 
 class TestCloneContextForSubagent(unittest.TestCase):
@@ -207,11 +207,11 @@ class TestCloneContextForSubagent(unittest.TestCase):
         parent_ctx = CodeAgentContext(root_dir="/tmp", is_subagent=False)
         clone = _clone_context_for_subagent(parent_ctx)
         self.assertTrue(clone.is_subagent)
-        self.assertTrue(clone.interactive_mode)
+        self.assertFalse(clone.interactive_mode)
         self.assertTrue(parent_ctx.interactive_mode)
         self.assertEqual(clone.root_dir, "/tmp")
 
-    def test_clone_enables_interactive_mode_for_non_interactive_parent(self):
+    def test_clone_stays_non_interactive_for_non_interactive_parent(self):
         for recursive_enabled in (False, True):
             with self.subTest(recursive_enabled=recursive_enabled):
                 parent_ctx = CodeAgentContext(
@@ -220,7 +220,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
                     allow_recursive_subagents=recursive_enabled,
                 )
                 clone = _clone_context_for_subagent(parent_ctx)
-                self.assertTrue(clone.interactive_mode)
+                self.assertFalse(clone.interactive_mode)
                 self.assertFalse(parent_ctx.interactive_mode)
 
     def test_clone_defaults_to_depth_1_with_no_self_id(self):
@@ -236,7 +236,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
             allow_recursive_subagents=True,
         )
         clone = _clone_context_for_subagent(parent_ctx, depth=2, self_id="sa_child")
-        self.assertTrue(clone.interactive_mode)
+        self.assertFalse(clone.interactive_mode)
         self.assertEqual(clone.subagent_depth, 2)
         self.assertEqual(clone.root_session_id, "root-sess-1")
         self.assertTrue(clone.allow_recursive_subagents)
@@ -264,7 +264,7 @@ class TestCloneContextForSubagent(unittest.TestCase):
         clone = _clone_context_for_subagent(parent_ctx, depth=1, self_id="sa_parent")
         self.assertIs(clone.session, fake_session)
         self.assertEqual(clone.bound_session_id, fake_session.session_id)
-        self.assertTrue(clone.interactive_mode)
+        self.assertFalse(clone.interactive_mode)
 
     def test_clone_does_not_propagate_session_when_recursion_disabled(self):
         # Default (off) path must stay byte-for-byte identical to

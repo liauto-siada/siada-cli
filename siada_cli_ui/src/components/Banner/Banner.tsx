@@ -10,6 +10,7 @@ import { Box, Text } from '@jrichman/ink';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { BannerArt } from './BannerArt.js';
 import { BannerHeader } from './BannerHeader.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
 
 export interface BannerProps {
   version?: string;
@@ -26,7 +27,12 @@ export interface BannerProps {
 export const Banner: React.FC<BannerProps> = ({
   version,
   interactive = false,
+  agent = 'coder',
+  model,
+  isCollapsed = true,
+  showAgentInfo = true,
 }) => {
+  useUiLanguage();
   // Use reactive terminal size hook for responsive banner
   const { columns } = useTerminalSize();
   // The banner has no side borders, so content uses the full terminal width
@@ -55,7 +61,9 @@ export const Banner: React.FC<BannerProps> = ({
       <BannerArt columns={contentWidth} interactive={interactive} />
 
       {/* Spacer */}
-      {renderContentLine(<Text>{' '.repeat(contentWidth)}</Text>, 'spacer-middle-1')}
+      {renderContentLine(<Text wrap="truncate-end">{showAgentInfo
+        ? `${t('智能体：', 'Agent: ')}${agent}${t('，模型：', ', Model: ')}${model || 'default'}; ${isCollapsed ? 'compact' : 'expanded'} mode (ctrl+o)`
+        : ' '.repeat(contentWidth)}</Text>, 'spacer-middle-1')}
 
        {/* Bottom spacer */}
        {renderContentLine(<Text>{' '.repeat(contentWidth)}</Text>, 'spacer-bottom')}

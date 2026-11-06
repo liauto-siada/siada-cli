@@ -57,7 +57,7 @@ let bufferChain: Promise<void> = Promise.resolve();
 async function trajectoryWsUrl(): Promise<string> {
   const stored = await loadStoredSettings();
   const settings = resolveProxySettings(stored);
-  return trajectoryWsUrlFor(settings.proxyUrl);
+  return trajectoryWsUrlFor(settings.proxyUrl, settings.token);
 }
 
 async function connectWs(urlOverride?: string) {
@@ -255,6 +255,15 @@ let liveView: {
 // debugger session (another extension or DevTools).
 const attachedTabs = new Set<number>();
 
+// WebSocket callbacks can overlap across asynchronous attach/stop operations.
+// Serialize requests so a later start or stop cannot lose the current stream.
+let liveViewQueue: Promise<unknown> = Promise.resolve();
+function queueLiveViewRequest(task: () => Promise<void>): void {
+  liveViewQueue = liveViewQueue
+    .then(task, task)
+    .catch((error) => console.warn("[live-view] request failed:", error));
+}
+
 function debuggerTarget(tabId: number): ScreencastTarget {
   const target = { tabId };
   let unsubscribe: (() => void) | null = null;
@@ -306,16 +315,23 @@ async function handleScreencastRequest(
   socket: WebSocket,
   payload: { enabled?: boolean; tabId?: number },
 ): Promise<void> {
+  const requestedTabId = typeof payload.tabId === "number" ? payload.tabId : undefined;
+
   if (!payload.enabled) {
+    // A viewer stopping another tab must not stop the currently running stream.
+    if (liveView && requestedTabId !== undefined && liveView.tabId !== requestedTabId) {
+      sendScreencastState(socket, { active: false }, requestedTabId);
+      return;
+    }
     if (!liveView) {
-      sendScreencastState(socket, { active: false });
+      sendScreencastState(socket, { active: false }, requestedTabId);
       return;
     }
     await stopLiveView();
     return;
   }
 
-  const tabId = payload.tabId;
+  const tabId = requestedTabId;
   if (tabId === undefined) {
     sendScreencastState(socket, {
       active: false,
@@ -353,8 +369,8 @@ async function handleScreencastRequest(
   liveView = { session, tabId, socket };
   await session.start();
 
-  // start() already reported the failure and detached; just drop the handle.
-  if (!session.isActive()) liveView = null;
+  // A stale failure must not clear a newer stream's handle.
+  if (!session.isActive() && liveView?.session === session) liveView = null;
 }
 
 // Chrome detaches on its own when a tab closes or navigates in some cases;
@@ -419,7 +435,11 @@ async function connectToolWs(urlOverride?: string): Promise<void> {
         return;
       }
       if (msg.type === "screencast") {
-        await handleScreencastRequest(socket, msg.payload ?? {});
+        queueLiveViewRequest(async () => {
+          // A queued start may outlive the socket that requested it.
+          if (socket.readyState !== WebSocket.OPEN) return;
+          await handleScreencastRequest(socket, msg.payload ?? {});
+        });
         return;
       }
       if (msg.type !== "browser_tool_call" || msg.callId === undefined) return;

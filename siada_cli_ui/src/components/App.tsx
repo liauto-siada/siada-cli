@@ -490,7 +490,7 @@ export const App: React.FC<AppProps> = ({ config, initialPrompt, onExit }) => {
       });
     }, LOGIN_SUBMIT_TIMEOUT_MS);
     try {
-      const payload = choice === '3' ? apiKey : undefined;
+      const payload = choice === '3' || choice === '4' ? apiKey : undefined;
       if (loginRequestId) {
         await activeClient.sendLoginChoice(choice, payload, loginRequestId);
       } else {
@@ -653,6 +653,7 @@ export const App: React.FC<AppProps> = ({ config, initialPrompt, onExit }) => {
       const s = loginState as Extract<typeof loginState, { phase: 'selecting' }>;
       if (s.cancelable) {
         bottomView = <LoginSelector onSelect={handleLoginSelect} providers={s.providers as any}
+          freeTrialModels={s.freeTrialModels}
           cancelable liidDisabled={s.liidDisabled} submitting={isSubmittingLogin} submitError={loginSubmitError} />;
         break;
       }
@@ -672,6 +673,7 @@ export const App: React.FC<AppProps> = ({ config, initialPrompt, onExit }) => {
             <LoginSelector
               onSelect={handleLoginSelect}
               providers={s.providers as any}
+              freeTrialModels={s.freeTrialModels}
               cancelable={s.cancelable}
               liidDisabled={s.liidDisabled}
               submitting={isSubmittingLogin}

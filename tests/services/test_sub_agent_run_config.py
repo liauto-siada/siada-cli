@@ -64,11 +64,11 @@ def _build(llm_config, root_dir: Path, model=None, effort=None):
 
 
 class TestModelOverrideHelper:
-    def test_override_keeps_the_provider_of_the_base_config(self):
+    def test_override_normalizes_the_legacy_provider_of_the_base_config(self):
         override = _model_override_llm_config("gpt-6-luna", _llm_config(provider="li"))
 
         assert override.model_name == "gpt-6-luna"
-        assert override.provider == "li"
+        assert override.provider == "default"
 
     def test_unknown_model_returns_none(self):
         assert _model_override_llm_config("gpt-5.6-luna", _llm_config()) is None
@@ -80,11 +80,11 @@ class TestBuildSubAgentRunConfigModelOverride:
 
         assert run_config.model == "gpt-6-luna"
 
-    def test_override_keeps_the_gateway_provider(self, tmp_path):
+    def test_override_uses_the_public_provider_for_a_legacy_gateway_key(self, tmp_path):
         with patch("siada.services.sub_agent_run_config.get_provider") as get_provider:
             _build(_llm_config(provider="li"), tmp_path, model="gpt-6-luna")
 
-        get_provider.assert_called_once_with("li")
+        get_provider.assert_called_once_with("default")
 
     def test_unknown_model_is_ignored_and_the_configured_model_kept(self, tmp_path):
         run_config = _build(_llm_config(), tmp_path, model="gpt-5.6-luna")

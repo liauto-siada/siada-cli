@@ -248,7 +248,19 @@ def build_sub_agent_run_config(
     model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
     # Resolve overrides through the parent's runtime loop pool, not a
     # process-wide provider or a new per-agent connection pool.
-    model_provider = get_provider(llm_config.provider)
+    candidates = dict.fromkeys(name for name in (
+        llm_config.provider, context.provider,
+        context.session.siada_config.llm_config.provider, "default",
+    ) if name)
+    for candidate in candidates:
+        try:
+            model_provider = get_provider(candidate)
+            llm_config.provider = resolve_provider_by_model(llm_config.model_name, candidate)
+            break
+        except ValueError:
+            if candidate == "default":
+                raise
+            logger.warning("Sub-agent provider unavailable; trying the inherited endpoint")
     provider_wrapper = ModelProviderWrapper(
         base_provider=model_provider,
         input_processor=process_input,

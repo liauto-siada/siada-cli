@@ -54,6 +54,21 @@ describe("trajectoryWsUrlFor", () => {
       "wss://proxy.example.com:9443/ws/trajectory",
     );
   });
+
+  test("carries a separately configured token and preserves other query parameters", () => {
+    const url = new URL(trajectoryWsUrlFor("wss://proxy.example.com/ws?mode=browser", "a+b&c"));
+    expect(url.pathname).toBe("/ws/trajectory");
+    expect(url.searchParams.get("token")).toBe("a+b&c");
+    expect(url.searchParams.get("mode")).toBe("browser");
+  });
+
+  test("preserves an embedded token unless a nonempty explicit token overrides it", () => {
+    const proxyUrl = "ws://localhost:9315/ws?token=embedded";
+    for (const token of [undefined, ""]) {
+      expect(new URL(trajectoryWsUrlFor(proxyUrl, token)).searchParams.get("token")).toBe("embedded");
+    }
+    expect(new URL(trajectoryWsUrlFor(proxyUrl, "configured")).searchParams.get("token")).toBe("configured");
+  });
 });
 
 describe("flipLoopbackWsScheme", () => {

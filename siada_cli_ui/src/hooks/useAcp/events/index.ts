@@ -421,8 +421,9 @@ export function useClientEvents(config: ClientConfig, handlers: EventHandlers): 
               phase: 'selecting',
               requestId: typeof params?.requestId === 'string' ? params.requestId : undefined,
               providers: params?.providers,
+              freeTrialModels: params?.freeTrialModels,
               cancelable: params?.cancelable ?? false,
-              liidDisabled: params?.liidDisabled ?? false,
+              liidDisabled: params?.liidDisabled !== false,
             });
           }
         });

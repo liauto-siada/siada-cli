@@ -1356,10 +1356,7 @@ class SlashCommands:
             )
             session.siada_config.llm_config = new_llm_config
 
-            # Keep the process-wide provider tracker in sync so the litellm
-            # token-refresh callback (siada.entrypoint) knows whether IDaaS
-            # auth applies to the new provider (skipped for "default",
-            # required for "li").
+            # Keep the resolved provider available to shared request callbacks.
             try:
                 from siada.entrypoint import set_current_provider
                 set_current_provider(new_llm_config.provider or "")
@@ -1931,12 +1928,11 @@ class SlashCommands:
 
     def cmd_logout(self, args):
         "Sign out and clear all stored credentials (LiId token and API key)"
-        try:
+        from siada.entrypoint.login.login_prompt import _HAS_INTERNAL, clear_api_key_config
+        user_id = None
+        if _HAS_INTERNAL:
             from siada.internal.services.idaas.auth_store import clear_login_state
             user_id = clear_login_state()
-        except ImportError:
-            user_id = None
-        from siada.entrypoint.login.login_prompt import clear_api_key_config
         api_cleared = clear_api_key_config()
         if user_id:
             self.io.print_info(f"Signed out from {user_id}.")
@@ -1955,7 +1951,7 @@ class SlashCommands:
             self.io.print_error("This command requires the Siada UI.")
             return
 
-        from siada.entrypoint.login.login_prompt import reconfigure_acp, get_applied_api_key_config
+        from siada.entrypoint.login.login_prompt import reconfigure_acp, get_applied_api_key_config, _field_text
         result = reconfigure_acp(self.io)
 
         if result is None:
@@ -1971,9 +1967,9 @@ class SlashCommands:
             api_cfg = get_applied_api_key_config()
             if not api_cfg:
                 return
-            provider_id = api_cfg.get('provider_id', '')
-            new_model = (api_cfg.get('model') or '').strip()
-            base_url = (api_cfg.get('base_url') or '').strip()
+            provider_id = _field_text(api_cfg.get('provider_id')) or ''
+            new_model = _field_text(api_cfg.get('model')) or ''
+            base_url = _field_text(api_cfg.get('base_url')) or ''
 
             provider_models = get_provider_model_configs(provider_id, new_model, base_url)
             if provider_models:

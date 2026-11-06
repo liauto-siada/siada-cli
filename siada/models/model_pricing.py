@@ -19,7 +19,6 @@ class PriceTier:
     whose context_window >= the request's total input tokens applies to ALL
     tokens of that request (input, output, cache write/read). This is a
     "total volume determines unit price" model, not progressive pricing.
-    Mirrors li-mate's LLMPricingConfig.PriceTier.
     """
     context_window: int  # upper bound of total input tokens for this tier; sys.maxsize = unbounded
     input_price: float  # CNY per million input tokens
@@ -84,6 +83,47 @@ USD_TO_CNY = 7.0
 # write prices are the vendor's 5-minute cache-write rate where one is
 # published; where a vendor publishes none, the value stays at 0.
 MODEL_PRICING: Dict[str, ModelPricing] = {
+    "claude-opus-5": ModelPricing(
+        model_name="claude-opus-5", input_price=35.0, output_price=175.0,
+        cache_write_price=43.75, cache_read_price=3.5,
+    ),
+    "gpt-5.1": ModelPricing(
+        model_name="gpt-5.1", input_price=8.75, output_price=70.0, cache_read_price=0.875,
+    ),
+    "gpt-5.2": ModelPricing(
+        model_name="gpt-5.2", input_price=12.25, output_price=98.0, cache_read_price=1.225,
+    ),
+    "gpt-5.4": ModelPricing(
+        model_name="gpt-5.4", input_price=17.5, output_price=105.0, cache_read_price=1.75,
+    ),
+    "gpt-5.6-terra": ModelPricing(
+        model_name="gpt-5.6-terra", input_price=14.0, output_price=84.0,
+        cache_write_price=17.5, cache_read_price=1.4,
+    ),
+    "gpt-5.6-sol": ModelPricing(
+        model_name="gpt-5.6-sol", tiers=[
+            PriceTier(context_window=272_000, input_price=28.0, output_price=140.0,
+                      cache_write_price=35.0, cache_read_price=2.8),
+            PriceTier(context_window=sys.maxsize, input_price=56.0, output_price=210.0,
+                      cache_write_price=70.0, cache_read_price=5.6),
+        ],
+    ),
+    "gpt-5.6-luna": ModelPricing(
+        model_name="gpt-5.6-luna", input_price=1.4, output_price=8.4,
+        cache_write_price=1.75, cache_read_price=0.14,
+    ),
+    "deepseek-flash": ModelPricing(
+        model_name="deepseek-flash", input_price=2.0, output_price=8.0, cache_read_price=0.04,
+    ),
+    "glm-5.1": ModelPricing(
+        model_name="glm-5.1", tiers=[
+            PriceTier(context_window=32_768, input_price=6.0, output_price=24.0, cache_read_price=1.3),
+            PriceTier(context_window=sys.maxsize, input_price=8.0, output_price=28.0, cache_read_price=2.0),
+        ],
+    ),
+    "kimi-k2.6": ModelPricing(
+        model_name="kimi-k2.6", input_price=6.5, output_price=27.0, cache_read_price=1.1,
+    ),
     # --- Anthropic (USD list prices, 5-minute prompt-cache TTL) ---
     # Claude 4.6 and newer bill the full context window at standard rates, so
     # these entries are flat.
@@ -103,14 +143,6 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
     ),
     "claude-sonnet-4-6": ModelPricing(
         model_name="claude-sonnet-4-6",
-        input_price=21.0,
-        output_price=105.0,
-        cache_write_price=26.25,
-        cache_read_price=2.1,
-    ),
-    # Legacy dotted spelling kept as an alias of the vendor's dashed model ID.
-    "claude-sonnet-4.6": ModelPricing(
-        model_name="claude-sonnet-4.6",
         input_price=21.0,
         output_price=105.0,
         cache_write_price=26.25,
@@ -140,10 +172,10 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
     "gpt-6-luna": ModelPricing(
         model_name="gpt-6-luna",
         tiers=[
-            PriceTier(context_window=272_000, input_price=1.4, output_price=8.4,
+            PriceTier(context_window=272_000, input_price=0.7, output_price=3.5,
+                      cache_write_price=0.875, cache_read_price=0.07),
+            PriceTier(context_window=sys.maxsize, input_price=1.4, output_price=5.25,
                       cache_write_price=1.75, cache_read_price=0.14),
-            PriceTier(context_window=sys.maxsize, input_price=2.8, output_price=10.5,
-                      cache_write_price=3.5, cache_read_price=0.28),
         ],
     ),
     # --- Google (USD list prices) ---
@@ -303,7 +335,7 @@ def get_model_pricing(model_name: str, fallback_model_name: Optional[str] = None
     Args:
         model_name: The name of the model
         fallback_model_name: An alternate name to try if model_name has no pricing
-            (e.g. the "li provider" converted name)
+            (e.g. a provider-converted alias)
 
     Returns:
         ModelPricing if found, None otherwise

@@ -45,6 +45,91 @@ function fakeTarget(overrides: Partial<ScreencastTarget> = {}) {
   };
 }
 
+for (const [mode, createSession, startupCommand] of [
+  ["screencast", createScreencast, "Page.startScreencast"],
+  ["screenshots", createScreenshotPolling, "Page.getLayoutMetrics"],
+] as const) {
+  describe(`${mode} startup lifecycle`, () => {
+    for (const phase of ["attach", "command"] as const) {
+      test(`stop during ${phase} waits for startup and releases the debugger`, async () => {
+        const gate = Promise.withResolvers<void>();
+        const entered = Promise.withResolvers<void>();
+        let attached = false;
+        let detachCount = 0;
+        let frameCount = 0;
+        const states: LiveViewState[] = [];
+        const fake = fakeTarget({
+          isAttached: () => attached,
+          attach: async () => {
+            if (phase === "attach") {
+              entered.resolve();
+              await gate.promise;
+            }
+            attached = true;
+          },
+          detach: async () => { attached = false; detachCount++; },
+          sendCommand: async (method) => {
+            if (phase === "command" && method === startupCommand) {
+              entered.resolve();
+              await gate.promise;
+            }
+            return {};
+          },
+        });
+        const session = createSession(fake.target, {
+          onFrame: () => { frameCount++; },
+          onState: state => states.push(state),
+        });
+        const starting = session.start();
+        await entered.promise;
+        let stopped = false;
+        const stopping = session.stop().then(() => { stopped = true; });
+        try {
+          await Promise.resolve();
+          expect(stopped).toBe(false);
+          gate.resolve();
+          await Promise.all([starting, stopping]);
+          expect(session.isActive()).toBe(false);
+          expect(attached).toBe(false);
+          expect(detachCount).toBe(1);
+          expect(frameCount).toBe(0);
+          expect(states).toEqual([{ active: false, mode }]);
+        } finally {
+          gate.resolve();
+          await Promise.all([starting, stopping]);
+          await session.stop();
+        }
+      });
+    }
+
+    test("concurrent starts do not attach the same debugger twice", async () => {
+      const gate = Promise.withResolvers<void>();
+      let attachCount = 0;
+      let attached = false;
+      const fake = fakeTarget({
+        isAttached: () => attached,
+        attach: async () => {
+          attachCount++;
+          await gate.promise;
+          attached = true;
+        },
+        detach: async () => { attached = false; },
+      });
+      const session = createSession(fake.target, { onFrame: () => {} });
+      const first = session.start();
+      const second = session.start();
+      try {
+        expect(attachCount).toBe(1);
+      } finally {
+        gate.resolve();
+        await Promise.all([first, second]);
+        await session.stop();
+      }
+      expect(attached).toBe(false);
+    });
+  });
+}
+
 function frameEvent(sessionId: number, data = "AAAA") {
   return {
     sessionId,

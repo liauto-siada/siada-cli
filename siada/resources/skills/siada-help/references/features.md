@@ -1,5 +1,8 @@
 # Siada Feature Reference
 
+Per-model overrides are stored in `~/.siada-cli/models.json`. Displayed costs
+are local estimates; USD list prices use a fixed 7.0 CNY per USD conversion.
+
 ## Running siada
 
 - `siada-cli` — start the interactive terminal UI
@@ -135,7 +138,7 @@ Type `/` in the input box to trigger — no configuration required:
 | `/compare` | Compare files between the working directory and a checkpoint |
 | `/statusbar` | Toggle status bar item visibility (UI mode) |
 | `/configure` | Reconfigure the provider API key or switch login method without restarting |
-| `/logout` | Sign out and clear all stored credentials |
+| `/logout` | Remove the stored provider API key configuration |
 | `/exit` | Exit siada |
 | `/help` | Show help for all commands (also available while the agent is responding) |
 
@@ -190,9 +193,15 @@ siada can build and maintain a layered understanding of a project:
 Beyond the local CLI, siada can be controlled remotely through a **Lark (Feishu) bot** — this is a separate feature from the generic MCP tool integration below: it turns Lark into another *entry point* for siada, not just a tool the agent calls.
 
 - Message the bot directly (DM) or `@mention` it in a group chat; the message is forwarded to your local siada-cli and results stream back in real time
-- Two connection modes: `relay` (via a hosted IM Gateway, no bot credentials needed) or `direct` (talk to Lark's WebSocket SDK directly with your own app credentials)
+- Direct mode uses your own `lark.direct.app_id` and `lark.direct.app_secret` with the Lark WebSocket SDK. Legacy relay mode is not supported in this distribution.
 - Configured under the `lark:` section of `conf.yaml`; see `docs/remote_control_lark.md` for the full setup guide
 - `/lark-auth`, `/lark-status`, `/lark-refresh` manage the Lark **MCP** OAuth connection (a related but distinct piece — see MCP Tool Integration below)
+
+## Browser execution trace
+
+The browser Trace view is an execution inspector. It does not learn from runs,
+keeps no trained or persisted model, and exposes no `browser_replay` control.
+Its frames and timing help inspect the current run.
 
 ## Migrating from Claude Code / Codex
 

@@ -25,15 +25,19 @@ from agents import Model, ModelResponse, RunConfig
 from siada.foundation.logging import logger
 from siada.models.model_run_config import ModelRunConfig
 from siada.models.model_setting_converter import ModelSettingsConverter
-from siada.provider.provider_factory import get_provider
+from siada.provider.provider_factory import get_provider, resolve_provider_by_model
 from siada.services.input_processor import process_input
-from siada.services.model_wrapper import ModelProviderWrapper
+from siada.services.model_wrapper import ModelProviderWrapper, ModelWrapper
 
 
 # Default provider for the ``fast_llm_config`` override (openai-compatible
 # endpoint via BASE_URL / API_KEY — the same provider the main agent uses for
 # custom gateways).
 _DEFAULT_OVERRIDE_PROVIDER: str = "default"
+
+
+def _resolve_provider(name: str | None) -> str:
+    return resolve_provider_by_model(None, name) or "default"
 
 
 def _get_user_fast_llm_config() -> Dict[str, Any]:
@@ -77,7 +81,7 @@ def _get_fast_model_and_provider() -> Tuple[str, str, Dict[str, Any]]:
     if override:
         model = override.get("model")
         if model:
-            provider = override.get("provider") or _DEFAULT_OVERRIDE_PROVIDER
+            provider = _resolve_provider(override.get("provider") or _DEFAULT_OVERRIDE_PROVIDER)
             call_kwargs: Dict[str, Any] = {}
             if override.get("base_url"):
                 call_kwargs["api_base"] = override["base_url"]
@@ -95,7 +99,7 @@ def _get_fast_model_and_provider() -> Tuple[str, str, Dict[str, Any]]:
     if not model:
         # No model configured yet — fall back to the framework default.
         model = ModelRunConfig.get_default_config().model_name
-    return model, provider or "default", {}
+    return model, _resolve_provider(provider), {}
 
 
 def get_fast_model_name() -> str:
@@ -105,10 +109,25 @@ def get_fast_model_name() -> str:
 
 # ---- Model (for openai-agents Runner) ---------------------------------------
 
+def _build_override_model(provider: Any, model_name: str, call_kwargs: Dict[str, Any]) -> Model:
+    """Reject overrides that a provider cannot bind to the returned model."""
+    base_url, api_key = call_kwargs.get("api_base"), call_kwargs.get("api_key")
+    builder = getattr(provider, "get_model_with_credentials", None)
+    if builder is None:
+        if base_url or api_key:
+            raise ValueError("fast_llm_config credentials cannot be applied: provider has no explicit-credential model builder")
+        return provider.get_model(model_name)
+    return builder(model_name, base_url=base_url, api_key=api_key)
+
+
 def get_fast_model() -> Model:
     """Return a ``Model`` instance pinned to the fast model."""
-    model_name, provider_name, _ = _get_fast_model_and_provider()
+    model_name, provider_name, call_kwargs = _get_fast_model_and_provider()
+    if call_kwargs.get("extra_headers"):
+        raise ValueError("fast_llm_config extra_headers require build_fast_run_config() or fast_completion()")
     provider = get_provider(provider_name)
+    if call_kwargs:
+        return _build_override_model(provider, model_name, call_kwargs)
     return provider.get_model(model_name)
 
 
@@ -118,7 +137,7 @@ def build_fast_run_config() -> RunConfig:
     Convenience wrapper so MemoryAgent doesn't need to know about model
     settings / provider wiring.
     """
-    model_name, provider_name, _ = _get_fast_model_and_provider()
+    model_name, provider_name, call_kwargs = _get_fast_model_and_provider()
 
     # Build a ModelRunConfig for the fast model so ModelSettings
     # (parallel_tool_calls, max_tokens, …) comes from model_base_config.
@@ -130,6 +149,11 @@ def build_fast_run_config() -> RunConfig:
 
     model_settings = ModelSettingsConverter.convert_model_settings(mrc)
     base_provider = get_provider(provider_name)
+    if call_kwargs:
+        model = ModelWrapper(_build_override_model(base_provider, model_name, call_kwargs), process_input)
+        if call_kwargs.get("extra_headers"):
+            model_settings.extra_headers = dict(call_kwargs["extra_headers"])
+        return RunConfig(tracing_disabled=True, model=model, model_settings=model_settings)
     provider_wrapper = ModelProviderWrapper(
         base_provider=base_provider,
         input_processor=process_input,
@@ -141,7 +165,7 @@ def build_fast_run_config() -> RunConfig:
     )
 
     return RunConfig(
-        tracing_disabled=False,
+        tracing_disabled=True,
         model=model_name,
         model_provider=provider_wrapper,
         model_settings=model_settings,

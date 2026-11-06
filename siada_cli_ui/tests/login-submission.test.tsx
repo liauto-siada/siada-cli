@@ -52,7 +52,7 @@ afterEach(() => {
   app = undefined;
 });
 
-async function submitLogin() {
+async function submitLogin(choice: '3' | '4' = '3', payload = 'synthetic-payload') {
   app = render(<App config={{ workingDir: '.', model: 'test-model' } as ClientConfig} />, {
     stdout: Object.assign(new PassThrough(), { columns: 100, rows: 30 }),
     stdin: new PassThrough(),
@@ -61,11 +61,22 @@ async function submitLogin() {
     maxFps: 0,
   });
   await vi.waitFor(() => expect(state.selector).not.toBeNull());
-  state.selector!.onSelect('3', 'synthetic-payload');
+  state.selector!.onSelect(choice, payload);
   await vi.waitFor(() => expect(state.selector!.submitting).toBe(true));
 }
 
 describe('login submission', () => {
+  it.each([undefined, 'trial-request'])('sends the selected free model with request ID %s', async requestId => {
+    state.requestId = requestId;
+    const payload = JSON.stringify({ model: 'synthetic/free-model:free' });
+    await submitLogin('4', payload);
+    if (requestId) {
+      expect(state.sendLoginChoice).toHaveBeenCalledWith('4', payload, requestId);
+    } else {
+      expect(state.sendLoginChoice).toHaveBeenCalledWith('4', payload);
+    }
+  });
+
   it.each(['cancel', 'skip'] as const)('sends %s while a login reply is pending', async choice => {
     await submitLogin();
     state.selector!.onSelect(choice);

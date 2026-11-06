@@ -187,6 +187,89 @@ describe("TraceCollector run lifecycle", () => {
     expect(metrics.gapMs).toBe(900);
   });
 
+  test("partially overlapping tool calls count their shared interval once", () => {
+    const c = clock();
+    const collector = new TraceCollector({ now: c.now });
+    c.advance(25);
+    collector.addSessionUpdate(toolCall("a", "first"));
+    c.advance(50);
+    collector.addSessionUpdate(toolCall("b", "second"));
+    c.advance(50);
+    collector.addSessionUpdate(toolCallUpdate("a", "completed"));
+    c.advance(50);
+    collector.addSessionUpdate(toolCallUpdate("b", "completed"));
+    c.advance(25);
+    const run = collector.snapshot();
+    expect(run.steps.map(step => step.durMs)).toEqual([100, 100]);
+    expect(run.elapsedMs).toBe(200);
+    expect(run.metrics.toolMs).toBe(150);
+    expect(run.metrics.gapMs).toBe(50);
+  });
+
+  test("nested calls and disjoint intervals preserve the uncovered gaps", () => {
+    const c = clock();
+    const collector = new TraceCollector({ now: c.now });
+    c.advance(10);
+    collector.addSessionUpdate(toolCall("outer", "outer"));
+    c.advance(10);
+    collector.addSessionUpdate(toolCall("inner", "inner"));
+    c.advance(10);
+    collector.addSessionUpdate(toolCallUpdate("inner", "completed"));
+    c.advance(80);
+    collector.addSessionUpdate(toolCallUpdate("outer", "completed"));
+    c.advance(20);
+    collector.addSessionUpdate(toolCall("last", "last"));
+    c.advance(20);
+    collector.addSessionUpdate(toolCallUpdate("last", "completed"));
+    const run = collector.snapshot();
+    expect(run.elapsedMs).toBe(150);
+    expect(run.metrics.toolMs).toBe(120);
+    expect(run.metrics.gapMs).toBe(30);
+  });
+
+  test("running tools contribute elapsed coverage and freeze when the request fails", () => {
+    const c = clock();
+    const collector = new TraceCollector({ now: c.now });
+    c.advance(20);
+    collector.addSessionUpdate(toolCall("a", "first"));
+    c.advance(40);
+    collector.addSessionUpdate(toolCall("b", "second"));
+    c.advance(50);
+    const live = collector.snapshot();
+    expect(live.steps.map(step => step.durMs)).toEqual([null, null]);
+    expect(live.metrics.toolMs).toBe(90);
+    expect(live.metrics.gapMs).toBe(20);
+    collector.endRun("error");
+    c.advance(1_000);
+    const ended = collector.snapshot();
+    expect(ended.elapsedMs).toBe(110);
+    expect(ended.metrics).toEqual(live.metrics);
+    expect(ended.steps.map(step => step.status)).toEqual(["error", "error"]);
+  });
+
+  test("one-shot terminal calls do not invent an observed tool interval", () => {
+    const c = clock();
+    const collector = new TraceCollector({ now: c.now });
+    c.advance(20);
+    collector.addSessionUpdate(toolCall("instant", "finished", "completed"));
+    c.advance(20);
+    const run = collector.snapshot();
+    expect(run.metrics.toolMs).toBe(0);
+    expect(run.metrics.gapMs).toBe(40);
+  });
+
+  test("a snapshot uses a single clock reading for run and tool coverage", () => {
+    let reads = 0;
+    const collector = new TraceCollector({ now: () => ++reads });
+    collector.addSessionUpdate(toolCall("a", "first"));
+    const before = reads;
+    const run = collector.snapshot();
+    expect(reads - before).toBe(1);
+    expect(run.elapsedMs).toBe(2);
+    expect(run.metrics.toolMs).toBe(1);
+    expect(run.metrics.gapMs).toBe(1);
+  });
+
   test("notifies subscribers and stops after unsubscribe", () => {
     const collector = new TraceCollector({ now: clock().now });
     const seen: number[] = [];
@@ -211,34 +294,39 @@ describe("TraceCollector run lifecycle", () => {
 });
 
 describe("TraceCollector frame association", () => {
-  test("a frame lands on the running step", () => {
+  test("a matched frame lands on the running step and reports its attachment", () => {
     const c = clock();
     const collector = new TraceCollector({ now: c.now });
     collector.addSessionUpdate(toolCall("t1", "browser_click"));
     c.advance(20);
-    collector.addFrame(frame("f1", c.now()));
+    expect(collector.addFrame(frame("f1", c.now()), "t1")).toEqual({
+      kind: "step", stepIndex: 1, phase: "after",
+    });
 
     expect(collector.snapshot().steps[0]!.frameKey).toBe("f1");
   });
 
-  test("without a running step the frame closes out the last step", () => {
+  test("an uncorrelated frame stays standalone even when a completed step exists", () => {
     const c = clock();
     const collector = new TraceCollector({ now: c.now });
     collector.addSessionUpdate(toolCall("t1", "a"));
     collector.addSessionUpdate(toolCallUpdate("t1", "completed"));
     c.advance(5);
-    collector.addFrame(frame("f1", c.now()));
+    expect(collector.addFrame(frame("f1", c.now()))).toEqual({
+      kind: "standalone", reason: "no-correlation",
+    });
 
-    expect(collector.snapshot().steps[0]!.frameKey).toBe("f1");
+    expect(collector.snapshot().steps[0]!.frameKey).toBeUndefined();
+    expect(collector.snapshot().frames.map(value => value.key)).toEqual(["f1"]);
   });
 
   test("evicting an old frame drops the step reference to it", () => {
     const c = clock();
     const collector = new TraceCollector({ now: c.now, maxFrames: 1 });
     collector.addSessionUpdate(toolCall("t1", "a"));
-    collector.addFrame(frame("f1", c.now()));
+    collector.addFrame(frame("f1", c.now()), "t1");
     collector.addSessionUpdate(toolCall("t2", "b"));
-    collector.addFrame(frame("f2", c.now()));
+    collector.addFrame(frame("f2", c.now()), "t2");
 
     const steps = collector.snapshot().steps;
     expect(steps[0]!.frameKey).toBeUndefined();
@@ -258,13 +346,20 @@ describe("TraceCollector frame association", () => {
     expect(steps[1]!.frameKey).toBeUndefined();
   });
 
-  test("an unknown correlation id falls back to the running step", () => {
+  test("an unknown correlation cannot claim the running step's before/after slots", () => {
     const c = clock();
     const collector = new TraceCollector({ now: c.now });
     collector.addSessionUpdate(toolCall("t1", "first"));
-    collector.addFrame(frame("f1", c.now()), "gone");
+    expect(collector.addFrame(frame("f1", c.now()), "gone")).toEqual({
+      kind: "standalone", reason: "unmatched-correlation",
+    });
+    collector.addFrame(frame("b1", c.now(), "before"), "gone");
+    collector.addFrame(frame("live", c.now()));
 
-    expect(collector.snapshot().steps[0]!.frameKey).toBe("f1");
+    const run = collector.snapshot();
+    expect(run.steps[0]!.frameKey).toBeUndefined();
+    expect(run.steps[0]!.frameKeyBefore).toBeUndefined();
+    expect(run.frames.map(value => value.key)).toEqual(["f1", "b1", "live"]);
   });
 
   test("a before frame fills the before slot, not the after slot", () => {

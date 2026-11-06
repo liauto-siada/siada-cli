@@ -80,6 +80,11 @@ export function createScreencast(
   let active = false;
   let unsubscribe: (() => void) | null = null;
   let attachedHere = false;
+  // Bringing the stream up takes two round trips (attach, then start), so a
+  // stop can arrive while it is still starting: `starting` holds that in-flight
+  // work and `stopping` tells it to undo itself instead of going live.
+  let starting: Promise<void> | null = null;
+  let stopping = false;
 
   const report = (state: LiveViewState): void => {
     try {
@@ -117,34 +122,50 @@ export function createScreencast(
   };
 
   async function start(): Promise<void> {
-    if (active) return;
+    if (active || starting) return;
+    stopping = false;
 
-    try {
-      if (!target.isAttached()) {
-        await target.attach();
-        attachedHere = true;
+    const run = (async () => {
+      try {
+        if (!target.isAttached()) {
+          await target.attach();
+          attachedHere = true;
+        }
+        if (stopping) return;
+        unsubscribe = target.onEvent((method, params) => {
+          if (method === FRAME_EVENT) handleFrame(params);
+        });
+        // Chrome only composites the frame of a tab it considers focused, so a
+        // background tab emits no screencast frames at all without this. The
+        // emulated focus is scoped to this target and does not steal the user's
+        // actual tab or window focus.
+        await target.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+        if (stopping) return;
+        await target.sendCommand("Page.startScreencast", {
+          format: "jpeg",
+          quality: options.quality ?? 60,
+          ...(options.maxWidth !== undefined ? { maxWidth: options.maxWidth } : {}),
+          ...(options.maxHeight !== undefined ? { maxHeight: options.maxHeight } : {}),
+          everyNthFrame: options.everyNthFrame ?? 1,
+        });
+        if (stopping) return;
+        active = true;
+        report({ active: true, mode: "screencast" });
+      } catch (error) {
+        await teardown();
+        if (!stopping) {
+          report({ active: false, error: (error as Error).message, mode: "screencast" });
+        }
+      } finally {
+        // A stop that arrived mid-start undoes whatever this start built;
+        // otherwise the stream would run with nobody holding a handle to it.
+        if (stopping) await teardown();
+        starting = null;
       }
-      unsubscribe = target.onEvent((method, params) => {
-        if (method === FRAME_EVENT) handleFrame(params);
-      });
-      // Chrome only composites the frame of a tab it considers focused, so a
-      // background tab emits no screencast frames at all without this. The
-      // emulated focus is scoped to this target and does not steal the user's
-      // actual tab or window focus.
-      await target.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
-      await target.sendCommand("Page.startScreencast", {
-        format: "jpeg",
-        quality: options.quality ?? 60,
-        ...(options.maxWidth !== undefined ? { maxWidth: options.maxWidth } : {}),
-        ...(options.maxHeight !== undefined ? { maxHeight: options.maxHeight } : {}),
-        everyNthFrame: options.everyNthFrame ?? 1,
-      });
-      active = true;
-      report({ active: true, mode: "screencast" });
-    } catch (error) {
-      await teardown();
-      report({ active: false, error: (error as Error).message, mode: "screencast" });
-    }
+    })();
+
+    starting = run;
+    await run;
   }
 
   async function teardown(): Promise<void> {
@@ -172,6 +193,16 @@ export function createScreencast(
   }
 
   async function stop(): Promise<void> {
+    // Wait out an in-flight start rather than racing it: the start unwinds
+    // itself when it sees this stop, and the terminal state is reported here.
+    const pending = starting;
+    if (pending) {
+      stopping = true;
+      await pending;
+      report({ active: false, mode: "screencast" });
+      return;
+    }
+    stopping = false;
     if (!active && !unsubscribe && !attachedHere) return;
     await teardown();
     report({ active: false, mode: "screencast" });
@@ -212,6 +243,10 @@ export function createScreenshotPolling(
   let timer: ReturnType<typeof setTimeout> | null = null;
   let failures = 0;
   let size = { width: 0, height: 0 };
+  // Same guard as createScreencast: a stop can arrive while the start is still
+  // attaching and reading the layout metrics.
+  let starting: Promise<void> | null = null;
+  let stopping = false;
 
   const report = (state: LiveViewState): void => {
     try {
@@ -280,32 +315,55 @@ export function createScreenshotPolling(
   }
 
   async function start(): Promise<void> {
-    if (active) return;
-    try {
-      if (!target.isAttached()) {
-        await target.attach();
-        attachedHere = true;
+    if (active || starting) return;
+    stopping = false;
+
+    const run = (async () => {
+      try {
+        if (!target.isAttached()) {
+          await target.attach();
+          attachedHere = true;
+        }
+        if (stopping) return;
+        const metrics = (await target.sendCommand("Page.getLayoutMetrics")) as {
+          cssVisualViewport?: { clientWidth?: number; clientHeight?: number };
+          visualViewport?: { clientWidth?: number; clientHeight?: number };
+        };
+        const viewport = metrics?.cssVisualViewport ?? metrics?.visualViewport;
+        size = {
+          width: Math.round(viewport?.clientWidth ?? 0),
+          height: Math.round(viewport?.clientHeight ?? 0),
+        };
+        failures = 0;
+        if (stopping) return;
+        active = true;
+        report({ active: true, mode: "screenshots" });
+        void tick();
+      } catch (error) {
+        await teardown();
+        if (!stopping) {
+          report({ active: false, error: (error as Error).message, mode: "screenshots" });
+        }
+      } finally {
+        if (stopping) await teardown();
+        starting = null;
       }
-      const metrics = (await target.sendCommand("Page.getLayoutMetrics")) as {
-        cssVisualViewport?: { clientWidth?: number; clientHeight?: number };
-        visualViewport?: { clientWidth?: number; clientHeight?: number };
-      };
-      const viewport = metrics?.cssVisualViewport ?? metrics?.visualViewport;
-      size = {
-        width: Math.round(viewport?.clientWidth ?? 0),
-        height: Math.round(viewport?.clientHeight ?? 0),
-      };
-      failures = 0;
-      active = true;
-      report({ active: true, mode: "screenshots" });
-      void tick();
-    } catch (error) {
-      await teardown();
-      report({ active: false, error: (error as Error).message, mode: "screenshots" });
-    }
+    })();
+
+    starting = run;
+    await run;
   }
 
   async function stop(): Promise<void> {
+    // See createScreencast: wait out a pending start instead of racing it.
+    const pending = starting;
+    if (pending) {
+      stopping = true;
+      await pending;
+      report({ active: false, mode: "screenshots" });
+      return;
+    }
+    stopping = false;
     if (!active && !timer && !attachedHere) return;
     await teardown();
     report({ active: false, mode: "screenshots" });

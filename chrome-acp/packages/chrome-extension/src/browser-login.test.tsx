@@ -34,7 +34,7 @@ async function mount(params: object) {
   return host;
 }
 test("internal selector matches CLI three choices and sends device code selection", async () => {
-  const host = await mount({ providers: [] });
+  const host = await mount({ providers: [], liidDisabled: false });
   expect(host.querySelectorAll("button").length).toBe(3);
   expect(host.textContent).toContain("Sign in with LiId");
   await act(async () => (Array.from(host.querySelectorAll("button")).find(b => b.textContent?.includes("Sign in with Device Code"))!).click());
@@ -44,6 +44,15 @@ test("internal selector matches CLI three choices and sends device code selectio
   act(() => root.unmount());
   expect(FakeSocket.current.closed).toBe(true);
 });
+for (const value of [undefined, true, null, "false", 0]) {
+  test(`internal login is hidden unless explicitly enabled (${String(value)})`, async () => {
+    const host = await mount({ providers: [], ...(value === undefined ? {} : { liidDisabled: value }) });
+    expect(host.textContent).not.toContain("Sign in with LiId");
+    expect(host.textContent).not.toContain("Sign in with Device Code");
+    expect(host.textContent).toContain("Configure API Key");
+    expect(host.querySelectorAll("button")).toHaveLength(1);
+  });
+}
 test("free trial renders two options and submits the CLI model ID", async () => {
   const host = await mount({ liidDisabled: true, freeTrialModels: [{ id: "synthetic:free", name: "Free model" }] });
   expect(host.querySelectorAll("button").length).toBe(2);

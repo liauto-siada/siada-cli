@@ -2,13 +2,12 @@ from __future__ import annotations
 
 """LarkController - Receives messages from transport and dispatches to SiadaRunner.
 
-Supports both relay mode (RelayTransport) and direct mode (DirectTransport).
+Supports direct mode through the public Lark WebSocket SDK.
 Runs as a background async loop inside the SiadaDaemon.
 
 OOP design:
 - LarkController: base class for direct mode (open-source default)
-- RelayLarkController: subclass with relay-specific logic (login polling, credential forwarding)
-- create_if_configured(): factory method returning the appropriate subclass
+- create_if_configured(): factory method returning a configured direct controller
 
 Delegated components (under siada/im/feishu/):
 - LarkCardSender: card/message sending
@@ -72,7 +71,7 @@ def create_if_configured() -> Optional["LarkController"]:
     lark_config = load_im_config()
     if not lark_config:
         logger.debug("No lark config found in conf.yaml, skipping LarkController")
-        lark_config = {}
+        return None
 
     # Honour lark.enabled switch: when explicitly set to false, skip the
     # controller entirely so the daemon starts without a Lark connection.
@@ -80,21 +79,18 @@ def create_if_configured() -> Optional["LarkController"]:
         logger.info("lark.enabled=false in conf.yaml, skipping LarkController")
         return None
 
-    mode = lark_config.get("lark", {}).get("mode", "relay")
+    mode = lark_config.get("lark", {}).get("mode", "direct")
     if mode not in ("relay", "direct"):
         raise RuntimeError(
             f"Invalid lark mode '{mode}' in conf.yaml. Expected 'relay' or 'direct'."
         )
 
     if mode == "relay":
-        try:
-            from siada.internal.controller.relay_lark_controller import RelayLarkController
-        except ImportError as e:
-            raise RuntimeError(
-                "Relay mode is not available: failed to import RelayLarkController. "
-                "Currently only 'direct' mode is supported."
-            ) from e
-        return RelayLarkController(lark_config)
+        raise RuntimeError(
+            "Lark relay mode is not supported in this distribution. "
+            "Set lark.mode to 'direct' and provide "
+            "lark.direct.app_id / lark.direct.app_secret."
+        )
 
     direct_cfg = lark_config.get("lark", {}).get("direct", {})
     if not direct_cfg.get("app_id") or not direct_cfg.get("app_secret"):

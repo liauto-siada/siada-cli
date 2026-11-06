@@ -57,6 +57,7 @@ if "--acp" in _cli_args_before_separator():
 
 
 from siada.foundation.logging import logger, remove_console_handler, get_log_directory  # noqa: E402
+from siada.entrypoint.env_assignments import parse_env_assignments as _parse_env_assignments  # noqa: E402
 from siada.entrypoint.helpers.startup_guard import (  # noqa: E402
     missing_launch_directory_error,
     workspace_argument,
@@ -121,10 +122,6 @@ class UILauncher:
 
         if hasattr(config_args, "env_file") and config_args.env_file:
             args.extend(["--env-file", self._quote_arg(config_args.env_file)])
-
-        if hasattr(config_args, "set_env") and config_args.set_env:
-            for env_val in config_args.set_env:
-                args.extend(["--set-env", self._quote_arg(env_val)])
 
         if hasattr(config_args, "model") and config_args.model:
             args.extend(["--model", config_args.model])
@@ -210,11 +207,20 @@ class UILauncher:
         """Return the Node.js binary installed by the siada install script."""
         from siada.foundation.node_runtime import find_node
 
-        return find_node(_expected_node_path())
+        try:
+            return find_node(_expected_node_path())
+        except FileNotFoundError as error:
+            raise RuntimeError(str(error)) from error
 
     def _setup_node_env(self) -> Dict[str, str]:
         """Setup environment variables for Node.js execution."""
         env = os.environ.copy()
+        assignments = _parse_env_assignments(self.config.get("args"))
+        env.update(assignments)
+        if assignments:
+            env["_SIADA_CLI_ENV_KEYS"] = json.dumps(list(assignments))
+        else:
+            env.pop("_SIADA_CLI_ENV_KEYS", None)
         venv_dir = Path(sys.executable).parent.parent
 
         # Snapshot the user's original env *before* any siada-specific
@@ -345,65 +351,6 @@ def _raise_missing_node() -> str:
 # ---------------------------------------------------------------------------
 
 
-def _kill_proactive_processes() -> None:
-    """Kill any running siada.agent_hub.proactive processes, then re-spawn
-    a fresh one using the current venv.
-
-    Context: this helper runs from the version-change one-time setup path
-    (see ``_run_first_time_setup_if_needed``).  The original intent is to
-    make sure no daemon is left running old bytecode after an upgrade.
-    However the proactive daemon's auto-updater may have **already**
-    spawned a helper that restarted the daemon on the new version; in that
-    case blindly killing it here would leave the user with no daemon at
-    all until the next CLI invocation re-creates one.
-
-    To stay safe in both scenarios we:
-      1. Kill every matching process (the original behaviour), so any
-         orphaned old-bytecode daemon is cleaned up.
-      2. Immediately re-spawn a fresh daemon from the *current* venv via
-         ``DaemonManager.start_daemon()``.  This guarantees that after
-         this function returns there is exactly one daemon running the
-         current version.
-    """
-    try:
-        import psutil
-    except ImportError:
-        return
-
-    killed: list[int] = []
-    for proc in psutil.process_iter(["pid", "cmdline"]):
-        try:
-            cmdline = " ".join(proc.info.get("cmdline") or [])
-            if "siada.agent_hub.proactive" in cmdline:
-                proc.kill()
-                killed.append(proc.info["pid"])
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
-
-    if killed:
-        logger.info(f"[siada] Terminated {len(killed)} stale proactive process(es): {killed}")
-
-    # Compensate: re-spawn a daemon from the current venv so we don't leave
-    # the user daemon-less.  Fire-and-forget; failures are non-fatal.
-    try:
-        from siada.foundation.constants import SIADA_HOME
-        from siada.agent_hub.proactive.daemon_manager import DaemonManager
-        from pathlib import Path as _Path
-
-        pid_file = SIADA_HOME / "siada-daemon.pid"
-        daemon_script = (
-            _Path(__file__).parent.parent / "agent_hub/proactive/daemon.py"
-        )
-        manager = DaemonManager(pid_file, daemon_script)
-        # Small grace delay so the OS has fully reaped the killed processes
-        # before our scanner in start_daemon() checks whether one is alive.
-        import time as _time
-        _time.sleep(0.3)
-        if manager.start_daemon():
-            logger.info("[siada] Re-spawned proactive daemon from current venv")
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(f"[siada] Failed to re-spawn proactive daemon: {exc}")
-
 def _locate_siada_cli_ui_dir() -> Path | None:
     """Locate the installed ``siada_cli_ui`` directory.
 
@@ -478,39 +425,14 @@ def _expected_node_path() -> Path:
     return venv_dir / "nvm" / "versions" / "node" / f"v{_NODE_VERSION}" / "bin" / "node"
 
 
-def _install_node_unix() -> bool:
-    """Retained compatibility hook; resolve a runtime without changing the host."""
-    return _ensure_nodejs()
-
-
-def _install_node_windows() -> bool:
-    """Retained compatibility hook; resolve a runtime without changing the host."""
-    return _ensure_nodejs()
-
-
-def _ensure_nodejs() -> bool:
-    """Check a user-provided or browser runtime without downloading installers."""
-    from siada.foundation.node_runtime import find_node
-
-    try:
-        find_node(_expected_node_path())
-        return True
-    except FileNotFoundError as exc:
-        logger.error(str(exc))
-        return False
-
-
 def _run_first_time_setup_if_needed() -> None:
     """Run one-time setup tasks when the installed version changes."""
     from siada import __version__
 
-    current_version = __version__
+    current_version = __version__ or "dev"
 
     marker_dir = Path.home() / ".siada-cli"
     marker_file = marker_dir / ".setup_version"
-
-    if not _expected_node_path().exists():
-        _ensure_nodejs()
 
     if marker_file.exists():
         try:
@@ -523,9 +445,20 @@ def _run_first_time_setup_if_needed() -> None:
 
     try:
         marker_dir.mkdir(parents=True, exist_ok=True)
-        marker_file.write_text(current_version)
+        marker_file.write_text(str(current_version))
     except OSError:
         pass
+
+
+def _ensure_nodejs() -> bool:
+    """Retain the explicit runtime probe without installing or managing processes."""
+    from siada.foundation.node_runtime import find_node
+
+    try:
+        find_node(_expected_node_path())
+        return True
+    except FileNotFoundError:
+        return False
 
 
 _BACKEND_ONLY_ARGS = {
@@ -651,6 +584,10 @@ def _parse_args(git_root):
 
     parser = get_parser(default_config_files=[], git_root=git_root)
     args = parser.parse_args()
+    try:
+        _parse_env_assignments(args)
+    except ValueError as error:
+        parser.error(str(error))
     return args
 
 
@@ -738,6 +675,15 @@ def _launch_ui(workspace: str, args) -> int:
 
 def main():
     """Main entry point for siada-cli command."""
+    option_args = _cli_args_before_separator()
+    if "--browser-login" in option_args:
+        remove_console_handler()
+        from siada.entrypoint.browser_login import main as browser_login_main
+        return browser_login_main(reconfigure="--reconfigure" in option_args)
+    if "--browser-check" in option_args:
+        remove_console_handler()
+        from siada.entrypoint.browser_check import main as browser_check_main
+        return browser_check_main()
     # A version query must not perform setup or restart background services.
     if "--version" in _cli_args_before_separator():
         from siada import __version__
@@ -749,6 +695,8 @@ def main():
         from siada.acp_server.main import main as acp_server_main
         acp_server_main()
         return 0
+    if "--help" in option_args or "-h" in option_args:
+        _parse_args(None)
 
     backend_only = _BACKEND_ONLY_ARGS.intersection(
         arg.partition("=")[0] for arg in _cli_args_before_separator()
@@ -773,10 +721,8 @@ def main():
     except Exception:
         pass
 
-    _run_first_time_setup_if_needed()
-    logger.debug(f"[PERF][launcher] first_time_setup done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
-
     if backend_only:
+        _run_first_time_setup_if_needed()
         return _run_backend()
 
     workspace, git_root = _resolve_workspace()
@@ -784,6 +730,7 @@ def main():
 
     args = _parse_args(git_root)
     logger.debug(f"[PERF][launcher] parse_args done | +{(_time.perf_counter() - _t0)*1000:.0f}ms")
+    _run_first_time_setup_if_needed()
 
     if rc := _check_resume_workspace(workspace, args):
         return rc

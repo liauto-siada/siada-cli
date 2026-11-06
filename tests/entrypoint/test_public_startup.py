@@ -47,7 +47,7 @@ def test_stored_login_preserves_each_explicit_environment_field(monkeypatch):
     monkeypatch.setattr(login_prompt, "_applied_api_key_config", None)
     monkeypatch.setenv("BASE_URL", "https://explicit.invalid/v1")
     monkeypatch.delenv("API_KEY", raising=False)
-    assert login_prompt._check_stored_api_key_config() == "api-key-configured"
+    assert login_prompt._check_stored_api_key_config() == "api-key-user:configured"
     assert os.environ["BASE_URL"] == "https://explicit.invalid/v1"
     assert os.environ["API_KEY"] == "synthetic-stored-key"
 
@@ -110,7 +110,8 @@ def test_first_setup_does_not_restart_other_daemons(tmp_path, monkeypatch):
     monkeypatch.setattr(launch_ui_with_acp, "_ensure_nodejs", lambda: True)
     monkeypatch.setattr(launch_ui_with_acp, "_check_ui_bundle", lambda: None)
     monkeypatch.setattr(
-        launch_ui_with_acp, "_kill_proactive_processes", lambda: pytest.fail("restarted other daemons")
+        launch_ui_with_acp, "_kill_proactive_processes", lambda: pytest.fail("restarted other daemons"),
+        raising=False,
     )
     launch_ui_with_acp._run_first_time_setup_if_needed()
     assert (tmp_path / ".siada-cli/.setup_version").is_file()

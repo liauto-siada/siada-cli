@@ -43,7 +43,6 @@ def test_resumed_goal_verification_failure_exits_nonzero(baseline, monkeypatch, 
     monkeypatch.setattr(siadahub, "_ensure_agents_ready", lambda: None)
     monkeypatch.setattr(siadahub, "_ensure_litellm_ready", lambda: None)
     # The post-run quota lookup is unrelated to Goal resume and must stay offline.
-    monkeypatch.setattr("siada.services.quota_service.get_quota_usage", lambda: None)
     monkeypatch.setattr(SiadaRunner, "find_session_context", lambda _: context)
     monkeypatch.setattr(ConversationTurn, "execute", execute)
     check = AsyncMock(return_value=GoalVerdict(passed=False, reason="Synthetic verification failed"))

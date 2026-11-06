@@ -24,6 +24,21 @@ export interface TraceCollectorOptions {
   onChange?: (run: TraceRun) => void;
 }
 
+/** Metadata for a fresh request trace. */
+export interface RunMeta {
+  url?: string;
+  task?: string;
+  model?: string;
+}
+
+export type RunEndReason = "complete" | "canceled" | "error";
+/** A picture is attributed only when its correlation matches an observed step. */
+export type FrameAttachment =
+  | { kind: "step"; stepIndex: number; phase: TraceFrame["phase"] }
+  | { kind: "standalone"; reason: "unmatched-correlation" | "no-correlation" };
+
+let runIdCounter = 0;
+
 /** Map an ACP tool-call status onto our closed set. */
 export function mapToolStatus(status: string | undefined): TraceStepStatus {
   switch (status) {
@@ -43,7 +58,26 @@ function isTerminal(status: TraceStepStatus): boolean {
   return status !== "running";
 }
 
+/** Length of the union of half-open intervals; overlapping calls count once. */
+function mergedIntervalMs(intervals: Array<readonly [number, number]>): number {
+  if (intervals.length === 0) return 0;
+  const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
+  let [start, end] = sorted[0]!;
+  let total = 0;
+  for (const [nextStart, nextEnd] of sorted.slice(1)) {
+    if (nextStart > end) {
+      total += end - start;
+      start = nextStart;
+      end = nextEnd;
+    } else {
+      end = Math.max(end, nextEnd);
+    }
+  }
+  return total + end - start;
+}
+
 export class TraceCollector {
+  private runId = `run-${++runIdCounter}`;
   private readonly now: () => number;
   private readonly maxFrames: number;
   private listeners = new Set<(run: TraceRun) => void>();
@@ -66,7 +100,8 @@ export class TraceCollector {
   }
 
   /** Start (or restart) a run. Any previous steps and frames are discarded. */
-  beginRun(meta: { url?: string; task?: string; model?: string } = {}): void {
+  beginRun(meta: RunMeta = {}): void {
+    this.runId = `run-${++runIdCounter}`;
     this.startedAtMs = this.now();
     this.endedAtMs = null;
     this.url = meta.url;
@@ -78,11 +113,19 @@ export class TraceCollector {
     this.emit();
   }
 
-  /** Freeze the elapsed clock; the viewer keeps rendering the captured run. */
-  endRun(): void {
+  /** Prepare an idle session without displaying it as an active request. */
+  prepareRun(meta: RunMeta = {}): void {
+    this.beginRun(meta);
+    this.endRun();
+  }
+
+  /** Close unfinished steps without rewriting outcomes already reported by ACP. */
+  endRun(reason: RunEndReason = "complete"): void {
     if (this.endedAtMs !== null) return;
     this.endedAtMs = this.now();
-    for (const step of this.steps) this.closeStep(step, "complete");
+    for (const step of this.steps) {
+      if (step.status === "running") this.closeStep(step, reason);
+    }
     this.emit();
   }
 
@@ -111,12 +154,11 @@ export class TraceCollector {
   }
 
   /**
-   * Attach a frame to the run. When a correlation id is given the frame lands
-   * on that specific step; otherwise it prefers the step that is currently
-   * running, falling back to the most recent one. A `before` frame fills the
-   * step's before slot, which is what the change overlay diffs against.
+   * Attach only pictures whose correlation matches an observed step.
+   * Unknown and uncorrelated pictures remain standalone, without inventing a
+   * before/after pair. A matching before frame fills that step's before slot.
    */
-  addFrame(frame: TraceFrame, correlationId?: string): void {
+  addFrame(frame: TraceFrame, correlationId?: string): FrameAttachment {
     this.frames.push(frame);
     if (this.frames.length > this.maxFrames) {
       const dropped = this.frames.splice(0, this.frames.length - this.maxFrames);
@@ -129,21 +171,35 @@ export class TraceCollector {
       }
     }
 
-    const target =
-      (correlationId
-        ? this.steps.find((s) => s.correlationId === correlationId)
-        : undefined) ??
-      [...this.steps].reverse().find((s) => s.status === "running") ??
-      this.steps.at(-1);
-    if (target) {
-      if (frame.phase === "before") {
-        target.frameKeyBefore = frame.key;
-      } else {
-        target.frameKey = frame.key;
-      }
+    const target = correlationId === undefined
+      ? undefined
+      : this.steps.find((step) => step.correlationId === correlationId);
+    if (!target) {
+      this.emit();
+      return {
+        kind: "standalone",
+        reason: correlationId === undefined ? "no-correlation" : "unmatched-correlation",
+      };
+    }
+    if (frame.phase === "before") {
+      target.frameKeyBefore = frame.key;
+    } else {
+      target.frameKey = frame.key;
     }
 
     this.emit();
+    return { kind: "step", stepIndex: target.i, phase: frame.phase };
+  }
+
+  /** Record only an observed comparison of a step's own picture pair. */
+  reportPageChange(correlationId: string, changed: boolean): boolean {
+    const step = this.steps.find(value => value.correlationId === correlationId);
+    if (!step) return false;
+    if (step.pageChanged !== changed) {
+      step.pageChanged = changed;
+      this.emit();
+    }
+    return true;
   }
 
   /** Correlation id shared by concurrent tool calls; used to match frames. */
@@ -187,6 +243,7 @@ export class TraceCollector {
   }
 
   private closeStep(step: TraceStep, status: TraceStepStatus): void {
+    if (isTerminal(step.status)) return;
     if (step.correlationId) this.openByCorrelation.delete(step.correlationId);
     const endedAt = this.now();
     if (step.tsEndMs === null) step.tsEndMs = endedAt;
@@ -199,9 +256,12 @@ export class TraceCollector {
 
   snapshot(): TraceRun {
     const endedAtMs = this.endedAtMs;
-    const elapsedMs = Math.max(0, (endedAtMs ?? this.now()) - this.startedAtMs);
+    // One clock read defines the run and all still-open tool intervals.
+    const runEndMs = endedAtMs ?? this.now();
+    const elapsedMs = Math.max(0, runEndMs - this.startedAtMs);
     return {
       schema: TRACE_SCHEMA,
+      runId: this.runId,
       startedAtMs: this.startedAtMs,
       endedAtMs,
       elapsedMs,
@@ -210,16 +270,23 @@ export class TraceCollector {
       model: this.model,
       steps: this.steps.map((step) => ({ ...step })),
       frames: [...this.frames],
-      metrics: this.metrics(elapsedMs),
+      metrics: this.metrics(elapsedMs, runEndMs),
     };
   }
 
-  private metrics(elapsedMs: number): TraceMetrics {
-    let toolMs = 0;
+  private metrics(elapsedMs: number, runEndMs: number): TraceMetrics {
+    const intervals: Array<readonly [number, number]> = [];
+    for (const step of this.steps) {
+      // One-shot terminal calls have no observed duration to attribute.
+      if (step.durMs === null && step.status !== "running") continue;
+      const start = Math.max(this.startedAtMs, step.tsStartMs);
+      const end = Math.min(runEndMs, step.tsEndMs ?? runEndMs);
+      if (end > start) intervals.push([start, end]);
+    }
+    const toolMs = mergedIntervalMs(intervals);
     let changedSteps = 0;
     let wastedSteps = 0;
     for (const step of this.steps) {
-      toolMs += step.durMs ?? 0;
       if (step.pageChanged === true) changedSteps++;
       if (step.pageChanged === false) wastedSteps++;
     }

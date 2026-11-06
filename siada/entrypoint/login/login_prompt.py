@@ -15,13 +15,39 @@ import time
 from typing import Optional
 
 from siada.foundation.logging import logger
+from siada.provider.free_trial import (
+    FREE_TRIAL_BASE_URL, FREE_TRIAL_PROVIDER_ID, FREE_TRIAL_MODEL_IDS,
+    FREE_TRIAL_MODELS, get_free_trial_models_for_ui, is_free_trial_endpoint,
+)
+
+def _internal_login_available() -> bool:
+    """Probe optional package paths without importing absent parent namespaces."""
+    from importlib.machinery import PathFinder
+    import siada
+
+    name = "siada.internal.services.idaas.auth_store"
+    if name in sys.modules:
+        return True
+    package_path = siada.__path__
+    parts = name.split(".")
+    for part in parts[1:]:
+        if package_path is None:
+            return False
+        spec = PathFinder.find_spec(part, list(package_path))
+        if spec is None:
+            return False
+        package_path = spec.submodule_search_locations
+    return True
+
 
 try:
-    import siada.internal.services.idaas.auth_store 
+    if not _internal_login_available():
+        raise ImportError("Optional domain sign-in is unavailable")
+    import siada.internal.services.idaas.auth_store
     _HAS_INTERNAL = True
 except ImportError:
     _HAS_INTERNAL = False
-    logger.warning("siada.internal not available: IDaaS login is disabled.")
+    logger.debug("Optional domain sign-in is unavailable; using public provider login.")
 
 # Set after API-key login; read by siadahub to update runtime provider/model.
 _applied_api_key_config: Optional[dict] = None
@@ -84,6 +110,62 @@ def _save_provider_config(provider_id: str, api_key: str, base_url: str, model: 
         return False
 
 
+def _field_text(value) -> Optional[str]:
+    """Return sanitized text, or None when the supplied field has a wrong type."""
+    if value is None:
+        return ""
+    return value.strip() if isinstance(value, str) else None
+
+
+def _acp_transport_connected(io) -> bool:
+    return bool(getattr(getattr(getattr(io, "acp_adapter", None), "transport", None), "is_connected", False))
+
+
+def _save_failed_message() -> str:
+    return (
+        "Could not save the model configuration to ~/.siada-cli/conf.yaml. "
+        "Check that the file is writable and try again."
+    )
+
+
+def _handle_free_trial_config(payload: str, io) -> Optional[str]:
+    """Apply an allowlisted model without accepting client endpoint credentials."""
+    import json
+    global _applied_api_key_config
+
+    def report_error(message: str) -> None:
+        if _acp_transport_connected(io):
+            _send_acp_notification(io, "ui/loginError", {"error": message})
+        else:
+            io.print_error(message)
+
+    try:
+        data = json.loads(payload)
+        model = _field_text(data.get("model")) if isinstance(data, dict) else None
+    except (ValueError, TypeError):
+        model = None
+    if model not in FREE_TRIAL_MODEL_IDS:
+        report_error("Choose a supported free trial model.")
+        return None
+    if not _save_provider_config(FREE_TRIAL_PROVIDER_ID, "", FREE_TRIAL_BASE_URL, model):
+        report_error(_save_failed_message())
+        return None
+    os.environ["BASE_URL"] = FREE_TRIAL_BASE_URL
+    os.environ["API_KEY"] = ""
+    _applied_api_key_config = {
+        "provider_id": FREE_TRIAL_PROVIDER_ID, "base_url": FREE_TRIAL_BASE_URL,
+        "api_key": "", "model": model,
+    }
+    user_id = f"api-key-user:{FREE_TRIAL_PROVIDER_ID}"
+    if _acp_transport_connected(io):
+        _send_acp_notification(io, "ui/loginSuccess", {
+            "userId": user_id, "displayName": "Free Trial (Kilo)",
+        })
+    else:
+        io.print_info(f"Free trial configured: {model}")
+    return user_id
+
+
 def _handle_provider_api_key_config(config_data: dict, io) -> Optional[str]:
     """Handle provider API-key config from a choice-3 JSON payload."""
     global _applied_api_key_config
@@ -97,7 +179,7 @@ def _handle_provider_api_key_config(config_data: dict, io) -> Optional[str]:
         if value is None:
             value = default
         if not isinstance(value, str):
-            _send_acp_notification(io, 'ui/loginError', {'error': f'{name} must be a string.'})
+            _send_acp_notification(io, 'ui/loginError', {'error': 'Invalid API key configuration.'})
             return None
         values[name] = value.strip()
     provider_id, api_key, base_url, model = (values[name] for name in ('provider_id', 'api_key', 'base_url', 'model'))
@@ -105,9 +187,12 @@ def _handle_provider_api_key_config(config_data: dict, io) -> Optional[str]:
     if not api_key:
         _send_acp_notification(io, 'ui/loginError', {'error': 'API key cannot be empty.'})
         return None
+    if not base_url:
+        _send_acp_notification(io, 'ui/loginError', {'error': 'Base URL cannot be empty.'})
+        return None
 
     if not _save_provider_config(provider_id, api_key, base_url, model):
-        _send_acp_notification(io, 'ui/loginError', {'error': 'Could not save provider configuration.'})
+        _send_acp_notification(io, 'ui/loginError', {'error': _save_failed_message()})
         return None
 
     os.environ['BASE_URL'] = base_url
@@ -126,37 +211,55 @@ def _handle_provider_api_key_config(config_data: dict, io) -> Optional[str]:
     return user_id
 
 
-def _check_stored_api_key_config() -> Optional[str]:
-    """Check conf.yaml for a stored default-provider config.
-
-    If found, applies credentials to the environment and returns a synthetic
-    user_id so LiId login is skipped.
-    """
-    global _applied_api_key_config
+def _read_stored_provider_config() -> dict:
+    """Read only validated strings; configuration errors never reveal values."""
     try:
         from siada.config.conf_store import get_conf_section
 
         llm_cfg = get_conf_section("llm_config")
-        def text(name):
-            value = llm_cfg.get(name)
-            return value.strip() if isinstance(value, str) else ''
-
-        if text('provider') == 'default' and text('base_url') and text('api_key'):
-            for name, field in (('BASE_URL', 'base_url'), ('API_KEY', 'api_key')):
-                if not os.environ.get(name, '').strip():
-                    os.environ[name] = text(field)
-            _applied_api_key_config = {
-                'provider_id': text('provider_id') or 'configured',
-                'base_url': os.environ['BASE_URL'],
-                'api_key': os.environ['API_KEY'],
-                'model': text('model'),
-            }
-            logger.info("[login] Found stored API key config, using default provider")
-            return 'api-key-configured'
-        return None
+        if not isinstance(llm_cfg, dict) or llm_cfg.get("provider") != "default":
+            return {}
+        return {
+            "provider_id": _field_text(llm_cfg.get("provider_id")) or "configured",
+            **{name: _field_text(llm_cfg.get(name)) or "" for name in ("base_url", "api_key", "model")},
+        }
     except Exception as exc:
         logger.debug(f"[login] Stored provider configuration could not be loaded: {type(exc).__name__}")
+        return {}
+
+
+def _resolve_session_credentials() -> Optional[tuple[dict, str]]:
+    """Resolve each credential field without replacing explicit environment values."""
+    stored = _read_stored_provider_config()
+    stored_base = stored.get("base_url", "")
+    stored_key = stored.get("api_key", "")
+    base_url = os.environ.get("BASE_URL", "").strip() or stored_base
+    api_key = os.environ.get("API_KEY", "").strip() or stored_key
+    if (stored.get("provider_id") == FREE_TRIAL_PROVIDER_ID and
+            is_free_trial_endpoint(stored_base) and is_free_trial_endpoint(base_url)
+            and stored.get("model") in FREE_TRIAL_MODEL_IDS and not api_key):
+        return {**stored, "base_url": base_url, "api_key": ""}, f"api-key-user:{FREE_TRIAL_PROVIDER_ID}"
+    if not base_url or not api_key:
         return None
+    if base_url == stored_base and api_key == stored_key:
+        return stored, "api-key-configured"
+    return {
+        "provider_id": "configured", "base_url": base_url, "api_key": api_key, "model": "",
+    }, "api-key-user:configured"
+
+
+def _check_stored_api_key_config() -> Optional[str]:
+    """Apply a complete resolved pair, including a verified anonymous trial."""
+    global _applied_api_key_config
+    resolved = _resolve_session_credentials()
+    if resolved is None:
+        return None
+    applied, user_id = resolved
+    for name, field in (("BASE_URL", "base_url"), ("API_KEY", "api_key")):
+        if not os.environ.get(name, "").strip():
+            os.environ[name] = applied[field]
+    _applied_api_key_config = applied
+    return user_id
 
 
 def _is_interactive_tty() -> bool:
@@ -232,7 +335,10 @@ def _read_acp_stdin_message() -> Optional[str]:
     def _read_line() -> str:
         if is_monitor_active():
             return get_stdin_monitor().read_login_reply_line(timeout=0.1)
-        return sys.stdin.readline()
+        line = sys.stdin.readline()
+        if not line:
+            raise EOFError("Frontend input closed during sign-in.")
+        return line
 
     while True:
         line = _read_line()
@@ -290,6 +396,7 @@ def _ensure_logged_in_acp_apikey_only(io) -> Optional[str]:
     _send_acp_notification(io, "ui/showLoginSelector", {
         "providers": providers_data,
         "liidDisabled": True,
+        "freeTrialModels": get_free_trial_models_for_ui(),
     })
     logger.info("[login_acp] internal unavailable — showing API-key-only selector")
 
@@ -305,6 +412,8 @@ def _ensure_logged_in_acp_apikey_only(io) -> Optional[str]:
 
     parts = raw.split(":", 2)
     choice = parts[1] if len(parts) >= 2 else ""
+    if choice == "4":
+        return _handle_free_trial_config(parts[2] if len(parts) >= 3 else "", io)
 
     if choice == "3":
         payload_str = parts[2].strip() if len(parts) >= 3 else ""
@@ -314,10 +423,12 @@ def _ensure_logged_in_acp_apikey_only(io) -> Optional[str]:
         try:
             import json as _json
             config_data = _json.loads(payload_str)
-            if isinstance(config_data, dict) and "provider_id" in config_data:
+            if isinstance(config_data, dict):
                 return _handle_provider_api_key_config(config_data, io)
         except (ValueError, TypeError):
             pass
+        _send_acp_notification(io, "ui/loginError", {"error": "Invalid API key configuration."})
+        return None
 
     _send_acp_notification(io, "ui/loginError", {
         "error": "LiId login is not available in this build. Please use an API key."
@@ -331,10 +442,21 @@ def _ensure_logged_in_tty_apikey_only(io) -> Optional[str]:
         return None
 
     io.print_info("")
-    io.print_info("LiId login is not available in this build. Please configure an API key.")
+    io.print_info("Choose a model provider or a free trial to use Siada.")
     io.print_info("")
 
     try:
+        io.print_info("1. Configure API Key")
+        io.print_info("2. Free Trial — no API key required (Kilo)")
+        if input("Choose [1/2] (default 1): ").strip() == "2":
+            for index, (_, name) in enumerate(FREE_TRIAL_MODELS, 1):
+                io.print_info(f"{index}. {name}")
+            selected = input("Choose free model (default 1): ").strip() or "1"
+            if not selected.isdigit() or not 1 <= int(selected) <= len(FREE_TRIAL_MODELS):
+                io.print_error("Choose a supported free trial model.")
+                return None
+            import json
+            return _handle_free_trial_config(json.dumps({"model": FREE_TRIAL_MODELS[int(selected) - 1][0]}), io)
         base_url = input("Base URL (e.g. https://api.openai.com/v1): ").strip()
         import getpass
         api_key = getpass.getpass("API key: ").strip()
@@ -343,13 +465,16 @@ def _ensure_logged_in_tty_apikey_only(io) -> Optional[str]:
         io.print_info("\nLogin is required to use Siada. Exiting.")
         sys.exit(1)
 
+    if not base_url:
+        io.print_error("Base URL cannot be empty.")
+        return None
     if not api_key:
         io.print_error("API key cannot be empty.")
         return None
 
     provider_id = "configured"
     if not _save_provider_config(provider_id, api_key, base_url, model):
-        io.print_error("Could not save provider configuration.")
+        io.print_error(_save_failed_message())
         return None
     os.environ['BASE_URL'] = base_url
     os.environ['API_KEY'] = api_key
@@ -408,7 +533,11 @@ def _ensure_logged_in_acp(io) -> Optional[str]:
         providers_data = get_providers_for_ui()
     except Exception:
         providers_data = []
-    _send_acp_notification(io, "ui/showLoginSelector", {"providers": providers_data})
+    _send_acp_notification(io, "ui/showLoginSelector", {
+        "providers": providers_data,
+        "liidDisabled": not _HAS_INTERNAL,
+        "freeTrialModels": get_free_trial_models_for_ui(),
+    })
     logger.info("[login_acp] Sent ui/showLoginSelector with %d providers", len(providers_data))
 
     try:
@@ -428,6 +557,9 @@ def _ensure_logged_in_acp(io) -> Optional[str]:
         _send_acp_notification(io, "ui/loginError", {"error": "Login is required to use Siada. Please sign in."})
         logger.warning("[login_acp] User attempted to skip login, which is not allowed")
         return None
+
+    if choice == "4":
+        return _handle_free_trial_config(parts[2] if len(parts) >= 3 else "", io)
 
     # Choice 3: provider API key (JSON payload) or legacy LiId access token.
     if choice == "3":
@@ -670,9 +802,9 @@ def reconfigure_acp(io) -> Optional[str]:
     selector_params = {
         "providers": providers_data,
         "cancelable": True,
+        "liidDisabled": not _HAS_INTERNAL,
+        "freeTrialModels": get_free_trial_models_for_ui(),
     }
-    if not _HAS_INTERNAL:
-        selector_params["liidDisabled"] = True
 
     _send_acp_notification(io, "ui/showLoginSelector", selector_params)
 
@@ -688,6 +820,9 @@ def reconfigure_acp(io) -> Optional[str]:
 
     parts = raw.split(":", 2)
     choice = parts[1] if len(parts) >= 2 else ""
+
+    if choice == "4":
+        return _handle_free_trial_config(parts[2] if len(parts) >= 3 else "", io)
 
     if choice in ("cancel", "skip"):
         _send_acp_notification(io, "ui/loginDismiss", {})
@@ -761,8 +896,15 @@ def ensure_logged_in(io, acp_mode: bool = False) -> Optional[str]:
     Returns:
         Logged-in domain account (leg) or synthetic api-key user_id, or None on failure.
     """
-    # Explicit process credentials are accepted without persisting them.
+    global _applied_api_key_config
+    # Explicit process credentials are accepted without reading or persisting stored keys.
+    _applied_api_key_config = None
     if os.environ.get('BASE_URL', '').strip() and os.environ.get('API_KEY', '').strip():
+        _applied_api_key_config = {
+            "provider_id": "configured", "base_url": os.environ["BASE_URL"].strip(),
+            "api_key": os.environ["API_KEY"].strip(), "model": "",
+        }
+        logger.info("[login] Using explicit environment credentials: api-key-environment")
         return 'api-key-environment'
     # Otherwise try saved credentials before prompting.
     api_key_user = _check_stored_api_key_config()

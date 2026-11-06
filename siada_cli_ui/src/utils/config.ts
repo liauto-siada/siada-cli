@@ -2,8 +2,8 @@
  * Configuration management
  */
 
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { readFileSync, existsSync, writeFileSync, mkdirSync, statSync, accessSync, constants as fsConstants } from 'fs';
+import { join, dirname, delimiter } from 'path';
 import { homedir } from 'os';
 import { ClientConfig } from '../types/index.js';
 import type { EditorType } from './editor.js';
@@ -34,6 +34,47 @@ const DEFAULT_STATUSBAR_ITEMS = [
   'hit_rate', 'git_branch', 'workspace', 'cost_time', 'token_usage',
 ];
 const userConfigDirectory = process.env.SIADA_UI_CONFIG_DIR || join(homedir(), '.siada-cli');
+
+/** Verify launcher defaults without executing a shell or assuming a checkout. */
+function isUsableExecutable(candidate: string): boolean {
+  try {
+    if (!statSync(candidate).isFile()) return false;
+    accessSync(candidate, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function pathDirectories(env: NodeJS.ProcessEnv): string[] {
+  return (env.PATH ?? env.Path ?? '').split(delimiter).filter(Boolean);
+}
+
+function resolveVerifiedPython(candidate: string | undefined, env = process.env): string | undefined {
+  if (!candidate) return undefined;
+  if (candidate.includes('/') || candidate.includes('\\')) {
+    return isUsableExecutable(candidate) ? candidate : undefined;
+  }
+  for (const directory of pathDirectories(env)) {
+    const path = join(directory, candidate);
+    if (isUsableExecutable(path)) return path;
+  }
+  return undefined;
+}
+
+function resolveDefaultPythonPath(env = process.env): string | undefined {
+  const launcher = resolveVerifiedPython(env.SIADA_PYTHON_PATH, env);
+  if (launcher) return launcher;
+  const names = process.platform === 'win32'
+    ? ['python3.exe', 'python.exe', 'python3', 'python'] : ['python3', 'python'];
+  for (const name of names) {
+    for (const directory of pathDirectories(env)) {
+      const path = join(directory, name);
+      if (isUsableExecutable(path)) return path;
+    }
+  }
+  return undefined;
+}
 
 export class ConfigManager {
   private config: UserConfig = {};
@@ -138,14 +179,10 @@ export class ConfigManager {
   }
 
   buildClientConfig(overrides: Partial<ClientConfig> = {}): ClientConfig {
-    // Defaults to module mode (siada-agenthub in repo), not dependent on ~/.local/bin/siada-cli.
-    // Can be overridden via ~/.config/siada-ui/config.json or CLI args.
-    const defaultAgenthubPath = join(process.cwd(), '..', 'siada-agenthub');
-    const defaultPythonPath = join(
-      '/opt/homebrew/Caskroom/miniconda/base/envs/siada-agenthub',
-      'bin',
-      'python',
-    );
+    // Explicit settings precede verified launcher defaults and portable PATH lookup.
+    const pythonPath = overrides.pythonPath || this.config.siada?.pythonPath || resolveDefaultPythonPath();
+    const siadaModule = overrides.siadaModule || this.config.siada?.modulePath ||
+      process.env.SIADA_MODULE_PATH || undefined;
 
     return {
       workingDir: overrides.workingDir || process.cwd(),
@@ -164,9 +201,9 @@ export class ConfigManager {
       // executable mode (fallback): only used when siadaPath is explicitly provided
       siadaPath: overrides.siadaPath || this.config.siada?.path,
       // module mode (default): python -m siada.entrypoint.siadahub
-      pythonPath: overrides.pythonPath || this.config.siada?.pythonPath || defaultPythonPath,
-      siadaModule: overrides.siadaModule || this.config.siada?.modulePath || defaultAgenthubPath,
-      useModuleMode: overrides.useModuleMode ?? this.config.siada?.useModuleMode ?? true,
+      pythonPath,
+      siadaModule,
+      useModuleMode: Boolean(overrides.useModuleMode ?? this.config.siada?.useModuleMode ?? true),
       acpMode: overrides.acpMode ?? this.config.siada?.acpMode ?? true,
       siadaArgs: overrides.siadaArgs || this.config.siada?.args || [],
       env: overrides.env || {},

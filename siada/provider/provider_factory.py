@@ -27,8 +27,18 @@ _LEGACY_PROVIDER_ALIASES = {"openai_agents": "default"}
 
 def _normalize_provider_key(p_type: Optional[str]) -> Optional[str]:
     """Map legacy provider keys to their current equivalent."""
+    if p_type is not None and not isinstance(p_type, str):
+        return "default"
     if p_type in _LEGACY_PROVIDER_ALIASES:
         return _LEGACY_PROVIDER_ALIASES[p_type]
+    if p_type and p_type != "default" and p_type not in provider_map:
+        directory = os.path.join(PROVIDER_DIR, p_type)
+        available = (
+            p_type.isidentifier() and os.path.isdir(directory)
+            and any(name.endswith("_provider.py") for name in os.listdir(directory))
+        )
+        if not available:
+            return "default"
     return p_type
 
 

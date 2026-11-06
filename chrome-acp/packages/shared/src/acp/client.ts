@@ -105,7 +105,13 @@ export type FileChangesHandler = (changes: FileChange[]) => void;
 export type DirListingPushHandler = (path: string, items: FileItem[]) => void;
 // Handler for pictures of the controlled page pushed by the extension. Kept
 // trace-agnostic: the caller decides how a frame maps onto a trace step.
-export type FrameHandler = (frame: { callId?: string; payload: FramePayload }) => void;
+export interface FrameEnvelope {
+  callId?: string;
+  tabId?: number;
+  sessionId?: string;
+  payload: FramePayload;
+}
+export type FrameHandler = (frame: FrameEnvelope) => void;
 // Handler for live view state changes (the extension reports whether the
 // screencast actually started, and why not when it failed).
 export type ScreencastStateHandler = (state: {
@@ -113,6 +119,15 @@ export type ScreencastStateHandler = (state: {
   error?: string;
   mode?: LiveViewMode;
 }) => void;
+// Additional observers do not replace the callbacks owned by ChatInterface.
+export type TurnLifecycleEvent = (
+  | { kind: "started" }
+  | { kind: "completed"; stopReason: string }
+  | { kind: "failed"; message: string }
+  | { kind: "cancel-requested" }
+  | { kind: "disconnected"; error?: string }
+) & { sessionId?: string; requestId?: string };
+export type TurnLifecycleHandler = (event: TurnLifecycleEvent) => void;
 // Handler for session loaded/resumed events
 export type SessionLoadedHandler = (sessionId: string) => void;
 // Handler fired before switching the active session.
@@ -178,6 +193,7 @@ export class ACPClient {
   private sessionUpdateListeners: Set<SessionUpdateHandler> = new Set();
   private onSessionCreated: SessionCreatedHandler | null = null;
   private onPromptComplete: PromptCompleteHandler | null = null;
+  private turnLifecycleHandlers = new Set<TurnLifecycleHandler>();
   private onPermissionRequest: PermissionRequestHandler | null = null;
   private onError: ErrorHandler | null = null;
   private onBrowserToolCall: BrowserToolCallHandler | null = null;
@@ -246,6 +262,22 @@ export class ACPClient {
     this.onPromptComplete = handler;
   }
 
+  /** Observe request boundaries without replacing the primary UI callbacks. */
+  addTurnLifecycleListener(handler: TurnLifecycleHandler): () => void {
+    this.turnLifecycleHandlers.add(handler);
+    return () => { this.turnLifecycleHandlers.delete(handler); };
+  }
+
+  private emitTurn(event: TurnLifecycleEvent): void {
+    for (const handler of this.turnLifecycleHandlers) {
+      try {
+        handler(event);
+      } catch (error) {
+        console.error("[ACPClient] turn lifecycle listener failed:", error);
+      }
+    }
+  }
+
   setModelChangedHandler(handler: ModelChangedHandler): void {
     this.onModelChanged = handler;
   }
@@ -288,7 +320,15 @@ export class ACPClient {
   }
 
   private setState(state: ConnectionState, error?: string): void {
+    const wasConnected = this.connectionState === "connected";
     this.connectionState = state;
+    if (wasConnected && (state === "disconnected" || state === "error")) {
+      this.emitTurn({
+        kind: "disconnected", error,
+        sessionId: this.sessionId ?? undefined,
+        requestId: this.activePrompt?.requestId,
+      });
+    }
     this.onConnectionStateChange?.(state, error);
   }
 
@@ -588,6 +628,11 @@ export class ACPClient {
         if (response.payload.sessionId && response.payload.sessionId !== this.sessionId) break;
         console.error("[ACPClient] Error:", response.payload.message);
         this.pendingSessionTarget = null;
+        this.emitTurn({
+          kind: "failed", message: response.payload.message,
+          sessionId: this.sessionId ?? undefined,
+          requestId: this.activePrompt?.requestId,
+        });
         // Surface runtime errors (e.g. prompt failures) to the UI
         this.onError?.(response.payload.message);
         // Reject pending session operations if any
@@ -654,15 +699,28 @@ export class ACPClient {
         break;
 
       case "session_update":
-        this.onSessionUpdate?.(response.payload.sessionId, response.payload.update);
+        try {
+          this.onSessionUpdate?.(response.payload.sessionId, response.payload.update);
+        } catch (error) {
+          console.error("[ACPClient] session update handler failed:", error);
+        }
         for (const listener of this.sessionUpdateListeners) {
-          listener(response.payload.sessionId, response.payload.update);
+          try {
+            listener(response.payload.sessionId, response.payload.update);
+          } catch (error) {
+            console.error("[ACPClient] session update listener failed:", error);
+          }
         }
         break;
 
       case "prompt_complete":
-        if (!response.payload.requestId || response.payload.requestId === this.activePrompt?.requestId) {
+        if (this.activePrompt &&
+            (!response.payload.sessionId || response.payload.sessionId === this.activePrompt.sessionId) &&
+            (!response.payload.requestId || response.payload.requestId === this.activePrompt.requestId)) {
+          const prompt = this.activePrompt;
           this.activePrompt = null;
+          // Notify before the primary callback can dispatch the next queued prompt.
+          this.emitTurn({ kind: "completed", stopReason: response.payload.stopReason, ...prompt });
         }
         this.onPromptComplete?.(response.payload.stopReason, response.payload.sessionId, response.payload.requestId);
         break;
@@ -698,7 +756,10 @@ export class ACPClient {
       case "frame":
         if (this.sessionId === null || this.pendingSessionTarget !== null || response.sessionId !== this.sessionId) break;
         for (const handler of this.frameHandlers) {
-          handler({ callId: response.callId, payload: response.payload });
+          handler({
+            callId: response.callId, tabId: response.tabId,
+            sessionId: response.sessionId ?? undefined, payload: response.payload,
+          });
         }
         break;
 
@@ -837,6 +898,7 @@ export class ACPClient {
 
     this.send({ type: "prompt", payload: { content: contentBlocks, requestId } });
     this.activePrompt = { sessionId: this.sessionId, requestId };
+    this.emitTurn({ kind: "started", ...this.activePrompt });
   }
 
   get supportsSteering(): boolean {
@@ -875,6 +937,7 @@ export class ACPClient {
 
   cancel(): void {
     this.send({ type: "cancel" });
+    this.emitTurn({ kind: "cancel-requested", ...(this.activePrompt ?? {}) });
   }
 
   /**

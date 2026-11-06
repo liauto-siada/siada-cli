@@ -128,16 +128,6 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         default_reasoning_effort="medium",
     ),
     ModelBaseConfig(
-        model_name="gemini-3.5-flash",
-        max_tokens=65535,
-        context_window=600_000,
-        supports_images=True,
-        parallel_tool_calls=True,
-        supports_extra_params=["reasoning_effort"],
-        default_reasoning_effort="low",
-        note="Deprecated by Google; retained for existing configurations.",
-    ),
-    ModelBaseConfig(
         model_name="gpt-6.1-sol",
         max_tokens=65536,
         context_window=1_000_000,

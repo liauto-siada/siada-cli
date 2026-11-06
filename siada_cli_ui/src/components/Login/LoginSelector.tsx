@@ -28,12 +28,13 @@ export interface ProviderInfo {
   models: ModelInfo[];
 }
 
-export type LoginChoice = '1' | '2' | '3' | 'skip' | 'cancel';
+export type LoginChoice = '1' | '2' | '3' | '4' | 'skip' | 'cancel';
 
 export interface LoginSelectorProps {
   onSelect: (choice: LoginChoice, apiKey?: string) => void;
   /** Provider/model data from backend (models.dev cache). Overrides bundled snapshot when provided. */
   providers?: ProviderInfo[];
+  freeTrialModels?: ModelInfo[];
   /** When true (reconfigure flow), Esc cancels without error instead of sending 'skip'. */
   cancelable?: boolean;
   /** When true, hide LiId / Device Code options and only allow API key configuration. */
@@ -150,12 +151,15 @@ const OPTIONS = [
     get description() { return t('显示登录链接，可在其他设备上打开', 'Print URL — works without a browser'); } },
   { id: '3' as const, get label() { return t('配置 API Key', 'Configure API Key'); },
     get description() { return t('使用自己的 API Key（Kimi、DeepSeek、OpenAI、Claude 等）', 'Use your own API key (kimi, deepseek, openai, claude...)'); } },
+  { id: '4' as const, label: 'Free Trial',
+    get description() { return t('选择免费模型，无需 API Key', 'Choose a free model, no API key required'); } },
 ];
 
 // ── Phase type ─────────────────────────────────────────────────────────────────
 
 type Phase =
   | 'selecting'
+  | 'free-model-select'
   | 'provider-select'
   | 'model-select'
   | 'baseurl-input'
@@ -164,11 +168,12 @@ type Phase =
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, cancelable, liidDisabled, submitting = false, submitError = null }) => {
+export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, providers, freeTrialModels = [], cancelable, liidDisabled, submitting = false, submitError = null }) => {
   useUiLanguage();
   const effectiveProviders =
     providers && providers.length > 0 ? providers : PROVIDERS_SNAPSHOT;
-  const visibleOptions = liidDisabled ? OPTIONS.filter(option => option.id === '3') : OPTIONS;
+  const visibleOptions = OPTIONS.filter(option =>
+    option.id === '4' ? freeTrialModels.length > 0 : option.id === '3' || liidDisabled === false);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('selecting');
@@ -177,7 +182,8 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
   const [customBaseUrl, setCustomBaseUrl] = useState('');
   const [customModelName, setCustomModelName] = useState('');
   const selectionCount = phase === 'provider-select' ? effectiveProviders.length
-    : phase === 'model-select' ? selectedProvider?.models.length ?? 0 : visibleOptions.length;
+    : phase === 'model-select' ? selectedProvider?.models.length ?? 0
+    : phase === 'free-model-select' ? freeTrialModels.length : visibleOptions.length;
   const { startIndex, endIndex } = usePickerWindow(selectionCount, activeIndex, { summary: true });
 
   const clamp = (val: number, len: number) => Math.min(Math.max(0, val), len - 1);
@@ -199,6 +205,9 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         if (choice === '3') {
           setPhase('provider-select');
           setActiveIndex(0);
+        } else if (choice === '4') {
+          setPhase('free-model-select');
+          setActiveIndex(0);
         } else {
           onSelect(choice);
         }
@@ -206,6 +215,18 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
         onSelect(cancelable ? 'cancel' : 'skip');
       }
 
+    } else if (phase === 'free-model-select') {
+      if (key.name === 'up' || key.sequence === 'k') {
+        setActiveIndex(i => clamp(i - 1, freeTrialModels.length));
+      } else if (key.name === 'down' || key.sequence === 'j') {
+        setActiveIndex(i => clamp(i + 1, freeTrialModels.length));
+      } else if (isSubmitKey(key)) {
+        const model = freeTrialModels[activeIndex];
+        if (model) onSelect('4', JSON.stringify({ model: model.id }));
+      } else if (key.name === 'escape') {
+        setPhase('selecting');
+        setActiveIndex(Math.max(0, visibleOptions.findIndex(option => option.id === '4')));
+      }
     } else if (phase === 'provider-select') {
       if (key.name === 'up' || key.sequence === 'k') {
         setActiveIndex(i => clamp(i - 1, effectiveProviders.length));
@@ -256,6 +277,22 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
   }, { isActive: submitting });
 
   // ── Renders ──────────────────────────────────────────────────────────────────
+
+  if (phase === 'free-model-select') {
+    return (
+      <PickerFrame title="Free Trial — Choose Model"
+        summary={t('Kilo · 无需 API Key · 免费模型的可用性可能变化', 'Kilo · No API key required · Free availability may change')}
+        hint={submitting ? PANEL_TIPS.loginSubmitting : pickerHint('vertical')}>
+        <PickerScrollHint visible={startIndex > 0} direction="up" />
+        {freeTrialModels.slice(startIndex, endIndex).map((model, index) => (
+          <PickerRow key={model.id} active={startIndex + index === activeIndex}>{model.name}</PickerRow>
+        ))}
+        <PickerScrollHint visible={endIndex < freeTrialModels.length} direction="down" />
+        <Text dimColor>{activeIndex + 1}/{freeTrialModels.length} · {freeTrialModels[activeIndex]?.id}</Text>
+        {submitError && <Text color="red">{submitError}</Text>}
+      </PickerFrame>
+    );
+  }
 
   if (phase === 'provider-select') {
     return (
@@ -404,9 +441,7 @@ export const LoginSelector: React.FC<LoginSelectorProps> = ({ onSelect, provider
   // Default: 'selecting'
   return (
     <PickerFrame title={t('登录', 'Sign In')}
-      summary={liidDisabled
-              ? t('尚未登录，请配置 API Key 后继续：', 'You are not signed in. Please configure an API key to continue:')
-              : t('尚未登录，请选择登录方式：', 'You are not signed in. Choose a sign-in method:')}
+      summary={t('尚未登录，请选择登录方式：', 'You are not signed in. Choose a sign-in method:')}
       hint={cancelable ? pickerHint('vertical') : PANEL_TIPS.loginSkip}>
           <PickerScrollHint visible={startIndex > 0} direction="up" />
           {visibleOptions.slice(startIndex, endIndex).map((opt, index) => {

@@ -1,8 +1,11 @@
 import { useState } from "react";
+import manifest from "../../manifest.json";
 
+const VERSION = manifest.version;
+const SCRIPT_BASE = "https://liauto-siada.github.io/siada-cli/scripts";
 export const INSTALL_COMMANDS = {
-  unix: "curl -fsSL https://li.auto/HHuNhPv | sh -s -- --with-browser --browser-host 0.0.0.0",
-  windows: '$env:SIADA_BROWSER_HOST="0.0.0.0"; $env:SIADA_WITH_BROWSER="1";\nirm https://li.auto/ZQ3nfD5 | iex',
+  unix: `curl -fsSL ${SCRIPT_BASE}/install-browser.sh | SIADA_VERSION=${VERSION} sh`,
+  windows: `& ([scriptblock]::Create((New-Object System.Net.WebClient).DownloadString('${SCRIPT_BASE}/install-browser.ps1'))) -Version '${VERSION}'`,
 };
 
 export function InstallGuide({ onConnect }: { onConnect: () => void }) {
@@ -36,7 +39,7 @@ export function InstallGuide({ onConnect }: { onConnect: () => void }) {
               {copyFailed === platform && <p role="status" className="text-xs">复制失败，请选择上方命令手动复制。</p>}
             </div>
           ))}
-          <p className="text-xs text-muted-foreground">0.0.0.0 会开启远程控制，并对外开放相应端口。安装完成后将自动检测连接。</p>
+          <p className="text-xs text-muted-foreground">安装命令默认仅允许本机连接。安装完成后将自动检测连接。</p>
         </div>
       </div>
       <button type="button" className="mt-6 shrink-0 rounded-lg border p-3 text-sm hover:bg-muted" onClick={onConnect}>

@@ -566,10 +566,7 @@ class Controller:
             new_llm_config.carry_over_reasoning_settings(old_llm_config)
             self.config.llm_config = new_llm_config
 
-            # Keep the process-wide provider tracker in sync so the litellm
-            # token-refresh callback (siada.entrypoint) knows whether IDaaS
-            # auth applies to the new provider (skipped for "default",
-            # required for "li").
+            # Keep the resolved provider available to shared request callbacks.
             try:
                 from siada.entrypoint import set_current_provider
                 set_current_provider(new_llm_config.provider or "")

@@ -1,15 +1,15 @@
 ---
 title: Browser Tools
-description: Tools the Chrome extension exposes to AI agents.
+description: Tools the Siada Chrome extension exposes to AI agents.
 ---
 
-The Chrome extension exposes browser tools to agents via [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) using Streamable HTTP transport.
+The extension exposes browser tools to agents via [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) using Streamable HTTP transport. The proxy server hosts the MCP endpoint (`http://localhost:9315/mcp` by default) and forwards each call to the connected extension, which performs the actual work in the tab.
 
 :::note
-Browser tools require the Chrome extension. They are not available in the web client.
+Browser tools require the Chrome extension. They are not available in the web client, and they only work while the extension is connected to the proxy (check with `siada-browser status` → `extensionConnected`).
 :::
 
-## Available Tools
+## Core Tools
 
 | Tool | Description |
 |------|-------------|
@@ -40,8 +40,8 @@ Lists all open browser tabs. Call this first to get tab IDs.
   "tabs": [
     {
       "id": 123456789,
-      "url": "https://github.com/AreO-Joe/chrome-acp",
-      "title": "GitHub - chrome-acp",
+      "url": "https://example.com/dashboard",
+      "title": "Example Dashboard",
       "active": true
     },
     {
@@ -62,6 +62,8 @@ Reads the DOM content of a tab. Returns a simplified, agent-friendly representat
 
 **Parameters:**
 - `tabId` (number, required) - Tab ID from `browser_tabs`
+- `offset` (number, optional) - Character offset into the serialized DOM (default `0`)
+- `limit` (number, optional) - Maximum characters of DOM content to return (default `50000`)
 
 **Returns:**
 
@@ -81,6 +83,8 @@ Reads the DOM content of a tab. Returns a simplified, agent-friendly representat
 }
 ```
 
+Long pages are paginated: the response reports how much DOM content exists in total and whether more is available, so the agent can call `browser_read` again with a larger `offset` until it has read the sections it needs.
+
 ### DOM Serialization
 
 The extension uses a custom `collectPageInfo()` function that:
@@ -91,7 +95,7 @@ The extension uses a custom `collectPageInfo()` function that:
 - Returns a simplified representation optimized for AI understanding
 
 :::tip
-The `selection` field contains any text the user has highlighted on the page. This is useful for "explain this" or "what does this mean" workflows.
+The `selection` field contains any text the user has highlighted on the page. This is useful for "explain this" or "what does this mean" workflows — the side panel ships a matching "explain selection" button.
 :::
 
 ---
@@ -232,6 +236,46 @@ return {
 
 ---
 
+## Additional Tools in the Siada Build
+
+This adaptation of the extension adds a few more tools on top of the core three. They are declared next to the core tools on the same MCP endpoint and need the same connected extension:
+
+| Tool | Description |
+|------|-------------|
+| `browser_screenshot` | Capture the visible viewport of a tab as an image, e.g. to verify layout, charts or canvas rendering (needs a vision-capable model) |
+| `browser_replay` | Replay one recorded pipeline step (click / input / select / keydown / scroll / navigate) in a tab, locating the target by CSS selector, XPath, then visible text |
+| `browser_paragraphs` | Extract the page's main readable paragraphs as an indexed list (used for on-page translation/explanation) |
+| `browser_annotate` | Render AI-generated blocks back into the page, either below a paragraph returned by `browser_paragraphs` or in a floating card |
+| `browser_pdf_render` | Open a PDF (http/https/file URL) in the extension's built-in pdf.js viewer and wait for it to load, returning the viewer tab |
+
+---
+
+## Browser Activity Trace (side panel)
+
+The side panel's **Trace** tab shows the agent's browser work as a timeline — one
+row per tool call, with its duration, status, target and value — next to real
+pictures of the controlled tab.
+
+- the timeline is derived from the ACP session stream, so it observes calls that
+  actually ran rather than reconstructing or summarising them;
+- pictures are real captures of the tab: a before/after pair around each mutating
+  call (`browser_execute`, `browser_replay`), plus an optional live view that
+  streams the tab through the Chrome debugger while **Go live** is enabled;
+- a picture is tied to a step only when the capture reports the same correlation
+  id as the ACP tool call; the change-region overlay is the pixel diff of such a
+  step's own before/after pair. Pictures without a matching id are shown as the
+  latest picture of the run, and the tab says so — a step with no comparable
+  pair reports that no comparison was made, not that the page stayed the same;
+- a run starts when a prompt goes out and ends when the protocol says the turn is
+  over (prompt completion, cancel, error, dropped connection), which is what the
+  "live" badge follows.
+
+The trace only observes and displays. It does not learn from runs, keeps no
+trained or persisted model, and does not replay anything by itself; deterministic
+replay of a recorded step is the `browser_replay` tool's job.
+
+---
+
 ## Security Considerations
 
 - Scripts execute in the **main world** (same context as the page's JavaScript)
@@ -249,5 +293,6 @@ The extension requires these permissions in `manifest.json`:
 | `scripting` | Execute JavaScript in tab contexts |
 | `activeTab` | Access the currently active tab |
 | `sidePanel` | Show the chat UI in Chrome's side panel |
+| `storage` | Persist connection settings, feature toggles and recorded steps |
 | `declarativeNetRequest` | Strip Content-Security-Policy headers for script execution |
-
+| `debugger` | Live view (CDP screencast) of the controlled tab while the Trace tab's live view is on |

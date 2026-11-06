@@ -80,6 +80,15 @@ VALID_KEYS = {
 # directly, but they're still legitimate sections in conf.yaml and shouldn't
 # be flagged as unknown by `validate`).
 KNOWN_OBJECT_TOP_KEYS = {"lark", "sub_agent", "memory", "im", "ui", "headroom", "llm_config", "checkpoint_config"}
+LEGACY_TOP_KEYS = {
+    "headroom", "user_id", "access_token", "siada_api_key", "refresh_token",
+    "user_email", "email_refresh_token",
+}
+LEGACY_TOP_KEY_NOTES = {
+    "headroom": "the proxy integration was removed; nothing starts and no traffic is routed",
+    **{key: "legacy account configuration; retained for compatibility" for key in LEGACY_TOP_KEYS if key != "headroom"},
+}
+KNOWN_TOP_KEYS = {key.split(".")[0] for key in VALID_KEYS} | KNOWN_OBJECT_TOP_KEYS | LEGACY_TOP_KEYS
 
 
 
@@ -206,8 +215,7 @@ def cmd_set(args) -> None:
     print(f"Backup saved to: {BACKUP_PATH}")
     print()
     print("NOTE: Restart the siada daemon for changes to take effect:")
-    print("  siada-cli --stop-daemon")
-    print("  siada-cli")
+    print("  siada-cli --restart-daemon")
 
 
 def cmd_validate(_args) -> None:
@@ -220,7 +228,12 @@ def cmd_validate(_args) -> None:
         print(f"[ERROR] YAML parse error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    if not isinstance(data, dict):
+        print("[ERROR] Config root must be a mapping.", file=sys.stderr)
+        sys.exit(1)
     issues = []
+    for key in sorted(set(data) & LEGACY_TOP_KEYS):
+        print(f"[NOTE]  legacy key '{key}' (compatibility only): {LEGACY_TOP_KEY_NOTES[key]}")
 
     # Check for unknown top-level keys.
     # Everything siada itself writes or reads must be listed here, otherwise a
@@ -230,14 +243,7 @@ def cmd_validate(_args) -> None:
     #     fast_llm_config)
     #   - scalars handled elsewhere (enable_notification)
     #   - login state written by the auth flow and cleared by /logout
-    known_top = {
-        "llm_config", "checkpoint_config", "proactive", "auto_update",
-        "code_agent", "goal", "sub_agent", "memory", "web", "lark", "im", "ui",
-        "headroom", "compaction_strategy", "command_timeout", "user_id",
-        "preferred_language", "enable_notification", "fast_llm_config",
-        "siada_api_key", "refresh_token", "user_email", "email_refresh_token",
-    }
-    unknown_top = set(data.keys()) - known_top
+    unknown_top = set(data.keys()) - KNOWN_TOP_KEYS
 
     for key in sorted(unknown_top):
         issues.append(f"[WARN]  Unknown top-level key: {key!r}")
@@ -256,7 +262,7 @@ def cmd_validate(_args) -> None:
         if actual_ok:
             print(f"[OK]    {dotted_key} = {value!r}")
         else:
-            actual_name = type(value).__name__
+            actual_name = "str" if isinstance(value, str) else type(value).__name__
             expected_name = type_names.get(expected_type, expected_type.__name__)
             issues.append(
                 f"[WARN]  {dotted_key}: expected {expected_name}, got {actual_name} ({value!r})"
@@ -266,7 +272,10 @@ def cmd_validate(_args) -> None:
         print(issue)
 
     if not issues:
-        print("\nAll checks passed. Config format looks correct.")
+        if set(data) & LEGACY_TOP_KEYS:
+            print("\nConfig format looks correct; legacy settings are compatibility only.")
+        else:
+            print("\nAll checks passed. Config format looks correct.")
 
 
 def main() -> None:

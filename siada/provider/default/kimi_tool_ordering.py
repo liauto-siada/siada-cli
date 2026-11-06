@@ -30,10 +30,7 @@ Moonshot rejects the whole request with::
 
 Fix
 ---
-The legacy ``li`` provider solves this at the message level by applying
-``LitellmModel._fix_tool_message_ordering`` for kimi/moonshot models
-(``siada/internal/provider/li/li_provider.py::_fetch_response``). The default
-provider's legacy LiteLLM path builds requests through the SDK's
+The default provider's legacy LiteLLM path builds requests through the SDK's
 ``LitellmModel._fetch_response``, which applies that fix only for
 anthropic/claude/gemini models. The direct Chat Completions adapter instead
 uses the provider-neutral input-ordering mixin in ``chat_completions.py``.
@@ -69,8 +66,7 @@ if TYPE_CHECKING:
 
 # Model-family keywords whose Chat-Completions endpoints require tool outputs
 # to immediately follow the assistant message declaring the tool call.  Keep in
-# sync with the kimi/moonshot entries of the list in
-# siada/internal/provider/li/li_provider.py (_fetch_response).
+# compatible with the provider-neutral Kimi input-ordering adapter.
 _KIMI_TOOL_ORDERING_MODEL_KEYWORDS: tuple[str, ...] = ("kimi", "moonshot")
 
 

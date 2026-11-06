@@ -17,6 +17,8 @@ export interface ViewportProps {
   url?: string;
   /** Shown in the footer. */
   title?: string;
+  /** Explain whether the displayed picture is linked to the selected step. */
+  note?: string;
   /** Short badge in the location bar, e.g. "LIVE". */
   badge?: string;
   /** Rendered inside the stage when there is no frame yet. */
@@ -36,22 +38,20 @@ export function Viewport({
   overlays = [],
   url,
   title,
+  note,
   badge,
   placeholder,
   children,
   className,
 }: ViewportProps) {
-  const [measuredAspect, setMeasuredAspect] = useState<number | null>(null);
+  const [picture, setPicture] = useState<{ key: string; width: number; height: number } | null>(null);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
 
-  // The producer may not know the content-area size; fall back to the image's
-  // own aspect ratio once it loads so nothing is ever stretched.
-  const reportedAspect =
-    frame && frame.width > 0 && frame.height > 0
-      ? frame.width / frame.height
-      : null;
-  const aspect = reportedAspect ?? measuredAspect ?? DEFAULT_ASPECT;
-  const canPlaceOverlays =
-    frame !== null && frame.width > 0 && frame.height > 0;
+  // Overlays use decoded image pixels, which may differ from CSS viewport size.
+  const size = frame && picture?.key === frame.key ? picture : null;
+  const failed = frame !== null && failedKey === frame.key;
+  const aspect = size ? size.width / size.height : DEFAULT_ASPECT;
+  const canPlaceOverlays = size !== null && !failed;
 
   return (
     <div
@@ -80,23 +80,24 @@ export function Viewport({
         className="relative w-full overflow-hidden bg-muted"
         style={{ aspectRatio: String(aspect) } as CSSProperties}
       >
-        {frame ? (
+        {frame && !failed ? (
           <img
             key={frame.key}
             src={frame.dataUrl}
             alt={title ?? "Captured page"}
-            className="absolute inset-0 size-full"
+            className="absolute inset-0 size-full object-contain"
             draggable={false}
             onLoad={(event) => {
               const image = event.currentTarget;
               if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-                setMeasuredAspect(image.naturalWidth / image.naturalHeight);
+                setPicture({ key: frame.key, width: image.naturalWidth, height: image.naturalHeight });
               }
             }}
+            onError={() => setFailedKey(frame.key)}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-muted-foreground">
-            {placeholder ?? "No frame captured yet"}
+            {failed ? "This captured picture could not be displayed." : placeholder ?? "No frame captured yet"}
           </div>
         )}
 
@@ -111,10 +112,10 @@ export function Viewport({
                     : "border-amber-400 bg-amber-400/20",
                 )}
                 style={{
-                  left: `${(overlay.rect.x / frame.width) * 100}%`,
-                  top: `${(overlay.rect.y / frame.height) * 100}%`,
-                  width: `${(overlay.rect.w / frame.width) * 100}%`,
-                  height: `${(overlay.rect.h / frame.height) * 100}%`,
+                  left: `${(overlay.rect.x / size!.width) * 100}%`,
+                  top: `${(overlay.rect.y / size!.height) * 100}%`,
+                  width: `${(overlay.rect.w / size!.width) * 100}%`,
+                  height: `${(overlay.rect.h / size!.height) * 100}%`,
                 }}
               >
                 {overlay.label ? (
@@ -129,9 +130,10 @@ export function Viewport({
         {children}
       </div>
 
-      {title ? (
-        <div className="truncate border-t px-3 py-1.5 text-[11px] text-muted-foreground">
-          {title}
+      {title || note ? (
+        <div className="flex items-center gap-2 border-t px-3 py-1.5 text-[11px] text-muted-foreground">
+          <span className="truncate">{title}</span>
+          {note && <span className="ml-auto truncate">{note}</span>}
         </div>
       ) : null}
     </div>

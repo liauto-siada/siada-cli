@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Ban, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { ScrollArea } from "../ui/scroll-area";
@@ -23,6 +23,7 @@ export interface TraceViewProps {
   density?: "auto" | "compact" | "full";
   /** Shown inside the stage before the first frame arrives. */
   placeholder?: ReactNode;
+  onPageChange?: (correlationId: string, changed: boolean, runId?: string) => void;
 }
 
 const statusIcon: Record<TraceStepStatus, ReactNode> = {
@@ -43,9 +44,12 @@ export function TraceView({
   className,
   density = "auto",
   placeholder,
+  onPageChange,
 }: TraceViewProps) {
   const [selected, setSelected] = useState<number | null>(null);
   const [, setFrameTick] = useState(0);
+  const runIdentity = run.runId ?? `started-${run.startedAtMs}`;
+  useEffect(() => { setSelected(null); }, [runIdentity]);
 
   // Frames arrive independently of trace updates; re-render when one lands.
   useEffect(
@@ -69,10 +73,27 @@ export function TraceView({
   // Prefer the selected step's own frame; fall back to the newest one so the
   // stage is never blank while frames trail the trace slightly.
   const frame = afterFrame ?? frameSource.current();
+  const frameNote = frame
+    ? afterFrame ? "picture linked to this step" : "latest picture, not linked to a step"
+    : undefined;
 
   const [showChanges, setShowChanges] = useState(true);
-  const changeOverlays = useFrameDiff(beforeFrame, afterFrame);
-  const overlays = showChanges ? changeOverlays : [];
+  const diff = useFrameDiff(beforeFrame, afterFrame);
+  const overlays = showChanges ? diff.overlays : [];
+  const reportedPair = useRef<{
+    identity: string; before: string; after: string; changed: boolean;
+  } | null>(null);
+  useEffect(() => {
+    if (!onPageChange || !activeStep?.correlationId || !beforeFrame || !afterFrame || diff.changed === null) return;
+    const pair = `${runIdentity}:${activeStep.correlationId}:${beforeFrame.key}:${afterFrame.key}`;
+    const reported = reportedPair.current;
+    if (reported?.identity === pair && reported.before === beforeFrame.dataUrl &&
+        reported.after === afterFrame.dataUrl && reported.changed === diff.changed) return;
+    reportedPair.current = {
+      identity: pair, before: beforeFrame.dataUrl, after: afterFrame.dataUrl, changed: diff.changed,
+    };
+    onPageChange(activeStep.correlationId, diff.changed, run.runId);
+  }, [onPageChange, runIdentity, run.runId, activeStep?.correlationId, beforeFrame, afterFrame, diff.changed]);
 
   const maxDur = run.steps.reduce((max, step) => Math.max(max, step.durMs ?? 0), 0);
 
@@ -93,15 +114,21 @@ export function TraceView({
             overlays={overlays}
             url={frame?.url ?? run.url}
             title={frame?.title ?? run.task}
+            note={frameNote}
             badge={run.endedAtMs === null ? "live" : undefined}
             placeholder={placeholder}
           />
           <StepDetail
             step={activeStep}
-            changedRegions={changeOverlays.length}
+            changedRegions={diff.overlays.length}
             overlaysVisible={showChanges}
             onToggleOverlays={() => setShowChanges((visible) => !visible)}
           />
+          {diff.status !== "ready" && <p role="status" className="text-xs text-muted-foreground">
+            {diff.status === "pending" ? "Comparing this step's pictures…" :
+              diff.status === "unavailable" ? `Picture comparison unavailable: ${diff.reason}` :
+                "No before/after picture pair is linked to this step."}
+          </p>}
         </div>
 
         <div className="flex min-h-0 flex-col lg:w-80 lg:shrink-0">
@@ -163,12 +190,17 @@ function Summary({ run }: { run: TraceRun }) {
 
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] sm:grid-cols-4">
         <Metric label="steps" value={String(metrics.stepCount)} />
-        <Metric label="tool" value={formatDuration(metrics.toolMs)} />
-        <Metric label="model / wait" value={formatDuration(metrics.gapMs)} />
+        <Metric label="tool" value={formatDuration(metrics.toolMs)}
+          hint="Time covered by observed tool calls; concurrent overlaps are counted once." />
+        <Metric label="outside tools" value={formatDuration(metrics.gapMs)}
+          hint="Estimated time not attributed to measured tool calls; may include model work, transport and orchestration." />
         <Metric
           label="no change"
-          value={String(metrics.wastedSteps)}
+          value={metrics.changedSteps + metrics.wastedSteps > 0 ? String(metrics.wastedSteps) : "—"}
           warn={metrics.wastedSteps > 0}
+          hint={metrics.changedSteps + metrics.wastedSteps > 0
+            ? "Compared picture pairs with no change above the pixel-diff threshold; this does not prove the action did nothing."
+            : "No step has a compared before/after picture pair yet."}
         />
       </dl>
     </div>
@@ -179,13 +211,15 @@ function Metric({
   label,
   value,
   warn,
+  hint,
 }: {
   label: string;
   value: string;
   warn?: boolean;
+  hint?: string;
 }) {
   return (
-    <div className="flex min-w-0 items-baseline gap-1">
+    <div className="flex min-w-0 items-baseline gap-1" title={hint}>
       <dt className="truncate text-muted-foreground">{label}</dt>
       <dd
         className={cn(
@@ -288,7 +322,7 @@ function StepDetail({
         {step.value ? <span>value: {step.value}</span> : null}
         {step.pageChanged !== null ? (
           <span className={step.pageChanged ? "" : "text-amber-600"}>
-            page {step.pageChanged ? "changed" : "unchanged"}
+            {step.pageChanged ? "page changed" : "page diff: no change above threshold"}
           </span>
         ) : null}
         {changedRegions > 0 ? (

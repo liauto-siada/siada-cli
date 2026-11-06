@@ -489,7 +489,6 @@ export class SiadaACPClient extends EventEmitter {
       messageId,
       choice,
       payloadLength: payload?.length ?? 0,
-      payloadPreview: payload ? this.redactSensitiveContent(payload).substring(0, 100) : '',
     });
 
     try {

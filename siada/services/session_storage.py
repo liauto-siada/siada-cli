@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import errno
 import json
 import os
 import tempfile
@@ -59,7 +60,12 @@ def sync_directory(folder: Path) -> None:
         return
     fd = os.open(folder, os.O_RDONLY)
     try:
-        os.fsync(fd)
+        try:
+            os.fsync(fd)
+        except OSError as error:
+            # Unsupported directory flushes may be skipped; I/O failures must surface.
+            if error.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP, errno.EINVAL):
+                raise
     finally:
         os.close(fd)
 

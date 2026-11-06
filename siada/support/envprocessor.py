@@ -1,3 +1,7 @@
+import json
+import os
+import re
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,6 +38,19 @@ def generate_search_path_list(default_file, git_root, command_line_file):
 
 
 def load_dotenv_files(git_root, dotenv_fname, encoding="utf-8"):
+    marker = os.environ.pop("_SIADA_CLI_ENV_KEYS", None)
+    protected = {}
+    if marker:
+        try:
+            names = json.loads(marker)
+            if not isinstance(names, list) or any(
+                not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
+                for name in names
+            ):
+                raise ValueError("Invalid environment variable names")
+            protected = {name: os.environ.get(name) for name in names}
+        except (ValueError, TypeError):
+            pass
     # Standard .env file search path
     dotenv_files = generate_search_path_list(
         ".env",
@@ -47,8 +64,12 @@ def load_dotenv_files(git_root, dotenv_fname, encoding="utf-8"):
             if Path(fname).exists():
                 load_dotenv(fname, override=True, encoding=encoding)
                 loaded.append(fname)
-        except OSError as e:
-            print(f"OSError loading {fname}: {e}")
-        except Exception as e:
-            print(f"Error loading {fname}: {e}")
+        except Exception as error:
+            print(f"Warning: Could not load .env ({type(error).__name__}).", file=sys.stderr)
+        finally:
+            for name, value in protected.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
     return loaded

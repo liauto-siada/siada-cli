@@ -501,6 +501,8 @@ async def test_interrupted_multi_file_write_is_rolled_back_before_read(baseline)
 async def test_actual_telemetry_after_replacement_still_uses_full_history(baseline, monkeypatch):
     from siada.session.session_manager import RunningSessionManager
     import siada.session.session_manager as module
+    if not module.telemetry.config.conversation_url:
+        pytest.skip("Public telemetry is inert; storage history is covered independently.")
 
     session = baseline.session()
     store = session.openai_session

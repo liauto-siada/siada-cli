@@ -147,12 +147,12 @@ async def test_settings_tools_schema_images_and_reasoning_use_native_fields(endp
         return str(value)
 
     endpoint.responses = [(200, native_response([{"text": '{"answer":"done"}'}]))]
-    config = ModelRunConfig("gemini-3.5-flash")
+    config = ModelRunConfig("gemini-4-argon")
     config.set_reasoning_effort("low")
     settings = ModelSettingsConverter.convert_model_settings(config).resolve({"max_tokens": 40})
     args = request_args([{"role": "user", "content": [{"type": "input_text", "text": "image"}, {"type": "input_image", "image_url": "data:image/jpeg;base64,aW1hZ2U="}]}], settings=settings)
     args.update(tools=[lookup], output_schema=AgentOutputSchema(Output), system_instructions="synthetic system")
-    await GeminiModel("gemini-3.5-flash", client=client).get_response(**args)
+    await GeminiModel("gemini-4-argon", client=client).get_response(**args)
     body = endpoint.requests[0][1]
     assert body["generationConfig"]["thinkingConfig"] == {"thinking_level": "LOW", "include_thoughts": True}
     assert body["generationConfig"]["maxOutputTokens"] == 40

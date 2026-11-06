@@ -80,9 +80,9 @@ function parseSiadaArgs(raw: string): string[] | undefined {
 }
 
 function buildConfig(workingDir: string, options: any) {
-  const pythonPath = options.pythonPath || process.env.SIADA_PYTHON_PATH;
-  const siadaModule = options.siadaModule || process.env.SIADA_MODULE_PATH;
-  const useModuleMode = options.useModuleMode || (pythonPath && siadaModule) || false;
+  const pythonPath = options.pythonPath;
+  const siadaModule = options.siadaModule;
+  const useModuleMode = options.useModuleMode ?? (pythonPath && siadaModule ? true : undefined);
 
   return configManager.buildClientConfig({
     workingDir,
@@ -218,7 +218,16 @@ function main(): void {
       configureLogger(options);
       logger.info(`[ui-timing] phase=logger_configured  elapsed_ms=${Date.now() - _T0}`);
 
-      logger.info('Starting siada-cli-ui', { workingDir, options });
+      // Options include raw backend arguments and may contain credentials.
+      logger.info('Starting siada-cli-ui', {
+        workingDir,
+        acpMode: options.acpMode !== false,
+        alternateBuffer: resolveTerminalMode(options).alternateBuffer,
+        noAltScreen: resolveTerminalMode(options).noAltScreen,
+        useModuleMode: options.useModuleMode === true,
+        debug: options.debug === true,
+        logLevel: options.logLevel,
+      });
 
       const config = buildConfig(workingDir, options);
       logger.info(`[ui-timing] phase=config_built        elapsed_ms=${Date.now() - _T0}`);

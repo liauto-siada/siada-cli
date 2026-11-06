@@ -96,18 +96,20 @@ export interface TraceOverlay {
 
 export interface TraceMetrics {
   stepCount: number;
-  /** Sum of measured step durations. */
+  /** Time covered by observed tool intervals, counting concurrent overlaps once. */
   toolMs: number;
   /** Run time not attributed to any step (model turns, orchestration). */
   gapMs: number;
-  /** Completed steps that reported a page change. */
+  /** Steps whose own picture pair was compared and showed a change. */
   changedSteps: number;
-  /** Steps that finished without any page change. */
+  /** Compared picture pairs with no change above the diff threshold. */
   wastedSteps: number;
 }
 
 export interface TraceRun {
   schema: typeof TRACE_SCHEMA;
+  /** Unique even when two requests start in the same millisecond. */
+  runId?: string;
   startedAtMs: number;
   /** null while the run is still open. */
   endedAtMs: number | null;

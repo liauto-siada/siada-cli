@@ -1,27 +1,35 @@
-try:
-    from siada.internal.foundation.telemetry import *  # noqa: F401,F403
-except ImportError:
-    class _NoOpTelemetryConfig:
-        """Stub config when siada.internal is not available."""
-        def __init__(self):
-            self.url = ""
-            self.conversation_url = ""
-            self.user_id = None
+"""Inert telemetry compatibility surface for the public distribution."""
 
-    class Telemetry:
-        """No-op telemetry stub when siada.internal is not available."""
-        def __init__(self):
-            self.config = _NoOpTelemetryConfig()
-            self.device_id = ""
-            self.mac_id = ""
 
-        def captureConversation(self, **kwargs):
-            pass
+class _NoOpTelemetryConfig:
+    """Keep reporting disabled while retaining the configuration interface."""
 
-        def captureConversationEvent(self, **kwargs):
-            pass
+    def __init__(self):
+        self.url = ""
+        self.conversation_url = ""
+        self.user_id = None
 
-        def captureToolEditFileUsage(self, **kwargs):
-            pass
 
-    telemetry = Telemetry()
+class Telemetry:
+    """Keep existing capture call sites available without collecting data."""
+
+    def __init__(self):
+        self.config = _NoOpTelemetryConfig()
+        self.device_id = ""
+        self.mac_id = ""
+
+    def captureConversation(self, *args, **kwargs):
+        """Conversation collection is disabled."""
+
+    def captureConversationEvent(self, *args, **kwargs):
+        """Conversation event collection is disabled."""
+
+    def captureApiTokenUsage(self, *args, **kwargs):
+        """Remote token usage collection is disabled."""
+
+    def captureToolEditFileUsage(self, *args, **kwargs):
+        """Remote edit usage collection is disabled."""
+
+
+telemetry = Telemetry()
+__all__ = ["Telemetry", "telemetry"]

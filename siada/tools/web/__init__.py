@@ -1,27 +1,16 @@
-"""
-Web tools package - stub that re-exports from internal.
-
-This module delegates to siada.internal.tools.web for backward compatibility.
-The actual implementations live in siada/internal/tools/web/ (not open-sourced).
-"""
+"""Public web tool discovery with optional local fetch support."""
 
 from typing import List, Optional
 
+web_search = None
 try:
-    from siada.internal.tools.web import get_web_tools, web_search, web_fetch
+    from siada.tools.web.web_fetch import web_fetch
 except ImportError:
-    web_search = None
+    web_fetch = None
 
-    try:
-        from siada.tools.web.web_fetch import web_fetch
-    except ImportError:
-        web_fetch = None
 
-    def get_web_tools() -> List:
-        tools = []
-        if web_fetch is not None:
-            tools.append(web_fetch)
-        return tools
+def get_web_tools() -> List:
+    return [web_fetch] if web_fetch is not None else []
 
 __all__ = [
     'web_fetch',

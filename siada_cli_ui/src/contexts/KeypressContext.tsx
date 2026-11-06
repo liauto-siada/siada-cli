@@ -886,14 +886,13 @@ export function KeypressProvider({
         logger.debug('🔥 Broadcasting key event', {
           component: 'KeypressContext',
           operation: 'broadcast',
-          key: {
-            name: key.name,
-            ctrl: key.ctrl,
-            alt: key.alt,
-            cmd: key.cmd,
-            shift: key.shift,
-            sequenceLength: key.sequence.length,
-          },
+          keyName: !key.insertable && Array.from(key.name).length > 1 ? key.name : undefined,
+          insertable: key.insertable,
+          ctrl: key.ctrl,
+          alt: key.alt,
+          cmd: key.cmd,
+          shift: key.shift,
+          sequenceLength: key.sequence.length,
           subscriberCount: subscribers.size,
         });
       }

@@ -3,12 +3,8 @@ import { FolderOpen, MessageSquare, History, Activity, Play, Square } from "luci
 import { cn } from "../lib/utils";
 import type { ACPClient } from "../acp/client";
 import type { AgentSessionInfo, LiveViewMode } from "../acp/types";
-import {
-  TraceCollector,
-  createBufferedFrameSource,
-  frameFromDataUrl,
-  type TraceRun,
-} from "../trace/index.ts";
+import { createTraceStore } from "./trace/trace-store";
+import type { TraceRun } from "../trace/types";
 import { ChatInterface } from "./ChatInterface";
 import { FileExplorer } from "./FileExplorer";
 import { ThreadHistory } from "./ThreadHistory";
@@ -29,6 +25,19 @@ interface ACPMainProps {
 const TAB_ORDER = ["chat", "trace", "history", "files"] as const;
 type TabValue = (typeof TAB_ORDER)[number];
 
+/** Match the active-tab lookup used when ChatInterface binds a session. */
+async function currentTabId(): Promise<number | undefined> {
+  try {
+    const api = (globalThis as {
+      chrome?: { tabs?: { query?: (query: object) => Promise<{ id?: number }[]> } };
+    }).chrome;
+    const tabs = await api?.tabs?.query?.({ active: true, currentWindow: true });
+    return tabs?.[0]?.id;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Main container component that provides tabs for Chat, Trace, History, and
  * File explorer. The Trace tab is the browser-activity viewer: per-step
@@ -40,43 +49,24 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
   const [activeTab, setActiveTab] = useState<TabValue>("chat");
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const tabLookup = useRef(0);
 
-  // Trace store. The collector measures per-step durations from the ACP stream
-  // with no backend involvement; the frame source starts empty and is filled
-  // by whatever picture channel is available (see trace/frame-source.ts).
+  // Each request owns its trace, with terminal events supplied by ACP.
   const trace = useMemo(
-    () => ({
-      collector: new TraceCollector(),
-      frames: createBufferedFrameSource(),
-    }),
-    [],
+    () => createTraceStore({ model: () => client.modelState?.currentModelId ?? undefined }),
+    [client],
   );
   const [run, setRun] = useState<TraceRun>(() => trace.collector.snapshot());
 
   useEffect(() => trace.collector.subscribe(setRun), [trace]);
 
-  // Runs alongside ChatInterface's own handler rather than replacing it.
-  useEffect(
-    () =>
-      client.addSessionUpdateListener((_sessionId, update) =>
-        trace.collector.addSessionUpdate(update),
-      ),
-    [client, trace],
-  );
-
-  // Pictures of the controlled page. The frame is stored in the source before
-  // the collector announces it, so the view can resolve the key it is given.
-  useEffect(
-    () =>
-      client.onFrame(({ callId, payload }) => {
-        const frame = frameFromDataUrl(payload);
-        trace.frames.push(frame);
-        // Live frames carry no call id: they are the current picture, not a
-        // step's own before/after pair, so they must not claim a step.
-        if (callId !== undefined) trace.collector.addFrame(frame, callId);
-      }),
-    [client, trace],
-  );
+  useEffect(() => {
+    trace.attach(client);
+    return () => {
+      tabLookup.current++;
+      trace.detach();
+    };
+  }, [client, trace]);
 
   // Live view: off until asked for, because streaming attaches a debugger to
   // the user's tab and that should be a deliberate choice.
@@ -86,20 +76,33 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
     mode?: LiveViewMode;
   }>({ active: false });
   useEffect(() => client.onScreencastState(setLiveState), [client]);
-  useEffect(() => () => client.setScreencast(false), [client]);
+  useEffect(() => () => {
+    try { client.setScreencast(false); } catch { /* The connection is already gone. */ }
+  }, [client]);
 
   const toggleLiveView = useCallback(() => {
-    client.setScreencast(!liveState.active);
+    try {
+      client.setScreencast(!liveState.active);
+    } catch (error) {
+      setLiveState({
+        active: false,
+        error: error instanceof Error ? error.message : "live view is unavailable",
+      });
+    }
   }, [client, liveState.active]);
 
   // A new session means a new run: otherwise steps from the previous session
   // would keep accumulating into one timeline.
   const handleSessionActiveInternal = useCallback(
     (sessionId: string) => {
-      trace.collector.beginRun({ model: client.modelState?.currentModelId ?? undefined });
+      trace.setSession(sessionId);
+      const lookup = ++tabLookup.current;
+      void currentTabId().then(id => {
+        if (lookup === tabLookup.current) trace.setTab(id, sessionId);
+      });
       onSessionActive?.(sessionId);
     },
-    [client, trace, onSessionActive],
+    [trace, onSessionActive],
   );
 
   // Handle session selection from history
@@ -242,6 +245,7 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
           <TraceView
             run={run}
             frameSource={trace.frames}
+            onPageChange={trace.reportPageChange}
             className="min-h-0 flex-1"
             placeholder="Frames appear here as the agent acts. Timings come from the trace, not from the picture."
           />

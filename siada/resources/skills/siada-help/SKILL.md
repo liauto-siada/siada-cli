@@ -38,7 +38,7 @@ This skill handles three types of requests:
 **Key files:**
 - `~/.siada-cli/conf.yaml` — main configuration (LLM, proactive agent, checkpoints, sub-agents, theme)
 - `~/.siada-cli/ui-config.json` — terminal UI preferences (interface language, status bar, editor)
-- `~/.siada-cli/model_config.json` — per-model overrides (context window, pricing, vision engine)
+- `~/.siada-cli/models.json` — per-model overrides (context window, pricing, vision engine)
 - `~/.siada-cli/mcp_config.json` — MCP server configuration
 - `~/.siada-cli/workspace/cron_tasks.json` — scheduled cron tasks
 - `~/.siada-cli/workspace/memory/` — agent memory files

@@ -17,6 +17,11 @@ assistant turns yet). The GLM empty-list behaviour has its own opt-out switch
 (TODO_EMPTY_LIST_REMINDER_ENV); /goal keeps its own goal reminder and verifier
 independently of this processor.
 
+The existing-list reminder is adapted from zai-org/ZCode at commit
+29628c9acdb81b703bbd4080c207a0e7ce5e276e, under Apache-2.0.
+Copyright 2026 Z.AI Co., Ltd. Siada changes tool names, persistence, and
+model-specific reminder behavior; attribution is included in docs/CREDITS.md.
+
 This used to be split across two pieces: a ``TodoReminderFilter``
 ``call_model_input_filter`` (context_capture_filter.py) that injected the
 reminder, plus a separate persistence processor. It's not a
@@ -326,6 +331,9 @@ class TodoReminderProcessor(AgentHooks):
         response: ModelResponse,
     ) -> None:
         siada_context = context.context
+        # The request bridge owns persistence and clears only committed reminders.
+        if getattr(siada_context, "runtime_session", None) is not None:
+            return
         pending: List[Any] = getattr(siada_context, "pending_reminder_items", None) or []
         try:
             await persist_pending_reminder_items(

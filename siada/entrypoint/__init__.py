@@ -5,6 +5,7 @@ from siada.foundation.logging import logger
 
 
 _TOKEN_REFRESH_REGISTERED = False
+_PRE_CALL_HOOK_REGISTERED = False
 _CURRENT_PROVIDER: str = ""
 
 
@@ -136,9 +137,8 @@ def _configure_litellm():
         litellm.success_callback = []
         litellm.failure_callback = []
 
-        # Register token-refresh callback that fires before every deployment
-        # call (including retries), ensuring each attempt gets a fresh token.
-        _register_token_refresh_callback()
+        # Preprocessing leaves the caller's credentials and headers unchanged.
+        _register_pre_call_hook()
 
         logger.debug(" logging configuration completed")
 
@@ -148,24 +148,29 @@ def _configure_litellm():
         logger.debug(f"Error configuring  logging: {e}")
 
 
-def _register_token_refresh_callback():
-    """Register a litellm callback that refreshes auth token before each call."""
-    global _TOKEN_REFRESH_REGISTERED
-    if _TOKEN_REFRESH_REGISTERED:
+def _register_pre_call_hook():
+    """Normalize outgoing messages without reading or writing authentication."""
+    global _PRE_CALL_HOOK_REGISTERED
+    if _PRE_CALL_HOOK_REGISTERED:
         return
 
     import litellm
     from litellm.integrations.custom_logger import CustomLogger
 
-    class _SiadaTokenRefreshCallback(CustomLogger):
+    class _SiadaPreCallHook(CustomLogger):
         async def async_pre_call_deployment_hook(self, kwargs, call_type):
             _normalize_empty_assistant_content(kwargs.get("messages"))
 
             return kwargs
 
     if not any(
-        type(cb).__name__ == "_SiadaTokenRefreshCallback"
+        type(cb).__name__ == "_SiadaPreCallHook"
         for cb in litellm.callbacks
     ):
-        litellm.callbacks.append(_SiadaTokenRefreshCallback())
-    _TOKEN_REFRESH_REGISTERED = True
+        litellm.callbacks.append(_SiadaPreCallHook())
+    _PRE_CALL_HOOK_REGISTERED = True
+
+
+def _register_token_refresh_callback():
+    """Compatibility alias for the message preprocessing registration."""
+    _register_pre_call_hook()

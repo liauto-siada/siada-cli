@@ -141,6 +141,14 @@ def _parse_args_and_setup_environment(argv):
     return args, git_root, workspace_arg, parser, interactive_mode
 
 
+def acp_enabled(args=None) -> bool:
+    """Use one ACP decision for explicit flags and frontend environment signals."""
+    return bool(
+        getattr(args, "acp", False)
+        or os.environ.get("SIADA_ACP_MODE", "").lower() in ("1", "true", "yes")
+    )
+
+
 def get_io(args, pretty=None):
     """Create and return a configured InputOutput instance.
 
@@ -149,14 +157,14 @@ def get_io(args, pretty=None):
     """
     from siada.io.color_settings import ColorSettings
 
-    acp_enabled = args.acp or os.environ.get('SIADA_ACP_MODE') == '1'
+    acp_mode = acp_enabled(args)
 
     color_settings = ColorSettings.from_theme(args.theme)
     running_color_settings = RunningConfigColorSettings(color_settings=color_settings, pretty=args.pretty)
     color_settings.apply_to_args(args)
 
     editing_mode = "VI" if args.vim else "EMACS"
-    if acp_enabled:
+    if acp_mode:
         # In ACP mode, stdin is a pipe (not a TTY).  The Node.js frontend
         # writes \x03 (ETX) to the pipe as the primary interrupt mechanism
         # on ALL platforms.  Start the StdinInterruptMonitor to read stdin
@@ -180,7 +188,7 @@ def get_io(args, pretty=None):
             fancy_input=args.fancy_input,
             multiline_mode=False,
             notifications=True,
-            acp_enabled=acp_enabled,
+            acp_enabled=acp_mode,
             acp_fallback=True,
         ), running_color_settings
     else:
@@ -298,12 +306,8 @@ def _send_startup_error_to_ui(error_message: str, args=None):
     In ACP mode sends a FAILED session-update so the UI can exit the
     "Loading configuration…" state; in TTY mode prints to stderr.
     """
-    if args:
-        acp_enabled = args.acp or os.environ.get('SIADA_ACP_MODE') == '1'
-    else:
-        acp_enabled = os.environ.get('SIADA_ACP_MODE') == '1'
-
-    if not acp_enabled:
+    acp_mode = acp_enabled(args)
+    if not acp_mode:
         print(f"Error: {error_message}", file=sys.stderr)
         return
 
@@ -496,6 +500,19 @@ def handle_special_commands(args, conf: Config, io) -> Optional[int]:
     return None
 
 
+def _local_model_settings_entry(model_name: str):
+    """Keep explicit model aliases available without a catalogue lookup."""
+    from siada.models.model_base_config import MODEL_SETTING, ModelBaseConfig
+
+    for entry in MODEL_SETTING:
+        if entry.model_name == model_name:
+            return entry
+    return ModelBaseConfig(
+        model_name=model_name, context_window=128_000,
+        max_tokens=8192, parallel_tool_calls=True,
+    )
+
+
 def _apply_login(io, args, model, controller) -> Optional[int]:
     """
     Verify login state and apply any API-key provider config to the running model.
@@ -505,7 +522,7 @@ def _apply_login(io, args, model, controller) -> Optional[int]:
     logger.info("Checking IDaaS login state")
     try:
         from siada.entrypoint.login.login_prompt import ensure_logged_in
-        logged_in_user = ensure_logged_in(io, acp_mode=args.acp)
+        logged_in_user = ensure_logged_in(io, acp_mode=acp_enabled(args))
         if logged_in_user is None:
             logger.error("Login required but not completed. Exiting.")
             io.print_error("Login is required to use Siada. Please sign in and try again.")
@@ -520,15 +537,19 @@ def _apply_login(io, args, model, controller) -> Optional[int]:
     # If user logged in via API key (provider=default), apply to running model
     if logged_in_user and logged_in_user.startswith("api-key-"):
         try:
-            from siada.entrypoint.login.login_prompt import get_applied_api_key_config
+            from siada.entrypoint.login.login_prompt import get_applied_api_key_config, _field_text
 
             api_cfg = get_applied_api_key_config()
             if api_cfg:
                 model.provider = 'default'
-                provider_id = api_cfg.get('provider_id', '')
-                new_model_name = (api_cfg.get('model') or '').strip()
-                base_url = (api_cfg.get('base_url') or '').strip()
-                provider_models = get_api_key_provider_models(provider_id, new_model_name, base_url)
+                provider_id = _field_text(api_cfg.get('provider_id')) or ''
+                new_model_name = _field_text(api_cfg.get('model')) or ''
+                base_url = _field_text(api_cfg.get('base_url')) or ''
+                args_model = _field_text(getattr(args, 'model', None)) or ''
+                new_model_name = args_model or new_model_name
+                provider_models = get_api_key_provider_models(provider_id, new_model_name, base_url) or []
+                if args_model and not any(entry.model_name == args_model for entry in provider_models):
+                    provider_models = list(provider_models) + [_local_model_settings_entry(args_model)]
                 if provider_models:
                     # Merge, never replace: models.json stays authoritative for
                     # the models it defines (see the helper's docstring).
@@ -593,7 +614,7 @@ def _build_session(args, conf, io, running_color_settings, model, workspace, int
         interactive=interactive_mode,
         mcp_config=conf.mcp_config,
         checkpointing_config=checkpointing_config,
-        acp_mode=args.acp,
+        acp_mode=acp_enabled(args),
         compaction_strategy=conf.compaction_strategy,
         memory_enabled=conf.memory_config.enabled,
         enable_notification=conf.enable_notification,
@@ -708,7 +729,7 @@ def _run_interactive(args, session, running_config, commands, io, model) -> Opti
     # Falls back to synchronous login when no credentials exist at all (new user /
     # logged-out) — must block before banner to avoid showing the main view then
     # flashing a login overlay on top.
-    if args.acp and _has_stored_credentials():
+    if acp_enabled(args) and _has_stored_credentials():
         _start_login_init_async(io, args, model, controller)
     else:
         login_err = _apply_login(io, args, model, controller)
@@ -727,7 +748,7 @@ def _run_interactive(args, session, running_config, commands, io, model) -> Opti
 
     if outcome is not None and outcome[0]:
         _, session_data = outcome
-        if args.acp:
+        if acp_enabled(args):
             commands._send_history_to_ui(session_data.items)
             # Re-push the resumed session's goal state (if any) so the
             # GoalStatusBar reappears immediately on startup, rather than

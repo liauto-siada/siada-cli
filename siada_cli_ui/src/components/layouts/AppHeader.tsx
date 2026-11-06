@@ -86,12 +86,10 @@ export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
         <Text color="blue">{workingDir}</Text>
       </Box>
 
-      {/* Agent, Provider, Model info */}
+      {/* Provider routing stays out of the user-facing banner. */}
       <Box marginTop={0}>
         <Text>{t('智能体：', 'Agent: ')}</Text>
         <Text color="yellow">{agent}</Text>
-        <Text>{t('，服务商：', ', Provider: ')}</Text>
-        <Text color="yellow">{provider}</Text>
         <Text>{t('，模型：', ', Model: ')}</Text>
         <Text color="yellow">{model || t('默认', 'default')}</Text>
         <Text>.</Text>

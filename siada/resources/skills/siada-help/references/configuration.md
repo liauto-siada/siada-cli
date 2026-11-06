@@ -272,21 +272,12 @@ Configures the Lark/Feishu bot integration that lets you remotely control your l
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `lark.mode` | string | `"relay"` | `"relay"` (via IM Gateway, no bot credentials needed) or `"direct"` (talk to Lark's WebSocket SDK directly) |
+| `lark.mode` | string | `"direct"` | Public Lark WebSocket integration; legacy relay mode is not supported |
 | `lark.workspace` | string | `~/.siada-cli/workspace/lark` | Workspace directory for Lark session state |
 | `lark.direct.app_id` | string | (none) | Lark app ID (only for `mode: direct`) |
 | `lark.direct.app_secret` | string | (none) | Lark app secret (only for `mode: direct`) |
-| `lark.direct.access.dm_policy` | string | `"open"` | `"open"` or `"allowlist"` — who can DM the bot (only for `mode: direct`) |
-| `lark.direct.access.allow_from` | list[string] | `[]` | Allowed Lark open IDs when `dm_policy: allowlist` |
-| `lark.relay.server_url` | string | (hardcoded default) | IM Gateway relay WebSocket URL (only needed to override the default) |
-| `lark.relay.heartbeat_interval` | int | `10` | Relay heartbeat interval in seconds |
-| `lark.relay.reconnect_backoff` | list[int] | `[3, 5, 10, 30, 60]` | Reconnect backoff schedule in seconds |
-
-**Example (relay mode, minimal):**
-```yaml
-lark:
-  mode: relay
-```
+| `lark.access.dm_policy` | string | `"open"` | `"open"` or `"allowlist"` — who can DM the bot |
+| `lark.access.allow_from` | list[string] | `[]` | Allowed Lark open IDs when `dm_policy: allowlist` |
 
 **Example (direct mode):**
 ```yaml
@@ -295,10 +286,10 @@ lark:
   direct:
     app_id: "your_app_id"
     app_secret: "your_app_secret"
-    access:
-      dm_policy: allowlist
-      allow_from:
-        - "ou_xxx"
+  access:
+    dm_policy: allowlist
+    allow_from:
+      - "ou_xxx"
 ```
 
 ---
@@ -379,21 +370,10 @@ im:
 
 ---
 
-## headroom
+## headroom (legacy, not supported)
 
-Optional integration with a local `headroom` proxy that routes LLM traffic and tracks a spend budget. Only effective when enabled; upstream endpoints are not configurable.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `headroom.enabled` | bool | `false` | Start the local headroom proxy and route LLM traffic through it |
-| `headroom.host` | string | `"127.0.0.1"` | Proxy bind host |
-| `headroom.port` | int | `8787` | Proxy port |
-| `headroom.budget` | float or null | `null` | Spend limit in USD (no limit when unset) |
-| `headroom.budget_period` | string | `"daily"` | Budget window: `hourly`, `daily`, or `monthly` |
-| `headroom.telemetry` | bool | `false` | Send proxy telemetry |
-| `headroom.startup_timeout` | float | `30.0` | Seconds to wait for the proxy to become healthy at startup |
-
-Related CLI flags: `--headroom` (one-click enable), `--no-headroom` (force off, overrides `conf.yaml`), `--headroom-port <port>`, `--headroom-budget <usd>`.
+The proxy integration was removed from this distribution. Legacy settings are
+accepted for compatibility; no proxy starts and no traffic is routed through it.
 
 ---
 
@@ -471,7 +451,7 @@ im:
     group: false
 
 # lark:
-#   mode: relay
+#   mode: direct
 
 compaction_strategy: null
 command_timeout: 300
@@ -487,7 +467,7 @@ These are configured in their own files, not `~/.siada-cli/conf.yaml`:
 
 | What | File |
 |------|------|
-| Per-model overrides (context window, pricing, thinking budget, etc.) | `~/.siada-cli/model_config.json` — see `docs/external_model_configuration.md` |
+| Per-model overrides (context window, pricing, thinking budget, etc.) | `~/.siada-cli/models.json` — see `docs/external_model_configuration.md` |
 | Terminal UI language, status-bar items, preferred editor (written by `/language`, `/statusbar`, `/editor`) | `~/.siada-cli/ui-config.json` |
 | MCP servers | `~/.siada-cli/mcp_config.json` |
 | Cron tasks | `~/.siada-cli/workspace/cron_tasks.json` (managed via the **manage-cron-task** skill) |
