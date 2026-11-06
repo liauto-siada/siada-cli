@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, realpath, rename, stat, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import { InteractivePageStore, MAX_HTML_BYTES, PAGE_ID, validateState } from "./store.js";
+import { loadTeardownToolkit } from "./teardown.js";
 
 interface UiProject {
   version: 1;
@@ -82,49 +82,25 @@ export class InteractiveUiProjects {
     await visit(root);
     return files;
   }
-  private async copySources(source: string, target: string): Promise<void> {
-    await mkdir(target, { recursive: true, mode: 0o700 });
-    for (const item of await readdir(source, { withFileTypes: true })) {
-      if (item.isSymbolicLink()) throw new Error("Teardown source symlinks are not supported");
-      if (item.isDirectory()) await this.copySources(join(source, item.name), join(target, item.name));
-      else if ([".js", ".css"].includes(extname(item.name))) {
-        await writeFile(join(target, item.name), await readFile(join(source, item.name)), { mode: 0o600 });
-      }
-    }
-  }
-  private async teardownDirectory(): Promise<string> {
-    const candidates = process.env.SIADA_TEARDOWN_DIR
-      ? [process.env.SIADA_TEARDOWN_DIR]
-      : [join(homedir(), ".siada-cli", "skills", "teardown"), join(homedir(), ".agents", "skills", "teardown")];
-    for (const path of candidates) {
-      try {
-        const root = await realpath(path);
-        await stat(join(root, "sims", "kit", "runtime.js"));
-        await stat(join(root, "LICENSE"));
-        return root;
-      } catch { /* Try the next public skill installation location. */ }
-    }
-    throw new Error("Teardown skill is unavailable. Install elvarofficial/teardown, or set SIADA_TEARDOWN_DIR to its installation.");
-  }
-
   async create(input: { title?: unknown; template?: unknown }): Promise<object> {
     if (typeof input.title !== "string" || !input.title.trim() || input.title.length > 200) throw new Error("title must be 1–200 characters");
     const template = input.template ?? "blank";
     if (!["blank", "teardown", "teardown-v8"].includes(String(template))) throw new Error("Unknown UI template");
-    const teardown = template === "blank" ? undefined : await this.teardownDirectory();
+    const teardown = template === "blank" ? undefined : await loadTeardownToolkit();
     const project: UiProject = { version: 1, id: randomUUID(), title: input.title, template: String(template), entry: "main.js", builds: 0 };
     await mkdir(this.root(project.id), { recursive: true, mode: 0o700 });
     const root = await this.ownedRoot(project.id), source = join(root, "src");
     await mkdir(source, { recursive: true, mode: 0o700 });
     await writeFile(join(source, "viewer.js"), await readFile(join(ASSETS, "viewer.js")), { mode: 0o600 });
     if (teardown) {
-      await this.copySources(join(teardown, "sims", "kit"), join(source, "kit"));
-      for (const name of ["v8-shared", "cessna-shared", "strandbeest-shared"]) {
-        await this.copySources(join(teardown, "sims", name), join(source, name));
+      for (const [name, content] of Object.entries(teardown.files)) {
+        const path = this.sourcePath(source, name);
+        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+        await writeFile(path, content, { mode: 0o600 });
       }
-      await writeFile(join(root, "teardown-license.txt"), await readFile(join(teardown, "LICENSE")), { mode: 0o600 });
+      await writeFile(join(root, "teardown-license.txt"), teardown.license, { mode: 0o600 });
       const guide = "# Chrome ACP integration\n\nThis workspace already supplies dependencies and copied source modules under src/. browser_ui_build presents the working page immediately inside the current chat. Do not require a separate page or an inspection step to see it. Inspect only when useful for a specific uncertainty, reuse findings, and avoid repeated unchanged checks. Do not run upstream first-run installers here. Import ./viewer.js for responsive controls and siadaUI capture/restore. The upstream guide below describes the original skill layout and is reference material. Model the mechanism from references and refine useful details. Share only when requested.\n\n";
-      await writeFile(join(root, "GUIDE.md"), guide + await readFile(join(teardown, "SKILL.md"), "utf8"), { mode: 0o600 });
+      await writeFile(join(root, "GUIDE.md"), guide + teardown.guide, { mode: 0o600 });
     }
     if (template === "teardown-v8") {
       await writeFile(join(source, "main.js"), await readFile(join(ASSETS, "v8.js")), { mode: 0o600 });
@@ -133,6 +109,7 @@ export class InteractiveUiProjects {
     return {
       id: project.id, title: project.title, sourceDirectory: source, entry: project.entry,
       files: await this.sources(source), guide: teardown ? join(root, "GUIDE.md") : undefined,
+      toolkitSource: teardown?.source,
       instructions: "Edit small modules with browser_ui_build files or normal file tools. Import three, three/addons/*, teardown-kit/* or ./viewer.js. mountViewer bridges capture, restore, visibility and responsive controls. Build presents inline immediately. Inspection and further refinement are optional decisions based on useful evidence, not a fixed sequence. Do not paste bundled HTML back into a tool.",
     };
   }

@@ -21,7 +21,7 @@ export const INTERACTIVE_UI_TOOLS: McpTool[] = [
   },
   {
     name: "browser_ui_project",
-    description: "Create an editable source workspace when you judge source modules or the optional teardown toolkit useful. Direct HTML remains available through browser_present_ui. blank starts a small page; teardown supplies the installed public kit and guide; teardown-v8 supplies its geometry/kinematics with responsive controls. Reuse modules and build to present inline in the current chat. Inspect only when it helps resolve a specific uncertainty; there is no mandatory tool sequence or iteration tier.",
+    description: "Create an editable source workspace when you judge source modules or the built-in teardown toolkit useful. Direct HTML remains available through browser_present_ui. blank starts a small page; teardown supplies the bundled kit, guide and machine source examples; teardown-v8 supplies its geometry/kinematics with responsive controls. No separate skill installation is needed. Reuse modules and build to present inline in the current chat. Inspect only when useful for a specific uncertainty; there is no mandatory tool sequence or iteration tier.",
     inputSchema: { type: "object", properties: { title: { type: "string" }, template: { type: "string", enum: ["blank", "teardown", "teardown-v8"] } }, required: ["title"] },
   },
   {

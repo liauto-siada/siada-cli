@@ -33,7 +33,7 @@ For a custom storage location, set `SIADA_UI_DIR` before starting the proxy.
 
 For a mechanism, ask “Show how a four-stroke engine works, with controls to
 isolate a cylinder and open a cutaway.” The model chooses whether to use ordinary
-HTML or the optional [teardown skill](https://github.com/elvarofficial/teardown).
+HTML or the built-in [teardown toolkit](https://github.com/elvarofficial/teardown).
 The interface has one entry point and the same Share action.
 
 Source-based pages use `browser_ui_project`, `browser_ui_build` and
@@ -45,8 +45,10 @@ needs evidence about a specific issue; it does not delay presentation or require
 opening a separate page. The model decides what to refine and reuses existing
 findings instead of repeating unchanged checks.
 
-Install teardown under `~/.siada-cli/skills/teardown` or
-`~/.agents/skills/teardown`, or set `SIADA_TEARDOWN_DIR` before starting the proxy.
+The interactive teardown kit, guide and three machine source families ship with
+Chrome ACP, including their original MIT license. A separate skill installation
+is unnecessary. To deliberately use a custom upstream checkout, set
+`SIADA_TEARDOWN_DIR` before starting the proxy; otherwise the bundled sources are used.
 The `teardown-v8` starter supplies responsive controls for camera, cutaway,
 isolation, RPM, crank angle and layered disassembly. The `teardown` workspace
 supplies the kit, guide and example source modules for custom mechanisms.

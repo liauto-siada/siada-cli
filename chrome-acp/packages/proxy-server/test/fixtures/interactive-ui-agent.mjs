@@ -42,6 +42,7 @@ createInterface({ input: process.stdin }).on("line", async line => {
           return result;
         };
         const created = JSON.parse((await call("browser_ui_project", { title: "3D source integration", template: "teardown-v8" })).content[0].text);
+        if (created.toolkitSource !== "bundled") throw new Error("The 3D test requires the bundled toolkit");
         const main = await readFile(`${created.sourceDirectory}/main.js`, "utf8");
         for (let revision = 0; revision < 2; revision++) {
           const result = await call("browser_ui_build", { id: created.id, ...(revision ? { files: { "main.js": main.replace("V8 发动机 · 交互拆解", "V8 发动机 · 更新后") } } : {}) });

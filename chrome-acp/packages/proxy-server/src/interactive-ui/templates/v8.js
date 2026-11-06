@@ -1,4 +1,4 @@
-// The geometry and kinematics come from the installed MIT teardown skill.
+// The geometry and kinematics come from the bundled MIT teardown toolkit.
 import { createV8Stage } from "./v8-shared/stage.js";
 import { CYL, E, STROKE, bankXY, piston, pressure, psi, strokeOf } from "./v8-shared/kin.js";
 import { warmComposer } from "./kit/warm.js";

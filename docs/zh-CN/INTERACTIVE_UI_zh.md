@@ -25,8 +25,8 @@ Share 会发布当前页面和操作状态，返回局域网链接，并提供 *
 如需自定义保存目录，在启动代理前设置 `SIADA_UI_DIR`。
 
 可以这样提问：“展示四冲程发动机的工作过程，可以隔离气缸并打开剖面。”
-模型自主决定使用普通 HTML，还是可选的
-[teardown 技能](https://github.com/elvarofficial/teardown)。界面保持统一入口，
+模型自主决定使用普通 HTML，还是内置的
+[teardown 工具包](https://github.com/elvarofficial/teardown)。界面保持统一入口，
 两种制作方式都使用同一个 Share。
 
 源码工程通过 `browser_ui_project` 创建，使用 `browser_ui_build` 构建，
@@ -36,8 +36,9 @@ Share 会发布当前页面和操作状态，返回局域网链接，并提供 *
 优先在当前聊天中直接展示。检查是模型按需选择的诊断能力，不是展示前置步骤，
 也不要求打开独立页面。模型决定是否继续细化，并复用已有结果，避免重复检查。
 
-将 teardown 安装在 `~/.siada-cli/skills/teardown` 或
-`~/.agents/skills/teardown`，也可以在启动代理前设置 `SIADA_TEARDOWN_DIR`。
+网页所需的 teardown 工具包、指南及三种机构的示例源码随 Chrome ACP 安装，
+并保留原始 MIT 许可证，无需另外安装 skill。默认使用随包源码；如需明确
+改用自定义上游工程，可在启动代理前设置 `SIADA_TEARDOWN_DIR`。
 `teardown-v8` 示例提供可读的视角、剖切、隔离、转速、曲轴角度和分层拆解控件；
 `teardown` 工程提供工具包、指南和示例源码，供模型制作其他机构。
 画面检查需要安装 Chromium；自动查找失败时设置 `SIADA_UI_CHROMIUM`。

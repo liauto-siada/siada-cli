@@ -23,7 +23,7 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
-    "build": "tsc && node ../../scripts/copy-licenses.mjs",
+    "build": "tsc && node ../../scripts/copy-interactive-resources.mjs && node ../../scripts/copy-licenses.mjs",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
