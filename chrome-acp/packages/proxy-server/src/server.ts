@@ -39,6 +39,10 @@ import { localBootstrapHandler } from "./local-bootstrap.js";
 import { checkCliLogin, createTerminalLogin } from "./terminal-login.js";
 import { browserLoginSocket } from "./browser-login.js";
 import { allowLocalBootstrap } from "./local-bootstrap.js";
+import { interactivePages } from "./interactive-ui/store.js";
+import { interactiveUiRoutes } from "./interactive-ui/routes.js";
+import { setInteractiveUiBaseUrl, setInteractiveUiShares } from "./interactive-ui/tools.js";
+import { InteractivePageShares } from "./interactive-ui/share.js";
 
 // Get the directory of this file to resolve public folder path
 const __filename = fileURLToPath(import.meta.url);
@@ -56,6 +60,7 @@ export interface ServerConfig {
   termux?: boolean;
   https?: boolean;
   publicUrl?: string;
+  uiSharePort?: number;
 }
 
 // Pending permission request
@@ -1258,8 +1263,13 @@ async function launchTermuxPwa(pwaName: string): Promise<void> {
 
 export async function startServer(config: ServerConfig): Promise<void> {
   const { port, host, command, args, cwd, token, termux, https, publicUrl } = config;
+  const sharePort = config.uiSharePort ?? Number(process.env.SIADA_UI_SHARE_PORT ?? (port < 65535 ? port + 1 : 9316));
+  const shares = new InteractivePageShares(join(interactivePages.directory, "shared"), sharePort);
+  try { await shares.restore(); }
+  catch (error) { log.warn("Unable to restore shared pages", { error: (error as Error).message }); }
   for (const signal of ["SIGTERM", "SIGINT"] as const) {
     process.once(signal, () => {
+      void shares.stop();
       for (const state of clients.values()) releaseClient(state);
       retainedClients.clear();
       process.exit(0);
@@ -1274,8 +1284,11 @@ export async function startServer(config: ServerConfig): Promise<void> {
   SERVER_HOST = host;
   AUTH_TOKEN = token;
   setMcpAuthToken(token);
+  setInteractiveUiBaseUrl(publicUrl || `${https ? "https" : "http"}://127.0.0.1:${port}`);
+  setInteractiveUiShares(shares);
 
   const app = new Hono();
+  app.route("/ui", interactiveUiRoutes(interactivePages, token, shares));
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   app.use("/local-login", async (c, next) => {
     const socket = (c.env as { incoming: { socket: { remoteAddress?: string; encrypted?: boolean } } }).incoming.socket;
@@ -1313,6 +1326,7 @@ export async function startServer(config: ServerConfig): Promise<void> {
       port: SERVER_PORT,
       host: SERVER_HOST,
       authEnabled: !!AUTH_TOKEN,
+      uiSharing: { listening: shares.listening, port: shares.port },
       extensionConnected: executor.connected,
       executor,
       agentSessions: [...clients.values()].filter((s) => s.process !== null).length,

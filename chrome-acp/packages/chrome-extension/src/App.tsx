@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ACPConnect, type StartupState } from "@/components/ACPConnect";
-import { ACPMain } from "@chrome-acp/shared/components";
+import { ACPMain, DisplaySettingsProvider } from "@chrome-acp/shared/components";
 import { ThemeProvider } from "@chrome-acp/shared/lib";
 import type { ACPClient } from "@chrome-acp/shared/acp";
 import "./index.css";
@@ -47,6 +47,7 @@ export function App() {
 
   return (
     <ThemeProvider>
+      <DisplaySettingsProvider>
       <div className="flex flex-col h-dvh w-full">
         {/* Unified Connection Bar */}
         {identity ? <ACPConnect
@@ -80,6 +81,7 @@ export function App() {
           )}
         </main>}
       </div>
+      </DisplaySettingsProvider>
     </ThemeProvider>
   );
 }

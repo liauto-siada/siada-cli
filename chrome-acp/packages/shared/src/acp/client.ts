@@ -230,6 +230,48 @@ export class ACPClient {
 
   get retainedSessionId(): string | null { return this._retainedSessionId; }
 
+  /** Use the effective transport scheme, including loopback fallback, without
+   * copying the ACP token into generated page links or the iframe. */
+  interactiveUiUrl(id: string, suffix?: "frame" | "download" | "state" | "share"): string {
+    if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Invalid UI page id");
+    const url = new URL(this.settings.proxyUrl);
+    url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+    url.pathname = `/ui/${id}${suffix ? `/${suffix}` : ""}`;
+    url.search = "";
+    url.hash = "";
+    url.username = "";
+    url.password = "";
+    return url.toString();
+  }
+
+  async saveInteractiveUiState(id: string, state: Record<string, unknown>): Promise<void> {
+    const token = this.settings.token || new URL(this.settings.proxyUrl).searchParams.get("token");
+    const response = await fetch(this.interactiveUiUrl(id, "state"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ state }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error(`UI state save failed (${response.status})`);
+  }
+
+  async shareInteractiveUi(id: string, state: Record<string, unknown>): Promise<{ url: string }> {
+    const token = this.settings.token || new URL(this.settings.proxyUrl).searchParams.get("token");
+    const response = await fetch(this.interactiveUiUrl(id, "share"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ state }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const result = await response.json().catch(() => ({ error: `Share failed (${response.status})` }));
+    if (!response.ok) throw new Error(result.error || `Share failed (${response.status})`);
+    const url = new URL(result.url);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash
+      || url.hostname === "localhost" || url.hostname === "[::1]" || url.hostname.startsWith("127.")
+      || !/^\/share\/[0-9a-f-]{36}$/.test(url.pathname)) throw new Error("Invalid share URL");
+    return { url: url.toString() };
+  }
+
   updateSettings(settings: ACPSettings): void {
     this.settings = settings;
   }

@@ -13,6 +13,7 @@ import { ACPClient, DEFAULT_SETTINGS, DisconnectRequestedError } from "../acp";
 import type { ACPSettings, ConnectionState, BrowserToolParams, BrowserToolResult } from "../acp";
 import { Check, ChevronDown, Copy, FolderOpen, Globe, Image, KeyRound, ScanLine, X } from "lucide-react";
 import { useQRScanner, type QRCodeData } from "../hooks";
+import { DisplaySettingsButton } from "./DisplaySettings";
 
 // Get token from URL query param (for pre-filled URLs from server)
 function getTokenFromUrl(): string | undefined {
@@ -380,6 +381,7 @@ export function ACPConnect({
           />
         </div>
       </button>
+      <DisplaySettingsButton />
       <ThemeToggle />
       </div>
 

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import imageCompression from "browser-image-compression";
 import type { ACPClient } from "../acp/client";
 import { PromptQueue } from "../lib/prompt-queue";
+import { interactiveToolReferences, splitInteractiveMessage, type InteractiveUiReference } from "../lib/interactive-ui";
+import { InteractiveMessage, InteractiveUI } from "./InteractiveUI";
 import type { SessionUpdate, ToolCallContent, PermissionRequestPayload, PermissionOption, ContentBlock, ImageContent } from "../acp/types";
 import {
   fetchBrowserContext,
@@ -768,7 +770,7 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
 
   // Reference: Zed's MessageEditor.contents() builds Vec<acp::ContentBlock>
   // from text and attached images. We do the same here.
-  const prepareSubmit = async (message: PromptInputMessage, sessionId: string | null) => {
+  const prepareSubmit = async (message: PromptInputMessage, sessionId: string | null, displayText?: string) => {
     const text = message.text.trim();
     const files = message.files || [];
 
@@ -897,18 +899,18 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
     const userEntry: UserMessageEntry = {
       type: "user_message",
       id: `user-${Date.now()}`,
-      content: text,
+      content: displayText ?? text,
       images: userImages.length > 0 ? userImages : undefined,
     };
     promptQueue.enqueue({ blocks: contentBlocks, entry: userEntry });
   };
 
-  const handleSubmit = (message: PromptInputMessage) => {
+  const handleSubmit = (message: PromptInputMessage, displayText?: string) => {
     if (!sessionReady) return;
     // The form captures this callback before asynchronous attachment conversion.
     const sessionId = activeSessionId;
     // Image preparation may await; preserve submission order and session owner.
-    const prepared = preparationRef.current.then(() => prepareSubmit(message, sessionId));
+    const prepared = preparationRef.current.then(() => prepareSubmit(message, sessionId, displayText));
     preparationRef.current = prepared.catch((error) => console.error("Prompt preparation failed", error));
     return prepared;
   };
@@ -1020,42 +1022,74 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
   };
 
   // Render a tool call entry
+  const latestPages = new Map<string, InteractiveUiReference>();
+  const firstPageLocations = new Map<string, string>();
+  for (const entry of entries) {
+    const recordPage = (page: InteractiveUiReference, location: string) => {
+      if (page.revision || !latestPages.has(page.id)) latestPages.set(page.id, page);
+      if (!firstPageLocations.has(page.id)) firstPageLocations.set(page.id, location);
+    };
+    if (entry.type === "tool_call" && entry.toolCall.status === "complete") {
+      const pages = interactiveToolReferences(entry.toolCall.content, entry.toolCall.rawOutput);
+      pages.forEach((page, index) => recordPage(page, `tool:${entry.toolCall.id}:${page.id}:${index}`));
+    } else if (entry.type === "assistant_message") {
+      entry.chunks.forEach((chunk, chunkIndex) => {
+        if (chunk.type !== "message") return;
+        splitInteractiveMessage(chunk.text).forEach((part, index) => {
+          if (part.type === "ui") recordPage(part.page, `message:${entry.id}:${chunkIndex}:${index}:${part.page.id}`);
+        });
+      });
+    }
+  }
+  const renderInteractivePage = (page: InteractiveUiReference, key: string, location: string) => {
+    if (firstPageLocations.get(page.id) !== location) return null;
+    return <InteractiveUI key={key} page={latestPages.get(page.id) ?? page} client={client}
+      onSubmit={(text, displayText) => { void handleSubmit({ text, files: [] }, displayText); }} />;
+  };
   const renderToolCall = (entry: ToolCallEntry) => {
     const tool = entry.toolCall;
     const toolOutput = formatToolOutput(tool.content, tool.rawOutput);
     const hasOutput =
       tool.status !== "running" && tool.status !== "waiting_for_confirmation" && toolOutput !== null;
 
+    const uiParts = tool.status === "complete"
+      ? interactiveToolReferences(tool.content, tool.rawOutput)
+      : [];
     return (
-      <Tool
-        key={tool.id}
-        defaultOpen={hasOutput || tool.status === "waiting_for_confirmation"}
-        className={tool.status === "rejected" ? "border-dashed border-orange-500/50" : undefined}
-      >
-        <ToolHeader
-          title={tool.title}
-          type="tool-invocation"
-          state={getToolState(tool.status)}
-        />
-        <ToolContent>
-          {tool.rawInput && <ToolInput input={tool.rawInput} />}
-          {/* Show permission buttons when waiting for confirmation */}
-          {tool.status === "waiting_for_confirmation" && tool.permissionRequest && (
-            <ToolPermissionButtons
-              requestId={tool.permissionRequest.requestId}
-              options={tool.permissionRequest.options}
-              onRespond={handlePermissionResponse}
-            />
-          )}
-          {/* Show output for completed/error states */}
-          {tool.status !== "waiting_for_confirmation" && tool.status !== "rejected" && (
-            <ToolOutput
-              output={toolOutput}
-              errorText={tool.status === "error" ? "Tool execution failed" : undefined}
-            />
-          )}
-        </ToolContent>
-      </Tool>
+      <div className="w-full space-y-3">
+        <Tool
+          key={tool.id}
+          defaultOpen={(uiParts.length === 0 && hasOutput) || tool.status === "waiting_for_confirmation"}
+          className={tool.status === "rejected" ? "border-dashed border-orange-500/50" : undefined}
+        >
+          <ToolHeader
+            title={tool.title}
+            type="tool-invocation"
+            state={getToolState(tool.status)}
+          />
+          <ToolContent>
+            {tool.rawInput && <ToolInput input={tool.rawInput} />}
+            {/* Show permission buttons when waiting for confirmation */}
+            {tool.status === "waiting_for_confirmation" && tool.permissionRequest && (
+              <ToolPermissionButtons
+                requestId={tool.permissionRequest.requestId}
+                options={tool.permissionRequest.options}
+                onRespond={handlePermissionResponse}
+              />
+            )}
+            {/* Show output for completed/error states */}
+            {tool.status !== "waiting_for_confirmation" && tool.status !== "rejected" && (
+              <ToolOutput
+                output={toolOutput}
+                errorText={tool.status === "error" ? "Tool execution failed" : undefined}
+              />
+            )}
+          </ToolContent>
+        </Tool>
+        {uiParts.map((page, index) => (
+          renderInteractivePage(page, `${page.id}:${index}`, `tool:${entry.toolCall.id}:${page.id}:${index}`)
+        ))}
+      </div>
     );
   };
 
@@ -1074,11 +1108,12 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
   // Render
   // =============================================================================
   const hasMessages = entries.length > 0;
+  const hasInteractivePages = latestPages.size > 0;
 
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
-      <Conversation className="flex-1">
+      <Conversation className="flex-1" resize={hasInteractivePages ? "instant" : "smooth"}>
         <ConversationContent>
           {!sessionReady ? (
             <div className="flex items-center justify-center p-4">
@@ -1131,9 +1166,11 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
 
                 // Render AssistantMessage (with chunks)
                 if (entry.type === "assistant_message") {
+                  const hasInteractiveUi = entry.chunks.some(chunk =>
+                    chunk.type === "message" && splitInteractiveMessage(chunk.text).some(part => part.type === "ui"));
                   return (
-                    <Message key={entry.id} from="assistant">
-                      <MessageContent>
+                    <Message key={entry.id} from="assistant" className={hasInteractiveUi ? "max-w-full" : undefined}>
+                      <MessageContent className={hasInteractiveUi ? "w-full" : undefined}>
                         {entry.chunks.map((chunk, chunkIndex) => {
                           if (chunk.type === "thought") {
                             // Determine if this thought chunk is still streaming
@@ -1152,7 +1189,9 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
                             );
                           }
                           // Regular message chunk
-                          return <MessageResponse key={chunkIndex}>{chunk.text}</MessageResponse>;
+                          return <InteractiveMessage key={chunkIndex} text={chunk.text} client={client}
+                            renderPage={(page, key) => renderInteractivePage(page, key, `message:${entry.id}:${chunkIndex}:${key}`)}
+                            onSubmit={(text, displayText) => { void handleSubmit({ text, files: [] }, displayText); }} />;
                         })}
                       </MessageContent>
                     </Message>
@@ -1162,8 +1201,8 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
                 // Render ToolCall (standalone entry)
                 if (entry.type === "tool_call") {
                   return (
-                    <Message key={entry.toolCall.id} from="assistant">
-                      <MessageContent>
+                    <Message key={entry.toolCall.id} from="assistant" className="max-w-full">
+                      <MessageContent className="w-full">
                         {renderToolCall(entry)}
                       </MessageContent>
                     </Message>
@@ -1202,7 +1241,7 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
       </Conversation>
 
       {/* Input area */}
-      <div className="border-t p-4">
+      <div className="siada-chat-composer border-t p-2">
         {promptQueue.items.length > 0 && (
           <div className="mb-3 space-y-2" aria-label="Prompt queue">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -1240,7 +1279,7 @@ export function ChatInterface({ client, initialSession, onSessionActive }: ChatI
           </div>
         )}
         <PromptInput
-          onSubmit={handleSubmit}
+          onSubmit={message => handleSubmit(message)}
           accept={supportsImages ? "image/*" : undefined}
           multiple={supportsImages}
         >

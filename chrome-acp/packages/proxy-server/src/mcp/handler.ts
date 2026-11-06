@@ -25,6 +25,7 @@ import {
   BROWSER_TOOLS,
 } from "./types.js";
 import { log } from "../logger.js";
+import { INTERACTIVE_UI_TOOLS, callInteractiveUiTool } from "../interactive-ui/tools.js";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 
@@ -210,7 +211,7 @@ function handleInitialize(id: string | number): McpResponse {
 
 function handleToolsList(id: string | number): McpResponse {
   const result: McpToolsListResult = {
-    tools: BROWSER_TOOLS,
+    tools: [...BROWSER_TOOLS, ...INTERACTIVE_UI_TOOLS],
   };
 
   return { jsonrpc: "2.0", id, result };
@@ -463,6 +464,9 @@ async function handleToolCall(
   id: string | number,
   params: McpToolCallParams,
 ): Promise<McpResponse> {
+  if (INTERACTIVE_UI_TOOLS.some(tool => tool.name === params.name)) {
+    return { jsonrpc: "2.0", id, result: await callInteractiveUiTool(params.name, params.arguments) };
+  }
   log.info("Tool call started", {
     id,
     tool: params.name,
