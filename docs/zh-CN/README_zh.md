@@ -98,7 +98,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```
 
 从 PyPI 安装最新正式版本。各平台使用相同命令：
-当前正式版本为 [1.7.37](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.37)。
+当前正式版本为 [1.7.41](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.41)。
 
 ```bash
 uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple siada-cli@latest

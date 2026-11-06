@@ -6,14 +6,14 @@ dependencies, the web client, and the Chrome extension with redistribution
 notices. The Python wheel contains the terminal UI bundle and installer,
 but does not contain these browser binaries.
 
-The current stable release is [1.7.37](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.37). Platform packages are published with the
+The current stable release is [1.7.41](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.41). Platform packages are published with the
 CLI release on GitHub Releases. Builds check the bundled runtime and proxy;
 reload the extension and check its connection after installation.
 
 ## Install a published version
 
 ```bash
-uv tool install --force --python python3.12 --with pip --default-index https://pypi.org/simple "siada-cli==1.7.37"
+uv tool install --force --python python3.12 --with pip --default-index https://pypi.org/simple "siada-cli==1.7.41"
 uv tool update-shell
 siada-browser setup
 ```
@@ -32,13 +32,13 @@ configuration. Choose API Key or Free Trial in the Chrome login wizard.
 For one-command installation, use Linux/macOS:
 
 ```bash
-curl -fsSL https://liauto-siada.github.io/siada-cli/scripts/install-browser.sh | SIADA_VERSION=1.7.37 sh
+curl -fsSL https://liauto-siada.github.io/siada-cli/scripts/install-browser.sh | SIADA_VERSION=1.7.41 sh
 ```
 
 Or Windows PowerShell:
 
 ```powershell
-& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://liauto-siada.github.io/siada-cli/scripts/install-browser.ps1').Content)) -Version '1.7.37'
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://liauto-siada.github.io/siada-cli/scripts/install-browser.ps1').Content)) -Version '1.7.41'
 ```
 
 ```bash

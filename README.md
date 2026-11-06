@@ -98,7 +98,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```
 
 Install the latest stable release from PyPI with the same command on all platforms:
-The current stable release is [1.7.37](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.37).
+The current stable release is [1.7.41](https://github.com/liauto-siada/siada-cli/releases/tag/v1.7.41).
 
 ```bash
 uv tool install --force --python python3.12 --compile --with pip --default-index https://pypi.org/simple siada-cli@latest
