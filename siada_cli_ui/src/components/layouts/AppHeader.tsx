@@ -8,7 +8,6 @@
  */
 
 import React from 'react';
-import { t, useUiLanguage } from '../../i18n/index.js';
 import { Box, Text } from '@jrichman/ink';
 
 export interface AppHeaderProps {
@@ -20,15 +19,7 @@ export interface AppHeaderProps {
   isCollapsed?: boolean;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
-  version = '0.0.0',
-  workingDir,
-  agent = 'coder',
-  provider = 'default',
-  model,
-  isCollapsed = false,
-}) => {
-  useUiLanguage();
+export const AppHeader: React.FC<AppHeaderProps> = React.memo(() => {
   // ASCII art lines - matching siada-cli output
   const bannerLines = [
       "  ▆▆▆▆▆▆▆╗▆▆╗ ▆▆▆▆▆╗ ▆▆▆▆▆▆╗  ▆▆▆▆▆╗      ▆▆▆▆▆▆╗▆▆╗     ▆▆╗",
@@ -80,30 +71,6 @@ export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
       {/* Spacer */}
       <Box marginTop={1} />
 
-      {/* Working Directory */}
-      <Box>
-        <Text>{t('工作目录：', 'Working Directory: ')}</Text>
-        <Text color="blue">{workingDir}</Text>
-      </Box>
-
-      {/* Provider routing stays out of the user-facing banner. */}
-      <Box marginTop={0}>
-        <Text>{t('智能体：', 'Agent: ')}</Text>
-        <Text color="yellow">{agent}</Text>
-        <Text>{t('，模型：', ', Model: ')}</Text>
-        <Text color="yellow">{model || t('默认', 'default')}</Text>
-        <Text>.</Text>
-      </Box>
-
-      {/* Collapse mode hint */}
-      <Box marginTop={0}>
-        <Text dimColor>{t('按 ', 'Press ')}</Text>
-        <Text color="cyan" bold>Ctrl+O</Text>
-        <Text dimColor>{t(` ${isCollapsed ? '显示' : '隐藏'}工具详情`, ` to ${isCollapsed ? 'show' : 'hide'} tool use details`)}</Text>
-        <Text dimColor>{t('（当前：', ' (currently: ')}</Text>
-        <Text color={isCollapsed ? 'yellow' : 'green'}>{isCollapsed ? t('精简', 'collapsed') : t('展开', 'expanded')}</Text>
-        <Text dimColor>{t('）', ')')}</Text>
-      </Box>
     </Box>
   );
 });
