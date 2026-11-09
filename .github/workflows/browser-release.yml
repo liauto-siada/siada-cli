@@ -61,6 +61,13 @@ jobs:
       - name: Test browser components
         working-directory: chrome-acp
         run: bun run test
+      - name: Prepare standalone proxy lockfile
+        shell: bash
+        run: |
+          proxy_stage="$(mktemp -d)"
+          cp chrome-acp/packages/proxy-server/package.json chrome-acp/packages/proxy-server/package-lock.json "$proxy_stage/"
+          (cd "$proxy_stage" && npm install --package-lock-only --ignore-scripts --workspaces=false --no-audit --no-fund)
+          cp "$proxy_stage/package-lock.json" chrome-acp/packages/proxy-server/package-lock.json
       - name: Package current platform and check runtime
         working-directory: chrome-acp
         run: node scripts/package-browser.mjs pack
