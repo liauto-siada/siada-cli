@@ -55,12 +55,12 @@ jobs:
       - name: Install locked browser dependencies
         working-directory: chrome-acp
         run: bun install --frozen-lockfile
-      - name: Test browser components
-        working-directory: chrome-acp
-        run: bun run test
       - name: Build browser components
         working-directory: chrome-acp
         run: bun run build
+      - name: Test browser components
+        working-directory: chrome-acp
+        run: bun run test
       - name: Package current platform and check runtime
         working-directory: chrome-acp
         run: node scripts/package-browser.mjs pack
