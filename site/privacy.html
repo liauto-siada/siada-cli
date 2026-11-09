@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Siada 隐私政策：浏览器数据、动作记录、本地代理、AI 服务、数据保留与用户选择。Siada Privacy Policy.">
+  <title>隐私政策 · Privacy Policy · Siada</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #202a31; background: #fff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.8; }
+    header, main, footer { max-width: 880px; margin: auto; padding: 24px; }
+    header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; border-bottom: 1px solid #e5e9ec; }
+    nav { display: flex; flex-wrap: wrap; gap: 20px; }
+    a { color: #245c97; text-underline-offset: 4px; }
+    a:focus-visible { outline: 3px solid #245c97; outline-offset: 4px; }
+    .brand { font-size: 22px; font-weight: 700; color: #202a31; text-decoration: none; }
+    h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.3; margin-bottom: 12px; }
+    h2 { font-size: 23px; line-height: 1.5; margin-top: 36px; }
+    .meta { color: #56646f; }
+    .notice { padding: 16px 20px; background: #f1f7fa; border-left: 3px solid #70a8df; }
+    article + article { border-top: 1px solid #e5e9ec; margin-top: 52px; padding-top: 28px; }
+    li { margin: 8px 0; }
+    footer { border-top: 1px solid #e5e9ec; color: #56646f; }
+    @media (max-width: 520px) { header, main, footer { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="./">Siada</a>
+    <nav aria-label="页面导航">
+      <a href="#zh">中文</a>
+      <a href="#en" lang="en">English</a>
+      <a href="https://github.com/liauto-siada/siada-cli">GitHub</a>
+    </nav>
+  </header>
+  <main>
+    <article id="zh" lang="zh-CN" aria-labelledby="zh-title">
+      <h1 id="zh-title">Siada 隐私政策</h1>
+      <p class="meta">政策版本：2026-10-20 · 本政策自首次公开发布之日起生效。</p>
+      <p>本政策说明 Siada Chrome 浏览器扩展及其与代理、智能体的连接如何处理数据。Siada 帮助用户理解、整理和操作浏览器内容，通常通过本机上单独安装的代理连接用户配置的 AI 智能体。模型服务及其他外部集成的处理规则由各自提供方的隐私政策另行规定。</p>
+      <p class="notice">Siada 的动作记录功能可能在后台运行。关闭侧边栏或断开聊天连接，不代表所有后台记录和连接都已停止。要停止扩展的后台收集，请在 Chrome 扩展管理页面停用或移除 Siada。</p>
+
+      <h2>1. 处理哪些数据</h2>
+      <p>根据访问的网页、启用的功能和执行的任务，Siada 可能处理：</p>
+      <ul>
+        <li>网页网址、标题、导航事件及其时间信息，用于提供浏览上下文。</li>
+        <li>点击、滚动、输入事件和浏览器任务轨迹，用于理解、记录和回看操作。</li>
+        <li>网页文字、图片、链接、选中内容、PDF、截图及实时画面，用于阅读、解释、翻译和浏览器任务。</li>
+        <li>侧边栏中输入的消息、智能体回复、工具结果及任务相关文件。</li>
+        <li>代理地址、配置的连接令牌及扩展偏好设置。</li>
+      </ul>
+      <p>网页、文件或对话可能包含个人身份信息、财务信息、个人通讯及其他敏感内容。录制器会遮蔽密码输入框的输入值，但这不保证网页其他位置、截图、文件、网址或消息中的敏感信息也被排除。代理连接设置也可能包含认证凭据。请在处理敏感内容前了解所配置服务的数据处理方式。</p>
+
+      <h2>2. 何时收集及保存在哪里</h2>
+      <p>动作录制脚本注册在匹配的网页及框架中，可在后台收集浏览和操作事件。代理可用时，事件会发送到配置的代理；代理暂时不可用时，待发送事件缓存在扩展的本地存储中，并在重新连接后发送。代理连接设置和偏好也保存在 Chrome 扩展本地存储中。</p>
+      <p>网页读取和浏览器工具处理相应操作所需的内容。实时画面功能使用 Chrome 调试和屏幕画面接口读取所选标签页。相关内容可进入工具结果、任务轨迹或智能体上下文。</p>
+      <p>代理、智能体、模型服务和外部集成可能按照其实现与配置保存会话、事件、轨迹及文件。本政策不承诺统一的保存期限或自动删除期限；不同存储位置需要分别管理。</p>
+
+      <h2>3. 数据用途与接收方</h2>
+      <p>数据用于为配置的智能体提供上下文、回答网页相关问题、解释和翻译内容、整理资料、执行浏览器任务，以及展示结果与操作轨迹。</p>
+      <p>扩展连接到用户配置的代理地址。本地代理运行在用户设备上；远程代理由该地址的运营方处理数据。智能体可能将相关上下文发送给配置的 AI 模型提供方。用户请求的分享、报告或演示稿工作流也可能将数据发送至已配置的服务，例如飞书。</p>
+      <p>Siada 不出售用户数据，不为与上述单一用途无关的目的使用或转移数据，也不为确定信用度或实现贷款而使用或转移数据。数据传递限于上述浏览器协作用途及用户配置的服务。模型与集成提供方有各自的数据使用和保留规则，请另行查阅。</p>
+
+      <h2>4. 连接安全</h2>
+      <p>默认本地连接使用回环地址的 WebSocket。连接安全取决于配置的地址、协议和访问控制：普通 WebSocket 不提供传输加密。配置远程代理时，应使用具有传输加密和适当访问控制的连接。本政策不宣称所有用户配置的连接均已加密。</p>
+
+      <h2>5. 用户选择与删除</h2>
+      <p>用户可以选择代理、智能体、模型及外部集成，也可以停止实时画面或断开侧边栏会话。后台录制和浏览器工具连接可能独立于聊天会话继续运行。</p>
+      <p>要停止扩展的后台收集，请在 Chrome 扩展管理页面停用或移除 Siada。移除扩展不会删除已发送并保存在代理、智能体、模型服务或外部集成中的记录。请分别通过这些组件的存储管理功能，或联系相应运营方，处理删除和保留请求。</p>
+
+      <h2>6. 政策更新与联系</h2>
+      <p>本政策随功能和数据处理方式的变化更新，并在本页面标明政策版本。关于 Siada 的隐私问题或数据处理请求，可通过<a href="https://github.com/liauto-siada/siada-cli/issues">项目问题反馈页面</a>联系维护者。该渠道为公开页面，请不要发布密码、令牌、私人对话或其他敏感数据；可先请求适合的私下沟通方式。Chrome 应用商店发布者联系渠道以商店详情页为准。</p>
+    </article>
+
+    <article id="en" lang="en" aria-labelledby="en-title">
+      <h1 id="en-title">Siada Privacy Policy</h1>
+      <p class="meta">Policy version: October 20, 2026. Effective upon first public publication.</p>
+      <p>This policy describes data processing by the Siada Chrome extension and its connections to a proxy and agent. Siada helps users understand, organize, and act on browser content. It normally connects to a user-configured AI agent through a separately installed local proxy. AI model services and external integrations have their own privacy policies.</p>
+      <p class="notice">Action recording can run in the background. Closing the side panel or disconnecting chat does not necessarily stop all background recording and connections. Disable or remove Siada in Chrome's extension management page to stop the extension's background collection.</p>
+
+      <h2>1. Data processed</h2>
+      <p>Depending on visited websites, enabled features, and tasks, Siada may process:</p>
+      <ul>
+        <li>Page URLs, titles, navigation events, and timestamps for browsing context.</li>
+        <li>Clicks, scrolling, input events, and browser task traces for understanding and reviewing actions.</li>
+        <li>Page text, images, links, selections, PDFs, screenshots, and live frames for reading, explanations, translations, and browser tasks.</li>
+        <li>Side-panel messages, agent responses, tool results, and task-related files.</li>
+        <li>Proxy addresses, configured connection tokens, and extension preferences.</li>
+      </ul>
+      <p>Pages, files, and conversations may contain personal information, financial information, personal communications, or other sensitive data. The recorder masks password-field input values, but sensitive information elsewhere in pages, screenshots, files, URLs, or messages may still be processed. Proxy settings may contain authentication credentials. Review your configured services' practices before processing sensitive content.</p>
+
+      <h2>2. Collection and storage</h2>
+      <p>Recorder scripts are registered on matching webpages and frames and can collect browsing and action events in the background. Events are sent to the configured proxy when it is available. Pending events are buffered in extension local storage while the proxy is unavailable and sent after reconnection. Connection settings and preferences are also stored in Chrome extension local storage.</p>
+      <p>Page-reading and browser tools process content needed for their operations. Live view uses Chrome's debugger and screencast interfaces to capture the selected tab. Relevant content can become part of tool results, task traces, or agent context.</p>
+      <p>The proxy, agent, model provider, and external integrations may retain conversations, events, traces, and files according to their implementation and configuration. There is no single retention or automatic deletion period promised by this policy. Each storage location must be managed separately.</p>
+
+      <h2>3. Purposes and recipients</h2>
+      <p>Data is used to provide context to the configured agent, answer questions about webpages, explain and translate content, organize research, perform browser tasks, and display results and action traces.</p>
+      <p>The extension connects to the proxy address configured by the user. A local proxy runs on the user's device; a remote proxy processes data at its configured operator. The agent may send relevant context to its configured AI model provider. Requested sharing, reporting, and presentation workflows may also transfer data to configured services such as Feishu.</p>
+      <p>Siada does not sell user data, use or transfer it for unrelated purposes, or use it to determine creditworthiness or facilitate lending. Transfers are limited to the browser-assistance purpose described here and the user's configured services. Model and integration providers have their own data-use and retention rules.</p>
+
+      <h2>4. Connection security</h2>
+      <p>The default local connection uses a loopback WebSocket endpoint. Security depends on the configured address, protocol, and access controls. Plain WebSocket does not provide transport encryption. Remote proxies should use encrypted transport and appropriate access controls. This policy does not claim that every user-configured connection is encrypted.</p>
+
+      <h2>5. Choices and deletion</h2>
+      <p>Users can choose their proxy, agent, model provider, and integrations, stop live view, and disconnect the side-panel session. Background recording and browser-tool connections may continue independently of chat.</p>
+      <p>Disable or remove Siada in Chrome's extension management page to stop the extension's background collection. Removing the extension does not delete records already sent to and retained by a proxy, agent, model provider, or integration. Use each component's storage controls or contact its operator for retention and deletion requests.</p>
+
+      <h2>6. Updates and contact</h2>
+      <p>This policy may be updated as features and data practices change; its version is shown on this page. Contact the maintainers through the <a href="https://github.com/liauto-siada/siada-cli/issues">project issue tracker</a> for privacy questions or data-processing requests. This is a public channel: do not post passwords, tokens, private conversations, or sensitive data. Ask for an appropriate private communication channel first. The publisher's Chrome Web Store contact details are provided in the store listing.</p>
+    </article>
+  </main>
+  <footer><a href="./">Siada 首页 · Home</a> · <a href="docs/browser.html">浏览器协作 · Browser guide</a></footer>
+</body>
+</html>
