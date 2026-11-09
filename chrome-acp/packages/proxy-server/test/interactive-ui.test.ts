@@ -30,7 +30,10 @@ describe("interactive page persistence", () => {
     expect(html).toContain('\\u003c/script>');
     expect(html).not.toContain('allow-same-origin');
     expect(html).not.toContain('http://');
-    expect((await stat(join(pages.directory, `${page.id}.json`))).mode & 0o777).toBe(0o600);
+    const savedFile = await stat(join(pages.directory, `${page.id}.json`));
+    expect(savedFile.isFile()).toBe(true);
+    // Windows exposes synthetic mode bits; POSIX permissions are meaningful on Unix.
+    if (process.platform !== "win32") expect(savedFile.mode & 0o777).toBe(0o600);
   });
   test("parallel saves leave one complete final state and valid HTML", async () => {
     const pages = await store();

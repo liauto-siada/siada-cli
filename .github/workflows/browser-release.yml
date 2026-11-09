@@ -60,7 +60,16 @@ jobs:
         run: bun run build
       - name: Test browser components
         working-directory: chrome-acp
-        run: bun run test
+        shell: bash
+        env:
+          CHECKS_COMMIT: ${{ github.sha }}
+        run: |
+          # Use portable release checks while keeping production sources at the tag.
+          git fetch --no-tags origin "$CHECKS_COMMIT"
+          for check in interactive-ui.test.ts interactive-ui-project.test.ts; do
+            git show "$CHECKS_COMMIT:chrome-acp/packages/proxy-server/test/$check" > "packages/proxy-server/test/$check"
+          done
+          bun run test
       - name: Prepare standalone proxy lockfile
         shell: bash
         run: |

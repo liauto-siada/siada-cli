@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InteractiveUiProjects } from "../src/interactive-ui/project.js";
@@ -39,14 +39,17 @@ test("a failed build does not overwrite the last functioning page", async () => 
 });
 
 test("source edits and imports cannot escape the owned project", async () => {
-  const { projects } = await setup();
+  const { projects, pages } = await setup();
   const project = await projects.create({ title: "Source UI" }) as { id: string; sourceDirectory: string };
   await expect(projects.build(project.id, { "../outside.js": source })).rejects.toThrow("Invalid UI source path");
   await symlink("/etc", join(project.sourceDirectory, "outside"));
   await expect(projects.build(project.id, { "outside/passwd.js": source })).rejects.toThrow("symlinks");
   await rm(join(project.sourceDirectory, "outside"));
   await expect(projects.build(project.id, { "main.js": 'import "node:fs";' })).rejects.toThrow("Node imports");
-  await expect(projects.build(project.id, { "main.js": 'import data from "/etc/passwd"; console.log(data);' })).rejects.toThrow("within the project");
+  const outsideFile = join(pages.directory, "outside.js");
+  await writeFile(outsideFile, "export default 'outside';");
+  const outsideImport = outsideFile.replaceAll("\\", "/");
+  await expect(projects.build(project.id, { "main.js": `import data from ${JSON.stringify(outsideImport)}; console.log(data);` })).rejects.toThrow("within the project");
 });
 
 test("new service instances can rebuild the same persisted project", async () => {
