@@ -4,6 +4,9 @@
 
 This user manual provides detailed usage instructions for Siada CLI, helping you make full use of this powerful AI workflow tool.
 
+Current stable release: **1.7.41**. See the [installation guide](./browser-installation.md)
+for versioned CLI and browser installation commands.
+
 ## Overview
 
 Siada CLI is a professional command-line AI workflow tool designed specifically for code development, debugging, and automation tasks. It provides multiple intelligent agents, each optimized for specific development tasks.

@@ -107,6 +107,13 @@ uv tool update-shell
 
 Open a new terminal if `siada-cli` is not yet on `PATH`.
 
+Verify the installed version:
+
+```bash
+siada-cli --version
+# siada-cli 1.7.41
+```
+
 ### Start a Task
 
 Launch Siada in the project you want to work on:

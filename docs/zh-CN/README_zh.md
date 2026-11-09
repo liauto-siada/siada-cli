@@ -107,6 +107,13 @@ uv tool update-shell
 
 如果终端还找不到 `siada-cli`，重新打开终端。
 
+检查安装后的版本：
+
+```bash
+siada-cli --version
+# siada-cli 1.7.41
+```
+
 ### 开始一个任务
 
 进入需要处理的项目，再启动 Siada：
