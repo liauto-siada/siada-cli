@@ -5,7 +5,6 @@ from siada.agent_hub.hooks.agent_processors.context_track_processor import Conte
 from siada.agent_hub.hooks.processors.agent_name_processor import AgentNameProcessor
 from siada.agent_hub.hooks.processors.herdr_state_processor import HerdrStateProcessor
 from siada.agent_hub.hooks.processors.llm_spinner_processor import LLMSpinnerProcessor
-from siada.agent_hub.hooks.processors.token_usage_reporter_processor import TokenUsageReporterProcessor
 from siada.agent_hub.hooks.processors.cache_status_processor import CacheStatusProcessor
 from siada.agent_hub.hooks.processors.todo_reminder_processor import TodoReminderProcessor
 
@@ -37,7 +36,6 @@ class SiadaAgentHooks(AgentHooks):
             self.processors = [
                 ContextTrackProcessor(),
                 LLMSpinnerProcessor(),  # Add spinner for LLM calls
-                TokenUsageReporterProcessor(),  # Report token usage to telemetry
                 CacheStatusProcessor(),  # Send cache hit-rate + cost data to frontend
                 # Scope AGENT_NAME to each LLM call so server-side analytics
                 # always see the agent that actually issued the request, and

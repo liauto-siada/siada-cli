@@ -25,6 +25,7 @@ def _forbid_private_imports():
     """Fail if anything under ``siada.internal`` is imported while active."""
 
     attempted = []
+    before = {name for name in sys.modules if name.startswith("siada.internal")}
 
     class _Finder:
         def find_spec(self, fullname, path=None, target=None):
@@ -39,6 +40,8 @@ def _forbid_private_imports():
         yield attempted
     finally:
         sys.meta_path.remove(finder)
+        after = {name for name in sys.modules if name.startswith("siada.internal")}
+        assert after <= before, "The callback must not load any private modules"
 
 
 @pytest.fixture
@@ -82,7 +85,6 @@ async def test_default_provider_call_keeps_user_headers(pre_call_hook):
     assert kwargs["api_key"] == "sk-user-key"
     assert kwargs["messages"] == messages
     assert attempted == []
-    assert not any(name.startswith("siada.internal") for name in sys.modules)
 
 
 @pytest.mark.asyncio
@@ -117,7 +119,6 @@ async def test_other_providers_never_import_private_auth(
     assert attempted == []
     assert "X-Siada-Token" not in kwargs.get("extra_headers", {})
     assert "X-Siada-User-ID" not in kwargs.get("extra_headers", {})
-    assert not any(name.startswith("siada.internal") for name in sys.modules)
 
 
 @pytest.mark.asyncio

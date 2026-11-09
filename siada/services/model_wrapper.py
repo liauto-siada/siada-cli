@@ -69,6 +69,7 @@ class ModelWrapper(Model):
         self.before_request = before_request
         self.verify_model = verify_model
         self.supports_native_responses_items = getattr(wrapped_model, "supports_native_responses_items", False)
+        self.request_protocol = getattr(wrapped_model, "request_protocol", None)
         
         # Store metadata about the wrapped model for debugging
         self._wrapped_model_type = type(wrapped_model).__name__
@@ -122,7 +123,7 @@ class ModelWrapper(Model):
         # Only process list inputs, pass string inputs through unchanged
         if not isinstance(input, list):
             return input
-        
+
         # Filter out malformed reasoning items for Claude models only
         sanitized = input
         model_name = getattr(self.wrapped_model, "model", None)

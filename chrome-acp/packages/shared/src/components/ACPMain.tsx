@@ -3,7 +3,7 @@ import { FolderOpen, MessageSquare, History, Activity, Play, Square } from "luci
 import { cn } from "../lib/utils";
 import type { ACPClient } from "../acp/client";
 import type { AgentSessionInfo, LiveViewMode } from "../acp/types";
-import { createTraceStore } from "./trace/index.ts";
+import { createTraceStore } from "./trace/trace-store";
 import type { TraceRun } from "../trace/types";
 import { ChatInterface } from "./ChatInterface";
 import { FileExplorer } from "./FileExplorer";
@@ -25,21 +25,14 @@ interface ACPMainProps {
 const TAB_ORDER = ["chat", "trace", "history", "files"] as const;
 type TabValue = (typeof TAB_ORDER)[number];
 
-/**
- * The tab the side panel is showing (Chrome extension only; undefined in the
- * web client). The same lookup ChatInterface uses when it binds a session to a
- * tab, so both agree on which tab "this" session is looking at.
- */
+/** Match the active-tab lookup used when ChatInterface binds a session. */
 async function currentTabId(): Promise<number | undefined> {
   try {
-    const chromeApi = (
-      globalThis as {
-        chrome?: { tabs?: { query?: (queryInfo: object) => Promise<{ id?: number }[]> } };
-      }
-    ).chrome;
-    if (!chromeApi?.tabs?.query) return undefined;
-    const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
-    return tabs[0]?.id;
+    const api = (globalThis as {
+      chrome?: { tabs?: { query?: (query: object) => Promise<{ id?: number }[]> } };
+    }).chrome;
+    const tabs = await api?.tabs?.query?.({ active: true, currentWindow: true });
+    return tabs?.[0]?.id;
   } catch {
     return undefined;
   }
@@ -56,27 +49,23 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
   const [activeTab, setActiveTab] = useState<TabValue>("chat");
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const tabLookup = useRef(0);
 
-  // Trace store. A run is one turn of one session: it starts when a prompt goes
-  // out and ends on the protocol's terminal events, and the frame source holds
-  // the pictures captured while it ran (see trace/trace-store.ts for the
-  // rules, which are exercised by tests without rendering this component).
+  // Each request owns its trace, with terminal events supplied by ACP.
   const trace = useMemo(
-    () =>
-      createTraceStore({
-        model: () => client.modelState?.currentModelId ?? undefined,
-      }),
-    // The model getter closes over the client, so the store is rebuilt with it.
+    () => createTraceStore({ model: () => client.modelState?.currentModelId ?? undefined }),
     [client],
   );
   const [run, setRun] = useState<TraceRun>(() => trace.collector.snapshot());
 
   useEffect(() => trace.collector.subscribe(setRun), [trace]);
-  // attach/detach rather than create/dispose: React runs this effect twice on
-  // mount in StrictMode, and the second attach must not double the streams.
+
   useEffect(() => {
     trace.attach(client);
-    return () => trace.detach();
+    return () => {
+      tabLookup.current++;
+      trace.detach();
+    };
   }, [client, trace]);
 
   // Live view: off until asked for, because streaming attaches a debugger to
@@ -87,24 +76,14 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
     mode?: LiveViewMode;
   }>({ active: false });
   useEffect(() => client.onScreencastState(setLiveState), [client]);
-  useEffect(
-    () => () => {
-      // Leaving the panel stops streaming; if the socket is already gone there
-      // is nothing left to stop, so this must not throw on the way out.
-      try {
-        client.setScreencast(false);
-      } catch {
-        /* disconnected */
-      }
-    },
-    [client],
-  );
+  useEffect(() => () => {
+    try { client.setScreencast(false); } catch { /* The connection is already gone. */ }
+  }, [client]);
 
   const toggleLiveView = useCallback(() => {
     try {
       client.setScreencast(!liveState.active);
     } catch (error) {
-      // Say why the toggle did nothing instead of throwing out of the handler.
       setLiveState({
         active: false,
         error: error instanceof Error ? error.message : "live view is unavailable",
@@ -112,26 +91,18 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
     }
   }, [client, liveState.active]);
 
-  // A new session means a new run: otherwise steps and pictures from the
-  // previous session would keep accumulating into one timeline.
+  // A new session means a new run: otherwise steps from the previous session
+  // would keep accumulating into one timeline.
   const handleSessionActiveInternal = useCallback(
     (sessionId: string) => {
       trace.setSession(sessionId);
-      // The tab binding is resolved from Chrome (undefined in the web client);
-      // until it is known, pictures are accepted on their own evidence.
-      void currentTabId().then((tabId) => trace.setTab(tabId));
+      const lookup = ++tabLookup.current;
+      void currentTabId().then(id => {
+        if (lookup === tabLookup.current) trace.setTab(id, sessionId);
+      });
       onSessionActive?.(sessionId);
     },
     [trace, onSessionActive],
-  );
-
-  // The only page-change evidence the viewer produces: the verdict of an
-  // actual pixel comparison of a step's own before/after pair.
-  const handlePageChange = useCallback(
-    (correlationId: string, changed: boolean) => {
-      trace.collector.reportPageChange(correlationId, changed);
-    },
-    [trace],
   );
 
   // Handle session selection from history
@@ -274,8 +245,8 @@ export function ACPMain({ client, initialSession, onSessionActive }: ACPMainProp
           <TraceView
             run={run}
             frameSource={trace.frames}
+            onPageChange={trace.reportPageChange}
             className="min-h-0 flex-1"
-            onPageChange={handlePageChange}
             placeholder="Frames appear here as the agent acts. Timings come from the trace, not from the picture."
           />
         </TabsContent>

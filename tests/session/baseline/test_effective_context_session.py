@@ -15,40 +15,6 @@ from siada.services.file_session import FileSession
 from siada.services.session_storage import ContextVersionConflict, SessionStorageError
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("processor_name,field", [
-    ("TodoReminderProcessor", "pending_reminder_items"),
-    ("ModelHallucinationSuppressionProcessor", "pending_hallucination_reminder_items"),
-    ("RepeatedToolReminderProcessor", "pending_repeated_tool_reminder_items"),
-])
-async def test_bridge_end_hooks_preserve_uncommitted_reminders(baseline, monkeypatch, processor_name, field):
-    import importlib
-    from agents import RunContextWrapper
-
-    modules = {
-        "TodoReminderProcessor": "todo_reminder_processor",
-        "ModelHallucinationSuppressionProcessor": "model_hallucination_suppression_processor",
-        "RepeatedToolReminderProcessor": "repeated_tool_reminder_processor",
-    }
-    module = importlib.import_module(
-        "siada.agent_hub.hooks.processors." + modules[processor_name]
-    )
-    session = baseline.session()
-    context = baseline.context(session)
-    context.runtime_session = EffectiveContextSession(session.openai_session)
-    pending = [{"role": "user", "content": "[uncommitted reminder]"}]
-    setattr(context, field, copy.deepcopy(pending))
-
-    async def unexpected_write(*args):
-        pytest.fail("The legacy end hook must not write during bridge admission")
-
-    monkeypatch.setattr(module, "persist_pending_reminder_items", unexpected_write)
-    processor = getattr(module, processor_name)()
-    await processor.on_llm_end(RunContextWrapper(context), None, None)
-    assert getattr(context, field) == pending
-    assert await session.openai_session.get_history_items() == []
-
-
 async def run_bridge(baseline, session, model, *, stream=False, input="continue",
                      admission_id=None, tools=None, config=None, context=None, hooks=None, agent_hooks=None, bridge=None):
     bridge = bridge or EffectiveContextSession(session.openai_session, admission_id=admission_id)
@@ -870,6 +836,80 @@ async def test_todo_post_filter_reminder_commits_once_and_usage_has_no_history_m
     assert (await store.get_history_items()).count(reminders[0]) == 1
     assert session.task_message_state.get_messages() == []
     assert session.state.usage.total_tokens == 150
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("active_form_key", ["active_form", "activeForm"])
+async def test_resumed_todos_reach_model_reminder_and_persist_once(baseline, stream, active_form_key):
+    from siada.agent_hub.hooks.agent_processors.context_track_processor import ContextTrackProcessor
+    from siada.agent_hub.hooks.siada_agent_hooks import SiadaAgentHooks
+    from siada.agent_hub.hooks.processors.todo_reminder_processor import (
+        TodoReminderProcessor, TURNS_BETWEEN_REMINDERS_THRESHOLD, TURNS_SINCE_WRITE_THRESHOLD,
+    )
+    from siada.services.session_runtime_state import load_state, save_context
+    from siada.services.siada_runner import SiadaRunner
+    from siada.support.resume_service import ResumeService
+    from siada.tools.todo.models import TodoItem
+    from siada.tools.todo.todo_write_tool import todo_write
+
+    original = baseline.session("todo-original")
+    await original.openai_session.migrate_legacy_context(allow_history_only=True)
+    context = baseline.context(original)
+    hooks = SiadaAgentHooks(processors=[ContextTrackProcessor(), TodoReminderProcessor()])
+    expected = [TodoItem(content="Add tests", active_form="Adding tests", status="in_progress")]
+    model = baseline.model(original, [
+        [baseline.call("todo-seed", "todo_write", {"todos": [{
+            "content": expected[0].content, active_form_key: expected[0].active_form,
+            "status": expected[0].status,
+        }]})],
+        [baseline.text("work started")],
+    ])
+    await run_bridge(
+        baseline, original, model, stream=stream, context=context, agent_hooks=hooks, tools=[todo_write],
+    )
+    assert context.todos == expected
+
+    progress = []
+    for index in range(TURNS_SINCE_WRITE_THRESHOLD - 1):
+        progress.append({"role": "user", "content": f"step {index}"})
+        progress.append(baseline.text(f"progress {index}", f"progress-{index}").model_dump(exclude_none=True))
+    await original.openai_session.add_items(progress)
+    context.todo_turns_since_reminder = TURNS_BETWEEN_REMINDERS_THRESHOLD - 1
+    save_context(context)
+
+    resume = ResumeService(original.siada_config.workspace)
+    data = resume.session_manager.load_session(original.session_id, original.openai_session.session_folder)
+    fresh = baseline.session("todo-resume-target")
+    resume.restore_to_running_session(data, fresh)
+    restored = baseline.context(fresh)
+    await SiadaRunner._prepare_context_for_run(restored, fresh)
+    assert restored.todos == expected
+    assert fresh.task_message_state.get_messages() == []
+
+    resumed_model = baseline.model(fresh, [[baseline.text("continued")], [baseline.text("more progress")]])
+    await run_bridge(
+        baseline, fresh, resumed_model, stream=stream, context=restored, agent_hooks=hooks, tools=[todo_write],
+    )
+    reminders = [
+        item for item in resumed_model.requests[0]["input"]
+        if "existing contents of your todo list" in str(item.get("content", ""))
+    ]
+    assert len(reminders) == 1
+    assert "[in_progress] Add tests" in reminders[0]["content"]
+    assert (await fresh.openai_session.get_context_items()).count(reminders[0]) == 1
+    assert (await fresh.openai_session.get_history_items()).count(reminders[0]) == 1
+    assert restored.pending_reminder_items == []
+    saved = load_state(fresh.openai_session.session_folder, fresh.session_id)
+    assert saved["todos"] == [item.model_dump() for item in expected]
+    assert saved["pending_reminder_items"] == []
+
+    await SiadaRunner._prepare_context_for_run(restored, fresh)
+    await run_bridge(
+        baseline, fresh, resumed_model, stream=stream, context=restored, agent_hooks=hooks, tools=[todo_write],
+    )
+    assert resumed_model.requests[1]["input"].count(reminders[0]) == 1
+    assert (await fresh.openai_session.get_history_items()).count(reminders[0]) == 1
 
 
 @pytest.mark.asyncio

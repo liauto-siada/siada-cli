@@ -1,0 +1,59 @@
+{
+  "name": "@napi-rs/clipboard",
+  "version": "1.1.4",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Brooooooklyn/Clipboard.git"
+  },
+  "napi": {
+    "binaryName": "clipboard",
+    "targets": [
+      "x86_64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-apple-darwin",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-unknown-linux-musl",
+      "aarch64-pc-windows-msvc",
+      "armv7-unknown-linux-gnueabihf",
+      "x86_64-unknown-linux-musl",
+      "i686-pc-windows-msvc"
+    ]
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@napi-rs/cli": "^3.0.4",
+    "@napi-rs/image": "^1.11.1",
+    "ava": "^8.0.0"
+  },
+  "ava": {
+    "timeout": "2m"
+  },
+  "engines": {
+    "node": ">= 10"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "preversion": "napi build --platform && git add .",
+    "test": "ava",
+    "version": "napi version"
+  },
+  "packageManager": "yarn@4.17.0",
+  "optionalDependencies": {
+    "@napi-rs/clipboard-darwin-x64": "1.1.4",
+    "@napi-rs/clipboard-win32-x64-msvc": "1.1.4",
+    "@napi-rs/clipboard-linux-x64-gnu": "1.1.4",
+    "@napi-rs/clipboard-darwin-arm64": "1.1.4",
+    "@napi-rs/clipboard-linux-arm64-gnu": "1.1.4",
+    "@napi-rs/clipboard-linux-arm64-musl": "1.1.4",
+    "@napi-rs/clipboard-win32-arm64-msvc": "1.1.4",
+    "@napi-rs/clipboard-linux-arm-gnueabihf": "1.1.4",
+    "@napi-rs/clipboard-linux-x64-musl": "1.1.4",
+    "@napi-rs/clipboard-win32-ia32-msvc": "1.1.4"
+  }
+}

@@ -2,9 +2,14 @@
 
 Verifies that when GLM models have reasoning/thinking enabled, the
 ``clear_thinking=False`` parameter is correctly nested inside a ``thinking``
-dict in ``ModelSettings.extra_body``, and that the default provider forwards
-``extra_body`` as-is to litellm's ``extra_body`` argument (merged into the
-request body).
+dict in ``ModelSettings.extra_body``, and survives the provider-specific
+processing in both:
+
+* **li_provider** – ``extra_body`` is flattened into top-level kwargs; the
+  ``thinking`` dict passes through as-is (li_provider only pops ``reasoning``,
+  not ``thinking``).
+* **default_provider** – ``extra_body`` is forwarded as-is to litellm's
+  ``extra_body`` argument (merged into the request body).
 
 The GLM API expects:
     extra_body = {"thinking": {"type": "enabled", "clear_thinking": False}}
@@ -56,8 +61,8 @@ class TestConverterSetsClearThinkingForGLM:
         assert settings.extra_body["thinking"]["clear_thinking"] is False
         assert settings.extra_body["thinking"]["type"] == "enabled"
 
-    def test_glm_53_with_thinking_tokens(self):
-        config = _make_run_config("glm-5.3", thinking_tokens="1k")
+    def test_lpai_glm_with_thinking_tokens(self):
+        config = _make_run_config("glm-5.2", thinking_tokens="1k")
         settings = ModelSettingsConverter.convert_model_settings(config)
         assert settings.extra_body["thinking"]["clear_thinking"] is False
 
@@ -117,8 +122,9 @@ class TestConverterNoClearThinkingForNonGLM:
 
     def test_claude_with_thinking_tokens(self):
         # Must use a Claude name present in the built-in MODEL_SETTING registry:
-        # an unknown name silently falls back to DEFAULT_MODEL_NAME, which would
-        # make this assertion test the wrong model's settings instead.
+        # an unknown name silently falls back to DEFAULT_MODEL_NAME (a GLM
+        # model), which would make this assertion test the wrong provider's
+        # settings instead.
         config = _make_run_config("claude-sonnet-4-6", thinking_tokens="2k")
         settings = ModelSettingsConverter.convert_model_settings(config)
         # Claude uses "thinking" dict but without clear_thinking
@@ -131,14 +137,56 @@ class TestConverterNoClearThinkingForNonGLM:
 # ---------------------------------------------------------------------------
 
 class TestIsGlmModel:
-    def test_glm_names(self):
-        assert is_glm_model("glm-5.2") is True
-        assert is_glm_model("glm-5.3") is True
+    def test_kivy_glm(self):
+        assert is_glm_model("kivy-glm-5.2") is True
+        assert is_glm_model("kivy-glm-5.2") is True
+
+    def test_lpai_glm(self):
+        assert is_glm_model("lpai-glm-5.2") is True
 
     def test_non_glm(self):
-        assert is_glm_model("deepseek-v4-pro") is False
+        assert is_glm_model("kivy-deepseek-v4-pro") is False
         assert is_glm_model("claude-sonnet-4.5") is False
-        assert is_glm_model("kimi-k2.6") is False
+        assert is_glm_model("kivy-kimi-k2.6") is False
+
+
+# ---------------------------------------------------------------------------
+# LiProvider path: extra_body forwarded as litellm's extra_body argument
+# ---------------------------------------------------------------------------
+
+class TestLiProviderClearThinkingSurvives:
+    """Simulate the relevant portion of LiModel._fetch_response to ensure
+    the 'thinking' dict (with clear_thinking) passes through as-is.
+    Since the reasoning-params refactor, LiModel forwards extra_body as
+    litellm's ``extra_body`` argument (merged verbatim into the request
+    body) and flattens extra_args into top-level kwargs — no pops, no
+    rewrites."""
+
+    def _simulate_li_extra_kwargs(self, model_settings: ModelSettings) -> dict:
+        """Reproduce the extra_kwargs assembly logic from LiModel._fetch_response."""
+        extra_kwargs: dict = {}
+        if model_settings.extra_query:
+            extra_kwargs["extra_query"] = model_settings.extra_query
+        if model_settings.metadata:
+            extra_kwargs["metadata"] = model_settings.metadata
+        if model_settings.extra_body and isinstance(model_settings.extra_body, dict):
+            extra_kwargs["extra_body"] = model_settings.extra_body
+        if model_settings.extra_args:
+            extra_kwargs.update(model_settings.extra_args)
+        return extra_kwargs
+
+    def test_glm_thinking_dict_passes_through(self):
+        config = _make_run_config("glm-5.2", thinking_tokens="2k")
+        settings = ModelSettingsConverter.convert_model_settings(config)
+        extra_kwargs = self._simulate_li_extra_kwargs(settings)
+
+        # The thinking dict must survive verbatim inside extra_body
+        assert extra_kwargs["extra_body"]["thinking"]["clear_thinking"] is False
+        assert extra_kwargs["extra_body"]["thinking"]["type"] == "enabled"
+        # No top-level thinking / enable_thinking / thinking_budget for GLM
+        assert "thinking" not in extra_kwargs
+        assert "enable_thinking" not in extra_kwargs
+        assert "thinking_budget" not in extra_kwargs
 
 
 # ---------------------------------------------------------------------------

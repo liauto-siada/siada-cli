@@ -22,7 +22,7 @@ from siada.services.memory.holographic.marker import (
     wrap_prefetch_block,
 )
 from siada.support.message_classifier import is_hidden_runtime_text
-from siada.tools.agent.run_subtask import run_subtask
+from siada.tools.agent.run_subtask import create_run_subtask_tool
 from siada.tools.ast.ast_tool import list_code_definition_names
 from siada.tools.coder.file_operator import edit
 from siada.tools.coder.file_search import regex_search_files
@@ -100,7 +100,7 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             list_code_definition_names,
         ]
         if include_run_subtask:
-            base_tools.append(run_subtask)
+            base_tools.append(create_run_subtask_tool(model_name))
         base_tools.append(todo_write)
 
         pwsh = get_run_powershell_tool_if_available()
@@ -183,17 +183,14 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
             model_name=model_name,
             activated_skill_names=run_context.context.activated_skill_names,
             subagent_enabled=getattr(run_context.context, "subagent_enabled", True),
+            available_tool_names={tool.name for tool in self.tools},
         )
         return system_prompt
 
     async def get_context(self) -> CodeAgentContext:
         current_working_dir = os.getcwd()
-        interactive_mode = self.get_interactive_mode()
-
-        context = CodeAgentContext(
-            root_dir=current_working_dir,
-            interactive_mode=interactive_mode
-        )
+        # SiadaRunner binds execution mode from the owning session before each run.
+        context = CodeAgentContext(root_dir=current_working_dir)
         return context
 
     @staticmethod
@@ -423,8 +420,8 @@ class CodeGenAgent(SiadaAgent[CodeAgentContext]):
         # Holographic prefetch injection — runs once per agent ``run()`` (vs.
         # per-LLM-call), so the prefix gets persisted into the conversation
         # alongside the user message and we never accumulate duplicate blocks
-        # on subsequent turns. See ``_inject_holographic_prefetch`` below and
-        # ``siada/services/memory/holographic/provider.py``.
+        # on subsequent turns. See
+        # design_docs/siada-holographic-memory-introduction.md §11.
         #
         # Temporarily disabled: the prefetch facts block is no longer appended
         # to the user input. ``assemble_user_input`` now returns the input

@@ -1,8 +1,8 @@
 /**
  * Clipboard utilities for reading image/file content from the OS clipboard.
  *
- * Supports macOS (osascript / pbpaste), Linux (xclip / wl-paste), Windows (powershell).
- * All operations are fire-and-forget with a timeout so a missing tool never blocks the UI.
+ * Text uses the bundled arboard backend, with platform tools as fallbacks.
+ * Native calls run in an owned subprocess with a timeout.
  */
 
 import { execFile } from 'child_process';
@@ -10,19 +10,41 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { logger } from './logger.js';
+import { nativeClipboard } from './nativeClipboard.js';
+import { CLIPBOARD_TIPS } from '../constants/tips.js';
 
 const CLIPBOARD_TIMEOUT_MS = 3000;
+const TERMINAL_COPY_MAX_BYTES = 100_000;
+
+export function isSshSession(): boolean {
+  return !!(process.env.SSH_TTY || process.env.SSH_CONNECTION || process.env.SSH_CLIENT);
+}
+
+/** Terminal-owned paste must not trigger a second read of the host clipboard. */
+export function canPasteOnRightClick(): boolean {
+  return !isSshSession() && process.env.TERM_PROGRAM?.toLowerCase() !== 'vscode' &&
+    ['darwin', 'linux', 'win32'].includes(process.platform);
+}
+
+export function isWslSession(): boolean {
+  return process.platform === 'linux' && (
+    !!(process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP) ||
+    /microsoft/i.test(os.release())
+  );
+}
 
 /** Wrap execFile in a promise with a timeout. Captures both stdout and stderr. */
 function execWithTimeout(
   cmd: string,
   args: string[],
   timeoutMs = CLIPBOARD_TIMEOUT_MS,
+  input?: string,
+  signal?: AbortSignal,
 ): Promise<{ stdout: Buffer; stderr: string }> {
   return new Promise((resolve, reject) => {
     const proc = execFile(
       cmd, args,
-      { encoding: 'buffer', timeout: timeoutMs, maxBuffer: 30 * 1024 * 1024 }, // 30 MB
+      { encoding: 'buffer', timeout: timeoutMs, maxBuffer: 30 * 1024 * 1024, signal }, // 30 MB
       (err, stdout, stderr) => {
         if (err) reject(err);
         else resolve({
@@ -31,7 +53,12 @@ function execWithTimeout(
         });
       },
     );
-    void proc;
+    // Clipboard writers wait for EOF. Failed delivery must not report success.
+    proc.stdin?.on('error', error => {
+      reject(error);
+      proc.kill();
+    });
+    proc.stdin?.end(input);
   });
 }
 
@@ -55,6 +82,9 @@ export interface ClipboardImage {
   /** Absolute path to the saved temp file. Caller should delete it after use. */
   filePath: string;
   mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+  /** Available for native PNG reads. */
+  width?: number;
+  height?: number;
 }
 
 /**
@@ -87,7 +117,8 @@ function saveTempImage(data: Buffer): ClipboardImage | null {
     return null; // Not a recognised image format
   }
 
-  const filePath = path.join(os.tmpdir(), `siada-paste-${Date.now()}${ext}`);
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'siada-paste-'));
+  const filePath = path.join(directory, `clipboard${ext}`);
   fs.writeFileSync(filePath, data);
   return { filePath, mediaType };
 }
@@ -151,7 +182,8 @@ async function getImageFromClipboardMacos(): Promise<ClipboardImage | null> {
         logger.warn(
           '[clipboard] AppKit/PyObjC missing on this Python interpreter — ' +
           'image paste cannot work. Set SIADA_PYTHON_PATH to a Python that ' +
-          'has pyobjc-framework-Cocoa installed.',
+          'has pyobjc-framework-Cocoa installed (the siada-agenthub conda ' +
+          'env normally does).',
           { pythonBin },
         );
       }
@@ -199,20 +231,28 @@ async function getImageFromClipboardLinux(): Promise<ClipboardImage | null> {
 // ─────────────────────────────────────────────
 
 async function getImageFromClipboardWindows(): Promise<ClipboardImage | null> {
-  const tmpPath = path.join(os.tmpdir(), `siada-paste-${Date.now()}.png`);
+  // Base64 avoids Windows/WSL path translation and quoting temporary paths.
   const psScript = `
+$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 $img = [Windows.Forms.Clipboard]::GetImage()
 if ($null -ne $img) {
-  $img.Save('${tmpPath.replace(/\\/g, '\\\\')}')
-  Write-Output 'ok'
+  try {
+    $stream = New-Object System.IO.MemoryStream
+    $img.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+    [Console]::Out.Write([Convert]::ToBase64String($stream.ToArray()))
+  } finally {
+    if ($null -ne $stream) { $stream.Dispose() }
+    $img.Dispose()
+  }
 }
 `;
   try {
-    const { stdout } = await execWithTimeout('powershell', ['-Command', psScript]);
-    if (stdout.toString().trim() === 'ok' && fs.existsSync(tmpPath)) {
-      return { filePath: tmpPath, mediaType: 'image/png' };
-    }
+    const { stdout } = await execWithTimeout(
+      isWslSession() ? 'powershell.exe' : 'powershell',
+      ['-NoProfile', '-NonInteractive', '-STA', '-Command', psScript],
+    );
+    return saveTempImage(Buffer.from(stdout.toString('utf8').trim(), 'base64'));
   } catch {
     // ignore
   }
@@ -228,93 +268,312 @@ if ($null -ne $img) {
  * Returns null if no image is available or on error.
  */
 export async function getImageFromClipboard(): Promise<ClipboardImage | null> {
+  try {
+    return await readClipboardImage();
+  } catch {
+    return null;
+  }
+}
+
+async function readClipboardImage(): Promise<ClipboardImage | null> {
   logger.info('[clipboard] getImageFromClipboard called', { platform: process.platform });
+  if (isSshSession()) return null;
+  if (isWslSession()) return getImageFromClipboardWindows();
+  let nativeFailed = false;
+  try {
+    const image = await nativeClipboard.readImage();
+    if (image) {
+      const saved = saveTempImage(image.data);
+      if (saved) return { ...saved, width: image.width, height: image.height };
+    }
+  } catch (error) {
+    nativeFailed = true;
+    logger.debug('[clipboard] native image unavailable, trying platform fallback', { err: String(error) });
+  }
+  let image: ClipboardImage | null = null;
   switch (process.platform) {
     case 'darwin':
-      return getImageFromClipboardMacos();
+      image = await getImageFromClipboardMacos();
+      break;
     case 'linux':
-      return getImageFromClipboardLinux();
+      image = await getImageFromClipboardLinux();
+      break;
     case 'win32':
-      return getImageFromClipboardWindows();
+      image = await getImageFromClipboardWindows();
+      break;
     default:
       logger.warn('[clipboard] unsupported platform', { platform: process.platform });
       return null;
   }
+  if (!image && nativeFailed) throw new Error(CLIPBOARD_TIPS.imageFailed);
+  return image;
 }
 
 /**
  * Read plain text from the OS clipboard.
- * Returns null if clipboard has no text or on error.
+ * Throws a user-facing error when the host clipboard cannot be read.
  */
-export async function getTextFromClipboard(): Promise<string | null> {
+export async function readClipboardText(): Promise<string> {
+  if (isSshSession()) {
+    throw new Error(`${CLIPBOARD_TIPS.sshUnavailable}${CLIPBOARD_TIPS.terminalPasteHint}`);
+  }
   try {
     let stdout: Buffer;
-    if (process.platform === 'darwin') {
-      stdout = (await execWithTimeout('pbpaste', [])).stdout;
+    if (process.platform === 'win32' || isWslSession()) {
+      const readWindows = async () => (await execWithTimeout(
+        isWslSession() ? 'powershell.exe' : 'powershell',
+        ['-NoProfile', '-NonInteractive', '-STA', '-Command',
+          "$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); [Console]::Out.Write((Get-Clipboard -Raw))"],
+      )).stdout;
+      if (isWslSession()) stdout = await readWindows();
+      else {
+        try { stdout = Buffer.from(await nativeClipboard.readText(), 'utf8'); }
+        catch { stdout = await readWindows(); }
+      }
+    } else if (process.platform === 'darwin') {
+      try {
+        stdout = Buffer.from(await nativeClipboard.readText(), 'utf8');
+      } catch {
+        stdout = (await execWithTimeout('pbpaste', [])).stdout;
+      }
     } else if (process.platform === 'linux') {
       try {
-        stdout = (await execWithTimeout('wl-paste', ['--no-newline'])).stdout;
+        stdout = Buffer.from(await nativeClipboard.readText(), 'utf8');
       } catch {
-        stdout = (await execWithTimeout('xclip', ['-selection', 'clipboard', '-o'])).stdout;
+        try {
+          stdout = (await execWithTimeout('wl-paste', ['--no-newline'])).stdout;
+        } catch {
+          stdout = (await execWithTimeout('xclip', ['-selection', 'clipboard', '-o'])).stdout;
+        }
       }
     } else {
-      return null;
+      throw new Error('unsupported platform');
     }
     const text = stdout.toString('utf8');
     logger.info('[clipboard] getTextFromClipboard result', { length: text.length });
-    return text.length > 0 ? text : null;
+    return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   } catch (err) {
     logger.warn('[clipboard] getTextFromClipboard failed', { err: String(err) });
+    const backend = isWslSession() || process.platform === 'win32'
+      ? CLIPBOARD_TIPS.windows
+      : process.platform === 'linux' ? CLIPBOARD_TIPS.linux : CLIPBOARD_TIPS.system;
+    throw new Error(`${CLIPBOARD_TIPS.readFailed(backend)}${CLIPBOARD_TIPS.terminalPasteHint}`);
+  }
+}
+
+/** Compatibility API for callers that only need nullable text. */
+export async function getTextFromClipboard(): Promise<string | null> {
+  try {
+    return (await readClipboardText()) || null;
+  } catch {
     return null;
+  }
+}
+
+export type ClipboardContent =
+  | { kind: 'text'; text: string }
+  | { kind: 'image'; image: ClipboardImage };
+
+// Session-local mirror of the most recent text delivered to the local terminal
+// clipboard (OSC 52 / tmux). Remote sessions cannot read the host clipboard, so
+// Ctrl+V falls back to what Siada itself copied last.
+let lastTerminalCopy: string | null = null;
+
+function rememberTerminalCopy(text: string): void {
+  if (text) lastTerminalCopy = text;
+}
+
+/** Latest text this session sent to the terminal clipboard (OSC 52 / tmux). */
+export function getLastTerminalCopy(): string | null {
+  return lastTerminalCopy;
+}
+
+/** Clear the remembered terminal copy; exposed for tests. */
+export function resetTerminalCopyCache(): void {
+  lastTerminalCopy = null;
+}
+
+export async function readClipboardContent(includeImages: boolean): Promise<ClipboardContent> {
+  if (isSshSession()) {
+    // The remote host cannot read the user's local clipboard. Fall back to the
+    // most recent text this session copied through the terminal, so "copy in
+    // Siada, then Ctrl+V" keeps working over SSH.
+    const remembered = getLastTerminalCopy();
+    if (remembered !== null) return { kind: 'text', text: remembered };
+    throw new Error(`${CLIPBOARD_TIPS.sshUnavailable}${CLIPBOARD_TIPS.terminalPasteHint}`);
+  }
+  let imageFailed = false;
+  if (includeImages) {
+    try {
+      const image = await readClipboardImage();
+      if (image) return { kind: 'image', image };
+    } catch {
+      imageFailed = true;
+    }
+  }
+  const text = await readClipboardText();
+  if (!text && imageFailed) throw new Error(CLIPBOARD_TIPS.imageFailed);
+  if (!text) throw new Error(CLIPBOARD_TIPS.empty);
+  return { kind: 'text', text };
+}
+
+/** Discard an image read whose input owner changed before completion. */
+export function discardClipboardContent(content: ClipboardContent): void {
+  if (content.kind !== 'image') return;
+  void fs.promises.unlink(content.image.filePath)
+    .then(() => fs.promises.rmdir(path.dirname(content.image.filePath)))
+    .catch(() => {});
+}
+
+export type ClipboardCopyResult =
+  | { status: 'copied' | 'requested'; message: string }
+  | { status: 'failed'; message: string };
+
+export function terminalCopySequence(text: string, tmux: boolean): string {
+  if (Buffer.byteLength(text, 'utf8') > TERMINAL_COPY_MAX_BYTES) {
+    throw new Error(CLIPBOARD_TIPS.copyTooLarge);
+  }
+  const encoded = Buffer.from(text, 'utf8').toString('base64');
+  return tmux
+    ? `\x1bPtmux;\x1b\x1b]52;c;${encoded}\x07\x1b\\`
+    : `\x1b]52;c;${encoded}\x07`;
+}
+
+async function copyThroughTerminal(text: string): Promise<void> {
+  const tmux = !!(process.env.TMUX || process.env.TMUX_PANE);
+  const sequence = terminalCopySequence(text, tmux);
+  if (tmux && process.env.TMUX_PANE) {
+    try {
+      const { stdout: setting } = await execWithTimeout('tmux', ['show-options', '-gv', 'set-clipboard']);
+      if (setting.toString('utf8').trim() === 'off') throw new Error('tmux clipboard forwarding disabled');
+      const { stdout: session } = await execWithTimeout(
+        'tmux', ['display-message', '-p', '-t', process.env.TMUX_PANE, '#{session_id}'],
+      );
+      const sessionId = session.toString('utf8').trim();
+      if (!sessionId) throw new Error('no current tmux session');
+      const { stdout: clients } = await execWithTimeout(
+        'tmux', ['list-clients', '-t', sessionId, '-F', '#{client_activity} #{client_name}'],
+      );
+      const client = clients.toString('utf8').split('\n')
+        .map(line => /^(\d+) (.+)$/.exec(line))
+        .filter((match): match is RegExpExecArray => !!match)
+        .sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[2];
+      if (!client) throw new Error('no attached tmux client');
+      await execWithTimeout('tmux', ['load-buffer', '-w', '-t', client, '-'], CLIPBOARD_TIMEOUT_MS, text);
+      rememberTerminalCopy(text);
+      return;
+    } catch (err) {
+      logger.debug('[clipboard] tmux copy failed, trying OSC 52', { err: String(err) });
+    }
+  }
+  if (!process.stdout.isTTY) throw new Error(CLIPBOARD_TIPS.notInteractive);
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(sequence, error => error ? reject(error) : resolve());
+  });
+  rememberTerminalCopy(text);
+}
+
+async function copyNatively(text: string, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  if (isSshSession()) throw new Error('Host clipboard unavailable over SSH');
+  if (!isWslSession()) {
+    try {
+      await nativeClipboard.writeText(text, signal);
+      signal?.throwIfAborted();
+      return;
+    } catch {
+      signal?.throwIfAborted();
+    }
+  }
+  if (process.platform === 'win32' || isWslSession()) {
+    await execWithTimeout(
+      isWslSession() ? 'powershell.exe' : 'powershell',
+      ['-NoProfile', '-NonInteractive', '-STA', '-Command',
+        "$ErrorActionPreference = 'Stop'; [Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false); Set-Clipboard -Value ([Console]::In.ReadToEnd())"],
+      CLIPBOARD_TIMEOUT_MS, text, signal,
+    );
+  } else if (process.platform === 'darwin') {
+    await execWithTimeout('/usr/bin/pbcopy', [], CLIPBOARD_TIMEOUT_MS, text, signal);
+  } else if (process.platform === 'linux') {
+    try {
+      await execWithTimeout('wl-copy', [], CLIPBOARD_TIMEOUT_MS, text, signal);
+    } catch {
+      signal?.throwIfAborted();
+      await execWithTimeout('xclip', ['-selection', 'clipboard'], CLIPBOARD_TIMEOUT_MS, text, signal);
+    }
+  } else {
+    throw new Error('unsupported platform');
+  }
+}
+
+export async function copyClipboardText(text: string): Promise<ClipboardCopyResult> {
+  if (!text) return { status: 'failed', message: CLIPBOARD_TIPS.noText };
+  const terminalRequired = isSshSession() || !!(process.env.TMUX || process.env.TMUX_PANE);
+  if (terminalRequired) {
+    try {
+      await copyThroughTerminal(text);
+      return { status: 'requested', message: CLIPBOARD_TIPS.requested };
+    } catch (err) {
+      logger.warn('[clipboard] terminal copy failed', { err: String(err) });
+      return { status: 'failed', message: CLIPBOARD_TIPS.terminalCopyFailed };
+    }
+  }
+  try {
+    await copyNatively(text);
+    return { status: 'copied', message: CLIPBOARD_TIPS.copied };
+  } catch (err) {
+    logger.warn('[clipboard] native copy failed, trying OSC 52', { err: String(err) });
+    try {
+      await copyThroughTerminal(text);
+      return { status: 'requested', message: CLIPBOARD_TIPS.requested };
+    } catch {
+      return { status: 'failed', message: CLIPBOARD_TIPS.copyFailed };
+    }
   }
 }
 
 /**
  * Write plain text to the OS clipboard.
- * Returns true on success, false on error or unsupported platform.
+ * Returns true only for confirmed native writes; terminal delivery has no acknowledgement.
  */
-export async function copyTextToClipboard(text: string): Promise<boolean> {
+export async function copyTextToClipboard(text: string, signal?: AbortSignal): Promise<boolean> {
+  if (signal?.aborted || Buffer.byteLength(text, 'utf8') > 100000) return false;
   try {
-    if (process.platform === 'darwin') {
-      await new Promise<void>((resolve, reject) => {
-        const { spawn } = require('child_process');
-        const proc = spawn('pbcopy', [], { stdio: ['pipe', 'ignore', 'ignore'] });
-        proc.on('error', reject);
-        proc.on('close', (code: number) => (code === 0 ? resolve() : reject(new Error(`pbcopy exit ${code}`))));
-        proc.stdin.end(text, 'utf8');
-      });
-      return true;
-    } else if (process.platform === 'linux') {
-      for (const [cmd, args] of [['wl-copy', []], ['xclip', ['-selection', 'clipboard']]] as [string, string[]][]) {
-        try {
-          await new Promise<void>((resolve, reject) => {
-            const { spawn } = require('child_process');
-            const proc = spawn(cmd, args, { stdio: ['pipe', 'ignore', 'ignore'] });
-            proc.on('error', reject);
-            proc.on('close', (code: number) => (code === 0 ? resolve() : reject(new Error(`${cmd} exit ${code}`))));
-            proc.stdin.end(text, 'utf8');
-          });
-          return true;
-        } catch {
-          continue;
-        }
-      }
-      return false;
-    } else if (process.platform === 'win32') {
-      await new Promise<void>((resolve, reject) => {
-        const { spawn } = require('child_process');
-        const proc = spawn('clip', [], { stdio: ['pipe', 'ignore', 'ignore'] });
-        proc.on('error', reject);
-        proc.on('close', (code: number) => (code === 0 ? resolve() : reject(new Error(`clip exit ${code}`))));
-        proc.stdin.end(text, 'utf8');
-      });
-      return true;
-    }
-    return false;
+    // Selection callers own terminal delivery; keep this API native-only.
+    await copyNatively(text, signal);
+    return !signal?.aborted;
   } catch (err) {
     logger.warn('[clipboard] copyTextToClipboard failed', { err: String(err) });
     return false;
   }
+}
+
+export type SelectionCopyResult = 'native' | 'osc52' | 'failed';
+
+/** Send only user-selected text; remote sessions use the terminal clipboard protocol. */
+export async function copySelectionToClipboard(
+  text: string, output: Pick<NodeJS.WriteStream, 'write' | 'isTTY'> | undefined, signal?: AbortSignal,
+): Promise<SelectionCopyResult> {
+  if (signal?.aborted || !text.trim() || Buffer.byteLength(text, 'utf8') > 100000) return 'failed';
+  const remote = isSshSession();
+  if (!remote && await copyTextToClipboard(text, signal)) return 'native';
+  if (signal?.aborted || !output?.isTTY || process.env.TERM === 'dumb') return 'failed';
+  // SSH often omits terminal identity; let the terminal decide whether to accept OSC 52.
+  try {
+    output.write(selectionClipboardSequence(text, process.env));
+    rememberTerminalCopy(text);
+    return 'osc52';
+  } catch {
+    return 'failed';
+  }
+}
+
+export function selectionClipboardSequence(text: string, environment: NodeJS.ProcessEnv): string {
+  const encoded = Buffer.from(text, 'utf8').toString('base64');
+  const raw = `\x1b]52;c;${encoded}\x07`;
+  if (environment.TMUX) return raw + `\x1bPtmux;${raw.replaceAll('\x1b', '\x1b\x1b')}\x1b\\`;
+  if (environment.STY) return `\x1bP\x1b]52;c;${(encoded.match(/.{1,76}/g) || ['']).join('\x1b\\\x1bP')}\x07\x1b\\`;
+  return environment.TERM_PROGRAM === 'kitty' ? raw.slice(0, -1) + '\x1b\\' : raw;
 }
 
 /**

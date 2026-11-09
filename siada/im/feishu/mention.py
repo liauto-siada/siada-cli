@@ -77,7 +77,7 @@ def normalize_mentions(
 
     - Bot's placeholder is stripped entirely (avoid interfering with command parsing)
     - Other users' placeholders -> <at user_id="ou_xxx">name</at>
-    - @_all -> @All
+    - @_all -> @所有人
 
     Reference: OpenClaw bot-content.ts -> normalizeMentions()
     """
@@ -90,7 +90,7 @@ def normalize_mentions(
         name = mention.get("name", "")
 
         if key == "@_all":
-            text = text.replace(key, "@All")
+            text = text.replace(key, "@所有人")
         elif open_id == bot_open_id:
             # Strip bot placeholder entirely
             text = text.replace(key, "")

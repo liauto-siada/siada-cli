@@ -1,0 +1,25 @@
+<style>
+  :root{color-scheme:light}body{padding:24px!important}h2{font-size:24px;margin:0 0 4px}.muted{color:#65738a}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:24px 0}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}.card{border:1px solid #e0e7f0;border-radius:16px;padding:18px;background:linear-gradient(140deg,#f4f8ff,#f0fff8)}.card strong{display:block;font-size:26px;margin-top:6px}select,button{padding:10px 14px;border:1px solid #ccd9eb;border-radius:10px;background:white}button{margin-top:20px;background:#276fe9;color:white;border:0;cursor:pointer}input{max-width:100%}.chart{display:flex;height:120px;gap:8px;align-items:flex-end;margin:24px 0}.bar{flex:1;background:linear-gradient(#87afff,#76e5c0);border-radius:6px 6px 0 0}
+</style>
+<h2>可探索的经营看板</h2><div class="muted">演示数据 · 筛选和预算会直接更新结果</div>
+<div class="controls"><label>时间范围 <select id="range"><option value="7">过去 7 天</option><option value="30">过去 30 天</option></select></label><label>预算 <input id="budget" type="range" min="100" max="1000" step="100"><output id="budget-label"></output></label></div>
+<div class="cards"><div class="card">访客<strong id="visitors"></strong></div><div class="card">预计转化<strong id="conversions"></strong></div><div class="card">每次转化成本<strong id="cost"></strong></div></div>
+<div class="chart" aria-label="每日访客趋势"></div>
+<button id="ask">按当前设置继续分析</button>
+<script>
+  const range=document.getElementById("range"),budget=document.getElementById("budget");
+  range.value=String(siadaUI.state.range||30);budget.value=String(siadaUI.state.budget||500);
+  function render(){
+    const days=Number(range.value),amount=Number(budget.value),visitors=days===7?15600:73600,conversions=Math.round(amount*.12);
+    document.getElementById("budget-label").textContent=" ¥"+amount;
+    document.getElementById("visitors").textContent=(visitors/1000).toFixed(1)+"K";
+    document.getElementById("conversions").textContent=conversions;
+    document.getElementById("cost").textContent="¥"+(amount/conversions).toFixed(2);
+    const chart=document.querySelector(".chart");chart.replaceChildren();
+    for(const value of [35,58,45,80,62,100,76]){const bar=document.createElement("div");bar.className="bar";bar.style.height=Math.round(value*(days===7?.75:1))+"%";chart.append(bar);}
+  }
+  function update(){render();siadaUI.setState({range:Number(range.value),budget:Number(budget.value)});}
+  range.onchange=update;budget.oninput=update;
+  document.getElementById("ask").onclick=()=>siadaUI.submit("请按当前时间范围和预算继续分析");
+  render();
+</script>

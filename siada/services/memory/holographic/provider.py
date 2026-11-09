@@ -124,6 +124,8 @@ class HolographicProvider:
         diverge, runs ``rebuild_all_vectors`` so the user can change ``hrr_dim``
         in conf.yaml without manually wiping the DB.
         """
+        if self.is_ready():
+            return
         self._store = FactStore(
             self.db_path,
             hrr_dim=self.config.hrr_dim,

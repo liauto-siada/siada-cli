@@ -501,7 +501,7 @@ def test_reconfigure_without_transport_is_a_noop(temp_user_home):
 # --------------------------------------------------------------------------- #
 def test_tty_login_prompts_for_endpoint_and_key(monkeypatch, temp_user_home):
     io = _FakeIO()
-    answers = iter(["https://api.openai.com/v1", "gpt-5.2"])
+    answers = iter(["1", "https://api.openai.com/v1", "gpt-5.2"])
     monkeypatch.setattr(login_prompt, "_is_interactive_tty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     monkeypatch.setattr("getpass.getpass", lambda prompt="": "sk-tty-key")
@@ -528,7 +528,7 @@ def test_tty_login_requires_an_interactive_terminal(monkeypatch, temp_user_home)
 
 def test_tty_login_rejects_empty_api_key(monkeypatch, temp_user_home):
     io = _FakeIO()
-    answers = iter(["https://api.openai.com/v1", ""])
+    answers = iter(["1", "https://api.openai.com/v1", ""])
     monkeypatch.setattr(login_prompt, "_is_interactive_tty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     monkeypatch.setattr("getpass.getpass", lambda prompt="": "  ")
@@ -541,7 +541,7 @@ def test_tty_login_rejects_empty_api_key(monkeypatch, temp_user_home):
 def test_tty_login_rejects_empty_base_url(monkeypatch, temp_user_home):
     """A blank endpoint is not usable: reject it before persisting anything."""
     io = _FakeIO()
-    answers = iter(["   ", "gpt-5.2"])
+    answers = iter(["1", "   ", "gpt-5.2"])
     monkeypatch.setattr(login_prompt, "_is_interactive_tty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     monkeypatch.setattr("getpass.getpass", lambda prompt="": "sk-tty-key")
@@ -556,7 +556,7 @@ def test_tty_login_rejects_empty_base_url(monkeypatch, temp_user_home):
 def test_tty_login_failed_conf_write_is_not_a_sign_in(monkeypatch, temp_user_home):
     """The TTY wizard must fail (without echoing the key) when saving fails."""
     io = _FakeIO()
-    answers = iter(["https://api.openai.com/v1", "gpt-5.2"])
+    answers = iter(["1", "https://api.openai.com/v1", "gpt-5.2"])
     monkeypatch.setattr(login_prompt, "_is_interactive_tty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     monkeypatch.setattr("getpass.getpass", lambda prompt="": "sk-tty-key")
@@ -592,7 +592,7 @@ def test_env_credentials_sign_in_without_any_prompt(monkeypatch, temp_user_home)
         user = login_prompt.ensure_logged_in(io, acp_mode=True)
 
     assert attempted == []
-    assert user == "api-key-user:configured"
+    assert user == "api-key-environment"
     assert user.startswith("api-key-")
     assert ENV_API_KEY not in user
     assert io.acp_adapter.transport.messages == []  # no ui/showLoginSelector
@@ -620,7 +620,7 @@ def test_env_credentials_sign_in_for_noninteractive_prompt_runs(
 
     user = login_prompt.ensure_logged_in(io, acp_mode=False)
 
-    assert user == "api-key-user:configured"
+    assert user == "api-key-environment"
     assert io.infos == []
     assert _read_llm_config(temp_user_home) == {}
 
@@ -678,7 +678,7 @@ def test_env_credentials_override_the_stored_config(monkeypatch, temp_user_home)
 
     user = login_prompt.ensure_logged_in(io, acp_mode=True)
 
-    assert user == "api-key-user:configured"
+    assert user == "api-key-environment"
     assert io.acp_adapter.transport.messages == []
     stored = _read_llm_config(temp_user_home)
     assert stored["provider_id"] == "openai"
@@ -770,11 +770,11 @@ def test_env_credentials_are_never_logged(monkeypatch, temp_user_home):
 
     user = login_prompt.ensure_logged_in(_FakeIO(), acp_mode=False)
 
-    assert user == "api-key-user:configured"
+    assert user == "api-key-environment"
     rendered = repr(logger_mock.mock_calls)
     assert ENV_API_KEY not in rendered
     assert ENV_BASE_URL not in rendered
-    assert "api-key-user:configured" in rendered
+    assert "api-key-environment" in rendered
 
 
 # --------------------------------------------------------------------------- #
@@ -900,7 +900,7 @@ def test_env_pair_signs_in_next_to_corrupt_stored_config(monkeypatch, temp_user_
 
     user = login_prompt.ensure_logged_in(io, acp_mode=True)
 
-    assert user == "api-key-user:configured"
+    assert user == "api-key-environment"
     applied = login_prompt.get_applied_api_key_config()
     assert applied["base_url"] == ENV_BASE_URL
     assert applied["api_key"] == ENV_API_KEY

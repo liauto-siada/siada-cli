@@ -1,14 +1,17 @@
 import React from 'react';
-import { Box, Text, useStdout } from '@jrichman/ink';
-import stringWidth from 'string-width';
+import { Box, Text, useStdout, type DOMElement } from '@jrichman/ink';
+import stringWidth from '../../utils/terminalWidth.js';
 import { useThemeVersion } from '../../themes/index.js';
 import { colors } from '../../utils/colors.js';
 import { ParsedToolCall } from '../../utils/toolCallParser.js';
-import { ToolHeading } from './ToolHeading.js';
+import { ToolAction, ToolHeading } from './ToolHeading.js';
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 export function wrapToolFieldText(text: string, width: number): string[] {
+  if (text.includes('\n')) {
+    return text.split(/\r?\n/).flatMap(line => wrapToolFieldText(line, width));
+  }
   const rows: string[] = [];
   let row = '';
   let rowWidth = 0;
@@ -28,7 +31,7 @@ export function wrapToolFieldText(text: string, width: number): string[] {
   return rows;
 }
 
-function wrapHeading(text: string, firstWidth: number, continuationWidth: number): string[] {
+export function wrapHeading(text: string, firstWidth: number, continuationWidth: number): string[] {
   const rows: string[] = [];
   let row = '';
   let rowWidth = 0;
@@ -53,7 +56,7 @@ function wrapHeading(text: string, firstWidth: number, continuationWidth: number
   return rows;
 }
 
-type SearchFragment = { text: string; muted: boolean };
+type SearchFragment = { text: string; muted: boolean; arrow?: boolean };
 
 function wrapSearchHeading(parts: SearchFragment[], firstWidth: number, continuationWidth: number): SearchFragment[][] {
   const rows: SearchFragment[][] = [[]];
@@ -79,10 +82,10 @@ function wrapSearchHeading(parts: SearchFragment[], firstWidth: number, continua
       }
       if (!width && segment === ' ') continue;
       const row = rows[rows.length - 1];
-      if (row[row.length - 1]?.muted === part.muted) {
+      if (row[row.length - 1]?.muted === part.muted && row[row.length - 1]?.arrow === part.arrow) {
         row[row.length - 1].text += segment;
       } else {
-        row.push({ text: segment, muted: part.muted });
+        row.push({ text: segment, muted: part.muted, arrow: part.arrow });
       }
       width += nextWidth;
     }
@@ -90,9 +93,11 @@ function wrapSearchHeading(parts: SearchFragment[], firstWidth: number, continua
   return rows;
 }
 
-function searchFragments(row: SearchFragment[]): React.ReactNode {
+function searchFragments(row: SearchFragment[], arrowHovered = false): React.ReactNode {
   return row.map((fragment, index) => (
-    <Text key={index} color={fragment.muted ? colors.content.secondary : undefined}>{fragment.text}</Text>
+    <Text key={index}
+      color={fragment.arrow ? colors.info : fragment.muted ? colors.content.secondary : undefined}
+      bold={fragment.arrow && arrowHovered ? true : undefined}>{fragment.text}</Text>
   ));
 }
 
@@ -101,10 +106,22 @@ export const ToolPromptView: React.FC<{
   tool: ParsedToolCall;
   content: string;
   maxRows?: number;
-}> = ({ tool, content, maxRows }) => {
+  width?: number;
+  showHeading?: boolean;
+  searchPresentation?: {
+    prefix: string;
+    headingRef?: React.Ref<DOMElement>;
+    backgroundColor?: string;
+    disclosure: string;
+    /** Highlight the disclosure glyph while the pointer is over the heading. */
+    disclosureHovered?: boolean;
+    showCwd: boolean;
+    secondary?: boolean;
+  };
+}> = ({ tool, content, maxRows, width: availableWidth, showHeading = true, searchPresentation }) => {
   useThemeVersion();
   const { stdout } = useStdout();
-  const columns = stdout?.columns || process.stdout.columns || 80;
+  const columns = availableWidth ?? (stdout?.columns || process.stdout.columns || 80);
   const isFetch = tool.type === 'web' && !content.startsWith('Web search:');
   const isWebSearch = tool.type === 'web' && !isFetch;
   // WebSearchFormatter emits "Web search: search: <query>"; older history
@@ -118,23 +135,28 @@ export const ToolPromptView: React.FC<{
       : isFetch ? tool.details || '' : isWebSearch ? webQuery : tool.query || '';
   const lineRange = tool.type === 'read_file' && tool.lineStart !== undefined && tool.lineEnd !== undefined
     ? ` · lines ${tool.lineStart}-${tool.lineEnd}` : '';
+  const searchIndent = searchPresentation ? stringWidth(searchPresentation.prefix) : 2;
+  const continuationIndent = searchPresentation ? searchIndent + stringWidth('Search ') : 2;
   const searchRows = tool.type === 'search' && tool.path ? wrapSearchHeading(
     [
-      { text: argument, muted: false },
+      { text: searchPresentation ? `"${argument.replaceAll('"', '\\"')}"` : argument, muted: Boolean(searchPresentation?.secondary) },
       { text: ' in ', muted: true },
-      { text: tool.path, muted: false },
+      { text: tool.path, muted: Boolean(searchPresentation?.secondary) },
+      { text: searchPresentation?.disclosure || '', muted: true, arrow: true },
     ],
-    Math.max(1, columns - stringWidth('● Search ') - 1),
-    Math.max(1, columns - 3),
+    Math.max(1, columns - (searchPresentation ? searchIndent + stringWidth('Search ') + 1 :
+      showHeading ? stringWidth('● Search ') + 1 : 1)),
+    Math.max(1, columns - continuationIndent - 1),
   ) : null;
   // The value is shown once, in the heading. Wrap instead of clipping long
   // paths/queries/URLs so there is no need to duplicate them in the tree.
   const headingRows = !searchRows && (argument || lineRange) ? wrapHeading(
     `${argument}${lineRange}`,
-    Math.max(1, columns - stringWidth(`● ${action} `) - 1),
+    Math.max(1, columns - (showHeading ? stringWidth(`● ${action} `) + 1 : 1)),
     Math.max(1, columns - 3),
   ) : [];
   const headingCount = searchRows?.length ?? headingRows.length;
+  const arrowHovered = Boolean(searchPresentation?.disclosureHovered);
   const shownCount = maxRows === undefined ? headingCount : Math.min(headingCount, Math.max(1, maxRows));
   const visibleHeading = headingRows.slice(0, shownCount);
   const visibleSearch = searchRows?.slice(0, shownCount);
@@ -144,7 +166,7 @@ export const ToolPromptView: React.FC<{
       ? []
       : ([
           ['file pattern', tool.filePattern || ''],
-          ['cwd', tool.cwd || ''],
+          ['cwd', searchPresentation && !searchPresentation.showCwd ? '' : tool.cwd || ''],
         ] as Array<[string, string]>).filter(([, value]) => value !== '');
 
   // Partially streamed or older tool payloads may not include every field.
@@ -152,7 +174,7 @@ export const ToolPromptView: React.FC<{
   const fields = !argument && !isWebSearch ? [['prompt', content]] : entries;
   // Two-column indentation, three-column tree prefix, and one spare column
   // so Ink and the terminal never compete over a soft-wrapped final cell.
-  const width = Math.max(2, columns - 6);
+  const width = Math.max(2, columns - searchIndent - 4);
   const rows = fields.flatMap(([name, value], index) => {
     const branch = index === fields.length - 1 ? '└─ ' : '├─ ';
     return wrapToolFieldText(`${name}: ${value}`, width).map((line, lineIndex) => ({
@@ -165,14 +187,26 @@ export const ToolPromptView: React.FC<{
 
   return (
     <Box flexDirection="column">
-      {searchRows ? (
-        <ToolHeading parts={['Search']} suffix={visibleSearch?.[0] && <> {searchFragments(visibleSearch[0])}</>} />
+      {searchPresentation && searchRows ? (
+        <Box>
+          <Box ref={searchPresentation.headingRef} flexShrink={1}
+            backgroundColor={searchPresentation.backgroundColor}>
+            <Text color={searchPresentation.secondary ? colors.content.secondary : undefined}>
+              <Text color={colors.content.secondary}>{searchPresentation.prefix}</Text>
+              {searchPresentation.secondary ? 'Search' : <ToolAction label="Search" />} {searchFragments(visibleSearch?.[0] || [], arrowHovered)}
+            </Text>
+          </Box>
+        </Box>
+      ) : !showHeading ? (
+        <Text>{visibleSearch?.[0] ? searchFragments(visibleSearch[0], arrowHovered) : visibleHeading[0]}</Text>
+      ) : searchRows ? (
+        <ToolHeading parts={['Search']} suffix={visibleSearch?.[0] && <> {searchFragments(visibleSearch[0], arrowHovered)}</>} />
       ) : (
         <ToolHeading parts={[`${action}${visibleHeading.length ? ` ${visibleHeading[0]}` : ''}`]} />
       )}
       {visibleSearch?.slice(1).map((line, index) => (
-        <Box key={`search-${index}`} paddingLeft={2}>
-          <Text>{searchFragments(line)}</Text>
+        <Box key={`search-${index}`} paddingLeft={continuationIndent}>
+          <Text>{searchFragments(line, arrowHovered)}</Text>
         </Box>
       ))}
       {visibleHeading.slice(1).map((line, index) => (
@@ -185,7 +219,7 @@ export const ToolPromptView: React.FC<{
           <Text color={colors.content.secondary}>… {headingCount - shownCount} more lines</Text>
         </Box>
       )}
-      {rows.length > 0 && <Box flexDirection="column" paddingLeft={2}>
+      {rows.length > 0 && <Box flexDirection="column" paddingLeft={searchIndent}>
         {visible.map(({ prefix, line }, index) => (
           <Box key={index}>
             <Text color={colors.content.secondary}>{prefix}</Text>

@@ -10,6 +10,7 @@ export interface FileChangeSetViewProps {
   changes: ApplyPatchFileChange[];
   fileCount: number;
   width?: number;
+  showHeading?: boolean;
 }
 
 function changeLabel(change: ApplyPatchFileChange): string {
@@ -41,33 +42,38 @@ function countLines(change: ApplyPatchFileChange): { added: number; removed: num
   return { added, removed };
 }
 
+export function fileChangeSummary(changes: ApplyPatchFileChange[], fileCount: number): string {
+  const total = changes.map(countLines).reduce((counts, lines) => ({
+    added: counts.added + lines.added, removed: counts.removed + lines.removed,
+  }), { added: 0, removed: 0 });
+  const partialDiff = changes.some(change =>
+    change.diffOmitted || (change.hunks.length === 0 && !!change.details && !/without text changes\.$/.test(change.details)),
+  );
+  const totalStats = changes.some(change => change.hunks.length > 0)
+    ? ` (+${total.added} -${total.removed}${partialDiff ? ' shown' : ''})`
+    : '';
+  const groupLabel = changes.some(change => change.action === 'failed') ? 'File operations:' : 'Edited';
+  const heading = changes.length > 1
+    ? `${groupLabel} ${fileCount} files`
+    : changes[0] ? changeLabel(changes[0]) : `Edited ${fileCount} files`;
+  return `${heading}${totalStats}`;
+}
+
 export const FileChangeSetView: React.FC<FileChangeSetViewProps> = ({
   changes,
   fileCount,
   width,
+  showHeading = true,
 }) => {
   useThemeVersion();
   const diffWidth = width ?? (process.stdout.columns || 80);
   const multipleFiles = changes.length > 1;
   const fileStats = changes.map(countLines);
-  const total = fileStats.reduce((counts, lines) => {
-    return { added: counts.added + lines.added, removed: counts.removed + lines.removed };
-  }, { added: 0, removed: 0 });
-  const partialDiff = changes.some(change =>
-    change.diffOmitted || (change.hunks.length === 0 && !!change.details && !/without text changes\.$/.test(change.details)),
-  );
-  const hasVisibleDiff = changes.some(change => change.hunks.length > 0);
-  const totalStats = hasVisibleDiff
-    ? ` (+${total.added} -${total.removed}${partialDiff ? ' shown' : ''})`
-    : '';
-  const groupLabel = changes.some(change => change.action === 'failed') ? 'File operations:' : 'Edited';
-  const heading = multipleFiles
-    ? `${groupLabel} ${fileCount} files`
-    : changes[0] ? changeLabel(changes[0]) : `Edited ${fileCount} files`;
+  const heading = fileChangeSummary(changes, fileCount);
 
   return (
     <Box flexDirection="column" width={diffWidth}>
-      <ToolHeading parts={[`${heading}${totalStats}`]} failed={changes.some(change => change.action === 'failed')} />
+      {showHeading && <ToolHeading parts={[heading]} failed={changes.some(change => change.action === 'failed')} />}
       {changes.map((change, index) => (
         <Box
           key={`${change.action}-${change.path}-${index}`}

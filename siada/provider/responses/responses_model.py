@@ -6,9 +6,11 @@ building, input/tool sanitization, reasoning config resolution, streaming
 event patching, usage normalization — and delegates authentication/routing
 to an injected ``ResponsesTransport``.
 
-Used by the open-source ``default`` provider (via
-``DefaultResponsesTransport``) for Responses-only model families against a
-plain OpenAI-compatible endpoint.
+Used by:
+- the internal ``li`` provider (via ``LiProxyResponsesTransport``) for
+  Responses-only models such as the GPT-5 family;
+- the open-source ``default`` provider (via ``DefaultResponsesTransport``)
+  for the same model families against a plain OpenAI-compatible endpoint.
 """
 from __future__ import annotations
 
@@ -195,9 +197,12 @@ class ResponsesModel(Model):
         # non-reasoning model errors out.  Tool-derived includes are merged
         # rather than overwritten.
         #
-        # The default provider sends these parameters through
-        # DefaultResponsesTransport. Chat Completions requests use their own
-        # assembly path.
+        # This is the single assembly point for the Responses protocol, so both
+        # provider channels pick it up: the default provider
+        # (``default_provider.py`` -> ``DefaultResponsesTransport``) and the li
+        # provider (``li_provider.py`` -> ``LiProxyResponsesTransport``) only
+        # differ in the transport that sends the finished params.  Chat
+        # completions wires never reach this method and stay untouched.
         include_set: set[str] = (
             set(converted.includes) if converted and converted.includes else set()
         )
@@ -281,9 +286,9 @@ class ResponsesModel(Model):
         if tool_choice is not omit:
             request_params["tool_choice"] = tool_choice
 
-        # Do not send previous_response_id (the legacy client keeps
-        # ``usePreviousResponseId: false``). Sending a stale / un-stored ID
-        # causes a 400 "item not found" error from the upstream service.
+        # Do not send previous_response_id — mirrors siada-plugin's
+        # usePreviousResponseId: false. Sending a stale / un-stored ID causes
+        # a 400 "item not found" error from the upstream service.
 
         if conversation_id:
             request_params["conversation"] = conversation_id
@@ -431,9 +436,9 @@ class ResponsesModel(Model):
     ) -> AsyncIterator[TResponseStreamEvent]:
         """Stream a response from OpenAI Responses API.
 
-        Call ``responses.create`` once, then iterate native Responses API
-        events directly — no chat-completion bridging needed because the
-        upstream returns native events.
+        Mirrors siada-plugin's createResponseStream: call responses.create once,
+        then iterate native Responses API events directly — no chat-completion
+        bridging needed because the upstream returns native events.
         """
         with generation_span(
             model=self.model,
@@ -461,8 +466,8 @@ class ResponsesModel(Model):
                 stream, _llm_request_body = await self._transport.create_stream(**request_params)
 
                 # Track function-call metadata by item ID so delta events can be
-                # enriched with call_id / name, keyed by item ID like the
-                # legacy client did.
+                # enriched with call_id / name — mirrors siada-plugin's
+                # functionCallByItemId Map in createResponseStream.
                 def _truncate(s: str, head: int = 20, tail: int = 20) -> str:
                     if len(s) <= head + tail + 3:
                         return s
@@ -470,8 +475,8 @@ class ResponsesModel(Model):
 
                 function_call_by_item_id: dict[str, dict[str, Any]] = {}
 
-                # Accumulate reasoning summary text per item ID from the
-                # reasoning-summary delta events.
+                # Accumulate reasoning summary text per item ID — mirrors
+                # siada-plugin's ReasoningHandler.processReasoningDelta.
                 #
                 # The upstream streams reasoning text via
                 # ``response.reasoning_summary_text.delta`` events but may leave
@@ -617,7 +622,8 @@ class ResponsesModel(Model):
                     elif event_type == "response.reasoning_summary_text.delta":
                         # Primary channel for reasoning text. The upstream emits
                         # these as the model thinks; we accumulate and patch
-                        # back into the ReasoningItem later.
+                        # back into the ReasoningItem later. Matches
+                        # siada-plugin's handling of the same event type.
                         item_id = getattr(event, "item_id", None)
                         delta = getattr(event, "delta", "") or ""
                         if item_id and delta:
@@ -789,8 +795,6 @@ class ResponsesModel(Model):
                 )
                 raise
             finally:
-                # Closing an SDK generator must also release its request body,
-                # without closing the transport's runtime-owned HTTP client.
                 if stream is not None:
                     close = getattr(stream, "aclose", None) or getattr(stream, "close", None)
                     if close is not None:

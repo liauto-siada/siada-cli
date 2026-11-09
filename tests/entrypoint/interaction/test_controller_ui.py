@@ -117,6 +117,57 @@ def _messages_with_reason(sent, reason):
 
 
 # --------------------------------------------------------------------------- #
+# Quota
+# --------------------------------------------------------------------------- #
+class TestQuota:
+    def test_quota_update_payload_and_refresh_throttle(self):
+        ctx = _build_ui()
+        with patch("siada.services.quota_service.get_quota_usage", return_value="88.97%"):
+            ctx.ui.send_quota_update_async()
+            ctx.ui.send_quota_update_async()  # within 10s window -> throttled
+            assert _wait_for(lambda: _messages_with_reason(ctx.sent, "quota_update"))
+
+        updates = _messages_with_reason(ctx.sent, "quota_update")
+        assert len(updates) == 1
+        msg = updates[0]
+        # Wire payload preserved: session/update + session_update params.
+        assert msg.method == "session/update"
+        assert msg.params["reason"] == "quota_update"
+        assert json.loads(msg.params["content"]) == {"quota_usage": "88.97%"}
+        # metadata={} was passed explicitly in the original code, which yields
+        # no _meta key on the wire.
+        assert "_meta" not in msg.params
+
+    def test_quota_update_skipped_when_usage_unavailable(self):
+        ctx = _build_ui()
+        fetched = threading.Event()
+
+        def _no_usage():
+            fetched.set()
+            return None
+
+        with patch("siada.services.quota_service.get_quota_usage", new=_no_usage):
+            ctx.ui.send_quota_update_async()
+            assert fetched.wait(5.0)
+        assert _messages_with_reason(ctx.sent, "quota_update") == []
+
+    def test_low_quota_threshold_notifies_once(self):
+        ctx = _build_ui()
+        with patch("siada.notifications.show_completion_notification") as notify:
+            ctx.ui._check_quota_thresholds("15.00%")
+            ctx.ui._check_quota_thresholds("15.00%")
+        assert notify.call_count == 1
+
+    def test_quota_threshold_skips_healthy_and_disabled(self):
+        ctx = _build_ui()
+        with patch("siada.notifications.show_completion_notification") as notify:
+            ctx.ui._check_quota_thresholds("88.97%")  # above threshold
+            ctx.ui.config.enable_notification = False
+            ctx.ui._check_quota_thresholds("5.00%")  # disabled
+        assert notify.call_count == 0
+
+
+# --------------------------------------------------------------------------- #
 # Session title
 # --------------------------------------------------------------------------- #
 class TestSessionTitle:
@@ -292,7 +343,7 @@ class TestHistoryState:
 # Banner info (show_announcements)
 # --------------------------------------------------------------------------- #
 class TestShowAnnouncements:
-    def test_banner_payload_theme_and_slash_commands(self):
+    def test_banner_payload_theme_slash_commands_and_quota_kickoff(self):
         ctx = _build_ui()
         session = _make_session(session_id="sess-42")
         ctx.holder[0] = session
@@ -302,8 +353,11 @@ class TestShowAnnouncements:
                  "siada.io.system_theme_detector.resolve_theme_for_ui",
                  return_value="dark",
                  create=True,  # not present on this refactor branch yet
-             ):
+             ), \
+             patch("siada.services.quota_service.get_quota_usage", return_value="50.00%"):
             ctx.ui.show_announcements()
+            # Immediate quota fetch fires right after the banner.
+            assert _wait_for(lambda: _messages_with_reason(ctx.sent, "quota_update"))
 
         banners = _messages_with_reason(ctx.sent, "banner_info")
         assert len(banners) == 1
@@ -333,17 +387,53 @@ class TestShowAnnouncements:
 
     def test_show_announcements_noop_without_acp(self):
         ctx = _build_ui(acp_mode=False)
-        ctx.ui.show_announcements()
-        time.sleep(0.1)
+        with patch("siada.services.quota_service.get_quota_usage", return_value="50.00%"):
+            ctx.ui.show_announcements()
+            time.sleep(0.1)
         assert ctx.sent == []
+        assert ctx.ui._quota_timer is None
 
 
-def test_close_is_idempotent():
-    ctx = _build_ui()
-    ctx.ui.close()
-    ctx.ui.close()  # must not raise
-    assert ctx.ui._exiting is True
+# --------------------------------------------------------------------------- #
+# Quota timer lifecycle
+# --------------------------------------------------------------------------- #
+class TestQuotaTimer:
+    def test_timer_starts_once_and_close_stops(self):
+        _FakeTimer.instances.clear()
+        ctx = _build_ui()
 
+        with patch.object(threading, "Timer", _FakeTimer), \
+             patch("siada.services.quota_service.get_quota_usage", return_value="50.00%"), \
+             patch("siada.config.conf_store.get_conf_value", return_value="dark"):
+            ctx.ui.show_announcements()
+            first = _FakeTimer.instances[-1]
+            assert first.started and not first.cancelled
+
+            # A second show_announcements (e.g. after /clear or a model
+            # switch) must NOT start a second timer chain.
+            ctx.ui.show_announcements()
+            assert len(_FakeTimer.instances) == 1
+
+            # A fired tick reschedules exactly one follow-up timer.
+            first.tick()
+            assert len(_FakeTimer.instances) == 2
+            second = _FakeTimer.instances[-1]
+            assert ctx.ui._quota_timer is second
+
+            # close() cancels the live timer...
+            ctx.ui.close()
+            assert second.cancelled
+
+            # ...and ticks after close are no-ops (no reschedule, no fetch).
+            n_before = len(_FakeTimer.instances)
+            second.tick()
+            assert len(_FakeTimer.instances) == n_before
+
+    def test_close_is_idempotent(self):
+        ctx = _build_ui()
+        ctx.ui.close()
+        ctx.ui.close()  # must not raise
+        assert ctx.ui._exiting is True
 
 def test_processing_and_cancelled_messages_use_acp_adapter():
     ctx = _build_ui()

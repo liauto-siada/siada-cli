@@ -241,15 +241,12 @@ def run_cmd_impl(command, verbose=False, cwd=None, error_print=None, timeout=Non
         if platform.system() == "Windows":
             # Windows doesn't support pexpect well
             result = run_cmd_subprocess(command, verbose, cwd, timeout=effective_timeout)
-        elif sys.stdin.isatty() and hasattr(pexpect, "spawn"):
-            # Traditional TTY mode - use interact() for full interactivity
-            result = run_cmd_pexpect(command, verbose, cwd, timeout=effective_timeout)
         elif is_acp_mode() and hasattr(pexpect, "spawn"):
             # ACP mode (new UI) - use pexpect with expect/sendline pattern
             # This allows interactive commands to work even without TTY
             result = run_cmd_pexpect_acp(command, verbose, cwd, timeout=effective_timeout)
         else:
-            # Fallback to subprocess (no interactivity)
+            # Never infer interactivity from the parent's TTY.
             result = run_cmd_subprocess(command, verbose, cwd, timeout=effective_timeout)
         
         # elapsed_time = time.time() - start_time

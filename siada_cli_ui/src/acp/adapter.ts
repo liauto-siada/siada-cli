@@ -124,14 +124,11 @@ export class SiadaACPAdapter extends EventEmitter {
     });
 
     const { command, args } = this.buildCommand(config);
-    // Never log raw args: user-supplied siadaArgs may carry credentials
-    // (`--set-env API_KEY=...`). The argument count keeps the command build
-    // debuggable; flags the adapter adds are already logged individually.
     logger.debug('Built siada-cli command', {
       component: 'Adapter',
       operation: 'start',
       command,
-      argCount: args.length,
+      args,
     });
     
     // Build environment variables
@@ -247,8 +244,6 @@ export class SiadaACPAdapter extends EventEmitter {
           model: config.model,
         });
       } else {
-        // siadaArgs itself stays out of the log (it may embed credentials);
-        // the count is enough to explain why --model was skipped.
         logger.info('Skipping --model from config (already in siadaArgs)', {
           component: 'Adapter',
           operation: 'buildCommand',
@@ -727,6 +722,15 @@ export class SiadaACPAdapter extends EventEmitter {
           return true;
         }
 
+        if (json.method === 'ui/commandResult') {
+          logger.info('Received ui/commandResult', {
+            component: 'Adapter', commandId: json.params?.commandId,
+            command: json.params?.command,
+          });
+          this.emit('ui:commandResult', json.params);
+          return true;
+        }
+
         // Handle ui/memoryStatusChanged notifications
         if (json.method === 'ui/memoryStatusChanged') {
           logger.info('Received ui/memoryStatusChanged notification', {
@@ -796,6 +800,11 @@ export class SiadaACPAdapter extends EventEmitter {
 
         if (json.method === 'ui/pluginInstallProgress') {
           this.emit('ui:pluginInstallProgress', json.params);
+          return true;
+        }
+
+        if (json.method === 'ui/startupComplete') {
+          this.emit('ui:startupComplete');
           return true;
         }
 
@@ -1766,6 +1775,9 @@ export class SiadaACPAdapter extends EventEmitter {
         // Handle warning - emit as process message
         this.handleWarning(params);
         break;
+      case 'hook':
+        this.handleHook(params);
+        break;
       case 'tool_call':
         // Handle tool_call - emit as process message
         this.handleToolCall(params);
@@ -2017,7 +2029,8 @@ export class SiadaACPAdapter extends EventEmitter {
       },
     });
     
-    if (this.streamingBuffer && this.streamingBuffer.isActive && delta) {
+    if (this.streamingBuffer && this.streamingBuffer.isActive &&
+        typeof delta === 'string' && (delta.length > 0 || stream_end)) {
       logger.debug('📝 Content delta', {
         component: 'Adapter',
         messageId: this.streamingBuffer.messageId,
@@ -2028,7 +2041,7 @@ export class SiadaACPAdapter extends EventEmitter {
       });
       
       // Add delta to buffer
-      this.streamingBuffer.content.push(delta);
+      if (delta) this.streamingBuffer.content.push(delta);
       
       // Send streaming update
       const streamEvent: ACPEvent = {
@@ -2189,7 +2202,7 @@ export class SiadaACPAdapter extends EventEmitter {
   
   /**
    * Handle error lifecycle event
-   * Emits as process message similar to tool_use
+   * Preserve the error subtype so failures never join tool summaries.
    */
   private handleError(data: any): void {
     const { content, timestamp } = data;
@@ -2240,7 +2253,7 @@ export class SiadaACPAdapter extends EventEmitter {
       data: {
         content: truncatedContent,
         blockType: 'agent',
-        subtype: 'tool_use',  // Same rendering as tool_use
+        subtype: 'error',
         isStreaming: false,
         streamEnd: true,
         metadata: {
@@ -2255,8 +2268,32 @@ export class SiadaACPAdapter extends EventEmitter {
   }
   
   /**
-   * Handle warning lifecycle event
-   * Emits as process message similar to tool_use
+   * Preserve hook feedback as a standalone notice.
+   */
+  private handleHook(data: any): void {
+    if (!data.content) return;
+    this.emit('message', {
+      type: 'message',
+      data: {
+        content: data.content,
+        blockType: 'agent',
+        subtype: 'hook',
+        isStreaming: false,
+        streamEnd: true,
+        metadata: {
+          timestamp: data.timestamp,
+          eventType: 'hook',
+          hookEvent: data.hook_event,
+          hookStatus: data.hook_status,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    } satisfies ACPEvent);
+  }
+
+  /**
+   * Handle warning lifecycle event.
+   * Emits as process message similar to tool_use.
    */
   private handleWarning(data: any): void {
     const { content, timestamp } = data;

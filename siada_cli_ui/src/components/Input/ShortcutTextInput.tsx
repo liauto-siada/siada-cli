@@ -20,9 +20,9 @@ import React, { useMemo } from 'react';
 import { Box, Text } from '@jrichman/ink';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { useEnhancedTextBuffer } from './TextBuffer.js';
-import { copyTextToClipboard, getTextFromClipboard } from '../../utils/clipboard.js';
+import { isClipboardPasteKey, useClipboard } from '../../hooks/useClipboard.js';
 import { cpLen, cpSlice } from './textUtils.js';
-import { applyShortcutKey } from './shortcutKeymap.js';
+import { applyShortcutKey, toSingleLine } from './shortcutKeymap.js';
 
 export interface ShortcutTextInputProps {
   /** Called with the trimmed value on a plain Enter. */
@@ -51,17 +51,32 @@ export const ShortcutTextInput: React.FC<ShortcutTextInputProps> = ({
   prompt = '> ',
 }) => {
   const buffer = useEnhancedTextBuffer({ width: 10_000, height: 1 }, {}, initialValue);
+  const clipboard = useClipboard({
+    active,
+    owner: `${buffer.text}\0${buffer.cursorCol}`,
+    onPaste: content => {
+      if (content.kind === 'text') buffer.insert(toSingleLine(content.text));
+    },
+  });
 
   useKeypress(
     (key) => {
       if (!active) return;
+      if (key.name === 'mousemiddle' && !isClipboardPasteKey(key)) return;
+      if (key.name === 'mouseright' && (key.ctrl || key.cmd || key.alt || key.shift)) return;
+      clipboard.onKey(key);
+      if (key.name === 'mouseright') {
+        clipboard.pasteOnRightClick();
+        return;
+      }
+      if (isClipboardPasteKey(key)) {
+        clipboard.paste(false);
+        return;
+      }
       applyShortcutKey(key, buffer, {
         onSubmit,
         onCancel,
-        copyText: (text) => {
-          void copyTextToClipboard(text);
-        },
-        readClipboard: getTextFromClipboard,
+        copyText: clipboard.copy,
       });
     },
     { isActive: active },
@@ -74,12 +89,15 @@ export const ShortcutTextInput: React.FC<ShortcutTextInputProps> = ({
   }, [buffer.text, buffer.cursorCol, masked]);
 
   return (
-    <Box paddingX={1} marginBottom={1}>
-      <Text color="cyan">{prompt}</Text>
-      <Text>{before}</Text>
-      <Text color="cyan">{'█'}</Text>
-      <Text>{after}</Text>
-      {buffer.text === '' && placeholder ? <Text dimColor>{placeholder}</Text> : null}
+    <Box flexDirection="column" paddingX={1} marginBottom={1}>
+      <Box>
+        <Text color="cyan">{prompt}</Text>
+        <Text>{before}</Text>
+        <Text color="cyan">{'█'}</Text>
+        <Text>{after}</Text>
+        {buffer.text === '' && placeholder ? <Text dimColor>{placeholder}</Text> : null}
+      </Box>
+      {clipboard.message && <Text color="yellow" wrap="truncate-end">{clipboard.message}</Text>}
     </Box>
   );
 };

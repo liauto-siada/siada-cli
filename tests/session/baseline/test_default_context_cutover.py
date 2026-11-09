@@ -1,6 +1,7 @@
 """Exercise the public execution boundary and prepared command consumers offline."""
 
 import copy
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -13,58 +14,6 @@ from siada.services.session_management import SessionManager
 from siada.services.session_storage import SessionStorageError
 from siada.support.resume_service import ResumeService
 from siada.support.slash_commands import SlashCommands
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("stream", [False, True])
-@pytest.mark.parametrize("operation", ["resume", "model", "resume_then_model", "reset_before_resume"])
-async def test_legacy_commands_preserve_boundary_until_default_migration(baseline, monkeypatch, stream, operation):
-    session = baseline.session("source")
-    store = session.openai_session
-    history = [
-        {"role": "user", "content": "discarded original"},
-        {"role": "assistant", "content": "pending reply"},
-    ]
-    await store.add_items(history)
-    summary = [{"role": "user", "content": "saved summary"}]
-    from siada.services.session_signature import compute_last_item_signature
-
-    items = summary + history[:1] if operation == "reset_before_resume" else summary
-    SessionManager.sync_api_messages(
-        store.session_folder, store.session_id, items,
-        last_index=-1 if operation == "reset_before_resume" else 0,
-        last_signature="" if operation == "reset_before_resume" else compute_last_item_signature(history[:1]),
-    )
-    legacy_file = store.session_folder / "api_messages.json"
-    before = legacy_file.read_bytes()
-    if operation != "model":
-        resume = ResumeService(session.siada_config.workspace)
-        data = resume.session_manager.load_session(session.session_id, store.session_folder)
-        target = baseline.session("target")
-        resume.restore_to_running_session(data, target)
-        session = target
-        assert session.openai_session.session_folder == store.session_folder
-    if operation in ("model", "resume_then_model"):
-        from siada.models.model_base_config import ModelBaseConfig
-
-        commands = SlashCommands(io=MagicMock())
-        monkeypatch.setattr(commands, "_persist_model_to_conf", lambda _: None)
-        monkeypatch.setattr("siada.support.slash_commands.ModelInfoService.is_model_supported", lambda _: True)
-        monkeypatch.setattr(
-            "siada.models.model_run_config.get_model_config",
-            lambda name: ModelBaseConfig(model_name=name, context_window=1_000_000),
-        )
-        session.siada_config.llm_config.provider = "default"
-        event = commands.cmd_model(session, "migration-test-model")
-        assert event is not None
-        assert session.siada_config.llm_config.model_name == "migration-test-model"
-    assert not store.context_file.exists()
-    assert legacy_file.read_bytes() == before
-    model = baseline.model(session, [[baseline.text("resumed answer")]])
-    await run_default(baseline, session, model, stream=stream, input="continue")
-    assert model.requests[0]["input"] == items + history[1:] + [{"role": "user", "content": "continue"}]
-    assert (await store.get_history_items())[:2] == history
-    assert legacy_file.read_bytes() == before
 
 
 async def run_default(baseline, session, model, *, stream, config=None, input="new turn",
@@ -113,6 +62,49 @@ async def test_default_entry_uses_prepared_context_and_preserves_ui_history(base
     assert session.task_message_state.get_messages() == []
     assert session.task_message_state.get_real_messages() == []
     assert not (store.session_folder / "api_messages.json").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_default_missing_native_tool_persists_one_error_and_continues(baseline, stream):
+    from openai.types.responses import ResponseApplyPatchToolCall
+
+    session = baseline.session()
+    calls = []
+
+    @function_tool
+    def edit_file(value: str) -> str:
+        """Record a synthetic edit after the model receives missing-tool feedback."""
+        calls.append(value)
+        return "edited"
+
+    missing = ResponseApplyPatchToolCall(
+        type="apply_patch_call", id="synthetic-patch", call_id="missing-patch",
+        status="completed", operation={
+            "type": "create_file", "path": "synthetic.txt", "diff": "+test",
+        },
+    )
+    model = baseline.model(session, [
+        [missing],
+        [baseline.call("valid-edit", "edit_file", {"value": "once"})],
+        [baseline.text("done")],
+    ])
+    model.supports_native_responses_items = True
+    result = await run_default(baseline, session, model, stream=stream, tools=[edit_file])
+
+    assert result.final_output == "done"
+    assert calls == ["once"]
+    assert len(model.requests) == 3
+    for items in (
+        model.requests[1]["input"],
+        await session.openai_session.get_items(),
+        await session.openai_session.get_history_items(),
+    ):
+        errors = [item for item in items if item.get("type") == "apply_patch_call_output"]
+        assert len(errors) == 1
+        assert errors[0]["call_id"] == "missing-patch"
+        assert errors[0]["status"] == "failed"
+        assert "Available tools: edit_file" in errors[0]["output"]
 
 
 @pytest.mark.asyncio
@@ -191,7 +183,7 @@ async def test_default_preparation_validates_legacy_boundary(baseline, stream, l
         (store.session_folder / "api_messages.json").write_text("not json", encoding="utf-8")
     before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
     model = baseline.model(session, [[baseline.text("answer")]])
-    if legacy in ("unknown", "corrupt"):
+    if legacy == "corrupt":
         with pytest.raises(SessionStorageError):
             await run_default(baseline, session, model, stream=stream)
         assert model.requests == []
@@ -200,9 +192,219 @@ async def test_default_preparation_validates_legacy_boundary(baseline, stream, l
     else:
         await run_default(baseline, session, model, stream=stream)
         assert store.has_prepared_context
-        assert model.requests[0]["input"] == (summary if legacy == "valid" else []) + [
+        expected = {
+            "valid": summary, "unknown": [{"role": "user", "content": "old"}], "empty": [],
+        }[legacy]
+        assert model.requests[0]["input"] == expected + [
             {"role": "user", "content": "new turn"},
         ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("operation", ["resume", "model", "resume_then_model", "reset_before_resume"])
+async def test_legacy_commands_preserve_boundary_until_default_migration(baseline, monkeypatch, stream, operation):
+    session = baseline.session("source")
+    store = session.openai_session
+    history = [
+        {"role": "user", "content": "discarded original"},
+        {"role": "assistant", "content": "pending reply"},
+    ]
+    await store.add_items(history)
+    summary = [{"role": "user", "content": "saved summary"}]
+    from siada.services.session_signature import compute_last_item_signature
+
+    items = summary + history[:1] if operation == "reset_before_resume" else summary
+    SessionManager.sync_api_messages(
+        store.session_folder, store.session_id, items,
+        last_index=-1 if operation == "reset_before_resume" else 0,
+        last_signature="" if operation == "reset_before_resume" else compute_last_item_signature(history[:1]),
+    )
+    legacy_file = store.session_folder / "api_messages.json"
+    before = legacy_file.read_bytes()
+    if operation != "model":
+        resume = ResumeService(session.siada_config.workspace)
+        data = resume.session_manager.load_session(session.session_id, store.session_folder)
+        target = baseline.session("target")
+        resume.restore_to_running_session(data, target)
+        session = target
+        assert session.openai_session.session_folder == store.session_folder
+    if operation in ("model", "resume_then_model"):
+        from siada.models.model_base_config import ModelBaseConfig
+
+        commands = SlashCommands(io=MagicMock())
+        monkeypatch.setattr(commands, "_persist_model_to_conf", lambda _: None)
+        monkeypatch.setattr("siada.support.slash_commands.ModelInfoService.is_model_supported", lambda _: True)
+        monkeypatch.setattr(
+            "siada.models.model_run_config.get_model_config",
+            lambda name: ModelBaseConfig(model_name=name, context_window=1_000_000),
+        )
+        session.siada_config.llm_config.provider = "default"
+        event = commands.cmd_model(session, "migration-test-model")
+        assert event is not None
+        assert session.siada_config.llm_config.model_name == "migration-test-model"
+    assert not store.context_file.exists()
+    assert legacy_file.read_bytes() == before
+    model = baseline.model(session, [[baseline.text("resumed answer")]])
+    await run_default(baseline, session, model, stream=stream, input="continue")
+    assert model.requests[0]["input"] == items + history[1:] + [{"role": "user", "content": "continue"}]
+    assert (await store.get_history_items())[:2] == history
+    assert legacy_file.read_bytes() == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("boundary", ["mismatch", "offset", "reset", "out_of_range", "missing_snapshot"])
+async def test_resume_automatically_rebuilds_untrusted_legacy_context(baseline, stream, boundary):
+    source = baseline.session("source")
+    store = source.openai_session
+    history = [
+        {"role": "user", "content": "original task"},
+        {"role": "assistant", "content": "latest reply"},
+    ]
+    await store.add_items(history)
+    store.inject_items([{"role": "user", "content": "route only"}], "external", position="prepend")
+    if boundary != "missing_snapshot":
+        from siada.services.session_signature import compute_last_item_signature
+
+        SessionManager.sync_api_messages(
+            store.session_folder, store.session_id, [{"role": "user", "content": "old summary"}],
+            last_index={"mismatch": 0, "offset": 0, "reset": -1, "out_of_range": 20}[boundary],
+            last_signature=(compute_last_item_signature(history) if boundary == "offset"
+                            else "wrong" if boundary == "mismatch" else ""),
+        )
+    preserved = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+    resume = ResumeService(source.siada_config.workspace)
+    data = resume.session_manager.load_session(source.session_id, store.session_folder)
+    target = baseline.session("target")
+    resume.restore_to_running_session(data, target)
+    assert not target.openai_session.has_prepared_context
+    model = baseline.model(target, [[baseline.text("resumed answer")]])
+    result = await run_default(baseline, target, model, stream=stream, input="continue")
+    expected = history + [{"role": "user", "content": "continue"}]
+    assert result.final_output == "resumed answer"
+    assert model.requests[0]["input"] == expected
+    snapshot = await target.openai_session.get_context_snapshot()
+    assert snapshot["migration_source"] == (
+        "explicit_history_only" if boundary == "missing_snapshot" else "legacy_history_fallback"
+    )
+    assert snapshot["items"] == expected + [result.new_items[-1].to_input_item()]
+    assert len(snapshot["routed_items"]) == 1
+    assert (await store.get_history_items(include_injected=False))[:len(expected)] == expected
+    if "api_messages.json" in preserved:
+        assert (store.session_folder / "api_messages.json").read_bytes() == preserved["api_messages.json"]
+
+    data = resume.session_manager.load_session(source.session_id, store.session_folder)
+    second = baseline.session("second-target")
+    resume.restore_to_running_session(data, second)
+    prepared_items = snapshot["items"]
+    second_model = baseline.model(second, [[baseline.text("second answer")]])
+    await run_default(baseline, second, second_model, stream=stream, input="next")
+    assert second_model.requests[0]["input"] == prepared_items + [{"role": "user", "content": "next"}]
+    assert (await second.openai_session.get_context_snapshot())["migration_source"] == snapshot["migration_source"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("compact", [False, True])
+async def test_resume_filtered_tool_output_falls_back_through_normal_request_filters(baseline, stream, compact):
+    from siada.services.session_signature import compute_last_item_signature
+
+    @function_tool
+    def large_result() -> str:
+        """Return a deterministic oversized tool result."""
+        return "x" * 60_000
+
+    source = baseline.session("legacy-source")
+    legacy_model = baseline.model(source, [
+        [baseline.call("large-call", "large_result", {})], [baseline.text("latest answer")],
+    ])
+    await baseline.run(source, legacy_model, stream=stream, tools=[large_result])
+    store = source.openai_session
+    legacy_file = store.session_folder / "api_messages.json"
+    before = legacy_file.read_bytes()
+    legacy = json.loads(before)
+    history = await store.get_history_items(include_injected=False)
+    assert legacy["last_signature"] != compute_last_item_signature(history[:legacy["last_index"] + 1])
+    assert len(history[legacy["last_index"]]["output"]) == 60_000
+    resume = ResumeService(source.siada_config.workspace)
+    data = resume.session_manager.load_session(source.session_id, store.session_folder)
+    target = baseline.session("target")
+    resume.restore_to_running_session(data, target)
+    if compact:
+        baseline.compact_at = len(history)
+    model = baseline.model(target, [[baseline.text("resumed answer")]])
+    await run_default(baseline, target, model, stream=stream, input="continue")
+    snapshot = await target.openai_session.get_context_snapshot()
+    assert snapshot["migration_source"] == "legacy_history_fallback"
+    assert snapshot["migration_fallback_reason"] == "snapshot_signature_mismatch"
+    if compact:
+        assert model.requests[0]["input"] == [{"role": "user", "content": "[baseline compaction summary]"}]
+        rebuilt = baseline.compactions[-1]
+    else:
+        rebuilt = model.requests[0]["input"]
+    assert rebuilt[-2:] == history[-1:] + [{"role": "user", "content": "continue"}]
+    assert len(rebuilt[legacy["last_index"]]["output"]) < 50_000
+    assert "[Tool output too large:" in rebuilt[legacy["last_index"]]["output"]
+    assert (await store.get_history_items(include_injected=False))[:len(history)] == history
+    assert legacy_file.read_bytes() == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("after_write", [False, True])
+async def test_migration_fallback_write_failure_prevents_model_call(baseline, monkeypatch, stream, after_write):
+    import siada.services.file_session as module
+
+    session = baseline.session()
+    store = session.openai_session
+    await store.add_items([{"role": "user", "content": "original"}])
+    SessionManager.sync_api_messages(store.session_folder, store.session_id, [], last_index=0, last_signature="wrong")
+    before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+    write_json = module.write_json
+
+    def fail(path, data):
+        if path == store.context_file:
+            if after_write:
+                write_json(path, data)
+            raise OSError("synthetic migration write failure")
+        write_json(path, data)
+
+    model = baseline.model(session, [[baseline.text("unused answer")]])
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "write_json", fail)
+        with pytest.raises(OSError, match="synthetic migration write failure"):
+            await run_default(baseline, session, model, stream=stream)
+    assert model.requests == []
+    assert not store.has_prepared_context
+    assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+    await run_default(baseline, session, model, stream=stream)
+    assert len(model.requests) == 1
+    assert (await store.get_context_snapshot())["migration_source"] == "legacy_history_fallback"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_migration_fallback_model_failure_reuses_committed_context_on_retry(baseline, stream):
+    session = baseline.session()
+    store = session.openai_session
+    history = [{"role": "user", "content": "original"}]
+    await store.add_items(history)
+    SessionManager.sync_api_messages(
+        store.session_folder, store.session_id, [{"role": "user", "content": "untrusted summary"}],
+        last_index=0, last_signature="wrong",
+    )
+    before = (store.session_folder / "api_messages.json").read_bytes()
+    model = baseline.model(session, [RuntimeError("synthetic model failure"), [baseline.text("retried answer")]])
+    with pytest.raises(RuntimeError, match="synthetic model failure"):
+        await run_default(baseline, session, model, stream=stream)
+    expected = history + [{"role": "user", "content": "new turn"}]
+    assert await store.get_items() == expected
+    await run_default(baseline, session, model, stream=stream, input=[])
+    assert [request["input"] for request in model.requests] == [expected, expected]
+    assert (await store.get_history_items(include_injected=False))[:len(expected)] == expected
+    assert (await store.get_context_snapshot())["migration_source"] == "legacy_history_fallback"
+    assert (store.session_folder / "api_messages.json").read_bytes() == before
 
 
 @pytest.mark.asyncio

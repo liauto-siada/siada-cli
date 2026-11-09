@@ -69,11 +69,11 @@ def _looks_like_filepath(slash_input: str) -> bool:
         return False
 
 
-# Concise, Claude-Code-style argument hints shown inline in the CLI input box
+# Concise argument hints shown inline in the CLI input box
 # right after a fully-typed command name (before the user has typed any
 # argument yet), e.g. "/goal " renders as "/goal [<objective> | clear]" with
 # the hint dimmed. Keys use the same hyphenated command name exposed via
-# get_commands()/matching_commands(),
+# get_commands()/matching_commands() (cmd_issue_fix -> "issue-fix"),
 # i.e. the `cmd_name` built in Controller.show_announcements(). Commands that
 # take no meaningful argument, or only open a picker/UI with no argument, are
 # intentionally omitted (empty hint -> nothing is rendered).
@@ -99,8 +99,15 @@ ARGUMENT_HINTS: dict[str, str] = {
 }
 
 
-def get_argument_hint(cmd_name: str) -> str:
+def get_argument_hint(cmd_name: str, model_config=None) -> str:
     """Return a concise argument-format hint for a slash command, or "" if none."""
+    if cmd_name == "effort" and model_config is not None:
+        from siada.models.model_base_config import get_valid_reasoning_efforts
+        choices = get_valid_reasoning_efforts(
+            model_config.model_name, getattr(model_config, "default_reasoning_effort", None),
+            getattr(model_config, "effort_choices", None),
+        )
+        return "[" + " | ".join(choices) + "]"
     return ARGUMENT_HINTS.get(cmd_name, "")
 
 
@@ -110,6 +117,11 @@ VALID_THEMES = ("dark", "light")
 
 
 class SlashCommands:
+    @staticmethod
+    def get_execution_mode(cmd_name: str) -> str:
+        """Only explicitly approved built-ins can run alongside a model turn."""
+        return "immediate" if cmd_name in {"status", "help"} else "serial"
+
 
     def clone(self):
         return SlashCommands(
@@ -506,6 +518,14 @@ class SlashCommands:
 
     def cmd_status(self, session, args):
         "Show the current status"
+        # In ACP mode, /status is intercepted by the frontend (InputPromptWithWrapUseKPC)
+        # and displayed in a standalone panel. Keep the text output for non-ACP mode.
+        if hasattr(self.io, 'acp_enabled') and self.io.acp_enabled:
+            return
+        self.io.print_info(self.get_status_text(session))
+
+    def get_status_text(self, session) -> str:
+        """Format a status snapshot without writing to shared streaming IO."""
         # Collect all status information into a single string
         status_lines = [
             f"Model: {session.siada_config.llm_config.model_name}",
@@ -514,7 +534,7 @@ class SlashCommands:
             f"WorkSpace: {session.siada_config.workspace}",
             f"Project Hash: {DirectoryUtils.get_file_path_hash(session.siada_config.workspace)}"
         ]
-        self.io.print_info("\n".join(status_lines))
+        return "\n".join(status_lines)
 
     def cmd_share(self, session, args):
         """Share the current session as a web link via the browser-addon proxy PWA"""
@@ -765,13 +785,14 @@ class SlashCommands:
             /goal clear         - Remove the current goal and persist a hidden
                                    reminder so the model does not resume it
 
-        Once set, an independent verifier checks after every turn whether the
-        goal has been met. On failure it automatically forces another turn
+        While active, an independent verifier checks after every turn whether
+        the goal has been met. On failure it automatically forces another turn
         with feedback — no /goal complete command exists, because completion
         is judged by the verifier, never self-declared. There is also no
         pause/resume/status subcommand by design — a "complete" goal is
-        dropped automatically, and a "blocked" goal (auto-tripped after
-        repeated verifier failures) is automatically reactivated, as soon as
+        shown until the next user conversation or an explicit clear/replacement.
+        A "blocked" goal
+        (auto-tripped after repeated verifier failures) is automatically reactivated, as soon as
         the user sends their next conversational message — see
         Controller._maybe_reset_goal_on_new_turn.
 
@@ -782,6 +803,7 @@ class SlashCommands:
         """
         from siada.services.goal.models import Goal
         from siada.services.goal import goal_storage
+        from siada.services.goal.turn_hooks import goal_state_payload
 
         sub = args.strip()
         sub_lower = sub.lower()
@@ -848,7 +870,7 @@ class SlashCommands:
                 self.io.acp_adapter._send_if_acp(
                     self.io.acp_adapter.builder.build_custom_notification,
                     method="context/goalState",
-                    params={"goal": None, "verifying": False},
+                    params={"goal": None, "verifying": False, "notice": "Goal cleared."},
                 )
             return
 
@@ -905,14 +927,7 @@ class SlashCommands:
                 self.io.acp_adapter.builder.build_custom_notification,
                 method="context/goalState",
                 params={
-                    "goal": {
-                        "objective": new_goal.objective,
-                        "status": new_goal.status,
-                        # See turn_hooks.push_goal_state_via_acp for why this
-                        # is included: drives the frontend's live elapsed-
-                        # time counter next to the status label.
-                        "createdAt": new_goal.created_at,
-                    },
+                    "goal": goal_state_payload(new_goal),
                     "verifying": False,
                     "notice": f"Goal set: {sub}",
                 },
@@ -1061,7 +1076,9 @@ class SlashCommands:
             if self.io.acp_adapter and self.io.acp_adapter.transport \
                     and self.io.acp_adapter.transport.is_connected:
                 from siada.io.acp.message_builder import ACPMessageBuilder
-                efforts = get_valid_reasoning_efforts(model_name, default)
+                efforts = get_valid_reasoning_efforts(
+                    model_name, default, llm_config.effort_choices,
+                )
                 try:
                     message = ACPMessageBuilder().build_custom_notification(
                         method="ui/showEffortSelector",
@@ -1108,7 +1125,9 @@ class SlashCommands:
             )
             return
 
-        valid = get_valid_reasoning_efforts(model_name, default)
+        valid = get_valid_reasoning_efforts(
+            model_name, default, llm_config.effort_choices,
+        )
         if level not in valid:
             self.io.print_error(
                 f"Invalid effort level '{level}'. Valid values for {model_name}: "
@@ -1310,21 +1329,23 @@ class SlashCommands:
             # Provider resolution for the new model:
             # - If the session currently runs on the user's own provider config
             #   ("default": custom base_url + API key), KEEP it. User-defined
-            #   models (models.json) are defined for that endpoint, so
-            #   re-routing them to another provider would send the next LLM
-            #   call to an endpoint the user never configured.
+            #   models (models.json) are defined for that endpoint, and
+            #   re-routing them to the internal "li" proxy breaks the next LLM
+            #   call with LiAuthError ("Not logged in") for users who never
+            #   signed in with Li ID.
             # - Otherwise use the config-file default provider as the fallback,
             #   NOT the current session's provider. This avoids inheriting a
-            #   force-assigned provider when switching to a model that belongs
-            #   to a different provider family.
+            #   force-assigned provider (e.g. "openai_agents" was set because
+            #   the session was running gpt-5.x) when switching to a model that
+            #   belongs to a different provider family (e.g. claude-sonnet-4.6 -> "li").
             current_provider = session.siada_config.llm_config.provider
             default_provider = ModelRunConfig.get_default_config().provider
             if current_provider == "default":
                 new_llm_config.provider = "default"
             else:
-                # Resolve the new model's provider (including legacy provider
-                # keys), so users don't need to juggle the provider concept
-                # when switching models.
+                # Resolve the new model's provider (handles legacy keys like
+                # "openai_agents" -> "li"), so users don't need to juggle the
+                # provider concept when switching models.
                 new_llm_config.provider = resolve_provider_by_model(model_name, default_provider)
 
             # Carry over the user's session-level /effort and /thinking
@@ -1335,8 +1356,7 @@ class SlashCommands:
             )
             session.siada_config.llm_config = new_llm_config
 
-            # Keep the process-wide provider tracker in sync with the provider
-            # this switch landed on, for consumers that report it.
+            # Keep the resolved provider available to shared request callbacks.
             try:
                 from siada.entrypoint import set_current_provider
                 set_current_provider(new_llm_config.provider or "")
@@ -1346,7 +1366,12 @@ class SlashCommands:
             # Reset real API messages to force fresh context with new model
             # This avoids stale context issues when switching models
             session.state.task_message_state.reset_real_messages()
-            # FileSession retains legacy boundaries until one-time migration.
+            # Keep the FileSession's model name in sync so its lpai-gated
+            # history repair follows the active model.
+            if session.state.openai_session:
+                session.state.openai_session.model_name = model_name
+            # FileSession retains legacy boundaries until one-time migration;
+            # resetting them here prevents the next run from preparing context.
             from siada.services.file_session import FileSession
 
             if (session.state.openai_session and session.state.openai_session.session_folder
@@ -1392,6 +1417,11 @@ class SlashCommands:
                          else session.state.task_message_state.get_messages())
                 if items:
                     self._send_history_to_ui(items)
+                # ui/loadHistory resets the frontend's local goal state, so the
+                # matching snapshot (plus its verification records) must follow
+                # immediately -- otherwise the Goal status bar disappears after
+                # a model switch and only returns on the next verifier round.
+                self._push_current_goal_state_to_ui(session)
 
             return SwitchEvent(model=model_name)
 
@@ -1897,9 +1927,17 @@ class SlashCommands:
     #     return combined_output
 
     def cmd_logout(self, args):
-        "Sign out and remove the stored provider API key"
-        from siada.entrypoint.login.login_prompt import clear_api_key_config
-        if clear_api_key_config():
+        "Sign out and clear all stored credentials (LiId token and API key)"
+        from siada.entrypoint.login.login_prompt import _HAS_INTERNAL, clear_api_key_config
+        user_id = None
+        if _HAS_INTERNAL:
+            from siada.internal.services.idaas.auth_store import clear_login_state
+            user_id = clear_login_state()
+        api_cleared = clear_api_key_config()
+        if user_id:
+            self.io.print_info(f"Signed out from {user_id}.")
+            logger.info(f"[logout] Signed out: {user_id}")
+        elif api_cleared:
             self.io.print_info("API key configuration removed.")
             logger.info("[logout] API key config cleared")
         else:
@@ -1907,17 +1945,13 @@ class SlashCommands:
         sys.exit()
 
     def cmd_configure(self, session, args):
-        "Reconfigure the provider API key without restarting"
+        "Reconfigure provider API key or switch login method without restarting"
         if not (hasattr(self.io, 'acp_adapter') and self.io.acp_adapter
                 and getattr(getattr(self.io.acp_adapter, 'transport', None), 'is_connected', False)):
             self.io.print_error("This command requires the Siada UI.")
             return
 
-        from siada.entrypoint.login.login_prompt import (
-            reconfigure_acp,
-            get_applied_api_key_config,
-            _field_text,
-        )
+        from siada.entrypoint.login.login_prompt import reconfigure_acp, get_applied_api_key_config, _field_text
         result = reconfigure_acp(self.io)
 
         if result is None:
@@ -1933,8 +1967,6 @@ class SlashCommands:
             api_cfg = get_applied_api_key_config()
             if not api_cfg:
                 return
-            # Defensive reads: a wrongly-typed payload field must not crash
-            # /configure; it simply reads as "not provided".
             provider_id = _field_text(api_cfg.get('provider_id')) or ''
             new_model = _field_text(api_cfg.get('model')) or ''
             base_url = _field_text(api_cfg.get('base_url')) or ''
@@ -1963,6 +1995,10 @@ class SlashCommands:
     #     self.cmd_exit(args)
 
     def basic_help(self):
+        self.io.print_info(self.get_help_text())
+
+    def get_help_text(self) -> str:
+        """Format command help without emitting model or tool lifecycle events."""
         commands = sorted(self.get_commands())
         pad = max(len(cmd) for cmd in commands)
         pad = "{cmd:" + str(pad) + "}"
@@ -1984,7 +2020,7 @@ class SlashCommands:
         # help_lines.append("Use `/help <question>` to ask questions about how to use siadahub.")
         
         # Print all help information in one call
-        self.io.print_info("\n".join(help_lines))
+        return "\n".join(help_lines)
 
     def get_help_md(self):
         "Show help about all commands in markdown"
@@ -3363,34 +3399,63 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             # why that's the reliable place to read it from here rather
             # than re-deriving it.
             self._push_resumed_goal_state_to_ui(session)
+            self._push_resumed_todo_state_to_ui(session)
         else:
             error_message = result[1] if result else "Unknown error"
             self.io.print_error(error_message)
 
-    def _push_resumed_goal_state_to_ui(self, session) -> None:
-        """Push the just-resumed session's goal state (or an explicit
-        "no goal" clear) to the frontend via ``context/goalState``.
+    def _session_folder_for_ui_push(self, session):
+        """Return the session folder used to replay archived verdicts."""
+        from pathlib import Path
 
-        Only relevant in ACP/UI mode -- plain-terminal mode has no
-        GoalStatusBar to update. objective/status/createdAt/turns are all
-        already persisted to goal.json on every save_goal() call throughout
-        the goal's lifecycle (see goal_storage.py / turn_hooks.py), so no
-        extra persistence work is needed here -- this only needs to
-        RE-SEND that already-durable state to a freshly (re)connected
-        frontend.
+        file_session = getattr(getattr(session, "state", None), "openai_session", None)
+        session_dir = getattr(file_session, "session_folder", None)
+        return Path(session_dir) if isinstance(session_dir, (str, Path)) else None
+
+    def _current_goal_for_session(self, session):
+        """Resolve the goal this session is actually working toward.
+
+        The live agent context is authoritative. A staged ``pending_goal``
+        (resume state not consumed yet) and ``goal.json`` cover sessions whose
+        first turn has not built a context. Returns None when the session has
+        no goal.
         """
+        from siada.services.goal import goal_storage
+        from siada.services.siada_runner import SiadaRunner
+
+        context = SiadaRunner.find_session_context(session)
+        goal = getattr(context, "goal", None) if context is not None else None
+        if goal is None:
+            goal = getattr(getattr(session, "state", None), "pending_goal", None)
+        if goal is None:
+            session_dir = self._session_folder_for_ui_push(session)
+            if session_dir is not None:
+                goal = goal_storage.load_goal(session_dir)
+        return goal
+
+    def _push_goal_snapshot_to_ui(self, goal, session_dir) -> None:
+        """Send one ``context/goalState`` snapshot, replaying verdict records."""
         if not (hasattr(self.io, 'acp_adapter') and self.io.acp_adapter is not None):
             return
 
-        goal = session.state.pending_goal
+        from siada.services.goal import goal_storage
+        from siada.services.goal.turn_hooks import goal_state_payload
+
+        results = []
+        if session_dir is not None:
+            for archived in goal_storage.load_goal_history(session_dir):
+                results.extend(archived.get("verification_results", []))
+        if goal is not None:
+            results.extend(goal.verification_results)
+        replay = {"results": results} if results else {}
         if goal is None:
-            # No goal.json for this session (never set, or cleared before
+            # No goal for this session (never set, or cleared before
             # disconnecting) -- explicitly clear any stale status bar the
             # frontend might still be showing from a previous session.
             self.io.acp_adapter._send_if_acp(
                 self.io.acp_adapter.builder.build_custom_notification,
                 method="context/goalState",
-                params={"goal": None, "verifying": False},
+                params={"goal": None, "verifying": False, **replay},
             )
             return
 
@@ -3398,16 +3463,50 @@ Write the complete content to the `SIADA.md` file. The output must be well-forma
             self.io.acp_adapter.builder.build_custom_notification,
             method="context/goalState",
             params={
-                "goal": {
-                    "objective": goal.objective,
-                    "status": goal.status,
-                    "createdAt": goal.created_at,
-                    "turns": goal.turns,
-                },
+                "goal": goal_state_payload(goal),
                 "verifying": False,
+                **replay,
+                **({"latestResult": goal.verification_results[-1]} if goal.verification_results else {}),
             },
         )
 
+    def _push_resumed_goal_state_to_ui(self, session) -> None:
+        """Push the just-resumed session's goal state to the frontend.
+
+        Only relevant in ACP/UI mode -- plain-terminal mode has no
+        GoalStatusBar to update. ``restore_to_running_session()`` already
+        staged (or explicitly cleared) this on ``session.state.pending_goal``.
+        """
+        self._push_goal_snapshot_to_ui(
+            session.state.pending_goal, self._session_folder_for_ui_push(session),
+        )
+
+    def _push_current_goal_state_to_ui(self, session) -> None:
+        """Re-push the live goal after replacing the frontend's history.
+
+        ``ui/loadHistory`` makes the frontend drop its local goal state, on
+        the assumption that the backend follows it with the matching snapshot
+        (see the frontend's ``ui:loadHistory`` handler). Every caller that
+        reloads history must therefore re-push: ``/model`` used to skip this,
+        so switching models silently removed the Goal status bar until the
+        next verifier round.
+        """
+        self._push_goal_snapshot_to_ui(
+            self._current_goal_for_session(session),
+            self._session_folder_for_ui_push(session),
+        )
+
+    def _push_resumed_todo_state_to_ui(self, session) -> None:
+        """Render restored todos immediately without consuming the runner's staged state."""
+        if not (hasattr(self.io, 'acp_adapter') and self.io.acp_adapter is not None):
+            return
+
+        todos = session.state.pending_todos or []
+        self.io.acp_adapter._send_if_acp(
+            self.io.acp_adapter.builder.build_custom_notification,
+            method="context/todoState",
+            params={"todos": [{"content": todo.content, "status": todo.status} for todo in todos]},
+        )
 
     def _send_history_to_ui(self, items: list):
         """Send history messages to frontend UI via ui/loadHistory notification.

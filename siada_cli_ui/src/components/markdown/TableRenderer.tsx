@@ -2,7 +2,7 @@
  * Table Renderer
  * Renders markdown tables with proper alignment and formatting.
  *
- * Layout algorithm (inspired by claude-code's MarkdownTable):
+ * Layout algorithm:
  *   1. Compute two width metrics per column:
  *        - idealWidth: full content width (no wrapping required)
  *        - minWidth:   longest single word width (smallest width that

@@ -9,8 +9,9 @@ from siada.session.task_message_state import RealApiMessage
 from siada.utils import DirectoryUtils
 from .utils import compute_message_signature, calculate_tokens
 from .compaction_strategy import CompactionError, CompactionStrategy, get_compaction_strategy
-from .compaction_threshold import get_compaction_token_threshold
+from .compaction_threshold import get_compaction_token_threshold, get_compaction_threshold_rule
 from siada.foundation.logging import logger
+from siada.provider.token_counting import context_token_counting_info
 
 
 if TYPE_CHECKING:
@@ -38,9 +39,25 @@ class ApiMessageTransferFilter:
             agent: The agent instance
             context: The code agent context
         """
+        # Re-resolve the effective context_window per request, BEFORE the
+        # compaction check below reads it (should_compact thresholds on
+        # context.model_run_config.context_window). Per-request (not
+        # per-turn) so that requests 2..N of a cold-started turn already use
+        # the extended window; the window never downgrades mid-turn.
+        # Guarded: a failure here must never break compaction or the LLM call.
+        try:
+            self._resolve_effective_context_window(context)
+        except Exception as e:
+            logger.warning(
+                "[CTX-COMPACT][window] session=%s status=resolve_failed error_type=%s context_window=%s",
+                context.session_id, type(e).__name__, context.model_run_config.context_window,
+            )
+
         if not context.auto_compact:
             logger.warning(
-                "Auto compact is disabled, skipping ApiMessageTransferFilter"
+                "[CTX-COMPACT][decision] session=%s action=skip reason=auto_compact_disabled "
+                "model=%s context_window=%s",
+                context.session_id, context.model_run_config.model_name, context.model_run_config.context_window,
             )
             return
 
@@ -78,7 +95,7 @@ class ApiMessageTransferFilter:
             # per-session registry inside ``memory_update`` (NOT by
             # ``CodeAgentContext``) — keeps service-layer state out of
             # the foundation-layer data model. See
-            # ``siada/services/memory/memory_update/``.
+            # ``design_docs/pre-compaction-memory-update-design.md``.
             _t0 = time.perf_counter()
             try:
                 # Local import: lazy, keeps cold-start of this filter
@@ -234,6 +251,18 @@ class ApiMessageTransferFilter:
         return (filtered, removed) if removed else (messages, 0)
 
     @staticmethod
+    def _resolve_effective_context_window(context: "CodeAgentContext") -> None:
+        """Refresh the request window from the active local model catalog."""
+        llm_config = getattr(context, "model_run_config", None)
+        if llm_config is None:
+            return
+        from siada.models.model_base_config import get_model_config
+
+        model_config = get_model_config(llm_config.model_name)
+        if model_config is not None:
+            llm_config.context_window = model_config.context_window
+
+    @staticmethod
     def _notify_compaction(context: "CodeAgentContext", content: str) -> None:
         """Keep display failures from affecting compaction or the model call."""
         try:
@@ -271,13 +300,19 @@ class ApiMessageTransferFilter:
         strategy = get_compaction_strategy(context)
         should_compact = strategy.should_compact(tokens_count, model_config)
         window = getattr(model_config, "context_window", None)
-        logger.debug(
+        session_id = getattr(context, "session_id", None)
+        request = getattr(getattr(context, "runtime_session", None), "request_identity", None)
+        logger.info(
             "[CTX-COMPACT][decision] session=%s strategy=%s tokens=%d context_window=%s "
-            "threshold=%s remaining=%s action=%s",
-            getattr(context, "session_id", None), type(strategy).__name__, tokens_count, window,
+            "threshold=%s remaining=%s action=%s request=%s model=%s auto_compact=%s reason=%s "
+            "threshold_rule=%s",
+            session_id, type(strategy).__name__, tokens_count, window,
             get_compaction_token_threshold(window) if window is not None else None,
             window - tokens_count if window is not None else None,
             "compact" if should_compact else "skip",
+            request, getattr(model_config, "model_name", None), getattr(context, "auto_compact", None),
+            "threshold_reached" if should_compact else "below_threshold",
+            get_compaction_threshold_rule(window) if window is not None else "unavailable",
         )
         if not should_compact:
             return real_api_messages
@@ -286,11 +321,12 @@ class ApiMessageTransferFilter:
         fixed_overhead = CompactionStrategy.calculate_fixed_overhead(
             context, instructions=instructions, tools=tools,
         )
-        logger.debug(
-            "[CTX-COMPACT][budget] session=%s fixed_overhead_tokens=%d items=%d",
-            getattr(context, "session_id", None), fixed_overhead, len(real_api_messages),
+        logger.info(
+            "[CTX-COMPACT][budget] session=%s fixed_overhead_tokens=%d items=%d request=%s",
+            session_id, fixed_overhead, len(real_api_messages), request,
         )
 
+        started = time.perf_counter()
         self._notify_compaction(context, "Compacting context...")
         try:
             result = await strategy.compact(
@@ -310,11 +346,32 @@ class ApiMessageTransferFilter:
                     context, real_api_messages, compacted_messages,
                 )
         except asyncio.CancelledError:
+            logger.info(
+                "[CTX-COMPACT][result] session=%s request=%s status=cancelled elapsed_ms=%.1f "
+                "before_items=%d after_items=%d",
+                session_id, request, (time.perf_counter() - started) * 1000,
+                len(real_api_messages), len(real_api_messages),
+            )
             self._notify_compaction(context, "Compaction interrupted.")
             raise
         except Exception as e:
+            logger.warning(
+                "[CTX-COMPACT][result] session=%s request=%s status=failed error_type=%s elapsed_ms=%.1f "
+                "before_items=%d after_items=%d",
+                session_id, request, type(e).__name__, (time.perf_counter() - started) * 1000,
+                len(real_api_messages), len(real_api_messages),
+            )
             self._notify_compaction(context, f"Compaction failed: {e}")
             raise CompactionError(f"Compaction failed: {e}") from e
+
+        logger.info(
+            "[CTX-COMPACT][result] session=%s request=%s status=%s before_items=%d "
+            "after_items=%d summary_chars=%d elapsed_ms=%.1f reason=%s",
+            session_id, request, "prepared" if result.compacted else "noop",
+            len(real_api_messages), len(compacted_messages), len(result.summary or ""),
+            (time.perf_counter() - started) * 1000,
+            "completed" if result.compacted else result.reason or "unspecified_noop",
+        )
 
         if result.compacted:
             before_count = len(real_api_messages)
@@ -569,15 +626,16 @@ class ApiMessageTransferFilter:
             Tuple of (refreshed_messages, updated_token_count)
         """
         _t0 = time.perf_counter()
-        model_name = context.model_run_config.model_name
+        info = context_token_counting_info(context)
+        model_name = info.model_name
         real_api_messages = api_messages.copy()
 
-        instruction_tokens = calculate_tokens(model_name, system_instructions)
+        instruction_tokens = calculate_tokens(model_name, system_instructions, counting_info=info)
         _t_instructions = time.perf_counter() - _t0
 
         _t1 = time.perf_counter()
         message_tokens = calculate_tokens(
-            model_name, real_api_messages, tools=tools,
+            model_name, real_api_messages, tools=tools, counting_info=info,
         )
         _t_messages = time.perf_counter() - _t1
 
@@ -626,7 +684,8 @@ class ApiMessageTransferFilter:
         Returns:
             Tuple of (updated_messages, updated_token_count)
         """
-        model_name = context.model_run_config.model_name
+        info = context_token_counting_info(context)
+        model_name = info.model_name
 
         # Defensive: the caller (_needs_full_refresh) already guarantees
         # last_index is addressable, so hitting this branch means the
@@ -666,10 +725,10 @@ class ApiMessageTransferFilter:
                 # If no tokens recorded, calculate for all messages
                 _t0 = time.perf_counter()
                 instruction_tokens = calculate_tokens(
-                    model_name, system_instructions
+                    model_name, system_instructions, counting_info=info,
                 )
                 message_tokens = calculate_tokens(
-                    model_name, api_messages, tools=tools,
+                    model_name, api_messages, tools=tools, counting_info=info,
                 )
                 total_tokens = instruction_tokens + message_tokens
                 # No usage recorded yet (e.g. resumed session): this
@@ -686,7 +745,7 @@ class ApiMessageTransferFilter:
             else:
                 # Add tokens for new messages only (tools overhead already counted)
                 _t0 = time.perf_counter()
-                delta_tokens = calculate_tokens(model_name, delta)
+                delta_tokens = calculate_tokens(model_name, delta, counting_info=info)
                 total_tokens = current_tokens + delta_tokens
                 # Only the delta is profiled here (O(delta), not O(history)),
                 # and at DEBUG — the incremental path must stay quiet.

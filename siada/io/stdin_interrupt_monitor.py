@@ -33,6 +33,7 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -178,9 +179,9 @@ def set_agent_running(running: bool) -> None:
         # an unframed raw string would silently be dropped and the agent would
         # never run the flushed prompt.
         merged = _merge_flushed_prompts(contents)
-        monitor._queue.put("<<<SIADA_MSG_START>>>\n")
-        monitor._queue.put(merged + "\n")
-        monitor._queue.put("<<<SIADA_MSG_END>>>\n")
+        monitor._enqueue_line("<<<SIADA_MSG_START>>>\n")
+        monitor._enqueue_line(merged + "\n")
+        monitor._enqueue_line("<<<SIADA_MSG_END>>>\n")
     for _id, content in flushed_items:
 
 
@@ -190,12 +191,6 @@ def set_agent_running(running: bool) -> None:
 
 
 
-
-
-def restore_pending_injections(items: list) -> None:
-    """Return an uncommitted batch ahead of messages arriving during admission."""
-    with _pending_injections_lock:
-        _pending_injections.extendleft(reversed(items))
 
 
 def drain_pending_injections() -> list:
@@ -209,6 +204,15 @@ def drain_pending_injections() -> list:
         items = list(_pending_injections)
         _pending_injections.clear()
     return items
+
+
+def restore_pending_injections(items: list) -> None:
+    """Return an uncommitted batch ahead of messages arriving during admission."""
+    with _pending_injections_lock:
+        _pending_injections.extendleft(reversed(items))
+
+
+_INTERRUPTED_INPUT = object()
 
 
 class StdinInterruptMonitor:
@@ -231,6 +235,12 @@ class StdinInterruptMonitor:
         # Optional callback for /btw interception during agent turns.
         # Signature: handler(question: str) -> None  (called in a new daemon thread)
         self._btw_handler = None
+        self._effort_handler: Callable[[str], None] | None = None
+        self._async_loop = None
+        self._input_available = None
+        self._on_eof = None
+        self._command_handler = None
+        self._command_cancel_handler = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -279,6 +289,8 @@ class StdinInterruptMonitor:
         """Read login protocol input without consuming ordinary user messages."""
         try:
             item = self._login_reply_queue.get(timeout=timeout)
+            if item is _INTERRUPTED_INPUT:
+                raise KeyboardInterrupt
             if item is None:
                 raise EOFError("EOF on stdin")
             return item
@@ -297,12 +309,59 @@ class StdinInterruptMonitor:
         """
         try:
             item = self._queue.get(timeout=timeout)
+            if item is _INTERRUPTED_INPUT:
+                raise KeyboardInterrupt
             if item is None:
                 # Sentinel value indicating EOF on the real stdin
                 raise EOFError("EOF on stdin")
             return item
         except queue.Empty:
             return ""
+
+    def _enqueue_line(self, line: object) -> None:
+        """Wake async readers while retaining the queue used by sync tools."""
+        self._queue.put(line)
+        loop, event = self._async_loop, self._input_available
+        if loop is not None and event is not None:
+            try:
+                loop.call_soon_threadsafe(event.set)
+                if line is None and self._on_eof is not None:
+                    loop.call_soon_threadsafe(self._on_eof)
+            except RuntimeError:
+                pass  # The entry point may have closed its loop concurrently.
+
+    def bind_async_reader(self, on_eof=None) -> None:
+        """Bind input wakeups to the session's event loop."""
+        import asyncio
+
+        self._async_loop = asyncio.get_running_loop()
+        self._input_available = asyncio.Event()
+        self._on_eof = on_eof
+
+    def unbind_async_reader(self) -> None:
+        self._async_loop = None
+        self._input_available = None
+        self._on_eof = None
+
+    def interrupt_sync_readers(self) -> None:
+        """Release command/login readers running in worker threads."""
+        self._enqueue_line(_INTERRUPTED_INPUT)
+        self._login_reply_queue.put(_INTERRUPTED_INPUT)
+
+    async def readline_async(self) -> str:
+        """Wait for input without polling or occupying an executor thread."""
+        while True:
+            self._input_available.clear()
+            try:
+                item = self._queue.get_nowait()
+            except queue.Empty:
+                await self._input_available.wait()
+                continue
+            if item is None:
+                raise EOFError("EOF on stdin")
+            if item is _INTERRUPTED_INPUT:
+                continue  # The controller cancels its async input task directly.
+            return item
 
     def set_btw_handler(self, handler) -> None:
         """Register a callback invoked when a /btw message is intercepted.
@@ -311,6 +370,15 @@ class StdinInterruptMonitor:
         the reader loop is never blocked.  Pass None to disable.
         """
         self._btw_handler = handler
+
+    def set_effort_handler(self, handler: Callable[[str], None] | None) -> None:
+        """Handle effort settings outside the agent turn on a daemon thread."""
+        self._effort_handler = handler
+
+    def set_command_handler(self, handler, on_cancel=None) -> None:
+        """Register a fast router; handlers schedule work on the session loop."""
+        self._command_handler = handler
+        self._command_cancel_handler = on_cancel
 
     def _handle_cancel_pending(self) -> None:
         """Drain _pending_injections without processing them.
@@ -322,6 +390,9 @@ class StdinInterruptMonitor:
         with _pending_injections_lock:
             count = len(_pending_injections)
             _pending_injections.clear()
+        on_cancel = self._command_cancel_handler
+        if on_cancel is not None:
+            on_cancel()
         logger.info(
             "[StdinInterruptMonitor] queue/cancelPending: cleared %d pending injection(s)",
             count,
@@ -368,6 +439,7 @@ class StdinInterruptMonitor:
     def _dispatch_or_enqueue(self, msg_lines: list) -> None:
         """Route a complete ACP message.
 
+        Effort settings with a registered handler bypass both prompt queues.
         If the message is a /btw prompt and a btw_handler is registered,
         dispatch to the handler in a new thread (without enqueuing).
         Otherwise put all lines into _queue for get_input() to consume.
@@ -451,7 +523,7 @@ class StdinInterruptMonitor:
                 )
                 return
 
-        if self._btw_handler and len(msg_lines) >= 3:
+        if (self._btw_handler or self._effort_handler) and len(msg_lines) >= 3:
             # Content sits between the START and END marker lines
             body = self._extract_message_body(msg_lines)
             body_stripped = body.strip()
@@ -490,7 +562,7 @@ class StdinInterruptMonitor:
                 intercepted_prompt = body_stripped
 
             trimmed_prompt = (intercepted_prompt or "").strip()
-            if trimmed_prompt == "/btw" or trimmed_prompt.startswith("/btw "):
+            if self._btw_handler and (trimmed_prompt == "/btw" or trimmed_prompt.startswith("/btw ")):
                 question = trimmed_prompt[4:].strip()
                 logger.info(
                     "[StdinInterruptMonitor] Intercepted /btw: %r",
@@ -504,6 +576,17 @@ class StdinInterruptMonitor:
                     name="btw-interceptor",
                 ).start()
                 return  # consumed — do not enqueue
+
+            command_parts = trimmed_prompt.split(maxsplit=1)
+            if self._effort_handler and command_parts[:1] == ["/effort"]:
+                level = command_parts[1] if len(command_parts) > 1 else ""
+                threading.Thread(
+                    target=self._effort_handler,
+                    args=(level,),
+                    daemon=True,
+                    name="effort-interceptor",
+                ).start()
+                return
 
         # When the agent is mid-turn, divert non-/btw messages to the
         # injection queue so PendingUserInputInjector can inject them before
@@ -524,6 +607,7 @@ class StdinInterruptMonitor:
         prompt_text = None
         image_paths = None
         queue_id = None
+        request_id = None
         if len(msg_lines) >= 3:
             body = self._extract_message_body(msg_lines)
             body_stripped = body.strip()
@@ -545,10 +629,25 @@ class StdinInterruptMonitor:
                             (params.get("queue_id") if isinstance(params, dict) else None)
                             or parsed.get("queue_id")
                         )
+                        meta = parsed.get("_meta") or (
+                            params.get("_meta") if isinstance(params, dict) else None
+                        )
+                        if isinstance(meta, dict):
+                            log_meta = meta.get("siadaLog")
+                            if isinstance(log_meta, dict):
+                                request_id = log_meta.get("requestId")
                 except Exception:
                     prompt_text = body_stripped
             if not prompt_text:
                 prompt_text = body_stripped
+
+        command_handler = self._command_handler
+        if (
+            command_handler is not None
+            and isinstance(prompt_text, str)
+            and command_handler(prompt_text, queue_id, request_id)
+        ):
+            return
 
         if prompt_text:
             with _pending_injections_lock:
@@ -571,7 +670,7 @@ class StdinInterruptMonitor:
 
         # Normal message: put all lines back for get_input() to assemble
         for line in msg_lines:
-            self._queue.put(line)
+            self._enqueue_line(line)
 
 
 
@@ -604,13 +703,12 @@ class StdinInterruptMonitor:
                 if not byte:
                     # EOF – flush any partial line, then push sentinel
                     if line_buf:
-                        self._queue.put(line_buf.decode("utf-8", errors="replace"))
+                        self._enqueue_line(line_buf.decode("utf-8", errors="replace"))
                         line_buf.clear()
-                    self._queue.put(None)
+                    self._enqueue_line(None)
                     self._login_reply_queue.put(None)
-                    # Pause briefly before retrying (stdin might reopen)
-                    time.sleep(0.05)
-                    continue
+                    # A closed pipe cannot reopen; let the controller shut down.
+                    break
 
                 b = byte[0]  # int value of the byte
 
@@ -643,7 +741,7 @@ class StdinInterruptMonitor:
                             _msg_lines = []
                     else:
                         # Bare line outside START/END (e.g. non-ACP plain input)
-                        self._queue.put(line_str)
+                        self._enqueue_line(line_str)
 
             except Exception:
                 if not self._running:
@@ -720,7 +818,7 @@ def is_monitor_active() -> bool:
     return _monitor is not None and _monitor._running
 
 
-def install_sigint_handler():
+def install_sigint_handler(on_interrupt=None):
     """Replace the default SIGINT handler with a debounced version.
 
     In ACP mode, multiple interrupt sources can fire for a single Ctrl+C:
@@ -750,6 +848,9 @@ def install_sigint_handler():
         # Update timestamp BEFORE raising so that any duplicate arriving
         # while the KeyboardInterrupt propagates is correctly debounced.
         mon._last_interrupt_time = now
+        if on_interrupt is not None:
+            on_interrupt()
+            return
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGINT, _acp_sigint_handler)

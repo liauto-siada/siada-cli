@@ -2,7 +2,7 @@
 
 # Outer section title wrapping the whole combined-memory snapshot at the
 # system-prompt injection point. Kept here — next to the main injection
-# path — so side agents can reuse the exact
+# path — so side agents (e.g. GerritIssueFixAgent) can reuse the exact
 # same framing via ``wrap_user_memory`` instead of inventing ad-hoc
 # prefixes like "User Memory:".
 MEMORY_SECTION_TITLE = "Combined Memory"

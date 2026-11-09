@@ -7,6 +7,7 @@ from agents.tool_guardrails import (
 )
 
 from siada.services.plugins.hook_runner import get_active
+from siada.io.io import InputOutput
 
 
 async def _plugin_hook_output_fn(
@@ -33,6 +34,9 @@ async def _plugin_hook_output_fn(
                 message=resp.updated_output,
             )
         if resp.additional_context is not None:
+            io = InputOutput.get_instance()
+            if io:
+                io.print_hook(resp.additional_context, "PostToolUse")
             import asyncio
             from siada.services.session_runtime_state import stage_notification
 

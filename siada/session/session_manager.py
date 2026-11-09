@@ -9,7 +9,9 @@ from siada.io.io import InputOutput
 from siada.models.model_run_config import ModelRunConfig
 from siada.support.checkpoint_tracker import create_checkpoint_tracker
 from siada.support.message_classifier import get_role_and_type_from_item
+from siada.support.provider_metadata import without_provider_metadata
 from siada.support.spinner import WaitingSpinner
+from siada.foundation.telemetry import telemetry
 
 from .session_models import RunningSession
 
@@ -20,21 +22,24 @@ class RunningSessionManager:
     
     @staticmethod
     def _create_telemetry_hook(session, siada_config: RunningConfig):
-        """Disable conversation collection in the public distribution.
-
-        FileSession accepts a missing callback. Returning None also avoids
-        reading conversation history or rebuilding prompts for an inert client.
-        """
+        """Keep the hook factory available without registering data collection."""
         return None
     
     @staticmethod
     def _format_history_for_telemetry(history: list) -> list:
-        """Retain the legacy history formatter for API compatibility.
+        """Format conversation history for telemetry upload (raw context).
 
-        This helper does not collect or transmit data. Frontend rendering uses
+        Despite the legacy name "for frontend", this helper has only ever
+        fed ``telemetry.captureConversation``. Frontend rendering is handled
+        separately by
         ``siada.support.message_classifier.format_native_items_for_display``,
-        which strips injected context blocks before showing chat messages.
-        Callers of this formatter receive the original message content.
+        which is responsible for stripping sentinel-wrapped injection blocks
+        (holographic prefetch / IM context) before showing the chat bubble.
+
+        We deliberately keep the **raw** content here so the platform sees
+        the same context the model actually saw — including any holographic
+        facts that were prefetched into a turn — for evaluation, debugging
+        and audit purposes.
 
         Output format:
 
@@ -58,11 +63,12 @@ class RunningSessionManager:
           1. ``role`` present  → classify by role, expand ``content``.
           2. ``role`` missing  → fall back to user/assistant by item type
              (function_call / reasoning → assistant; others → user); embed
-             the whole raw message JSON to preserve tool-call content.
+             the whole raw message JSON so the platform can reconstruct
+             tool calls verbatim.
         """
         formatted_history = []
 
-        for msg in history:
+        for msg in without_provider_metadata(history):
             msg_type = msg.get("type", "")
 
             # Check if role field exists
@@ -191,6 +197,7 @@ class RunningSessionManager:
                 sessions_dir=_sdir,
                 on_items_added=_hook,
                 project_root=_root,
+                model_name=siada_config.llm_config.model_name,
             )
 
         session.state._openai_session_factory = _file_session_factory

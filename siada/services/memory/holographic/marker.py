@@ -235,15 +235,46 @@ def strip_benchmark_hint_block(text: str) -> str:
 USER_INPUT_BEGIN = "<user_input>"
 USER_INPUT_END = "</user_input>"
 
+# Recognize the current tag and the legacy spelling retained in old sessions.
+_SYSTEM_REMINDER_WRAPPERS = (
+    ("<system-reminder>", "</system-reminder>"),
+    ("<system_reminder>", "</system_reminder>"),
+)
+_SYSTEM_REMINDER_OPEN_WITH_ATTRS = re.compile(r"<system-reminder\s[^<>]*>")
+
+
+def is_whole_system_reminder(text: str) -> bool:
+    """Recognize a reminder-only message or content part, not quoted tags.
+
+    Input wrapping and history filtering share this boundary: only a whole
+    reminder block is runtime content. Real text containing reminder tags
+    remains human input. Opening and closing spellings must match, including
+    when the current opening tag carries attributes identifying its source.
+    """
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    if any(
+        stripped.startswith(open_tag) and stripped.endswith(close_tag)
+        for open_tag, close_tag in _SYSTEM_REMINDER_WRAPPERS
+    ):
+        return True
+    return bool(_SYSTEM_REMINDER_OPEN_WITH_ATTRS.match(stripped)) and stripped.endswith(
+        "</system-reminder>"
+    )
+
 
 def wrap_user_input(text: str) -> str:
     """Wrap raw, literal user-typed text in a ``<user_input>`` tag.
 
-    No-op for non-str / empty input. Also a no-op if ``text`` is already
-    wrapped, guarding against double-wrapping if a value is threaded
-    through more than one entry point.
+    No-op for non-str / empty input and whole internal system reminders:
+    generated continuations must not be marked as human-authored input.
+    Also a no-op if ``text`` is already wrapped, guarding against
+    double-wrapping if a value is threaded through multiple entry points.
     """
     if not isinstance(text, str) or not text:
+        return text
+    if is_whole_system_reminder(text):
         return text
     if text.startswith(USER_INPUT_BEGIN) and text.endswith(USER_INPUT_END):
         return text

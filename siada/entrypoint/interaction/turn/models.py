@@ -27,6 +27,9 @@ class TurnType(Enum):
 # a new value here without inventing a new metadata key each time.
 RETRY_REASON_METADATA_KEY = "retry_reason"
 
+# Request-local verifier outcome for controllers that do not consume ACP notices.
+GOAL_VERIFICATION_METADATA_KEY = "goal_verification"
+
 # Known retry reasons -- each maps to a notice in RETRY_NOTICES below.
 RETRY_REASON_TRUNCATED_REASONING_ONLY = "truncated_reasoning_only"
 # Guarded models (whitelist in stream_repetition.py) falling into a repetition

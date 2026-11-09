@@ -125,6 +125,8 @@ export interface FileSearchOptions {
 }
 
 export interface CommandDefinition {
+  /** Backend-approved execution policy; absence means serial execution. */
+  executionMode?: 'immediate' | 'serial';
   /** Command name (without /) */
   name: string;
   

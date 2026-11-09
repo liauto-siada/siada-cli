@@ -7,7 +7,7 @@ import pytest
 from siada.provider import provider_factory
 
 
-@pytest.mark.parametrize("provider_key", ["default"])
+@pytest.mark.parametrize("provider_key", ["default", "openai_agents"])
 def test_create_provider_does_not_reuse_or_replace_shared_instance(
     monkeypatch: pytest.MonkeyPatch, provider_key: str
 ) -> None:
@@ -36,5 +36,6 @@ def test_create_provider_rejects_unregistered_provider(
 ) -> None:
     monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
     monkeypatch.setattr(provider_factory, "provider_map", {})
+
     with pytest.raises(ValueError, match="No model providers found or registered"):
         provider_factory.create_provider("missing")

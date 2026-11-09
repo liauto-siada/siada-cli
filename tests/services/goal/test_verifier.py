@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -34,6 +35,45 @@ def _make_context():
 # ---------------------------------------------------------------------------
 # build_verifier_input
 # ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_build_verifier_input_reports_active_time_after_blocked_resume():
+    clock = {"now": "2026-01-01T00:00:00Z"}
+    fake_file_session = MagicMock()
+    fake_file_session.get_effective_messages = AsyncMock(return_value=[])
+    with patch("siada.services.goal.models._now_iso", side_effect=lambda: clock["now"]):
+        goal = Goal.create("verify resumed time")
+        clock["now"] = "2026-01-01T00:00:10Z"
+        goal.set_status("blocked")
+        clock["now"] = "2026-01-01T01:00:00Z"
+        goal.set_status("active")
+        clock["now"] = "2026-01-01T01:00:02.500Z"
+        items = await build_verifier_input(fake_file_session, goal, _make_context())
+    assert "Time used: 12 seconds" in items[-1]["content"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "expected_seconds"),
+    [("active", 3600), ("blocked", 12), ("paused", 12), ("complete", 12)],
+)
+async def test_build_verifier_input_accepts_legacy_goal_without_elapsed_method(status, expected_seconds):
+    goal = SimpleNamespace(
+        objective="Verify synthetic legacy state",
+        status=status,
+        created_at="2026-01-01T00:00:00Z",
+        updated_at="2026-01-01T00:00:12Z",
+    )
+    original_state = vars(goal).copy()
+    file_session = SimpleNamespace(get_effective_messages=AsyncMock(return_value=[]))
+    with patch("siada.services.goal.verifier.datetime", wraps=datetime) as clock:
+        clock.now.return_value = datetime(2026, 1, 1, 1, tzinfo=timezone.utc)
+        items = await build_verifier_input(file_session, goal, _make_context())
+
+    assert "Verify synthetic legacy state" in items[-1]["content"]
+    assert f"Time used: {expected_seconds} seconds" in items[-1]["content"]
+    assert vars(goal) == original_state
+
 
 @pytest.mark.asyncio
 async def test_build_verifier_input_preserves_raw_history_and_appends_request():
@@ -400,6 +440,47 @@ async def test_run_goal_verification_composes_input_and_verify():
     assert captured["input"][0] == {"role": "assistant", "content": "done"}
     assert len(captured["input"]) == 2
     assert "objective text" in captured["input"][1]["content"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [None, "", "0"])
+async def test_force_error_switch_disabled_preserves_verification(monkeypatch, value):
+    from siada.services.goal import verifier
+    from siada.services.goal.models import GoalVerdict
+
+    if value is None:
+        monkeypatch.delenv("SIADA_GOAL_VERIFIER_FORCE_ERROR", raising=False)
+    else:
+        monkeypatch.setenv("SIADA_GOAL_VERIFIER_FORCE_ERROR", value)
+    file_session = SimpleNamespace(get_effective_messages=AsyncMock(return_value=[]))
+    expected = GoalVerdict(passed=True, reason="Synthetic verification succeeded")
+    judge = AsyncMock(return_value=expected)
+    monkeypatch.setattr(verifier, "verify_goal_with_context", judge)
+    result = await verifier.run_goal_verification(file_session, Goal.create("Synthetic goal"), _make_context())
+    assert result is expected
+    judge.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_force_error_switch_raises_before_verifier_work_and_can_be_disabled(monkeypatch):
+    from siada.services.goal import verifier
+    from siada.services.goal.models import GoalVerdict
+
+    file_session = SimpleNamespace(get_effective_messages=AsyncMock(return_value=[]))
+    goal = Goal.create("Synthetic failure injection")
+    expected = GoalVerdict(passed=True, reason="Synthetic verification succeeded")
+    judge = AsyncMock(return_value=expected)
+    monkeypatch.setattr(verifier, "verify_goal_with_context", judge)
+    monkeypatch.setenv("SIADA_GOAL_VERIFIER_FORCE_ERROR", "1")
+    with pytest.raises(RuntimeError, match="SIADA_GOAL_VERIFIER_FORCE_ERROR=1"):
+        await verifier.run_goal_verification(file_session, goal, _make_context())
+    file_session.get_effective_messages.assert_not_awaited()
+    judge.assert_not_awaited()
+
+    monkeypatch.delenv("SIADA_GOAL_VERIFIER_FORCE_ERROR")
+    result = await verifier.run_goal_verification(file_session, goal, _make_context())
+    assert result is expected
+    judge.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

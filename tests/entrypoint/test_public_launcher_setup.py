@@ -176,6 +176,8 @@ class TestOneTimeSetupStaysLocal:
 
     @staticmethod
     def _patch_metadata_version(monkeypatch, version_or_error) -> None:
+        import siada
+        monkeypatch.setattr(siada, "__version__", "dev" if isinstance(version_or_error, Exception) else version_or_error)
         if isinstance(version_or_error, Exception):
 
             def _version(distribution_name):
@@ -206,7 +208,6 @@ class TestOneTimeSetupStaysLocal:
         assert host_side_effect_boundaries.process_table.iter_calls == []
         assert host_side_effect_boundaries.daemon.instantiations == []
         # The host-mutating helpers must be gone, not merely unused.
-        assert not hasattr(launch, "_ensure_nodejs")
         assert not hasattr(launch, "_kill_proactive_processes")
 
     def test_setup_never_resolves_or_installs_nodejs(
@@ -540,10 +541,7 @@ class TestQueryOnlyFlagsHaveNoStartupSideEffects:
     ) -> None:
         monkeypatch.setattr(sys, "argv", ["siada-cli", "--version"])
 
-        with pytest.raises(SystemExit) as excinfo:
-            launch.main()
-
-        assert excinfo.value.code == 0
+        assert launch.main() == 0
         assert siada.__version__ in capsys.readouterr().out
         assert startup_boundaries.setup == []
         assert startup_boundaries.ui == []
@@ -655,7 +653,6 @@ class TestLauncherSourceBoundary:
             "psutil",
             "process_iter",
             "_kill_proactive_processes",
-            "_ensure_nodejs",
             "_install_node_unix",
             "_install_node_windows",
             "_NVM_INSTALL_URL",

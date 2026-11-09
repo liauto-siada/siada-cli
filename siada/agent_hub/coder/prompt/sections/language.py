@@ -1,5 +1,12 @@
 """Preferred-language system prompt section."""
 
+
+def render_language_section(preferred_language: str | None) -> str:
+    if preferred_language is None:
+        return ""
+    return f"# PREFERRED LANGUAGE\n\nSpeak in {preferred_language}."
+
+
 def _get_language_instruction(preferred_language: str = 'en', agent_name: str = None) -> str:
     """
     Get language preference instruction based on user's choice.
@@ -14,11 +21,5 @@ def _get_language_instruction(preferred_language: str = 'en', agent_name: str = 
     """
 
     if preferred_language is not None:
-        return f"""====
-
-# PREFERRED LANGUAGE
-
-Speak in {preferred_language}.
-
-"""
+        return f"====\n\n{render_language_section(preferred_language)}\n\n"
     return ""

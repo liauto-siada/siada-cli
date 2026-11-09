@@ -12,11 +12,11 @@ describe('removed planning modes', () => {
     expect(names).toContain('run');
   });
 
-  it('exports a normal banner without a planning indicator', () => {
-    const banner = renderBannerBlock({
+  it('exports a normal banner without a planning indicator', async () => {
+    const banner = await renderBannerBlock({
       workingDir: '/synthetic/workspace', agent: 'coder', provider: 'default', model: 'gpt-6-sol',
     });
-    expect(banner).toContain('Model: gpt-6-sol');
+    expect(banner).toContain('Siada CLI');
     expect(banner).not.toContain('pre-plan mode');
     expect(banner).not.toContain('plan mode');
   });

@@ -103,12 +103,8 @@ class ProactiveAgent(SiadaAgent[CodeAgentContext]):
             CodeAgentContext instance with current working directory
         """
         current_working_dir = os.getcwd()
-        interactive_mode = self.get_interactive_mode()
-
-        context = CodeAgentContext(
-            root_dir=current_working_dir,
-            interactive_mode=interactive_mode
-        )
+        # SiadaRunner binds execution mode from the owning session before each run.
+        context = CodeAgentContext(root_dir=current_working_dir)
         return context
 
     async def run(self, user_input: str, context: CodeAgentContext, run_config=None, openai_session=None):

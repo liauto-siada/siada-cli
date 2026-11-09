@@ -6,7 +6,8 @@ Verifies that:
 2. Sub-agent stream events are NOT rendered to the main message flow (no
    tool-call boxes, tool results, or thinking text) — content is pushed only
    to the sub-agent detail view via ACP (sub_agent_notifier).
-3. The notifier wiring: start → per-event content entries → completed/failed.
+3. The notifier wiring: start → per-event content entries → completed/failed/
+   cancelled (cancellation must not be misclassified as failure).
 """
 
 import asyncio
@@ -310,6 +311,58 @@ class TestSubAgentNotifications(unittest.TestCase):
         mock_finish.assert_called_once()
         self.assertEqual(mock_finish.call_args[0][2], "failed")
         self.assertIn("boom", mock_finish.call_args[0][3])
+
+    def _run_until_cancelled(self, cancel_message=None):
+        """Drive run_subtask_impl until the model stream raises CancelledError.
+
+        Mirrors a sub-agent cancelled mid-run (user stop / session shutdown /
+        cancel_session_background_subtasks): the error surfaces from inside
+        the event stream, after some content has already been pushed.
+        """
+        io = _make_mock_io()
+        agent_ctx = MagicMock()
+        agent_ctx.root_dir = "/tmp"
+        agent_ctx.session.siada_config.io = io
+        agent_ctx.sub_agent_items = []
+        agent_ctx.allow_recursive_subagents = False
+        agent_ctx.root_session_id = None
+
+        fake_result = MagicMock()
+
+        async def _stream():
+            yield _make_message_event("working…")
+            raise asyncio.CancelledError(cancel_message)
+
+        fake_result.stream_events = _stream
+
+        with patch("siada.tools.agent.run_subtask.Runner.run_streamed", return_value=fake_result), \
+             patch("siada.tools.agent.run_subtask.build_sub_agent_run_config", return_value=MagicMock()), \
+             patch("siada.tools.agent.run_subtask.SubTaskAgent", return_value=MagicMock()), \
+             patch("siada.tools.agent.run_subtask.start_sub_agent") as mock_start, \
+             patch("siada.tools.agent.run_subtask.push_sub_agent_message"), \
+             patch("siada.tools.agent.run_subtask.finish_sub_agent") as mock_finish:
+            mock_start.return_value = MagicMock(id="sa_test1234")
+            from siada.tools.agent.run_subtask import run_subtask_impl
+            with self.assertRaises(asyncio.CancelledError):
+                asyncio.run(run_subtask_impl(
+                    instruction="test",
+                    agent_context=agent_ctx,
+                    run_config=MagicMock(),
+                ))
+        return mock_finish
+
+    def test_cancelled_mid_run_records_cancelled_not_failed(self):
+        """A bare CancelledError (empty str) must not become failed + empty summary."""
+        mock_finish = self._run_until_cancelled()
+        mock_finish.assert_called_once()
+        self.assertEqual(mock_finish.call_args[0][2], "cancelled")
+        # Non-empty summary: the old path recorded str(e) == "" here.
+        self.assertTrue(mock_finish.call_args[0][3].strip())
+
+    def test_cancelled_with_reason_includes_reason_in_summary(self):
+        mock_finish = self._run_until_cancelled(cancel_message="stopped by user")
+        self.assertEqual(mock_finish.call_args[0][2], "cancelled")
+        self.assertIn("stopped by user", mock_finish.call_args[0][3])
 
     def test_tool_output_push_uses_extracted_text(self):
         output = MagicMock(spec=ToolOutputText)

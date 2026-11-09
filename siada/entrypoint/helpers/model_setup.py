@@ -55,18 +55,17 @@ def _user_model_settings(model_config) -> list:
 
 
 def merge_provider_models_into_user_settings(provider_models: list) -> None:
-    """Add provider-catalogue models without replacing the user's models.json.
+    """Put active-provider models first, preserving user metadata and disk data.
 
     ``models.json`` is authoritative
     for the models it defines: a catalogue entry for the same model may carry
     different defaults and no custom thinking budgets / prices, so an existing
-    entry is never replaced. Only models the user catalogue does not know yet
-    are appended — which is also what lets a selected ``--model`` resolve later
-    in the same session. Nothing is written back to disk.
+    entry is never replaced. Provider entries lead the list, followed by the
+    remaining user models, with one entry per name. Nothing is written to disk.
 
     Shared by the login flow (``siadahub._apply_login``), the default-provider
     pre-load in ``get_config`` and ``/configure`` so all three keep the same
-    "merge, never replace" semantics.
+    provider-first ordering and user-metadata precedence.
     """
     from siada.models import model_base_config
 
@@ -83,11 +82,19 @@ def merge_provider_models_into_user_settings(provider_models: list) -> None:
         existing = _user_model_settings(user_config)
         model_base_config.set_user_model_settings(existing)
 
-    existing_names = {model.model_name for model in existing}
-    for provider_model in provider_models:
-        if provider_model.model_name not in existing_names:
-            existing.append(provider_model)
-            existing_names.add(provider_model.model_name)
+    from siada.config.model_config import load_user_model_config
+
+    user_config = load_user_model_config()
+    if user_config is not None:
+        existing[:] = _user_model_settings(user_config)
+    by_name = {model.model_name: model for model in existing}
+    ordered = []
+    seen = set()
+    for model in [*provider_models, *existing]:
+        if model.model_name not in seen:
+            ordered.append(by_name.get(model.model_name, model))
+            seen.add(model.model_name)
+    existing[:] = ordered
 
 
 def _pre_load_default_provider_models(conf: Optional[Config], model_name: str) -> None:
@@ -134,12 +141,13 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
     logger.debug(f"Default config loaded: {config.model_name}")
 
     final_model = args.model or (conf.llm_config.model if conf and conf.llm_config else None)
-    final_provider = args.provider or (conf.llm_config.provider if conf and conf.llm_config else None)
+    final_provider = args.provider or (conf.llm_config.provider if conf and conf.llm_config else None) or config.provider
     # Save the user's explicitly configured provider before any auto-routing.
     # Used to re-resolve provider if the model falls back to a different model family.
     user_preferred_provider = final_provider
 
-    # Resolve provider overrides while preserving the user's selected endpoint.
+    # Resolve legacy provider keys before configuring model metadata.
+    # This dilutes the user-facing "provider" concept: users only need to pick the model.
     from siada.provider.provider_factory import resolve_provider_by_model
     resolved_provider = resolve_provider_by_model(final_model, final_provider)
     if resolved_provider != final_provider:
@@ -157,6 +165,7 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
         from siada.models.model_base_config import set_user_model_settings
 
         user_models = _user_model_settings(conf.model_config)
+
         logger.debug(f"Loaded {len(user_models)} user-defined models")
         set_user_model_settings(user_models)
 
@@ -165,6 +174,10 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
             logger.info(f"Using default model from user configuration: {final_model}")
             if args.verbose:
                 io.print_info(f"Using default model from user configuration: {final_model}")
+
+    if final_provider == "default" and conf and conf.llm_config:
+        # ACP bypasses interactive login; load the active catalogue on startup.
+        _pre_load_default_provider_models(conf, final_model or "")
 
     if final_model is not None:
         logger.info(f"Configuring model: {final_model}")
@@ -191,7 +204,7 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
 
         # If the model was silently replaced by a fallback, re-resolve the provider
         # using the user's original preferred provider so the fallback model gets
-        # a provider consistent with the user's configured endpoint.
+        # a provider appropriate for the fallback model.
         if config.model_name != final_model:
             re_resolved = resolve_provider_by_model(config.model_name, user_preferred_provider)
             if re_resolved != final_provider:
@@ -205,7 +218,7 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
         logger.info(f"Setting provider: {final_provider}")
         config.provider = final_provider
 
-    # Persist the resolved provider for the shared request callbacks.
+    # Keep request callbacks aligned with the resolved provider.
     try:
         from siada.entrypoint import set_current_provider
         set_current_provider(config.provider or "")
@@ -219,22 +232,14 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
         raise ValueError(error_msg)
 
     if config.provider == "default":
-        # Pre-load credentials from conf.yaml into env. Do NOT raise when they
-        # are missing: the interactive login flow runs after get_config() and
-        # collects base_url/api_key there (API-key-only fallback).
-        if conf and conf.llm_config:
-            for name, field_name in (
-                ("BASE_URL", "base_url"),
-                ("API_KEY", "api_key"),
-            ):
-                value = getattr(conf.llm_config, field_name, None)
-                if isinstance(value, str) and value.strip() and not (os.getenv(name) or "").strip():
-                    os.environ[name] = value.strip()
-        if not (os.getenv("BASE_URL") or "").strip() or not (os.getenv("API_KEY") or "").strip():
-            logger.info(
-                "BASE_URL/API_KEY not set for default provider yet; "
-                "the login flow will collect them interactively."
-            )
+        # Configuration runs before interactive login. Missing credentials
+        # must reach that flow, while explicit environment values take priority.
+        for env_name, field_name in (("BASE_URL", "base_url"), ("API_KEY", "api_key")):
+            stored = getattr(conf.llm_config, field_name, None) if conf and conf.llm_config else None
+            if not os.environ.get(env_name, '').strip() and isinstance(stored, str) and stored.strip():
+                os.environ[env_name] = stored.strip()
+        if not os.getenv("BASE_URL") or not os.getenv("API_KEY"):
+            logger.info("API credentials are incomplete; continuing to provider configuration")
 
     # reasoning_effort support is tri-state (see supports_extra_param): a model
     # that DECLARES its capabilities without listing reasoning_effort is a real
@@ -250,6 +255,13 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
         if reasoning_support is False:
             error_msg = f"Model {config.model_name} does not support reasoning effort"
             logger.error(error_msg)
+            io.print_error(error_msg)
+            raise ValueError(error_msg)
+        if config.effort_choices is not None and args.reasoning_effort not in config.effort_choices:
+            error_msg = (
+                f"Invalid effort level '{args.reasoning_effort}'. Valid values for "
+                f"{config.model_name}: " + ", ".join(config.effort_choices)
+            )
             io.print_error(error_msg)
             raise ValueError(error_msg)
         config.set_reasoning_effort(args.reasoning_effort)
@@ -270,6 +282,7 @@ def get_config(args, io, conf: Optional[Config] = None) -> ModelRunConfig:
             config.model_name,
             conf.llm_config.reasoning_effort,
             config.default_reasoning_effort,
+            config.effort_choices,
         )
         config.set_reasoning_effort(mapped_effort)
         # Record the ORIGINAL intent (not the mapped level) so in-session

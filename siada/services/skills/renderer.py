@@ -18,9 +18,8 @@ logger = logging.getLogger(__name__)
 MAX_DESCRIPTION_DISPLAY_CHARS = MAX_DESCRIPTION_LENGTH
 
 # Total character budget for the rendered skill list, plus the dynamic variant
-# used when the model context window is known (both borrowed from
-# codex-rs/ext/skills/src/render.rs): 2% of the window in tokens, converted at
-# ~4 chars per token; otherwise a flat 8,000 characters.
+# used when the model context window is known: 2% of the window in tokens,
+# converted at ~4 chars per token; otherwise a flat 8,000 characters.
 DEFAULT_SKILLS_METADATA_CHAR_BUDGET = 8_000
 SKILLS_METADATA_CONTEXT_WINDOW_PERCENT = 2
 APPROX_CHARS_PER_TOKEN = 4
@@ -47,19 +46,19 @@ LONG_HORIZON_EXCLUDED_SKILL = "design-doc-writer"
 
 
 # Intro variants: absolute file paths vs short paths expandable via the
-# skill roots table (borrowed from codex-rs/ext/skills/src/catalog_prompt.rs).
+# skill roots table.
 SKILLS_INTRO_ABSOLUTE = "A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and file path so you can open the source for full instructions when using a specific skill."
 
 SKILLS_INTRO_ALIASED = "A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and a short aliased path. When short aliased paths are used, `### Skill roots` maps aliases such as `r0` to their absolute filesystem roots. Expand the matching alias before accessing the skill."
 
 # How-to-use variants. Both share the same rules; the aliased one adds the
-# alias-expansion step. Key rules synced from the latest Codex version:
+# alias-expansion step. Shared rules:
 # - read the selected SKILL.md COMPLETELY (until EOF) before acting;
 # - never delegate reading/interpreting skill instructions to a subagent;
 # - progressive disclosure applies to selecting files, not partial reads;
 # - the absolute variants never mention `### Skill roots`: that table only
 #   exists in the aliased layout, so telling the model to expand an alias
-#   there would dangle. Mirrors Codex, where a missing alias plan degrades
+#   there would dangle. A missing alias plan degrades
 #   the whole catalog (intro + how-to) to the unaliased prompt kind.
 SKILLS_HOW_TO_USE_STRICT_ABSOLUTE = """- **Discovery**: The list above is the skills available in this session (name + description + file path). Skill bodies live on disk at the listed paths.
 - **Trigger rules**: If the user names a skill OR the task clearly matches a skill's description shown above, you must use that skill for that turn. Multiple mentions mean use them all. Do not carry skills across turns unless re-mentioned.
@@ -392,7 +391,7 @@ def _resolve_skills_char_budget(context_window: Optional[int]) -> int:
     """Total character budget for the rendered skill list.
 
     With a known context window: 2% of it in tokens, converted at ~4 chars per
-    token (mirrors codex-rs/ext/skills/src/render.rs). Otherwise a flat
+    token. Otherwise a flat
     DEFAULT_SKILLS_METADATA_CHAR_BUDGET characters.
     """
     if context_window is not None and context_window > 0:
@@ -432,7 +431,7 @@ def _render_skill_list_within_budget(
 ) -> str:
     """Render skill list lines, degrading gracefully when over budget.
 
-    Degradation order (borrowed from codex-rs/ext/skills/src/render.rs): clip
+    Degradation order: clip
     every description to a uniform limit -> drop all descriptions -> omit
     trailing entries with a "(+N more skills)" trailer.
     """

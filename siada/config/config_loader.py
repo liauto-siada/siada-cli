@@ -11,6 +11,7 @@ from siada.config.mcp_config import MCPConfig
 from siada.config.mcp_config_loader import MCPConfigLoader
 from siada.config.model_config import ModelCollectionConfig, load_user_model_config
 from siada.foundation.constants import SIADA_HOME
+from siada.foundation.log_category import LogCategory
 from siada.io.io import InputOutput
 from siada.services.goal.models import GOAL_MAX_TURNS
 
@@ -30,6 +31,7 @@ class LLMConfig:
     reasoning_effort: Optional[str] = None  # Default reasoning effort level ("low"/"medium"/"high") for models that support it
     vision_model: Optional[str] = None  # Dedicated vision engine for text-only main models (open-source vision bridge)
     vision_provider: Optional[str] = None  # Provider for vision_model (defaults to provider when omitted)
+    provider_id: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'LLMConfig':
@@ -48,6 +50,7 @@ class LLMConfig:
         return cls(
             model=text('model'),
             provider=text('provider'),
+            provider_id=text('provider_id'),
             base_url=text('base_url'),
             api_key=text('api_key'),
             thinking=bool(data['thinking']) if 'thinking' in data and data['thinking'] is not None else None,
@@ -263,6 +266,7 @@ class HolographicConfig:
     Layered on top of inline memory: persists atomic facts with entity-binding
     (HRR vectors) and trust scoring in a SQLite + FTS5 database. Enables
     fact_store / fact_feedback tools and prefetch injection.
+    See design_docs/siada-holographic-memory-introduction.md.
     """
     enabled: bool = True               # default ON — set false in conf.yaml to disable
     hrr_enabled: bool = True           # disable HRR even when numpy available
@@ -337,11 +341,11 @@ llm_config:
   # Model name (e.g., claude-3-5-sonnet-20241022, gpt-4, etc.)
   # model: "claude-3-5-sonnet-20241022"
   
-  # Provider name (e.g., anthropic, openai, etc.)
-  # provider: "anthropic"
+  # The public build uses the default provider with your chosen API endpoint.
+  # provider: "default"
   
   # Base URL for the API endpoint (optional, use default if not specified)
-  # base_url: "https://api.anthropic.com"
+  # base_url: "https://api.openai.com/v1"
   
   # API key for authentication (required for most providers)
   # api_key: "your-api-key-here"
@@ -479,8 +483,8 @@ auto_update:
 #     temporal_decay_half_life: 0     # 0=disable; e.g. 90 = halve relevance every 90 days
 #     prefetch_limit: 5               # top-N facts injected into each user message
 #     custom_dict:                    # extra jieba terms (project / tool names)
-#       - myproject
-#       - mytool
+#       - my-project
+#       - example_tool
 
 # Web Tools Configuration (web_search / web_fetch)
 #
@@ -516,10 +520,16 @@ auto_update:
 #   enabled: true
 #   allow_recursive_subagents: false
 
+# Terminal UI Configuration
+# Append output to native terminal history without alternate screen or mouse capture.
+# Restart the CLI after changing this setting. --no-alt-screen always enables it.
+# ui:
+#   no_alt_screen: false
+
 # Lark IM Configuration
-# Configure Lark bot integration mode
+# Configure the public Lark WebSocket integration.
 # lark:
-#   mode: direct  # Use your own application through the Lark WS SDK
+#   mode: direct
 #   # workspace: /path/to/your/workspace  # Optional, defaults to ~/.siada-cli/workspace/lark
 #
 #   direct:
@@ -602,9 +612,9 @@ def _backup_config_file(config_path: Path, max_backups: int = 10) -> None:
 
 @dataclass(frozen=True)
 class HeadroomConfig:
-    """Legacy config fields retained for reading existing configuration files.
+    """Headroom proxy integration configuration (from conf.yaml `headroom`).
 
-    The proxy integration is unavailable in this distribution.
+    Legacy settings are accepted for configuration compatibility.
     """
     enabled: bool = False
     host: str = "127.0.0.1"
@@ -669,9 +679,8 @@ class Config:
 def _load_lark_config(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Extract lark config from raw conf.yaml data.
 
-    ``mode`` is optional here — public callers default to "direct" when absent.
-    Environment references in string values are resolved without changing the
-    stored file or the process environment.
+    Environment references are resolved without changing the stored configuration.
+    Public callers default to direct mode when ``mode`` is absent.
 
     Returns:
         Dict with structure {"lark": {...}}, or None if no valid lark config.
@@ -680,6 +689,8 @@ def _load_lark_config(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not lark_section or not isinstance(lark_section, dict):
         return None
 
+    # Wrap in {"lark": ...} for backward compatibility with callers.
+    # Preserve access settings even when callers rely on the default direct mode.
     def resolve(value: Any) -> Any:
         if isinstance(value, str):
             return re.sub(
@@ -693,9 +704,16 @@ def _load_lark_config(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return [resolve(item) for item in value]
         return value
 
-    # Keep access and session settings even when the mode is omitted.
-    logger.info("Lark config loaded")
-    return {"lark": resolve(lark_section)}
+    lark_config = {"lark": resolve(lark_section)}
+    mode = lark_section.get("mode", "direct")
+    # Keep this diagnostic in siada_cli.log only. Config loading happens more
+    # than once per startup, so printing it would duplicate lines on every run's
+    # console without telling the user anything they need before the turn.
+    logger.info(
+        f"Lark config loaded, mode={mode}",
+        extra={"log_category": LogCategory.FILE_ONLY},
+    )
+    return lark_config
 
 
 def load_conf(config_path: Optional[Path] = None) -> 'Config':
@@ -738,9 +756,8 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
             pass
 
     data = read_conf_dict(config_path, on_error=_notify_conf_error)
-
     def _load_section(name, section_data, default):
-        """Keep a malformed section from discarding unrelated user settings."""
+        """Keep malformed sections from discarding unrelated settings."""
         if section_data is None:
             return default
         try:
@@ -751,10 +768,7 @@ def load_conf(config_path: Optional[Path] = None) -> 'Config':
 
     if data:
         llm_config = _load_section('llm_config', data.get('llm_config'), llm_config)
-        for name, value in (
-            ('BASE_URL', llm_config.base_url),
-            ('API_KEY', llm_config.api_key),
-        ):
+        for name, value in (('BASE_URL', llm_config.base_url), ('API_KEY', llm_config.api_key)):
             if value and not os.environ.get(name, '').strip():
                 os.environ[name] = value
         checkpoint_config = _load_section('checkpoint_config', data.get('checkpoint_config'), checkpoint_config)

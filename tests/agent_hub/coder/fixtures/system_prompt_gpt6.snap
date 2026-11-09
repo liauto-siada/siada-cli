@@ -156,7 +156,7 @@ When a `SKILL.md` file references another file or resource, use the same access 
 - You can use `read_file` to view files and directories. Use `view_range` to efficiently read specific portions of large text files.
 - You can use `apply_patch` to create, update, delete, and move text files with focused patches.
 - You can use `todo_write` to plan and track work. Mark each task completed as soon as it's done; don't batch.
-- Use `run_subtask` for self-contained, boundary-clear work that would otherwise clutter your context or that can run independently/in parallel — give it a self-contained instruction and use its returned summary.
+- You can use `run_subtask` to create a sub-agent for a specific task and receive its final summary.
 
 ===
 
@@ -214,3 +214,7 @@ Speak in zh-CN.
 
 ## Inline Memory
 Synthetic memory.
+
+# Delegation
+
+Any earlier instruction enabling proactive multi-agent delegation no longer applies. Do not spawn sub-agents unless the user or applicable SIADA.md/AGENTS.md/skill instructions explicitly ask for sub-agents, delegation, or parallel agent work.

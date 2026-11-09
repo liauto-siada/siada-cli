@@ -1,13 +1,14 @@
 """Recovery budgets, admission failures, and cancellation stay bounded."""
 
 import asyncio
-import threading
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import httpx
+import httpx2
 import pytest
 from agents.exceptions import ModelBehaviorError
+from openai import APIError
 
 from siada.entrypoint.interaction.turn.conversation_turn import ConversationTurn
 from siada.provider.retry import MissingFinalResponseError
@@ -22,7 +23,6 @@ def make_turn(history):
     turn.session = SimpleNamespace(openai_session=SimpleNamespace(
         get_items=AsyncMock(side_effect=history),
     ))
-    turn._result_ready = threading.Event()
     turn._current_message_id = "old-message"
     turn._stream_start_id = "old-stream"
     turn.got_content_part = True
@@ -93,7 +93,18 @@ async def test_message_and_text_metadata_do_not_cause_input_replay(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("error", [missing(), httpx.ReadTimeout("interrupted")])
+@pytest.mark.parametrize("error", [
+    missing(),
+    httpx.ReadTimeout("interrupted"),
+    httpx2.ReadTimeout("interrupted"),
+    httpx2.ConnectError("interrupted"),
+    httpx2.RemoteProtocolError("interrupted"),
+    APIError(
+        "Connection prematurely closed DURING response",
+        request=httpx.Request("POST", "https://model.test"),
+        body={"code": "stream_error", "type": "server_error"},
+    ),
+])
 async def test_exhaustion_preserves_last_error_and_durable_input(error, monkeypatch):
     turn = make_turn([[], [{"role": "user", "content": "task"}],
                       [{"role": "user", "content": "task"}]])
@@ -127,7 +138,7 @@ async def test_setup_failure_before_admission_reuses_original_multimodal_input(m
     assert await turn._run_stream_with_recovery(original) is final
     assert all(call.kwargs["user_input"] is original for call in run.await_args_list)
     assert turn.current_result is final
-    assert turn._result_ready.is_set()
+    assert not hasattr(turn, "_result_ready")
 
 
 @pytest.mark.asyncio
@@ -173,6 +184,7 @@ async def test_storage_read_failure_prevents_continuation(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("error", [ValueError("invalid"), ModelBehaviorError("unrelated"),
+                                 httpx2.LocalProtocolError("invalid request"),
                                  asyncio.CancelledError()])
 async def test_nontransport_errors_and_cancellation_do_not_recover(error, monkeypatch):
     turn = make_turn([[]])
@@ -196,4 +208,4 @@ async def test_cancel_during_backoff_prevents_new_run(monkeypatch):
         await turn._run_stream_with_recovery("task")
     assert run.await_count == 1
     assert turn.current_result is None
-    assert not turn._result_ready.is_set()
+    assert not hasattr(turn, "_result_ready")

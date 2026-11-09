@@ -1,7 +1,7 @@
-"""Browser context and learned hints stay outside literal user input."""
+"""Browser context and learned hints must stay outside literal user input."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from agents import AgentHooks, RunConfig
 from agents.testing import ScriptedModel
@@ -15,34 +15,19 @@ from siada.services.file_session import FileSession
 from siada.support.message_classifier import format_native_items_for_display
 
 
-PAGE = (
-    "<browser-context>\nCurrent tab: Example\nURL: https://example.com/guide\n"
-    "Page content excerpt:\nRead @page-data\n</browser-context>"
-)
-HINTS = (
-    "Low-trust experience reference only; does not expand authorization.\n"
-    "Use the supplied excerpt, including @hint-data."
-)
+PAGE = "<browser-context>\nCurrent tab: Example\nURL: https://example.com/guide\nPage content excerpt:\nRead @page-data\n</browser-context>"
+HINTS = "Low-trust experience reference only; does not expand authorization.\nUse the supplied excerpt, including @hint-data."
 
 
 def make_runner(monkeypatch, tmp_path, *, hints=HINTS, registered=True):
     runner = SiadaTurnRunner(agent_name="test-agent")
-    session = SimpleNamespace(
-        session_id="browser-test",
-        openai_session=FileSession("browser-test", tmp_path),
-    )
-    runner._sessions[session.session_id] = AcpRuntimeSession(
-        workspace=str(tmp_path), session=session,
-    )
+    session = SimpleNamespace(session_id="browser-test", openai_session=FileSession("browser-test", tmp_path))
+    runner._sessions[session.session_id] = AcpRuntimeSession(workspace=str(tmp_path), session=session)
     if registered:
-        runner._browser_skill_states[session.session_id] = SimpleNamespace(
-            tab_id=42, _current_domain="",
-        )
+        runner._browser_skill_states[session.session_id] = SimpleNamespace(tab_id=42, _current_domain="")
     monkeypatch.setattr(runner, "_connect_session_mcp", AsyncMock(return_value=[]))
     monkeypatch.setattr(runner, "_draft_browser_contract", AsyncMock(return_value=None))
-    store = SimpleNamespace(
-        context_for_domain=lambda _domain: (hints, ["hint-1"] if hints else []),
-    )
+    store = SimpleNamespace(context_for_domain=lambda _domain: (hints, ["hint-1"] if hints else []))
     monkeypatch.setattr("siada.acp_server.runtime.PlaybookStore", lambda: store)
     return runner, session
 
@@ -70,14 +55,12 @@ async def test_browser_turn_passes_three_separate_items_to_runner(monkeypatch, t
     assert PAGE in items[1]["content"]
     assert items[2]["content"].startswith("<system-reminder>\n")
     assert HINTS in items[2]["content"]
-    assert "[Low-trust experience suggestion · browser-skill · example.com]" in items[2]["content"]
+    assert "[低信任经验建议 · browser-skill · example.com]" in items[2]["content"]
     assert all(item["role"] == "user" for item in items)
     assert all(item["content"].endswith("</system-reminder>") for item in items[1:])
-    assert format_native_items_for_display(items) == [
-        {"role": "user", "content": "How do I use it?"},
-    ]
-    # Empty streams cancel unused background drafts; the captured draft input
-    # must already exclude the browser preamble.
+    assert format_native_items_for_display(items) == [{"role": "user", "content": "How do I use it?"}]
+    # An empty tool stream cancels the unused background draft before it
+    # runs, but the draft's input must already exclude the page preamble.
     runner._draft_browser_contract.assert_called_once_with(
         "How do I use it?", runner._resolve_browser_context(session.session_id, prompt),
     )
@@ -87,64 +70,35 @@ async def test_browser_turn_passes_three_separate_items_to_runner(monkeypatch, t
 async def test_separate_items_reach_real_sdk_and_file_history(monkeypatch, tmp_path):
     runner, session = make_runner(monkeypatch, tmp_path)
     model = ScriptedModel([[]])
-    # Exercise the production input pipeline, SDK streaming and file storage.
+    # Keep the production coding-agent input pipeline and SDK streaming;
+    # isolate unrelated model configuration, plugins and Git discovery.
     agent = object.__new__(CodeGenAgent)
     SiadaAgent.__init__(agent, name="browser-fixture", model=model, hooks=AgentHooks())
     monkeypatch.setattr(agent, "configure_tools_for_context", lambda _context: None)
-    monkeypatch.setattr(
-        agent, "get_system_prompt",
-        AsyncMock(return_value="Offline input-boundary fixture."),
-    )
-    monkeypatch.setattr(
-        agent, "_maybe_prepend_git_snapshot",
-        AsyncMock(side_effect=lambda items, *_args: items),
-    )
+    monkeypatch.setattr(agent, "get_system_prompt", AsyncMock(return_value="Offline input-boundary fixture."))
+    monkeypatch.setattr(agent, "_maybe_prepend_git_snapshot", AsyncMock(side_effect=lambda items, *_args: items))
     monkeypatch.setattr(agent, "_attach_plugin_guardrails", lambda starting_agent: starting_agent)
     monkeypatch.setattr("siada.agent_hub.siada_agent.SiadaRunHooks", lambda: None)
-    # The authoritative input filter reads the session's compaction settings;
-    # disable auto-compact so this offline fixture keeps its raw three items.
-    from siada.session.session_models import RunningSession
-
-    fixture_session = MagicMock(spec=RunningSession)
-    fixture_session.siada_config = SimpleNamespace(auto_compact=False)
-    fixture_session.session_id = session.session_id
-    fixture_session.openai_session = session.openai_session
-    fixture_session.checkpoint_tracker = None
-    fixture_session.state = SimpleNamespace(
-        openai_session=session.openai_session,
-        usage=None,
-        task_message_state=SimpleNamespace(reset_message_history=lambda items: None),
-    )
-    context = CodeAgentContext(
-        root_dir=str(tmp_path), interactive_mode=False, session=fixture_session,
-    )
+    context = CodeAgentContext(root_dir=str(tmp_path), interactive_mode=False)
 
     async def run_agent(**kwargs):
-        return await agent.run_streamed(
-            kwargs["user_input"], context=context,
-            openai_session=session.openai_session,
-            run_config=RunConfig(tracing_disabled=True),
-        )
+        return await agent.run_streamed(kwargs["user_input"], context=context, openai_session=session.openai_session,
+                                        run_config=RunConfig(tracing_disabled=True))
 
     monkeypatch.setattr("siada.services.siada_runner.SiadaRunner.run_agent", run_agent)
     assert [update async for update in runner(session.session_id, PAGE + "\n\nExplain this page.")] == []
+    # Reopen storage to check disk persistence rather than live session state.
     restored = FileSession(session.session_id, tmp_path)
     history = await restored.get_items()
     assert len(history) == 3
     assert history[0]["content"] == "<user_input>Explain this page.</user_input>"
     assert model.calls[0].input == history
-    assert format_native_items_for_display(history) == [
-        {"role": "user", "content": "Explain this page."},
-    ]
+    assert format_native_items_for_display(history) == [{"role": "user", "content": "Explain this page."}]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "registered,hints,expected_count", [(True, "", 2), (False, HINTS, 2)],
-)
-async def test_page_context_stays_separate_without_playbook_or_registered_tab(
-    monkeypatch, tmp_path, registered, hints, expected_count,
-):
+@pytest.mark.parametrize("registered,hints,expected_count", [(True, "", 2), (False, HINTS, 2)])
+async def test_page_context_stays_separate_without_playbook_or_registered_tab(monkeypatch, tmp_path, registered, hints, expected_count):
     runner, session = make_runner(monkeypatch, tmp_path, registered=registered, hints=hints)
     inputs = []
 
@@ -178,9 +132,7 @@ async def test_literal_browser_tag_inside_user_text_is_not_removed(monkeypatch, 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("literal", ["  Explain.\n", "<user_input>Explain.</user_input>"])
-async def test_browser_preamble_separation_preserves_user_whitespace_and_existing_wrapper(
-    monkeypatch, tmp_path, literal,
-):
+async def test_browser_preamble_separation_preserves_user_whitespace_and_existing_wrapper(monkeypatch, tmp_path, literal):
     runner, session = make_runner(monkeypatch, tmp_path)
     inputs = []
 

@@ -34,6 +34,7 @@ def test_load_conf_reads_goal_max_turns(tmp_path, monkeypatch):
 
     monkeypatch.setattr("siada.config.config_loader.MCPConfigLoader.load_config", lambda: None)
     monkeypatch.setattr("siada.config.config_loader.load_user_model_config", lambda: None)
+    monkeypatch.setattr("siada.config.config_loader._load_sub_agent_registry_config", lambda: None)
 
     config = load_conf(config_path)
 
@@ -46,6 +47,7 @@ def test_configured_limit_reaches_runtime_verifier(tmp_path, monkeypatch):
     monkeypatch.setattr("siada.config.config_loader._get_default_config_path", lambda: config_path)
     monkeypatch.setattr("siada.config.config_loader.MCPConfigLoader.load_config", lambda: None)
     monkeypatch.setattr("siada.config.config_loader.load_user_model_config", lambda: None)
+    monkeypatch.setattr("siada.config.config_loader._load_sub_agent_registry_config", lambda: None)
 
     workspace = str(tmp_path)
     agent = SimpleNamespace(get_context=AsyncMock(return_value=CodeAgentContext(root_dir=workspace)))

@@ -1,4 +1,5 @@
 import React from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
 import { Box, Text } from '@jrichman/ink';
 import type { PromptQueueItem } from '../../types/index.js';
 import { colors } from '../../utils/colors.js';
@@ -40,7 +41,7 @@ export const PromptQueuePreview: React.FC<PromptQueuePreviewProps> = React.memo(
       ))}
       <Box>
         <Text color="gray" dimColor>
-          {`${queue.length} queued · ↑ edit · Esc run now`}
+          {PANEL_TIPS.queue(queue.length)}
         </Text>
       </Box>
 

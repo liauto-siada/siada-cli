@@ -8,7 +8,9 @@ counting) therefore raised ``UserError`` and broke the request:
 
 1. Native ``apply_patch`` items (``apply_patch_call`` /
    ``apply_patch_call_output``) -- no ChatCompletions representation at all.
-2. Id-less assistant output messages, i.e.
+2. Custom tool calls and outputs -- raw string input is wrapped as JSON for
+   a function-call proxy without parsing or changing the original payload.
+3. Id-less assistant output messages, i.e.
    ``{"type": "message", "role": "assistant", "content": [{"type":
    "output_text", ...}]}`` without an ``id`` -- the shape produced by the
    compaction acknowledgment messages.  The SDK's
@@ -17,8 +19,8 @@ counting) therefore raised ``UserError`` and broke the request:
    branch, whose content parser rejects ``output_text`` parts.
 
 ``to_chat_compatible_items`` rewrites those shapes into lossless,
-chat-completions-safe proxies (``function_call`` named ``apply_patch`` plus a
-matching ``function_call_output``; a plain assistant text message) so any
+chat-completions-safe proxies (``function_call`` with the original tool name
+plus a matching ``function_call_output``; a plain assistant text message) so any
 ChatCompletions consumer can carry them.  Session history itself is never
 rewritten: callers apply this only at the protocol boundary (wire conversion
 / token counting), keeping storage on the native protocol.
@@ -32,6 +34,8 @@ NATIVE_PATCH_CALL = "apply_patch_call"
 NATIVE_PATCH_CALL_OUTPUT = "apply_patch_call_output"
 
 _NATIVE_PATCH_TYPES = frozenset({NATIVE_PATCH_CALL, NATIVE_PATCH_CALL_OUTPUT})
+_CUSTOM_TOOL_TYPES = frozenset({"custom_tool_call", "custom_tool_call_output"})
+_RESPONSES_ONLY_TOOL_TYPES = _NATIVE_PATCH_TYPES | _CUSTOM_TOOL_TYPES
 
 # Tool name used by the function-call proxy. Kept identical to the native tool
 # name so transcripts stay recognizable, and so the shape matches the payload
@@ -101,17 +105,17 @@ def _needs_easy_input_rewrite(item: Any) -> bool:
 def to_chat_compatible_item(item: Any) -> Any:
     """Return a ChatCompletions-shaped proxy for a Responses-only item shape.
 
-    Handles both replayed shapes (native apply_patch items, id-less assistant
-    output messages).  Anything else is returned unchanged (same object), so
+    Handles native/custom tool items and id-less assistant output messages.
+    Anything else is returned unchanged (same object), so
     callers can use this per item without disturbing the rest of the history.
 
-    For apply_patch items, ``call_id`` is preserved in both directions -- it
+    For native/custom tool items, ``call_id`` is preserved in both directions -- it
     is the pairing key, not a store id -- while output-only metadata (``id`` /
     ``status`` / ``caller`` / ``created_by``) is intentionally dropped.
     """
     item_type = item_type_of(item)
 
-    if item_type in _NATIVE_PATCH_TYPES:
+    if item_type in _RESPONSES_ONLY_TOOL_TYPES:
         call_id = _read_field(item, "call_id") or _read_field(item, "id") or ""
 
         if item_type == NATIVE_PATCH_CALL:
@@ -127,6 +131,14 @@ def to_chat_compatible_item(item: Any) -> Any:
                 "call_id": call_id,
                 "name": PROXY_TOOL_NAME,
                 "arguments": _dump_json(payload),
+            }
+
+        if item_type == "custom_tool_call":
+            return {
+                "type": "function_call",
+                "call_id": call_id,
+                "name": _read_field(item, "name"),
+                "arguments": _dump_json({"input": _read_field(item, "input", "")}),
             }
 
         output = _read_field(item, "output", "")
@@ -164,7 +176,7 @@ def to_chat_compatible_items(items: Any) -> Any:
         return items
 
     if not any(
-        item_type_of(item) in _NATIVE_PATCH_TYPES or _needs_easy_input_rewrite(item)
+        item_type_of(item) in _RESPONSES_ONLY_TOOL_TYPES or _needs_easy_input_rewrite(item)
         for item in items
     ):
         return items

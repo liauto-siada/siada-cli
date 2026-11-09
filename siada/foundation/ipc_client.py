@@ -14,13 +14,76 @@ Usage::
 """
 
 import logging
+import math
+import socket
+import sys
+import time
 import uuid
-from multiprocessing.connection import Client
+from multiprocessing.connection import Client, Connection, answer_challenge, deliver_challenge
 from typing import Any, Optional
 
 from siada.foundation.ipc import IPC_AUTHKEY, get_ipc_address
 
 logger = logging.getLogger("siada.ipc.client")
+
+
+class _SocketConnection(Connection):
+    """Use socket deadlines for complete multiprocessing frames, including auth.
+
+    Polling alone bounds only the arrival of the first byte. The socket remains
+    owned by this Connection, so timeout/error paths close it synchronously.
+    """
+
+    def __init__(self, sock: socket.socket, deadline: float) -> None:
+        super().__init__(sock.fileno())
+        self._socket = sock
+        self._deadline = deadline
+
+    def set_deadline(self, deadline: float) -> None:
+        self._deadline = deadline
+
+    def _set_socket_timeout(self) -> None:
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("daemon IPC deadline expired")
+        self._socket.settimeout(remaining)
+
+    def _read_with_timeout(self, _handle: int, size: int) -> bytes:
+        self._set_socket_timeout()
+        return self._socket.recv(size)
+
+    def _write_with_timeout(self, _handle: int, data: bytes) -> int:
+        self._set_socket_timeout()
+        return self._socket.send(data)
+
+    def _recv(self, size: int):
+        return super()._recv(size, read=self._read_with_timeout)
+
+    def _send(self, buf) -> None:
+        super()._send(buf, write=self._write_with_timeout)
+
+    def _close(self) -> None:
+        self._socket.close()
+
+
+def _connect_unix(address: str, timeout: float) -> Connection:
+    """Bound connect and mutual authentication by one shared deadline."""
+    deadline = time.monotonic() + timeout
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    conn = None
+    try:
+        sock.settimeout(timeout)
+        sock.connect(address)
+        conn = _SocketConnection(sock, deadline)
+        answer_challenge(conn, IPC_AUTHKEY)
+        deliver_challenge(conn, IPC_AUTHKEY)
+        return conn
+    except BaseException:
+        if conn is not None:
+            conn.close()
+        else:
+            sock.close()
+        raise
 
 
 class DaemonIPCClient:
@@ -31,6 +94,8 @@ class DaemonIPCClient:
     """
 
     def __init__(self, timeout: float = 5.0) -> None:
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("timeout must be finite and positive")
         self._conn: Optional[Any] = None
         self._timeout = timeout
 
@@ -47,7 +112,10 @@ class DaemonIPCClient:
 
         try:
             address = get_ipc_address()
-            self._conn = Client(address, authkey=IPC_AUTHKEY)
+            if sys.platform == "win32":
+                self._conn = Client(address, authkey=IPC_AUTHKEY)
+            else:
+                self._conn = _connect_unix(address, self._timeout)
             logger.debug("Connected to daemon IPC at %s", address)
             return True
         except (ConnectionRefusedError, FileNotFoundError, OSError) as e:
@@ -98,13 +166,17 @@ class DaemonIPCClient:
         }
 
         try:
+            deadline = time.monotonic() + self._timeout
+            if isinstance(self._conn, _SocketConnection):
+                self._conn.set_deadline(deadline)
             self._conn.send(request)
-            if self._conn.poll(timeout=self._timeout):
+            if self._conn.poll(timeout=max(0.0, deadline - time.monotonic())):
                 return self._conn.recv()
             else:
+                self.disconnect()
                 return {"error": "timeout waiting for response", "id": request["id"]}
         except (EOFError, BrokenPipeError, OSError) as e:
-            self._conn = None
+            self.disconnect()
             raise ConnectionError(f"Connection lost: {e}") from e
 
     # ── High-level API ───────────────────────────────────────────────

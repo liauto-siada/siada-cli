@@ -4,6 +4,8 @@
  */
 
 import React, { useMemo } from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
 import { Box, Text } from '@jrichman/ink';
 import Spinner from 'ink-spinner';
 import { SessionBrowserProps } from '../../types/session.js';
@@ -17,6 +19,7 @@ import { SessionList } from './SessionList.js';
 import { calculateVisibleRange, calculateVisibleSessionCount } from '../../utils/sessionUtils.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { useClearScreenOnMount } from '../../hooks/useClearScreenOnMount.js';
+import { PickerFrame, pickerHint } from '../Picker/Picker.js';
 
 export const SessionBrowser: React.FC<SessionBrowserProps> = ({
   projectRoot,
@@ -45,6 +48,7 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
 
   // Fullscreen view: clear the screen on mount and paint the first frame
   // from row 1 instead of mid-screen (where it would scroll its top off).
+  useUiLanguage();
   const cleared = useClearScreenOnMount();
 
   // Handle keyboard input
@@ -69,18 +73,21 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
   // otherwise Ink clears the screen and redraws the frame bottom-aligned,
   // pushing the top of the list (and the selected item) out of view.
   const { rows: terminalRows } = useTerminalSize();
+  const auxiliaryRows = (state.isSearchMode || state.searchQuery ? 4 : 0) + (state.isRenameMode ? 4 : 0);
+  const maxSnippetRows = Math.max(0, terminalRows - 7 - auxiliaryRows - 2);
   const { startIndex, endIndex } = useMemo(() => {
     const visibleCount = calculateVisibleSessionCount(terminalRows, {
       searchVisible: state.isSearchMode || !!state.searchQuery,
       renameVisible: state.isRenameMode,
       redirectVisible: !!state.redirectCmd,
+      snippetRows: Math.min(maxSnippetRows, Math.max(0, ...state.filteredSessions.map(session => session.matchSnippets?.length || 0))),
     });
     return calculateVisibleRange(
       state.filteredSessions.length,
       state.activeIndex,
       visibleCount
     );
-  }, [state.filteredSessions.length, state.activeIndex, terminalRows,
+  }, [state.filteredSessions, state.activeIndex, terminalRows, maxSnippetRows,
       state.isSearchMode, state.searchQuery, state.isRenameMode, state.redirectCmd]);
 
   // Derive project name from first session or projectRoot
@@ -91,10 +98,10 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
     }
     // Fallback to extracting from projectRoot
     const parts = projectRoot.split('/');
-    return parts[parts.length - 1] || 'Unknown';
+    return parts[parts.length - 1] || t('未知项目', 'Unknown');
   }, [state.scope, state.sessions, projectRoot]);
 
-  const visibleCount = endIndex - startIndex;
+  const visibleCount = Math.max(1, endIndex - startIndex);
   const currentPage = Math.floor(state.activeIndex / visibleCount) + 1;
   const totalPages = Math.ceil(state.filteredSessions.length / visibleCount);
 
@@ -109,7 +116,7 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
           <Text color="cyan">
             <Spinner type="dots" />
           </Text>
-          <Text> Loading sessions...</Text>
+          <Text>{t(' 正在加载会话…', ' Loading sessions...')}</Text>
         </Box>
       </Box>
     );
@@ -118,40 +125,30 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
   // Error state
   if (state.error) {
     return (
-      <Box flexDirection="column" paddingX={1}>
-        <Box marginBottom={1} borderStyle="single" borderColor="red" paddingX={1}>
-          <Text color="red" bold>Error</Text>
-        </Box>
-        <Box paddingX={1}>
-          <Text color="red">{state.error}</Text>
-        </Box>
-        <Box marginTop={1} paddingX={1}>
-          <Text color="gray" dimColor>Press Esc or q to close</Text>
-        </Box>
-      </Box>
+      <PickerFrame title={t('加载失败', 'Error')} hint={PANEL_TIPS.close}>
+        <Text color="red" wrap="truncate-end">{state.error}</Text>
+      </PickerFrame>
     );
   }
 
   // Empty state
   if (state.sessions.length === 0) {
     return (
-      <Box flexDirection="column" paddingX={1}>
-        <Box marginBottom={1} borderStyle="single" borderColor="yellow" paddingX={1}>
-          <Text color="yellow" bold>No Sessions Found</Text>
-        </Box>
-        <Box paddingX={1}>
-          <Text>No saved sessions available.</Text>
-        </Box>
-        <Box marginTop={1} paddingX={1}>
-          <Text color="gray" dimColor>Press Esc or q to close</Text>
-        </Box>
-      </Box>
+      <PickerFrame title={t('继续历史会话', 'Resume Session')} hint={pickerHint('vertical')}>
+        <Text>{t('暂无历史会话', 'No Sessions Found')}</Text>
+      </PickerFrame>
     );
   }
 
   // Main view
+  if (state.redirectCmd) {
+    return <PickerFrame title={t('会话工作目录不匹配', 'Session Workspace Mismatch')} hint={PANEL_TIPS.dismiss}>
+      <Text wrap="truncate-end">{t('要继续此会话，请运行：', 'To resume this session, run:')}</Text>
+      <Text wrap="truncate-end">{state.redirectCmd}</Text>
+    </PickerFrame>;
+  }
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" paddingX={1} width="100%">
       <SessionBrowserHeader
         totalCount={state.sessions.length}
         filteredCount={state.filteredSessions.length}
@@ -180,22 +177,9 @@ export const SessionBrowser: React.FC<SessionBrowserProps> = ({
         visibleCount={visibleCount}
         onSelect={resumeSession}
         showProjectName={state.scope === 'all'}
+        maxSnippetRows={maxSnippetRows}
       />
 
-      {state.redirectCmd && (
-        <Box
-          borderStyle="single"
-          borderColor="yellow"
-          flexDirection="column"
-          paddingX={1}
-          marginTop={1}
-        >
-          <Text color="yellow" bold>Session Workspace Mismatch</Text>
-          <Text>This session belongs to a different workspace. To resume it, run:</Text>
-          <Text color="cyan">  {state.redirectCmd}</Text>
-          <Text color="gray" dimColor>Press any key to dismiss</Text>
-        </Box>
-      )}
 
       <SessionBrowserFooter
         isSearchMode={state.isSearchMode}

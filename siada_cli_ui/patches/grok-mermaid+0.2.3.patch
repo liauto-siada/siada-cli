@@ -1,0 +1,49 @@
+diff --git a/node_modules/grok-mermaid/src/graph.ts b/node_modules/grok-mermaid/src/graph.ts
+--- a/node_modules/grok-mermaid/src/graph.ts
++++ b/node_modules/grok-mermaid/src/graph.ts
+@@ -28,1 +28,1 @@
+-export type LineKind = 'solid' | 'dotted' | 'thick'
++export type LineKind = 'solid' | 'dotted' | 'thick' | 'invisible'
+diff --git a/node_modules/grok-mermaid/dist/graph.d.ts b/node_modules/grok-mermaid/dist/graph.d.ts
+--- a/node_modules/grok-mermaid/dist/graph.d.ts
++++ b/node_modules/grok-mermaid/dist/graph.d.ts
+@@ -14,1 +14,1 @@
+-export type LineKind = 'solid' | 'dotted' | 'thick';
++export type LineKind = 'solid' | 'dotted' | 'thick' | 'invisible';
+diff --git a/node_modules/grok-mermaid/src/parse.ts b/node_modules/grok-mermaid/src/parse.ts
+--- a/node_modules/grok-mermaid/src/parse.ts
++++ b/node_modules/grok-mermaid/src/parse.ts
+@@ -373,3 +373,7 @@
+ function parseLink(chars: string[], start: number): Link | null {
+   let i = skipSpaces(chars, start)
++  // Invisible links constrain layout without drawing a connector.
++  if (chars.slice(i, i + 3).join('') === '~~~') {
++    return { left: 'none', right: 'none', line: 'invisible', label: null, next: i + 3 }
++  }
+   let left: Head = 'none'
+diff --git a/node_modules/grok-mermaid/dist/parse.js b/node_modules/grok-mermaid/dist/parse.js
+--- a/node_modules/grok-mermaid/dist/parse.js
++++ b/node_modules/grok-mermaid/dist/parse.js
+@@ -337,3 +337,7 @@
+ function parseLink(chars, start) {
+     let i = skipSpaces(chars, start);
++    // Invisible links constrain layout without drawing a connector.
++    if (chars.slice(i, i + 3).join('') === '~~~') {
++        return { left: 'none', right: 'none', line: 'invisible', label: null, next: i + 3 };
++    }
+     let left = 'none';
+diff --git a/node_modules/grok-mermaid/src/layout.ts b/node_modules/grok-mermaid/src/layout.ts
+--- a/node_modules/grok-mermaid/src/layout.ts
++++ b/node_modules/grok-mermaid/src/layout.ts
+@@ -603,2 +603,3 @@
+   graph.edges.forEach((edge, i) => {
++    if (edge.line === 'invisible') return
+     canvas.curStyle =
+diff --git a/node_modules/grok-mermaid/dist/layout.js b/node_modules/grok-mermaid/dist/layout.js
+--- a/node_modules/grok-mermaid/dist/layout.js
++++ b/node_modules/grok-mermaid/dist/layout.js
+@@ -476,2 +476,4 @@
+     graph.edges.forEach((edge, i) => {
++        if (edge.line === 'invisible')
++            return;
+         canvas.curStyle =

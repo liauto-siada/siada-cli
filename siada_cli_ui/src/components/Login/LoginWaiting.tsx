@@ -5,6 +5,8 @@
  */
 
 import React from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
 import { Box, Text } from '@jrichman/ink';
 import Spinner from 'ink-spinner';
 
@@ -14,21 +16,22 @@ export interface LoginWaitingProps {
 }
 
 export const LoginWaiting: React.FC<LoginWaitingProps> = ({ url, openBrowser }) => {
+  useUiLanguage();
   return (
     <Box flexDirection="column">
       {/* Header */}
       <Box borderStyle="single" borderColor="cyan" paddingX={1} marginBottom={1}>
-        <Text bold color="cyan">Authenticating</Text>
+        <Text bold color="cyan">{t('正在登录', 'Authenticating')}</Text>
       </Box>
 
       <Box flexDirection="column" paddingX={1}>
         {openBrowser ? (
           <Box marginBottom={1}>
-            <Text>Browser opened. If it did not open automatically, visit:</Text>
+            <Text>{t('已打开浏览器。若未自动打开，请访问：', 'Browser opened. If it did not open automatically, visit:')}</Text>
           </Box>
         ) : (
           <Box marginBottom={1}>
-            <Text>Visit the following URL on any device to authenticate:</Text>
+            <Text>{t('请在任意设备上访问以下链接完成登录：', 'Visit the following URL on any device to authenticate:')}</Text>
           </Box>
         )}
 
@@ -40,11 +43,11 @@ export const LoginWaiting: React.FC<LoginWaitingProps> = ({ url, openBrowser }) 
         {/* Spinner */}
         <Box>
           <Text color="yellow"><Spinner type="dots" /></Text>
-          <Text> Waiting for authentication...</Text>
+          <Text>{t(' 等待登录完成…', ' Waiting for authentication...')}</Text>
         </Box>
 
         <Box marginTop={1}>
-          <Text dimColor>Press Ctrl+C to cancel</Text>
+          <Text dimColor>{PANEL_TIPS.loginWaiting}</Text>
         </Box>
       </Box>
     </Box>

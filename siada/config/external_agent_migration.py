@@ -2,8 +2,7 @@
 External Agent Configuration Migration
 
 Detects and imports configuration, skills, and context files from Claude Code
-and Codex into Siada, following the same two-phase (detect → import) pattern
-used by Codex's external_agent_config.rs.
+and Codex into Siada using two phases: detect and import.
 
 Two-phase flow
 --------------

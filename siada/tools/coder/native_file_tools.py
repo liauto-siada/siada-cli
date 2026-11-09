@@ -88,7 +88,7 @@ class SiadaNativeApplyPatchEditor(ApplyPatchEditor):
 
     The SDK dispatches operations, while Siada adds bounded matching tolerance
     and per-operation verification around its V4A parser. The editor owns context
-    discovery and codex-aligned path resolution (absolute or workspace-relative,
+    discovery and path resolution (absolute or workspace-relative,
     symlinks followed, outside targets granted by default), `.siadaignore` protection,
     UTF-8 file I/O, and readable operation results.
     """
@@ -238,7 +238,7 @@ class SiadaNativeApplyPatchEditor(ApplyPatchEditor):
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise ValueError(f"apply_patch {label} must be a non-empty path.")
 
-        # Codex-native path semantics: an absolute native path targets its
+        # An absolute native path targets its
         # spelled location, a relative path resolves against the workspace
         # root, and ``..`` segments normalize during resolution. Only Windows
         # drive/UNC spellings are rejected because a host that does not

@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 import math
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List, Optional
+from functools import wraps
+from typing import TYPE_CHECKING, Callable, List, Optional, ParamSpec, TypeVar
 
 import numpy as np
 
@@ -56,6 +57,19 @@ def _build_fts_match_query(query: str) -> str:
     return " OR ".join(safe_tokens)
 
 
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _with_store_connection(method: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Own the connection while retrieval accesses SQL and nested store helpers."""
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self.store.connection():
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
 class FactRetriever:
     """Multi-strategy fact retrieval with trust-weighted scoring."""
 
@@ -87,6 +101,7 @@ class FactRetriever:
         self.jaccard_weight = jaccard_weight
         self.hrr_weight = hrr_weight
 
+    @_with_store_connection
     def search(
         self,
         query: str,
@@ -146,6 +161,7 @@ class FactRetriever:
             fact.pop("hrr_vector", None)
         return results
 
+    @_with_store_connection
     def probe(
         self,
         entity: str,
@@ -220,6 +236,7 @@ class FactRetriever:
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:limit]
 
+    @_with_store_connection
     def related(
         self,
         entity: str,
@@ -284,6 +301,7 @@ class FactRetriever:
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:limit]
 
+    @_with_store_connection
     def reason(
         self,
         entities: List[str],
@@ -355,6 +373,7 @@ class FactRetriever:
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:limit]
 
+    @_with_store_connection
     def contradict(
         self,
         *,

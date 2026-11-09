@@ -2,7 +2,7 @@ import { diffWordsWithSpace, type StructuredPatchHunk } from 'diff';
 import * as React from 'react';
 import { Box, Text } from '@jrichman/ink';
 import path from 'node:path';
-import stringWidth from 'string-width';
+import stringWidth from '../../utils/terminalWidth.js';
 import { colors } from '../../utils/colors.js';
 import { useThemeVersion } from '../../themes/index.js';
 

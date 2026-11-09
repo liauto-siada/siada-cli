@@ -6,9 +6,6 @@ This file guides coding agents working on Siada CLI. It applies throughout this
 repository. Follow any more specific `AGENTS.md` in the directory being changed,
 subject to higher-priority instructions and the user's requested scope.
 
-Use only public project sources when preparing contributions. Do not read, copy,
-summarize, or link private source trees or local-only operational instructions
-into public code, tests, or documentation.
 
 ## Project overview
 
@@ -46,7 +43,6 @@ export REPO_ROOT="$(git rev-parse --show-toplevel)"
 | `${REPO_ROOT}/siada_cli_ui/src/` | Terminal UI, hooks, and ACP client code |
 | `${REPO_ROOT}/tests/` | Python tests, generally mirroring backend modules |
 | `${REPO_ROOT}/docs/` | Public user and contributor documentation |
-| `${REPO_ROOT}/chrome-acp/` | chrome-acp browser addon subproject (proxy server + Chrome extension) |
 
 Read `${REPO_ROOT}/README.md` and `${REPO_ROOT}/docs/CONTRIBUTING.md` for project
 and contribution guidance. Dependency and command definitions live in
@@ -58,8 +54,8 @@ and contribution guidance. Dependency and command definitions live in
 - Use Poetry to install dependencies and run Python commands. Do not rely on a
   globally installed Python package or CLI to validate checkout changes.
 - For UI development, use npm and a maintained Node.js LTS release satisfying the
-  locked dependencies. The UI requires Node.js `>=22.12.0`; Node.js 24 LTS is
-  recommended.
+  locked dependencies. Some current UI dependencies require Node.js `>=20`, even
+  though the UI package itself declares `>=18`.
 - Keep `${REPO_ROOT}/poetry.lock` and
   `${REPO_ROOT}/siada_cli_ui/package-lock.json` consistent with intentional
   dependency changes. Avoid unrelated upgrades or switching package managers.
@@ -160,6 +156,50 @@ and include them only when required by the task or packaging workflow.
   it. Report unavailable or misconfigured checks rather than silently skipping
   them or inventing a new project-wide toolchain.
 
+### Cached model state and lifecycle
+
+`ModelProviderWrapper` delegates every resolution without caching model instances.
+Effective context counts from immutable provider route information and verifies
+the actual model before request admission. Provider-owned HTTP clients remain
+shared; explicit models or custom providers may still reuse model instances.
+A new `ModelWrapper` does not imply a new underlying model instance.
+
+The effective-context run uses a fixed model route, with handoff out of scope.
+Before adding handoff, reevaluate per-agent model binding, counting metadata,
+and whether model-instance caching is needed across SDK resolutions.
+
+- Before adding or changing mutable state on a model, explicitly evaluate its
+  lifetime and ownership under cached reuse. Do not assume `get_model()` creates
+  a fresh model or that a model instance is scoped to one request, run, or session.
+- Prefer request-local variables for request bodies, diagnostics, response/stream
+  intermediates, and per-call accounting. Reserve instance fields for stable
+  configuration or intentionally shared resources with a defined lifecycle.
+- If mutable instance state is necessary, document why it must be shared and
+  assess sequential requests, concurrent calls, retries, failures, cancellation,
+  and stream cleanup, including stale data, cross-request contamination,
+  credential retention, and resource leaks. Define reset/cleanup and concurrency
+  guarantees; resetting a field at request start alone is not concurrency-safe.
+- Add deterministic regression coverage for repeated cached resolution and
+  sequential/concurrent streamed and non-streamed calls, including failure and
+  cancellation paths relevant to the state. Start with
+  `${REPO_ROOT}/tests/session/baseline/test_model_request_boundary.py`.
+
+### Accepted request-budget estimation limitation
+
+- For the current `ModelWrapper.input_processor` behavior, assume it does not
+  add substantial content. The difference between the filter's request budget
+  and the downstream processed input is accepted as negligible for now.
+  Request/response diagnostics compare the filter budget with server usage;
+  `input_matches` checks admitted input, not the processor's final output. Do
+  not flag this missing downstream tracking alone as a review issue while the
+  small-change assumption holds.
+- This acceptance is limited to estimation/diagnostics. Preserve existing
+  opaque-processor guards against unsafe token-baseline reuse, and continue
+  checking compaction and post-filter hook changes separately.
+- Reevaluate this limitation if a processor starts materially expanding or
+  rewriting input, or if precise wire-input comparisons become necessary.
+  Then track the processed input or mark the comparison unavailable.
+
 ### Reminder persistence ownership
 
 When changing reminder processors or effective-context admission, inspect
@@ -169,9 +209,9 @@ When changing reminder processors or effective-context admission, inspect
 
 - The current bridge persists post-filter hook additions in
   `EffectiveContextSession.finalize_request_input()` before calling the model,
-  then clears the committed reminder queues. Processors retain their legacy
-  `on_llm_end()` persistence only for contexts without an active
-  `runtime_session`; bridge runs skip both the legacy write and its cleanup.
+  then clears the committed reminder queues. Processors still retain their
+  legacy `on_llm_end()` persistence; normally it sees an empty queue. This is
+  implicit coordination, not an explicit ownership guard.
 - A new queue omitted from `_REMINDER_QUEUES` can survive bridge admission and
   be saved again by `on_llm_end()`. `FileSession.add_items()` allocates fresh
   message identities, so identical content does not prevent duplicate writes.
@@ -240,6 +280,8 @@ npm --prefix "$REPO_ROOT/siada_cli_ui" run build -- --noEmit
 
 - Public changes must not depend on private packages, unpublished services,
   company-specific deployment procedures, or access to private repositories.
+- Keep public repository guidance and documentation free of internal-only
+  release instructions and private deployment script references.
 - Never commit credentials, tokens, cookies, private keys, proprietary hostnames,
   personal data, or machine-specific absolute paths.
 - Use synthetic fixtures and sanitized examples. Do not copy real conversations,
@@ -253,6 +295,15 @@ npm --prefix "$REPO_ROOT/siada_cli_ui" run build -- --noEmit
 - Preserve existing license and attribution notices. Follow the contribution
   requirements in `${REPO_ROOT}/docs/CONTRIBUTING.md`.
 
+## Documentation scope
+
+- Only add or update files under `${REPO_ROOT}/docs/` for usage-oriented content
+  relevant to the task, such as installation, configuration, commands, workflows,
+  and troubleshooting.
+- Do not add implementation details, design analyses, investigation records, task
+  plans, or change summaries to `docs/`, or update it merely because code changed,
+  unless the user explicitly requests such documentation.
+
 ## Completion checklist
 
 Before handing off a change:
@@ -261,8 +312,9 @@ Before handing off a change:
    files. Check whitespace with `git -C "$REPO_ROOT" diff --check`.
 2. Run the relevant tests and build checks, or clearly document why they could
    not run. For documentation-only changes, verify paths, commands, and examples.
-3. Update relevant public documentation when changing user-visible behavior.
-   Keep existing English and Chinese documentation consistent where affected.
+3. Update relevant usage documentation when changing how users install, configure,
+   or use the product, subject to the documentation scope above. Keep existing
+   English and Chinese documentation consistent where affected.
 4. Check dependency manifests and lockfiles if dependencies changed. Do not
    modify versions or licensing as an unrelated cleanup.
 5. Summarize the changes, validation performed, and any remaining limitations.

@@ -13,11 +13,28 @@ verifier is prompted to reply with a plain JSON object, which
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
+def _seconds_between(start_at: str, end_at: str) -> float:
+    """Return a nonnegative duration, tolerating malformed legacy timestamps."""
+    try:
+        start = datetime.fromisoformat(start_at.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(end_at.replace("Z", "+00:00"))
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        return max(0.0, (end - start).total_seconds())
+    except (AttributeError, TypeError, ValueError):
+        return 0.0
+
+
+GoalStatus = Literal["active", "paused", "blocked", "complete"]
 
 
 # Default safety limit for consecutive failed verifier turns. The user may
@@ -42,7 +59,7 @@ GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS = 2
 
 class Goal(BaseModel):
     objective: str
-    status: Literal["active", "paused", "blocked", "complete"] = "active"
+    status: GoalStatus = "active"
     consecutive_failures: int = 0
     # Consecutive verifier rounds that ended in a SYSTEM error (see
     # GoalVerdict.systemError) rather than a genuine "not yet achieved"
@@ -58,8 +75,15 @@ class Goal(BaseModel):
     # summary line. Resets naturally via Goal.create() whenever a goal is
     # replaced (see goal_storage.append_goal_history for the outgoing one).
     turns: int = 0
+    # Display records are persisted separately from the model conversation.
+    # They survive compaction, completion, replacement and session restoration.
+    verification_results: list[dict] = Field(default_factory=list)
     created_at: str = Field(default_factory=_now_iso)
     updated_at: str = Field(default_factory=_now_iso)
+    # Session-owned active intervals include verification, but exclude stopped
+    # time. Preserve fractions across repeated blocking and reactivation.
+    active_elapsed_seconds: float = Field(default=0.0, ge=0.0, allow_inf_nan=False)
+    active_started_at: Optional[str] = None
     # Whether the hidden <system-reminder> has already been merged into a
     # turn's input for THIS activation of the goal (see
     # SiadaRunner._maybe_merge_goal_reminder / prompts.merge_goal_reminder_into_input).
@@ -69,8 +93,20 @@ class Goal(BaseModel):
     # would keep appending the same multi-paragraph block into persisted
     # history forever. Reset to False whenever the goal (re)activates: a
     # brand new goal via Goal.create(), or a "blocked" goal reactivated by
-    # Controller._maybe_reset_goal_on_new_turn.
+    # Controller._maybe_reset_goal_on_new_turn. A "paused" goal reactivated
+    # after an interruption keeps the flag: its reminder is already in the
+    # persisted history, so re-merging it would only duplicate the block.
     reminder_injected: bool = False
+
+    @model_validator(mode="after")
+    def initialize_legacy_timing(self) -> "Goal":
+        """Seed old goals from their only available lifecycle timestamps."""
+        if not {"active_elapsed_seconds", "active_started_at"} & self.model_fields_set:
+            if self.status == "active":
+                self.active_started_at = self.created_at
+            else:
+                self.active_elapsed_seconds = _seconds_between(self.created_at, self.updated_at)
+        return self
 
 
     @classmethod
@@ -83,12 +119,28 @@ class Goal(BaseModel):
             consecutive_system_errors=0,
             created_at=timestamp,
             updated_at=timestamp,
+            active_started_at=timestamp,
             reminder_injected=False,
         )
 
+    def elapsed_seconds(self, now: Optional[str] = None) -> float:
+        """Total active duration; stopped goals remain stable after reload."""
+        end_at = (now or _now_iso()) if self.status == "active" else self.updated_at
+        return self.active_elapsed_seconds + (
+            _seconds_between(self.active_started_at, end_at) if self.active_started_at else 0.0
+        )
+
+    def set_status(self, status: GoalStatus) -> None:
+        """Settle the current interval before changing lifecycle state."""
+        timestamp = _now_iso()
+        self.active_elapsed_seconds = self.elapsed_seconds(timestamp)
+        self.active_started_at = timestamp if status == "active" else None
+        self.status = status
+        self.updated_at = timestamp
+
 
     def touch(self) -> None:
-        """Bump updated_at. Callers mutate fields directly, then call this."""
+        """Bump updated_at after non-status changes; set_status owns transitions."""
         self.updated_at = _now_iso()
 
 

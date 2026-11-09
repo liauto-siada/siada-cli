@@ -266,6 +266,13 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
     Matches by provider_id first, then by base_url. Falls back to a single-entry
     list using selected_model if no cache data is found."""
     from siada.models.model_base_config import MODEL_SETTING, ModelBaseConfig
+    from siada.provider.free_trial import FREE_TRIAL_PROVIDER_ID, FREE_TRIAL_MODELS
+
+    if provider_id == FREE_TRIAL_PROVIDER_ID:
+        return [
+            ModelBaseConfig(model_name=model, context_window=32_000, max_tokens=8192)
+            for model, _ in FREE_TRIAL_MODELS
+        ]
     builtin_by_name = {m.model_name: m for m in MODEL_SETTING}
 
     def _build(
@@ -298,19 +305,19 @@ def get_provider_model_configs(provider_id: str, selected_model: str, base_url: 
             default_reasoning_effort=builtin.default_reasoning_effort if builtin else None,
         )
 
-    providers = get_providers_for_ui()
+    providers = [] if provider_id == "custom" else get_providers_for_ui()
     matched = None
     for p in providers:
         if p.get('id') == provider_id:
             matched = p
             break
-    if not matched and base_url:
+    if provider_id != "custom" and not matched and base_url:
         normalized = base_url.rstrip('/')
         for p in providers:
             if p.get('baseUrl', '').rstrip('/') == normalized:
                 matched = p
                 break
-    if not matched and (
+    if provider_id != "custom" and not matched and (
         provider_id == 'deepseek'
         or base_url.rstrip('/') == 'https://api.deepseek.com/v1'
     ):

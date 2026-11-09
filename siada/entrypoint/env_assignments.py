@@ -2,7 +2,7 @@
 
 
 def parse_env_assignments(args: object | None) -> dict[str, str]:
-    """Validate all assignments without exposing their values or changing the environment."""
+    """Validate all assignments without exposing values or changing the environment."""
     overrides: dict[str, str] = {}
     for setting in getattr(args, "set_env", None) or []:
         if not isinstance(setting, str):

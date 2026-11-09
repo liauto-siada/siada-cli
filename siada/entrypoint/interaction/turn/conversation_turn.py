@@ -6,10 +6,10 @@ Handles AI conversation turns including streaming responses and tool calls.
 
 from siada.foundation.logging import logger
 import re
-import threading
+import asyncio
 import time
 import siada.io.components.mdstream
-from typing import List, Optional, Dict, Any, Tuple
+from typing import AsyncIterator, List, Optional, Dict, Any, Tuple
 
 from agents import (
     RawResponsesStreamEvent,
@@ -27,6 +27,10 @@ from agents.exceptions import (
 
 from siada.io.stream_utils import render_tool_call_output
 from siada.tools.coder.apply_patch_presentation import render_apply_patch_display
+from siada.tools.coder.file_edit_presentation import (
+    is_file_edit_write,
+    render_file_edit_display,
+)
 from siada.tools.tool_call_format.formatter_factory import ToolCallFormatterFactory
 from siada.models.model_base_config import supports_image_input
 # BrowserOperateResult is lazy-imported inside _display_browser_operate_result()
@@ -145,7 +149,6 @@ class ConversationTurn(RunTurn):
                     stream=True,
                 )
                 self.current_result = result
-                self._result_ready.set()
                 await self.output_stream_content(result)
                 return result
             except Exception as error:
@@ -215,7 +218,6 @@ class ConversationTurn(RunTurn):
                 self._stream_start_id = None
                 self.current_active_call_id = None
                 self.current_result = None
-                self._result_ready.clear()
                 delay = 2 ** attempt
                 logger.warning(
                     "[ConversationTurn] Recovering interrupted response: "
@@ -304,24 +306,19 @@ class ConversationTurn(RunTurn):
     got_tool_result_part: bool = False
     got_function_call_part: bool = False
 
-    # Class-level dedicated event loop and thread, shared by all instances
-    _dedicated_loop = None
-    _dedicated_thread = None
-    _loop_ready = None
-    _pending_memory_task: "asyncio.Task | None" = None  # Background memory save from previous turn
-
-    def __init__(self, config: RunningConfig, session: Any, slash_commands: Any):
+    def __init__(
+        self, config: RunningConfig, session: Any, slash_commands: Any,
+        *, render_stream: bool = True,
+    ):
         super().__init__(config, session, slash_commands)
+        self.render_stream = render_stream
         self.mdargs = dict(
             style=self.config.running_color_settings.split_line_color,
             code_theme=self.config.running_color_settings.code_theme,
             inline_code_lexer="text",
-        )
+        ) if render_stream else {}
         # Instance variable to store current running result for cancellation
         self.current_result: Optional[RunResultStreaming] = None
-        # Thread synchronization events for proper cleanup handling
-        self._cleanup_done = threading.Event()
-        self._result_ready = threading.Event()
         # Message tracking
         self._message_counter = 0
         self._current_message_id = None
@@ -389,109 +386,6 @@ class ConversationTurn(RunTurn):
         
         self._current_message_id = None
 
-    @classmethod
-    def _ensure_dedicated_loop(cls):
-        """Ensure dedicated event loop is started"""
-        if cls._dedicated_loop is None or cls._dedicated_loop.is_closed():
-            start_time = time.time()
-            logger.debug("[ConversationTurn] Starting dedicated event loop initialization")
-            
-            import threading
-            import asyncio
-
-            # Detect if main thread has a running event loop (prompt_toolkit might be using it)
-            try:
-                main_loop = asyncio.get_running_loop()
-                logger.debug(f"Detected main thread event loop: {id(main_loop)}")
-            except RuntimeError:
-                pass  # Normal case - no event loop in main thread
-
-            # Create event for synchronization
-            cls._loop_ready = threading.Event()
-
-            def run_dedicated_loop():
-                """Run event loop in dedicated thread"""
-                # Create new event loop
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                cls._dedicated_loop = loop
-
-                # Notify main thread that loop is ready
-                cls._loop_ready.set()
-
-                try:
-                    # Run event loop until stopped
-                    loop.run_forever()
-                finally:
-                    from siada.provider.provider_factory import shutdown_provider_runtime
-
-                    try:
-                        loop.run_until_complete(shutdown_provider_runtime())
-                    except Exception:
-                        logger.exception("Dedicated loop model provider cleanup failed")
-                    finally:
-                        loop.run_until_complete(loop.shutdown_asyncgens())
-                        loop.run_until_complete(loop.shutdown_default_executor())
-                        loop.close()
-                        cls._dedicated_loop = None
-
-            # Start dedicated thread
-            cls._dedicated_thread = threading.Thread(
-                target=run_dedicated_loop,
-                daemon=True,  # Daemon thread, auto-terminate when main program exits
-                name="ConversationTurn-AsyncLoop",
-            )
-            cls._dedicated_thread.start()
-
-            # Wait for event loop to be ready
-            cls._loop_ready.wait()
-            
-            elapsed_time = time.time() - start_time
-            logger.debug(f"[ConversationTurn] Dedicated event loop initialized (took {elapsed_time:.2f}s)")
-
-    @classmethod
-    def _cleanup_dedicated_loop(cls):
-        """Cleanup dedicated event loop (optional, mainly for testing or graceful shutdown)"""
-        if cls._dedicated_loop and not cls._dedicated_loop.is_closed():
-            cls._dedicated_loop.call_soon_threadsafe(cls._dedicated_loop.stop)
-            if cls._dedicated_thread and cls._dedicated_thread.is_alive():
-                cls._dedicated_thread.join(timeout=5.0)
-
-    @classmethod
-    def _force_abandon_dedicated_loop(cls):
-        """Force abandon the current dedicated event loop and thread.
-        
-        Called when Ctrl+C cleanup times out, indicating the event loop thread
-        is blocked by a synchronous operation (e.g., run_cmd executing a shell
-        command via subprocess.read(1) which blocks indefinitely).
-        
-        We set class variables to None so _ensure_dedicated_loop() will create
-        a fresh loop+thread on the next turn. The old thread is a daemon thread
-        and will eventually terminate when the blocking operation completes or
-        when the main process exits.
-        """
-        old_loop = cls._dedicated_loop
-        old_thread = cls._dedicated_thread
-        
-        # Abandon references - next _ensure_dedicated_loop() will create new ones
-        cls._dedicated_loop = None
-        cls._dedicated_thread = None
-        cls._loop_ready = None
-        
-        logger.warning(
-            f"[ConversationTurn] Force abandoned dedicated loop "
-            f"(loop={id(old_loop) if old_loop else None}, "
-            f"thread={old_thread.name if old_thread else None}). "
-            f"A new loop will be created for the next turn."
-        )
-        
-        # Best-effort: try to stop the old loop (may not work if thread is blocked)
-        if old_loop and not old_loop.is_closed():
-            try:
-                old_loop.call_soon_threadsafe(old_loop.stop)
-            except RuntimeError:
-                pass  # Loop might already be closed or thread dead
-
     def get_turn_type(self) -> TurnType:
         return TurnType.CONVERSATION
 
@@ -550,7 +444,7 @@ class ConversationTurn(RunTurn):
             event_data: Event data dictionary
         """
         # Only send in ACP mode
-        if not self.config.io.acp_enabled:
+        if not getattr(self, "render_stream", True) or not self.config.io.acp_enabled:
             logger.debug(f"🔍 [DEBUG] Skipping lifecycle event - ACP not enabled")
             return
         
@@ -641,8 +535,51 @@ class ConversationTurn(RunTurn):
             logger.debug(f"[ConversationTurn] cancel() after repetition failed: {e}")
         raise RepetitiveStreamError(unit_preview, repeats, len(unit))
 
+    def _cancel_failed_stream(self, result: RunResultStreaming) -> None:
+        """Stop an abandoned producer before SDK stream closure waits for it."""
+        try:
+            if not result.is_complete:
+                result.cancel()
+        except Exception as error:
+            logger.debug(f"[ConversationTurn] cancel() after stream failure failed: {error}")
+
+    async def _guarded_stream_events(self, result: RunResultStreaming) -> AsyncIterator[Any]:
+        """Apply incremental execution guards independently of presentation."""
+        from siada.entrypoint.runtime.turn_event import (
+            RESPONSE_CREATED, REASONING_DELTA, TEXT_DELTA, classify_stream_event,
+        )
+
+        stream = result.stream_events()
+        stream_failed = False
+        try:
+            async for event in stream:
+                te = classify_stream_event(event)
+                if te is not None:
+                    if te.kind == RESPONSE_CREATED:
+                        model_name = getattr(
+                            getattr(self.config, "llm_config", None), "model_name", "",
+                        )
+                        self._repetition_detector = (
+                            StreamRepetitionDetector()
+                            if is_repetition_guard_model(model_name) else None
+                        )
+                    elif te.kind in {REASONING_DELTA, TEXT_DELTA}:
+                        self._feed_repetition_guard(te.delta)
+                yield event
+        except BaseException:
+            stream_failed = True
+            self._cancel_failed_stream(result)
+            raise
+        finally:
+            try:
+                await stream.aclose()
+            except Exception as error:
+                if not stream_failed:
+                    raise
+                logger.warning(f"[ConversationTurn] Stream cleanup after failure failed: {error}")
+
     async def output_stream_content(self, result: RunResultStreaming) -> None:
-        """Process stream events and handle real-time output"""
+        """Consume the same guarded stream, optionally rendering its events."""
         from siada.entrypoint.runtime.turn_event import (
             RESPONSE_CREATED,
             REASONING_PART_ADDED,
@@ -659,9 +596,13 @@ class ConversationTurn(RunTurn):
         )
 
         stream_iterator = None
+        stream_failed = False
+        pending_file_edits: dict[str, str] = {}
         try:
-            stream_iterator = result.stream_events()
+            stream_iterator = self._guarded_stream_events(result)
             async for event in stream_iterator:
+                if not getattr(self, "render_stream", True):
+                    continue
                 if isinstance(event, RawResponsesStreamEvent):
                     self._stop_waiting_spinner()
 
@@ -692,16 +633,6 @@ class ConversationTurn(RunTurn):
                     self.current_active_call_id = None
                     self.got_tool_result_part = False
                     self.got_function_call_part = False
-                    # Arm the repetition guard only for whitelisted
-                    # models; every other model skips it entirely.
-                    model_name = getattr(
-                        getattr(self.config, "llm_config", None), "model_name", ""
-                    )
-                    self._repetition_detector = (
-                        StreamRepetitionDetector()
-                        if is_repetition_guard_model(model_name)
-                        else None
-                    )
 
                 elif te.kind == REASONING_PART_ADDED:
                     if self.mdstream is None:
@@ -713,7 +644,6 @@ class ConversationTurn(RunTurn):
                     continue
 
                 elif te.kind == REASONING_DELTA:
-                    self._feed_repetition_guard(te.delta)
                     if not self.got_reasoning_part and te.delta:
                         self.got_reasoning_part = True
                         # Emit message start marker for thinking
@@ -738,7 +668,6 @@ class ConversationTurn(RunTurn):
                     continue
 
                 elif te.kind == TEXT_DELTA:
-                    self._feed_repetition_guard(te.delta)
                     if not self.got_content_part and te.delta:
                         self.got_content_part = True
                         # End thinking message if it was started
@@ -922,6 +851,21 @@ class ConversationTurn(RunTurn):
                         tool_name = self.tool_calls[call_id]["name"]
                         full_arguments = self.tool_calls[call_id]["arguments"]
 
+                        if tool_name == "edit_file":
+                            full_arguments = te.arguments
+                            self.tool_calls[call_id]["arguments"] = full_arguments
+                        if tool_name == "edit_file" and is_file_edit_write(full_arguments):
+                            pending_file_edits[call_id] = full_arguments
+                            content = render_file_edit_display(call_id, full_arguments)
+                            if self.config.io.acp_enabled:
+                                self._send_lifecycle_event({
+                                    "type": "tool_use", "delta": content,
+                                    "chunk_index": 0, "is_final": True,
+                                    "stream_end": True, "timestamp": time.time(),
+                                })
+                            self._emit_message_end("tool_call")
+                            continue
+
                         tool_call_formatter = (
                             ToolCallFormatterFactory.get_formatter(tool_name)
                         )
@@ -998,6 +942,23 @@ class ConversationTurn(RunTurn):
                             self._emit_message_end("tool_call")
                         elif te.call_id in self.tool_calls:
                             tool_name = self.tool_calls[te.call_id]["name"]
+                            arguments = self.tool_calls[te.call_id].get("arguments", "")
+                            if tool_name == "edit_file" and is_file_edit_write(arguments):
+                                pending_file_edits.pop(te.call_id, None)
+                                content = render_file_edit_display(
+                                    te.call_id, arguments, output=te.output,
+                                    structured=self.config.io.acp_enabled,
+                                )
+                                if self.config.io.acp_enabled:
+                                    self._send_lifecycle_event({
+                                        "type": "tool_use", "delta": content,
+                                        "chunk_index": 0, "is_final": True,
+                                        "stream_end": True, "timestamp": time.time(),
+                                    })
+                                else:
+                                    self.config.io.advance_tool_call_stage()
+                                    self.config.io.print_tool_call_all_stages(content, final=True)
+                                continue
                             # self.print_split_line()
                             
                             # Start tool_result message
@@ -1010,7 +971,26 @@ class ConversationTurn(RunTurn):
                             else:
                                 render_tool_call_output(self.config.io, output, tool_name)
                             self._emit_message_end("tool_result")
+        except BaseException:
+            stream_failed = True
+            self._cancel_failed_stream(result)
+            raise
         finally:
+            if stream_iterator is not None:
+                try:
+                    await stream_iterator.aclose()
+                except Exception as error:
+                    if not stream_failed:
+                        raise
+                    logger.warning(f"[ConversationTurn] Stream cleanup after failure failed: {error}")
+            if self.config.io.acp_enabled:
+                for call_id, arguments in pending_file_edits.items():
+                    self._send_lifecycle_event({
+                        "type": "tool_use",
+                        "delta": render_file_edit_display(call_id, arguments, history=True),
+                        "chunk_index": 0, "is_final": True,
+                        "stream_end": True, "timestamp": time.time(),
+                    })
             # Clean up MarkdownStream if it exists on stream error
             if hasattr(self, "mdstream") and self.mdstream is not None:
                 try:
@@ -1177,124 +1157,40 @@ class ConversationTurn(RunTurn):
 
     # ── Turn execution ────────────────────────────────────────────────
 
-    def execute(self, turn_input: TurnInput) -> TurnOutput:
+    async def execute(self, turn_input: TurnInput) -> Optional[TurnOutput]:
         """Execute AI conversation turn
 
         Args:
             turn_input: User input for conversation
 
         Returns:
-            TurnOutput: AI response
+            AI response, or None when a hook intentionally stops the turn.
         """
         _exec_start = time.perf_counter()
         logger.debug(f"[PERF][turn] execute() start")
         self.input_data = turn_input
         self.start_time = self._get_timestamp()
         
-        # Initialize spinner and inject into session for external access
-        # if self.config.io.pretty:
-        #     spinner = WaitingSpinner(
-        #         f"Waiting for Agent {self.config.agent_name}...", text_color="#79B8FF"
-        #     )
-        #     # Inject spinner into session state for external access (e.g., stop from outside)
-        #     self.session.state.spinner = spinner
-
-        # Reset event flags at the beginning of each execution
-        self._cleanup_done.clear()
-        self._result_ready.clear()
+        # Reset per-turn state; execution stays on the entry-point loop.
+        self.error = None
         self._stream_retry_reason = None
         self._repetition_detector = None
 
         try:
-            # Import here to avoid circular imports
-            from siada.services.siada_runner import SiadaRunner
-            import asyncio
-
-            # Define async execution logic
             async def _async_execute():
                 try:
-                    # Await any pending memory save from the previous turn to ensure
-                    # data consistency before starting a new turn.
-                    # Drain previous turn's best-effort memory save task. Key design
-                    # points (each learned the hard way):
-                    #
-                    # 1) NEVER `await` a task that may be bound to a different event
-                    #    loop. If the dedicated loop was abandoned/recreated between
-                    #    turns (see _force_abandon_dedicated_loop), the old task is
-                    #    still attached to the dead loop; awaiting it from the new
-                    #    loop raises RuntimeError/CancelledError that propagates all
-                    #    the way up to the user's error box.
-                    # 2) The memory save is best-effort; the new turn should never
-                    #    block on it. If it's not done yet, just detach and move on.
-                    # 3) CancelledError inherits from BaseException (Py3.8+), so
-                    #    `except Exception` cannot catch it — we explicitly handle it.
-                    pending = ConversationTurn._pending_memory_task
+                    # Memory work belongs to this session and the entry-point loop.
+                    pending = getattr(self.session.state, "pending_memory_task", None)
                     if pending is not None:
-                        ConversationTurn._pending_memory_task = None
+                        self.session.state.pending_memory_task = None
                         try:
-                            current_loop = asyncio.get_running_loop()
-                            task_loop = getattr(pending, "_loop", None)
-                            same_loop = (task_loop is None) or (task_loop is current_loop)
-                            logger.info(
-                                "[ConversationTurn] pending_memory_task: done=%s cancelled=%s same_loop=%s",
-                                pending.done(), pending.cancelled(), same_loop,
-                            )
-
-                            if not same_loop:
-                                # Cross-loop: never await. Just inspect completion state.
-                                if pending.done():
-                                    exc = pending.exception() if not pending.cancelled() else None
-                                    if exc is not None:
-                                        logger.info(
-                                            f"[ConversationTurn] Previous memory task (cross-loop) failed: "
-                                            f"{type(exc).__name__}: {exc}"
-                                        )
-                                else:
-                                    logger.info(
-                                        "[ConversationTurn] Previous memory task (cross-loop) still pending — detaching"
-                                    )
-                            elif pending.done():
-                                if not pending.cancelled():
-                                    exc = pending.exception()
-                                    if exc is not None:
-                                        logger.info(
-                                            f"[ConversationTurn] Previous memory task failed: "
-                                            f"{type(exc).__name__}: {exc}"
-                                        )
-                            else:
-                                # Same loop + still pending → safe to await briefly.
-                                #
-                                # Timeout sizing: the first-ever memory save calls the
-                                # slug-generation LLM which usually takes 3–8s, while
-                                # subsequent saves are pure IO (<0.5s). 15s comfortably
-                                # covers the slow first turn without ever blocking normal
-                                # turns, and asyncio.shield() ensures the task itself is
-                                # NOT cancelled when we time out — it keeps running in
-                                # the background so memory stays consistent.
-                                try:
-                                    await asyncio.wait_for(
-                                        asyncio.shield(pending), timeout=15.0
-                                    )
-                                except asyncio.TimeoutError:
-                                    logger.info(
-                                        "[ConversationTurn] Previous memory task did not finish in 15s — "
-                                        "leaving it running in the background and proceeding"
-                                    )
-                                except asyncio.CancelledError as e:
-                                    logger.info(
-                                        f"[ConversationTurn] Previous memory task was cancelled (ignored): {e}"
-                                    )
-                                except Exception as e:
-                                    logger.info(
-                                        f"[ConversationTurn] Previous memory task failed (ignored): {e}"
-                                    )
-                        except BaseException as e:
-                            # Guard against anything unexpected (e.g. no running loop).
-                            # Must NOT let this drain block the new turn.
-                            logger.warning(
-                                f"[ConversationTurn] Error while draining previous memory task "
-                                f"(ignored): {type(e).__name__}: {e}"
-                            )
+                            if not pending.cancelled():
+                                await asyncio.wait_for(asyncio.shield(pending), timeout=15.0)
+                        except asyncio.CancelledError:
+                            if asyncio.current_task().cancelling():
+                                raise
+                        except Exception as exc:
+                            logger.info("[ConversationTurn] Previous memory save: %s", exc)
 
                     user_input = turn_input.use_input
 
@@ -1350,7 +1246,12 @@ class ConversationTurn(RunTurn):
                             else "Hook stopped this turn."
                         )
                         logger.info(f"[ConversationTurn] Hook tripwire triggered: {stop_reason}")
-                        self.config.io.print_warning(f"[Hook] {stop_reason}")
+                        hook_event = (
+                            "PreToolUse"
+                            if isinstance(hook_exc, ToolInputGuardrailTripwireTriggered)
+                            else "PostToolUse"
+                        )
+                        self.config.io.print_hook(stop_reason, hook_event, status="stopped")
                         return None
                     logger.debug(f"[PERF][turn] streamed execution done | +{(time.perf_counter()-_stream_start)*1000:.0f}ms")
 
@@ -1365,7 +1266,7 @@ class ConversationTurn(RunTurn):
                     # verifier fires its own completion notification only once
                     # the goal is actually achieved (or blocked).
                     try:
-                        if getattr(self.config, 'enable_notification', True):
+                        if getattr(self, "render_stream", True) and getattr(self.config, 'enable_notification', True):
                             elapsed = time.perf_counter() - _exec_start
                             if elapsed > 60 and not self._has_active_goal():
                                 from siada.notifications import show_completion_notification
@@ -1374,7 +1275,7 @@ class ConversationTurn(RunTurn):
                                 # title so the user can tell which window just finished.
                                 session_title = self.session.state.session_title
                                 show_completion_notification(
-                                    title="Siada task completed",
+                                    title="Siada 已完成任务",
                                     message=session_title or "Siada"
                                 )
                     except Exception:
@@ -1391,7 +1292,13 @@ class ConversationTurn(RunTurn):
                         await self._save_session_memory_if_needed()
                         logger.debug(f"[PERF][turn] save_session_memory done (background) | +{(time.perf_counter()-_mem_start)*1000:.0f}ms")
                     
-                    ConversationTurn._pending_memory_task = asyncio.create_task(_background_memory_save())
+                    if getattr(self, "render_stream", True):
+                        self.session.state.pending_memory_task = asyncio.create_task(
+                            _background_memory_save(), name="session-memory-save",
+                        )
+                    else:
+                        # A one-shot surface has no next turn to drain this work.
+                        await _background_memory_save()
                     
                     logger.debug(f"[PERF][turn] _async_execute total | +{(time.perf_counter()-_exec_start)*1000:.0f}ms")
                     return result
@@ -1403,13 +1310,13 @@ class ConversationTurn(RunTurn):
                     # elapsed > 60s, no active goal). Re-raise afterwards so the
                     # existing error-display flow is unchanged.
                     try:
-                        if getattr(self.config, 'enable_notification', True):
+                        if getattr(self, "render_stream", True) and getattr(self.config, 'enable_notification', True):
                             elapsed = time.perf_counter() - _exec_start
                             if elapsed > 60 and not self._has_active_goal():
                                 from siada.notifications import show_completion_notification
                                 session_title = self.session.state.session_title
                                 show_completion_notification(
-                                    title="Siada task terminated unexpectedly",
+                                    title="Siada 任务异常中止",
                                     message=session_title or "Siada",
                                 )
                     except Exception:
@@ -1417,109 +1324,54 @@ class ConversationTurn(RunTurn):
                     raise
                 finally:
                     self._stop_waiting_spinner()
-                    # Clear current_result after execution completes
-                    self.current_result = None
-                    # Set cleanup done flag to notify main thread
-                    self._cleanup_done.set()
-
-            # Use dedicated event loop to execute async tasks (reuse loop, maintain connection pool advantages)
-            self._ensure_dedicated_loop()
+                    # Cancellation cleanup still needs the active stream handle.
 
             try:
-                # Execute async task in dedicated loop
-                future = asyncio.run_coroutine_threadsafe(
-                    _async_execute(), self._dedicated_loop
-                )
-                # IMPORTANT: Use polling loop with timeout instead of blocking
-                # future.result(). Without timeout, future.result() blocks at
-                # C level (Condition.wait → Lock.acquire) which cannot be
-                # interrupted by _thread.interrupt_main() or SIGINT on some
-                # platforms (especially Windows). Polling every 0.5s ensures
-                # Python bytecode runs between iterations, giving the signal
-                # handler a chance to fire and raise KeyboardInterrupt.
-                import concurrent.futures
-                while True:
-                    try:
-                        result = future.result(timeout=0.5)
-                        break
-                    except concurrent.futures.TimeoutError:
-                        continue
-            except KeyboardInterrupt:
-                # CRITICAL: Signal the dedicated loop thread to stop any blocking
-                # operations (e.g., _poll_stdin_with_timeout_check waiting for
-                # interactive input like sudo password). This sets the global
-                # _cancel_event and kills the child process from the main thread.
+                result = await _async_execute()
+            except asyncio.CancelledError:
                 try:
                     from siada.tools.coder.cmd_runner import cancel_current_command
                     cancel_current_command()
                 except Exception as e:
                     logger.error(f"[ConversationTurn] Error calling cancel_current_command: {e}")
-
-                # run_subtask(async=True) background sub-agent tasks are scheduled
-                # via asyncio.create_task() on this same dedicated loop, as siblings
-                # of the parent turn's coroutine tree -- NOT descendants of it. So
-                # cancelling `self.current_result` / `future` above never reaches
-                # them, and without this call a background sub-agent would keep
-                # running (and keep streaming tool-call UI updates) after the user
-                # interrupted the parent turn. Request their cancellation too;
-                # thread-safe because this handler runs on the main thread while the
-                # tasks live on the dedicated loop's thread.
                 try:
-                    from siada.tools.agent.subagent_async import cancel_session_background_subtasks
+                    from siada.tools.agent.subagent_async import (
+                        cancel_session_background_subtasks,
+                        shutdown_session_background_subtasks,
+                    )
                     cancel_session_background_subtasks(self.session.session_id)
+                    await shutdown_session_background_subtasks(self.session.session_id)
                 except Exception as e:
                     logger.error(f"[ConversationTurn] Error cancelling background sub-agent tasks: {e}")
-
-                # Restore the unsubmitted input to the frontend input box as
-                # EARLY as possible. The check only reads the session file
-                # (guarded by FileSession's own lock), so it does NOT depend on
-                # the dedicated loop — it stays fast even when that loop is
-                # frozen by a blocked tool call and the cleanup wait below
-                # would burn its full 2s timeout before the user sees the
-                # input box refilled.
-                input_restored: "bool | None" = None
                 try:
-                    history = asyncio.run(
-                        self.session.openai_session.get_items()
-                    )
-                    input_restored = self._restore_unpersisted_input(history)
-                except Exception as e:
-                    logger.debug(
-                        "[ConversationTurn] Early restore check failed: %s", e
-                    )
-
-                # Use thread-safe event mechanism to check and cancel result
-                if self._result_ready.wait(timeout=0.1):  # Non-blocking check with 100ms timeout
-                    if self.current_result and not self.current_result.is_complete:
+                    if self.current_result:
                         self.current_result.cancel()
-                # Cancel the future and wait for actual cleanup completion
-                if not future.done():
-                    future.cancel()
-
-                    # Wait for the background thread's cleanup to actually complete
-                    cleanup_completed = self._cleanup_done.wait(timeout=2.0)
-
-                    if cleanup_completed:
-                        pass
-                    else:
-                        logger.warning("[ConversationTurn] Cleanup did not complete within 2 seconds timeout, proceeding anyway")
-                        # The dedicated loop thread is likely blocked by a synchronous
-                        # operation (e.g., run_cmd). Abandon it so the next turn gets
-                        # a fresh event loop instead of hanging on the blocked one.
-                        self._force_abandon_dedicated_loop()
-                else:
-                    pass
-
-                asyncio.run(self.handle_interrupt(input_restored=input_restored))
+                        task = self.current_result.run_loop_task
+                        if task is not None:
+                            await asyncio.gather(task, return_exceptions=True)
+                        async for _ in self.current_result.stream_events():
+                            pass
+                except Exception as exc:
+                    logger.warning("[ConversationTurn] Cancelled stream cleanup failed: %s", exc)
+                try:
+                    await self.handle_interrupt()
+                except Exception as exc:
+                    logger.warning("[ConversationTurn] Interrupt history cleanup failed: %s", exc)
                 raise
 
             self.end_time = self._get_timestamp()
+
+            # A hook stop is an intentional end of the turn. Preserve None so
+            # turn policy skips retries, goal verification and continuation.
+            if result is None:
+                self.output_data = None
+                return None
 
             # Chat Completions/LiteLLM truncated-stream guard: just flag a
             # truncated fake completion here (see
             # _is_truncated_reasoning_only_completion) via the generic
             # RETRY_REASON_METADATA_KEY -- the retry decision/execution
-            # belongs to Controller._maybe_retry_turn, so this method's
+            # belongs to TurnPolicy._maybe_retry_turn, so this method's
             # contract stays simple (always return one TurnOutput, never
             # decide whether/how many times to retry).
             metadata = {
@@ -1547,7 +1399,7 @@ class ConversationTurn(RunTurn):
         except KeyboardInterrupt as e:
             # Restore cursor in TTY mode only — in ACP mode stdout carries
             # JSON-RPC and ANSI escape codes would corrupt the protocol stream.
-            if not self.config.acp_mode:
+            if getattr(self, "render_stream", True) and not self.config.acp_mode:
                 from rich.console import Console
 
                 Console().show_cursor(True)
@@ -1567,11 +1419,15 @@ class ConversationTurn(RunTurn):
             
             self.end_time = self._get_timestamp()
             raise e
-        except BaseException as e:
+        except asyncio.CancelledError:
+            self.end_time = self._get_timestamp()
+            raise
+        except Exception as e:
             self.end_time = self._get_timestamp()
             return self.handle_error(e)
         finally:
-            if self.config.acp_mode:
+            self.current_result = None
+            if getattr(self, "render_stream", True) and self.config.acp_mode:
                 from siada.io.acp.message_builder import ACPMessageBuilder
                 builder = ACPMessageBuilder()
                 stop_animation_msg = builder.build_session_update(
@@ -1605,6 +1461,8 @@ class ConversationTurn(RunTurn):
 
     def _stop_waiting_spinner(self):
         """Stop and clear the waiting spinner if it is running."""
+        if not getattr(self, "render_stream", True):
+            return
         if self.session.spinner:
             try:
                 self.session.spinner.stop()
@@ -1735,7 +1593,7 @@ class ConversationTurn(RunTurn):
         
         context_max = self.config.llm_config.context_window
         message = f"{context_size:,} / {context_max:,} tokens"
-        
+
         # Send token usage event in ACP mode
         if self.config.io.acp_enabled:
             self._send_lifecycle_event({
@@ -1761,8 +1619,7 @@ class ConversationTurn(RunTurn):
 
         Args:
             input_restored: Outcome of the early restore check run by
-                execute()'s KeyboardInterrupt handler BEFORE the dedicated-loop
-                cleanup wait:
+                the cancellation handler:
                 - True: the input was already handed back to the input box —
                   nothing left to do (no note: the turn left no trace).
                 - False: persistence was already confirmed — skip the restore

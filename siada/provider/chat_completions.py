@@ -40,21 +40,7 @@ def _item_field(item: Any, field: str) -> Any:
 
 
 def reorder_tool_call_output_items(items: list) -> list:
-    """Re-pair ``function_call_output`` items with their ``function_call`` items.
-
-    Moves each ``function_call_output`` so that it directly follows the
-    ``function_call`` item holding the same ``call_id``.  After
-    ``Converter.items_to_messages`` runs on the reordered list, every
-    ``role: "tool"`` message immediately follows the assistant message that
-    declared its ``tool_call_id`` -- the ordering Kimi/Moonshot APIs require.
-
-    Rules:
-    - Returns a new list; neither the input list nor its items are mutated.
-    - Only outputs that appear *after* their call are moved; outputs that
-      precede their call, orphaned outputs (no matching call) and items that
-      are not function calls/outputs keep their original relative order.
-    - If there is nothing to move, the input list is returned as-is.
-    """
+    """Move each tool result next to its matching call without mutating input."""
     output_indices: dict[Any, int] = {}
     for index, item in enumerate(items):
         if _item_field(item, "type") == "function_call_output":

@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { useUiLanguage } from '../i18n/index.js';
 import { 
   THINKING_PHRASES, 
   WITTY_PHRASES, 
@@ -24,6 +25,7 @@ export function useThinkingPhrases({
   isActive,
   customPhrases,
 }: UseThinkingPhrasesOptions): string {
+  const uiLanguage = useUiLanguage();
   // Use ref to store phrase pool to avoid recreating on each render
   const phrasePoolRef = useRef<string[]>(
     customPhrases && customPhrases.length > 0
@@ -41,7 +43,7 @@ export function useThinkingPhrases({
     } else {
       phrasePoolRef.current = [...THINKING_PHRASES, ...WITTY_PHRASES];
     }
-  }, [customPhrases]);
+  }, [customPhrases, uiLanguage]);
 
   useEffect(() => {
     // Clear existing interval
@@ -75,7 +77,7 @@ export function useThinkingPhrases({
         intervalRef.current = null;
       }
     };
-  }, [isActive, customPhrases]);
+  }, [isActive, customPhrases, uiLanguage]);
 
   return currentPhrase;
 }

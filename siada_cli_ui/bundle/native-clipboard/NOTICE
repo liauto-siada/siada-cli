@@ -1,0 +1,39 @@
+Siada native clipboard backend
+
+@napi-rs/clipboard 1.1.4
+https://github.com/Brooooooklyn/Clipboard
+License declared by the npm package: MIT.
+
+The binding uses arboard with wayland-data-control enabled:
+https://github.com/1Password/arboard
+arboard is licensed under MIT OR Apache-2.0.
+
+@mariozechner/clipboard 0.3.6
+https://github.com/badlogic/clipboard
+License declared by the npm package: MIT.
+Native image reads and PNG encoding, based on CrossCopy/clipboard and
+ChurchTao/clipboard-rs. Original package metadata is included in image-runtime/.
+
+The original npm package.json is distributed alongside the unchanged native
+binding loader and prebuilt modules, including its license and repository fields.
+
+MIT License
+Copyright (c) Brooooooklyn and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

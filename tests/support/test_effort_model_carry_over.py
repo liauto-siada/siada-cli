@@ -160,7 +160,7 @@ class TestCarryOverReasoningSettings:
         assert new.reasoning_effort == "high"
 
     def test_unsupported_model_keeps_intent_without_setting_effort(self):
-        # glm-5.2 does not support the reasoning_effort param at all
+        # kivy-glm-5.2 does not support the reasoning_effort param at all
         # (thinking_tokens only). The intent is preserved for a later switch
         # to a supporting model, but no effort is set on this model.
         old = ModelRunConfig("claude-sonnet-5")
@@ -218,6 +218,50 @@ def _make_session(model: str) -> MagicMock:
     # Skip api-messages tracking persistence during the switch.
     session.state.openai_session.session_folder = None
     return session
+
+
+class TestCmdModelPreservesGoalDisplay:
+    """``/model`` reloads history, so the goal snapshot must follow it.
+
+    ``ui/loadHistory`` makes the frontend drop its local goal state, and the
+    status bar is only rebuilt from a ``context/goalState`` push. Reloading
+    history without re-pushing the goal used to remove the Goal status bar
+    after a model switch until the next verifier round.
+    """
+
+    def test_repushes_goal_after_history_reload(self):
+        io = MagicMock()
+        io.acp_adapter = MagicMock()
+        sc = SlashCommands(io=io)
+        session = _make_session("claude-sonnet-5")
+        calls = []
+
+        with patch("siada.config.config_loader.save_conf_field", return_value=True), patch.object(
+            sc, "_send_history_to_ui", side_effect=lambda _: calls.append("history")
+        ), patch.object(
+            sc, "_push_current_goal_state_to_ui", side_effect=lambda _: calls.append("goal")
+        ):
+            event = sc.cmd_model(session, "glm-5.3")
+
+        assert event is not None and event.kwargs["model"] == "glm-5.3"
+        assert calls == ["history", "goal"]
+
+    def test_repushes_goal_even_without_history_items(self):
+        io = MagicMock()
+        io.acp_adapter = MagicMock()
+        sc = SlashCommands(io=io)
+        session = _make_session("claude-sonnet-5")
+        session.state.task_message_state.get_messages.return_value = []
+        calls = []
+
+        with patch("siada.config.config_loader.save_conf_field", return_value=True), patch.object(
+            sc, "_send_history_to_ui", side_effect=lambda _: calls.append("history")
+        ), patch.object(
+            sc, "_push_current_goal_state_to_ui", side_effect=lambda _: calls.append("goal")
+        ):
+            sc.cmd_model(session, "glm-5.3")
+
+        assert calls == ["goal"]
 
 
 class TestCmdModelCarryOver:

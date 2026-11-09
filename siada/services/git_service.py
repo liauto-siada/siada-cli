@@ -313,8 +313,7 @@ class GitService:
             for name in repo.git.ls_files("-z").split("\0"):
                 path = self.project_root / name
                 if name and path.is_file() and not path.is_symlink():
-                    # "r+b" instead of "rb": Windows requires a writable handle
-                    # before os.fsync, while POSIX accepts both.
+                    # Windows _commit requires a writable file handle.
                     with path.open("r+b" if os.name == "nt" else "rb") as stream:
                         os.fsync(stream.fileno())
                     sync_directory(path.parent)

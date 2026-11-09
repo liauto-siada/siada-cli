@@ -1,4 +1,12 @@
-"""Install a built checkout and provide transport helpers for release ZIPs."""
+"""Install a built chrome-acp checkout into ~/.siada-cli/browser/.
+
+``install_proxy`` / ``install_extension`` copy a built checkout and install
+the proxy's production dependencies from its lock file. Release archives are
+handled by :mod:`siada.browser_addon.release_install`.
+
+The proxy directory ships per-platform variants in release archives, bundling
+that platform's native @parcel/watcher binary.
+"""
 
 from __future__ import annotations
 
@@ -88,11 +96,14 @@ def install_extension(repo: Path) -> None:
     _replace_dir(paths.extension_dir(), stage)
 
 
+
 _ARCH_ALIASES = {"x86_64": "x64", "amd64": "x64", "aarch64": "arm64", "arm64": "arm64"}
 
 
 def proxy_platform_tag() -> str | None:
-    """Return the manifest platform key for a supported OS and architecture."""
+    """Platform tag of the per-platform proxy tarballs, matching the siada
+    venv tarball naming (``macos-arm64`` / ``linux-x64`` / ``windows-x64``).
+    None for unsupported platforms (caller falls back to the noarch tarball)."""
     if sys.platform == "darwin":
         os_part = "macos"
     elif sys.platform.startswith("win"):
@@ -106,18 +117,18 @@ def proxy_platform_tag() -> str | None:
 
 
 def _fetch_text(url: str) -> str:
-    with urllib.request.urlopen(url, timeout=15) as response:
-        return response.read().decode().strip()
+    with urllib.request.urlopen(url, timeout=15) as resp:
+        return resp.read().decode().strip()
 
 
 def _download_file(url: str, dest: Path) -> None:
-    with urllib.request.urlopen(url, timeout=300) as response, dest.open("wb") as output:
-        shutil.copyfileobj(response, output)
+    with urllib.request.urlopen(url, timeout=300) as resp, open(dest, "wb") as f:
+        shutil.copyfileobj(resp, f)
 
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()

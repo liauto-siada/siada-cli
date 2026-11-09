@@ -1,4 +1,4 @@
-"""SDK V4A parsing with bounded Codex-style context matching."""
+"""SDK V4A parsing with bounded context matching."""
 
 from __future__ import annotations
 

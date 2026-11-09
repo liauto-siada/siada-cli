@@ -515,6 +515,15 @@ class CategoryFilter(logging.Filter):
     def for_general_logs(cls):
         """Create a filter for general logs (excludes model errors)."""
         return cls(exclude_categories=[LogCategory.MODEL_ERROR])
+
+    @classmethod
+    def for_console(cls):
+        """Create a filter for terminal output.
+
+        Keeps the log-file contract for model errors and file-only diagnostics:
+        those records stay in their log files and never reach stdout/stderr.
+        """
+        return cls(exclude_categories=[LogCategory.MODEL_ERROR, LogCategory.FILE_ONLY])
     
     @classmethod
     def for_model_errors(cls):
@@ -550,6 +559,7 @@ def setup_logger():
     This logger uses filters to route different log categories to different handlers:
     - General logs go to console and siada_cli.log
     - Model error logs go to model_errors.log
+    - File-only logs (``LogCategory.FILE_ONLY``) go to siada_cli.log but not the console
     """
     # Create logger
     log_level = logging.DEBUG if DEBUG else logging.INFO
@@ -560,9 +570,10 @@ def setup_logger():
     if logger_instance.handlers:
         return logger_instance
 
-    # 1. Console handler - only general logs (exclude MODEL_ERROR)
+    # 1. Console handler - general logs only (MODEL_ERROR and FILE_ONLY diagnostics
+    #    stay in their log files)
     console_handler = get_console_handler(log_level=log_level)
-    console_handler.addFilter(CategoryFilter.for_general_logs())
+    console_handler.addFilter(CategoryFilter.for_console())
 
     # 2. Shared file handler (singleton) — wrapped with FilteredHandler so
     #    MODEL_ERROR is excluded from siada_cli.log without mutating the
@@ -595,7 +606,7 @@ def setup_logger():
         # Console handler — allows getLogger(__name__) modules to reach the terminal.
         # No duplication risk: siada.app.propagate=False keeps those messages isolated.
         siada_console_handler = get_console_handler(log_level=log_level)
-        siada_console_handler.addFilter(CategoryFilter.for_general_logs())
+        siada_console_handler.addFilter(CategoryFilter.for_console())
         siada_logger.addHandler(siada_console_handler)
     # Disable propagation to root logger. Third-party libraries (e.g. litellm)
     # or module-level logging.basicConfig() calls may add a StreamHandler to
@@ -649,7 +660,7 @@ def _add_console_handler_to(target_logger: logging.Logger, log_level: int) -> No
     )
     if not has_console_handler:
         console_handler = get_console_handler(log_level)
-        console_handler.addFilter(CategoryFilter.for_general_logs())
+        console_handler.addFilter(CategoryFilter.for_console())
         target_logger.addHandler(console_handler)
 
 
@@ -880,18 +891,18 @@ def cleanup_old_logs(log_pattern: str, keep_days: int = 30, log_directory: str =
     Delete log files older than the specified number of days.
     
     Args:
-        log_pattern: Log file name pattern, supports wildcards, e.g. 'a2a_log_*.log' or 'a2a_server_*.log'
-        keep_days: Number of days to keep, defaults to 30
-        log_directory: Log directory path, defaults to get_log_directory()
+        log_pattern: Log file name pattern, including wildcards.
+        keep_days: Number of days to keep; defaults to 30.
+        log_directory: Log directory path; defaults to get_log_directory().
         
     Returns:
-        int: Number of deleted files
+        int: Number of deleted files.
         
     Example:
-        # Delete a2a_log files older than 30 days
+        # Delete a2a_log files older than 30 days.
         cleanup_old_logs('a2a_log_*.log', keep_days=30)
         
-        # Delete a2a_server files older than 7 days
+        # Delete a2a_server files older than 7 days.
         cleanup_old_logs('a2a_server_*.log', keep_days=7)
     """
     from datetime import datetime, timedelta

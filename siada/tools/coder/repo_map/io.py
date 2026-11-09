@@ -1,10 +1,10 @@
 """
-IO class - provides a standard input/output interface.
+Standard input/output interface for repository maps.
 
-This module provides the standard IO interface used by RepoMap, including:
-- Log output at different levels (info, warning, error)
-- File reading
-- Configurable output options
+Repository-map IO supports:
+- Info, warning and error output.
+- File reading.
+- Configurable output streams.
 """
 
 import os
@@ -15,13 +15,13 @@ from pathlib import Path
 
 class IO:
     """
-    Standard IO class that provides file reading and log output.
+    Standard IO class for file reading and log output.
     
-    This class provides a unified IO interface for RepoMap, supporting:
-    - Multi-level log output
-    - File content reading
-    - Configurable output targets
-    - Verbose mode control
+    Provide a unified interface for repository maps:
+    - Log output at multiple levels.
+    - File content reading.
+    - Configurable output targets.
+    - Verbose mode control.
     """
     
     def __init__(
@@ -34,9 +34,9 @@ class IO:
         Initialize an IO instance.
         
         Args:
-            verbose (bool): Whether to enable verbose output mode.
-            output_stream (TextIO, optional): Standard output stream, defaults to sys.stdout.
-            error_stream (TextIO, optional): Error output stream, defaults to sys.stderr.
+            verbose (bool): Whether to enable verbose output.
+            output_stream (TextIO, optional): Output stream; defaults to sys.stdout.
+            error_stream (TextIO, optional): Error stream; defaults to sys.stderr.
         """
         self.verbose = verbose
         self.output_stream = output_stream or sys.stdout
@@ -52,7 +52,7 @@ class IO:
         Output an info message.
         
         Args:
-            message (str): The message to output.
+            message (str): Message to output.
         """
         self.outputs.append(message)
         if self.verbose:
@@ -63,7 +63,7 @@ class IO:
         Output a warning message.
         
         Args:
-            message (str): The warning message to output.
+            message (str): Warning message to output.
         """
         self.warnings.append(message)
         print(f"[WARNING] {message}", file=self.error_stream)
@@ -73,20 +73,20 @@ class IO:
         Output an error message.
         
         Args:
-            message (str): The error message to output.
+            message (str): Error message to output.
         """
         self.errors.append(message)
         print(f"[ERROR] {message}", file=self.error_stream)
     
     def read_text(self, filepath: str) -> str:
         """
-        Read the content of a file.
+        Read file contents.
         
         Args:
-            filepath (str): The file path.
+            filepath (str): File path.
             
         Returns:
-            str: The file content, or an empty string if reading fails.
+            str: File contents, or an empty string if reading fails.
         """
         try:
             # Ensure the path is absolute or relative to the current working directory
@@ -108,7 +108,7 @@ class IO:
                 content = f.read()
             
             if self.verbose:
-                self.tool_warning(f"File {filepath} read with fallback encoding")
+                self.tool_warning(f"Read {filepath} using fallback encoding")
             
             return content
             
@@ -116,13 +116,13 @@ class IO:
             self.tool_error(f"File not found: {filepath}")
             return ""
         except PermissionError:
-            self.tool_error(f"Permission denied reading file: {filepath}")
+            self.tool_error(f"Permission denied reading: {filepath}")
             return ""
         except IsADirectoryError:
-            self.tool_error(f"Path is a directory, not a file: {filepath}")
+            self.tool_error(f"Path is a directory: {filepath}")
             return ""
         except Exception as e:
-            self.tool_error(f"Failed to read file {filepath}: {str(e)}")
+            self.tool_error(f"Failed to read {filepath}: {str(e)}")
             return ""
     
     def clear_stats(self) -> None:
@@ -136,7 +136,7 @@ class IO:
         Get statistics.
         
         Returns:
-            dict: A dictionary with output, warning, and error counts.
+            dict: Output, warning and error counts.
         """
         return {
             'outputs': len(self.outputs),
@@ -158,7 +158,7 @@ class SilentIO(IO):
     """
     Silent IO class that outputs nothing to the console.
     
-    Suitable for tests or scenarios requiring silent operation.
+    Use for tests or other scenarios requiring silent operation.
     """
     
     def __init__(self):
@@ -182,7 +182,7 @@ class FileIO(IO):
     """
     File IO class that redirects output to a file.
     
-    Suitable for scenarios where logs need to be saved to a file.
+    Use when logs need to be saved to a file.
     """
     
     def __init__(
@@ -195,7 +195,7 @@ class FileIO(IO):
         Initialize a file IO instance.
         
         Args:
-            log_file (str): The log file path.
+            log_file (str): Log file path.
             verbose (bool): Whether to enable verbose output.
             append (bool): Whether to append to an existing file.
         """
@@ -216,11 +216,11 @@ class FileIO(IO):
         )
     
     def __del__(self):
-        """Destructor that ensures the log file is closed properly."""
+        """Ensure the log file is closed."""
         if hasattr(self, 'log_stream') and not self.log_stream.closed:
             self.log_stream.close()
     
     def close(self):
-        """Manually close the log file."""
+        """Close the log file explicitly."""
         if hasattr(self, 'log_stream') and not self.log_stream.closed:
             self.log_stream.close()

@@ -125,7 +125,9 @@ async def test_windows_response_anchor_and_resume_keep_delta_budget(
     await run_default(baseline, fresh, second, stream=stream, input="synthetic continue")
     assert counter.call_count == 3
     assert counter.call_args_list[2].args[1] == [{"role": "user", "content": "synthetic continue"}]
-    assert counter.call_args_list[2].kwargs == {"diagnostics": {}}
+    assert counter.call_args_list[2].kwargs == {
+        "diagnostics": {}, "counting_info": estimator.token_counting_info_from_model(second),
+    }
     folder = fresh.openai_session.session_folder
     assert str(folder / state.STATE_FILE) in windows_storage.flushed
     assert not (folder / ".storage-transaction.json").exists()

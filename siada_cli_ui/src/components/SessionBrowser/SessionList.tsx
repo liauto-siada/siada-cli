@@ -4,6 +4,8 @@
  */
 
 import React from 'react';
+import { t } from '../../i18n/index.js';
+import { PickerScrollHint } from '../Picker/Picker.js';
 import { Box, Text } from '@jrichman/ink';
 import { SessionListProps } from '../../types/session.js';
 import { SessionItem } from './SessionItem.js';
@@ -15,11 +17,12 @@ export const SessionList: React.FC<SessionListProps> = ({
   visibleCount,
   onSelect,
   showProjectName = false,
+  maxSnippetRows,
 }) => {
   if (sessions.length === 0) {
     return (
-      <Box paddingX={1} marginY={2}>
-        <Text color="yellow">No sessions found.</Text>
+      <Box>
+        <Text color="yellow">{t('没有匹配的会话。', 'No sessions found.')}</Text>
       </Box>
     );
   }
@@ -30,13 +33,9 @@ export const SessionList: React.FC<SessionListProps> = ({
   const visibleSessions = sessions.slice(startIndex, endIndex);
 
   return (
-    <Box flexDirection="column" paddingX={1}>
+    <Box flexDirection="column">
       {/* Scroll indicators */}
-      {startIndex > 0 && (
-        <Box paddingX={1}>
-          <Text color="gray" dimColor>↑ More above...</Text>
-        </Box>
-      )}
+      <PickerScrollHint visible={startIndex > 0} direction="up" />
       {visibleSessions.map((session, idx) => {
         const globalIndex = startIndex + idx;
         return (
@@ -46,14 +45,11 @@ export const SessionList: React.FC<SessionListProps> = ({
             isActive={globalIndex === activeIndex}
             showMatchSnippets={!!session.matchSnippets && session.matchSnippets.length > 0}
             showProjectName={showProjectName}
+            maxSnippetRows={maxSnippetRows}
           />
         );
       })}
-      {endIndex < sessions.length && (
-        <Box paddingX={1}>
-          <Text color="gray" dimColor>↓ More below...</Text>
-        </Box>
-      )}
+      <PickerScrollHint visible={endIndex < sessions.length} direction="down" />
     </Box>
   );
 };

@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 from agents.exceptions import ModelBehaviorError
-from openai import APIError
 from openai.types.responses import Response
 
 from siada.provider import one_shot
@@ -48,7 +47,6 @@ async def test_responses_model_closes_http_stream_on_all_exit_paths(monkeypatch,
     model = ResponsesModel(model="gpt-5.4", transport=transport)
     provider = SimpleNamespace(get_model=lambda name: model, aclose=AsyncMock())
     monkeypatch.setattr(one_shot, "get_provider", lambda name: provider)
-    monkeypatch.setattr("siada.provider.retry._backoff", AsyncMock())
     task = asyncio.create_task(one_shot.one_shot_completion(
         "synthetic prompt", model="gpt-5.4", timeout=0.01 if outcome == "hang" else None,
     ))
@@ -61,12 +59,10 @@ async def test_responses_model_closes_http_stream_on_all_exit_paths(monkeypatch,
     else:
         expected = {
             "cancel": asyncio.CancelledError, "hang": TimeoutError, "error": OSError,
-            "response.failed": APIError,
         }.get(outcome, ModelBehaviorError)
         with pytest.raises(expected):
             await task
-    attempts = 3 if outcome == "empty" else 1
-    assert stream.close.await_count == attempts
-    assert transport.create_stream.await_count == attempts
+    stream.close.assert_awaited_once()
+    transport.create_stream.assert_awaited_once()
     transport.aclose.assert_not_awaited()
     provider.aclose.assert_not_awaited()

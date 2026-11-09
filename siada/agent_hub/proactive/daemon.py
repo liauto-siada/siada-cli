@@ -62,12 +62,11 @@ class SiadaDaemon:
         """
         Find an existing daemon process via its command line.
 
-        Uses psutil to scan all processes, matching commands containing
-        'siada.agent_hub.proactive'. Zombie/stale leftover processes are
-        proactively killed and cleaned up.
+        Use psutil to find commands containing 'siada.agent_hub.proactive'.
+        Clean up zombie or stale leftover processes.
 
         Returns:
-            The PID of the existing daemon, or None if it does not exist.
+            The existing daemon PID, or None if none exists.
         """
         import psutil
         import datetime
@@ -435,9 +434,67 @@ class SiadaDaemon:
             return False
 
     def _start_headroom(self) -> None:
-        """Retain the legacy IPC status without starting an unavailable proxy."""
+        """Start the headroom proxy if enabled in conf.yaml.
+
+        The daemon is the SOLE owner of the proxy lifecycle: it spawns the
+        proxy here and terminates it in shutdown(). CLI processes only connect
+        to it (env injection) — they never spawn or kill it.
+
+        If host:port is already occupied, ``HeadroomProxyManager.start()``
+        itself decides whether to adopt it: it probes ``/health`` and compares
+        the occupant's upstream URLs (anthropic/openai/gemini) against our
+        hard-coded li-mate gateway config. A match (most commonly a proxy
+        siada itself started in a previous run, e.g. after a daemon crash that
+        skipped cleanup) is adopted without spawning or killing anything; a
+        mismatch is refused and reported as ``"port_conflict"``.
+        """
         self._headroom_manager = None
-        self._set_headroom_status("disabled")
+        try:
+            import os
+            import shutil
+            from siada.config.config_loader import load_conf
+            from siada.internal.services.headroom_proxy_manager import (
+                HeadroomProxyManager, HeadroomProxyConfig, LoggerIO,
+            )
+            hc = getattr(load_conf(), "headroom_config", None)
+            env_on = os.environ.get("SIADA_HEADROOM_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+            if hc is None or (not getattr(hc, "enabled", False) and not env_on):
+                # Headroom not desired.
+                self._set_headroom_status("disabled")
+                return
+            host = getattr(hc, "host", "127.0.0.1")
+            port = getattr(hc, "port", 8787)
+            if shutil.which("headroom") is None:
+                self._set_headroom_status("not_installed", host=host, port=port)
+                if self.logger:
+                    self.logger.warning("[headroom] `headroom` not found on PATH; skipping proxy startup")
+                return
+            cfg = HeadroomProxyConfig(
+                enabled=True, host=hc.host, port=hc.port, budget=hc.budget,
+                budget_period=hc.budget_period, telemetry=hc.telemetry,
+                startup_timeout=hc.startup_timeout,
+            )
+            mgr = HeadroomProxyManager(cfg)
+            # start() handles the "port already in use" case itself: it will
+            # adopt a pre-existing proxy whose /health upstream config matches
+            # ours (pid recorded as external_pid, never spawned/killed by us),
+            # or refuse and set last_failure_reason="port_conflict" otherwise.
+            if mgr.start(LoggerIO()):
+                self._headroom_manager = mgr
+                pid = mgr.owned_pid or mgr.external_pid
+                self._set_headroom_status("running", host=cfg.host, port=cfg.port, pid=pid)
+            else:
+                reason = mgr.last_failure_reason or "error"
+                self._set_headroom_status(reason, host=cfg.host, port=cfg.port)
+                if self.logger:
+                    self.logger.warning(
+                        f"[headroom] failed to start/adopt proxy at {cfg.host}:{cfg.port} "
+                        f"(reason={reason})"
+                    )
+        except Exception as e:
+            self._set_headroom_status("error")
+            if self.logger:
+                self.logger.error(f"[headroom] failed to start proxy: {e}", exc_info=True)
 
 
     def _set_headroom_status(self, status, host=None, port=None, pid=None):

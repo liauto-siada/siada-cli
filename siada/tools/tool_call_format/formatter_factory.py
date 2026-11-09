@@ -6,8 +6,7 @@ from .tool_call_formatter import ToolCallFormatter
 
 class ToolCallFormatterFactory:
     """
-    Factory class for tool call formatters.
-    Creates the corresponding formatter instance based on the function name.
+    Create tool call formatter instances by function name.
     """
 
     _formatters: Dict[str, Type[ToolCallFormatter]] = {}
@@ -19,7 +18,7 @@ class ToolCallFormatterFactory:
         Register a formatter class.
         
         Args:
-            formatter_class: The Formatter class.
+            formatter_class: Formatter class.
         """
         instance = formatter_class()
         cls._formatters[instance.supported_function] = formatter_class
@@ -27,13 +26,13 @@ class ToolCallFormatterFactory:
     @classmethod
     def get_formatter(cls, function_name: str) -> Optional[ToolCallFormatter]:
         """
-        Get the formatter instance for the given function name.
+        Get the formatter for a function name.
         
         Args:
-            function_name: The function name.
+            function_name: Function name.
             
         Returns:
-            The corresponding formatter instance, or None if it does not exist.
+            The formatter instance, or None if unavailable.
         """
         if function_name not in cls._formatters:
             return DefaultFormatter()
@@ -47,13 +46,13 @@ class ToolCallFormatterFactory:
     @classmethod
     def create_formatter(cls, function_name: str) -> Optional[ToolCallFormatter]:
         """
-        Create a formatter instance (a new instance each time).
+        Create a new formatter instance.
         
         Args:
-            function_name: The function name.
+            function_name: Function name.
             
         Returns:
-            A new formatter instance, or None if it does not exist.
+            A new formatter instance, or None if unavailable.
         """
         if function_name not in cls._formatters:
             return None
@@ -64,17 +63,17 @@ class ToolCallFormatterFactory:
     @classmethod
     def list_supported_functions(cls) -> list[str]:
         """
-        List all supported function names.
+        List supported function names.
         
         Returns:
-            The list of supported function names.
+            Supported function names.
         """
         return list(cls._formatters.keys())
 
     @classmethod
     def clear_registry(cls) -> None:
         """
-        Clear the registered formatters (mainly for testing).
+        Clear the formatter registry, primarily for tests.
         """
         cls._formatters.clear()
         cls._instances.clear() 

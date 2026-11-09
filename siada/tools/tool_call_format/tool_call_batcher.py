@@ -137,7 +137,7 @@ class ToolCallBatcher:
         """Render all tool calls grouped by workspace then category.
 
         Output format:
-          📂 **default**
+          📂 **默认**
           📖 **Read ×3**
           ✅ Read file **utils.py**
 

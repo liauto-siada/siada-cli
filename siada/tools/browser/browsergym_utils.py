@@ -730,7 +730,7 @@ def save_screenshot_to_file(base64_data: str, action: str = "screenshot") -> Opt
     
     Args:
         base64_data: Base64-encoded image data.
-        action: The operation type, used for file naming.
+        action: Operation type, used for file naming.
         
     Returns:
         The saved file path, or None if saving fails.

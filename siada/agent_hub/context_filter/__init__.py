@@ -9,6 +9,10 @@ from .base_filter import ContextFilter
 from .context_capture_filter import context_capture_filter, get_context_filters
 from .message_history_capture_filter import MessageHistoryCaptureFilter
 from .api_message_transfer_filter import ApiMessageTransferFilter
+from .tool_output_offload import (
+    ToolOutputOffloadFilter,
+    offload_oversized_tool_outputs,
+)
 from .utils import compute_message_signature
 
 __all__ = [
@@ -22,7 +26,9 @@ __all__ = [
     # Filter implementations
     'MessageHistoryCaptureFilter',
     'ApiMessageTransferFilter',
+    'ToolOutputOffloadFilter',
 
     # Utility functions
     'compute_message_signature',
+    'offload_oversized_tool_outputs',
 ]

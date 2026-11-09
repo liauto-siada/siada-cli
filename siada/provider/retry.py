@@ -31,6 +31,8 @@ _TRANSIENT_API_ERRORS = frozenset({
     "overloaded_error", "service_unavailable", "rate_limit_exceeded",
     "rate_limit_error", "timeout", "request_timeout",
 })
+_UPSTREAM_AUTH_ERROR = "gateway cannot authenticate upstream services."
+_PREMATURE_CLOSE_MESSAGE = "connection prematurely closed during response"
 
 
 class MissingFinalResponseError(ModelBehaviorError):
@@ -88,8 +90,23 @@ def is_retryable_model_error(error: Exception) -> bool:
     """Retry transient API failures as well as typed transport failures."""
     if isinstance(error, MissingFinalResponseError):
         return not error.output_exposed
+    from siada.provider.gemini.errors import GeminiRequestError
+
+    if isinstance(error, GeminiRequestError):
+        return error.retryable
     if is_retryable_transport_error(error):
         return True
+    if isinstance(error, APIError):
+        # This specific gateway failure concerns upstream credentials and can
+        # arrive as an authentication error, including an HTTP 401 response.
+        body = error.body
+        if isinstance(body, dict) and isinstance(body.get("error"), dict):
+            body = body["error"]
+        message = body.get("message") if isinstance(body, dict) else body
+        if not isinstance(message, str):
+            message = error.message
+        if message.strip().casefold().startswith(_UPSTREAM_AUTH_ERROR):
+            return True
     if isinstance(error, APIStatusError):
         return error.status_code in {403, 408, 409, 429} or error.status_code >= 500
     if not isinstance(error, APIError):
@@ -107,12 +124,41 @@ def is_retryable_model_error(error: Exception) -> bool:
 
 
 def is_retryable_transport_error(error: Exception) -> bool:
-    """Recognize typed transport failures without retrying arbitrary parser bugs."""
+    """Recognize transport failures, including API-reported stream disconnects."""
     if isinstance(error, (
         TimeoutError, APIConnectionError, httpx.TimeoutException,
         httpx.NetworkError, httpx.RemoteProtocolError,
     )):
         return True
+    # OpenAI 3 uses httpx2, whose exceptions do not inherit from httpx.
+    # A raised httpx2 exception implies the optional module is already loaded.
+    httpx2 = sys.modules.get("httpx2")
+    if httpx2 is not None and isinstance(error, (
+        httpx2.TimeoutException, httpx2.NetworkError, httpx2.RemoteProtocolError,
+    )):
+        return True
+    if isinstance(error, APIError) and not isinstance(error, APIStatusError):
+        # Gateways can report a disconnected HTTP 200 SSE stream as an APIError.
+        # Keep explicit quota/parameter codes and HTTP status handling intact.
+        details = api_error_details(error)
+        code = details.get("code")
+        error_type = details.get("type")
+        if code == "stream_error":
+            return True
+        if code and code not in _TRANSIENT_API_ERRORS:
+            return False
+        if not code and error_type:
+            if error_type == "stream_error":
+                return True
+            if error_type not in _TRANSIENT_API_ERRORS:
+                return False
+        body = error.body
+        if isinstance(body, dict) and isinstance(body.get("error"), dict):
+            body = body["error"]
+        message = body.get("message") if isinstance(body, dict) else body
+        if not isinstance(message, str):
+            message = error.message
+        return message.strip().casefold() == _PREMATURE_CLOSE_MESSAGE
     # An existing LiteLLM exception implies its module has already been loaded.
     # This also recognizes provider-defined subclasses without a heavy import.
     exceptions = sys.modules.get("litellm.exceptions")
@@ -131,7 +177,7 @@ def _retry_limit() -> int:
 
 @contextmanager
 def model_retry_scope(num_retries: int | None) -> Iterator[None]:
-    """Let durable workflows own retries without forwarding options to the SDK."""
+    """Let a durable workflow own retries without forwarding them to the SDK."""
     if num_retries is not None and (type(num_retries) is not int or num_retries < 0):
         raise ValueError("num_retries must be a non-negative integer")
     token = _REQUEST_MAX_RETRIES.set(num_retries)

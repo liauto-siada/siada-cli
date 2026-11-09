@@ -72,7 +72,7 @@ async def test_resolved_model_and_fresh_wrappers_preserve_warm_budget(
     assert counter.call_count == 3
     assert all(call.args[0] == "glm-effective" for call in counter.call_args_list)
     assert counter.call_args_list[2].args[1] == [{"role": "user", "content": "continue"}]
-    assert counter.call_args_list[2].kwargs == {"diagnostics": {}}
+    assert counter.call_args_list[2].kwargs == {"diagnostics": {}, "counting_info": TokenCountingInfo("glm-effective", "responses" if native else "chat")}
     saved = load_state(session.openai_session.session_folder, session.session_id)
     assert saved["context_token_baseline"]["session_id"] == session.session_id
     assert saved["context_token_baseline"]["format_version"] == 4
@@ -178,7 +178,7 @@ async def test_server_usage_plus_delta_triggers_compaction_across_turns(baseline
     # Warm calls tokenize only new input, never response items or old schemas.
     assert counter.call_count == 4
     assert counter.call_args_list[2].args[1] == [{"role": "user", "content": "second"}]
-    assert counter.call_args_list[2].kwargs == {"diagnostics": {}}
+    assert counter.call_args_list[2].kwargs == {"diagnostics": {}, "counting_info": token_counting_info_from_model(model)}
     assert counter.call_args_list[3].args[1] == [{"role": "user", "content": "third"}]
 
 
@@ -271,7 +271,7 @@ async def test_resume_restores_usage_and_warm_request_anchor(baseline, monkeypat
     await run_default(baseline, fresh, second_model, stream=stream, context=context, input="continue")
     assert counter.call_count == 3
     assert counter.call_args_list[2].args[1] == [{"role": "user", "content": "continue"}]
-    assert counter.call_args_list[2].kwargs == {"diagnostics": {}}
+    assert counter.call_args_list[2].kwargs == {"diagnostics": {}, "counting_info": token_counting_info_from_model(second_model)}
     assert second_model.requests[-1]["input"][:-2] == first_model.requests[0]["input"]
 
 
@@ -539,7 +539,7 @@ async def test_context_rewrite_before_response_save_discards_anchor_then_recalib
     # recounts that context, then its durable response establishes a fresh anchor.
     assert counter.call_count == 4
     assert counter.call_args_list[2].args[1] == model.requests[1]["input"]
-    assert counter.call_args_list[2].kwargs == {"tools": [rewrite_context], "diagnostics": {}}
+    assert counter.call_args_list[2].kwargs == {"tools": [rewrite_context], "diagnostics": {}, "counting_info": token_counting_info_from_model(model)}
     assert counter.call_args_list[3].args[1] == "# Test"
     assert model.requests[1]["input"][0] == summary[0]
     assert {"role": "user", "content": "start"} not in model.requests[1]["input"]

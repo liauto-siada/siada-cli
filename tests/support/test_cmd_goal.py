@@ -3,7 +3,8 @@ Tests for cmd_goal in SlashCommands.
 
 /goal only supports two subcommands by design: setting a new objective and
 `/goal clear`. There is deliberately no pause/resume/status subcommand —
-"complete" goals are dropped and "blocked" goals are auto-reactivated by
+"complete" goals remain visible until the next user conversation and "blocked" goals are
+auto-reactivated by
 Controller._maybe_reset_goal_on_new_turn as soon as the user sends their next
 conversational message.
 
@@ -50,6 +51,43 @@ def _make_session(session_dir: Path, workspace: str = "/tmp/ws") -> MagicMock:
 
 
 class TestCmdGoalLifecycle:
+    def test_clear_completed_goal_removes_current_state_and_archives_final_metrics(self, tmp_path):
+        sc = _make_slash_commands()
+        session = _make_session(tmp_path)
+        clock = {"now": "2026-01-01T00:00:00Z"}
+        with patch("siada.services.goal.models._now_iso", side_effect=lambda: clock["now"]):
+            goal = Goal.create("retain completed Goal")
+            clock["now"] = "2026-01-01T00:01:02Z"
+            goal.set_status("complete")
+            goal.turns = 2
+            goal_storage.save_goal(tmp_path, goal)
+            session.state.pending_goal = goal
+            clock["now"] = "2026-01-01T01:00:00Z"
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", {}):
+                sc.cmd_goal(session, "clear")
+        assert goal_storage.load_goal(tmp_path) is None
+        assert session.state.pending_goal is None
+        history = goal_storage.load_goal_history(tmp_path)
+        assert len(history) == 1
+        assert history[0]["status"] == "complete"
+        assert history[0]["active_elapsed_seconds"] == 62
+        assert history[0]["turns"] == 2
+
+    def test_initial_acp_state_includes_zero_time_and_turns(self, tmp_path):
+        sc = _make_slash_commands()
+        sc.io.acp_adapter = MagicMock()
+        session = _make_session(tmp_path)
+        timestamp = "2026-01-01T00:00:00Z"
+        with patch("siada.services.goal.models._now_iso", return_value=timestamp), patch(
+            "siada.services.siada_runner.SiadaRunner._context_cache", {},
+        ):
+            sc.cmd_goal(session, "check initial Goal state")
+        params = sc.io.acp_adapter._send_if_acp.call_args.kwargs["params"]
+        assert params["goal"]["turns"] == 0
+        assert params["goal"]["elapsedSeconds"] == 0
+        assert params["goal"]["elapsedUpdatedAt"] == timestamp
+        assert params["goal"]["status"] == "active"
+
     def test_set_new_goal_persists_and_prints(self):
         sc = _make_slash_commands()
         with tempfile.TemporaryDirectory() as d:
@@ -140,7 +178,8 @@ class TestCmdGoalLifecycle:
         with tempfile.TemporaryDirectory() as d:
             session_dir = Path(d)
             goal = Goal.create("done goal")
-            goal.status = "complete"
+            goal.set_status("complete")
+            goal.turns = 2
             goal_storage.save_goal(session_dir, goal)
             session = _make_session(session_dir)
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", {}):
@@ -148,6 +187,11 @@ class TestCmdGoalLifecycle:
             loaded = goal_storage.load_goal(session_dir)
             assert loaded.objective == "next goal"
             assert loaded.status == "active"
+            assert loaded.turns == 0
+            history = goal_storage.load_goal_history(session_dir)
+            assert len(history) == 1
+            assert history[0]["status"] == "complete"
+            assert history[0]["turns"] == 2
 
     def test_clear_removes_goal_file(self):
         sc = _make_slash_commands()

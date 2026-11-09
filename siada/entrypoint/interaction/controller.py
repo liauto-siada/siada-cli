@@ -1,10 +1,12 @@
-"""ACP terminal input loop, composed with turn policy and presentation adapters."""
+"""Async ACP input dispatch, turn policy and presentation adapters."""
 
 import asyncio
 import signal
 import sys
 import threading
 import time
+from collections import deque
+from uuid import uuid4
 
 from siada.session.session_models import RunningSession
 from siada.entrypoint.interaction.running_config import RunningConfig
@@ -14,6 +16,7 @@ from siada.entrypoint.interaction.turn_policy import TurnPolicy
 from siada.foundation.logging import logger as logging
 from siada.services.agent_loader import get_agent_class_path, import_agent_class
 from siada.support.slash_commands import SlashCommands, SwitchEvent
+from siada.entrypoint.interaction.command_input import CommandInput
 
 
 class Controller:
@@ -36,8 +39,18 @@ class Controller:
         self._preload_complete = threading.Event()
         self._preload_thread = None
         self._preload_success = False
-        self._bg_wakeup_event = threading.Event()
+        self._bg_wakeup_event = asyncio.Event()
         self._bg_wakeup_registered_ids = set()
+        self._effort_command_lock = threading.Lock()
+        self._loop = None
+        self._active_task = None
+        self._exit_requested = False
+        self._exit_reason = "normal"
+        self._pending_commands: deque[CommandInput] = deque()
+        self._commands_available = asyncio.Event()
+        self._command_tasks: set[asyncio.Task[None]] = set()
+        self._accepting_commands = False
+        self._executing_serial_command = False
         self.ui = ControllerUI(config, slash_commands, lambda: self.session)
         self.turn_policy = TurnPolicy(config, slash_commands, self.ui.send_notification)
 
@@ -50,6 +63,7 @@ class Controller:
         from siada.io.stdin_interrupt_monitor import is_monitor_active, get_stdin_monitor
         if is_monitor_active():
             get_stdin_monitor().set_btw_handler(self._handle_btw_intercept)
+            get_stdin_monitor().set_effort_handler(self._handle_effort_intercept)
 
     def wait_for_preload(self, timeout: float = None) -> bool:
         """Wait for background loading, or load synchronously on Windows."""
@@ -73,13 +87,30 @@ class Controller:
         self.ui.show_announcements()
 
     def run(self) -> int:
+        """Own one event loop and provider runtime for the entire session."""
+        from siada.provider.provider_factory import run_in_provider_runtime
+
+        return asyncio.run(run_in_provider_runtime(self.run_async()))
+
+    async def run_async(self) -> int:
         pending_input = None
         exit_reason = "normal"
+        from siada.io.stdin_interrupt_monitor import (
+            get_stdin_monitor, install_sigint_handler, is_monitor_active,
+        )
+        self._loop = asyncio.get_running_loop()
+        self._accepting_commands = True
+        previous_sigint = signal.getsignal(signal.SIGINT)
+        monitor = get_stdin_monitor() if is_monitor_active() else None
+        if monitor is not None:
+            monitor.bind_async_reader(self._request_shutdown)
+            monitor.set_command_handler(self._route_command, self._request_command_cancel)
+        install_sigint_handler(self._request_interrupt)
         try:
             self.ui.register_notification_handler()
-            self.turn_policy.start_session(self.session)
+            await self.turn_policy.start_session(self.session)
             self._register_background_wakeup(self.session)
-            while True:
+            while not self._exit_requested:
                 try:
                     # A queued retry/goal continuation takes precedence; do not
                     # drain and overwrite it with a concurrent background note.
@@ -93,9 +124,22 @@ class Controller:
                         pending_input = None
                         user_initiated = False
                     else:
-                        user_input = self.config.io.get_input(
-                            display_rule=False, wakeup_event=self._bg_wakeup_event,
-                        )
+                        self._active_task = asyncio.create_task(self._read_input())
+                        user_input = await self._active_task
+                        if isinstance(user_input, CommandInput):
+                            command = user_input
+                            name = command.prompt.split(maxsplit=1)[0][1:]
+                            if command.prompt.startswith("/") and self.slash_commands.get_execution_mode(name) == "immediate":
+                                self._accept_command(command)
+                                continue
+                            user_input = command.prompt
+                            self.config.io._input_request_id = command.request_id
+                            self.config.io._pending_image_paths = []
+                            if command.queue_id:
+                                self.ui.send_notification("session/update", {
+                                    "reason": "queue_item_consumed", "content": "",
+                                    "metadata": {"id": command.queue_id, "content": command.prompt},
+                                })
                         from siada.io.io import BACKGROUND_WAKEUP_SENTINEL
                         if user_input == BACKGROUND_WAKEUP_SENTINEL:
                             continue
@@ -112,24 +156,18 @@ class Controller:
                             user_input = f"!{user_input}"
 
                     self.ui.set_processing(True)
-                    # Join SDK imports before preloading the agent class to
-                    # avoid import-lock contention on Windows.
-                    from siada.entrypoint.siadahub import _ensure_litellm_ready, _ensure_agents_ready
-                    _ensure_litellm_ready()
-                    _ensure_agents_ready()
-                    self.wait_for_preload(timeout=20)
-                    if isinstance(user_input, str) and not user_input.startswith(("/", "!")):
-                        self.ui.send_session_title_async(user_input)
-                    from siada.entrypoint.interaction.turn.turn_factory import TurnFactory
                     from siada.foundation.context import set_context_var
-                    turn = TurnFactory.create_turn(
-                        self.config, self.session, self.slash_commands, user_input,
-                    )
+                    from siada.foundation.log_context import REQUEST_ID
+                    request_id = getattr(self.config.io, "_input_request_id", None)
+                    if user_initiated and request_id:
+                        set_context_var(REQUEST_ID, str(request_id))
                     set_context_var("turn_start_time", time.time())
                     logging.info("[Controller] [TURN_START] About to execute turn")
-                    output = self.turn_policy.execute(
-                        turn, user_input, self.session, user_initiated=user_initiated,
+                    self._active_task = asyncio.create_task(
+                        self._execute_turn(user_input, user_initiated),
+                        name=f"conversation-turn-{self.session.session_id}",
                     )
+                    output = await self._active_task
                     self.ui.remember_history_state(self.session)
                     logging.info("[Controller] [TURN_COMPLETE] Turn execution finished")
                     if output is None:
@@ -139,28 +177,214 @@ class Controller:
                         pending_input = self._handle_switch_event(output.output)
                 except KeyboardInterrupt:
                     self.keyboard_interrupt()
+                except asyncio.CancelledError:
+                    # A user interrupt cancels the child, not this dispatcher.
+                    if asyncio.current_task().cancelling():
+                        raise
+                    self.ui.set_processing(False)
+                    if self._exit_requested:
+                        exit_reason = self._exit_reason
+                except EOFError:
+                    break
                 except Exception as exc:
+                    from siada.entrypoint.interaction.turn.command_turn import ControllerExit
+                    if isinstance(exc, ControllerExit):
+                        break
                     self.config.io.print_error(exc)
                     exit_reason = "error"
                     break
+                finally:
+                    self._active_task = None
+        except asyncio.CancelledError:
+            exit_reason = "interrupt"
+            raise
         except Exception:
             exit_reason = "error"
             raise
         finally:
+            self._accepting_commands = False
+            if monitor is not None:
+                monitor.set_command_handler(None)
+            if self._command_tasks:
+                for task in tuple(self._command_tasks):
+                    task.cancel()
+                await asyncio.gather(*tuple(self._command_tasks), return_exceptions=True)
+            self._pending_commands.clear()
             self._unregister_background_wakeups()
             from siada.io.stdin_interrupt_monitor import is_monitor_active, get_stdin_monitor
             if is_monitor_active():
                 get_stdin_monitor().set_btw_handler(None)
             try:
-                self.turn_policy.end_session(self.session, exit_reason)
-            finally:
                 try:
-                    from siada.entrypoint.interaction.turn.conversation_turn import ConversationTurn
-
-                    ConversationTurn._cleanup_dedicated_loop()
+                    await self.turn_policy.end_session(self.session, exit_reason)
                 finally:
-                    self.ui.close()
-        return 1 if exit_reason == "error" else 0
+                    from siada.services.mcp.manager_service import _mcp_manager_service
+                    if _mcp_manager_service.is_initialized:
+                        await _mcp_manager_service.shutdown()
+            finally:
+                if monitor is not None:
+                    monitor.unbind_async_reader()
+                signal.signal(signal.SIGINT, previous_sigint)
+                self._loop = None
+                self.ui.close()
+        return 1 if exit_reason in ("error", "interrupt") else 0
+
+    async def _read_input(self):
+        """Wait for input or background completion, preserving input on ties."""
+        from siada.io.io import BACKGROUND_WAKEUP_SENTINEL
+
+        # Apply already-queued commands before consuming another ordinary prompt.
+        if self._pending_commands:
+            command = self._pending_commands.popleft()
+            if not self._pending_commands:
+                self._commands_available.clear()
+            return command
+
+        input_task = asyncio.create_task(self.config.io.get_input_async())
+        wake_task = asyncio.create_task(self._bg_wakeup_event.wait())
+        command_task = asyncio.create_task(self._commands_available.wait())
+        try:
+            await asyncio.wait(
+                (input_task, wake_task, command_task), return_when=asyncio.FIRST_COMPLETED,
+            )
+            if input_task.done():
+                return input_task.result()
+            if self._pending_commands:
+                command = self._pending_commands.popleft()
+                if not self._pending_commands:
+                    self._commands_available.clear()
+                return command
+            return BACKGROUND_WAKEUP_SENTINEL
+        finally:
+            for task in (input_task, wake_task, command_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(input_task, wake_task, command_task, return_exceptions=True)
+
+    def _route_command(self, prompt: str, queue_id: object, request_id: object) -> bool:
+        """Reader-thread routing never executes commands or consumes tool replies."""
+        prompt = prompt.strip()
+        loop = self._loop
+        if loop is None or not self._accepting_commands or not self.slash_commands.is_command(prompt):
+            return False
+        request = CommandInput(
+            prompt=prompt, command_id=uuid4().hex,
+            request_id=request_id if isinstance(request_id, str) else uuid4().hex,
+            queue_id=queue_id if isinstance(queue_id, str) else None,
+        )
+        try:
+            loop.call_soon_threadsafe(self._accept_command, request)
+        except RuntimeError:
+            return False
+        return True
+
+    def _accept_command(self, command: CommandInput) -> None:
+        """Serialize mutations, while approved queries get their own short task."""
+        if not self._accepting_commands or self._exit_requested:
+            return
+        name = command.prompt.split(maxsplit=1)[0][1:]
+        immediate = (
+            command.prompt.startswith("/")
+            and self.slash_commands.get_execution_mode(name) == "immediate"
+            and not self._executing_serial_command
+        )
+        queue = self._command_tasks if immediate else self._pending_commands
+        if len(queue) >= 64:
+            self._send_command_result(command, "Too many pending commands", error=True)
+        elif immediate:
+            task = asyncio.create_task(
+                self._execute_immediate_command(command),
+                name=f"command-{name}-{command.command_id}",
+            )
+            self._command_tasks.add(task)
+            task.add_done_callback(self._command_tasks.discard)
+        else:
+            self._pending_commands.append(command)
+            self._commands_available.set()
+            logging.info("[COMMAND_QUEUED] command=%s commandId=%s", name, command.command_id)
+
+    async def _execute_immediate_command(self, command: CommandInput) -> None:
+        from siada.entrypoint.interaction.turn.command_turn import CommandTurn
+        from siada.entrypoint.interaction.turn.models import TurnInput
+        from siada.foundation.context import set_context_var
+        from siada.foundation.log_context import REQUEST_ID
+
+        set_context_var(REQUEST_ID, command.request_id)
+        try:
+            turn = CommandTurn(self.config, self.session, self.slash_commands)
+            result = await turn.execute_immediate(TurnInput(use_input=command.prompt))
+            self._send_command_result(command, result.output)
+        except Exception as exc:
+            logging.warning("[Controller] Immediate command failed: %s", exc)
+            self._send_command_result(command, str(exc), error=True)
+
+    def _send_command_result(
+        self, command: CommandInput, content: str, *, error: bool = False,
+    ) -> None:
+        params = {
+            "commandId": command.command_id,
+            "command": command.prompt.split(maxsplit=1)[0][1:],
+            "content": content, "error": error, "queueId": command.queue_id,
+        }
+        self.ui.send_notification("ui/commandResult", params)
+        logging.info("[COMMAND_RESULT] command=%s commandId=%s error=%s",
+                     params["command"], command.command_id, error)
+
+    def _request_command_cancel(self) -> None:
+        loop = self._loop
+        if loop is not None:
+            try:
+                loop.call_soon_threadsafe(self._clear_pending_commands)
+            except RuntimeError:
+                pass  # The session loop has already closed.
+
+    def _clear_pending_commands(self) -> None:
+        self._pending_commands.clear()
+        self._commands_available.clear()
+
+    async def _execute_turn(self, user_input, user_initiated):
+        from siada.entrypoint.siadahub import _ensure_litellm_ready, _ensure_agents_ready
+        from siada.entrypoint.interaction.turn.turn_factory import TurnFactory
+
+        turn = None
+        try:
+            await asyncio.to_thread(_ensure_litellm_ready)
+            await asyncio.to_thread(_ensure_agents_ready)
+            await asyncio.to_thread(self.wait_for_preload, timeout=20)
+            if isinstance(user_input, str) and not user_input.startswith(("/", "!")):
+                self.ui.send_session_title_async(user_input)
+            turn = TurnFactory.create_turn(
+                self.config, self.session, self.slash_commands, user_input,
+            )
+            from siada.entrypoint.interaction.turn.command_turn import CommandTurn
+            self._executing_serial_command = isinstance(turn, CommandTurn)
+            try:
+                return await self.turn_policy.execute(
+                    turn, user_input, self.session, user_initiated=user_initiated,
+                )
+            finally:
+                self._executing_serial_command = False
+        except asyncio.CancelledError:
+            if turn is None and isinstance(user_input, str):
+                from siada.io.acp.message_builder import ACPMessageBuilder
+                self.ui._send_if_acp(ACPMessageBuilder().build_session_update(
+                    reason="restore_input", content=user_input, metadata={},
+                ))
+            raise
+
+    def _request_interrupt(self):
+        """Schedule cancellation rather than raising through the event loop."""
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(self.keyboard_interrupt)
+
+    def _request_shutdown(self):
+        """A closed UI pipe ends the session, including an active turn."""
+        self._exit_requested = True
+        if self._active_task is not None and not self._active_task.done():
+            if not self._active_task.cancelling():
+                from siada.tools.coder.cmd_runner import cancel_current_command
+                cancel_current_command()
+                self._active_task.cancel()
 
     def _handle_switch_event(self, event: SwitchEvent):
         values = event.kwargs
@@ -212,22 +436,26 @@ class Controller:
 
     def _on_background_subtask_wakeup(self):
         """Wake the ACP input poller without touching a terminal application."""
-        self._bg_wakeup_event.set()
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(self._bg_wakeup_event.set)
+        else:
+            self._bg_wakeup_event.set()
 
     def keyboard_interrupt(self):
         now = time.time()
         if self.last_keyboard_interrupt and now - self.last_keyboard_interrupt < 2:
             self.ui.send_cancelled("Execution interrupted by user (Ctrl+C)")
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-            try:
-                from siada.services.mcp.manager_service import _mcp_manager_service
-                if _mcp_manager_service.is_initialized:
-                    asyncio.run(_mcp_manager_service.shutdown())
-            except Exception as exc:
-                logging.error("Error during MCP cleanup: %s", exc)
-            self.turn_policy.end_session(self.session, "interrupt")
-            sys.exit(1)
+            self._exit_requested = True
+            self._exit_reason = "interrupt"
         self.last_keyboard_interrupt = now
+        if self._active_task is not None and not self._active_task.done():
+            # A second tap requests exit without cancelling cleanup a second time.
+            if not self._active_task.cancelling():
+                from siada.tools.coder.cmd_runner import cancel_current_command
+                from siada.io.stdin_interrupt_monitor import get_stdin_monitor
+                cancel_current_command()
+                get_stdin_monitor().interrupt_sync_readers()
+                self._active_task.cancel()
 
 
     def _start_preload_agent(self):
@@ -309,12 +537,13 @@ class Controller:
         Provider resolution:
         - If the session currently runs on the user's own provider config
           ("default": custom base_url + API key), KEEP it. User-defined models
-          (models.json) are defined for that endpoint, so re-routing them to
-          another provider would send the next LLM call to an endpoint the user
-          never configured.
+          (models.json) are defined for that endpoint, and re-routing them to
+          the internal "li" proxy breaks the next LLM call with LiAuthError
+          ("Not logged in") for users who never signed in with Li ID.
         - Otherwise resolve against the config-file default provider (NOT the
-          current session's provider), so a force-assigned provider is not
-          inherited when switching to a model of a different provider family.
+          current session's provider), so a force-assigned provider (e.g.
+          "openai_agents" set for a gpt-5.x session) is not inherited when
+          switching to a model of a different provider family.
         """
         try:
             from siada.models.model_run_config import ModelRunConfig
@@ -337,8 +566,7 @@ class Controller:
             new_llm_config.carry_over_reasoning_settings(old_llm_config)
             self.config.llm_config = new_llm_config
 
-            # Keep the process-wide provider tracker in sync with the provider
-            # this switch landed on, for consumers that report it.
+            # Keep the resolved provider available to shared request callbacks.
             try:
                 from siada.entrypoint import set_current_provider
                 set_current_provider(new_llm_config.provider or "")
@@ -382,6 +610,15 @@ class Controller:
             self.slash_commands.cmd_btw(self.session, question)
         except Exception:
             logging.exception("[Controller] /btw intercept handler failed")
+
+    def _handle_effort_intercept(self, level: str) -> None:
+        """Serialize effort settings without admitting a new agent request."""
+        with self._effort_command_lock:
+            try:
+                self.slash_commands.cmd_effort(self.session, level)
+            except Exception:
+                logging.exception("[Controller] /effort intercept handler failed")
+                self.config.io.print_error("Failed to update reasoning effort. Please retry.")
 
 
     def _register_background_wakeup(self, session: RunningSession):

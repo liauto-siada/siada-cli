@@ -75,18 +75,6 @@ export interface TraceFrame {
   height: number;
   url?: string;
   title?: string;
-  /**
-   * Chrome tab the picture came from, when the producer knows it. Pictures are
-   * routed per tab, so a consumer can reject a frame that belongs to a tab
-   * other than the one its run is bound to.
-   */
-  tabId?: number;
-  /**
-   * Agent session whose run the picture belongs to, when known. Live-view
-   * frames are attributed server-side; a consumer drops frames stamped with a
-   * session other than the one currently shown.
-   */
-  sessionId?: string;
 }
 
 export interface TraceOverlayRect {
@@ -108,27 +96,19 @@ export interface TraceOverlay {
 
 export interface TraceMetrics {
   stepCount: number;
-  /**
-   * Measured tool time: the union of the intervals observed for the run's
-   * steps, so concurrent calls that overlap are counted once. A call whose
-   * start-to-end stretch was never observed contributes nothing.
-   */
+  /** Time covered by observed tool intervals, counting concurrent overlaps once. */
   toolMs: number;
-  /** Run time not covered by any observed step interval (model turns, orchestration). */
+  /** Run time not attributed to any step (model turns, orchestration). */
   gapMs: number;
-  /** Completed steps that reported a page change. */
+  /** Steps whose own picture pair was compared and showed a change. */
   changedSteps: number;
-  /** Steps that finished without any page change. */
+  /** Compared picture pairs with no change above the diff threshold. */
   wastedSteps: number;
 }
 
 export interface TraceRun {
   schema: typeof TRACE_SCHEMA;
-  /**
-   * Identity of this run, unique per beginRun() even when two runs start in the
-   * same millisecond. Optional so traces persisted before it stay readable;
-   * a view that does not get one falls back to `startedAtMs` as identity.
-   */
+  /** Unique even when two requests start in the same millisecond. */
   runId?: string;
   startedAtMs: number;
   /** null while the run is still open. */

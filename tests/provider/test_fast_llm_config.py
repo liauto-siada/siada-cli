@@ -60,6 +60,39 @@ from siada.services.model_wrapper import ModelProviderWrapper, ModelWrapper
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+
+@pytest.mark.asyncio
+async def test_native_gemini_fast_model_keeps_pinned_credentials(monkeypatch):
+    from google.genai import types
+    from siada.provider.gemini import GeminiModel
+
+    monkeypatch.setenv("BASE_URL", "https://main.example/v1")
+    monkeypatch.setenv("API_KEY", "synthetic-main-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "synthetic-vendor-key")
+    provider = DefaultProvider()
+    model = provider.get_model_with_credentials(
+        "gemini-3.5-flash", base_url="https://fast.example/v1beta",
+        api_key="synthetic-fast-key",
+    )
+    assert isinstance(model, GeminiModel)
+    captured = []
+    sentinel = object()
+    def client_for(base_url, api_key):
+        captured.append((base_url, api_key))
+        return sentinel
+    monkeypatch.setattr(model._transport, "_client_for", client_for)
+    try:
+        for key in ("synthetic-main-key", "synthetic-reconfigured-main-key"):
+            monkeypatch.setenv("API_KEY", key)
+            client, _ = await model._transport._prepare(types.GenerateContentConfig(), model.model)
+            assert client is sentinel
+            assert os.environ["API_KEY"] == key
+        assert captured == [("https://fast.example/v1beta", "synthetic-fast-key")] * 2
+    finally:
+        await provider.aclose()
+    with pytest.raises(RuntimeError, match="closed"):
+        provider.get_model_with_credentials("gemini-3.5-flash", api_key="synthetic-fast-key")
+
 # Same guard list as tests/entrypoint/test_public_internal_boundary.py.
 _FORBIDDEN_PRIVATE_REFERENCES = (
     "siada.internal",

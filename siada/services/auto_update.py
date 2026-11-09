@@ -4,11 +4,7 @@ The daemon uses this module to check for newer releases in the background,
 install them silently, and persist state so the next CLI launch can pick up
 any applied update without interrupting the current session.
 
-Note on install modes: every build uses ``ExternalUpdateStrategy`` below, i.e.
-the release metadata published for ``siada-cli`` plus a ``pip`` upgrade.
-``build_update_strategy()`` never reaches for install infrastructure outside
-this distribution; the detected install mode is still persisted in the
-auto-update state for diagnostics.
+Every install mode uses the public release metadata and ExternalUpdateStrategy.
 """
 
 from __future__ import annotations
@@ -39,8 +35,7 @@ _AUTO_UPDATE_STATE_FILE = SIADA_HOME / "auto_update" / "state.json"
 _AUTO_UPDATE_LOCK_FILE = SIADA_HOME / "locks" / "auto_update.lock"
 _AUTO_UPDATE_INSTALL_LOG = SIADA_HOME / "logs" / "auto_update_install.log"
 
-# Valid release channels.  Releases are always read from the published
-# ``siada-cli`` metadata; the channel is carried through for reporting.
+# Channels are retained for reporting; releases use the public metadata.
 _VALID_CHANNELS = {"prod", "beta", "test"}
 
 
@@ -608,12 +603,7 @@ def detect_install_mode() -> str:
 
 
 def build_update_strategy(channel: str = "prod") -> BaseUpdateStrategy:
-    """Build the update strategy used for release queries and installs.
-
-    Every install mode uses ``ExternalUpdateStrategy``: releases come from the
-    published ``siada-cli`` metadata and upgrades go through ``pip``.  The
-    detected install mode is recorded in the auto-update state for diagnostics.
-    """
+    """Build the public release strategy without loading another distribution."""
     return ExternalUpdateStrategy(channel=channel)
 
 

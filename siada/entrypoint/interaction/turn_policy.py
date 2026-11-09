@@ -68,62 +68,52 @@ class TurnPolicy:
 
     # ── session lifecycle ────────────────────────────────────────────────
 
-    def start_session(self, session: RunningSession) -> None:
+    async def start_session(self, session: RunningSession) -> None:
         """Fire the SessionStart hook once with the session context."""
         hook_runner = getattr(self.slash_commands, "hook_runner", None)
         if hook_runner is None:
             return
         try:
-            hook_runner.run("SessionStart", self._build_session_hook_context(session))
+            await hook_runner.run_with_result(
+                "SessionStart", self._build_session_hook_context(session),
+            )
         except Exception as e:
             logging.warning(f"[TurnPolicy] SessionStart hook error: {e}")
 
-    def end_session(self, session: RunningSession, exit_reason: str) -> None:
+    async def end_session(self, session: RunningSession, exit_reason: str) -> None:
         """Fire SessionEnd hook exactly once regardless of exit path."""
         if self._session_end_fired:
             return
         self._session_end_fired = True
 
-        # Await (or cancel, on timeout) any still-running run_subtask(async=True)
-        # background tasks for this session so none are silently dropped when
-        # the process exits.
-        #
-        # These tasks were scheduled via asyncio.create_task() on
-        # ConversationTurn's dedicated background-loop thread (see
-        # _ensure_dedicated_loop), NOT on whatever loop asyncio.run() would
-        # spin up here on the main thread. asyncio.gather()-ing Tasks that
-        # belong to a different loop raises immediately, so this must be
-        # dispatched onto that same dedicated loop via
-        # run_coroutine_threadsafe -- mirroring how conversation_turn.py
-        # itself talks to that loop.
+        # The process is going away: freeze an active goal so its elapsed
+        # clock stops counting the time nobody is working on it. Skip the UI
+        # notice here — the frontend is shutting down too.
+        self._pause_goal_on_interrupt(session, self._get_session_dir(session))
+
+        # Background children and model clients share the entry-point loop.
         try:
-            from siada.entrypoint.interaction.turn.conversation_turn import ConversationTurn
             from siada.tools.agent.subagent_async import (
                 has_pending_background_subtasks,
                 shutdown_session_background_subtasks,
             )
             session_id = session.session_id
-            dedicated_loop = ConversationTurn._dedicated_loop
             if has_pending_background_subtasks(session_id):
-                if dedicated_loop is not None and not dedicated_loop.is_closed():
-                    future = asyncio.run_coroutine_threadsafe(
-                        shutdown_session_background_subtasks(session_id),
-                        dedicated_loop,
-                    )
-                    future.result(timeout=35.0)
-                else:
-                    # No dedicated loop alive (e.g. background tasks somehow
-                    # outlived their loop's thread) -- fall back to a fresh
-                    # loop; the awaited tasks are already done()/cancelled()
-                    # in this edge case so this is effectively a no-op drain.
-                    asyncio.run(shutdown_session_background_subtasks(session_id))
+                await shutdown_session_background_subtasks(session_id)
+            pending = getattr(getattr(session, "state", None), "pending_memory_task", None)
+            if pending is not None:
+                try:
+                    if not pending.cancelled():
+                        await asyncio.wait_for(asyncio.shield(pending), timeout=15.0)
+                finally:
+                    session.state.pending_memory_task = None
         except Exception as e:
             logging.warning(f"[TurnPolicy] background sub-agent task cleanup error: {e}")
 
         hook_runner = getattr(self.slash_commands, "hook_runner", None)
         if hook_runner is not None:
             try:
-                hook_runner.run(
+                await hook_runner.run_with_result(
                     "SessionEnd",
                     self._build_session_hook_context(session, exit_reason),
                 )
@@ -185,7 +175,7 @@ class TurnPolicy:
 
     # ── turn execution ───────────────────────────────────────────────────
 
-    def execute(self, turn, user_input, session, *, user_initiated: bool = True):
+    async def execute(self, turn, user_input, session, *, user_initiated: bool = True):
         """Execute a turn with ownership guard.
 
         Migrated from Controller._execute_turn_with_ownership; the public name
@@ -215,8 +205,7 @@ class TurnPolicy:
 
         session_dir = self._get_session_dir(session)
 
-        # Normalize a stale goal before it can influence this new turn — see
-        # _maybe_reset_goal_on_new_turn for the complete/blocked rules.
+        # Clear completed goals and reactivate blocked goals on user conversations.
         try:
             self._maybe_reset_goal_on_new_turn(
                 turn, session, session_dir, user_initiated=user_initiated,
@@ -228,10 +217,10 @@ class TurnPolicy:
 
         from siada.services.plugins.hook_runner import set_active as _set_active_hook_runner
 
-        def _print_hook_warnings(responses):
+        def _print_hook_notifications(responses, event):
             for resp in responses:
                 if resp.additional_context:
-                    self.config.io.print_error(resp.additional_context)
+                    self.config.io.print_hook(resp.additional_context, event)
 
         try:
             if hook_runner is not None:
@@ -239,19 +228,19 @@ class TurnPolicy:
                 hook_runner.set_workspace(workspace)
             _set_active_hook_runner(hook_runner)
             if hook_runner is not None:
-                hook_runner.run("PreTurn")
+                await hook_runner.run_with_result("PreTurn")
                 if isinstance(user_input, str):
-                    resps = hook_runner.run_with_result_sync(
+                    resps = await hook_runner.run_with_result(
                         "UserPromptSubmit", {"user_prompt": user_input}
                     )
-                    _print_hook_warnings(resps)
+                    _print_hook_notifications(resps, "UserPromptSubmit")
             with SessionOwnershipManager.owned_turn(session_dir, SessionOwner.CLI):
-                result = turn.execute(TurnInput(use_input=user_input))
+                result = await turn.execute(TurnInput(use_input=user_input))
             if hook_runner is not None:
-                stop_resps = hook_runner.run_with_result_sync(
+                stop_resps = await hook_runner.run_with_result(
                     "Stop", {"hook_event_name": "Stop", "tool_input": {"content": ""}}
                 )
-                _print_hook_warnings(stop_resps)
+                _print_hook_notifications(stop_resps, "Stop")
 
             retried = self._maybe_retry_turn(result)
             if retried is not result:
@@ -260,13 +249,13 @@ class TurnPolicy:
                 # real attempt at the objective) and go straight to PostTurn.
                 result = retried
                 if hook_runner is not None:
-                    hook_runner.run("PostTurn")
+                    await hook_runner.run_with_result("PostTurn")
                 return result
 
-            result = self._maybe_run_goal_verifier(turn, session, session_dir, result)
-            result = self._maybe_await_background_subtask_summary(turn, session, result)
+            result = await self._maybe_run_goal_verifier(turn, session, session_dir, result)
+            result = await self._maybe_await_background_subtask_summary(turn, session, result)
             if hook_runner is not None:
-                hook_runner.run("PostTurn")
+                await hook_runner.run_with_result("PostTurn")
             return result
         except OwnershipError as e:
             self.config.io.print_warning(
@@ -274,9 +263,27 @@ class TurnPolicy:
                 "Please wait for it to finish"
             )
             return None
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            # The interrupted turn produced no verifier verdict, so keep an
+            # active goal's clock from counting the idle gap. The next
+            # user-initiated conversation turn reactivates it (see
+            # maybe_reset_goal_on_new_turn).
+            self._pause_goal_on_interrupt(
+                session, session_dir,
+                notice="Goal paused — send a new message to resume.",
+            )
+            from siada.tools.agent.subagent_async import (
+                cancel_session_background_subtasks,
+                shutdown_session_background_subtasks,
+            )
+            session_id = getattr(session, "session_id", None)
+            if session_id:
+                cancel_session_background_subtasks(session_id)
+                await shutdown_session_background_subtasks(session_id)
+            raise
         except Exception:
             if hook_runner is not None:
-                hook_runner.run("OnError")
+                await hook_runner.run_with_result("OnError")
             raise
         finally:
             _set_active_hook_runner(None)
@@ -317,6 +324,24 @@ class TurnPolicy:
             self._send_acp_notification, goal, verifying, notice, result
         )
 
+    def _pause_goal_on_interrupt(
+        self, session: RunningSession, session_dir, *, notice: str | None = None,
+    ) -> bool:
+        """Freeze an active goal's clock when the turn/session is interrupted.
+
+        Thin delegate to ``siada.services.goal.turn_hooks`` — see that module
+        for the actual implementation and docstring.
+        """
+        from siada.services.goal import turn_hooks
+        try:
+            return turn_hooks.pause_goal_on_interrupt(
+                self._send_acp_notification, session, session_dir, notice=notice,
+            )
+        except Exception as e:
+            # Never let goal bookkeeping mask the user's cancellation.
+            logging.warning(f"[TurnPolicy] Goal pause-on-interrupt failed: {e}")
+            return False
+
     def _maybe_reset_goal_on_new_turn(
         self, turn, session: RunningSession, session_dir, *, user_initiated: bool = True,
     ):
@@ -331,20 +356,20 @@ class TurnPolicy:
             user_initiated=user_initiated,
         )
 
-    def _maybe_run_goal_verifier(self, turn, session: RunningSession, session_dir, result):
+    async def _maybe_run_goal_verifier(self, turn, session: RunningSession, session_dir, result):
         """After a conversation turn ends, run the goal verifier if applicable.
 
         Thin delegate to ``siada.services.goal.turn_hooks`` — see that module
         for the actual implementation and docstring.
         """
         from siada.services.goal import turn_hooks
-        return turn_hooks.maybe_run_goal_verifier(
+        return await turn_hooks.maybe_run_goal_verifier(
             self._send_acp_notification, turn, session, session_dir, result
         )
 
     # ── background sub-agent completion ──────────────────────────────────
 
-    def _maybe_await_background_subtask_summary(self, turn, session: RunningSession, result):
+    async def _maybe_await_background_subtask_summary(self, turn, session: RunningSession, result):
         """If this conversation turn just produced a plain-text ("I'm done")
         completion while the session still has run_subtask(async=True)
         background sub-agent task(s) outstanding, give them a bounded grace
@@ -386,26 +411,11 @@ class TurnPolicy:
         if not has_pending_background_subtasks(session_id):
             return result
 
-        # Must dispatch the wait onto the SAME event loop the background
-        # tasks were created on (ConversationTurn's dedicated loop) --
-        # awaiting/polling asyncio.Task state from a different loop/thread
-        # is unsafe (see the analogous note on shutdown_session_background_subtasks).
-        from siada.entrypoint.interaction.turn.conversation_turn import ConversationTurn
-        dedicated_loop = ConversationTurn._dedicated_loop
-        if dedicated_loop is None or dedicated_loop.is_closed():
-            # No live loop to await on (shouldn't normally happen right
-            # after a successful turn.execute() call) -- nothing safe to do.
-            return result
-
         from siada.tools.agent.subagent_async import wait_for_session_background_subtasks
         try:
-            future = asyncio.run_coroutine_threadsafe(
-                wait_for_session_background_subtasks(
-                    session_id, timeout=self._BACKGROUND_SUBTASK_AWAIT_TIMEOUT
-                ),
-                dedicated_loop,
+            await wait_for_session_background_subtasks(
+                session_id, timeout=self._BACKGROUND_SUBTASK_AWAIT_TIMEOUT,
             )
-            future.result(timeout=self._BACKGROUND_SUBTASK_AWAIT_TIMEOUT + 5.0)
         except Exception as e:
             logging.warning(f"[TurnPolicy] background sub-agent await error: {e}")
             return result

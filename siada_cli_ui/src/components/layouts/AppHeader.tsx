@@ -19,13 +19,7 @@ export interface AppHeaderProps {
   isCollapsed?: boolean;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
-  version = '0.0.0',
-  workingDir,
-  agent = 'coder',
-  model,
-  isCollapsed = false,
-}) => {
+export const AppHeader: React.FC<AppHeaderProps> = React.memo(() => {
   // ASCII art lines - matching siada-cli output
   const bannerLines = [
       "  ▆▆▆▆▆▆▆╗▆▆╗ ▆▆▆▆▆╗ ▆▆▆▆▆▆╗  ▆▆▆▆▆╗      ▆▆▆▆▆▆╗▆▆╗     ▆▆╗",
@@ -77,30 +71,6 @@ export const AppHeader: React.FC<AppHeaderProps> = React.memo(({
       {/* Spacer */}
       <Box marginTop={1} />
 
-      {/* Working Directory */}
-      <Box>
-        <Text>Working Directory: </Text>
-        <Text color="blue">{workingDir}</Text>
-      </Box>
-
-      {/* Agent and model info */}
-      <Box marginTop={0}>
-        <Text>Agent: </Text>
-        <Text color="yellow">{agent}</Text>
-        <Text>, Model: </Text>
-        <Text color="yellow">{model || 'default'}</Text>
-        <Text>.</Text>
-      </Box>
-
-      {/* Collapse mode hint */}
-      <Box marginTop={0}>
-        <Text dimColor>Press </Text>
-        <Text color="cyan" bold>Ctrl+O</Text>
-        <Text dimColor> to {isCollapsed ? 'show' : 'hide'} tool use details</Text>
-        <Text dimColor> (currently: </Text>
-        <Text color={isCollapsed ? 'yellow' : 'green'}>{isCollapsed ? 'collapsed' : 'expanded'}</Text>
-        <Text dimColor>)</Text>
-      </Box>
     </Box>
   );
 });

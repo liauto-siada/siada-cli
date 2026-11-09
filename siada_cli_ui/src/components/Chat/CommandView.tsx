@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text, useStdout } from '@jrichman/ink';
-import stringWidth from 'string-width';
+import stringWidth from '../../utils/terminalWidth.js';
 import { useThemeVersion } from '../../themes/index.js';
 import { colors } from '../../utils/colors.js';
 
@@ -18,7 +18,7 @@ export function parseCommandContent(content: string): { body: string; timeout?: 
   const closingFence = fencedBody.match(/^([\s\S]*)\r?\n```[ \t]*(?:\r?\n([\s\S]*))?$/);
   if (!closingFence) return { body: fencedBody };
   const details = closingFence[2];
-  const timeout = details?.match(/^timeout:[ \t]*`?([^`\r\n]+)`?$/);
+  const timeout = details?.trim().match(/^timeout:[ \t]*`?([^`\r\n]+)`?$/i);
   if (timeout) return { body: closingFence[1]!, timeout: timeout[1]!.trim() };
   return { body: details ? `${closingFence[1]}\n${details}` : closingFence[1]! };
 }
@@ -42,12 +42,17 @@ function wrapPlainLine(line: string, width: number): string[] {
 }
 
 /** Plain, monochrome command display for expanded shell tool calls. */
-export const CommandView: React.FC<{ content: string; hiddenLinesCount?: number }> = ({ content, hiddenLinesCount = 0 }) => {
+export const CommandView: React.FC<{
+  content: string;
+  hiddenLinesCount?: number;
+  width?: number;
+  indentation?: number;
+}> = ({ content, hiddenLinesCount = 0, width: availableWidth, indentation = 2 }) => {
   useThemeVersion();
   const { stdout } = useStdout();
   const columns = stdout?.columns || process.stdout.columns || 80;
   // Two columns for the indentation, two spare columns to avoid terminal auto-wrap.
-  const width = Math.max(2, columns - 4);
+  const width = Math.max(2, availableWidth ?? columns - 4);
   const display = hiddenLinesCount > 0
     ? `... ${hiddenLinesCount} lines hidden ...\n${content}`
     : content;
@@ -59,7 +64,7 @@ export const CommandView: React.FC<{ content: string; hiddenLinesCount?: number 
   if (!display) return null;
   const rows = display.split(/\r?\n/).flatMap(line => wrapPlainLine(line, width));
   return (
-    <Box flexDirection="column" paddingLeft={2}>
+    <Box flexDirection="column" paddingLeft={indentation}>
       {rows.map((line, index) => (
         <Text key={index} backgroundColor={background}>
           {line}{' '.repeat(Math.max(0, width - stringWidth(line)))}

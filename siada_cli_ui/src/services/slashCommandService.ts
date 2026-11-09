@@ -4,6 +4,7 @@
  */
 
 import type { CommandDefinition, CommandKind } from '../types/autocomplete.js';
+import { commandDescription } from '../constants/commandDescriptions.js';
 
 export interface SlashCommandInfo {
   name: string;
@@ -49,7 +50,10 @@ export class SlashCommandService {
   /**
    * Update commands from backend (called when receiving slash commands via ACP)
    */
-  updateCommandsFromBackend(backendCommands: Array<{name: string, description: string, argument_hint?: string}>): void {
+  updateCommandsFromBackend(backendCommands: Array<{
+    name: string; description: string; argument_hint?: string;
+    execution_mode?: 'immediate' | 'serial';
+  }>): void {
     // Clear existing commands
     this.commands.clear();
     
@@ -62,10 +66,15 @@ export class SlashCommandService {
         kind: 'BUILTIN' as CommandKind,
         autoExecute: false,
         argumentHint: cmd.argument_hint || undefined,
+        executionMode: cmd.execution_mode === 'immediate' ? 'immediate' : 'serial',
       });
     });
     
     this.initialized = true;
+    this.commands.set('language', {
+      name: 'language', description: 'Switch interface language (English / 中文)',
+      kind: 'BUILTIN' as CommandKind, autoExecute: false, argumentHint: '[en | zh-CN]',
+    });
   }
 
   /**
@@ -78,7 +87,7 @@ export class SlashCommandService {
 
     // Fallback: define the built-in commands based on slash_commands.py
     const builtinCommands: SlashCommandInfo[] = [
-      { name: 'status', description: 'Show the current status', requiresSession: true },
+      { name: 'status', description: 'Show the current status', requiresSession: false },
       { name: 'goal', description: 'Set or clear a standing goal for this session, then kick off work', requiresSession: true, argumentHint: '[<objective> | clear]' },
       { name: 'btw', description: 'Ask a quick side question without polluting main conversation', requiresSession: true, argumentHint: '<question>' },
       { name: 'model', description: 'Switch to a different model (opens UI picker)', requiresSession: true, argumentHint: '[<model_name>]' },
@@ -134,6 +143,15 @@ export class SlashCommandService {
     });
 
     this.initialized = true;
+    this.commands.set('language', {
+      name: 'language', description: 'Switch interface language (English / 中文)',
+      kind: 'BUILTIN' as CommandKind, autoExecute: false, argumentHint: '[en | zh-CN]',
+    });
+  }
+
+  isImmediateCommand(input: string): boolean {
+    const token = input.trim().split(/\s+/, 1)[0];
+    return token.startsWith('/') && this.commands.get(token.slice(1))?.executionMode === 'immediate';
   }
 
   /**
@@ -143,7 +161,9 @@ export class SlashCommandService {
     if (!this.initialized) {
       await this.initialize();
     }
-    return Array.from(this.commands.values());
+    return Array.from(this.commands.values()).map(cmd => ({
+      ...cmd, description: commandDescription(cmd.name, cmd.description),
+    }));
   }
 
   /**
@@ -153,7 +173,8 @@ export class SlashCommandService {
     if (!this.initialized) {
       await this.initialize();
     }
-    return this.commands.get(name);
+    const command = this.commands.get(name);
+    return command ? { ...command, description: commandDescription(name, command.description) } : undefined;
   }
 
   /**
@@ -166,10 +187,10 @@ export class SlashCommandService {
     
     const normalizedPattern = pattern.toLowerCase().replace(/^\//, '');
     if (!normalizedPattern) {
-      return Array.from(this.commands.values());
+      return this.getCommands();
     }
 
-    return Array.from(this.commands.values()).filter(cmd => 
+    return (await this.getCommands()).filter(cmd =>
       cmd.name.toLowerCase().includes(normalizedPattern) ||
       cmd.aliases?.some(alias => alias.toLowerCase().includes(normalizedPattern))
     );
@@ -180,6 +201,11 @@ export class SlashCommandService {
    */
   addCommand(command: CommandDefinition): void {
     this.commands.set(command.name, command);
+  }
+
+  /** Use the original backend text when switching an already-open completion list. */
+  describeCommand(name: string, fallback = ''): string {
+    return commandDescription(name, this.commands.get(name)?.description ?? fallback);
   }
 
   /**

@@ -139,8 +139,7 @@ class TestNormalizeMentions:
         text = "@_all hello everyone"
         mentions = [{"key": "@_all", "id": {"open_id": ""}, "name": "所有人"}]
         result = normalize_mentions(text, mentions, BOT_OPEN_ID)
-        # @_all renders as the literal "@All" marker, not the mention's name
-        assert "@All" in result
+        assert "@所有人" in result
         assert "@_all" not in result
 
     def test_bot_placeholder_stripped(self):

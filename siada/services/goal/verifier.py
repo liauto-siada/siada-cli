@@ -8,7 +8,8 @@ looked nothing like the main turn's request, so caches (e.g. Anthropic
 ``cache_control``) never hit.
 
 This module now mirrors the ``/btw`` side-question design (see
-``siada/services/side_question.py``): it reuses the SAME main
+``siada/services/side_question.py`` and
+``design_docs/siada-btw-side-question-design.md``): it reuses the SAME main
 Agent instance, the SAME materialized tool list (local + MCP, same order),
 and the RAW, unfiltered message history the main turn just used — appending
 only a short verification request at the end. Keeping the outgoing
@@ -46,6 +47,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import json
+import os
 import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -72,14 +74,19 @@ if TYPE_CHECKING:
     from siada.services.goal.models import Goal
 
 
-def elapsed_seconds_since(created_at: str) -> int:
+def elapsed_seconds_since(created_at: str, *, end_at: str | None = None) -> int:
     """Seconds between *created_at* (Goal.created_at, ISO-8601 'Z'-suffixed)
-    and now. Falls back to 0 on any parse error rather than raising — this
+    and ``end_at`` or now. Falls back to 0 on any parse error rather than raising — this
     only feeds informational text in the verifier request.
     """
     try:
         created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-        return max(0, int((datetime.now(timezone.utc) - created).total_seconds()))
+        end = datetime.fromisoformat(end_at.replace("Z", "+00:00")) if end_at else datetime.now(timezone.utc)
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        return max(0, int((end - created).total_seconds()))
     except Exception:
         return 0
 
@@ -123,10 +130,16 @@ async def build_verifier_input(
         file_session.get_runtime_items() if isinstance(file_session, FileSession)
         else file_session.get_effective_messages()
     )
+    # A running session can retain a Goal instance created before interval timing.
+    elapsed = getattr(goal, "elapsed_seconds", None)
+    elapsed_seconds = int(elapsed()) if callable(elapsed) else elapsed_seconds_since(
+        goal.created_at,
+        end_at=None if goal.status == "active" else getattr(goal, "updated_at", goal.created_at),
+    )
     message = build_verifier_request_message(
         goal.objective,
         status=goal.status,
-        elapsed_seconds=elapsed_seconds_since(goal.created_at),
+        elapsed_seconds=elapsed_seconds,
     )
     return list(items) + [{"role": "user", "content": message}]
 
@@ -591,5 +604,9 @@ async def run_goal_verification(
     a single coroutine, so callers need exactly one ``asyncio.run()`` call
     site.
     """
+    if os.environ.get("SIADA_GOAL_VERIFIER_FORCE_ERROR") == "1":
+        raise RuntimeError(
+            "Injected Goal verifier error (SIADA_GOAL_VERIFIER_FORCE_ERROR=1)."
+        )
     fork_input = await build_verifier_input(file_session, goal, context)
     return await verify_goal_with_context(context, fork_input)

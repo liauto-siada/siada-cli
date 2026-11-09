@@ -36,6 +36,9 @@ from siada.foundation.logging import logger
 _TARGET_MODELS = {
     "deepseek-v4-flash",
     "deepseek-v4-flash-0731",
+    "kivy-deepseek-v4-flash",
+    "kivy-deepseek-v4-flash-0731",
+    "baidu-deepseek-v4-flash-0731",
 }
 
 # Remind every N LLM calls, starting from the very first one (call #1, #21,
@@ -115,7 +118,7 @@ class ModelHallucinationSuppressionProcessor(AgentHooks):
         any other processor's hook registration / ordering.
         """
         siada_context = context.context
-        # Uncommitted reminders must remain available to the bridge on retry.
+        # Preserve uncommitted reminders for admission retry.
         if getattr(siada_context, "runtime_session", None) is not None:
             return
         pending = getattr(siada_context, "pending_hallucination_reminder_items", None) or []

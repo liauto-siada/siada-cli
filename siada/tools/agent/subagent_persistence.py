@@ -185,7 +185,7 @@ def record_finish(
     status: str,
     summary: str,
 ) -> None:
-    """Mark an agent's entry ``completed``/``failed`` in ``index.json``."""
+    """Mark an agent's entry ``completed``/``failed``/``cancelled`` in ``index.json``."""
     base_dir = subagents_dir(root_dir, root_session_id)
     index_path = _index_path(base_dir)
     with _lock_for(index_path):

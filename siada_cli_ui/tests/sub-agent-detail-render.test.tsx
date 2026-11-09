@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import './helpers/chineseLocale.js';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render } from '@jrichman/ink';
@@ -26,7 +27,7 @@ describe('sub-agent detail real Ink rendering', () => {
     const instance = render(view(), { stdout, debug: true });
     const screen = () => [...writes].reverse().find(write => write.includes('Stream test')) ?? '';
     try {
-      expect(screen()).toContain('No messages recorded');
+      expect(screen()).toContain('暂无消息记录');
       entries = mergeSubAgentEntry(entries, {
         id: 'r1', kind: 'thinking', text: 'REASONING-FIRST', isComplete: false,
       });
@@ -49,6 +50,31 @@ describe('sub-agent detail real Ink rendering', () => {
       instance.rerender(view());
       expect(screen()).toContain('NEXT-DELTA');
       expect(screen().match(/REASONING-FIRST/g)).toHaveLength(1);
+    } finally {
+      instance.unmount();
+    }
+  });
+
+  it('renders a cancelled sub-agent header with the cancelled glyph, not the failure cross', () => {
+    const stdout = new EventEmitter() as any;
+    stdout.columns = 100;
+    stdout.rows = 30;
+    const writes: string[] = [];
+    stdout.write = (data: string) => { writes.push(data); return true; };
+    const cancelledItem = { id: 'sa_cancelled', title: 'Cancelled task', status: 'cancelled' as const };
+    const entries: SubAgentMessageEntry[] = [
+      { kind: 'thinking', text: 'partial progress', isComplete: true },
+    ];
+    const view = () => (
+      <SubAgentDetailView item={cancelledItem} entries={entries} terminalWidth={100} onClose={() => {}} />
+    );
+    const instance = render(view(), { stdout, debug: true });
+    const screen = () => [...writes].reverse().find(write => write.includes('Cancelled task')) ?? '';
+    try {
+      expect(screen()).toContain('[cancelled]');
+      expect(screen()).toContain('⊘');
+      expect(screen()).not.toContain('✗');
+      expect(screen()).not.toContain('[failed]');
     } finally {
       instance.unmount();
     }

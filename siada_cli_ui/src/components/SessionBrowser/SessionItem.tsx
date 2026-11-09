@@ -7,12 +7,15 @@ import React from 'react';
 import { Box, Text } from '@jrichman/ink';
 import { SessionItemProps } from '../../types/session.js';
 import { formatTimeAgo, truncateText } from '../../utils/sessionUtils.js';
+import { PickerRow } from '../Picker/Picker.js';
+import { colors } from '../../utils/colors.js';
 
 export const SessionItem: React.FC<SessionItemProps> = ({
   session,
   isActive,
   showMatchSnippets = false,
   showProjectName = false,
+  maxSnippetRows,
 }) => {
   const timeAgo = formatTimeAgo(session.lastUpdated);
   // Collapse newlines (and runs of whitespace) in the message: a raw
@@ -26,9 +29,6 @@ export const SessionItem: React.FC<SessionItemProps> = ({
     60
   );
 
-  // Indicator for current/active session
-  const indicator = session.isCurrentSession ? '●' : (isActive ? '❯' : ' ');
-  
   const messageDisplay = showProjectName && session.projectName 
     ? `[${session.projectName}] ${displayMessage}`
     : displayMessage;
@@ -36,22 +36,18 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   // Every line uses wrap="truncate" so an item always renders exactly 2 rows
   // (plus one row per snippet) — the SessionBrowser row budget relies on this.
   return (
-    <Box flexDirection="column" paddingLeft={1}>
-      <Box>
-        <Text color={isActive ? 'cyan' : 'white'} bold={isActive} wrap="truncate">
-          {indicator} {messageDisplay}
-        </Text>
-      </Box>
+    <Box flexDirection="column">
+      <PickerRow active={isActive} current={session.isCurrentSession}>{messageDisplay}</PickerRow>
       <Box paddingLeft={2}>
-        <Text color="gray" dimColor wrap="truncate">
+        <Text color={colors.content.secondary} wrap="truncate">
           {timeAgo} · {session.messageCount} messages
           {session.matchCount && session.matchCount > 0 ? ` · ${session.matchCount} matches` : ''}
         </Text>
       </Box>
       {showMatchSnippets && session.matchSnippets && session.matchSnippets.length > 0 && (
         <Box paddingLeft={2} flexDirection="column">
-          {session.matchSnippets.map((snippet, idx) => (
-            <Text key={idx} color="yellow" dimColor wrap="truncate">
+          {session.matchSnippets.slice(0, maxSnippetRows).map((snippet, idx) => (
+            <Text key={idx} color={colors.content.secondary} wrap="truncate">
               → {truncateText(snippet, 70)}
             </Text>
           ))}

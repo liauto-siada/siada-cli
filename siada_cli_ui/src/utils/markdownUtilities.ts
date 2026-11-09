@@ -3,6 +3,72 @@
  * Provides markdown-aware text processing for safe content splitting
  */
 
+export interface MarkdownCodeFence {
+  marker: string;
+  language: string | null;
+}
+
+/** Advance fence state using the same rules as the terminal renderer. */
+export function advanceMarkdownFence(
+  line: string,
+  fence: MarkdownCodeFence | undefined,
+): MarkdownCodeFence | undefined {
+  const match = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+  if (!match) return fence;
+  if (fence) {
+    return match[1][0] === fence.marker[0] &&
+      match[1].length >= fence.marker.length && match[2].trim() === ''
+      ? undefined : fence;
+  }
+  // Backticks are not allowed in the info string of a backtick fence.
+  if (match[1][0] === '`' && match[2].includes('`')) return undefined;
+  return { marker: match[1], language: match[2].trim().split(/\s+/, 1)[0] || null };
+}
+
+/**
+ * Split presentation content near 3000 characters without cutting fenced code.
+ * Oversized and unfinished code blocks remain whole; prose stays bounded.
+ */
+export function splitMarkdownFragments(content: string): string[] {
+  const codeBlocks: { start: number; end: number }[] = [];
+  let fence: MarkdownCodeFence | undefined;
+  let blockStart = 0;
+  let position = 0;
+  // Scan source lines once so long histories do not repeatedly scan prefixes.
+  for (const line of content.split('\n')) {
+    const nextFence = advanceMarkdownFence(line.replace(/\r$/, ''), fence);
+    if (!fence && nextFence) blockStart = position;
+    if (fence && !nextFence) {
+      codeBlocks.push({ start: blockStart, end: Math.min(position + line.length + 1, content.length) });
+    }
+    fence = nextFence;
+    position += line.length + 1;
+  }
+  if (fence) codeBlocks.push({ start: blockStart, end: content.length });
+
+  const fragments: string[] = [];
+  let offset = 0;
+  let blockIndex = 0;
+  while (offset < content.length) {
+    let end = Math.min(offset + 3000, content.length);
+    if (end < content.length) {
+      const newline = content.lastIndexOf('\n', end);
+      if (newline > offset + 1500) end = newline + 1;
+      // Never split a UTF-16 surrogate pair.
+      if (/[\uD800-\uDBFF]/.test(content[end - 1])) end--;
+    }
+    while (blockIndex < codeBlocks.length && codeBlocks[blockIndex].end <= end) blockIndex++;
+    const block = codeBlocks[blockIndex];
+    if (block && block.start < end) {
+      // Finish prose before the opener, or include the entire oversized block.
+      end = block.start > offset ? block.start : block.end;
+    }
+    fragments.push(content.slice(offset, end));
+    offset = end;
+  }
+  return fragments;
+}
+
 /**
  * Find the start position of a code block that encloses the given index
  * Returns -1 if the index is not inside a code block
@@ -13,7 +79,7 @@
  */
 export function findEnclosingCodeBlockStart(content: string, index: number): number {
   let codeBlockStart = -1;
-  let inCodeBlock = false;
+  let fence: MarkdownCodeFence | undefined;
   let pos = 0;
 
   // Scan through content looking for code block markers
@@ -21,26 +87,16 @@ export function findEnclosingCodeBlockStart(content: string, index: number): num
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const trimmed = line.trim();
-    
-    // Check for code block start/end (``` or ~~~)
-    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
-      if (!inCodeBlock) {
-        // Entering code block
-        inCodeBlock = true;
-        codeBlockStart = pos;
-      } else {
-        // Exiting code block
-        inCodeBlock = false;
-        codeBlockStart = -1;
-      }
-    }
+    const nextFence = advanceMarkdownFence(line.replace(/\r$/, ''), fence);
+    if (!fence && nextFence) codeBlockStart = pos;
+    if (fence && !nextFence) codeBlockStart = -1;
+    fence = nextFence;
     
     pos += line.length + 1; // +1 for newline
   }
 
   // If we're still in a code block at the index position, return its start
-  return inCodeBlock ? codeBlockStart : -1;
+  return fence ? codeBlockStart : -1;
 }
 
 /**

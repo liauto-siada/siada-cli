@@ -55,27 +55,19 @@ describe("trajectoryWsUrlFor", () => {
     );
   });
 
-  test("carries the configured token, like the tool channel", () => {
-    // The trajectory endpoint shares /ws's token gate; a remote proxy refuses
-    // an untokened producer instead of persisting its events.
-    expect(trajectoryWsUrlFor("ws://localhost:9315/ws", "secret-token")).toBe(
-      "ws://localhost:9315/ws/trajectory?token=secret-token",
-    );
-    expect(trajectoryWsUrlFor("wss://192.168.1.5:9315/ws", "abc")).toBe(
-      "wss://192.168.1.5:9315/ws/trajectory?token=abc",
-    );
+  test("carries a separately configured token and preserves other query parameters", () => {
+    const url = new URL(trajectoryWsUrlFor("wss://proxy.example.com/ws?mode=browser", "a+b&c"));
+    expect(url.pathname).toBe("/ws/trajectory");
+    expect(url.searchParams.get("token")).toBe("a+b&c");
+    expect(url.searchParams.get("mode")).toBe("browser");
   });
 
-  test("keeps a token already embedded in the proxy URL", () => {
-    expect(trajectoryWsUrlFor("ws://localhost:9315/ws?token=from-url")).toBe(
-      "ws://localhost:9315/ws/trajectory?token=from-url",
-    );
-  });
-
-  test("an explicit token wins over one embedded in the proxy URL", () => {
-    expect(
-      trajectoryWsUrlFor("wss://proxy.example.com:9443/ws?token=old", "new"),
-    ).toBe("wss://proxy.example.com:9443/ws/trajectory?token=new");
+  test("preserves an embedded token unless a nonempty explicit token overrides it", () => {
+    const proxyUrl = "ws://localhost:9315/ws?token=embedded";
+    for (const token of [undefined, ""]) {
+      expect(new URL(trajectoryWsUrlFor(proxyUrl, token)).searchParams.get("token")).toBe("embedded");
+    }
+    expect(new URL(trajectoryWsUrlFor(proxyUrl, "configured")).searchParams.get("token")).toBe("configured");
   });
 });
 

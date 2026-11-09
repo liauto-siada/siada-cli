@@ -116,8 +116,7 @@ export function shouldDisableIME(): boolean {
  * When supported, wrapping a frame's writes in BSU (`\x1b[?2026h`) / ESU
  * (`\x1b[?2026l`) makes erase+repaint atomic: the terminal keeps showing the
  * old frame until ESU arrives, so no intermediate blank/partial frame is ever
- * painted. This is the same anti-flicker mechanism used by claude-code's ink
- * fork (src/ink/terminal.ts `isSynchronizedOutputSupported`).
+ * painted.
  */
 export function isSynchronizedOutputSupported(): boolean {
   // Explicit escape hatch / debug override

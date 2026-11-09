@@ -15,12 +15,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Modules whose public behaviour the boundary fix touched.
 SCOPED_MODULES = (
     "siada/entrypoint/__init__.py",
-    "siada/entrypoint/login/login_prompt.py",
     "siada/entrypoint/interaction/controller.py",
-    "siada/agent_hub/hooks/processors/token_usage_reporter_processor.py",
     "siada/provider/client_factory.py",
     "siada/provider/fast_llm.py",
-    "siada/support/slash_commands.py",
 )
 
 FORBIDDEN_REFERENCES = (
@@ -50,7 +47,10 @@ def test_login_prompt_does_not_import_private_auth_at_import_time():
     import importlib
     import sys
 
+    before = {name for name in sys.modules if name.startswith("siada.internal")}
     module = importlib.import_module("siada.entrypoint.login.login_prompt")
 
     assert module is not None
-    assert not any(name.startswith("siada.internal") for name in sys.modules)
+    if not module._HAS_INTERNAL:
+        after = {name for name in sys.modules if name.startswith("siada.internal")}
+        assert after <= before

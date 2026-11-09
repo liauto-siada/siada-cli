@@ -17,7 +17,7 @@ const SimpleTest: React.FC = () => {
       <Text>{''}</Text>
 
       <Text bold>1. File Path Highlighting:</Text>
-      <HighlightedText text="查看文件 /home/user/demo-project/src/utils/textHighlighter.ts" />
+      <HighlightedText text="查看文件 /workspace/demo/src/utils/textHighlighter.ts" />
       <Text>{''}</Text>
 
       <Text bold>2. Bash Command Highlighting:</Text>

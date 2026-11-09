@@ -7,6 +7,7 @@ export interface ToolCallDisplayField {
 
 export interface SemanticToolCallDisplay {
   heading: string;
+  headingArgument?: string;
   fields: ToolCallDisplayField[];
   compactSummary: string;
   compactPreview: string;
@@ -40,7 +41,7 @@ function withFields(heading: string, fields: ToolCallDisplayField[], compactSumm
 }
 
 export function getSemanticToolCallDisplay(tool: ParsedToolCall): SemanticToolCallDisplay | null {
-  const details = clean(tool.details);
+  const details = (tool.details || '').trim();
 
   switch (tool.type) {
     case 'analyze': {
@@ -56,12 +57,12 @@ export function getSemanticToolCallDisplay(tool: ParsedToolCall): SemanticToolCa
     case 'memory_search': {
       const query = details;
       const preview = truncate(query);
-      return withFields(
+      return { ...withFields(
         'Search memory',
-        query ? [{ label: 'query', value: query }] : [],
+        [],
         `Search memory${preview ? ` · ${preview}` : ''}`,
-        preview ? `query: ${preview}` : '',
-      );
+        preview,
+      ), headingArgument: query };
     }
     case 'memory_write': {
       const preview = compactDetails(tool.details);
@@ -80,10 +81,17 @@ export function getSemanticToolCallDisplay(tool: ParsedToolCall): SemanticToolCa
       );
     }
     case 'fact_store': {
+      if (tool.action === 'search') {
+        return { ...withFields(
+          'Fact memory search',
+          tool.target ? [{ label: 'target', value: tool.target }] : [],
+          `Fact memory search${details ? ` · ${details}` : ''}`,
+          [tool.target ? `[search / ${tool.target}]` : '[search]', details].filter(Boolean).join(' '),
+        ), headingArgument: details };
+      }
       const preview = compactDetails(tool.details);
       const operation = [tool.action, tool.target].filter(Boolean).join(' / ');
-      const detailLabel = tool.action === 'search' ? 'query'
-        : tool.action === 'probe' || tool.action === 'related' ? 'entity'
+      const detailLabel = tool.action === 'probe' || tool.action === 'related' ? 'entity'
           : tool.action === 'reason' ? 'entities'
             : tool.action === 'add' || tool.action === 'update' ? 'content'
               : 'details';
@@ -137,4 +145,20 @@ export function getSemanticToolCallDisplay(tool: ParsedToolCall): SemanticToolCa
     default:
       return null;
   }
+}
+
+/** The expanded row names the action; its child owns the complete query. */
+export function getQueryToolHeading(tool: ParsedToolCall, content: string): string | null {
+  if (tool.type === 'memory_search') return 'Search memory';
+  if (tool.type === 'fact_store' && tool.action === 'search') return 'Fact memory search';
+  if (tool.type === 'search') return 'Search';
+  if (tool.type === 'web' && /^Web search:/.test(content.replace(/^[▶►]\s*TOOL\s*USE\s*/i, '').trim())) return 'Web Search';
+  return null;
+}
+
+export function getQueryToolArgument(tool: ParsedToolCall, content: string): string | null {
+  if (!getQueryToolHeading(tool, content)) return null;
+  if (tool.type === 'search') return tool.query || '';
+  if (tool.type === 'web') return clean(tool.details).replace(/^search:\s*/, '');
+  return (tool.details || '').trim();
 }

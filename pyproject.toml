@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "siada-cli"
-version = "1.7.35"
+version = "1.7.41b2"
 description = "Siada CLI is a Ai Pair Programming Tool in terminal"
 packages = [
     {include = "siada"},
@@ -9,28 +9,24 @@ packages = [
 ]
 include = [
     {path = "agent_config.yaml", format = ["sdist", "wheel"]},
+    {path = "docs/CREDITS.md", format = ["sdist", "wheel"]},
     "siada/resources/**/*",             # Include built-in skills and resource files
     {path = "siada/agent_hub/coder/prompt/models/gpt6/templates/**/*.md", format = ["sdist", "wheel"]},
     {path = "siada/agent_hub/coder/prompt/models/gpt6/templates/*.toml", format = ["sdist", "wheel"]},
     {path = "siada/agent_hub/coder/prompt/models/kimi_k3/templates/*.md", format = ["sdist", "wheel"]},
     {path = "siada/agent_hub/coder/prompt/models/glm/templates/*.md", format = ["sdist", "wheel"]},
+    {path = "siada/agent_hub/coder/prompt/models/deepseek/templates/*.md", format = ["sdist", "wheel"]},
     {path = "siada_cli_ui/bundle/siada-ui.js", format = ["sdist", "wheel"]},
     {path = "siada_cli_ui/bundle/*.LEGAL.txt", format = ["sdist", "wheel"]},
     {path = "siada_cli_ui/package.json", format = ["sdist", "wheel"]},
-    {path = "docs/CREDITS.md", format = ["sdist", "wheel"]},
-    {path = "docs/zh-CN/CREDITS_zh.md", format = ["sdist", "wheel"]},
+    {path = "siada_cli_ui/bundle/native-clipboard/**/*", format = ["sdist", "wheel"]},
     {path = "chrome-acp/LICENSE", format = ["sdist", "wheel"]},
     {path = "chrome-acp/THIRD_PARTY_NOTICES.md", format = ["sdist", "wheel"]},
-    {path = "NOTICE", format = ["sdist", "wheel"]},
 ]
 exclude = [
-    "**/__pycache__",
-    "**/*.pyc",
-    "siada_cli_ui/node_modules",
-    "siada_cli_ui/dist",
-    "siada_cli_ui/examples",
-    "siada_cli_ui/**/*.map",
-    "siada_cli_ui/bundle/esbuild-meta.json",
+    "**/__pycache__", "**/*.pyc",
+    "siada_cli_ui/node_modules", "siada_cli_ui/dist", "siada_cli_ui/examples",
+    "siada_cli_ui/**/*.map", "siada_cli_ui/bundle/esbuild-meta.json",
 ]
 license = "Apache-2.0"
 readme = "README.md"
@@ -49,15 +45,17 @@ siada-cli = "siada.entrypoint.launch_ui_with_acp:main"
 siada-acp = "siada.acp_server.main:main"
 siada-browser = "siada.browser_addon.cli:main"
 [tool.poetry.dependencies]
-# litellm requires Python <3.14, so cap the supported range accordingly.
+# litellm is a core dependency.
+# requires Python <3.14, so cap the project's supported range accordingly.
 python = ">=3.12,<3.14"
 fastapi = ">=0.110.0,<1.0.0"
 uvicorn = ">=0.27.0,<1.0.0"
 # Align with openai-agents-python reference project versions.
 # Pins track the v0.22.3 release's uv.lock: openai-agents 0.22.3 requires
 # openai>=3.0.0,<4, and its lock pins openai 3.0.0 / litellm 1.83.0 (the
-# litellm extra requires >=1.83.0). The pydantic floor also satisfies the
-# SDK's >=2.12.2 requirement.
+# litellm extra requires >=1.83.0). pydantic tracks the >=2.12.5 floor that
+# google-adk 2.9.1's google-genai dependency imposes (the SDK's own lock pins
+# 2.12.3; the floor is a superset of the SDK's >=2.12.2 requirement).
 pydantic = ">=2.12.5,<3.0.0"
 pydantic-settings = ">=2.2.0,<3.0.0"
 openai-agents = "0.22.3"
@@ -90,6 +88,8 @@ pathspec = ">=0.12.0,<1.0.0"
 mcp = "1.26.0"
 aiohttp = ">=3.8.0,<4.0.0"
 drawille = ">=0.1.0,<1.0.0"
+google-genai = "2.24.0"
+
 concurrent-log-handler = ">=0.9.25,<1.0.0"
 toml = "^0.10.2"
 requests = "^2.31.0"
@@ -104,6 +104,7 @@ lark-oapi = "^1.6.7"
 # Without this, Cmd+V image paste silently does nothing on macOS because the
 # subprocess `python -c "from AppKit import NSPasteboard"` fails to import.
 pyobjc-framework-Cocoa = {version = ">=10.0", markers = "sys_platform == 'darwin'"}
+pymupdf = "^1.28.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0.0,<9.0.0"
@@ -125,3 +126,6 @@ priority = "primary"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py312"

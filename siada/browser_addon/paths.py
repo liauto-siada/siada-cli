@@ -61,7 +61,7 @@ def log_path() -> Path:
 
 
 def node_binary() -> str:
-    """Resolve the same runtime used by the terminal UI."""
+    """Resolve the shared UI/browser runtime without downloading installers."""
     from siada.foundation.node_runtime import find_node
 
     return find_node()

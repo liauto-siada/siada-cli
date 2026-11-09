@@ -11,7 +11,7 @@ export type MessageType = 'user' | 'agent' | 'system' | 'error' | 'tool';
 /**
  * Message subtype for agent messages
  */
-export type AgentMessageSubtype = 'thinking' | 'tool_use' | 'answer' | 'process';
+export type AgentMessageSubtype = 'thinking' | 'tool_use' | 'answer' | 'process' | 'error' | 'error_box';
 
 /**
  * Message role

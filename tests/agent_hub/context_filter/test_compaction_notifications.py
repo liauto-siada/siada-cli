@@ -62,6 +62,7 @@ async def test_notifications_surround_compaction_and_precede_model_input(
 
     strategy.compact = AsyncMock(side_effect=compact)
     filter_ = ApiMessageTransferFilter()
+    monkeypatch.setattr(filter_, "_resolve_effective_context_window", lambda _: None)
     monkeypatch.setattr(
         filter_, "_build_real_message_state",
         AsyncMock(return_value=(messages, 100, 2, "signature")),
@@ -102,10 +103,13 @@ async def test_skipped_compaction_sends_no_notices(compaction_setup):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy_name", ["header_summary", "turn_prune_summary"])
-@pytest.mark.parametrize("context_window", [128_000, 200_000, 1_000_000])
-@pytest.mark.parametrize("remaining_tokens", [60_001, 60_000, 59_999])
-async def test_main_filter_uses_real_headroom_decision(
-    compaction_setup, monkeypatch, strategy_name, context_window, remaining_tokens,
+@pytest.mark.parametrize("context_window, threshold", [
+    (128_000, 68_000), (200_000, 140_000), (500_000, 440_000),
+    (500_001, 375_001), (600_000, 450_000), (1_000_000, 750_000),
+])
+@pytest.mark.parametrize("offset", [-1, 0, 1])
+async def test_main_filter_uses_real_tiered_headroom_decision(
+    compaction_setup, monkeypatch, strategy_name, context_window, threshold, offset,
 ):
     from siada.agent_hub.context_filter.compaction_strategy import _resolve_strategy_by_name
 
@@ -119,12 +123,12 @@ async def test_main_filter_uses_real_headroom_decision(
     )
 
     result = await ApiMessageTransferFilter()._try_compact_real_api_messages(
-        context, messages, context_window - remaining_tokens, context.model_run_config,
+        context, messages, threshold + offset, context.model_run_config,
     )
 
     assert result is messages
-    assert strategy.compact.await_count == int(remaining_tokens <= 60_000)
-    assert bool(notices) is (remaining_tokens <= 60_000)
+    assert strategy.compact.await_count == int(offset >= 0)
+    assert bool(notices) is (offset >= 0)
 
 
 @pytest.mark.asyncio

@@ -1,21 +1,16 @@
 """
-Siada Hub command line tool entry point
+Siada Hub command-line entrypoint.
 """
 from siada.foundation.logging import logger
 
 
+_TOKEN_REFRESH_REGISTERED = False
 _PRE_CALL_HOOK_REGISTERED = False
 _CURRENT_PROVIDER: str = ""
 
 
 def set_current_provider(provider: str) -> None:
-    """Record the current active provider after provider resolution.
-
-    The name is kept process-wide for callers that report it (startup logging,
-    model switches). It does not gate any authentication: every provider in
-    this build talks to the endpoint the user configured with their own
-    credentials.
-    """
+    """Set the current active provider. Called from model_setup after provider is resolved."""
     global _CURRENT_PROVIDER
     _CURRENT_PROVIDER = provider or ""
 
@@ -142,8 +137,7 @@ def _configure_litellm():
         litellm.success_callback = []
         litellm.failure_callback = []
 
-        # Register the pre-call hook that normalizes request messages before
-        # every deployment call (including retries).
+        # Preprocessing leaves the caller's credentials and headers unchanged.
         _register_pre_call_hook()
 
         logger.debug(" logging configuration completed")
@@ -155,12 +149,7 @@ def _configure_litellm():
 
 
 def _register_pre_call_hook():
-    """Register a litellm callback that preprocesses every model request.
-
-    The hook only rewrites the outgoing ``messages`` payload; it never reads or
-    writes credentials and never adds provider-specific headers, so it behaves
-    identically for every provider configured in this build.
-    """
+    """Normalize outgoing messages without reading or writing authentication."""
     global _PRE_CALL_HOOK_REGISTERED
     if _PRE_CALL_HOOK_REGISTERED:
         return
@@ -171,6 +160,7 @@ def _register_pre_call_hook():
     class _SiadaPreCallHook(CustomLogger):
         async def async_pre_call_deployment_hook(self, kwargs, call_type):
             _normalize_empty_assistant_content(kwargs.get("messages"))
+
             return kwargs
 
     if not any(
@@ -179,3 +169,8 @@ def _register_pre_call_hook():
     ):
         litellm.callbacks.append(_SiadaPreCallHook())
     _PRE_CALL_HOOK_REGISTERED = True
+
+
+def _register_token_refresh_callback():
+    """Compatibility alias for the message preprocessing registration."""
+    _register_pre_call_hook()

@@ -61,7 +61,11 @@ class ModelRunConfig(ModelBaseConfig):
                 self.temperature = None  # thinking mode requires temperature=None
             # Apply default reasoning effort if the new model has it configured
             if model_config.default_reasoning_effort:
-                self.reasoning_effort = model_config.default_reasoning_effort
+                from siada.models.model_base_config import coerce_reasoning_effort
+                self.reasoning_effort = coerce_reasoning_effort(
+                    self.model_name, model_config.default_reasoning_effort,
+                    model_config.default_reasoning_effort, self.effort_choices,
+                )
         else:
             raise ValueError(f"Model {model} not found in model settings")
         
@@ -119,7 +123,8 @@ class ModelRunConfig(ModelBaseConfig):
 
         from siada.models.model_base_config import coerce_reasoning_effort
         mapped = coerce_reasoning_effort(
-            self.model_name, user_effort, self.default_reasoning_effort
+            self.model_name, user_effort, self.default_reasoning_effort,
+            self.effort_choices,
         )
         self.reasoning_effort = mapped
         return (user_effort, mapped)
@@ -224,8 +229,8 @@ class ModelRunConfig(ModelBaseConfig):
         try:
             model_config = ModelRunConfig(model_name)
         except ValueError:
-            # agent_config.yaml holds a default model that may not exist in the
-            # currently active model
+            # agent_config.yaml holds a framework default model (e.g.
+            # kivy-kimi-k3) that may not exist in the currently active model
             # settings — this happens when a 'default' provider's model list has
             # replaced the built-in MODEL_SETTING (e.g. on the feishu daemon's
             # 2nd+ message). This baseline is only a seed: callers either override

@@ -30,8 +30,7 @@ from ...selection.model_features import (
 # Adapted from Codex's personality templates:
 #   codex-rs/core/templates/personalities/gpt-5.2-codex_pragmatic.md
 #   codex-rs/core/templates/personalities/gpt-5.2-codex_friendly.md
-# Codex's own "Interaction Style" section is deliberately not carried over —
-# the shared Concise Communication section in rules_shared.py already owns brevity.
+# The shared Concise Communication section in rules_shared.py owns brevity.
 #
 # These blocks carry tone and values ONLY, never behavioural policy.
 # ---------------------------------------------------------------------------

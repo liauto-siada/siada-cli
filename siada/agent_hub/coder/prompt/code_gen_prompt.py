@@ -1,41 +1,21 @@
 import os
 import platform
 from typing import List, Optional
-from .assembly.builder import render_system_prompt
-from .assembly.codex import render_codex_system_prompt
-from .assembly.glm import render_glm_system_prompt
-from .assembly.kimi import render_kimi_system_prompt
-from .models.default.instructions import INTRO, _build_objective
-from .models.gpt5.instructions import get_gpt5_intro
-from .models.gpt6.instructions import get_gpt6_intro
-from .selection.model_features import uses_gpt6_scannable_writing_style
+from .assembly.context import SystemPromptContext
+from .assembly.system import render_coding_system_prompt
 from .sections.capabilities import get_capabilities_for_profile
-from .sections.objectives import GPT5_OBJECTIVE
-from .sections.rules.dispatch import get_rules_for_profile
-from .selection.profiles import PromptFamily, PromptProfile, resolve_prompt_profile
+from .selection.profiles import resolve_prompt_profile
 from siada.services.skills import get_skills_section
 from siada.services.agents import get_agents_section
 from siada.foundation.tools.user_info import get_username
 from siada.models.model_base_config import get_model_config
 
 
-def _get_intro_and_objective(profile: PromptProfile) -> tuple[str, str]:
-    """Keep family-specific prose selection outside the prompt assembly flow."""
-    if profile.family is PromptFamily.GPT6:
-        # GPT-6 splits its writing style per model (Sol/Luna vs Astra family).
-        personality = "scannable" if uses_gpt6_scannable_writing_style(profile.model_name) else "gpt6"
-        return get_gpt6_intro(personality=personality), GPT5_OBJECTIVE
-    if profile.family is PromptFamily.GPT5:
-        return get_gpt5_intro(personality="pragmatic"), GPT5_OBJECTIVE
-    return INTRO, _build_objective()
-
-
 def _skills_context_window(model_name: Optional[str]) -> Optional[int]:
-    """Resolve the model's context window for sizing the skills list budget.
+    """Resolve the model's base context window for sizing the skills list budget.
 
-    Keeps the skills section within its 2% share of the window. Returns None
-    when the model is unknown, in which case the renderer's flat fallback
-    budget applies.
+    Uses the locally configured context_window to keep the skills section
+    within its 2% share. Unknown models use the renderer's fallback budget.
     """
     if not model_name:
         return None
@@ -51,7 +31,8 @@ def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True,
                       extra_capabilities: List[str] = None,
                       model_name: Optional[str] = None,
                       activated_skill_names: Optional[set[str]] = None,
-                      subagent_enabled: bool = True) -> str:
+                      subagent_enabled: bool = True,
+                      available_tool_names: Optional[set[str]] = None) -> str:
     """Generate the system prompt for the code generation agent.
 
     Args:
@@ -65,6 +46,8 @@ def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True,
         subagent_enabled: Whether the sub-agent (`run_subtask`) capability is
             exposed for this run (conf.yaml `sub_agent.enabled`); when False
             its capability bullet is dropped along with the tool itself.
+        available_tool_names: Actual tool names exposed for this run. Optional
+            DeepSeek web guidance is omitted when availability is unknown.
 
     Returns:
         The formatted system prompt string.
@@ -95,46 +78,12 @@ def get_system_prompt(cwd: str = "/default/path", interactive_mode: bool = True,
     # Do not advertise agents when run_subtask is absent from the tool surface.
     agents_section = get_agents_section(cwd) if subagent_enabled else None
 
-    if profile.family is PromptFamily.GPT6:
-        return render_codex_system_prompt(
-            model_name=profile.model_name, cwd=cwd, os_name=os_name, home_dir=home_dir,
-            capabilities=capabilities, interactive_mode=interactive_mode,
-            username=username,
-            preferred_language=preferred_language, skills_section=skills_section,
-            agents_section=agents_section, user_memory=user_memory,
-        )
-
-    if profile.family is PromptFamily.KIMI_K3:
-        return render_kimi_system_prompt(
-            cwd=cwd, os_name=os_name, home_dir=home_dir, capabilities=capabilities,
-            interactive_mode=interactive_mode, username=username,
-            preferred_language=preferred_language, skills_section=skills_section,
-            agents_section=agents_section, user_memory=user_memory,
-        )
-
-    if profile.family is PromptFamily.GLM:
-        return render_glm_system_prompt(
-            cwd=cwd, os_name=os_name, home_dir=home_dir, capabilities=capabilities,
-            interactive_mode=interactive_mode, username=username,
-            preferred_language=preferred_language, skills_section=skills_section,
-            agents_section=agents_section, user_memory=user_memory,
-        )
-
-    intro, objective = _get_intro_and_objective(profile)
-    if username:
-        intro += f"\n\nThe current user is {username}."
-    rules = get_rules_for_profile(
-        cwd, os_name, home_dir, interactive_mode, profile=profile
+    context = SystemPromptContext(
+        cwd=cwd, os_name=os_name, home_dir=home_dir, capabilities=capabilities,
+        interactive_mode=interactive_mode, username=username,
+        preferred_language=preferred_language, skills_section=skills_section,
+        agents_section=agents_section, user_memory=user_memory, agent_name=agent_name,
+        subagent_enabled=subagent_enabled,
+        available_tool_names=frozenset(available_tool_names) if available_tool_names is not None else None,
     )
-    return render_system_prompt(
-        intro=intro,
-        capabilities=capabilities,
-        rules=rules,
-        objective=objective,
-        user_memory=user_memory,
-        preferred_language=preferred_language,
-        agent_name=agent_name,
-        skills_section=skills_section,
-        agents_section=agents_section,
-        profile=profile,
-    )
+    return render_coding_system_prompt(profile, context)

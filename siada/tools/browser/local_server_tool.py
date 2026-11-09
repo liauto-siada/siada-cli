@@ -42,23 +42,22 @@ def find_available_port(start_port: int = 8000, max_attempts: int = 100) -> int:
 @function_tool(
     name_override="start_local_html_server",
     description_override="""
-Start a local HTML server.
+启动本地HTML服务器工具。
 
-Starts a local HTTP server in the given directory; the server URL is
-automatically suffixed with /card for identification.
+此工具用于在指定路径下启动一个本地HTTP服务器，服务器URL会自动添加 /card 后缀以便识别。
 
-Args:
-    html_path (str): Directory containing the HTML files
+参数:
+    html_path (str): 包含HTML文件的目录路径
 
-Returns:
-    str: The local server URL in the form http://localhost:<port>/card
+返回:
+    str: 本地服务器URL，格式为 http://localhost:端口/card
 
-Features:
-- Automatically finds an available port
-- Runs the server in the background
-- URL carries a /card suffix for easy identification
+功能特点:
+- 自动查找可用端口
+- 后台运行服务器
+- URL带有 /card 后缀便于识别
 
-Example:
+使用示例:
     start_local_html_server("/path/to/html/files")
     # Returns: "http://localhost:8000/card"
 """
@@ -70,11 +69,11 @@ def start_local_html_server(
     """Start a local HTML server.
     
     Args:
-        context: The runtime context.
-        html_path: The directory path containing the HTML files.
+        context: Runtime context.
+        html_path: Directory containing the HTML files.
         
     Returns:
-        str: The server URL with a /card suffix.
+        str: Server URL with a /card suffix.
         
     Raises:
         ValueError: If the path is invalid or contains no HTML files.
@@ -132,27 +131,27 @@ def start_local_html_server(
         return f"http://localhost:{port}/?card=true"
         
     except Exception as e:
-        raise RuntimeError(f"Failed to start local server: {str(e)}")
+        raise RuntimeError(f"启动本地服务器失败: {str(e)}")
 
 
 @function_tool(
     name_override="stop_local_html_server",
     description_override="""
-Stop a local HTML server.
+停止本地HTML服务器工具。
 
-Stops the local HTTP server on the given port.
+此工具用于停止指定端口的本地HTTP服务器。
 
-Args:
-    port (int): Port of the server to stop
+参数:
+    port (int): 要停止的服务器端口号
 
-Returns:
-    str: Result message
+返回:
+    str: 操作结果信息
 
-Features:
-- Gracefully shuts down the server process
-- Cleans up related resources
+功能特点:
+- 优雅关闭服务器进程
+- 清理相关资源
 
-Example:
+使用示例:
     stop_local_html_server(8000)
     # Returns: "Server on port 8000 stopped successfully"
 """
@@ -164,11 +163,11 @@ def stop_local_html_server(
     """Stop a local HTML server.
     
     Args:
-        context: The runtime context.
-        port: The port number of the server to stop.
+        context: Runtime context.
+        port: Port number of the server to stop.
         
     Returns:
-        str: The operation result message.
+        str: Operation result message.
     """
     try:
         if not hasattr(context.context, '_local_servers'):

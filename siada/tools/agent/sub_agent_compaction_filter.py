@@ -78,6 +78,7 @@ from siada.agent_hub.context_filter.header_summary_compaction_strategy import (
 )
 from siada.agent_hub.context_filter.utils import calculate_tokens
 from siada.foundation.logging import get_log_directory, logger
+from siada.provider.token_counting import token_counting_info_from_config
 
 if TYPE_CHECKING:
     from siada.models.model_run_config import ModelRunConfig
@@ -377,8 +378,8 @@ def make_sub_agent_compaction_filter(
             session.session_id, effective_input, "filter-entry", include_items=False
         )
 
-        model_name = model_run_config.model_name
-        token_count = calculate_tokens(model_name, effective_input)
+        counting_info = token_counting_info_from_config(model_run_config)
+        token_count = calculate_tokens(counting_info.model_name, effective_input, counting_info=counting_info)
         threshold = get_compaction_token_threshold(model_run_config.context_window)
 
         logger.info(

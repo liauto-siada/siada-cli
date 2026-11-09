@@ -418,7 +418,7 @@ def test_non_fork_subtask_uses_the_same_gpt5_or_newer_file_tools():
 
 @pytest.mark.parametrize("model_name", [
     "claude-sonnet-5", "gpt-5.4", "gpt-6-astra", "gpt-6-sol",
-    "gpt-6-luna", "gpt-6.1-sol", "glm-5.3",
+    "gpt-6-luna", "gpt-6.1-sol", "lpai-glm-5.3",
 ])
 @pytest.mark.parametrize("interactive_mode, is_subagent, runtime_source", [
     (True, False, RuntimeSource.CLI),

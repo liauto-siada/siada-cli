@@ -1252,6 +1252,7 @@ class ProactiveScheduler:
     def _run_async(coro: Awaitable) -> None:
         """Run a coroutine from a synchronous APScheduler thread."""
         from siada.provider.provider_factory import run_in_provider_runtime
+
         try:
             asyncio.run(run_in_provider_runtime(coro))
         except Exception as e:

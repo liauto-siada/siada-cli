@@ -42,15 +42,21 @@ def is_gpt6_model(model_name: Optional[str]) -> bool:
     return _gpt_main_version(model_name) == 6 or is_astra_model(model_name)
 
 
+def is_gpt6_or_newer_model(model_name: Optional[str]) -> bool:
+    """Identify GPT-6+ generations and the Astra alias for delegation policy."""
+    version = _gpt_main_version(model_name)
+    return (version is not None and version >= 6) or is_astra_model(model_name)
+
+
 _GPT6_MINOR_REVISION_PATTERN = re.compile(r"gpt[-_]?6\.(\d+)")
 
 
 def uses_gpt6_scannable_writing_style(model_name: Optional[str]) -> bool:
     """GPT-6 Sol and Luna use the first-read writing style.
 
-    Codex ships those models with instructions that minimize cognitive load,
+    These models use instructions that minimize cognitive load,
     while Astra and later numbered Sol revisions (6.1+) keep the
-    connected-prose template. Siada mirrors that split so terminal answers
+    connected-prose template. This split keeps terminal answers
     stay scannable on the models users reported as hard to read.
     """
     if not is_gpt6_model(model_name):
@@ -91,6 +97,12 @@ def uses_glm_prompt_profile(model_name: Optional[str]) -> bool:
 
 def uses_glm_repeated_tool_reminder(model_name: Optional[str]) -> bool:
     return is_glm_profile_model(model_name)
+
+
+def is_deepseek_profile_model(model_name: str | None) -> bool:
+    if not model_name or _gpt_main_version(model_name) is not None:
+        return False
+    return re.search(r"(?:^|[^a-z0-9])deepseek(?=$|[^a-z0-9])", str(model_name).lower()) is not None
 
 
 def resolve_skill_usage_profile(model_name: Optional[str]) -> SkillUsageProfile:

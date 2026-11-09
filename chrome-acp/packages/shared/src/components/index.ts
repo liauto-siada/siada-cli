@@ -6,3 +6,4 @@ export * from "./FileExplorer";
 export * from "./ThreadHistory";
 export * from "./model-selector";
 export * from "./trace";
+export * from "./DisplaySettings";

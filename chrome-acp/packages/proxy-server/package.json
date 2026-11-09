@@ -1,6 +1,6 @@
 {
   "name": "@chrome-acp/proxy-server",
-  "version": "1.0.46",
+  "version": "1.7.41",
   "description": "Proxy server that connects ACP agents to Chrome extension, exposing browser tools via MCP",
   "author": "Areo Joe <zengjoe@foxmail.com>",
   "repository": {
@@ -23,8 +23,7 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
-    "build": "tsc && node ../../scripts/copy-licenses.mjs .",
-    "prepack": "bun run build",
+    "build": "tsc && node ../../scripts/copy-interactive-resources.mjs && node ../../scripts/copy-licenses.mjs",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
@@ -40,16 +39,19 @@
     "@agentclientprotocol/sdk": "^0.14.1",
     "@hono/node-server": "^1.13.8",
     "@hono/node-ws": "^1.0.5",
+    "@parcel/watcher": "^2.5.6",
     "@stricli/auto-complete": "^1.2.4",
     "@stricli/core": "^1.2.4",
+    "esbuild": "0.28.1",
     "hono": "^4.7.0",
     "pino": "^10.3.0",
-    "@parcel/watcher": "^2.5.6",
+    "playwright": "1.58.2",
     "qrcode": "^1.5.4",
-    "selfsigned": "^5.5.0"
+    "selfsigned": "^5.5.0",
+    "three": "0.186.1"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=18"
   },
   "keywords": [
     "acp",

@@ -14,13 +14,7 @@ if TYPE_CHECKING:
 
 CLIENT_DIR = os.path.dirname(__file__)
 client_map: Dict[str, LLMClient] = {}
-
-# Provider key this build ships: it talks to the endpoint the user configured
-# (custom base URL + API key, or any OpenAI-compatible service).
 DEFAULT_PROVIDER_KEY = "default"
-
-# Provider names already reported as unknown, so a stale key in conf.yaml warns
-# once instead of on every request.
 _unknown_providers_warned: set[str] = set()
 
 def _discover_clients():
@@ -41,7 +35,7 @@ def _discover_clients():
                             if inspect.isclass(attr) and issubclass(attr, LLMClient) and attr is not LLMClient:
                                 client_map[client_key] = attr()
                     except ImportError as e:
-                        print(f"Error importing client module {module_name}: {e}")
+                        logger.warning("Client module could not be imported: %s", type(e).__name__)
 
 _discover_clients()
 
@@ -54,36 +48,23 @@ def get_client(p_type: provider_type | None = None) -> LLMClient:
     Retrieves the LLM client instance based on the client name.
 
     Args:
-        p_type (provider_type | None): The name of the provider. This build
-            registers ``default``, which talks to the endpoint the user
-            configured. An unknown or legacy name (for example a provider key
-            left over from another distribution) resolves to that same client
-            rather than failing the request; ``None`` behaves the same way.
+        p_type (provider_type | None): The name of the provider, e.g., 'li'. 
+                                     If None, defaults to the first available client.
 
     Returns:
         LLMClient: The corresponding LLM client instance.
 
     Raises:
-        ValueError: If no LLM client is registered at all.
+        ValueError: If the client name is not supported.
     """
     if p_type and p_type in client_map:
         return client_map[p_type]
-
-    fallback = client_map.get(DEFAULT_PROVIDER_KEY)
-    if fallback is None and len(client_map) == 1:
-        # Single-provider build: that provider is the user endpoint by definition.
-        fallback = next(iter(client_map.values()))
-
-    if fallback is not None:
+    default_client = client_map.get(DEFAULT_PROVIDER_KEY)
+    if default_client is not None:
         if p_type and p_type not in _unknown_providers_warned:
+            logger.warning("Provider unavailable; using the configured default endpoint")
             _unknown_providers_warned.add(p_type)
-            logger.warning(
-                "Unknown LLM provider %r; using the '%s' client (user-configured "
-                "endpoint) instead.",
-                p_type,
-                DEFAULT_PROVIDER_KEY if DEFAULT_PROVIDER_KEY in client_map else next(iter(client_map)),
-            )
-        return fallback
+        return default_client
 
     raise ValueError("No LLM clients found or registered.")
 

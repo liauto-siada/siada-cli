@@ -25,11 +25,13 @@ export const ToolHeading: React.FC<{
   failed?: boolean;
   accent?: string;
   suffix?: React.ReactNode;
-}> = ({ parts, hint, failed = false, accent, suffix }) => {
+  /** Single-row callers clip the aggregate instead of wrapping into the next row. */
+  wrap?: 'wrap' | 'truncate-end';
+}> = ({ parts, hint, failed = false, accent, suffix, wrap = 'wrap' }) => {
   useThemeVersion();
   const headingAccent = failed ? colors.error : (accent ?? colors.info);
   return (
-    <Text>
+    <Text wrap={wrap}>
       <Text color={headingAccent}>●</Text>{' '}
       {parts.map((part, index) => (
         <React.Fragment key={`${index}-${part}`}>

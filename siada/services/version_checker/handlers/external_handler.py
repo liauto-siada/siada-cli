@@ -1,8 +1,4 @@
-"""Version handler for externally installed builds (PyPI).
-
-The handler queries the public PyPI JSON API for the ``siada-cli`` release
-version and upgrades through ``pip``; it needs no other version source.
-"""
+"""Public PyPI release handler."""
 
 import os
 import platform
@@ -14,7 +10,7 @@ from ..base import VersionHandler as BaseVersionHandler
 
 
 class VersionHandler(BaseVersionHandler):
-    """Report and install the newest version published on PyPI."""
+    """Query PyPI and upgrade through the active Python environment."""
 
     def __init__(self):
         self.pypi_url = "https://pypi.org/pypi/siada-cli/json"
@@ -24,20 +20,17 @@ class VersionHandler(BaseVersionHandler):
     def get_version(self) -> Tuple[Optional[str], str]:
         try:
             import requests
-            response = requests.get(self.pypi_url, timeout=self.timeout)
-            data = response.json()
+            data = requests.get(self.pypi_url, timeout=self.timeout).json()
             return data["info"]["version"], "success"
-        except Exception as e:
-            return None, f"error: {e}"
+        except Exception as error:
+            return None, f"error: {error}"
 
     def get_install_message(self, latest_version: Optional[str] = None) -> str:
-        if latest_version:
-            return f"Newer version v{latest_version} is available."
-        return "Install latest version?"
+        return f"Newer version v{latest_version} is available." if latest_version else "Install latest version?"
 
     def _get_pip_command(self):
         return [sys.executable, "-m", "pip", "install", "--upgrade",
-                "--upgrade-strategy", "only-if-needed"] + self.pip_args
+                "--upgrade-strategy", "only-if-needed", *self.pip_args]
 
     def get_manual_upgrade_hint(self) -> str:
         return shlex.join(self._get_pip_command())
@@ -61,13 +54,11 @@ class VersionHandler(BaseVersionHandler):
         if success:
             io.print_info("Re-run siada-cli to use new version.")
             sys.exit()
-            return True
-        else:
-            io.print_error(output)
-            print()
-            print("Install failed, try running this command manually:")
-            print(shlex.join(cmd))
-            return False
+        io.print_error(output)
+        print()
+        print("Install failed, try running this command manually:")
+        print(shlex.join(cmd))
+        return False
 
 
 __all__ = ["VersionHandler"]

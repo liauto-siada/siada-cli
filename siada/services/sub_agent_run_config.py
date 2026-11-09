@@ -8,11 +8,13 @@ single implementation they can both reuse.
 """
 import copy
 import logging
+from dataclasses import dataclass, field
 from typing import Optional
 
 from agents import RunConfig
 
 from siada.foundation.code_agent_context import CodeAgentContext
+from siada.models.model_run_config import ModelRunConfig
 from siada.models.model_setting_converter import ModelSettingsConverter
 from siada.provider.provider_factory import get_provider, resolve_provider_by_model
 from siada.services.input_processor import process_input
@@ -21,13 +23,24 @@ from siada.services.model_wrapper import ModelProviderWrapper
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class SubAgentRunConfig(RunConfig):
+    """Keep the resolved model configuration with the run that uses it."""
+
+    model_run_config: ModelRunConfig = field(kw_only=True, repr=False, compare=False)
+
+
 def resolve_sub_agent_llm_config(context: CodeAgentContext):
     """Resolve the effective LLM config for sub-agents launched from ``context``.
 
     Priority:
       1. conf.yaml ``sub_agent.llm_config.model`` (when set and different from
          the parent's model)
-      2. The parent agent's session llm_config (original behaviour)
+      2. The parent agent's effective LLM config: for a sub-agent parent this
+         is the model that parent actually runs on (``subagent_llm_config``,
+         e.g. a named-agent ``model`` override), so a recursive grandchild
+         inherits its direct parent's model; for the main agent it is the
+         session's llm_config (original behaviour)
 
     A model-only override inherits the parent's provider so it keeps using the
     same gateway. An explicitly configured sub-agent provider takes precedence.
@@ -36,7 +49,14 @@ def resolve_sub_agent_llm_config(context: CodeAgentContext):
     know the sub-agent's model *before* the run starts (e.g. adapting forked
     tool lists) resolve it exactly the same way.
     """
-    parent_llm = context.session.siada_config.llm_config
+    # A sub-agent context carries its own effective config; prefer it over the
+    # (root) session's llm_config so model inheritance follows direct
+    # parentage under ``allow_recursive_subagents``.
+    inherited = getattr(context, "subagent_llm_config", None)
+    if inherited is not None:
+        parent_llm = inherited
+    else:
+        parent_llm = context.session.siada_config.llm_config
 
     llm_config = parent_llm
     try:
@@ -44,7 +64,6 @@ def resolve_sub_agent_llm_config(context: CodeAgentContext):
         conf = load_conf()
         sub_llm = conf.sub_agent_config.llm_config
         if sub_llm and sub_llm.model and sub_llm.model != parent_llm.model_name:
-            from siada.models.model_run_config import ModelRunConfig
             mrc = ModelRunConfig(sub_llm.model)
             mrc.provider = resolve_provider_by_model(
                 sub_llm.model, sub_llm.provider or parent_llm.provider
@@ -131,7 +150,6 @@ def _model_override_llm_config(model_name: str, base_llm_config):
     (with a warning) instead of silently falling back to a default model.
     """
     from siada.models.model_base_config import get_model_config
-    from siada.models.model_run_config import ModelRunConfig
 
     if get_model_config(model_name) is None:
         logger.warning(
@@ -178,7 +196,7 @@ def build_sub_agent_run_config(
     context: CodeAgentContext,
     effort: Optional[str] = None,
     model: Optional[str] = None,
-) -> RunConfig:
+) -> SubAgentRunConfig:
     """Build a RunConfig for a sub-agent launched from inside a tool call.
 
     Reads LLM configuration using the following priority:
@@ -221,42 +239,37 @@ def build_sub_agent_run_config(
     if effort:
         llm_config = _with_reasoning_effort(llm_config, effort)
 
-    model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
-    provider_name = resolve_provider_by_model(
+    # The inherited configuration belongs to the parent session. A per-run
+    # snapshot keeps compaction aligned with this run if the session changes.
+    llm_config = copy.copy(llm_config)
+    llm_config.provider = resolve_provider_by_model(
         llm_config.model_name, llm_config.provider
     )
-    # A model-only override inherits the parent's gateway. Older configurations
-    # may also reference a provider absent from this distribution; prefer the
-    # parent's active provider before using the public endpoint provider.
+    model_settings = ModelSettingsConverter.convert_model_settings(llm_config)
     # Resolve overrides through the parent's runtime loop pool, not a
     # process-wide provider or a new per-agent connection pool.
-    candidates = dict.fromkeys(
-        name for name in (
-            provider_name,
-            context.provider,
-            context.session.siada_config.llm_config.provider,
-            "default",
-        ) if name
-    )
+    candidates = dict.fromkeys(name for name in (
+        llm_config.provider, context.provider,
+        context.session.siada_config.llm_config.provider, "default",
+    ) if name)
     for candidate in candidates:
         try:
             model_provider = get_provider(candidate)
+            llm_config.provider = resolve_provider_by_model(llm_config.model_name, candidate)
             break
         except ValueError:
             if candidate == "default":
                 raise
-            logger.warning(
-                "[build_sub_agent_run_config] provider unavailable; "
-                "trying the inherited provider or the default endpoint"
-            )
+            logger.warning("Sub-agent provider unavailable; trying the inherited endpoint")
     provider_wrapper = ModelProviderWrapper(
         base_provider=model_provider,
         input_processor=process_input,
     )
 
-    return RunConfig(
+    return SubAgentRunConfig(
         tracing_disabled=context.session.siada_config.tracing_disabled,
         model=llm_config.model_name,
+        model_run_config=llm_config,
         model_provider=provider_wrapper,
         model_settings=model_settings,
         workflow_name="SubTaskAgent",

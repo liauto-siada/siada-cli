@@ -1,3 +1,4 @@
+import './helpers/chineseLocale.js';
 import React from 'react';
 import { PassThrough } from 'node:stream';
 import { render } from '@jrichman/ink';
@@ -57,13 +58,13 @@ describe('DeepSeek API key configuration', () => {
     );
     await vi.waitFor(() => expect(state.keypress).not.toBeNull());
     state.keypress!({ name: 'return' });
-    await vi.waitFor(() => expect(output).toContain('Choose Provider'));
+    await vi.waitFor(() => expect(output).toContain('选择服务商'));
     if (!providers?.length) {
       state.keypress!({ name: 'down' });
-      await vi.waitFor(() => expect(output).toContain('▶ DeepSeek'));
+      await vi.waitFor(() => expect(output).toContain('› DeepSeek'));
     }
     state.keypress!({ name: 'return' });
-    await vi.waitFor(() => expect(output).toContain('DeepSeek — Choose Model'));
+    await vi.waitFor(() => expect(output).toContain('DeepSeek · 选择模型'));
     const model = providers?.length ? 'deepseek-v4-pro' : 'deepseek-flash';
     state.keypress!({ name: 'return' });
     await vi.waitFor(() => expect(state.submitKey).not.toBeNull());

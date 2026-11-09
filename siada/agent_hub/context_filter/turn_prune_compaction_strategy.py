@@ -114,7 +114,7 @@ class TurnPruneSummaryCompaction(CompactionStrategy):
         _t_split = time.perf_counter() - _t0
 
         if not to_summarize:
-            return CompactionResult(messages=messages, compacted=False)
+            return CompactionResult(messages=messages, compacted=False, reason="no_compressible_history")
 
         # Prune + truncate tool results so it fits the LLM budget
         _t0 = time.perf_counter()
@@ -132,7 +132,7 @@ class TurnPruneSummaryCompaction(CompactionStrategy):
                 len(messages), _t_split * 1000, _t_prepare * 1000,
                 (time.perf_counter() - _t_compact_start) * 1000,
             )
-            return CompactionResult(messages=recent, compacted=False)
+            return CompactionResult(messages=recent, compacted=False, reason="no_history_after_prepare")
 
         # Single LLM call to summarize (uses base class template method)
         _t0 = time.perf_counter()
@@ -148,7 +148,7 @@ class TurnPruneSummaryCompaction(CompactionStrategy):
                 _t_llm_summarize * 1000,
                 (time.perf_counter() - _t_compact_start) * 1000,
             )
-            return CompactionResult(messages=messages, compacted=False)
+            return CompactionResult(messages=messages, compacted=False, reason="empty_summary")
 
         compacted = self._assemble_compacted(summary, recent)
         logger.info(

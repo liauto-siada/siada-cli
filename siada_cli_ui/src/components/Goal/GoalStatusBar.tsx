@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text } from '@jrichman/ink';
-import stringWidth from 'string-width';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { bilingual, t, useUiLanguage } from '../../i18n/index.js';
+import { Box, Text, type DOMElement } from '@jrichman/ink';
+import stringWidth from '../../utils/terminalWidth.js';
 import type { GoalState } from '../../hooks/useAcp/types.js';
 import { formatDate } from '../../utils/formatter.js';
+import { colors } from '../../utils/colors.js';
+import { goalElapsedSeconds, goalObjectivePreview, goalStatusLabel } from '../../utils/goalDisplay.js';
+import { SpotlightThinking } from '../common/SpotlightThinking.js';
+import { DisclosureArrow } from '../common/DisclosureArrow.js';
 
 
 
@@ -24,20 +30,25 @@ export interface GoalStatusBarProps {
    * status row to show the full goal objective/status/start time.
    */
   isCollapsed?: boolean;
+  hoverColor?: string;
+  onLabelRef?: React.Ref<DOMElement>;
+  compact?: boolean;
 }
 
 
 const STATUS_COLORS: Record<string, string> = {
   active: 'cyan',
+  paused: 'gray',
   blocked: 'red',
   complete: 'green',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Goal (active)',
-  blocked: 'Goal (blocked)',
-  complete: 'Goal complete',
-};
+const STATUS_LABELS: Record<string, string> = bilingual({
+  active: '目标（进行中）',
+  paused: '目标（已暂停）',
+  blocked: '目标（待处理）',
+  complete: '目标已完成',
+}, { active: 'Goal (active)', paused: 'Goal (paused)', blocked: 'Goal (blocked)', complete: 'Goal complete' });
 
 /** Mirrors ThinkingIndicator's formatTime — keeps the "Ns" / "Nm Ns" style
  * consistent across every elapsed-time display in the UI. */
@@ -83,61 +94,101 @@ const truncateNotice = (text: string, maxWidth: number): string => {
 };
 
 
-export const GoalStatusBar: React.FC<GoalStatusBarProps> = ({ goalState, width, notice, isCollapsed = true }) => {
+export const GoalStatusBar: React.FC<GoalStatusBarProps> = ({
+  goalState, width, notice, isCollapsed = true, hoverColor, onLabelRef, compact = false,
+}) => {
+  useUiLanguage();
   const goal = goalState?.goal;
   const createdAt = goal?.createdAt;
   const status = goal?.status;
   const turns = goal?.turns;
 
 
-  // Live "time since goal was set" counter, ticking every second — same
-  // pattern as ThinkingIndicator's elapsedSeconds timer. Computed from the
-  // backend's ISO-8601 `createdAt` rather than incrementing a local counter,
-  // so it stays correct across re-renders/remounts (e.g. resumed sessions)
-  // instead of resetting to 0.
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [nowMs, setNowMs] = useState(Date.now);
+  const elapsedSeconds = goalElapsedSeconds(goalState, nowMs);
 
   useEffect(() => {
-    if (!createdAt) {
-      setElapsedSeconds(0);
-      return;
-    }
-    const startMs = new Date(createdAt).getTime();
-    const tick = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
-    tick(); // paint immediately instead of waiting a full second for the first tick
-
-    // Once the goal is complete, freeze the counter at whatever it just
-    // computed above instead of continuing to tick — the goal is done, so
-    // "time elapsed" should stop advancing rather than keep counting up
-    // toward the moment the status bar eventually disappears.
-    if (status === 'complete') {
-      return;
-    }
-
-    const timer = setInterval(tick, 1000);
+    setNowMs(Date.now());
+    if (status !== 'active') return;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [createdAt, status]);
+  }, [createdAt, status, goal?.elapsedUpdatedAt]);
 
   // Nothing to show at all — no persistent goal AND no transient notice.
   if (!goal && !notice) return null;
 
+  if (compact) {
+    const rowWidth = Math.max(1, width ?? 80);
+    if (!goal) {
+      return <Box height={1} width={rowWidth}>
+        <Text color={colors.content.secondary} wrap="truncate-end">
+          {truncateNotice((notice ?? '').replace(/\s+/g, ' '), rowWidth)}
+        </Text>
+      </Box>;
+    }
+    let label = goalStatusLabel(goalState);
+    let prefix = '› Goal  ';
+    let separator = ' · ';
+    const metrics = [
+      goal.status,
+      elapsedSeconds !== undefined ? formatElapsed(elapsedSeconds) : '',
+      typeof turns === 'number' ? `${turns} turn${turns === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
+    const formatMetrics = () => ` (${metrics.join(' · ')})`;
+    let elapsedText = formatMetrics();
+    const animationWidth = goalState?.verifying ? 2 : 0;
+    const fixedWidth = () => stringWidth(prefix + separator + label + elapsedText) + animationWidth;
+    // Preserve activity, lifecycle state and timing before allocating objective columns.
+    if (fixedWidth() > rowWidth) {
+      if (label === 'Automatic continuation stopped') label = 'Blocked';
+      else if (label === 'Verification error') label = 'Check error';
+    }
+    if (fixedWidth() > rowWidth) {
+      prefix = '› Goal ';
+      separator = '';
+    }
+    if (fixedWidth() > rowWidth && typeof turns === 'number') {
+      metrics[metrics.length - 1] = `${turns}t`;
+      elapsedText = formatMetrics();
+    }
+    const objective = separator ? goalObjectivePreview(goal.objective,
+      Math.min(24, Math.max(0, rowWidth - fixedWidth()))) : '';
+    const statusColor = goalState?.verifying ? 'yellow' : goal.status === 'blocked' ? 'red'
+      : goalState?.result?.outcome === 'system_error' ? 'yellow' : STATUS_COLORS[goal.status];
+    return <Box height={1} width={rowWidth} overflowX="hidden">
+      <Box ref={onLabelRef} flexShrink={1}>
+        <Text wrap="truncate-end" backgroundColor={hoverColor ? colors.content.surface : undefined}>
+          <Text color={hoverColor ?? colors.content.secondary} bold>
+            <DisclosureArrow glyph="›" hovered={Boolean(hoverColor)} />{prefix.slice(1)}
+          </Text>
+          <Text color={hoverColor}>{objective}</Text>
+          <Text color={hoverColor ?? statusColor}>{separator}</Text>
+          {goalState?.verifying
+            ? <SpotlightThinking text={label} ring />
+            : <Text color={hoverColor ?? statusColor}>{label}</Text>}
+          <Text color={hoverColor ?? colors.content.secondary}>{elapsedText}</Text>
+        </Text>
+      </Box>
+    </Box>;
+  }
+
   const color = goal ? (STATUS_COLORS[goal.status] ?? 'white') : 'white';
-  const label = goal ? (STATUS_LABELS[goal.status] ?? 'Goal') : null;
+  const label = goal ? (STATUS_LABELS[goal.status] ?? t('目标', 'Goal')) : null;
 
   // Plain-text width of the right-side label block (status label + elapsed
   // time), so the notice on the left can be truncated to whatever room is
   // actually left on this single row instead of overflowing onto a second
   // line. Mirrors the exact text rendered further below.
-  const elapsedText = createdAt && elapsedSeconds > 0
+  const elapsedText = elapsedSeconds !== undefined
     ? ` (${formatElapsed(elapsedSeconds)}${
-        typeof turns === 'number' && turns > 0 ? ` · ${turns} turn${turns === 1 ? '' : 's'}` : ''
+        typeof turns === 'number' ? t(` · ${turns} 轮`, ` · ${turns} turn${turns === 1 ? '' : 's'}`) : ''
       })`
     : '';
   // Same "(ctrl+o to expand)" convention as the goal_result chat message
   // (Message.tsx) — only shown while collapsed, so the hint disappears once
   // the user has already expanded the detail block below.
-  const hintText = goal && isCollapsed ? ' (ctrl+o for details)' : '';
-  const labelWidth = label ? label.length + elapsedText.length + hintText.length : 0;
+  const hintText = goal && isCollapsed ? ` ${PANEL_TIPS.goalDetails}` : '';
+  const labelWidth = label ? stringWidth(label + elapsedText + hintText) : 0;
 
   const rowWidth = width ? width - 2 : 80;
   // Reserve: "●" bullet (1) + gap between bullet/text (1) + gap between the
@@ -145,11 +196,11 @@ export const GoalStatusBar: React.FC<GoalStatusBarProps> = ({ goalState, width, 
   const noticeMaxWidth = rowWidth - 2 - (labelWidth ? labelWidth + 1 : 0);
   const displayNotice = notice ? truncateNotice(notice, noticeMaxWidth) : notice;
 
-  const elapsedCore = createdAt && elapsedSeconds > 0 ? formatElapsed(elapsedSeconds) : '';
-  const turnsSuffix = typeof turns === 'number' && turns > 0
-    ? ` · ${turns} turn${turns === 1 ? '' : 's'}`
+  const elapsedCore = elapsedSeconds !== undefined ? formatElapsed(elapsedSeconds) : '';
+  const turnsSuffix = typeof turns === 'number'
+    ? t(` · ${turns} 轮`, ` · ${turns} turn${turns === 1 ? '' : 's'}`)
     : '';
-  const hintChunk = goal && isCollapsed ? '(ctrl+o for details)' : '';
+  const hintChunk = goal && isCollapsed ? PANEL_TIPS.goalDetails : '';
 
   const noticeBlockWidth = displayNotice ? 2 + stringWidth(displayNotice) : 0;
   const availableForLabelBlock = Math.max(
@@ -230,8 +281,9 @@ export const GoalStatusBar: React.FC<GoalStatusBarProps> = ({ goalState, width, 
           // for this flex child differs even slightly from what we assumed;
           // nesting everything inside one wrap-controlled <Text> removes
           // that assumption entirely.
-          <Text wrap="truncate-end">
-            <Text color={color} bold={goal?.status === 'complete'}>
+          <Box ref={onLabelRef} flexShrink={1}>
+          <Text wrap="truncate-end" backgroundColor={hoverColor ? colors.content.surface : undefined}>
+            <Text color={hoverColor ?? color} bold={Boolean(hoverColor) || goal?.status === 'complete'}>
               {displayLabel}
             </Text>
             {includeElapsed && (
@@ -245,6 +297,7 @@ export const GoalStatusBar: React.FC<GoalStatusBarProps> = ({ goalState, width, 
               </Text>
             )}
           </Text>
+          </Box>
         )}
 
       </Box>
@@ -264,13 +317,13 @@ export const GoalStatusBar: React.FC<GoalStatusBarProps> = ({ goalState, width, 
           width={width ? width - 2 : undefined}
         >
           <Text>
-            <Text dimColor>Objective: </Text>
+            <Text dimColor>{t('目标：', 'Objective: ')}</Text>
             <Text color="gray">{goal.objective}</Text>
           </Text>
           <Text color="gray" dimColor>
-            Status: {goal.status}
-            {createdAt ? ` · Started: ${formatDate(createdAt)}` : ''}
-            {typeof turns === 'number' ? ` · Turns: ${turns}` : ''}
+            {t('状态：', 'Status: ')}{STATUS_LABELS[goal.status] ?? goal.status}
+            {createdAt ? t(` · 开始于：${formatDate(createdAt)}`, ` · Started: ${formatDate(createdAt)}`) : ''}
+            {typeof turns === 'number' ? t(` · 轮数：${turns}`, ` · Turns: ${turns}`) : ''}
           </Text>
         </Box>
       )}

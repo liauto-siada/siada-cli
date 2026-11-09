@@ -19,24 +19,48 @@ _loop_pools: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, "ProviderPool"
 _Result = TypeVar("_Result")
 logger = logging.getLogger(__name__)
 
+# Legacy provider keys that no longer ship their own provider implementation.
+# Old sessions/configs may still carry these names; alias them to their
+# successor so they keep working.
+_LEGACY_PROVIDER_ALIASES = {"openai_agents": "default"}
+
+
+def _normalize_provider_key(p_type: Optional[str]) -> Optional[str]:
+    """Map legacy provider keys to their current equivalent."""
+    if p_type is not None and not isinstance(p_type, str):
+        return "default"
+    if p_type in _LEGACY_PROVIDER_ALIASES:
+        return _LEGACY_PROVIDER_ALIASES[p_type]
+    if p_type and p_type != "default" and p_type not in provider_map:
+        directory = os.path.join(PROVIDER_DIR, p_type)
+        available = (
+            p_type.isidentifier() and os.path.isdir(directory)
+            and any(name.endswith("_provider.py") for name in os.listdir(directory))
+        )
+        if not available:
+            return "default"
+    return p_type
+
 
 def resolve_provider_by_model(model_name: Optional[str], default_provider: Optional[str] = None) -> Optional[str]:
     """
     Resolve the provider name for a given model.
 
     Protocol routing (e.g. GPT-5.x models going through the native OpenAI
-    Responses API) is handled inside each provider itself. This hook remains
-    for provider-level overrides; currently no special rules apply and
-    ``default_provider`` is always returned.
+    Responses API) is handled inside each provider itself. The ``default``
+    provider routes Responses-only models to ``ResponsesModel`` with its
+    own transport. This hook remains for provider-level overrides; currently
+    no special rules apply and ``default_provider`` is always returned
+    (after legacy-key normalization).
 
     Args:
         model_name: The name of the model (e.g. ``"gpt-5.4"``, ``"claude-sonnet-4.6"``).
         default_provider: The provider the caller would otherwise use.
 
     Returns:
-        ``default_provider`` unchanged.
+        ``default_provider`` with legacy keys aliased to their successor.
     """
-    return default_provider
+    return _normalize_provider_key(default_provider)
 
 def _discover_providers():
     with _provider_lock:
@@ -101,15 +125,13 @@ def get_provider(p_type: provider_type | None = None):
 
 def _registered_provider(p_type: provider_type | None) -> tuple[str, "ModelProvider"]:
     _discover_providers()
+    p_type = _normalize_provider_key(p_type)
     if not provider_map:
         raise ValueError("No model providers found or registered.")
     if p_type is None:
         p_type = next(iter(provider_map))
     if p_type not in provider_map:
-        available = ", ".join(sorted(provider_map))
-        raise ValueError(
-            f"Unsupported model provider '{p_type}'. Available providers: {available}."
-        )
+        raise ValueError(f"Unsupported model provider {p_type!r}. Available: {', '.join(provider_map)}")
     return p_type, provider_map[p_type]
 
 

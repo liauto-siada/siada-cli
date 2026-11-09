@@ -49,7 +49,7 @@ class RunTurn(ABC):
         self.error: Optional[Exception] = None
 
     @abstractmethod
-    def execute(self, turn_input: TurnInput) -> TurnOutput:
+    async def execute(self, turn_input: TurnInput) -> TurnOutput:
         """Execute the turn with given input
 
         Args:
@@ -129,14 +129,15 @@ class RunTurn(ABC):
         # Log full error information to log file
         logger.error(f"Turn execution error: {error_type}: {error_str}\n{full_traceback}")
 
-        # Extract the full server message from the API error body.
-        api_message = _extract_api_error_message(error)
-        if api_message:
-            self.config.io.print_error(f"{api_message}\n")
+        # Extract the provider message from an API error body (HTTP 403/429).
+        # li-mate returns: {"error": ..., "code": <status>, "message": "<full message>"}
+        li_mate_message = _extract_li_mate_message(error)
+        if li_mate_message:
+            self.config.io.print_error(f"{li_mate_message}\n")
         # Handle rate limit errors (e.g. Moonshot 429): only tell the user
         # the model is rate limited, don't show the raw provider error.
         elif "RateLimitError" in error_type:
-            self.config.io.print_error("Model rate limited, please try again later\n")
+            self.config.io.print_error("模型限流，请稍后输入继续重试\n")
         # Identify BadGatewayError (litellm)
         elif "BadGatewayError" in error_type or "BadGatewayError" in error_str:
             self.config.io.print_error(
@@ -144,7 +145,7 @@ class RunTurn(ABC):
                 "Unable to connect to AI model service. This is usually a temporary network issue.\n\n"
                 "Suggested Actions:\n"
                 "  1. Check your network connection\n"
-                "  2. Check the endpoint URL and proxy settings\n"
+                "  2. If using internal service, verify VPN connection status\n"
                 "  3. Retry your request later\n"
                 "  4. If the problem persists, contact your administrator\n\n"
                 f"Error Type: {error_type}\n"
@@ -189,7 +190,7 @@ class RunTurn(ABC):
                 "Your input or context exceeds the model's processing limit.\n\n"
                 f"Error Type: {error_type}\n"
             )
-        # Handle BadRequestError, such as an unavailable model.
+        # Handle BadRequestError (e.g. li-mate/Anthropic model not connected)
         elif "BadRequestError" in error_type:
             structured_message = _extract_structured_message(error_str)
             self.config.io.print_error(
@@ -250,7 +251,9 @@ class RunTurn(ABC):
             if upgrade_cmd:
                 lines.append(f"  {upgrade_cmd}\n")
             else:
-                lines.append("  uv tool upgrade siada-cli\n")
+                lines.append(
+                    "  uv tool install --force --python python3.12 siada-cli\n"
+                )
 
             self.config.io.print_error("".join(lines))
         # Handle other uncategorized errors
@@ -319,10 +322,10 @@ def _extract_structured_message(error_str: str) -> str | None:
     return "\n".join(parts) if parts else None
 
 
-def _extract_api_error_message(error: Exception) -> str | None:
+def _extract_li_mate_message(error: Exception) -> str | None:
     """Extract the user-facing message from an API error (HTTP 403/429).
 
-    Providers can return JSON bodies like:
+    li-mate returns JSON bodies like:
       {"error": <str|obj>, "code": <status>, "message": "<full message>"}
 
     The openai/litellm SDK wraps this in APIStatusError subclasses
@@ -342,7 +345,7 @@ def _extract_api_error_message(error: Exception) -> str | None:
     if isinstance(message, str) and message.strip():
         return message.strip()
 
-    # Fallback: nested error.message.
+    # Fallback: nested error.message (li-mate quota format)
     error_field = body.get('error')
     if isinstance(error_field, dict):
         message = error_field.get('message')

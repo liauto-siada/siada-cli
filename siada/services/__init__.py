@@ -3,9 +3,9 @@ Services package for Siada.
 
 This package contains various services used throughout the Siada application.
 
-Submodules are imported lazily on demand: any ``from siada.services.X import Y`` executes this file,
-and the previous top-level imports of handle_at_command/file_recommendation/git_service used to pull in
-heavy dependencies such as rich/spinner/read_many_files_tool before skills load (~100ms).
+Import submodules lazily because every services import executes this file.
+Earlier eager imports loaded rich, spinner and read_many_files_tool before
+skills were available, adding roughly 100ms.
 """
 
 import importlib

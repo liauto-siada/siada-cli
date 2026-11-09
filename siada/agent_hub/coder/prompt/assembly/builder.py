@@ -3,6 +3,14 @@ from typing import Optional
 from ..selection.profiles import PromptProfile, resolve_prompt_profile
 from ..sections.language import _get_language_instruction
 from ..sections.memory import MEMORY_SECTION_TITLE, wrap_user_memory
+from .fragments import render_memory_section
+from .template import render_optional_section, render_prompt_template
+
+
+_SYSTEM_TEMPLATE = (
+    "${intro}\n\n${capabilities}\n\n${rules}${objective}\n\n${language}\n"
+    "${extra_sections}${skills_section}${agents_section}${memory_section}"
+)
 
 
 def build_system_prompt(
@@ -71,33 +79,20 @@ def render_system_prompt(
     agents_section: Optional[str] = None,
 ) -> str:
     """Format already-selected prompt sections without resolving a model name."""
-    # Build language instruction section
-    language_instruction = _get_language_instruction(preferred_language, agent_name)
-
-    # Assemble complete prompt. An empty objective (the GLM profile, whose
-    # execution flow lives in its intro) is skipped instead of leaving a
-    # blank gap; non-empty objectives render byte-identically to before.
-    leading_sections = [intro, capabilities, rules]
-    if objective:
-        leading_sections.append(objective)
-    base_prompt = "\n\n".join(leading_sections) + f"\n\n{language_instruction}\n"
-
-    # Keep each optional block's historical separator and trailing newlines.
-    if profile.extra_sections is not None:
-        base_prompt += f"====\n\n{profile.extra_sections()}\n\n"
-
-    # Add skills section if provided
-    if skills_section and skills_section.strip():
-        base_prompt += f"====\n\n{skills_section}\n\n"
-
-    # Add the user-defined agent catalog (`.agents/agents/*.md`) so the model
-    # knows which named agents `run_subtask` can launch. Absent by default.
-    if agents_section and agents_section.strip():
-        base_prompt += f"====\n\n{agents_section}\n\n"
-
-    # Keep the memory snapshot as the last titled section.
-    if user_memory and user_memory.strip():
-        memory_suffix = f"\n{wrap_user_memory(user_memory)}"
-        return f"{base_prompt}{memory_suffix}"
-
-    return base_prompt
+    return render_prompt_template(_SYSTEM_TEMPLATE, {
+        "intro": intro,
+        "capabilities": capabilities,
+        "rules": rules,
+        "objective": f"\n\n{objective}" if objective else "",
+        "language": _get_language_instruction(preferred_language, agent_name),
+        "extra_sections": (
+            f"====\n\n{profile.extra_sections()}\n\n" if profile.extra_sections is not None else ""
+        ),
+        "skills_section": render_optional_section(
+            skills_section, prefix="====\n\n", suffix="\n\n", strip=False,
+        ),
+        "agents_section": render_optional_section(
+            agents_section, prefix="====\n\n", suffix="\n\n", strip=False,
+        ),
+        "memory_section": render_optional_section(render_memory_section(user_memory), prefix="\n"),
+    })

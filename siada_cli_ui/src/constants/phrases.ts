@@ -3,29 +3,33 @@
  * Collection of phrases to display during model thinking
  */
 
-export const THINKING_PHRASES = [
-  'Thinking...',
-  'Analyzing your request...',
-  'Processing information...',
-];
+import { bilingual } from '../i18n/index.js';
 
-export const WITTY_PHRASES = [
-  'Thinking...',
-];
+export const THINKING_PHRASES = bilingual([
+  '正在思考…',
+  '正在分析你的请求…',
+  '正在处理信息…',
+], ['Thinking...', 'Analyzing your request...', 'Processing information...']);
 
-export const INFORMATIVE_TIPS = [
-  'Tip: Press ESC or Ctrl+C to stop',
-  'Tip: Use @filename to reference files',
-  'Tip: Press Ctrl+X to open in external editor',
-];
+export const WITTY_PHRASES = bilingual([
+  '正在思考…',
+], ['Thinking...']);
 
-export const STATUS_PHRASES = {
+export { INFORMATIVE_TIPS, SHORTCUT_TIPS, TIP_CHANGE_INTERVAL } from './tips.js';
+
+export const STATUS_PHRASES = bilingual({
+  INITIALIZING: '正在初始化智能体…',
+  CONNECTING: '正在连接 siada-cli…',
+  CONFIRMING: '正在思考…',
+  THINKING: '正在思考…',
+  PROCESSING: '正在思考…',
+}, {
   INITIALIZING: 'Initializing Agent...',
   CONNECTING: 'Connecting to siada-cli...',
   CONFIRMING: 'Thinking...',
   THINKING: 'Thinking...',
   PROCESSING: 'Thinking...',
-};
+});
 
 // Phrase rotation interval (milliseconds)
 export const PHRASE_CHANGE_INTERVAL = 15000; // 15 seconds
@@ -45,12 +49,17 @@ export interface ThinkingStepInfo {
   phrase: string;
 }
 
-export const THINKING_STEPS: Record<ThinkingStep, ThinkingStepInfo> = {
+export const THINKING_STEPS: Record<ThinkingStep, ThinkingStepInfo> = bilingual({
+  reasoning: { label: '模型推理', phrase: '正在推理…' },
+  tool_execution: { label: '执行工具', phrase: '正在执行工具…' },
+  system_processing: { label: '系统处理', phrase: '系统正在处理…' },
+  compaction: { label: '压缩上下文', phrase: '正在压缩上下文…' },
+}, {
   reasoning: { label: 'Model Reasoning', phrase: 'Model reasoning...' },
   tool_execution: { label: 'Tool Execution', phrase: 'Executing tools...' },
   system_processing: { label: 'System Processing', phrase: 'System processing...' },
   compaction: { label: 'Context Compaction', phrase: 'Compacting context...' },
-};
+});
 
 /**
  * Match the backend's compaction start notice, rather than arbitrary content
@@ -60,32 +69,3 @@ export const COMPACTION_CONTENT_PATTERN = /^Compacting context\.\.\.$/;
 
 /** Terminal compaction notices let the indicator resume before the next token. */
 export const COMPACTION_COMPLETE_PATTERN = /^(?:Compacted:\s*\d+\s*→\s*\d+\s+messages\s*\(-?\d+\s+removed\)|Nothing to compact \(conversation too short or already compact\)\.|No conversation history to compact\.|Compaction failed:[\s\S]*|Compaction interrupted\.)$/;
-
-/**
- * Shortcut hints shown after the thinking step phrase as "(tips: ...)".
- * One entry per shortcut (from the siada-cli shortcuts wiki) so each hint
- * gets its own slot when the indicator rotates tips for the user.
- */
-export const SHORTCUT_TIPS = [
-  'Tip: Ctrl+J inserts a newline',
-  'Tip: Alt+Enter inserts a newline (VSCode / Ubuntu terminals; behavior varies, prefer Ctrl+J)',
-  'Tip: Type ! to toggle Shell mode',
-  'Tip: Esc exits Shell mode, dismisses completion, or interrupts the answer',
-  'Tip: Ctrl+W deletes the word left of the cursor (space separated)',
-  'Tip: Ctrl+K deletes from the cursor to the end of the line',
-  'Tip: Ctrl+U deletes from the cursor to the start of the line',
-  'Tip: Ctrl+A moves the cursor to the start of the line',
-  'Tip: Ctrl+E moves the cursor to the end of the line',
-  'Tip: Ctrl+X opens the current input in an external editor',
-  'Tip: Ctrl+D clears the entire input',
-  'Tip: Ctrl+C interrupts the answer; press twice to exit (Esc equals one Ctrl+C)',
-  'Tip: Ctrl+O toggles compact / expand display mode',
-  'Tip: Option+Left/Right moves the cursor by word',
-  'Tip: Ctrl+V pastes clipboard images and text',
-  'Tip: Shift+Enter inserts a newline (iTerm2 and other Kitty-protocol terminals)',
-  'Tip: Ctrl+L moves the cursor to the end of the line (same as Ctrl+E)',
-  'Tip: Ctrl+B copies the entire input to the system clipboard',
-];
-
-// Input hint rotation interval (milliseconds)
-export const TIP_CHANGE_INTERVAL = 30000; // 30 seconds

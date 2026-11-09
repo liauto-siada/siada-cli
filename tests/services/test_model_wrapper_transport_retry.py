@@ -3,10 +3,12 @@
 import asyncio
 import json
 import logging
+import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import httpx
+import httpx2
 import pytest
 from agents import Agent, ModelSettings, RunConfig, Runner
 from agents.models.interface import ModelTracing
@@ -17,6 +19,12 @@ from siada.provider import retry
 from siada.provider.default.chat_completions import DefaultOpenAIChatCompletionsModel
 from siada.services.model_wrapper import ModelWrapper
 from siada.provider.responses.responses_model import ResponsesModel
+
+
+_GATEWAY_AUTH_MESSAGE = (
+    "Gateway cannot authenticate upstream services. Please contact Microsoft for help."
+)
+_PREMATURE_CLOSE_MESSAGE = "Connection prematurely closed DURING response"
 
 
 def _args():
@@ -36,10 +44,27 @@ def _errors():
         APIConnectionError(request=request),
         httpx.ReadTimeout("read timeout"),
         httpx.RemoteProtocolError("incomplete body"),
+        httpx2.ReadTimeout("read timeout"),
+        httpx2.ConnectTimeout("connect timeout"),
+        httpx2.WriteTimeout("write timeout"),
+        httpx2.PoolTimeout("pool timeout"),
+        httpx2.ConnectError("connection failed"),
+        httpx2.ReadError("connection reset"),
+        httpx2.WriteError("connection reset"),
+        httpx2.CloseError("connection failed"),
+        httpx2.RemoteProtocolError("incomplete body"),
         Timeout(message="timeout", model="test", llm_provider="openai"),
         MidStreamFallbackError(message="broken stream", model="test", llm_provider="openai"),
         APIError("Unknown stream error", request=request, body={"message": "Unknown stream error"}),
         APIError("busy", request=request, body={"code": "server_is_overloaded"}),
+        APIError(
+            _PREMATURE_CLOSE_MESSAGE, request=request,
+            body={"message": _PREMATURE_CLOSE_MESSAGE, "code": "stream_error", "type": "server_error"},
+        ),
+        APIError(
+            _GATEWAY_AUTH_MESSAGE, request=request,
+            body={"message": _GATEWAY_AUTH_MESSAGE, "code": "authentication_error"},
+        ),
     ]
 
 
@@ -100,7 +125,18 @@ async def test_stream_retry_catches_creation_and_iteration(error, phase, no_dela
 ])
 @pytest.mark.parametrize("error", [
     httpx.ReadTimeout("interrupted"),
+    httpx2.ReadTimeout("interrupted"),
+    httpx2.ConnectError("interrupted"),
+    httpx2.RemoteProtocolError("interrupted"),
     APIError("Unknown stream error", request=httpx.Request("POST", "https://model.test"), body=None),
+    APIError(
+        _PREMATURE_CLOSE_MESSAGE, request=httpx.Request("POST", "https://model.test"),
+        body={"message": _PREMATURE_CLOSE_MESSAGE, "code": "stream_error", "type": "server_error"},
+    ),
+    APIError(
+        _GATEWAY_AUTH_MESSAGE, request=httpx.Request("POST", "https://model.test"),
+        body={"message": _GATEWAY_AUTH_MESSAGE, "code": "authentication_error"},
+    ),
 ])
 async def test_does_not_replay_exposed_output_or_tools(event_type, error, no_delay):
     calls = Mock()
@@ -490,8 +526,9 @@ async def test_admission_timeout_aborts_without_model_calls(streaming, no_delay)
 
 
 @pytest.mark.asyncio
-async def test_nonstream_retry_does_not_repeat_admission(no_delay):
-    call = AsyncMock(side_effect=[APITimeoutError(request=httpx.Request("POST", "https://model.test")), "ok"])
+@pytest.mark.parametrize("error", _errors())
+async def test_nonstream_retry_does_not_repeat_admission(error, no_delay):
+    call = AsyncMock(side_effect=[error, "ok"])
     admission = AsyncMock()
     wrapper = ModelWrapper(SimpleNamespace(get_response=call), before_request=admission)
     assert await wrapper.get_response(**_args()) == "ok"
@@ -588,9 +625,10 @@ async def test_caller_closing_stream_closes_active_attempt(no_delay):
 
 
 class _BrokenBody(httpx.AsyncByteStream):
-    def __init__(self, prefix=b""):
+    def __init__(self, prefix=b"", error_type=httpx.ReadTimeout):
         self.closed = False
         self.prefix = prefix
+        self.error_type = error_type
 
     async def __aiter__(self):
         if self.prefix:
@@ -603,11 +641,15 @@ class _BrokenBody(httpx.AsyncByteStream):
                 await ready
             finally:
                 timer.cancel()
-        raise httpx.ReadTimeout("SSE read timeout")
+        raise self.error_type("SSE read timeout")
         yield b""
 
     async def aclose(self):
         self.closed = True
+
+
+class _BrokenHttpx2Body(_BrokenBody, httpx2.AsyncByteStream):
+    """Expose the same fault through the SDK's native httpx2 transport."""
 
 
 @pytest.mark.asyncio
@@ -649,8 +691,13 @@ async def test_real_chat_sdk_body_timeout_after_response_created(no_delay):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("scenario", ["recover", "exhaust", "after_text"])
+@pytest.mark.parametrize("http_module,error_type,body_class", [
+    (httpx, httpx.ReadTimeout, _BrokenBody),
+    (httpx, httpx2.ReadTimeout, _BrokenBody),
+    (httpx2, httpx2.ReadTimeout, _BrokenHttpx2Body),
+])
 async def test_real_runner_handles_sdk_read_timeout_without_replaying_output(
-    scenario, no_delay,
+    scenario, http_module, error_type, body_class, no_delay,
 ):
     bodies = []
     requests = []
@@ -668,20 +715,20 @@ async def test_real_runner_handles_sdk_read_timeout_without_replaying_output(
     def handler(request):
         requests.append(request)
         if scenario == "recover" and len(requests) > 1:
-            return httpx.Response(
+            return http_module.Response(
                 200, headers={"content-type": "text/event-stream"},
                 content=complete_sse,
             )
-        body = _BrokenBody(text_sse if scenario == "after_text" else b"")
+        body = body_class(text_sse if scenario == "after_text" else b"", error_type)
         bodies.append(body)
-        return httpx.Response(
+        return http_module.Response(
             200, headers={"content-type": "text/event-stream"}, stream=body,
         )
 
     events = []
     async with AsyncOpenAI(
         api_key="synthetic", base_url="https://model.test/v1", max_retries=0,
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        http_client=http_module.AsyncClient(transport=http_module.MockTransport(handler)),
     ) as client:
         model = DefaultOpenAIChatCompletionsModel(
             "test", SimpleNamespace(get_client=lambda: client),
@@ -701,7 +748,7 @@ async def test_real_runner_handles_sdk_read_timeout_without_replaying_output(
             await consume()
             assert result.final_output == "ok"
         else:
-            with pytest.raises(httpx.ReadTimeout):
+            with pytest.raises(error_type):
                 await consume()
 
     assert len(requests) == {"recover": 2, "exhaust": 3, "after_text": 1}[scenario]
@@ -713,9 +760,28 @@ async def test_real_runner_handles_sdk_read_timeout_without_replaying_output(
     )
 
 
+@pytest.mark.parametrize("error", [
+    httpx2.LocalProtocolError("invalid request"),
+    httpx2.UnsupportedProtocol("unsupported scheme"),
+    httpx2.DecodingError("invalid encoding"),
+    httpx2.TooManyRedirects("redirect loop"),
+    ValueError("ReadTimeout"),
+])
+def test_httpx2_nontransport_failures_do_not_retry(error):
+    assert not retry.is_retryable_transport_error(error)
+    assert not retry.is_retryable_model_error(error)
+
+
+def test_transport_classification_without_httpx2_loaded(monkeypatch):
+    monkeypatch.delitem(sys.modules, "httpx2")
+    assert retry.is_retryable_transport_error(httpx.ReadTimeout("interrupted"))
+    assert not retry.is_retryable_transport_error(ValueError("invalid"))
+
+
 @pytest.mark.parametrize("body,expected", [
     ({"message": "Unknown stream error"}, True),
     ({"type": "server_error"}, True),
+    ({"code": "stream_error", "type": "server_error", "message": _PREMATURE_CLOSE_MESSAGE}, True),
     ({"error": {"code": "rate_limit_exceeded"}}, True),
     ({"code": "insufficient_quota", "type": "server_error"}, False),
     ({"code": "invalid_request_error", "message": "Unknown stream error"}, False),
@@ -730,6 +796,53 @@ def test_api_error_classification(body, expected):
     assert retry.is_retryable_model_error(error) is expected
 
 
+@pytest.mark.parametrize("body", [
+    None,
+    _PREMATURE_CLOSE_MESSAGE,
+    {"message": _PREMATURE_CLOSE_MESSAGE},
+    {"error": {"message": _PREMATURE_CLOSE_MESSAGE, "code": "stream_error", "type": "server_error"}},
+    {"message": f"  {_PREMATURE_CLOSE_MESSAGE.upper()}  ", "type": "server_error"},
+    {"message": _PREMATURE_CLOSE_MESSAGE, "code": "server_error"},
+    {"message": "Upstream stream interrupted", "code": "stream_error"},
+    {"message": "Upstream stream interrupted", "type": "stream_error"},
+])
+def test_gateway_stream_disconnect_is_a_retryable_transport_error(body):
+    error = APIError(
+        _PREMATURE_CLOSE_MESSAGE, request=httpx.Request("POST", "https://model.test"),
+        body=body,
+    )
+    assert retry.is_retryable_transport_error(error)
+    assert retry.is_retryable_model_error(error)
+
+
+@pytest.mark.parametrize("body", [
+    {"message": _PREMATURE_CLOSE_MESSAGE, "code": "insufficient_quota", "type": "server_error"},
+    {"message": _PREMATURE_CLOSE_MESSAGE, "code": "invalid_request_error", "type": "stream_error"},
+    {"message": _PREMATURE_CLOSE_MESSAGE, "type": "invalid_request_error"},
+    {"message": "Request rejected: " + _PREMATURE_CLOSE_MESSAGE},
+    {"message": "Connection prematurely closed BEFORE response"},
+])
+def test_other_api_errors_are_not_treated_as_stream_disconnects(body):
+    error = APIError(
+        _PREMATURE_CLOSE_MESSAGE, request=httpx.Request("POST", "https://model.test"),
+        body=body,
+    )
+    assert not retry.is_retryable_transport_error(error)
+    assert not retry.is_retryable_model_error(error)
+    assert not retry.is_retryable_model_error(ValueError(_PREMATURE_CLOSE_MESSAGE))
+
+
+@pytest.mark.parametrize("status", [400, 401, 404])
+def test_nonretryable_http_status_takes_precedence_over_stream_error(status):
+    error = APIStatusError(
+        _PREMATURE_CLOSE_MESSAGE,
+        response=httpx.Response(status, request=httpx.Request("POST", "https://model.test")),
+        body={"message": _PREMATURE_CLOSE_MESSAGE, "code": "stream_error", "type": "server_error"},
+    )
+    assert not retry.is_retryable_transport_error(error)
+    assert not retry.is_retryable_model_error(error)
+
+
 @pytest.mark.parametrize("status,expected", [
     (400, False), (401, False), (403, True), (404, False),
     (408, True), (409, True), (429, True), (500, True), (503, True),
@@ -741,6 +854,61 @@ def test_api_status_error_classification(status, expected):
         body=None,
     )
     assert retry.is_retryable_model_error(error) is expected
+
+
+@pytest.mark.parametrize("body", [
+    None,
+    _GATEWAY_AUTH_MESSAGE,
+    {"message": _GATEWAY_AUTH_MESSAGE, "code": "authentication_error"},
+    {"error": {"message": _GATEWAY_AUTH_MESSAGE, "type": "authentication_error"}},
+    {"message": f"  {_GATEWAY_AUTH_MESSAGE.upper()}  ", "code": "Unauthorized"},
+])
+@pytest.mark.parametrize("status", [None, 400, 401])
+def test_gateway_upstream_auth_error_is_retryable(body, status):
+    request = httpx.Request("POST", "https://model.test")
+    if status is None:
+        error = APIError(_GATEWAY_AUTH_MESSAGE, request=request, body=body)
+    else:
+        error = APIStatusError(
+            _GATEWAY_AUTH_MESSAGE,
+            response=httpx.Response(status, request=request), body=body,
+        )
+    assert retry.is_retryable_model_error(error)
+
+
+@pytest.mark.parametrize("message", [
+    "Invalid API key.",
+    "Gateway cannot authenticate client credentials.",
+    "Request rejected: Gateway cannot authenticate upstream services.",
+])
+def test_other_authentication_errors_are_not_retryable(message):
+    error = APIError(
+        message, request=httpx.Request("POST", "https://model.test"),
+        body={"message": message, "code": "authentication_error"},
+    )
+    assert not retry.is_retryable_model_error(error)
+    assert not retry.is_retryable_model_error(ValueError(_GATEWAY_AUTH_MESSAGE))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recover", [True, False])
+async def test_nonstream_gateway_auth_retry_budget(recover, no_delay):
+    error = APIError(
+        _GATEWAY_AUTH_MESSAGE, request=httpx.Request("POST", "https://model.test"),
+        body={"message": _GATEWAY_AUTH_MESSAGE, "code": "authentication_error"},
+    )
+    call = AsyncMock(side_effect=[error, "ok"] if recover else error)
+    admission = AsyncMock()
+    wrapper = ModelWrapper(SimpleNamespace(get_response=call), before_request=admission)
+    if recover:
+        assert await wrapper.get_response(**_args()) == "ok"
+    else:
+        with pytest.raises(APIError) as caught:
+            await wrapper.get_response(**_args())
+        assert caught.value is error
+    assert call.await_count == (2 if recover else 3)
+    assert no_delay.await_count == (1 if recover else 2)
+    admission.assert_awaited_once()
 
 
 def test_diagnostics_do_not_dump_unstructured_body_or_authentication():
@@ -789,7 +957,10 @@ async def test_nonstream_api_retry_preserves_admission(code, expected_calls, no_
     "recover", "exhaust", "after_text", "invalid", "failed_event", "error_event",
     "eof_recover", "eof_exhaust", "eof_after_text", "eof_after_tool", "empty_eof",
 ])
-async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monkeypatch):
+@pytest.mark.parametrize("error_kind", ["server", "gateway_auth", "disconnect"])
+async def test_real_responses_sdk_stream_errors(
+    scenario, error_kind, no_delay, caplog, monkeypatch,
+):
     requests = []
     bodies = []
     app_logger = logging.getLogger("siada.app")
@@ -829,8 +1000,15 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
         "message": "Unknown stream error", "code": "server_error",
         "type": "server_error", "debug": {"api_key": "synthetic-secret"},
     }
+    if error_kind == "disconnect":
+        error_body.update(message=_PREMATURE_CLOSE_MESSAGE, code="stream_error")
     if scenario == "invalid":
         error_body["code"] = "invalid_request_error"
+    if error_kind == "gateway_auth" and scenario != "invalid":
+        error_body.update(
+            message=_GATEWAY_AUTH_MESSAGE, code="authentication_error",
+            type="authentication_error",
+        )
     recovering = scenario in {"recover", "failed_event", "error_event", "eof_recover"}
 
     def handler(request):
@@ -871,7 +1049,7 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
             elif scenario == "error_event":
                 suffix = sse({
                     "type": "error", "sequence_number": 1,
-                    "message": "Unknown stream error", "code": None, "param": None,
+                    "message": error_body["message"], "code": None, "param": None,
                 })
             elif scenario.startswith("eof_") or scenario == "empty_eof":
                 suffix = b"data: [DONE]\n\n"
@@ -943,7 +1121,7 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
     )
     assert (
         "without a final response" if scenario.startswith("eof_") or scenario == "empty_eof"
-        else "Unknown stream error"
+        else error_body["message"]
     ) in diagnostic
     assert "'request_id': 'req-test'" in diagnostic
     assert f"response_id={'None' if scenario == 'empty_eof' else 'resp-test'}" in diagnostic
@@ -953,7 +1131,7 @@ async def test_real_responses_sdk_stream_errors(scenario, no_delay, caplog, monk
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure", ["server_error", "eof"])
+@pytest.mark.parametrize("failure", ["server_error", "stream_error", "eof"])
 async def test_real_responses_sdk_runner_recovers_after_reasoning_without_mixing_ids(
     failure, no_delay, caplog, monkeypatch,
 ):
@@ -1039,7 +1217,11 @@ async def test_real_responses_sdk_runner_recovers_after_reasoning_without_mixing
                 yield b"data: [DONE]\n\n"
             else:
                 yield sse({"error": {
-                    "message": "Unknown stream error", "code": "server_error",
+                    "message": (
+                        _PREMATURE_CLOSE_MESSAGE if self.failure == "stream_error"
+                        else "Unknown stream error"
+                    ),
+                    "code": self.failure,
                     "type": "server_error", "debug": {"api_key": "synthetic-secret"},
                 }})
 

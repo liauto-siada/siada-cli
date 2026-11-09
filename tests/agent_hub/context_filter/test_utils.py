@@ -67,6 +67,7 @@ def test_reasoning_increases_local_and_summary_budget_counts(model):
     assert CompactionStrategy._count_tokens(None, items, SimpleNamespace(model_name=model)) == count
 
 
+
 class TestComputeMessageSignature:
     def test_simple_string_message(self):
         message = "Hello, World!"

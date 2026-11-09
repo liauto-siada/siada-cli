@@ -94,7 +94,8 @@ def cmd_setup(args: argparse.Namespace) -> int:
     ext_dir = str(paths.extension_dir())
     _copy_clipboard(ext_dir)
     _print(f"    2. Click \"Load unpacked\" → select the directory: {ext_dir} (path already copied to clipboard)")
-    _print("    3. Open the siada extension side panel → Settings → paste the token (this token is the credential that lets Chrome connect to your local siada-cli; keep it safe):")
+    _print("    3. Open the Siada side panel. Local connections fill in the token and connect automatically.")
+    _print("       For remote connections or older proxies, paste the token in Settings:")
     _copy_clipboard(str(state["token"]))
     _print(f"       {state['token']}")
     _open_url("chrome://extensions")
@@ -117,6 +118,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
         _print(f"       https://{ip or '<LAN-IP>'}:{args.port}/app?token={state['token']}")
         _print("       accept the warning via \"Advanced → Proceed\"; or import ~/.acp-proxy/cert.pem into the system trust store")
         _print(f"    (the local Chrome extension is unaffected: it still uses ws://localhost:{args.port}/ws and needs no trusted certificate)")
+
 
     # if args.no_wait:
     #     _print("\n✅ Setup complete. After loading the extension as described above, check the connection with `siada-browser status`.")

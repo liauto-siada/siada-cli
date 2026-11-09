@@ -19,10 +19,7 @@ class TestProactiveConfig:
         assert config.enabled is True
         assert config.work_hours == "09:00-18:00"
         assert config.trigger_interval == 60
-        assert config.daily_task_execution_time == "06:00"
-        assert config.daily_im_send_time == "08:30"
-        assert config.auto_execute_enabled is False
-        assert config.send_daily_summary_to_im is False
+        assert config.daily_task_execution_time == "08:30"
     
     def test_from_dict_full(self):
         """Test creating ProactiveConfig from full dictionary"""
@@ -52,7 +49,7 @@ class TestProactiveConfig:
         assert config.enabled is False
         assert config.work_hours == "09:00-18:00"  # default
         assert config.trigger_interval == 120
-        assert config.daily_task_execution_time == "06:00"  # generation default
+        assert config.daily_task_execution_time == "08:30"  # default
     
     def test_from_dict_empty(self):
         """Test creating ProactiveConfig from empty dictionary (all defaults)"""
@@ -63,7 +60,7 @@ class TestProactiveConfig:
         assert config.enabled is True
         assert config.work_hours == "09:00-18:00"
         assert config.trigger_interval == 60
-        assert config.daily_task_execution_time == "06:00"
+        assert config.daily_task_execution_time == "08:30"
     
     def test_to_dict(self):
         """Test converting ProactiveConfig to dictionary"""
@@ -80,11 +77,7 @@ class TestProactiveConfig:
             'enabled': False,
             'work_hours': '10:00-19:00',
             'trigger_interval': 45,
-            'daily_task_execution_time': '09:00',
-            'daily_im_send_time': '08:30',
-            'auto_execute_enabled': False,
-            'send_daily_summary_to_im': False,
-            'llm_config': None,
+            'daily_task_execution_time': '09:00'
         }
     
     def test_immutability(self):
@@ -162,7 +155,7 @@ class TestLoadConfProactive:
             assert config.proactive_config.enabled is True
             assert config.proactive_config.work_hours == "09:00-18:00"
             assert config.proactive_config.trigger_interval == 60
-            assert config.proactive_config.daily_task_execution_time == "06:00"
+            assert config.proactive_config.daily_task_execution_time == "08:30"
     
     def test_load_config_file_not_exists(self):
         """Test loading config when file doesn't exist (uses defaults)"""

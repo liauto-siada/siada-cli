@@ -76,9 +76,25 @@ def test_runtime_config_does_not_inject_plugin_mcp(config_sources, monkeypatch):
     }}), encoding="utf-8")
     monkeypatch.setattr("siada.config.config_loader._ensure_config_up_to_date", lambda _: None)
     monkeypatch.setattr("siada.config.config_loader.load_user_model_config", lambda: None)
-
+    monkeypatch.setattr("siada.config.config_loader._load_sub_agent_registry_config", lambda: None)
     assert set(load_conf(workspace / "conf.yaml").mcp_config.servers) == {"generic"}
     plugin_loader.assert_not_called()
+
+
+def test_missing_launch_directory_skips_project_config(config_sources, monkeypatch):
+    """A deleted launch directory must not hide the user-level MCP config."""
+    workspace, home, _ = config_sources
+    (home / "mcp_config.json").write_text(json.dumps({"mcpServers": {
+        "home-only": {"command": "home-command"},
+    }}), encoding="utf-8")
+    launch_dir = workspace / "removed-worktree"
+    launch_dir.mkdir()
+    monkeypatch.chdir(launch_dir)
+    launch_dir.rmdir()
+
+    config = MCPConfigLoader.load_config(None)
+
+    assert set(config.servers) == {"home-only"}
 
 
 def test_mcp_reload_does_not_inject_plugin_mcp(config_sources):

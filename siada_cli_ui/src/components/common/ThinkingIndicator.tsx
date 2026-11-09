@@ -12,6 +12,7 @@ import { useThinkingPhrases } from '../../hooks/useThinkingPhrases.js';
 import { THINKING_STEPS, ThinkingStep, SHORTCUT_TIPS, TIP_CHANGE_INTERVAL } from '../../constants/phrases.js';
 import { useThemeVersion } from '../../themes/index.js';
 import { colors } from '../../utils/colors.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
 
 export interface ThinkingIndicatorProps {
   /** Whether thinking indicator is active */
@@ -36,6 +37,7 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = React.memo(({
   step = null,
 }) => {
   useThemeVersion();
+  useUiLanguage();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [tipIndex, setTipIndex] = useState(
     () => Math.floor(Math.random() * SHORTCUT_TIPS.length),
@@ -90,13 +92,13 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = React.memo(({
   const systemColor = step === 'compaction' ? colors.secondary : undefined;
 
   // Shortcut tip shown after the step phrase: "(tips: Ctrl+O toggles ...)"
-  const tipText = SHORTCUT_TIPS[tipIndex % SHORTCUT_TIPS.length].replace(/^Tip:\s*/, '');
+  const tipText = SHORTCUT_TIPS[tipIndex % SHORTCUT_TIPS.length].replace(/^(?:Tip:|提示：)\s*/, '');
 
   return (
     <Box flexDirection="row" gap={1}>
       <ThinkingSpinner active={active} color={systemColor} />
       <Text color={systemColor ?? 'cyan'}>{displayPhrase}</Text>
-      <Text color="gray">(tips: {tipText})</Text>
+      <Text color="gray">{t(`（提示：${tipText}）`, `(tips: ${tipText})`)}</Text>
       {showTime && elapsedSeconds > 0 && (
         <Text color="gray">
           ({formatTime(elapsedSeconds)})

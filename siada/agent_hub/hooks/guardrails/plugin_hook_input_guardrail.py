@@ -75,6 +75,13 @@ async def _plugin_hook_input_fn(
                 output_info=resp.stop_reason or "Hook stopped this turn."
             )
         if resp.decision == "block":
+            io = InputOutput.get_instance()
+            if io:
+                io.print_hook(
+                    resp.reason or "Hook blocked this tool call.",
+                    "PreToolUse",
+                    status="blocked",
+                )
             return ToolGuardrailFunctionOutput.reject_content(
                 message=resp.reason or "Hook blocked this tool call.",
             )
@@ -85,7 +92,7 @@ async def _plugin_hook_input_fn(
         if resp.additional_context is not None:
             io = InputOutput.get_instance()
             if io:
-                io.print_error(resp.additional_context)
+                io.print_hook(resp.additional_context, "PreToolUse")
             import asyncio
             from siada.services.session_runtime_state import stage_notification
 

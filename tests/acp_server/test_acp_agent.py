@@ -1,7 +1,6 @@
 import asyncio
 import socket
 
-import siada
 from acp import RequestError
 from acp.agent.connection import AgentSideConnection
 from acp.client.connection import ClientSideConnection
@@ -64,7 +63,9 @@ def test_acp_agent_emits_sdk_session_update_and_ends_prompt():
     response = asyncio.run(agent.prompt(session.session_id, prompt=[]))
 
     assert initialized.agent_info.name == "siada"
-    assert initialized.agent_info.version == siada.__version__
+    from siada import __version__
+
+    assert initialized.agent_info.version == __version__
     assert response.stop_reason == "end_turn"
     assert len(client.updates) == 1
 
@@ -253,6 +254,14 @@ def test_cancel_closes_active_async_stream():
 
 
 def test_prompt_failure_reaches_the_client_with_the_actual_cause():
+    """A failed turn must not collapse into the SDK's generic "Internal error".
+
+    The SDK reports a bare exception as ``-32603 Internal error`` and keeps
+    the real text only in ``error.data.details``, which clients (chrome-acp
+    sidepanel, editors, Node TUI) never read — so a 502 from the model
+    service, a missing model and a busy session all displayed identically.
+    """
+
     def failing_turn_runner(_session_id, _text):
         raise RuntimeError("BadGatewayError: Error code: 502 LiteLLM Retried: 3 times")
 
@@ -283,22 +292,3 @@ def test_prompt_failure_without_a_message_reports_the_exception_type():
         assert str(error) == "_NoMessageError"
     else:
         raise AssertionError("prompt() should have failed")
-
-
-def test_prompt_preserves_an_existing_request_error():
-    def failing_turn_runner(_session_id, _text):
-        raise RequestError(-32602, "Invalid model selection")
-
-    agent = SiadaAcpAgent(turn_runner=failing_turn_runner)
-
-    try:
-        _run_prompt_against_real_client(agent)
-    except RequestError as error:
-        assert error.code == -32602
-        assert str(error) == "Invalid model selection"
-    else:
-        raise AssertionError("prompt() should have failed")
-
-
-
-

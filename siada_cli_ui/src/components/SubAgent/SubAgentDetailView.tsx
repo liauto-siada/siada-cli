@@ -1,6 +1,9 @@
-import React, { useEffect } from 'react';
-import { Box, Text, useStdout } from '@jrichman/ink';
+import React from 'react';
+import { PANEL_TIPS } from '../../constants/tips.js';
+import { t, useUiLanguage } from '../../i18n/index.js';
+import { Box, Text } from '@jrichman/ink';
 import { useKeypress } from '../../hooks/useKeypress.js';
+import { useMouseTracking } from '../../hooks/useMouseTracking.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { MessageList } from '../Chat/MessageList.js';
 import { Scrollable } from '../common/Scrollable.js';
@@ -18,12 +21,14 @@ const STATUS_ICONS: Record<string, string> = {
   running:   '◐',
   completed: '✓',
   failed:    '✗',
+  cancelled: '⊘',
 };
 
 const STATUS_COLORS: Record<string, string> = {
   running:   'yellow',
   completed: 'green',
   failed:    'red',
+  cancelled: 'gray',
 };
 
 /**
@@ -66,20 +71,9 @@ export const SubAgentDetailView: React.FC<SubAgentDetailViewProps> = ({
   terminalWidth,
   onClose,
 }) => {
+  useUiLanguage();
   const { rows } = useTerminalSize();
-  const { stdout } = useStdout();
-
-  // Enable SGR mouse reporting (button/wheel events in SGR format) while the
-  // detail view is open so the Scrollable viewport responds to the mouse
-  // wheel — same mechanism as claude-code's AlternateScreen mouseTracking.
-  // Disabled again on unmount. Trade-off: while active, mouse text selection
-  // in the terminal is captured by the app (standard for this feature).
-  useEffect(() => {
-    stdout?.write('\x1b[?1000;1006h');
-    return () => {
-      stdout?.write('\x1b[?1000;1006l');
-    };
-  }, [stdout]);
+  useMouseTracking();
 
   useKeypress((key) => {
     if (key.name === 'escape') onClose();
@@ -103,7 +97,7 @@ export const SubAgentDetailView: React.FC<SubAgentDetailViewProps> = ({
           Scrollable sticks to bottom when already at bottom) */}
       {messages.length === 0 ? (
         <Box paddingX={2} paddingY={1}>
-          <Text color="gray">No messages recorded for this sub agent.</Text>
+          <Text color="gray">{t('此子智能体暂无消息记录。', 'No messages recorded for this sub agent.')}</Text>
         </Box>
       ) : (
         <Scrollable
@@ -140,7 +134,7 @@ export const SubAgentDetailView: React.FC<SubAgentDetailViewProps> = ({
 
       {/* Footer hint */}
       <Box paddingX={1} flexShrink={0}>
-        <Text color="gray">↑↓ / PgUp/PgDn / wheel scroll • Esc close</Text>
+        <Text color="gray">{PANEL_TIPS.agentDetail}</Text>
       </Box>
     </Box>
   );

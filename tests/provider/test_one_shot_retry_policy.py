@@ -92,7 +92,7 @@ async def test_native_http_clients_have_no_nested_retries(monkeypatch, model_nam
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("model_name", ["claude-sonnet-4", "gemini-2.5-pro"])
+@pytest.mark.parametrize("model_name", ["claude-sonnet-4"])
 @pytest.mark.parametrize("stream", [False, True])
 async def test_retained_vendor_adapters_disable_nested_learning_retries(monkeypatch, model_name, stream):
     import litellm
@@ -117,4 +117,40 @@ async def test_retained_vendor_adapters_disable_nested_learning_retries(monkeypa
     finally:
         await provider.aclose()
     assert len(requests) == 1
+    assert retry._retry_limit() == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("limit,attempts", [(0, 1), (1, 2), (2, 3)])
+async def test_native_gemini_uses_the_workflows_retry_budget(monkeypatch, stream, limit, attempts):
+    from siada.provider.default.gemini_transport import DefaultGeminiTransport
+
+    provider = DefaultProvider()
+    transport = DefaultGeminiTransport()
+    calls = []
+
+    async def generate(*args, **kwargs):
+        calls.append(True)
+        raise TimeoutError("synthetic native Gemini failure")
+
+    async def generate_stream(*args, **kwargs):
+        calls.append(True)
+        raise TimeoutError("synthetic native Gemini stream failure")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(transport, "generate", generate)
+    monkeypatch.setattr(transport, "stream", generate_stream)
+    provider._gemini_transport = transport
+    monkeypatch.setattr(one_shot, "get_provider", lambda _: provider)
+    monkeypatch.setattr(retry, "_backoff", AsyncMock())
+    try:
+        with pytest.raises(TimeoutError):
+            await one_shot.one_shot_completion(
+                "request", model="gemini-2.5-pro", provider="default",
+                stream=stream, num_retries=limit,
+            )
+    finally:
+        await provider.aclose()
+    assert len(calls) == attempts
     assert retry._retry_limit() == 2

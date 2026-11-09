@@ -1,18 +1,18 @@
 """
-Repo Map module - a code repository map generation tool.
+Repository map generation tools.
 
-This module provides the full functionality for generating a code repository map, including:
-- Code file analysis and tag extraction
-- File importance ranking based on the PageRank algorithm
-- Intelligent code structure display
-- High-performance token counting
-- Flexible IO handling
+Generate repository maps with:
+- Code analysis and tag extraction.
+- File ranking with PageRank.
+- Code structure display.
+- Token counting.
+- Configurable input/output handling.
 
 Main components:
-- RepoMap: the core repository map generator
-- IO: standard input/output handler
-- TokenCounterModel: token counting model
-- Tag: code tag data structure
+- RepoMap: Repository map generator.
+- IO: Standard input/output handler.
+- TokenCounterModel: Token counting model.
+- Tag: Code tag data structure.
 """
 
 from .repo_map import RepoMap, Tag
@@ -58,17 +58,17 @@ def create_repo_map(
     **kwargs
 ) -> RepoMap:
     """
-    Convenience function for creating a RepoMap instance.
+    Create a RepoMap instance.
     
     Args:
-        root_path (str): The repository root directory path.
-        model_name (str): The language model name, defaults to Claude 3.5 Sonnet.
+        root_path (str): Repository root directory.
+        model_name (str): Model name; defaults to Claude 3.5 Sonnet.
         verbose (bool): Whether to enable verbose output.
-        map_tokens (int): The maximum number of map tokens.
+        map_tokens (int): Maximum map token count.
         **kwargs: Other RepoMap parameters.
         
     Returns:
-        RepoMap: A configured RepoMap instance.
+        RepoMap: Configured RepoMap instance.
         
     Example:
         >>> repo_map = create_repo_map("/path/to/repo", verbose=True)
@@ -96,20 +96,20 @@ def create_optimized_repo_map(
     **kwargs
 ) -> RepoMap:
     """
-    Convenience function for creating an optimized RepoMap instance.
+    Create an optimized RepoMap instance.
     
-    Suitable for large code repositories; uses an optimized token counter.
+    Use an optimized token counter for large repositories.
     
     Args:
-        root_path (str): The repository root directory path.
-        model_name (str): The language model name.
+        root_path (str): Repository root directory.
+        model_name (str): Model name.
         verbose (bool): Whether to enable verbose output.
-        map_tokens (int): The maximum number of map tokens, defaults to 8192.
-        sampling_threshold (int): The sampling threshold.
+        map_tokens (int): Maximum map token count; defaults to 8192.
+        sampling_threshold (int): Sampling threshold.
         **kwargs: Other RepoMap parameters.
         
     Returns:
-        RepoMap: A configured optimized RepoMap instance.
+        RepoMap: Configured optimized RepoMap instance.
     """
     io = IO(verbose=verbose)
     model = OptimizedTokenCounterModel(model_name, sampling_threshold)
@@ -131,18 +131,18 @@ def create_silent_repo_map(
     **kwargs
 ) -> RepoMap:
     """
-    Convenience function for creating a silent RepoMap instance.
+    Create a silent RepoMap instance.
     
-    Suitable for tests or scenarios requiring silent operation.
+    Use for tests or other scenarios requiring silent operation.
     
     Args:
-        root_path (str): The repository root directory path.
-        model_name (str): The language model name.
-        map_tokens (int): The maximum number of map tokens.
+        root_path (str): Repository root directory.
+        model_name (str): Model name.
+        map_tokens (int): Maximum map token count.
         **kwargs: Other RepoMap parameters.
         
     Returns:
-        RepoMap: A configured silent RepoMap instance.
+        RepoMap: Configured silent RepoMap instance.
     """
     io = SilentIO()
     model = TokenCounterModel(model_name)

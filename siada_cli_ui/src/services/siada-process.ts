@@ -170,7 +170,7 @@ export class SiadaProcessManager extends EventEmitter {
       }
     }
 
-    logger.debug('Built arguments', { args });
+    logger.debug('Built arguments', { count: args.length });
 
     return args;
   }

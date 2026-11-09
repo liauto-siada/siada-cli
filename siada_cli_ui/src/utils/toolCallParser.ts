@@ -14,14 +14,14 @@ const TOOL_PATTERNS = {
   undo_edit: /^Undo the last edit for the file `([^`]+)`/,
   run_command: /^Run the following command:/,
   run_powershell: /^Run the following PowerShell command:/,
-  search: /^Search for: (.+?) in (.+?) with file pattern/,
+  search: /^Search for: ([\s\S]+?) in ([\s\S]+?) with file pattern/,
   analyze: /^Analyze definitions in `([^`]+)`/,
   web: /^(?:Crawl the url:|Fetch URL:|Web search:)\s*(.+)/,
   browser: /^> Siada will (.+)/,
   memory_search: /^Searching memory(?::\s*([\s\S]*))?$/,
   memory_write: /^Save to memory/,
-  fact_store: /^Fact memory(?:\s+(.+))?/,
-  fact_feedback: /^Fact feedback(?:\s+(.+))?/,
+  fact_store: /^Fact memory(?:\s+([\s\S]+))?/,
+  fact_feedback: /^Fact feedback(?:\s+([\s\S]+))?/,
   sub_agent: /^Sub-agent task(?::\s*([\s\S]*))?$/,
   apply_patch: /^Apply patch: (\d+) files? changed/,
 
@@ -149,7 +149,7 @@ function createParsedResult(
       // Older history may lack the trailing cwd. Keep the original broad
       // search recognition and only split out the tree fields when available.
       const args = fullContent.match(/^Search for: ([\s\S]*?) in ([\s\S]*?) with file pattern ([\s\S]*?) in ([\s\S]*)$/);
-      const legacy = !args && fullContent.match(/^Search for: (.+?) in (.+?) with file pattern (.*)$/);
+      const legacy = !args && fullContent.match(/^Search for: ([\s\S]+?) in ([\s\S]+?) with file pattern ([\s\S]*)$/);
       return {
         type,
         summary: 'Search',

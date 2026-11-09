@@ -42,7 +42,7 @@ class TestCmdEffortShow:
 
     def test_no_args_shows_off_when_unset(self):
         sc = _make_slash_commands()
-        session = _make_session("gpt-6-astra")
+        session = _make_session("gemini-3.5-flash")
         session.siada_config.llm_config.reasoning_effort = None
 
         sc.cmd_effort(session, "   ")
@@ -122,7 +122,7 @@ class TestCmdEffortSet:
 
     def test_non_claude_model_rejects_xhigh(self):
         sc = _make_slash_commands()
-        session = _make_session("gpt-6-astra")
+        session = _make_session("gemini-3.5-flash")
 
         sc.cmd_effort(session, "xhigh")
 
@@ -198,7 +198,8 @@ class TestCmdEffortSet:
 class TestCmdEffortKimiK3:
     """Kimi K3 always reasons; valid efforts are low/high/max (no medium),
     default "max", sent as the top-level reasoning_effort request field
-    (routed through extra_body to survive litellm's drop_params)."""
+    (routed through extra_body by li_provider to survive litellm's
+    drop_params)."""
 
     def test_default_is_max(self):
         sc = _make_slash_commands()
@@ -243,14 +244,15 @@ class TestCmdEffortKimiK3:
         settings = ModelSettingsConverter.convert_model_settings(config)
 
         # Non-Claude/non-Gemini models carry effort in
-        # extra_body["reasoning_effort"], merged into the request body as the
-        # top-level reasoning_effort field.
+        # extra_body["reasoning_effort"]; li forwards it as litellm's
+        # extra_body (merged into the request body as the top-level
+        # reasoning_effort field).
         assert settings.extra_body["reasoning_effort"] == "low"
 
     def test_converter_always_emits_max(self):
         # The converter emits every effort level unconditionally (even
-        # "max") — Kimi K3+'s max-omission is a gateway concern, not a
-        # converter one.
+        # "max") — Kimi K3+'s max-omission is an li-gateway concern applied
+        # inside LiProvider, not in the converter.
         from siada.models.model_setting_converter import ModelSettingsConverter
 
         config = ModelRunConfig("kimi-k3")
@@ -312,9 +314,9 @@ class TestCmdEffortGlm:
     def test_glm53_converter_sends_low_high_via_reasoning(self):
         from siada.models.model_setting_converter import ModelSettingsConverter
 
-        # glm-5.3 carries the effort via extra_body["reasoning_effort"],
-        # landing as the top-level reasoning_effort request field and avoiding
-        # drop_params.
+        # bailian-glm-5.3 carries the effort via extra_body["reasoning_effort"]
+        # (li forwards it as litellm's extra_body, landing as the top-level
+        # reasoning_effort request field and avoiding drop_params).
         for level in ("low", "high"):
             config = ModelRunConfig("glm-5.3")
             config.set_reasoning_effort(level)
@@ -443,6 +445,19 @@ class TestCmdEffortQwen:
             "preserve_thinking": True,
             "reasoning_effort": "xhigh",
         }
+
+    def test_li_provider_routes_effort_via_extra_body(self):
+        # litellm does not accept reasoning_effort top-level for qwen (openai
+        # provider), so the converter routes it through extra_body — which
+        # lands as the top-level reasoning_effort request field, matching the
+        # DashScope format.
+        from siada.models.model_setting_converter import ModelSettingsConverter
+
+        config = ModelRunConfig("qwen3.7-plus")
+        settings = ModelSettingsConverter.convert_model_settings(config)
+
+        assert "reasoning_effort" in settings.extra_body
+        assert "reasoning_effort" not in (settings.extra_args or {})
 
 
 class TestCompletionsEffort:

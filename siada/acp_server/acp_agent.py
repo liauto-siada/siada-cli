@@ -11,7 +11,6 @@ from typing import Any
 from uuid import uuid4
 from siada.foundation.log_context import logged_request, log_fields
 
-import siada
 from acp import (
     PROTOCOL_VERSION,
     Agent,
@@ -204,6 +203,8 @@ class SiadaAcpAgent(Agent):
         client_info: Implementation | None = None,
         **_: Any,
     ) -> InitializeResponse:
+        from siada import __version__
+
         return InitializeResponse(
             protocol_version=PROTOCOL_VERSION,
             agent_capabilities=AgentCapabilities(
@@ -220,7 +221,7 @@ class SiadaAcpAgent(Agent):
                     resume=SessionResumeCapabilities(),
                 ),
             ),
-            agent_info=Implementation(name="siada", title="Siada", version=siada.__version__),
+            agent_info=Implementation(name="siada", title="Siada", version=__version__),
         )
 
     async def new_session(
@@ -506,7 +507,7 @@ class SiadaAcpAgent(Agent):
             text = "".join(block.text for block in prompt if isinstance(block, TextContentBlock))
             # Clients may send the user's actual message as the last of
             # several text blocks (e.g. an IM bridge prepends a
-            # "[Context: ...]" context block). Slash-command matching must run
+            # "[上下文: ...]" context block). Slash-command matching must run
             # against that block alone, or the prefix defeats the leading-"/"
             # check and "/model" silently becomes a normal agent turn.
             command_text = next(
@@ -540,12 +541,18 @@ class SiadaAcpAgent(Agent):
                 return PromptResponse(stop_reason="cancelled")
             raise
         except RequestError:
-            # Preserve errors that already carry a client-facing message.
+            # Already carries a client-facing message (e.g. a specific turn
+            # failure converted below) — pass it through unchanged.
             logger.exception("prompt() rejected for session_id=%s", session_id)
             raise
         except Exception as exc:
             logger.exception("prompt() failed for session_id=%s", session_id)
-            # The SDK otherwise replaces the cause with "Internal error".
+            # The SDK reports a bare exception back as a JSON-RPC error whose
+            # message is always the generic "Internal error" (clients such as
+            # the chrome-acp sidepanel only read `message`, never
+            # `error.data.details`), so a bad gateway, a missing model or a
+            # busy session all looked identical in the UI. Surface the actual
+            # cause in the message instead.
             detail = str(exc).strip()
             message = f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
             raise RequestError(-32603, message) from None

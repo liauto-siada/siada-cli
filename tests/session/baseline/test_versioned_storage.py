@@ -2,6 +2,7 @@
 
 import base64
 import json
+import logging
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -59,26 +60,6 @@ async def test_migration_preserves_empty_or_summary_snapshot_and_pending_delta(b
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("change", [
-    {"session_id": "wrong"}, {"last_index": 20}, {"last_index": -1, "last_signature": ""},
-    {"last_signature": "wrong"}, {"api_messages": None}, {"last_index": True},
-])
-async def test_invalid_migration_is_rejected_without_changing_legacy_files(baseline, change):
-    store = baseline.session().openai_session
-    await store.add_items([{"role": "user", "content": "original"}])
-    save_snapshot(store, [], 0)
-    path = store.session_folder / "api_messages.json"
-    data = json.loads(path.read_bytes())
-    data.update(change)
-    path.write_text(json.dumps(data), encoding="utf-8")
-    before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
-    with pytest.raises(SessionStorageError):
-        await store.migrate_legacy_context(allow_history_only=True)
-    assert not store.context_file.exists()
-    assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("with_signature", [False, True])
 async def test_migration_recovers_reset_boundary_without_resurrecting_history(baseline, with_signature):
     store = baseline.session().openai_session
@@ -112,7 +93,8 @@ async def test_migration_recovers_reset_boundary_without_resurrecting_history(ba
 @pytest.mark.parametrize("case", [
     "empty", "summary", "duplicate", "duplicate_signature", "trailing_summary", "wrong_signature",
 ])
-async def test_migration_rejects_reset_boundary_without_unique_final_anchor(baseline, case):
+async def test_migration_rebuilds_history_without_unique_final_anchor(baseline, monkeypatch, caplog, case):
+    monkeypatch.setattr("siada.services.file_session.logger", logging.getLogger(__name__))
     store = baseline.session().openai_session
     anchor = {"role": "user", "content": "repeated request"}
     history = [anchor, {"role": "assistant", "content": "pending reply"}]
@@ -132,7 +114,101 @@ async def test_migration_rejects_reset_boundary_without_unique_final_anchor(base
         last_signature="wrong" if case == "wrong_signature" else signature,
     )
     before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
-    with pytest.raises(SessionStorageError, match="trustworthy history boundary"):
+    prepared = await store.migrate_legacy_context()
+    assert prepared["items"] == history
+    assert prepared["migration_source"] == "legacy_history_fallback"
+    assert prepared["migration_fallback_reason"] == "untrustworthy_snapshot_boundary"
+    assert "action=rebuild_from_history" in caplog.text
+    assert "repeated request" not in caplog.text
+    assert "summary without native anchor" not in caplog.text
+    caplog.clear()
+    assert await store.migrate_legacy_context() == prepared
+    assert "action=rebuild_from_history" not in caplog.text
+    assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")
+                      if path != store.context_file}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change, reason", [
+    ({"last_signature": "wrong"}, "snapshot_signature_mismatch"),
+    ({"last_signature": ""}, "snapshot_signature_mismatch"),
+    ({"last_signature": None}, "snapshot_signature_mismatch"),
+    ({"last_index": 20}, "invalid_snapshot_boundary"),
+    ({"last_index": -2}, "invalid_snapshot_boundary"),
+    ({"last_index": -1, "last_signature": ""}, "untrustworthy_snapshot_boundary"),
+])
+async def test_migration_boundary_fallback_preserves_history_and_routing(baseline, change, reason):
+    store = baseline.session().openai_session
+    history = [{"role": "user", "content": "original"}, {"role": "assistant", "content": "latest reply"}]
+    await store.add_items(history)
+    store.inject_items([{"role": "user", "content": "route only"}], "source", position="prepend")
+    save_snapshot(store, [{"role": "user", "content": "old summary"}], 0)
+    path = store.session_folder / "api_messages.json"
+    data = json.loads(path.read_bytes())
+    data.update(change)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+    prepared = await store.migrate_legacy_context()
+    assert prepared["items"] == history
+    assert len(prepared["routed_items"]) == 1
+    assert prepared["migration_source"] == "legacy_history_fallback"
+    assert prepared["migration_fallback_reason"] == reason
+    assert await store.get_items() == history
+    assert await store.migrate_legacy_context() == prepared
+    assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")
+                      if path != store.context_file}
+
+
+def test_concurrent_migration_fallback_commits_one_context(baseline):
+    first = baseline.session().openai_session
+    history = [{"role": "user", "content": "original"}]
+    first.add_items_sync(history)
+    SessionManager.sync_api_messages(
+        first.session_folder, first.session_id, [], last_index=0, last_signature="wrong",
+    )
+    second = FileSession.from_file(first.history_file)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda store: store.migrate_legacy_context_sync(), [first, second]))
+    assert results[0] == results[1] == first.get_context_snapshot_sync()
+    assert results[0]["context_version"] == 0
+    assert results[0]["items"] == history
+    assert results[0]["migration_source"] == "legacy_history_fallback"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", [
+    {"session_id": "wrong"}, {"api_messages": None}, {"api_messages": ["invalid"]},
+    {"api_messages": [{"role": "user", "_injected": True}]}, {"last_index": True}, {"last_index": "0"},
+])
+async def test_invalid_migration_is_rejected_without_changing_legacy_files(baseline, change):
+    store = baseline.session().openai_session
+    await store.add_items([{"role": "user", "content": "original"}])
+    save_snapshot(store, [], 0)
+    path = store.session_folder / "api_messages.json"
+    data = json.loads(path.read_bytes())
+    data.update(change)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+    with pytest.raises(SessionStorageError):
+        await store.migrate_legacy_context(allow_history_only=True)
+    assert not store.context_file.exists()
+    assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target, payload", [
+    ("history", "not json"), ("history", "[]"), ("history", '{"session_id": "wrong", "items": []}'),
+    ("history", '{"items": null}'), ("history", '{"items": ["invalid"]}'),
+    ("snapshot", "not json"), ("snapshot", "[]"), ("snapshot", "{}"),
+])
+async def test_damaged_legacy_sources_cannot_use_boundary_fallback(baseline, target, payload):
+    store = baseline.session().openai_session
+    await store.add_items([{"role": "user", "content": "original"}])
+    SessionManager.sync_api_messages(store.session_folder, store.session_id, [], last_index=0, last_signature="wrong")
+    path = store.history_file if target == "history" else store.session_folder / "api_messages.json"
+    path.write_text(payload, encoding="utf-8")
+    before = {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
+    with pytest.raises(SessionStorageError):
         await store.migrate_legacy_context(allow_history_only=True)
     assert not store.context_file.exists()
     assert before == {path.name: path.read_bytes() for path in store.session_folder.glob("*.json")}
@@ -422,13 +498,11 @@ async def test_interrupted_multi_file_write_is_rolled_back_before_read(baseline)
 
 
 @pytest.mark.asyncio
-async def test_public_distribution_disables_conversation_collection(baseline):
-    """The private telemetry upload hook is not part of this distribution.
-
-    ``_create_telemetry_hook`` returns None here, so a context replacement can
-    never leak the discarded full history into a conversation collector.
-    """
+async def test_actual_telemetry_after_replacement_still_uses_full_history(baseline, monkeypatch):
     from siada.session.session_manager import RunningSessionManager
+    import siada.session.session_manager as module
+    if not module.telemetry.config.conversation_url:
+        pytest.skip("Public telemetry is inert; storage history is covered independently.")
 
     session = baseline.session()
     store = session.openai_session
@@ -440,5 +514,14 @@ async def test_public_distribution_disables_conversation_collection(baseline):
     await store.add_items(history)
     store.inject_items([{"role": "user", "content": "must be excluded"}], "source")
     await store.migrate_legacy_context(allow_history_only=True)
-    assert RunningSessionManager._create_telemetry_hook(session, session.siada_config) is None
+    turns, events = [], []
+    monkeypatch.setattr(module.telemetry, "captureConversation", lambda **kwargs: turns.append(kwargs))
+    monkeypatch.setattr(module.telemetry, "captureConversationEvent", lambda **kwargs: events.append(kwargs))
+    store.on_items_added = RunningSessionManager._create_telemetry_hook(session, session.siada_config)
     await store.replace_context_items([], expected_version=0)
+    assert turns == events == []
+    await store.on_items_added([history[-1]])
+    assert len(turns) == len(events) == 1
+    assert json.loads(turns[0]["message_list"]) == RunningSessionManager._format_history_for_telemetry(history)
+    assert turns[0]["message_list_length"] == turns[0]["conversation_index"] == len(history)
+    assert events[0]["conversation_index"] == len(history)

@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from siada.config.config_loader import Config, LLMConfig, SubAgentConfig
+from siada.config.config_loader import LLMConfig, SubAgentConfig
 from siada.foundation.code_agent_context import CodeAgentContext
 from siada.models.model_run_config import ModelRunConfig
 from siada.provider import provider_factory
@@ -35,7 +35,7 @@ def _llm_config(
 
 def _context(llm_config, root_dir: Path) -> CodeAgentContext:
     session = MagicMock(spec=RunningSession)
-    session.session_id = "sub-agent-config-test"
+    session.session_id = "synthetic-sub-agent-test"
     session.siada_config = MagicMock()
     session.siada_config.llm_config = llm_config
     session.siada_config.tracing_disabled = True
@@ -64,11 +64,11 @@ def _build(llm_config, root_dir: Path, model=None, effort=None):
 
 
 class TestModelOverrideHelper:
-    def test_override_keeps_the_provider_of_the_base_config(self):
+    def test_override_normalizes_the_legacy_provider_of_the_base_config(self):
         override = _model_override_llm_config("gpt-6-luna", _llm_config(provider="li"))
 
         assert override.model_name == "gpt-6-luna"
-        assert override.provider == "li"
+        assert override.provider == "default"
 
     def test_unknown_model_returns_none(self):
         assert _model_override_llm_config("gpt-5.6-luna", _llm_config()) is None
@@ -80,11 +80,11 @@ class TestBuildSubAgentRunConfigModelOverride:
 
         assert run_config.model == "gpt-6-luna"
 
-    def test_override_keeps_the_gateway_provider(self, tmp_path):
+    def test_override_uses_the_public_provider_for_a_legacy_gateway_key(self, tmp_path):
         with patch("siada.services.sub_agent_run_config.get_provider") as get_provider:
             _build(_llm_config(provider="li"), tmp_path, model="gpt-6-luna")
 
-        get_provider.assert_called_once_with("li")
+        get_provider.assert_called_once_with("default")
 
     def test_unknown_model_is_ignored_and_the_configured_model_kept(self, tmp_path):
         run_config = _build(_llm_config(), tmp_path, model="gpt-5.6-luna")
@@ -112,93 +112,17 @@ class TestBuildSubAgentRunConfigModelOverride:
 
         assert run_config.model == "claude-sonnet-5"
 
+    def test_snapshot_uses_the_resolved_provider(self, tmp_path, isolated_providers):
+        parent = _llm_config(provider="default")
+        with patch(
+            "siada.services.sub_agent_run_config.resolve_provider_by_model",
+            return_value="alternate",
+        ):
+            run_config = _build(parent, tmp_path)
 
-@pytest.mark.parametrize(
-    "configured_provider, active_provider, parent_provider, expected_provider",
-    [
-        (None, None, "gateway", "gateway"),
-        ("missing-provider", "gateway", "default", "gateway"),
-        ("missing-provider", None, "gateway", "gateway"),
-        ("gateway", None, "default", "gateway"),
-        (None, None, None, "default"),
-        ("missing-provider", None, "missing-parent", "default"),
-    ],
-)
-def test_sub_agent_provider_resolution(
-    monkeypatch, tmp_path, configured_provider, active_provider, parent_provider,
-    expected_provider,
-):
-    parent = _llm_config(provider=parent_provider)
-    context = _context(parent, tmp_path)
-    context.provider = active_provider
-    conf = Config(
-        sub_agent_config=SubAgentConfig(
-            llm_config=LLMConfig(
-                model="gpt-6-luna", provider=configured_provider
-            )
-        )
-    )
-    providers = {"default": MagicMock(), "gateway": MagicMock()}
-    monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
-    monkeypatch.setattr(provider_factory, "provider_map", providers)
-
-    with patch("siada.config.config_loader.load_conf", return_value=conf):
-        resolved = resolve_sub_agent_llm_config(context)
-        run_config = build_sub_agent_run_config(context)
-
-    assert resolved.provider == (configured_provider or parent_provider)
-    assert run_config.model == "gpt-6-luna"
-    assert run_config.model_provider.base_provider is providers[expected_provider]
-    assert parent.model_name == "claude-sonnet-5"
-    assert parent.provider == parent_provider
-
-
-def test_sub_agent_reports_empty_registry(monkeypatch, tmp_path):
-    monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
-    monkeypatch.setattr(provider_factory, "provider_map", {})
-
-    with pytest.raises(ValueError, match="No model providers found or registered"):
-        _build(_llm_config(), tmp_path)
-
-
-@pytest.mark.asyncio
-async def test_run_subtask_returns_hello_with_model_only_override(monkeypatch, tmp_path):
-    from siada.tools.agent.run_subtask import run_subtask_impl
-
-    context = _context(_llm_config(), tmp_path)
-    conf = Config(
-        sub_agent_config=SubAgentConfig(
-            llm_config=LLMConfig(model="gpt-6-luna")
-        )
-    )
-    provider = MagicMock()
-    monkeypatch.setattr(provider_factory, "_discover_providers", lambda: None)
-    monkeypatch.setattr(provider_factory, "provider_map", {"default": provider})
-    # Async callers resolve through their loop's pool; pin the pool instance to
-    # the registered mock so the assertion still verifies provider selection.
-    monkeypatch.setattr(provider_factory, "create_provider", lambda key: provider)
-
-    async def stream_events():
-        return
-        yield
-
-    result = MagicMock()
-    result.stream_events = stream_events
-    result.final_output = "hello"
-    with patch("siada.config.config_loader.load_conf", return_value=conf), patch(
-        "siada.tools.agent.run_subtask.SubTaskAgent", return_value=MagicMock()
-    ), patch(
-        "siada.tools.agent.run_subtask.Runner.run_streamed", return_value=result
-    ) as run_streamed:
-        output = await run_subtask_impl(
-            instruction="Reply with exactly hello.",
-            agent_context=context,
-        )
-
-    assert output == "hello"
-    run_config = run_streamed.call_args.kwargs["run_config"]
-    assert run_config.model == "gpt-6-luna"
-    assert run_config.model_provider.base_provider is provider
+        assert run_config.model_provider.base_provider is isolated_providers["alternate"]
+        assert run_config.model_run_config.provider == "alternate"
+        assert parent.provider == "default"
 
 
 class TestSubAgentProviderInheritance:

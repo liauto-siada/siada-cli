@@ -124,6 +124,40 @@ async def test_native_patch_history_is_normalized_only_for_chat(provider, native
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("native", [False, True])
+async def test_custom_history_can_be_replayed_by_compaction_model(provider, stream, native):
+    _, model = provider
+    model.supports_native_responses_items = native
+    history = [
+        {"role": "user", "content": "synthetic task"},
+        {"type": "custom_tool_call", "id": "custom", "call_id": "custom-call",
+         "name": "unavailable_custom", "input": "raw input"},
+        {"type": "custom_tool_call_output", "call_id": "custom-call", "output": "not found"},
+    ]
+    original = deepcopy(history)
+
+    async def check_input(**kwargs):
+        if native:
+            assert kwargs["input"] == history
+        else:
+            messages = Converter.items_to_messages(kwargs["input"])
+            assert messages[1]["tool_calls"][0]["function"]["name"] == "unavailable_custom"
+            assert messages[2]["tool_call_id"] == "custom-call"
+        return response_with_text()
+
+    async def events(**kwargs):
+        await check_input(**kwargs)
+        yield completed_event()
+
+    model.get_response.side_effect = check_input
+    model.stream_response = Mock(side_effect=events)
+    response = await one_shot.one_shot_completion(history, model="gpt-4o", stream=stream)
+    assert one_shot.extract_response_text(response)
+    assert history == original
+
+
+@pytest.mark.asyncio
 async def test_claude_reasoning_sanitization_is_retained(provider):
     _, model = provider
     model.model = "anthropic/claude-sonnet-4.6"
@@ -372,7 +406,7 @@ async def test_stream_rejects_partial_or_failed_responses_and_closes_iterator(pr
             closed.set()
 
     model.stream_response = Mock(side_effect=events)
-    with pytest.raises(ModelBehaviorError, match="(?i)model.*stream"):
+    with pytest.raises(ModelBehaviorError, match="One-shot model stream"):
         await one_shot.one_shot_completion("hello", model="gpt-4o")
     assert closed.is_set()
     model.get_response.assert_not_awaited()

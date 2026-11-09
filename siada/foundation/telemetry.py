@@ -1,19 +1,8 @@
-"""No-op telemetry surface for the open-source distribution.
-
-Nothing is reported from this distribution: the exported ``telemetry``
-singleton keeps the attribute and method surface public callers use, and every
-capture method is inert. ``Telemetry`` stays importable and callable so
-existing reporting call sites keep working unchanged.
-"""
+"""Inert telemetry compatibility surface for the public distribution."""
 
 
 class _NoOpTelemetryConfig:
-    """Inert telemetry configuration.
-
-    ``conversation_url`` stays empty on purpose: reporting call sites treat a
-    non-empty value as "a telemetry backend is configured", so the empty value
-    keeps those paths switched off.
-    """
+    """Keep reporting disabled while retaining the configuration interface."""
 
     def __init__(self):
         self.url = ""
@@ -22,7 +11,7 @@ class _NoOpTelemetryConfig:
 
 
 class Telemetry:
-    """Inert telemetry client; every capture call is a no-op."""
+    """Keep existing capture call sites available without collecting data."""
 
     def __init__(self):
         self.config = _NoOpTelemetryConfig()
@@ -30,18 +19,17 @@ class Telemetry:
         self.mac_id = ""
 
     def captureConversation(self, *args, **kwargs):
-        """No-op: conversation turns are not reported."""
+        """Conversation collection is disabled."""
 
     def captureConversationEvent(self, *args, **kwargs):
-        """No-op: conversation events are not reported."""
+        """Conversation event collection is disabled."""
 
     def captureApiTokenUsage(self, *args, **kwargs):
-        """No-op: API token usage is not reported."""
+        """Remote token usage collection is disabled."""
 
     def captureToolEditFileUsage(self, *args, **kwargs):
-        """No-op: tool edit usage is not reported."""
+        """Remote edit usage collection is disabled."""
 
 
 telemetry = Telemetry()
-
 __all__ = ["Telemetry", "telemetry"]

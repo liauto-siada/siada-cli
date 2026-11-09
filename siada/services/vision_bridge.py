@@ -5,10 +5,9 @@ images, so attached images are first transcribed into structured text evidence
 by a vision-capable "engine" model, and the evidence is fed to the text model
 in place of the raw image.
 
-Engine resolution uses ``llm_config.vision_model`` from conf.yaml when set.
-It must be image-capable; ``vision_provider`` defaults to the main provider.
-Without a dedicated vision model, the user's configured model is reused only
-when it supports images. Otherwise callers retain their strip/reject behavior.
+Engine resolution uses the configured image-capable vision model. Without one,
+the main model is reused only if it supports images; otherwise the bridge is
+unavailable and callers retain their strip/reject behavior.
 """
 
 from __future__ import annotations
@@ -80,8 +79,9 @@ def _image_capable(model_name: str) -> bool:
 def _get_vision_engine() -> Optional[Tuple[str, str]]:
     """Return ``(model_name, provider_name)`` for the vision engine.
 
-    ``None`` when neither a dedicated ``vision_model`` nor an image-capable
-    main model is configured.
+    ``None`` when no vision-capable engine is available (open-source build
+    with neither a dedicated ``vision_model`` nor an image-capable main
+    model configured).
     """
     llm = _read_user_llm_section()
 
@@ -232,6 +232,7 @@ def transcribe_images_sync(
 
     def _runner() -> None:
         from siada.provider.provider_factory import run_in_provider_runtime
+
         try:
             outcome["value"] = asyncio.run(
                 run_in_provider_runtime(transcribe_images(image_paths, user_hint))

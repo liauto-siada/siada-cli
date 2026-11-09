@@ -39,7 +39,10 @@ const githubDarkTheme = {
   input: {
     prompt: '#58a6ff',      // > prompt symbol (blue)
     cursor: '#c9d1d9',      // Cursor color (use with inverse)
-    placeholder: '#484f58', // Placeholder text (muted)
+    // Placeholder must stay readable on dark terminals: the old muted
+    // #484f58 was nearly invisible, so it now matches text.secondary while
+    // typed input stays at #c9d1d9.
+    placeholder: '#8b949e', // Placeholder text (readable, dimmer than input)
     text: '#c9d1d9',        // Input text
     selection: '#264f78',   // Selection background (blue dim)
     multilineIndent: '#30363d', // Indent guide for multi-line

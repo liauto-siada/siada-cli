@@ -118,7 +118,7 @@ FILE NAMING
 
   Good examples:
     siada-memory-agent-prompt-refactor
-    siada-cli-circular-import-fix
+    siada-agenthub-circular-import-fix
     siada-experience-file-naming-redesign
     myproject-auth-service-jwt-migration
 

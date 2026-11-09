@@ -36,11 +36,11 @@ _IPC_NOTIFICATION_CARD_TEMPLATES: dict[str, IpcNotificationCardTemplate] = {
         current_label="Current",
     ),
     "zh-CN": IpcNotificationCardTemplate(
-        header_title="📬 Cross-Session Message",
-        switch_tip="Reply to this message, or send a new one, to switch to the source session.",
-        stay_tip="To stay in the current session, reply to an earlier message in this session.",
-        source_label="Source",
-        current_label="Current",
+        header_title="📬 跨会话消息",
+        switch_tip="回复这条消息或者直接发送新消息，都会切到来源session。",
+        stay_tip="若想留在当前session，请回复本session中更早的一条消息。",
+        source_label="来源",
+        current_label="当前",
     ),
 }
 
@@ -63,10 +63,10 @@ _SESSION_SWITCH_NOTIFICATION_TEMPLATES: dict[str, SessionSwitchNotificationTempl
         switch_back_generic="Use `/resume <session_id>` to switch to another session.",
     ),
     "zh-CN": SessionSwitchNotificationTemplate(
-        switched_message="🔄 Switched to session {session_id}",
-        subsequent_hint="Subsequent messages will be processed in this session context.",
-        switch_back_with_id="To switch back, run `/resume {previous_sid}`",
-        switch_back_generic="Use `/resume <session_id>` to switch to another session.",
+        switched_message="🔄 已切换到会话 {session_id}",
+        subsequent_hint="后续消息将在此会话上下文中处理。",
+        switch_back_with_id="如需切回，请执行 `/resume {previous_sid}`",
+        switch_back_generic="使用 `/resume <session_id>` 切换到其他会话。",
     ),
 }
 
@@ -85,13 +85,13 @@ _DIRECT_TRANSPORT_NOTIFICATION_TEMPLATES: dict[str, DirectTransportNotificationT
     ),
     "zh-CN": DirectTransportNotificationTemplate(
         connected_message=(
-            "✅ Siada has successfully connected to Lark (direct mode).\n"
-            "You can now chat with Siada directly in Lark."
+            "✅ Siada 已成功连接到飞书（direct 模式）。\n"
+            "现在你可以直接在飞书里和 Siada 对话。"
         ),
         disconnected_message=(
-            "🔴 Siada daemon has stopped. The Lark IM connection is disconnected.\n"
-            "Messages you send will not be processed.\n"
-            "Please restart Siada-CLI to continue."
+            "🔴 Siada daemon 已停止，飞书 IM 连接已断开。\n"
+            "你发送的消息将不会被处理。\n"
+            "请重启 Siada-CLI 后继续。"
         ),
     ),
 }
@@ -126,32 +126,30 @@ _RELAY_TRANSPORT_NOTIFICATION_TEMPLATES: dict[str, RelayTransportNotificationTem
         ),
         email_mismatch_message=(
             "❌ Siada connection rejected (4005 EMAIL_MISMATCH):\n"
-            "The email in the relay config does not match the authenticated account.\n"
+            "The email in the relay config does not match the IDaaS token identity.\n"
             "Please verify that the email in the relay config matches the currently "
             "logged-in account, then restart Siada-CLI."
         ),
     ),
     "zh-CN": RelayTransportNotificationTemplate(
         connected_message=(
-            "✅ Siada has successfully connected to the Lark IM Gateway.\n"
-            "You can now chat with Siada via Lark."
+            "✅ Siada 已成功连接到飞书 IM Gateway。\n"
+            "您现在可以通过飞书与 Siada 进行对话了。"
         ),
         disconnected_message=(
-            "🔴 The Siada daemon has stopped and the Lark IM connection is closed.\n"
-            "Messages you send will not be processed.\n"
-            "Please restart Siada-CLI to continue."
+            "🔴 Siada 守护进程已停止运行，飞书 IM 连接已断开。\n"
+            "您发送的消息将不会被处理。\n"
+            "如需继续使用，请重新启动 Siada-CLI。"
         ),
         kicked_message=(
-            "⚠️ Your Siada connection has been terminated: your account was "
-            "logged in on another device.\n"
-            "The connection on this device has ended and will not auto-reconnect.\n"
-            "To continue, please restart Siada-CLI."
+            "⚠️ 您的 Siada 连接已被断开：您的账号在另一台设备上登录了。\n"
+            "当前设备的连接已终止，不会自动重连。\n"
+            "如需继续使用，请重新启动一次 Siada-CLI。"
         ),
         email_mismatch_message=(
-            "❌ Siada connection rejected (4005 EMAIL_MISMATCH):\n"
-            "The email in the relay config does not match the authenticated account.\n"
-            "Please verify that the email in the relay config matches the currently "
-            "logged-in account, then restart Siada-CLI."
+            "❌ Siada 连接被拒绝（4005 EMAIL_MISMATCH）：\n"
+            "配置中填写的 email 与 IDaaS token 对应的身份不符。\n"
+            "请检查 relay 配置中的 email 是否与当前登录账号一致，修复后重新启动 Siada-CLI。"
         ),
     ),
 }
@@ -177,11 +175,10 @@ _IDLE_SESSION_RESET_NOTIFICATION_TEMPLATES: dict[str, IdleSessionResetNotificati
     ),
     "zh-CN": IdleSessionResetNotificationTemplate(
         reset_message=(
-            "🆕 You've been idle for over {idle_minutes} minutes, so a fresh "
-            "session has been started for this conversation."
+            "🆕 由于超过 {idle_minutes} 分钟没有新消息，已为你开启一个全新的会话。"
         ),
-        resume_hint="To go back to the previous conversation, run `/resume {previous_sid}`",
-        resume_hint_generic="Use `/resume <session_id>` to switch back to a previous session.",
+        resume_hint="如需回到上一个会话，请发送 `/resume {previous_sid}`",
+        resume_hint_generic="使用 `/resume <session_id>` 可切换回之前的会话。",
     ),
 }
 
@@ -238,7 +235,7 @@ def get_notification_footer(
     so the footer (start/stop) is consistent with the message language.
     """
     if normalize_notification_language(language) == "zh-CN":
-        return f"Device: {device_info}\nVersion: {version}"
+        return f"设备：{device_info}\n版本：{version}"
     return f"Device: {device_info}\nVersion: {version}"
 
 
@@ -269,5 +266,5 @@ def get_daily_summary_notification_template(
             header_title="Siada Daily Summary",
         )
     return DailySummaryNotificationTemplate(
-        header_title="Siada Daily Summary",
+        header_title="Siada 每日总结",
     )

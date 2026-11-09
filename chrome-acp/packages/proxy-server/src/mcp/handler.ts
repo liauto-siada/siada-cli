@@ -25,6 +25,7 @@ import {
   BROWSER_TOOLS,
 } from "./types.js";
 import { log } from "../logger.js";
+import { INTERACTIVE_UI_TOOLS, callInteractiveUiTool } from "../interactive-ui/tools.js";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 
@@ -72,20 +73,14 @@ export function unregisterExecutor(ws: ExecutorLike): void {
 }
 
 /**
- * Send an out-of-band message to the extension's background worker (the
- * dedicated tool channel), so the extension can be asked to start/stop side
- * channels such as the live view. Only that worker can serve them: it is the
- * one holding the Chrome APIs. Returns false when no extension is connected.
- *
- * Deliberately does not fall back to `pickExecutor()`: every /ws client is
- * registered as a fallback executor and can therefore execute browser tools,
- * but a legacy client cannot start a CDP screencast. Routing the request there
- * would swallow it silently instead of reporting an honest failure.
+ * Send an out-of-band message to the connected extension (not a tool call), so
+ * the extension can be asked to start/stop side channels such as the live view.
+ * Returns false when no extension is connected.
  */
-export function sendToExtension(message: object): boolean {
-  const worker = dedicatedExecutor;
-  if (!worker || worker.readyState !== 1) return false;
-  worker.send(JSON.stringify(message));
+export function sendToExecutor(message: object): boolean {
+  const executor = dedicatedExecutor;
+  if (!executor || executor.readyState !== 1) return false;
+  executor.send(JSON.stringify(message));
   return true;
 }
 
@@ -216,7 +211,7 @@ function handleInitialize(id: string | number): McpResponse {
 
 function handleToolsList(id: string | number): McpResponse {
   const result: McpToolsListResult = {
-    tools: BROWSER_TOOLS,
+    tools: [...BROWSER_TOOLS, ...INTERACTIVE_UI_TOOLS],
   };
 
   return { jsonrpc: "2.0", id, result };
@@ -469,6 +464,9 @@ async function handleToolCall(
   id: string | number,
   params: McpToolCallParams,
 ): Promise<McpResponse> {
+  if (INTERACTIVE_UI_TOOLS.some(tool => tool.name === params.name)) {
+    return { jsonrpc: "2.0", id, result: await callInteractiveUiTool(params.name, params.arguments) };
+  }
   log.info("Tool call started", {
     id,
     tool: params.name,

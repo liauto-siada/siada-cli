@@ -1,10 +1,11 @@
 import React from 'react';
 import { Box, Text, useStdout } from '@jrichman/ink';
-import stringWidth from 'string-width';
+import stringWidth from '../../utils/terminalWidth.js';
 import type { TodoItem } from '../../hooks/useAcp/types.js';
 import { useThemeVersion } from '../../themes/index.js';
 import { colors } from '../../utils/colors.js';
 import { ToolHeading } from './ToolHeading.js';
+import { decodeHtmlEntities } from '../../utils/htmlEntities.js';
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
@@ -32,10 +33,12 @@ export const TodoPlanView: React.FC<{
   items: TodoItem[];
   collapsed: boolean;
   maxRows?: number;
-}> = ({ items, collapsed, maxRows }) => {
+  width?: number;
+  showHeading?: boolean;
+}> = ({ items, collapsed, maxRows, width: availableWidth, showHeading = true }) => {
   useThemeVersion();
   const { stdout } = useStdout();
-  const columns = stdout?.columns || process.stdout.columns || 80;
+  const columns = availableWidth ?? (stdout?.columns || process.stdout.columns || 80);
   // Only the step in progress is highlighted; done and pending steps step down
   // one tone instead of competing with it.
   const currentColor = colors.info;
@@ -47,13 +50,13 @@ export const TodoPlanView: React.FC<{
 
   // A single summary line is all compact history needs; TodoStatusBar shows
   // intermediate progress independently. A clear operation has no body.
-  if (collapsed || items.length === 0) return <ToolHeading parts={[title]} />;
+  if (collapsed || items.length === 0) return showHeading ? <ToolHeading parts={[title]} /> : null;
 
   const rows = items.flatMap((item, index) => {
     const icon = item.status === 'completed' ? '✓' : item.status === 'in_progress' ? '◐' : '○';
     // Two columns of outer indentation, five for the tree/status prefix, and
     // one spare column prevent Ink from soft-wrapping at the final cell.
-    return wrapStep(item.content, Math.max(1, columns - 8)).map((line, lineIndex) => ({
+    return wrapStep(decodeHtmlEntities(item.content), Math.max(1, columns - 8)).map((line, lineIndex) => ({
       line, icon: lineIndex === 0 ? icon : '  ',
       status: item.status, first: lineIndex === 0, firstItem: index === 0,
     }));
@@ -62,7 +65,7 @@ export const TodoPlanView: React.FC<{
 
   return (
     <Box flexDirection="column">
-      <ToolHeading parts={[title]} />
+      {showHeading && <ToolHeading parts={[title]} />}
       <Box flexDirection="column" paddingLeft={2}>
         {visible.map((row, index) => {
           const color = row.status === 'in_progress' ? currentColor : idleColor;

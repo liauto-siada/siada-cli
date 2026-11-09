@@ -16,6 +16,7 @@ from siada.provider.chat_completions import (
 from siada.provider.default.coverter import covert_to_litellm_model_name
 from siada.provider.lifecycle import EventLoopOwnership
 from siada.provider.request_config import get_default_credentials, has_request_credentials
+from siada.provider.free_trial import is_free_trial_endpoint
 
 
 _LITELLM_ROUTING_PREFIXES = frozenset(
@@ -26,8 +27,17 @@ _NATIVE_ONLY_PREFIXES = frozenset(
 )
 
 
+class AnonymousTrialOpenAI(AsyncOpenAI):
+    """Authentication-free SDK client, created only for the exact trial endpoint."""
+
+    def _validate_headers(self, headers, custom_headers) -> None:
+        return
+
+
 def get_default_chat_wire_model(model_name: str, base_url: str | None) -> str:
     """Resolve a configured/default model name to the endpoint's model ID."""
+    if is_free_trial_endpoint(base_url):
+        return model_name
     converted = covert_to_litellm_model_name(model_name)
 
     if "openrouter.ai" in (base_url or ""):
@@ -93,32 +103,18 @@ class DefaultOpenAIChatCompletionsModel(
 
     @property
     def base_url(self) -> str | None:
-        """Endpoint the underlying client sends to (read-only)."""
-        base_url = self._client.base_url
-        return str(base_url) if base_url is not None else None
+        return str(self._client.base_url) if self._client.base_url is not None else None
 
     @property
     def api_key(self) -> str | None:
-        """API key the underlying client authenticates with (read-only)."""
         return getattr(self._client, "api_key", None)
 
 
 class DefaultChatClientFactory:
-    """Reuse default-provider clients until BASE_URL/API_KEY changes.
+    """Reuse default-provider clients until BASE_URL/API_KEY changes."""
 
-    Without explicit credentials the pair is re-read from the environment on
-    every ``get_client()`` call, so login / reconfigure flows are picked up by
-    the models built from this factory. Passing ``base_url`` / ``api_key`` pins
-    the factory to those values instead, which is how a per-model override
-    (``fast_llm_config``) keeps its endpoint and key off the process
-    environment.
-    """
-
-    def __init__(
-        self,
-        base_url: str | None = None,
-        api_key: str | None = None,
-    ) -> None:
+    def __init__(self, base_url: str | None = None, api_key: str | None = None) -> None:
+        # Explicit configuration is immutable for the lifetime of this factory.
         self._pinned_base_url = base_url
         self._pinned_api_key = api_key
         self._client: AsyncOpenAI | None = None
@@ -131,11 +127,10 @@ class DefaultChatClientFactory:
 
     def get_client(self) -> AsyncOpenAI:
         if self._pinned_api_key is not None:
-            base_url = self._pinned_base_url or None
-            api_key = self._pinned_api_key
+            base_url, api_key = self._pinned_base_url, self._pinned_api_key
         else:
             base_url, api_key = get_default_credentials()
-        if not api_key:
+        if not api_key and not is_free_trial_endpoint(base_url):
             raise ValueError(
                 "API_KEY is required for the default OpenAI Chat Completions "
                 "provider. Set API_KEY and optionally BASE_URL to an "
@@ -143,6 +138,11 @@ class DefaultChatClientFactory:
             )
 
         key = (base_url, api_key)
+        anonymous_options = (
+            {"_enforce_credentials": False, "admin_api_key": ""}
+            if is_free_trial_endpoint(base_url) and not api_key else {}
+        )
+        client_type = AnonymousTrialOpenAI if anonymous_options else AsyncOpenAI
         with self._lock:
             if self._closed:
                 raise RuntimeError("DefaultChatClientFactory is closed")
@@ -150,43 +150,30 @@ class DefaultChatClientFactory:
             if self._pinned_api_key is None and has_request_credentials():
                 client = self._request_clients.get(key)
                 if client is None:
-                    client = AsyncOpenAI(
-                        api_key=api_key,
+                    client = client_type(
+                        api_key=api_key or "",
                         base_url=base_url,
                         timeout=LLM_API_POST_TIMEOUT,
                         max_retries=0,
+                        **anonymous_options,
                     )
                     self._request_clients[key] = client
                 return client
             if self._client is None or self._client_key != key:
                 if self._client is not None:
                     self._retired_clients.append(self._client)
-                self._client = AsyncOpenAI(
-                    api_key=api_key,
+                self._client = client_type(
+                    api_key=api_key or "",
                     base_url=base_url,
                     timeout=LLM_API_POST_TIMEOUT,
                     max_retries=0,
+                    **anonymous_options,
                 )
                 self._client_key = key
             return self._client
 
     async def aclose(self) -> None:
-        """Close every client this factory owns, including retired ones.
-
-        Must run on the event loop that owns the clients (see
-        ``EventLoopOwnership``): a native HTTP pool cannot be released from a
-        foreign loop.
-
-        Failures never stop the remaining clients from closing; a single error
-        is re-raised as-is and several are aggregated into an ExceptionGroup.
-
-        Ownership is released one client at a time, and only through those two
-        outcomes. A cancelled ``aclose`` (``asyncio.CancelledError`` is a
-        ``BaseException``, so it is not an ordinary close failure) propagates
-        unchanged and re-owns the clients whose close it did not confirm —
-        including the interrupted one — so a later ``aclose()`` still closes
-        them instead of them being dropped beyond reach.
-        """
+        """Close owned clients; cancellation retains unfinished cleanup for retry."""
         with self._lock:
             if self._closed and self._client is None and not self._retired_clients and not self._request_clients:
                 return
@@ -203,27 +190,13 @@ class DefaultChatClientFactory:
         for index, client in enumerate(clients):
             try:
                 await client.close()
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 errors.append(exc)
             except BaseException:
-                # Cancellation must reach the caller, but the clients this call
-                # has not closed yet must not be detached with it.
-                self._restore_clients(clients[index:])
+                with self._lock:
+                    self._retired_clients.extend(clients[index:])
                 raise
-
         if len(errors) == 1:
             raise errors[0]
         if errors:
-            raise ExceptionGroup("errors closing default chat clients", errors)
-
-    def _restore_clients(self, clients: list[AsyncOpenAI]) -> None:
-        """Return unconfirmed clients to the retired list, oldest first.
-
-        Restored clients are never handed out again (``get_client`` only ever
-        returns ``_client``), so re-owning them only means that a later
-        ``aclose()`` still sees them.
-        """
-        if not clients:
-            return
-        with self._lock:
-            self._retired_clients = [*clients, *self._retired_clients]
+            raise ExceptionGroup("Failed to close one or more default Chat clients", errors)

@@ -2,9 +2,11 @@
 Tests for TurnPolicy._maybe_run_goal_verifier and _push_goal_state_via_acp.
 """
 import tempfile
+from contextlib import contextmanager
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -13,7 +15,7 @@ import pytest
 # (checkpoint_tracker <-> session_manager) that the old controller import
 # used to mask.
 from siada.entrypoint.interaction.turn_policy import TurnPolicy
-from siada.entrypoint.interaction.turn.models import TurnOutput, TurnType
+from siada.entrypoint.interaction.turn.models import GOAL_VERIFICATION_METADATA_KEY, TurnOutput, TurnType
 from siada.services.goal.models import (
     Goal,
     GoalVerdict,
@@ -35,6 +37,10 @@ def _make_controller():
         send_notification=fake_send,
     )
     policy._acp_notifications = notifications
+    # Keep the existing synchronous verdict assertions; execute the async
+    # verifier on a real loop rather than mocking its coroutine boundary.
+    verify = policy._maybe_run_goal_verifier
+    policy._maybe_run_goal_verifier = lambda *args: asyncio.run(verify(*args))
     return policy
 
 
@@ -64,6 +70,76 @@ def base_result():
 
 
 class TestMaybeRunGoalVerifier:
+    @pytest.mark.parametrize("outcome", ["achieved", "no_next_action", "exhausted", "system_error", "crashed"])
+    def test_terminal_outcomes_freeze_timing_and_push_current_verification_round(self, tmp_path, base_result, outcome):
+        clock = {"now": "2026-01-01T00:00:00Z"}
+        ctrl = _make_controller()
+        session = _make_session()
+        with patch("siada.services.goal.models._now_iso", side_effect=lambda: clock["now"]):
+            goal = Goal.create("verify elapsed time")
+            goal.consecutive_system_errors = GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS - 1
+            cache, _ = _context_cache_with("/ws", goal, goal_max_turns=1)
+            clock["now"] = "2026-01-01T00:00:02Z"
+
+            async def verify(*args):
+                clock["now"] = "2026-01-01T00:00:10.750Z"
+                if outcome == "crashed":
+                    raise RuntimeError("Synthetic verifier crash")
+                return GoalVerdict(
+                    passed=outcome == "achieved", reason="Synthetic verdict",
+                    nextAction="" if outcome == "no_next_action" else "Run synthetic checks",
+                    systemError=outcome == "system_error",
+                )
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", cache), patch(
+                "siada.services.goal.verifier.run_goal_verification", new=verify,
+            ):
+                ctrl._maybe_run_goal_verifier(_make_turn(), session, tmp_path, base_result)
+            initial = ctrl._acp_notifications[0][1]
+            final = ctrl._acp_notifications[-1][1]
+            assert initial["verifying"] is True
+            assert initial["goal"]["turns"] == 1
+            assert initial["goal"]["elapsedSeconds"] == 2
+            assert final["goal"]["elapsedSeconds"] == 10.75
+            assert final["result"]["elapsedSeconds"] == 10
+            assert final["goal"]["status"] == ("complete" if outcome == "achieved" else "blocked")
+            clock["now"] = "2026-01-01T01:00:00Z"
+            assert goal_storage.load_goal(tmp_path).elapsed_seconds() == 10.75
+
+    @pytest.mark.parametrize("failure", ["no_next_action", "exhausted", "system_error", "crashed"])
+    def test_blocked_outcome_preserves_answer_and_carries_failure_metadata(self, base_result, tmp_path, failure):
+        ctrl = _make_controller()
+        session = _make_session()
+        goal = Goal.create("Ship synthetic feature")
+        goal.consecutive_system_errors = GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS - 1
+        cache, _ = _context_cache_with("/ws", goal, goal_max_turns=1)
+        original_metadata = dict(base_result.metadata)
+        verdict = GoalVerdict(
+            passed=False, reason="Synthetic tests failed",
+            nextAction="" if failure == "no_next_action" else "Fix the synthetic tests",
+            systemError=failure == "system_error",
+        )
+        verify = AsyncMock(return_value=verdict)
+        if failure == "crashed":
+            verify.side_effect = RuntimeError("Synthetic verifier crashed")
+        with patch("siada.services.siada_runner.SiadaRunner._context_cache", cache), patch(
+            "siada.services.goal.verifier.run_goal_verification", verify,
+        ):
+            out = ctrl._maybe_run_goal_verifier(_make_turn(), session, tmp_path, base_result)
+        assert out.output == "assistant reply"
+        assert out.metadata["k"] == original_metadata["k"]
+        outcome = out.metadata[GOAL_VERIFICATION_METADATA_KEY]
+        assert outcome["status"] == "blocked"
+        assert outcome["objective"] == goal.objective
+        assert outcome["notice"] == ctrl._acp_notifications[-1][1]["notice"]
+        assert outcome["reason"] == (
+            "Goal verification could not finish: Synthetic verifier crashed"
+            if failure == "crashed" else verdict.reason
+        )
+        if failure in {"system_error", "crashed"}:
+            assert "Send a new message to resume work" in outcome["notice"]
+            assert "/goal resume" not in outcome["notice"]
+
     def test_skips_command_turns(self, base_result):
         ctrl = _make_controller()
         turn = _make_turn(TurnType.COMMAND)
@@ -135,6 +211,10 @@ class TestMaybeRunGoalVerifier:
             assert final_result["reason"] == "all good"
             assert "elapsedSeconds" in final_result
             assert "tokensUsed" in final_result
+            assert final_result["outcome"] == "achieved"
+            assert final_result["continuing"] is False
+            assert goal_storage.load_goal(session_dir).verification_results == [final_result]
+            assert ctrl._acp_notifications[-1][1]["latestResult"] == final_result
 
     def test_verdict_failed_injects_feedback_switch_event(self, base_result):
         from siada.support.slash_commands import SwitchEvent
@@ -172,6 +252,9 @@ class TestMaybeRunGoalVerifier:
             assert final_result["achieved"] is False
             assert final_result["turns"] == 1
             assert final_result["reason"] == "tests not run"
+            assert final_result["outcome"] == "not_achieved"
+            assert final_result["continuing"] is True
+            assert goal_storage.load_goal(session_dir).verification_results == [final_result]
 
     def test_verdict_failed_with_next_action_appends_it_to_feedback(self, base_result):
         from siada.support.slash_commands import SwitchEvent
@@ -304,7 +387,10 @@ class TestMaybeRunGoalVerifier:
             assert persisted.status == "blocked"
             assert ctrl._acp_notifications[-1][1]["result"]["nextAction"] == ""
 
-    def test_verifier_exception_does_not_crash_turn(self, base_result):
+    @pytest.mark.parametrize("error", [RuntimeError("boom"), AttributeError("Synthetic legacy timer is unavailable")])
+    def test_verifier_exception_schedules_continuation(self, base_result, error):
+        from siada.support.slash_commands import SwitchEvent
+
         ctrl = _make_controller()
         turn = _make_turn()
         with tempfile.TemporaryDirectory() as d:
@@ -315,19 +401,49 @@ class TestMaybeRunGoalVerifier:
 
             with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
                 "siada.services.goal.verifier.run_goal_verification",
-                new=AsyncMock(side_effect=RuntimeError("boom")),
+                new=AsyncMock(side_effect=error),
             ):
                 out = ctrl._maybe_run_goal_verifier(turn, session, session_dir, base_result)
 
-            # A crash in the verifier call itself (not a returned failed verdict)
-            # must fail safe: pass the turn through unchanged, no genuine-judgment
-            # failure recorded -- but it DOES count against the small, separate
-            # system-error budget (GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS) so a
-            # persistently broken verifier still surfaces to the user quickly.
-            assert out is base_result
+            assert isinstance(out.output, SwitchEvent)
+            assert out.metadata == base_result.metadata
+            assert str(error) in out.output.kwargs["ai_analysis_prompt"]
             assert goal.status == "active"
             assert goal.consecutive_failures == 0
             assert goal.consecutive_system_errors == 1
+            records = goal_storage.load_goal(session_dir).verification_results
+            assert len(records) == 1
+            assert records[0]["outcome"] == "system_error"
+            assert records[0]["continuing"] is True
+            assert ctrl._acp_notifications[-1][1]["result"] == records[0]
+
+    def test_verifier_crash_then_success_completes_after_continuation(self, tmp_path, base_result):
+        from siada.support.slash_commands import SwitchEvent
+
+        ctrl = _make_controller()
+        session = _make_session()
+        goal = Goal.create("Complete synthetic verification")
+        cache, _ = _context_cache_with("/ws", goal)
+        verify = AsyncMock(side_effect=[
+            RuntimeError("Synthetic temporary verifier failure"),
+            GoalVerdict(passed=True, reason="Synthetic evidence is complete"),
+        ])
+        with patch("siada.services.siada_runner.SiadaRunner._context_cache", cache), patch(
+            "siada.services.goal.verifier.run_goal_verification", verify,
+        ):
+            first = ctrl._maybe_run_goal_verifier(_make_turn(), session, tmp_path, base_result)
+            assert isinstance(first.output, SwitchEvent)
+            assert goal.status == "active"
+            second = ctrl._maybe_run_goal_verifier(_make_turn(), session, tmp_path, base_result)
+
+        assert second is base_result
+        assert goal.status == "complete"
+        assert goal.turns == 2
+        assert goal.consecutive_system_errors == 0
+        records = goal_storage.load_goal(tmp_path).verification_results
+        assert [record["outcome"] for record in records] == ["system_error", "achieved"]
+        assert [record["continuing"] for record in records] == [True, False]
+        assert records[0]["id"] != records[1]["id"]
 
     def test_repeated_verifier_exceptions_trip_to_blocked_quickly(self, base_result):
         """Unlike genuine 'not yet achieved' judgments (which use the configured
@@ -412,6 +528,12 @@ class TestMaybeRunGoalVerifier:
             assert goal.status == "blocked"
             assert goal.consecutive_failures == 0
             assert goal.consecutive_system_errors == GOAL_MAX_CONSECUTIVE_SYSTEM_ERRORS
+            records = goal_storage.load_goal(session_dir).verification_results
+            assert [record["outcome"] for record in records] == ["system_error", "system_error"]
+            assert [record["continuing"] for record in records] == [True, False]
+            assert records[0]["id"] != records[1]["id"]
+            assert ctrl._acp_notifications[2][1]["latestResult"] == records[0]
+            assert "/goal resume" not in ctrl._acp_notifications[-1][1]["notice"]
 
     def test_consecutive_system_errors_trip_to_blocked_much_faster_than_failures(self, base_result):
         ctrl = _make_controller()
@@ -491,10 +613,31 @@ class TestMaybeResetGoalOnNewTurn:
     """Tests for TurnPolicy._maybe_reset_goal_on_new_turn.
 
     A fresh conversation turn should normalize a stale goal left over from a
-    previous turn: "complete" goals are dropped entirely, "blocked" goals are
-    reactivated (so the user typing again resumes verification automatically,
-    without requiring an explicit /goal resume).
+    previous turn: "complete" goals are cleared on new user conversations, "blocked" goals are
+    reactivated when the user sends a new conversational message, which resumes
+    verification automatically without an additional command.
     """
+
+    def test_blocked_goal_resume_preserves_elapsed_time_and_excludes_wait(self, tmp_path):
+        ctrl = _make_controller()
+        session = _make_session()
+        clock = {"now": "2026-01-01T00:00:00Z"}
+        with patch("siada.services.goal.models._now_iso", side_effect=lambda: clock["now"]):
+            goal = Goal.create("resume a timed goal")
+            clock["now"] = "2026-01-01T00:00:12.250Z"
+            goal.set_status("blocked")
+            goal_storage.save_goal(tmp_path, goal)
+            restored = goal_storage.load_goal(tmp_path)
+            cache, _ = _context_cache_with("/ws", restored)
+            clock["now"] = "2026-01-01T01:00:00Z"
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", cache):
+                ctrl._maybe_reset_goal_on_new_turn(_make_turn(), session, tmp_path)
+            snapshot = ctrl._acp_notifications[-1][1]["goal"]
+            assert snapshot["status"] == "active"
+            assert snapshot["elapsedSeconds"] == 12.25
+            assert snapshot["elapsedUpdatedAt"] == clock["now"]
+            clock["now"] = "2026-01-01T01:00:02.750Z"
+            assert goal_storage.load_goal(tmp_path).elapsed_seconds() == 15
 
     def test_skips_command_turns(self):
         ctrl = _make_controller()
@@ -518,7 +661,13 @@ class TestMaybeResetGoalOnNewTurn:
             ctrl._maybe_reset_goal_on_new_turn(turn, session, Path("/tmp"))
         assert ctrl._acp_notifications == []
 
-    def test_skips_when_goal_active(self):
+    def test_active_goal_refreshes_frontend_snapshot(self):
+        """An unchanged active goal is re-pushed on a user turn.
+
+        The status bar is rendered purely from these pushes, so continuing
+        after an interrupt (or after any frontend state reset) must restore
+        it instead of waiting for the next verifier round.
+        """
         ctrl = _make_controller()
         turn = _make_turn()
         session = _make_session()
@@ -528,48 +677,72 @@ class TestMaybeResetGoalOnNewTurn:
             ctrl._maybe_reset_goal_on_new_turn(turn, session, Path("/tmp"))
         assert context.goal is goal
         assert goal.status == "active"
-        assert ctrl._acp_notifications == []
+        assert [m for m, _ in ctrl._acp_notifications] == ["context/goalState"]
+        snapshot = ctrl._acp_notifications[-1][1]
+        assert snapshot["goal"]["status"] == "active"
+        assert snapshot["verifying"] is False
 
-    def test_skips_when_goal_paused(self):
+    def test_paused_goal_resumes_on_new_user_turn(self):
+        """A goal paused by an interruption resumes when the user types again.
+
+        Unlike a blocked goal, resuming keeps the accumulated time and the
+        failure counters: an interruption is not a fresh retry budget.
+        """
         ctrl = _make_controller()
         turn = _make_turn()
         session = _make_session()
         goal = Goal.create("ship it")
-        goal.status = "paused"
+        goal.set_status("paused")
+        goal.consecutive_failures = 2
+        goal.reminder_injected = True
         fake_cache, context = _context_cache_with("/ws", goal)
         with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
             ctrl._maybe_reset_goal_on_new_turn(turn, session, Path("/tmp"))
         assert context.goal is goal
-        assert goal.status == "paused"
-        assert ctrl._acp_notifications == []
+        assert goal.status == "active"
+        assert goal.consecutive_failures == 2
+        assert goal.reminder_injected is True
+        assert [m for m, _ in ctrl._acp_notifications] == ["context/goalState"]
+        assert ctrl._acp_notifications[-1][1]["goal"]["status"] == "active"
+        assert ctrl._acp_notifications[-1][1]["verifying"] is False
 
-    def test_complete_goal_is_cleared_on_new_input(self):
+    def test_complete_goal_is_archived_and_cleared_on_new_input(self, tmp_path, base_result):
         ctrl = _make_controller()
         turn = _make_turn()
-        with tempfile.TemporaryDirectory() as d:
-            session_dir = Path(d)
-            session = _make_session()
+        session = _make_session()
+        clock = {"now": "2026-01-01T00:00:00Z"}
+        with patch("siada.services.goal.models._now_iso", side_effect=lambda: clock["now"]):
             goal = Goal.create("ship it")
-            goal.status = "complete"
-            goal_storage.save_goal(session_dir, goal)
+            clock["now"] = "2026-01-01T00:01:02Z"
+            goal.set_status("complete")
+            goal.turns = 2
+            goal_storage.save_goal(tmp_path, goal)
             fake_cache, context = _context_cache_with("/ws", goal)
+            clock["now"] = "2026-01-01T01:00:00Z"
 
-            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
-                ctrl._maybe_reset_goal_on_new_turn(turn, session, session_dir)
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
+                "siada.services.goal.verifier.run_goal_verification", new=AsyncMock(),
+            ) as verify:
+                ctrl._maybe_reset_goal_on_new_turn(turn, session, tmp_path)
+                assert ctrl._maybe_run_goal_verifier(turn, session, tmp_path, base_result) is base_result
 
-            # Context and on-disk state must both be cleared — no lingering
-            # "Goal complete" status bar on the next turn.
             assert context.goal is None
-            assert goal_storage.load_goal(session_dir) is None
+            assert goal.status == "complete"
+            assert goal.elapsed_seconds() == 62
+            assert goal.turns == 2
+            assert goal_storage.load_goal(tmp_path) is None
+            history = goal_storage.load_goal_history(tmp_path)
+            assert len(history) == 1
+            assert history[0]["status"] == "complete"
+            assert history[0]["active_elapsed_seconds"] == 62
+            assert history[0]["turns"] == 2
             assert ctrl._acp_notifications == [
                 ("context/goalState", {"goal": None, "verifying": False})
             ]
-            # The goal must be archived to history before it's dropped --
-            # goal.json only ever holds the current goal.
-            history = goal_storage.load_goal_history(session_dir)
-            assert len(history) == 1
-            assert history[0]["objective"] == "ship it"
-            assert history[0]["status"] == "complete"
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
+                ctrl._maybe_reset_goal_on_new_turn(turn, session, tmp_path)
+            assert len(goal_storage.load_goal_history(tmp_path)) == 1
+            verify.assert_not_called()
 
     def test_blocked_goal_is_reactivated_on_new_input(self):
         ctrl = _make_controller()
@@ -643,5 +816,141 @@ class TestMaybeResetGoalOnNewTurn:
             assert goal.reminder_injected is True
             assert goal_storage.load_goal(session_dir).status == "blocked"
             assert ctrl._acp_notifications == []
+
+
+class TestInterruptPausesGoal:
+    """An interrupted turn must stop an active goal's elapsed clock.
+
+    Before this, an interruption left ``status == "active"`` with
+    ``active_started_at`` set, so ``Goal.elapsed_seconds()`` kept counting the
+    idle gap (and the whole offline gap after quitting) even though nobody was
+    working on the goal.
+    """
+
+    @staticmethod
+    def _session_with_folder(tmp_path):
+        session = _make_session()
+        session.state = SimpleNamespace(
+            openai_session=SimpleNamespace(session_folder=tmp_path),
+            pending_goal=None,
+            pending_goal_loaded=False,
+        )
+        return session
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupt", [KeyboardInterrupt, asyncio.CancelledError])
+    async def test_interrupted_turn_freezes_time_and_next_message_resumes_goal(self, tmp_path, interrupt):
+        clock = {"now": "2026-01-01T00:00:00Z"}
+        ctrl = _make_controller()
+        session = self._session_with_folder(tmp_path)
+        turn = Mock()
+        turn.get_turn_type.return_value = TurnType.CONVERSATION
+        turn.execute = AsyncMock(side_effect=interrupt())
+
+        with patch(
+            "siada.services.goal.models._now_iso", side_effect=lambda: clock["now"]
+        ):
+            goal = Goal.create("finish the interrupted task")
+            goal.consecutive_failures = 2
+            goal.reminder_injected = True
+            goal_storage.save_goal(tmp_path, goal)
+            fake_cache, context = _context_cache_with("/ws", goal)
+            clock["now"] = "2026-01-01T00:00:07.500Z"
+
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache), patch(
+                "siada.io.stdin_interrupt_monitor.is_monitor_active", return_value=False
+            ), patch(
+                "siada.services.plugins.hook_runner.set_active"
+            ), patch(
+                "siada.session.ownership.SessionOwnershipManager.owned_turn",
+                _noop_owned_turn,
+            ):
+                with pytest.raises(interrupt):
+                    await ctrl.execute(turn, "continue the goal", session)
+
+            assert context.goal is goal
+            assert goal.status == "paused"
+            assert goal.elapsed_seconds() == 7.5
+            persisted = goal_storage.load_goal(tmp_path)
+            assert persisted.status == "paused"
+            assert persisted.elapsed_seconds() == 7.5
+            snapshot = ctrl._acp_notifications[-1][1]
+            assert snapshot["goal"]["status"] == "paused"
+            assert snapshot["goal"]["elapsedSeconds"] == 7.5
+            assert snapshot["verifying"] is False
+            assert snapshot["notice"] == "Goal paused — send a new message to resume."
+
+            # The idle gap while interrupted is not counted. A user message
+            # resumes the goal without resetting its failure budget.
+            clock["now"] = "2026-01-01T01:00:00Z"
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
+                ctrl._maybe_reset_goal_on_new_turn(_make_turn(), session, tmp_path)
+            assert goal.status == "active"
+            assert goal.consecutive_failures == 2
+            assert goal.reminder_injected is True
+            assert ctrl._acp_notifications[-1][1]["goal"]["status"] == "active"
+            clock["now"] = "2026-01-01T01:00:02.500Z"
+            assert goal_storage.load_goal(tmp_path).elapsed_seconds() == 10.0
+
+    @pytest.mark.asyncio
+    async def test_end_session_freezes_active_goal_without_ui_notice(self, tmp_path):
+        clock = {"now": "2026-01-01T00:00:00Z"}
+        ctrl = _make_controller()
+        session = self._session_with_folder(tmp_path)
+        with patch(
+            "siada.services.goal.models._now_iso", side_effect=lambda: clock["now"]
+        ):
+            goal = Goal.create("freeze when the CLI exits")
+            goal_storage.save_goal(tmp_path, goal)
+            fake_cache, _ = _context_cache_with("/ws", goal)
+            clock["now"] = "2026-01-01T00:00:04Z"
+            with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
+                await ctrl.end_session(session, "normal")
+
+            assert goal.status == "paused"
+            assert goal_storage.load_goal(tmp_path).elapsed_seconds() == 4
+            snapshot = ctrl._acp_notifications[-1][1]
+            assert snapshot["goal"]["status"] == "paused"
+            # Nothing to flash to a frontend that is shutting down.
+            assert "notice" not in snapshot
+
+    @pytest.mark.parametrize("status", ["blocked", "paused", "complete"])
+    def test_only_active_goals_are_paused(self, tmp_path, status):
+        ctrl = _make_controller()
+        session = self._session_with_folder(tmp_path)
+        goal = Goal.create("already stopped")
+        goal.set_status(status)
+        goal_storage.save_goal(tmp_path, goal)
+        fake_cache, _ = _context_cache_with("/ws", goal)
+
+        with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
+            assert ctrl._pause_goal_on_interrupt(session, tmp_path) is False
+
+        assert goal.status == status
+        assert goal_storage.load_goal(tmp_path).status == status
+        assert ctrl._acp_notifications == []
+
+    def test_paused_goal_stays_paused_on_internal_continuation(self, tmp_path):
+        ctrl = _make_controller()
+        session = self._session_with_folder(tmp_path)
+        goal = Goal.create("do not auto-resume")
+        goal.set_status("paused")
+        goal_storage.save_goal(tmp_path, goal)
+        fake_cache, _ = _context_cache_with("/ws", goal)
+
+        with patch("siada.services.siada_runner.SiadaRunner._context_cache", fake_cache):
+            ctrl._maybe_reset_goal_on_new_turn(
+                _make_turn(), session, tmp_path, user_initiated=False,
+            )
+
+        assert goal.status == "paused"
+        assert goal_storage.load_goal(tmp_path).status == "paused"
+        assert ctrl._acp_notifications == []
+
+
+@contextmanager
+def _noop_owned_turn(*_args, **_kwargs):
+    """Skip on-disk session ownership bookkeeping in turn-level tests."""
+    yield
 
 

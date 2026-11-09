@@ -32,9 +32,13 @@ from siada.entrypoint.interaction.nointeractive_controller import NoInteractiveC
 from siada.entrypoint.helpers.daemon_commands import (
     ensure_daemon_running, handle_stop_daemon, handle_restart_daemon, handle_daemon_status, handle_task_list,
 )
+from siada.entrypoint.helpers.startup_guard import (
+    missing_launch_directory_error,
+    workspace_argument,
+)
 from siada.entrypoint.helpers.model_setup import (
-    get_config,
     get_api_key_provider_models,
+    get_config,
     merge_provider_models_into_user_settings,
 )
 from siada.foundation import herdr_reporter
@@ -103,16 +107,10 @@ def _parse_args_and_setup_environment(argv):
     Returns:
         (args, git_root, workspace_arg, parser, interactive_mode)
     """
-    import argparse
-
     # --workspace must be resolved before building the full parser (affects git root detection)
-    temp_parser = argparse.ArgumentParser(add_help=False)
-    temp_parser.add_argument(
-        "--workspace", "-w", nargs="?", const=".", default=os.environ.get("SIADA_WORKSPACE")
-    )
-    temp_args, _ = temp_parser.parse_known_args(argv)
+    workspace_arg = workspace_argument(argv)
 
-    git_root = get_git_root(temp_args.workspace)
+    git_root = get_git_root(workspace_arg)
 
     from siada.entrypoint.args_parser.args import get_parser, SiadaArgs
     parser = get_parser(git_root=git_root, default_config_files=[])
@@ -140,22 +138,15 @@ def _parse_args_and_setup_environment(argv):
     if not interactive_mode:
         args.pretty = False
 
-    return args, git_root, temp_args.workspace, parser, interactive_mode
+    return args, git_root, workspace_arg, parser, interactive_mode
 
 
 def acp_enabled(args=None) -> bool:
-    """Return True when this process talks ACP with the frontend.
-
-    Two callers select ACP independently: the hosted UI spawns the backend with
-    ``SIADA_ACP_MODE=1`` (no CLI flag), while a direct invocation passes
-    ``--acp``. Login and runtime decisions must see the same answer in both
-    cases, so they go through this helper instead of reading one source each.
-    The accepted env values match the IO-layer detector
-    (``siada.io.acp.legacy_adapter.ACPModeDetector``).
-    """
-    if args is not None and getattr(args, 'acp', False):
-        return True
-    return os.environ.get('SIADA_ACP_MODE', '').lower() in ('1', 'true', 'yes')
+    """Use one ACP decision for explicit flags and frontend environment signals."""
+    return bool(
+        getattr(args, "acp", False)
+        or os.environ.get("SIADA_ACP_MODE", "").lower() in ("1", "true", "yes")
+    )
 
 
 def get_io(args, pretty=None):
@@ -215,15 +206,14 @@ def get_io(args, pretty=None):
 
 def set_env(args, io):
     """Apply --set-env assignments to os.environ. Returns 0 on success, 1 on error."""
-    # The launcher has ACP bootstrap side effects; parsing must not import it.
     from siada.entrypoint.env_assignments import parse_env_assignments
 
     try:
-        assignments = parse_env_assignments(args)
-    except ValueError:
-        io.print_error("Invalid --set-env format. Use ENV_VAR_NAME=value.")
+        overrides = parse_env_assignments(args)
+    except ValueError as exc:
+        io.print_error(str(exc))
         return 1
-    os.environ.update(assignments)
+    os.environ.update(overrides)
     return 0
 
 
@@ -316,7 +306,8 @@ def _send_startup_error_to_ui(error_message: str, args=None):
     In ACP mode sends a FAILED session-update so the UI can exit the
     "Loading configuration…" state; in TTY mode prints to stderr.
     """
-    if not acp_enabled(args):
+    acp_mode = acp_enabled(args)
+    if not acp_mode:
         print(f"Error: {error_message}", file=sys.stderr)
         return
 
@@ -466,172 +457,121 @@ def handle_special_commands(args, conf: Config, io) -> Optional[int]:
         from siada.services.version_checker import version_checker
         return 0 if version_checker.install_upgrade(io) else 1
 
-    # Sign out: drop the stored provider API-key config from conf.yaml.
+    # Logout
     if args.logout:
         try:
-            from siada.entrypoint.login.login_prompt import clear_api_key_config
-            cleared = clear_api_key_config()
-        except Exception as exc:
-            logger.warning(f"[logout] Failed to clear the stored API-key config: {exc}")
-            cleared = False
-        if cleared:
-            io.print_info("Signed out. The stored provider API key was removed from conf.yaml.")
+            from siada.internal.services.idaas.auth_store import clear_login_state
+            user_id = clear_login_state()
+        except ImportError:
+            user_id = None
+        if user_id:
+            io.print_info(f"Signed out from {user_id}.")
         else:
-            io.print_info("No stored provider API key to sign out from.")
+            io.print_info("You were not signed in.")
         return 0
 
-    # --user-id / --access-token configured LiId (domain-account) credentials in
-    # the closed-source build. The public CLI authenticates with user-supplied
-    # provider API keys only, so these options fail with actionable guidance
-    # rather than an ImportError.
+    # Set credentials directly via --user-id / --access-token
     if args.user_id or args.access_token:
-        io.print_error(
-            "--user-id/--access-token are not supported: this build authenticates "
-            "with a provider API key, not LiId/domain-account credentials."
-        )
-        io.print_info(
-            "Configure a provider API key instead, e.g. "
-            "`siada-cli --set-env BASE_URL=<provider-base-url> --set-env API_KEY=<your-api-key>`, "
-            "or run `siada-cli` and choose \"Provide API key\" in the login prompt."
-        )
-        return 1
+        try:
+            from siada.internal.services.idaas.auth_store import save_login_state, get_stored_user_id, get_stored_access_token
+        except ImportError:
+            io.print_error("Credential management requires siada.internal (not available in this build).")
+            return 1
+        user_id = args.user_id or get_stored_user_id() or ""
+        access_token = args.access_token or get_stored_access_token() or ""
+        if not user_id:
+            io.print_error("--user-id is required when setting credentials.")
+            return 1
+        if not access_token:
+            io.print_error("--access-token is required when setting credentials.")
+            return 1
+        save_login_state(user_id=user_id, access_token=access_token)
+        io.print_info(f"Credentials saved: user_id={user_id}")
+        # The telemetry singleton was initialized at import time (before this save),
+        # so update its in-memory user_id to reflect the newly saved credentials.
+        try:
+            from siada.internal.foundation.telemetry import telemetry as _telemetry
+            _telemetry.config.user_id = user_id
+        except Exception:
+            pass
+        if not args.prompt:
+            return 0
 
     return None
 
 
 def _local_model_settings_entry(model_name: str):
-    """Build a model-settings entry for ``model_name`` without any lookup.
-
-    ``--model`` may name a model the provider catalogue does not list (a
-    private/custom deployment). The provider lookup then only returns the
-    catalogue's models, so the entry is built locally — reusing the built-in
-    defaults when they know the name — to keep the running model under the name
-    the user selected instead of silently falling back to another model.
-    """
+    """Keep explicit model aliases available without a catalogue lookup."""
     from siada.models.model_base_config import MODEL_SETTING, ModelBaseConfig
 
     for entry in MODEL_SETTING:
         if entry.model_name == model_name:
             return entry
     return ModelBaseConfig(
-        model_name=model_name,
-        context_window=128_000,
-        max_tokens=8192,
-        parallel_tool_calls=True,
+        model_name=model_name, context_window=128_000,
+        max_tokens=8192, parallel_tool_calls=True,
     )
 
 
 def _apply_login(io, args, model, controller) -> Optional[int]:
     """
-    Verify that usable credentials exist and apply the API-key config to the
-    running model.
+    Verify login state and apply any API-key provider config to the running model.
 
-    Credentials in this build are provider API keys (stored ``llm_config`` in
-    conf.yaml, or entered through the interactive API-key prompt). Returns None
-    on success, or an exit code on failure — including when the credentials
-    cannot be applied to the running model, so a broken sign-in is never
-    reported as success.
+    Returns None on success, or an exit code on failure.
     """
-    logger.info("Checking stored credentials")
+    logger.info("Checking IDaaS login state")
     try:
         from siada.entrypoint.login.login_prompt import ensure_logged_in
         logged_in_user = ensure_logged_in(io, acp_mode=acp_enabled(args))
         if logged_in_user is None:
-            logger.error("No usable credentials found. Exiting.")
-            io.print_error(
-                "No usable credentials found: Siada CLI requires a provider API key."
-            )
-            io.print_info(
-                "Configure one with `--set-env BASE_URL=<provider-base-url> "
-                "--set-env API_KEY=<your-api-key>`, or run `siada-cli` and choose "
-                "\"Provide API key\" in the login prompt."
-            )
+            logger.error("Login required but not completed. Exiting.")
+            io.print_error("Login is required to use Siada. Please sign in and try again.")
             return 1
     except SystemExit:
         raise
     except Exception as exc:
-        logger.error(f"Credential check failed: {exc}")
-        io.print_error(f"Could not verify credentials: {exc}")
-        io.print_info(
-            "Configure a provider API key with "
-            "`--set-env BASE_URL=<provider-base-url> --set-env API_KEY=<your-api-key>`, "
-            "or choose \"Provide API key\" in the login prompt."
-        )
+        logger.error(f"Login check failed: {exc}")
+        io.print_error(f"Login error: {exc}")
         return 1
 
-    # If the user is authenticated with a provider API key (provider=default),
-    # apply that provider config to the running model.
+    # If user logged in via API key (provider=default), apply to running model
     if logged_in_user and logged_in_user.startswith("api-key-"):
-        from siada.entrypoint.login.login_prompt import (
-            get_applied_api_key_config,
-            _field_text,
-        )
-
-        api_cfg = get_applied_api_key_config()
-        if not api_cfg:
-            # The api-key identity was reported without a config to apply:
-            # continuing would run the session with credentials the model does
-            # not know about, so fail the launch instead.
-            logger.error("[login] API-key sign-in reported no applied provider config")
-            io.print_error(
-                "Signed in with a provider API key, but the provider configuration "
-                "could not be applied."
-            )
-            io.print_info(
-                "Run `siada-cli` again and choose \"Provide API key\" to reconfigure it."
-            )
-            return 1
-
         try:
-            model.provider = 'default'
-            # Defensive reads: the payload is normally strings (login_prompt
-            # validates it), but a wrongly-typed field must not crash here —
-            # an empty value simply reads as "not provided".
-            provider_id = _field_text(api_cfg.get('provider_id')) or ''
-            base_url = _field_text(api_cfg.get('base_url')) or ''
-            stored_model = _field_text(api_cfg.get('model')) or ''
-            # An explicit `--model` is a per-invocation choice and wins over the
-            # model stored with the API-key config; the model `--model` /
-            # conf.yaml selected is kept otherwise (env credentials carry no
-            # model). getattr keeps callers whose args lack `model` working.
-            args_model = getattr(args, 'model', None)
-            args_model = args_model.strip() if isinstance(args_model, str) else ''
-            selected_model = args_model or stored_model
+            from siada.entrypoint.login.login_prompt import get_applied_api_key_config, _field_text
 
-            provider_models = get_api_key_provider_models(provider_id, selected_model, base_url)
-            if args_model and not any(pm.model_name == args_model for pm in provider_models):
-                # `--model` names a model the catalogue does not list: add its
-                # settings entry locally (no catalogue/network lookup) so the
-                # running model keeps the selected name.
-                provider_models = list(provider_models) + [_local_model_settings_entry(args_model)]
-            if provider_models:
-                # Never replace an already-loaded user catalogue (models.json):
-                # the user's custom fields (thinking budgets, prices, …) are
-                # authoritative, so only missing models are appended.
-                merge_provider_models_into_user_settings(provider_models)
-            if selected_model:
-                model.configure_model_settings(selected_model)
-            logger.info(f"[login] Applied API key config: provider=default, model={model.model_name}")
-            # Update the global provider tracker so the shared litellm
-            # callbacks know that user-supplied credentials are in use.
-            try:
-                from siada.entrypoint import set_current_provider
-                set_current_provider('default')
-            except Exception:
-                pass
-            # NOTE: Do NOT call controller.show_announcements() here.
-            # _run_interactive() calls it right after _apply_login() returns,
-            # so it will pick up the updated model name automatically.
+            api_cfg = get_applied_api_key_config()
+            if api_cfg:
+                model.provider = 'default'
+                provider_id = _field_text(api_cfg.get('provider_id')) or ''
+                new_model_name = _field_text(api_cfg.get('model')) or ''
+                base_url = _field_text(api_cfg.get('base_url')) or ''
+                args_model = _field_text(getattr(args, 'model', None)) or ''
+                new_model_name = args_model or new_model_name
+                provider_models = get_api_key_provider_models(provider_id, new_model_name, base_url) or []
+                if args_model and not any(entry.model_name == args_model for entry in provider_models):
+                    provider_models = list(provider_models) + [_local_model_settings_entry(args_model)]
+                if provider_models:
+                    # Merge, never replace: models.json stays authoritative for
+                    # the models it defines (see the helper's docstring).
+                    merge_provider_models_into_user_settings(provider_models)
+                if new_model_name:
+                    try:
+                        model.configure_model_settings(new_model_name)
+                    except ValueError:
+                        logger.warning(f"Could not configure model settings for {new_model_name}, keeping existing")
+                logger.info(f"[login] Applied API key config: provider=default, model={model.model_name}")
+                # Update the global provider tracker so the litellm token-refresh
+                # callback knows to skip IDaaS auth for 'default' provider calls.
+                try:
+                    from siada.entrypoint import set_current_provider
+                    set_current_provider('default')
+                except Exception:
+                    pass
+                # NOTE: Do NOT call controller.show_announcements() here.
+                # _run_interactive() calls it right after _apply_login() returns,
+                # so it will pick up the updated model name automatically.
         except Exception as exc:
-            # The running model/provider could not be pointed at the API-key
-            # credentials: surface it as a failed sign-in rather than logging a
-            # success and running with unauthenticated model settings.
-            logger.error(f"[login] Failed to apply API key config to running model: {exc}")
-            io.print_error(f"Could not apply the provider API key configuration: {exc}")
-            io.print_info(
-                "Check `--model` / `--provider` and ~/.siada-cli/conf.yaml, then try again."
-            )
-            return 1
+            logger.warning(f"[login] Failed to apply API key config to running model: {exc}")
 
     return None
 
@@ -739,7 +679,7 @@ def _try_restore_session(args, session, io):
         return False, None
 
 
-def _run_noninteractive(args, session, running_config, io, model) -> int:
+def _run_noninteractive(args, session, running_config, io, model, commands=None) -> int:
     """Run non-interactive (--prompt) mode. Returns exit code."""
     logger.info(f"Starting non-interactive mode, prompt: {args.prompt}")
 
@@ -747,7 +687,9 @@ def _run_noninteractive(args, session, running_config, io, model) -> int:
     if outcome is not None and not outcome[0]:
         return 1
 
-    controller = NoInteractiveController(config=running_config, session=session)
+    controller = NoInteractiveController(
+        config=running_config, session=session, slash_commands=commands,
+    )
 
     # Apply login / API-key provider config (same as interactive path)
     login_err = _apply_login(io, args, model, controller)
@@ -757,7 +699,7 @@ def _run_noninteractive(args, session, running_config, io, model) -> int:
     # FileSession lazily imports agents.memory.session on first access.
     # Join the agents-init thread now so the import lock is free.
     _ensure_agents_ready()
-    controller.run(args.prompt)
+    exit_code = controller.run(args.prompt)
     logger.info("Non-interactive controller finished")
 
     try:
@@ -768,7 +710,7 @@ def _run_noninteractive(args, session, running_config, io, model) -> int:
     except Exception:
         pass
 
-    return 0
+    return exit_code
 
 
 def _run_interactive(args, session, running_config, commands, io, model) -> Optional[int]:
@@ -782,12 +724,11 @@ def _run_interactive(args, session, running_config, commands, io, model) -> Opti
 
     commands._controller = controller
 
-    # ACP fast-path: if a stored provider API-key config exists, defer the
-    # credential check to a background thread so fresh sessions send
-    # banner_info immediately (~800ms saved). Falls back to the synchronous
-    # check when no credentials are stored (new user / signed out) — it must
-    # block before banner to avoid showing the main view then flashing a login
-    # overlay on top.
+    # ACP fast-path: if stored credentials exist, defer login verification to a
+    # background thread so fresh sessions send banner_info immediately (~800ms saved).
+    # Falls back to synchronous login when no credentials exist at all (new user /
+    # logged-out) — must block before banner to avoid showing the main view then
+    # flashing a login overlay on top.
     if acp_enabled(args) and _has_stored_credentials():
         _start_login_init_async(io, args, model, controller)
     else:
@@ -820,6 +761,7 @@ def _run_interactive(args, session, running_config, commands, io, model) -> Opti
             # restore_to_running_session() call; this path bypasses
             # cmd_resume entirely, so it needs the same push here too.
             commands._push_resumed_goal_state_to_ui(session)
+            commands._push_resumed_todo_state_to_ui(session)
 
 
     # Join login thread before first prompt — user typing takes long enough that
@@ -828,6 +770,10 @@ def _run_interactive(args, session, running_config, commands, io, model) -> Opti
     if login_err is not None:
         controller.ui.close()
         return login_err
+
+    # Banner readiness precedes restore replay; only this signal admits the
+    # frontend's automatic initial prompt after startup state is synchronized.
+    controller.ui.send_notification("ui/startupComplete", {})
 
     # FileSession lazily imports agents.memory.session on first access.
     # Join the agents-init thread now so the import lock is free.
@@ -1036,23 +982,7 @@ def _start_login_init_async(io, args, model, controller):
 
     def _run():
         global _login_init_result
-        try:
-            result = _apply_login(io, args, model, controller)
-        except BaseException as exc:  # noqa: BLE001 - fail closed, see below
-            # ``_login_init_result`` staying None would read as "sign-in fine"
-            # (the success sentinel), so any failure in the worker must publish
-            # an explicit non-zero exit code — including SystemExit raised by a
-            # prompt that gave up on stdin.
-            logger.error(f"[login] Login verification failed unexpectedly: {exc}")
-            try:
-                io.print_error(
-                    "Could not verify the login credentials. "
-                    "Run `siada-cli` again to reconfigure the provider API key."
-                )
-            except Exception:
-                pass
-            _login_init_result = 1
-            return
+        result = _apply_login(io, args, model, controller)
         _login_init_result = result if result is not None else 0
 
     global _login_init_thread, _login_init_result
@@ -1076,14 +1006,6 @@ def _ensure_login_ready() -> Optional[int]:
         return None
     if _login_init_thread.is_alive():
         _login_init_thread.join(timeout=30)
-    if _login_init_thread.is_alive():
-        # Still blocked after the wait (e.g. the sign-in is waiting for a
-        # frontend answer that never came): the credentials were never
-        # verified, so fail the first prompt instead of letting an
-        # unauthenticated session continue. The thread reference is kept so a
-        # later caller can still observe/join the worker.
-        logger.error("[login] Login verification did not finish within 30s")
-        return 1
     _login_init_thread = None
     result = _login_init_result
     _login_init_result = None
@@ -1091,25 +1013,23 @@ def _ensure_login_ready() -> Optional[int]:
 
 
 def _has_stored_credentials() -> bool:
-    """Fast check: does conf.yaml contain a stored provider API-key config?
+    """Fast check: does conf.yaml contain a user_id or provider=default config?
 
-    Reads conf.yaml directly without importing any provider/login modules, so
-    it stays cheap enough for the ACP fast path. Only public API-key metadata
-    counts as a credential: ``llm_config.provider == "default"`` plus a
-    non-empty, string ``base_url`` *and* ``api_key``. Anything else — a
-    missing/blank half of the pair, or a field of the wrong type — cannot
-    authenticate this build and must not defer the login check.
+    Reads conf.yaml directly without importing any heavy IDaaS modules.
+    Used to decide whether login can be deferred to a background thread.
     """
-    from siada.config.conf_store import get_conf_section
+    from siada.config.conf_store import read_conf_dict
 
-    llm_config = get_conf_section("llm_config")
-    if llm_config.get("provider") != "default":
+    data = read_conf_dict()
+    if not data:
         return False
-    api_key = llm_config.get("api_key")
-    base_url = llm_config.get("base_url")
-    if not isinstance(api_key, str) or not isinstance(base_url, str):
-        return False
-    return bool(api_key.strip()) and bool(base_url.strip())
+    # LiId login path
+    if isinstance(data.get("user_id"), str) and data.get("user_id", "").strip():
+        return True
+    # API-key login path
+    if data.get("provider", "") == "default" and data.get("api_key", ""):
+        return True
+    return False
 
 
 def _preload_c_extensions_on_main_thread():
@@ -1264,24 +1184,235 @@ def _check_resume_workspace_early(args, git_root, workspace_arg, io) -> Optional
     return None
 
 
+def _resolve_headroom_config(args, conf):
+    """Merge CLI args + conf.yaml into a HeadroomProxyConfig.
+
+    Precedence (high -> low): CLI args > conf.yaml > dataclass defaults.
+    ``--no-headroom`` always wins and forces enabled=False.
+    Upstream URLs are NOT configurable (hard-coded in the manager module).
+
+    Headroom is an internal-only proxy integration (siada.internal). This
+    resolver is called unconditionally on every startup (see main()), so in
+    an open-source build lacking siada.internal it must degrade to a
+    permanently-disabled config instead of crashing the CLI.
+    """
+    try:
+        from siada.internal.services.headroom_proxy_manager import HeadroomProxyConfig
+    except ImportError:
+        from types import SimpleNamespace
+        return SimpleNamespace(enabled=False)
+
+    hc = getattr(conf, "headroom_config", None)
+
+    enabled = bool(getattr(hc, "enabled", False))
+    if args.headroom:
+        enabled = True
+    if args.no_headroom:
+        enabled = False
+
+    host = getattr(hc, "host", "127.0.0.1")
+    port = args.headroom_port if args.headroom_port is not None else getattr(hc, "port", 8787)
+    budget = args.headroom_budget if args.headroom_budget is not None else getattr(hc, "budget", None)
+    budget_period = getattr(hc, "budget_period", "daily")
+    telemetry = bool(getattr(hc, "telemetry", False))
+    startup_timeout = float(getattr(hc, "startup_timeout", 30.0))
+
+
+    return HeadroomProxyConfig(
+        enabled=enabled,
+        host=host,
+        port=int(port),
+        budget=budget,
+        budget_period=budget_period,
+        telemetry=telemetry,
+        startup_timeout=startup_timeout,
+    )
+
+
+def _inject_headroom_mcp_config(conf):
+    """Inject the headroom MCP server into conf.mcp_config (in-memory only).
+
+    Does not touch ~/.siada-cli/mcp_config.json. If MCP was globally disabled,
+    re-enable it so that _setup_mcp_config() runs for the injected server.
+    """
+    from siada.config.mcp_config import MCPServerConfig
+
+    mcp_config = getattr(conf, "mcp_config", None)
+    if mcp_config is None:
+        return
+    if "headroom" not in mcp_config.servers:
+        mcp_config.servers["headroom"] = MCPServerConfig(
+            type="stdio",
+            command="headroom",
+            args=["mcp", "serve"],
+            env={},
+        )
+    # MCPConfig is a frozen dataclass; use object.__setattr__ to flip enabled.
+    if not mcp_config.enabled:
+        object.__setattr__(mcp_config, "enabled", True)
+    logger.info('[headroom] MCP server "headroom" injected into config')
+
+
+def _ensure_headroom_proxy(args, conf, io):
+    """Phase 6.6: connect THIS CLI process to a daemon-managed headroom proxy.
+
+    The proxy lifecycle (spawn/stop) is owned entirely by the proactive daemon
+    (see SiadaDaemon._start_headroom / shutdown). Here we only:
+      1. resolve whether headroom is desired (--headroom flag or conf.yaml);
+      2. block-probe the daemon's /health endpoint until ready (or timeout);
+      3. inject env vars + MCP config so this process routes LLM traffic through
+         the proxy.
+    We never spawn or kill the proxy. A timeout is NON-fatal: we warn and fall
+    back to a direct connection (returning None so startup continues).
+
+    Returns None always (never aborts startup).
+    """
+    hp_config = _resolve_headroom_config(args, conf)
+    if not hp_config.enabled:
+        return None
+
+    import time as _t
+
+    host = hp_config.host
+    port = hp_config.port
+    io.print_info("[headroom] Checking daemon-managed proxy ...")
+
+    # Bounded wait: the daemon owns the proxy and reports an authoritative
+    # in-memory status over IPC. We poll it so we can (a) fast-fail the moment
+    # the daemon reports a terminal-unavailable state, and (b) keep waiting only
+    # while it is still "starting" (or the daemon is still cold-booting and its
+    # IPC endpoint is not up yet).
+    #
+    # OWNERSHIP RULE: we connect ONLY to a proxy the daemon itself spawned, i.e.
+    # when the daemon reports status == "running". We deliberately do NOT run an
+    # independent /health probe as a fast path: a healthy headroom that the
+    # daemon did NOT start (e.g. one launched manually on the same port, which
+    # the daemon reports as "port_conflict") must never be adopted — its upstream
+    # routing is unknown and it is not part of siada's lifecycle. The /health
+    # check is used only to confirm readiness AFTER the daemon claims "running".
+    deadline = _t.time() + max(hp_config.startup_timeout, 30.0)
+
+    unavailable = ("not_installed", "port_conflict", "error", "disabled", "stopped")
+    connected = False
+    while _t.time() < deadline:
+        status = _query_daemon_headroom_status()
+        if status is not None:
+            st = status.get("status")
+            if st in unavailable:
+                io.print_warning(
+                    f"[headroom] proxy unavailable (status={st}); "
+                    "falling back to direct connection."
+                )
+                return None
+            if st == "running":
+                # Trust only a daemon-owned proxy. Adopt the exact host/port the
+                # daemon chose, then confirm readiness via /health before use.
+                host = status.get("host") or host
+                port = int(status.get("port") or port)
+                if _probe_headroom_health(host, port):
+                    connected = True
+                    break
+        # status is None (daemon IPC not up yet) or "starting": keep waiting.
+        # Never probe /health independently here — see OWNERSHIP RULE above.
+        _t.sleep(0.4)
+
+
+    if not connected:
+        io.print_warning(
+            f"[headroom] proxy at {host}:{port} not ready; "
+            "falling back to direct connection."
+        )
+        return None
+
+    os.environ["SIADA_USE_HEADROOM"] = "1"
+    os.environ["SIADA_LLM_BASE_URL"] = f"http://{host}:{port}"
+    _inject_headroom_mcp_config(conf)
+    io.print_info(
+        f"[headroom] Connected ({host}:{port}); routing LLM traffic through proxy."
+    )
+    logger.info(
+        "[headroom] env injected: SIADA_USE_HEADROOM=1, "
+        f"SIADA_LLM_BASE_URL=http://{host}:{port}"
+    )
+    return None
+
+
+def _query_daemon_headroom_status():
+    """Query the daemon's in-memory headroom status over IPC (best-effort).
+
+    Returns the status dict, or None if the daemon is unreachable. Uses a short
+    IPC timeout so a missing/booting daemon never blocks startup.
+    """
+    try:
+        from siada.foundation.ipc_client import DaemonIPCClient
+    except Exception:
+        return None
+    client = DaemonIPCClient(timeout=2.0)
+    try:
+        if not client.connect():
+            return None
+        return client.headroom_status()
+    except Exception:
+        return None
+    finally:
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+
+
+def _probe_headroom_health(host, port) -> bool:
+    """Return True if a headroom proxy answers /health at host:port.
+
+    Short timeout (2s) so a dead/absent proxy never blocks startup for long.
+    """
+    import json as _json
+    import urllib.request
+
+    url = f"http://{host}:{port}/health"
+    try:
+        with urllib.request.urlopen(url, timeout=2) as resp:
+            data = _json.loads(resp.read())
+        return data.get("service") == "headroom-proxy" and bool(data.get("ready"))
+    except Exception:
+        return False
+
+
 def main():
     """CLI main entry point.
 
     Startup sequence:
       1. Pre-init commands  — handle --stop-daemon / --daemon-status before any imports
-      2. Prepare startup    — start debugpy if requested, suppress noisy third-party warnings
-      3. Load conf & args   — read conf.yaml, parse CLI args, detect git root, load .env files
-      4. Init IO            — create InputOutput (theme, color settings, ACP mode)
-      5. Special commands   — handle one-shot flags (--api-server, --list-models, --upgrade …)
-      6. Ensure daemon      — start background daemon if not already running
-      7. Setup & build      — configure LLM model, resolve workspace, build the session object
-      8. Run                — dispatch to interactive or non-interactive controller
+      2. Launch directory   — refuse a deleted working directory with a clear error
+      3. Startup warmup     — pre-load C extensions, import litellm/agents in background
+      4. Prepare startup    — start debugpy if requested, suppress noisy third-party warnings
+      5. Load conf & args   — read conf.yaml, parse CLI args, detect git root, load .env files
+      6. Init IO            — create InputOutput (theme, color settings, ACP mode)
+      7. Special commands   — handle one-shot flags (--api-server, --list-models, --upgrade …)
+      8. Ensure daemon      — start background daemon if not already running
+      9. Setup & build      — configure LLM model, resolve workspace, build the session object
+     10. Run                — dispatch to interactive or non-interactive controller
     """
     logger.start_timing("main")
     _module_load_ms = (_siadahub_time.perf_counter() - _MODULE_LOAD_START) * 1000
     logger.debug(f"[startup-timing] module_imports (before main): {_module_load_ms:.1f} ms")
 
-    # 0. Phase 1: Pre-load all C extensions on the MAIN thread BEFORE any
+    # 1. Pre-init commands. These run before heavy imports and do not need a
+    #    usable launch directory (--stop-daemon, --restart-daemon,
+    #    --daemon-status), so they stay available even when it was deleted.
+    if (exit_code := _handle_pre_init_commands()) is not None:
+        return exit_code
+
+    # 2. The backend resolves the git root, workspace, and session storage from
+    #    the launch directory. Once that directory is deleted, os.getcwd()
+    #    raises a FileNotFoundError from those lookups, so report a fixable
+    #    diagnostic here instead of surfacing a traceback. An existing absolute
+    #    --workspace keeps the backend usable without the launch directory.
+    if error := missing_launch_directory_error(workspace_argument()):
+        print(error, file=sys.stderr)
+        return 1
+
+    # 3. Phase 1: Pre-load all C extensions on the MAIN thread BEFORE any
     #    background thread starts.
     #
     #    On Windows, loading a C extension (.pyd / DLL) acquires the OS Loader
@@ -1302,19 +1433,15 @@ def main():
     _start_litellm_init_async()   # litellm (~960ms cold)
     _start_agents_init_async()    # openai-agents SDK / provider_factory (~474ms cold)
 
-    # 1. Pre-init commands
-    if (exit_code := _handle_pre_init_commands()) is not None:
-        return exit_code
-
-    # 2. Prepare startup
+    # 4. Prepare startup
     _prepare_startup()
     logger.log_timing("startup_preparation")
 
-    # 3. Load conf & args
+    # 5. Load conf & args
     conf, args, git_root, workspace_arg, parser, interactive_mode = _load_conf_and_args()
     logger.log_timing("load_conf_and_args")
 
-    # 4. Init IO
+    # 6. Init IO
     try:
         io, running_color_settings = get_io(args)
     except ValueError as e:
@@ -1322,7 +1449,7 @@ def main():
         return 1
     logger.log_timing("init_io")
 
-    # 5. Special commands
+    # 7. Special commands
     if (exit_code := handle_special_commands(args, conf, io)) is not None:
         # One-shot commands return while background daemon threads may still
         # hold locks the interpreter finalizer needs: in ACP mode the stdin
@@ -1335,7 +1462,13 @@ def main():
         sys.stderr.flush()
         os._exit(exit_code if isinstance(exit_code, int) else 0)
 
-    # 6. Ensure daemon (only in interactive mode, unless explicitly suppressed)
+    # If headroom is desired, signal the daemon (spawned just below, which
+    # inherits this process's env) to start the proxy. The daemon owns the
+    # proxy's full lifecycle; the CLI only connects to it in Phase 8.6.
+    if _resolve_headroom_config(args, conf).enabled:
+        os.environ["SIADA_HEADROOM_ENABLED"] = "1"
+
+    # 8. Ensure daemon (only in interactive mode, unless explicitly suppressed)
     # `--no-daemon` is honored by benchmark / scripted callers that must not
     # have background ProactiveScheduler jobs (cleanup_memory, daily_summary, ...)
     # mutating ~/.siada-cli/workspace/memory while a controlled run is in flight.
@@ -1345,11 +1478,19 @@ def main():
         logger.info("Skipping daemon startup: --no-daemon was passed")
     logger.log_timing("ensure_daemon")
 
-    # 6.5 Early resume workspace check — fast fail before expensive session setup
+    # 8.5 Early resume workspace check — fast fail before expensive session setup
     if (exit_code := _check_resume_workspace_early(args, git_root, workspace_arg, io)) is not None:
         return exit_code
 
-    # 7. Setup & build session
+    # 8.6 Ensure headroom proxy (if enabled) — SYNCHRONOUS, blocks until ready.
+    # Must run before session build (Phase 9) so env vars are set before the
+    # first LLM call and the headroom MCP server is injected before
+    # _setup_mcp_config() runs.
+    if (exit_code := _ensure_headroom_proxy(args, conf, io)) is not None:
+        return exit_code
+    logger.log_timing("ensure_headroom")
+
+    # 9. Setup & build session
     # Initialize built-in plugin registry before session setup
     try:
         from siada.services.plugins.builtin_registry import init_builtin_plugins
@@ -1363,9 +1504,9 @@ def main():
     if err is not None:
         return err
 
-    # 8. Run
+    # 10. Run
     if not interactive_mode:
-        return _run_noninteractive(args, session, running_config, io, model)
+        return _run_noninteractive(args, session, running_config, io, model, commands)
 
     return _run_interactive(args, session, running_config, commands, io, model)
 

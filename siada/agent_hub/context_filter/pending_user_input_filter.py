@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
+from typing import TYPE_CHECKING, Any, Optional, Awaitable, Callable
 
 if TYPE_CHECKING:
     from agents.run import ModelInputData

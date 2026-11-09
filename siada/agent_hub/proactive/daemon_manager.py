@@ -30,7 +30,7 @@ class DaemonManager:
         Find the daemon process via its command line.
 
         Returns:
-            The daemon PID, or None if it does not exist.
+            The daemon PID, or None if none exists.
         """
         import psutil
 

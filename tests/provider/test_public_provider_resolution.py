@@ -269,9 +269,21 @@ def test_unknown_claude_or_gemini_id_keeps_reasoning_params_usable(
     try:
         model = DefaultProvider().get_model(model_name)
 
-        assert model.model == wire_name
-        assert wire_name in litellm.model_cost
-        assert litellm.supports_reasoning(model=wire_name) is True
+        if model_name.startswith("gemini"):
+            from siada.provider.gemini import GeminiModel
+            from agents import ModelSettings
+
+            assert isinstance(model, GeminiModel)
+            assert model.model == model_name
+            _, config = model._request(
+                None, "request", ModelSettings(extra_body={"thinking_config": {"thinking_budget": 1024}}),
+                [], None, [], None, None, None,
+            )
+            assert config.thinking_config.thinking_budget == 1024
+        else:
+            assert model.model == wire_name
+            assert wire_name in litellm.model_cost
+            assert litellm.supports_reasoning(model=wire_name) is True
     finally:
         litellm.model_cost.pop(wire_name, None)
 

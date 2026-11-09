@@ -7,6 +7,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from agents.tracing import TracingProcessor
 
+from siada.foundation.execution_progress import publish_execution_progress
+from siada.foundation.logging import logger
+
 # Module-level set to track which log-file glob patterns have already been
 # cleaned up in this process (so cleanup runs at most once per pattern per run).
 _cleaned_log_patterns: set = set()
@@ -54,6 +57,9 @@ class LoggerTracingProcessor(TracingProcessor):
     """
     Detailed reasoning process logger
 
+    This processor records logs and optionally publishes compatibility messages.
+    Terminal presentation belongs to the execution surface, never this processor.
+
     This TracingProcessor provides detailed visualization of the reasoning process, including:
         - Incremental input and complete output of model calls
         - Input/output details of tool calls
@@ -96,7 +102,8 @@ class LoggerTracingProcessor(TracingProcessor):
             show_timestamps: Whether to show timestamps
             show_system_messages: Whether to show system messages (default: False)
             use_colors: Whether to use colored output
-            console_output: Whether to output to console (default: True)
+            console_output: Whether to publish compatibility progress messages (default: True).
+                Terminal writes require a presentation owner outside tracing.
             output_file: Default output file path (used when file_router is None or
                 returns None)
             indent_level: Indentation level
@@ -134,7 +141,7 @@ class LoggerTracingProcessor(TracingProcessor):
         } if use_colors else {k: '' for k in ['trace', 'model', 'tool', 'handoff', 'input', 'output', 'reset', 'bold']}
 
     def _print(self, message: str, output_file: Optional[str] = None) -> None:
-        """Print message with file output support.
+        """Record a message and publish data without performing terminal I/O.
 
         Args:
             message: The message to print.
@@ -144,9 +151,9 @@ class LoggerTracingProcessor(TracingProcessor):
         indent = "  " * self.indent_level
         full_message = f"{indent}{message}"
 
-        # Print to console only if console_output is enabled
+        # The execution surface owns terminal I/O; tracing only publishes data.
         if self.console_output:
-            print(full_message)
+            publish_execution_progress(full_message)
 
         # Determine which file to write to (per-trace override > processor default)
         effective_file = output_file or self.output_file
@@ -159,9 +166,12 @@ class LoggerTracingProcessor(TracingProcessor):
                         clean_message = clean_message.replace(color, '')
                     f.write(clean_message + '\n')
             except Exception as e:
-                # Only print warning to console if console output is enabled
+                warning = f"Warning: Failed to write to file {effective_file}: {e}"
+                logger.warning(warning)
                 if self.console_output:
-                    print(f"Warning: Failed to write to file {effective_file}: {e}")
+                    publish_execution_progress(warning)
+        else:
+            logger.info(full_message)
 
     def _truncate_content(self, content: str, max_length: int = 8000) -> str:
         """Truncate overly long content"""
@@ -364,7 +374,7 @@ class LoggerTracingProcessor(TracingProcessor):
             del self.trace_states[trace.trace_id]
 
     def on_span_start(self, span) -> None:
-        """Callback when a Span starts."""
+        """Callback when a span starts."""
         span_type = span.span_data.type
         trace_id = span.trace_id
         state = self.trace_states.get(trace_id)
@@ -387,7 +397,7 @@ class LoggerTracingProcessor(TracingProcessor):
                 self._print_incremental_messages(span.trace_id, data.input)
 
     def on_span_end(self, span) -> None:
-        """Callback when a Span ends."""
+        """Callback when a span ends."""
         span_type = span.span_data.type
         trace_id = span.trace_id
 
@@ -432,7 +442,7 @@ class LoggerTracingProcessor(TracingProcessor):
         self._print(f"{self.colors['model']}==================={self.colors['reset']}", output_file)
 
     def _handle_function_span(self, span, state: Optional[TraceState]) -> None:
-        """Handle a function-call Span."""
+        """Handle a function-call span."""
         data = span.span_data
         output_file = state.output_file if state else None
 
@@ -512,7 +522,7 @@ def create_detailed_logger(
         output_file: Default log file path for the main agent trace.  When not
             provided, defaults to the daily-rotated ``agent_trace-YYYYMMDD.log``
             file in ``~/.siada-cli/logs/``.
-        console_output: Whether to echo output to the console.
+        console_output: Whether to publish messages to an active execution presenter.
         file_router: Optional custom callable ``(trace_name: str) -> str`` that
             maps a trace name to an output file path.  Providing this overrides
             the built-in SubTaskAgent routing described above.

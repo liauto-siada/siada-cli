@@ -2,7 +2,7 @@
 
 Covers:
 1. fact_store rendering for each supported action (TUI ``format_input``).
-2. fact_store IM rendering (``format_input_im``) matches the TUI output.
+2. IM rendering keeps compact previews while terminal details remain complete.
 3. fact_feedback rendering with / without comment.
 4. Malformed JSON falls back to a generic, non-raising label.
 5. Both tools are registered in ToolCallFormatterFactory.
@@ -41,13 +41,14 @@ class TestFactStoreFormatter(unittest.TestCase):
         content, _ = self._format({"action": "add", "content": "a bare fact"})
         self.assertEqual(content, "Fact memory [add] a bare fact")
 
-    def test_add_long_content_is_truncated(self):
+    def test_add_long_content_is_complete_in_terminal_and_compact_in_im(self):
         long_content = "x" * 100
         content, _ = self._format({"action": "add", "content": long_content})
-        self.assertTrue(content.startswith("Fact memory [add] "))
-        self.assertIn("...", content)
-        # 60 char preview + ellipsis
-        self.assertIn("x" * 60 + "...", content)
+        self.assertEqual(content, f"Fact memory [add] {long_content}")
+        im, _ = self.fmt.format_input_im(
+            "c1", "fact_store", json.dumps({"action": "add", "content": long_content})
+        )
+        self.assertEqual(im, "Fact memory [add] " + "x" * 60 + "...")
 
     def test_search(self):
         content, _ = self._format({"action": "search", "query": "what db does Phoenix use"})
@@ -124,12 +125,16 @@ class TestFactFeedbackFormatter(unittest.TestCase):
         )
         self.assertEqual(content, "Fact feedback #3 correct: user confirmed")
 
-    def test_long_comment_truncated(self):
+    def test_long_comment_complete_in_terminal_and_compact_in_im(self):
         content, _ = self._format(
             {"fact_id": 1, "action": "unhelpful", "comment": "y" * 100}
         )
-        self.assertTrue(content.startswith("Fact feedback #1 unhelpful: "))
-        self.assertIn("...", content)
+        self.assertEqual(content, "Fact feedback #1 unhelpful: " + "y" * 100)
+        im, _ = self.fmt.format_input_im(
+            "c1", "fact_feedback",
+            json.dumps({"fact_id": 1, "action": "unhelpful", "comment": "y" * 100}),
+        )
+        self.assertEqual(im, "Fact feedback #1 unhelpful: " + "y" * 60 + "...")
 
     def test_missing_fact_id(self):
         content, _ = self._format({"action": "helpful"})

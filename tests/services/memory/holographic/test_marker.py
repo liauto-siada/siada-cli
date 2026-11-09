@@ -8,6 +8,8 @@ Plus the unified strip-all helpers used by frontend rendering and memory
 review (``strip_all_injection_blocks`` / ``has_any_injection_block``).
 """
 
+import pytest
+
 from siada.services.memory.holographic.marker import (
     HOLOGRAPHIC_PREFETCH_BEGIN,
     HOLOGRAPHIC_PREFETCH_END,
@@ -212,6 +214,50 @@ def test_wrap_user_input_is_idempotent():
     assert twice == once
     assert twice.count(USER_INPUT_BEGIN) == 1
     assert twice.count(USER_INPUT_END) == 1
+
+
+@pytest.mark.parametrize("reminder", [
+    "<system-reminder>Continue verification.</system-reminder>",
+    "<system_reminder>Continue verification.</system_reminder>",
+    '<system-reminder source="siada.runtime.retry">Continue.</system-reminder>',
+    "<system-reminder>\n<user_input>quoted objective</user_input>\n</system-reminder>",
+])
+@pytest.mark.parametrize("padding", ["", " \n", "\r\n\t"])
+def test_wrap_user_input_leaves_whole_reminders_unchanged(reminder, padding):
+    """Internal continuations must not acquire a human-input envelope."""
+    text = f"{padding}{reminder}{padding}"
+
+    assert wrap_user_input(text) == text
+    assert wrap_user_input(wrap_user_input(text)) == text
+
+
+@pytest.mark.parametrize("text", [
+    "Please explain <system-reminder>retry</system-reminder>",
+    "<system-reminder>retry</system-reminder> is the example I pasted.",
+    "```xml\n<system-reminder>retry</system-reminder>\n```",
+    "Please explain <system_reminder>retry</system_reminder>",
+    '<system-reminder source="siada.runtime.retry">retry</system-reminder> explain this.',
+    "<system-reminder>retry</system_reminder>",
+    "<system_reminder>retry</system-reminder>",
+    "<system-reminder>missing closing tag",
+    "missing opening tag</system-reminder>",
+])
+def test_wrap_user_input_keeps_reminder_quotes_and_incomplete_tags_as_human_input(text):
+    assert wrap_user_input(text) == f"{USER_INPUT_BEGIN}{text}{USER_INPUT_END}"
+
+
+def test_wrap_user_input_does_not_wrap_generated_goal_verifier_feedback():
+    from siada.services.goal.models import Goal
+    from siada.services.goal.prompts import build_goal_reminder_text
+
+    feedback = build_goal_reminder_text(
+        Goal.create("Fix the synthetic regression."),
+        verifier_reason="Tests still fail.",
+        verifier_next_action="Run the tests and fix the failure.",
+    )
+
+    assert wrap_user_input(feedback) == feedback
+    assert USER_INPUT_BEGIN not in feedback
 
 
 def test_strip_user_input_roundtrip():

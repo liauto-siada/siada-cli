@@ -19,7 +19,7 @@ from siada.services.model_wrapper import ModelProviderWrapper, ModelWrapper
     ("kimi-k2.5", "https://gateway.test/v1", TokenCountingInfo("kimi-k2.5")),
     ("gpt-5.4", "https://gateway.test/v1", TokenCountingInfo("gpt-5.4", "responses", "siada_responses")),
     ("claude-sonnet-4.6", "https://gateway.test/v1", TokenCountingInfo("anthropic/claude-sonnet-4.6")),
-    ("gemini-2.5-pro", "https://gateway.test/v1", TokenCountingInfo("gemini/gemini-2.5-pro")),
+    ("gemini-2.5-pro", "https://gateway.test/v1", TokenCountingInfo("gemini-2.5-pro", "gemini", "siada_gemini", replay_domain="default:gemini_api")),
     ("codex-mini-latest", "https://gateway.test/v1", TokenCountingInfo("openai/responses/codex-mini-latest")),
     ("gpt-4o", "https://openrouter.ai/api/v1", TokenCountingInfo("openai/gpt-4o")),
     ("openrouter/openai/gpt-4o", "https://openrouter.ai/api/v1", TokenCountingInfo("openai/gpt-4o")),
@@ -88,3 +88,79 @@ def test_provider_wrappers_forward_counting_information_without_model_resolution
     base.get_model.assert_not_called()
     opaque = ModelProviderWrapper(base, lambda value: value)
     assert opaque.get_token_counting_info("synthetic-alias").unavailable_reason == "opaque_processor"
+
+
+@pytest.mark.parametrize("protocol", ["chat", "responses", "gemini", None])
+def test_native_estimation_requires_explicit_gemini_protocol(monkeypatch, protocol):
+    from siada.agent_hub.context_filter import utils
+    from siada.provider.gemini import counting
+
+    chat_counter = Mock(return_value=100)
+    native_counter = Mock(return_value=200)
+    monkeypatch.setattr(utils, "_calculate_tokens", chat_counter)
+    monkeypatch.setattr(counting, "estimate_input_tokens", native_counter)
+    info = TokenCountingInfo("opaque-wire-alias", protocol) if protocol else None
+    items = [{"role": "user", "content": "synthetic"}]
+    tokens = utils.calculate_tokens("google/gemini-3.5-flash", items, counting_info=info)
+    if protocol == "gemini":
+        assert tokens == 220
+        native_counter.assert_called_once_with(items, None)
+        chat_counter.assert_not_called()
+    else:
+        assert tokens == 110
+        chat_counter.assert_called_once_with(info.model_name if info else "google/gemini-3.5-flash", items, tools=None)
+        native_counter.assert_not_called()
+
+
+def test_counting_retains_configured_name_when_model_has_no_name(monkeypatch):
+    from siada.agent_hub.context_filter import utils
+    from siada.provider.token_counting import context_token_counting_info
+
+    info = TokenCountingInfo(None)
+    context = SimpleNamespace(
+        model_run_config=SimpleNamespace(model_name="gpt-4o", provider="unused"),
+        runtime_session=SimpleNamespace(token_counting_info=info),
+    )
+    counter = Mock(return_value=100)
+    monkeypatch.setattr(utils, "_calculate_tokens", counter)
+    items = [{"role": "user", "content": "synthetic"}]
+    assert utils.calculate_tokens("gpt-4o", items, counting_info=info) == 110
+    counter.assert_called_once_with("gpt-4o", items, tools=None)
+    assert context_token_counting_info(context) == TokenCountingInfo("gpt-4o")
+    assert context.runtime_session.token_counting_info is info
+
+
+def test_config_without_a_concrete_model_name_uses_unknown_counting_domain():
+    from siada.provider.token_counting import token_counting_info_from_config
+
+    assert token_counting_info_from_config(Mock()) == TokenCountingInfo(None)
+
+
+def test_gemini_estimate_input_tokens_uses_litellm_token_counter(monkeypatch):
+    import litellm
+    from siada.provider.gemini.counting import estimate_input_tokens
+    from siada.provider.gemini.replay import encode_replay
+
+    text = "你好世界！Hello Gemini token counting."
+    expected_text_tokens = litellm.token_counter(model="gemini", text=text)
+    assert estimate_input_tokens(text) == expected_text_tokens
+    assert estimate_input_tokens(text) < len(text.encode("utf-8"))
+
+    replay_item = {
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": text}],
+        "provider_data": {
+            "gemini": encode_replay({
+                "parts": [{
+                    "content_index": 0,
+                    "part_index": 0,
+                    "part": {"text": text, "thought_signature": "x" * 2048},
+                }],
+            }),
+        },
+    }
+    assert estimate_input_tokens([replay_item]) == expected_text_tokens + 4
+
+    monkeypatch.setattr(litellm, "token_counter", Mock(side_effect=RuntimeError("unavailable")))
+    assert estimate_input_tokens(text) == max(1, len(text) // 4)

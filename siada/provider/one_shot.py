@@ -197,16 +197,14 @@ async def one_shot_completion(
             )
             selected_model = wrapped_provider.get_model(model)
             if num_retries is not None:
-                # LiteLLM has an independent retry layer. Native SDK clients
-                # disable it at construction; retained vendor adapters need
-                # their own option so the durable learning queue owns retries.
                 from agents.extensions.models.litellm_model import LitellmModel
 
                 if isinstance(selected_model.wrapped_model, LitellmModel):
                     extra_args = dict(settings.extra_args or {})
                     extra_args["num_retries"] = 0
                     settings = settings.resolve({"extra_args": extra_args})
-            if isinstance(input_items, list) and not selected_model.supports_native_responses_items:
+            if (isinstance(input_items, list) and not selected_model.supports_native_responses_items
+                    and getattr(selected_model, "request_protocol", None) != "gemini"):
                 # Compaction can replay interleaved completed tool pairs into any
                 # Chat adapter, not only Kimi. Repair item order before conversion.
                 input_items = reorder_tool_call_output_items(to_chat_compatible_items(input_items))

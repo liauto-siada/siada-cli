@@ -20,9 +20,11 @@ import {
   Box,
   getInnerHeight,
   getScrollHeight,
+  getBoundingBox,
   type DOMElement,
 } from '@jrichman/ink';
 import { useKeypress, type Key } from '../../hooks/useKeypress.js';
+import { colors } from '../../utils/colors.js';
 
 export interface ScrollableProps {
   children?: React.ReactNode;
@@ -36,6 +38,8 @@ export interface ScrollableProps {
   flexGrow?: number;
   /** Optional scrollbar thumb color */
   scrollbarThumbColor?: string;
+  /** Reserve plain arrows for the composer, and route wheel events by bounds. */
+  mouseOnly?: boolean;
 }
 
 export const Scrollable: React.FC<ScrollableProps> = ({
@@ -47,6 +51,7 @@ export const Scrollable: React.FC<ScrollableProps> = ({
   scrollToBottom,
   flexGrow,
   scrollbarThumbColor,
+  mouseOnly = false,
 }) => {
   const [scrollTop, setScrollTop] = useState(0);
   const ref = useRef<DOMElement>(null);
@@ -74,7 +79,7 @@ export const Scrollable: React.FC<ScrollableProps> = ({
       setSize({ innerHeight, scrollHeight });
 
       // Preserve sticking-to-bottom behavior when resizing / content reflow.
-      if (isAtBottom) {
+      if (isAtBottom && scrollToBottom !== false) {
         setScrollTop(Math.max(0, scrollHeight - innerHeight));
       } else {
         // Clamp scrollTop into new bounds
@@ -108,23 +113,33 @@ export const Scrollable: React.FC<ScrollableProps> = ({
 
   useKeypress(
     (key: Key) => {
+      if (mouseOnly || key.name === 'wheelup' || key.name === 'wheeldown') {
+        const match = /^\x1b\[<\d+;(\d+);(\d+)M$/.exec(key.sequence);
+        if (!match && mouseOnly) return;
+        if (match) {
+          if (!ref.current) return;
+          const bounds = getBoundingBox(ref.current);
+          const x = Number(match[1]) - 1, y = Number(match[2]) - 1;
+          if (x < bounds.x || x >= bounds.x + bounds.width || y < bounds.y || y >= bounds.y + bounds.height) return;
+        }
+      }
       // Plain ↑↓ scroll line-by-line. NOTE: macOS Terminal.app captures
       // Shift+↑↓ for its own scrollback and never forwards them to the app,
       // so plain arrows are the reliable binding (Shift+↑↓ kept for terminals
       // that do deliver them).
-      if (key.name === 'up') {
+      if (!mouseOnly && (key.name === 'up' || key.ctrl && key.name === 'p')) {
         scrollBy(-1);
         return;
       }
-      if (key.name === 'down') {
+      if (!mouseOnly && (key.name === 'down' || key.ctrl && key.name === 'n')) {
         scrollBy(1);
         return;
       }
-      if (key.name === 'pageup') {
+      if (!mouseOnly && key.name === 'pageup') {
         scrollBy(-Math.max(1, sizeRef.current.innerHeight - 1));
         return;
       }
-      if (key.name === 'pagedown') {
+      if (!mouseOnly && key.name === 'pagedown') {
         scrollBy(Math.max(1, sizeRef.current.innerHeight - 1));
         return;
       }
@@ -141,7 +156,7 @@ export const Scrollable: React.FC<ScrollableProps> = ({
     { isActive: hasFocus },
   );
 
-  const thumbColor = scrollbarThumbColor;
+  const thumbColor = scrollbarThumbColor ?? colors.gray[500];
 
   // Extra inner box prevents the parent from shrinking based on children's content.
   // Also adds right padding to make room for the scrollbar.
@@ -157,6 +172,7 @@ export const Scrollable: React.FC<ScrollableProps> = ({
       scrollTop={scrollTop}
       flexGrow={flexGrow}
       scrollbarThumbColor={thumbColor}
+      scrollbarStyle="thin"
     >
       <Box flexShrink={0} paddingRight={1} flexDirection="column">
         {children}

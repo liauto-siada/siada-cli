@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import * as acp from "@agentclientprotocol/sdk";
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { createAdaptorServer, serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createNodeWebSocket } from "@hono/node-ws";
@@ -20,7 +20,7 @@ import {
   setFallbackExecutor,
   setMcpAuthToken,
   unregisterExecutor,
-  sendToExtension,
+  sendToExecutor,
 } from "./mcp/handler.js";
 import { log, withLogContext } from "./logger.js";
 import { randomUUID } from "node:crypto";
@@ -34,6 +34,15 @@ import {
 } from "./files.js";
 import { appendTrajectoryEvents } from "./trajectory-writer.js";
 import { killAgentProcess, launchAgent } from "./agent-connection.js";
+import { SessionRetention, SESSION_RETENTION_MS } from "./session-retention.js";
+import { localBootstrapHandler } from "./local-bootstrap.js";
+import { checkCliLogin, createTerminalLogin } from "./terminal-login.js";
+import { browserLoginSocket } from "./browser-login.js";
+import { allowLocalBootstrap } from "./local-bootstrap.js";
+import { interactivePages } from "./interactive-ui/store.js";
+import { interactiveUiRoutes } from "./interactive-ui/routes.js";
+import { setInteractiveUiBaseUrl, setInteractiveUiShares } from "./interactive-ui/tools.js";
+import { InteractivePageShares } from "./interactive-ui/share.js";
 
 // Get the directory of this file to resolve public folder path
 const __filename = fileURLToPath(import.meta.url);
@@ -51,6 +60,7 @@ export interface ServerConfig {
   termux?: boolean;
   https?: boolean;
   publicUrl?: string;
+  uiSharePort?: number;
 }
 
 // Pending permission request
@@ -110,6 +120,14 @@ function expandHome(path: string): string {
 
 // Track connected clients and their agent connections
 interface ClientState {
+  socket: WSContext | null;
+  deliverEvents: boolean;
+  retentionId: string | null;
+  disposed: boolean;
+  initializing: Promise<void> | null;
+  activePrompt: Promise<void> | null;
+  sessionOperation: Promise<void> | null;
+  agentInfo: unknown;
   process: ChildProcess | null;
   connection: acp.ClientSideConnection | null;
   sessionId: string | null;
@@ -132,16 +150,25 @@ interface ClientState {
   isAlive: boolean;
   // Chrome tab id this sidepanel session is attached to (Chrome extension
   // only). Used to route trajectory events to this session's agent
-  // subprocess for browser-skill matching.
+  // subprocess for browser-skill matching (see browser-skill-graph-design.md).
   tabId: number | null;
   // Whether this client asked the extension for the live view stream, so the
   // disconnect path can turn it back off instead of leaving the extension
   // debugger attached forever.
   liveViewRequested: boolean;
-  // Session that asked for that stream. A live frame belongs to the run that
-  // requested it, so once the client moves to another session the frame is
-  // dropped instead of leaking into the new run's timeline.
   liveViewSessionId: string | null;
+}
+
+function createClientState(socket: WSContext): ClientState {
+  return {
+    socket, deliverEvents: true, retentionId: null, disposed: false, initializing: null,
+    activePrompt: null, sessionOperation: null, agentInfo: null,
+    process: null, connection: null, sessionId: null,
+    pendingPermissions: new Map(), agentCapabilities: null, promptCapabilities: null,
+    modelState: null, configOptions: null, unsubscribeWatcher: null,
+    sessionCwd: null, isAlive: true, tabId: null, liveViewRequested: false,
+    liveViewSessionId: null,
+  };
 }
 
 // Module-level state (set when server starts)
@@ -168,20 +195,21 @@ function browserMcpUrl(): string {
 }
 
 const clients = new Map<WSContext, ClientState>();
+let dedicatedProducerWs: WSContext | null = null;
+// Agent callbacks can outlive a sidepanel socket. Route them through their
+// owning state so reopening never leaves callbacks bound to the old socket.
+const clientOwners = new WeakMap<WSContext, ClientState>();
+const activeRetentionIds = new Map<string, WSContext>();
+const retainedClients = new SessionRetention<ClientState>((state) => {
+  log.info("Retained agent released", { sessionId: state.sessionId, agentPid: state.process?.pid });
+  releaseClient(state);
+});
 
 // Chrome tab id -> WSContext, so trajectory events arriving on /ws/trajectory
 // (tagged with a tabId by the extension's background worker) can be routed
-// to the matching sidepanel session's agent subprocess via extNotification —
-// consumed by the agent's `trajectory_event` handler
-// (siada-agenthub: siada/acp_server/runtime.py, browser-skill matching).
+// to the matching sidepanel session's agent subprocess via extNotification.
+// See design_docs/browser-skill-graph-design.md (siada-agenthub repo) §7.1.
 const tabIdToWs = new Map<number, WSContext>();
-
-// The extension background worker's tool channel, announced via
-// `register_executor`. Only this producer may push page content (frames and
-// live-view state): every /ws client — viewers included — registers as a
-// fallback executor, and a viewer must not be able to paint the pictures that
-// other clients render.
-let dedicatedProducerWs: WSContext | null = null;
 
 // Permission request timeout (5 minutes)
 const PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -200,36 +228,13 @@ function generateRequestId(): string {
 
 // Send a message to the WebSocket client
 function send(ws: WSContext, type: string, payload?: unknown): void {
-  if (ws.readyState === 1) {
+  const owner = clientOwners.get(ws);
+  if (owner && !owner.deliverEvents) return;
+  const destination = owner ? owner.socket : ws;
+  if (destination?.readyState === 1) {
     // WebSocket.OPEN
-    ws.send(JSON.stringify({ type, payload }));
+    destination.send(JSON.stringify({ type, payload }));
   }
-}
-
-// Shared auth gate for every WebSocket endpoint. /ws has always enforced the
-// token; /ws/trajectory must too, because everything a producer sends there is
-// appended to the user's on-disk trajectory history and fed into the agent of
-// the tab it names. Without the token, any peer on the same port (or a
-// malicious page posting to it) could poison that history. No token is
-// required when the server runs with --no-auth, the explicit localhost-only
-// mode.
-function wsRequestIsAuthorized(c: Context): boolean {
-  if (!AUTH_TOKEN) return true;
-  const providedToken = new URL(c.req.url).searchParams.get("token");
-  return providedToken === AUTH_TOKEN;
-}
-
-/**
- * Point a client's tab binding at another tab (or none). Only the mapping this
- * ws owns is cleared, so a closing or rebinding viewer can never delete the
- * binding a newer one just installed for the same tab.
- */
-function bindTab(ws: WSContext, state: ClientState, tabId: number | null): void {
-  if (state.tabId !== null && tabIdToWs.get(state.tabId) === ws) {
-    tabIdToWs.delete(state.tabId);
-  }
-  state.tabId = tabId;
-  if (tabId !== null) tabIdToWs.set(tabId, ws);
 }
 
 // Describe a failed ACP request. JSON-RPC errors coming back from the agent
@@ -259,6 +264,9 @@ function getClientCwd(ws: WSContext): string {
 function createClient(ws: WSContext, clientState: ClientState): acp.Client {
   return {
     async requestPermission(params) {
+      if (!clientState.socket || !clientState.deliverEvents || clientState.disposed) {
+        return { outcome: { outcome: "cancelled" } };
+      }
       const requestId = generateRequestId();
       log.debug("Permission requested", { requestId, title: params.toolCall.title });
 
@@ -291,6 +299,7 @@ function createClient(ws: WSContext, clientState: ClientState): acp.Client {
     },
 
     async sessionUpdate(params) {
+      if (clientState.disposed) return;
       const fields = params.update._meta?.siadaLog;
       return withLogContext({
         sessionId: params.sessionId,
@@ -342,6 +351,7 @@ function handlePermissionResponse(ws: WSContext, payload: { requestId: string; o
 // Tabs with no live mapped session (no sidepanel open, or agent not
 // connected) are silently skipped — trajectory events are still persisted to
 // disk by appendTrajectoryEvents() regardless.
+// See design_docs/browser-skill-graph-design.md (siada-agenthub repo) §7.1.
 function forwardTrajectoryEventsToAgents(events: unknown[]): void {
   const byTabId = new Map<number, unknown[]>();
   for (const event of events) {
@@ -386,10 +396,87 @@ function cancelPendingPermissions(clientState: ClientState): void {
   clientState.pendingPermissions.clear();
 }
 
-async function handleConnect(ws: WSContext): Promise<void> {
-  const state = clients.get(ws);
+async function handleConnect(ws: WSContext, payload?: { retentionId?: unknown }): Promise<void> {
+  let state = clients.get(ws);
   if (!state) return;
+  if (state.disposed) {
+    state = createClientState(ws);
+    clients.set(ws, state);
+    clientOwners.set(ws, state);
+  }
+  const retentionId = payload?.retentionId;
+  if (retentionId !== undefined) {
+    if (typeof retentionId !== "string" || !/^[a-f0-9-]{36}$/i.test(retentionId)) {
+      send(ws, "error", { message: "Invalid sidepanel retention identity" });
+      return;
+    }
+    const activeSocket = activeRetentionIds.get(retentionId);
+    if (activeSocket && activeSocket !== ws) {
+      if (activeSocket.readyState === 1) {
+        send(ws, "error", { message: "This sidepanel session is already attached" });
+        return;
+      }
+      // A rapid reopen can arrive before the old socket's close event.
+      detachClient(activeSocket);
+      clients.delete(activeSocket);
+    }
+    const retained = retainedClients.take(retentionId);
+    if (retained) {
+      state = retained;
+      state.socket = ws;
+      state.deliverEvents = false;
+      state.isAlive = true;
+      clients.set(ws, state);
+      clientOwners.set(ws, state);
+    }
+    state.retentionId = retentionId;
+    activeRetentionIds.set(retentionId, ws);
+  }
+  // Close keeps the existing cancellation boundary: finish cancellation and
+  // any in-flight session operation before the reopened UI reloads history.
+  const pending = [state.initializing, state.activePrompt, state.sessionOperation].filter(
+    (task): task is Promise<void> => task !== null,
+  );
+  if (pending.length) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const drained = await Promise.race([
+      Promise.allSettled(pending).then(() => true),
+      new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), 5000); }),
+    ]);
+    clearTimeout(timer);
+    if (state.disposed || state.socket !== ws) return;
+    if (!drained) {
+      // A non-cooperative cancelled request must not leave the reopened panel
+      // waiting forever. Dispose its owner before starting a fresh process.
+      log.warn("Retained agent did not settle; restarting", { agentPid: state.process?.pid });
+      const id = state.retentionId;
+      releaseClient(state);
+      state = createClientState(ws);
+      state.retentionId = id;
+      clients.set(ws, state);
+      clientOwners.set(ws, state);
+      if (id) activeRetentionIds.set(id, ws);
+    }
+  }
+  if (state.disposed || state.socket !== ws) return;
+  state.deliverEvents = true;
+  if (state.process && state.process.exitCode === null
+    && state.process.signalCode === null && state.connection) {
+    log.info("Retained agent reattached", { sessionId: state.sessionId, agentPid: state.process.pid });
+    send(ws, "status", {
+      connected: true, agentInfo: state.agentInfo, capabilities: state.agentCapabilities,
+      retainedSessionId: state.sessionId,
+    });
+    return;
+  }
+  const task = initializeAgent(ws, state);
+  state.initializing = task;
+  try { await task; } finally {
+    if (state.initializing === task) state.initializing = null;
+  }
+}
 
+async function initializeAgent(ws: WSContext, state: ClientState): Promise<void> {
   // Kill existing process if any
   if (state.process) {
     // Cancel any pending permission requests from previous connection
@@ -410,6 +497,11 @@ async function handleConnect(ws: WSContext): Promise<void> {
         state.connection = connection;
       },
     });
+    if (state.disposed) {
+      killAgentProcess(launched.process);
+      return;
+    }
+    state.agentInfo = launched.initResult.agentInfo;
 
     // Reference: Zed stores full agentCapabilities from initialize response
     // This includes loadSession, promptCapabilities, sessionCapabilities, etc.
@@ -432,7 +524,7 @@ async function handleConnect(ws: WSContext): Promise<void> {
       mcpCapabilities: state.agentCapabilities?.mcpCapabilities,
     });
 
-    send(ws, "status", {
+    if (state.socket === ws) send(ws, "status", {
       connected: true,
       agentInfo: launched.initResult.agentInfo,
       capabilities: state.agentCapabilities,
@@ -440,10 +532,12 @@ async function handleConnect(ws: WSContext): Promise<void> {
 
     // Handle connection close
     launched.connection.closed.then(() => {
+      if (state.connection !== launched.connection) return;
       log.info("Agent connection closed");
       state.connection = null;
       state.sessionId = null;
       send(ws, "status", { connected: false });
+      if (!state.socket && state.retentionId) retainedClients.remove(state.retentionId);
     });
   } catch (error) {
     // The agent failed to start (bad command, crash during initialization)
@@ -473,18 +567,16 @@ async function handleNewSession(
   }
 
   try {
-    const sessionCwd = expandHome(params.cwd || AGENT_CWD);
-
-    // A new session is a new run: the live view belonged to the previous one,
-    // so stop it before the binding changes. The stop still names the old tab
-    // and late frames from it are dropped, never attributed to the new run.
     stopLiveViewFor(state);
+    const sessionCwd = expandHome(params.cwd || AGENT_CWD);
 
     // Record the tab <-> session mapping (Chrome extension only; web-client
     // callers omit tabId). Clears any stale mapping for this ws first so a
     // "new session" replacing an old one doesn't leave two tabIds pointing
     // at the same connection.
-    bindTab(ws, state, typeof params.tabId === "number" ? params.tabId : null);
+    if (state.tabId !== null && tabIdToWs.get(state.tabId) === ws) tabIdToWs.delete(state.tabId);
+    state.tabId = typeof params.tabId === "number" ? params.tabId : null;
+    if (state.tabId !== null) tabIdToWs.set(state.tabId, ws);
     const mcpServers = [
       {
         type: "http" as const,
@@ -499,9 +591,10 @@ async function handleNewSession(
       // Forwarded via ACP's standard `_meta` extensibility field (not part
       // of the spec, but explicitly supported for this purpose) so the
       // Python agent can associate this session with a tab for browser
-      // skill matching.
+      // skill matching. See design_docs/browser-skill-graph-design.md §7.2.
       _meta: state.tabId !== null ? { tabId: state.tabId } : undefined,
     });
+    if (state.disposed) return;
 
     state.sessionId = result.sessionId;
     state.sessionCwd = sessionCwd;
@@ -518,6 +611,10 @@ async function handleNewSession(
     state.unsubscribeWatcher = await startWatcher(sessionCwd, (changes) => {
       send(ws, "file_changes", { changes });
     });
+    if (!state.socket || state.disposed) {
+      state.unsubscribeWatcher?.();
+      state.unsubscribeWatcher = null;
+    }
 
     // Send fresh root directory listing for the new session cwd
     // This ensures the file explorer shows the correct files immediately
@@ -633,26 +730,25 @@ async function handleLoadSession(
   }
 
   try {
+    stopLiveViewFor(state);
     const sessionCwd = expandHome(params.cwd || AGENT_CWD);
     const sessionId = params.sessionId;
-
-    // Loading another session leaves the previous run behind: stop its live
-    // view so its pictures cannot be shown as part of the restored one.
-    stopLiveViewFor(state);
 
     // Re-bind this ws to the tab declared in _meta (sidepanel reopen path),
     // mirroring handleNewSession: without this, a restored session silently
     // stops receiving trajectory events for its tab. Web clients without a
     // tabId clear any stale binding.
     const metaTabId = params._meta?.tabId;
-    bindTab(ws, state, typeof metaTabId === "number" ? metaTabId : null);
+    if (state.tabId !== null && tabIdToWs.get(state.tabId) === ws) tabIdToWs.delete(state.tabId);
+    state.tabId = typeof metaTabId === "number" ? metaTabId : null;
+    if (state.tabId !== null) tabIdToWs.set(state.tabId, ws);
 
     const result = await state.connection.loadSession({
       sessionId,
       cwd: sessionCwd,
       // Forwarded via ACP's standard `_meta` extensibility field so the
       // Python agent can associate the restored session with its tab (same
-      // mechanism as new_session).
+      // mechanism as new_session; see browser-skill-graph-design.md §7.2).
       _meta: state.tabId !== null ? { tabId: state.tabId } : undefined,
       mcpServers: [
         {
@@ -663,6 +759,7 @@ async function handleLoadSession(
         },
       ],
     });
+    if (state.disposed) return;
 
     state.sessionId = sessionId;
     state.sessionCwd = sessionCwd;
@@ -678,6 +775,10 @@ async function handleLoadSession(
     state.unsubscribeWatcher = await startWatcher(sessionCwd, (changes) => {
       send(ws, "file_changes", { changes });
     });
+    if (!state.socket || state.disposed) {
+      state.unsubscribeWatcher?.();
+      state.unsubscribeWatcher = null;
+    }
 
     // Send fresh root directory listing
     const rootItems = listDir(sessionCwd, "");
@@ -722,13 +823,9 @@ async function handleResumeSession(
   }
 
   try {
+    stopLiveViewFor(state);
     const sessionCwd = expandHome(params.cwd || AGENT_CWD);
     const sessionId = params.sessionId;
-
-    // Resuming another session leaves the previous run behind: stop its live
-    // view so its pictures cannot be shown as part of the resumed one.
-    stopLiveViewFor(state);
-
     // Note: SDK uses unstable_resumeSession until API is finalized
     const result = await state.connection.unstable_resumeSession({
       sessionId,
@@ -742,6 +839,7 @@ async function handleResumeSession(
         },
       ],
     });
+    if (state.disposed) return;
 
     state.sessionId = sessionId;
     state.sessionCwd = sessionCwd;
@@ -757,6 +855,10 @@ async function handleResumeSession(
     state.unsubscribeWatcher = await startWatcher(sessionCwd, (changes) => {
       send(ws, "file_changes", { changes });
     });
+    if (!state.socket || state.disposed) {
+      state.unsubscribeWatcher?.();
+      state.unsubscribeWatcher = null;
+    }
 
     // Send fresh root directory listing
     const rootItems = listDir(sessionCwd, "");
@@ -870,22 +972,10 @@ async function handleSteer(
   }
 }
 
-/**
- * Turn off the live view this client asked for, if any, and forget the run it
- * belonged to. Called when the client goes away and when it switches sessions:
- * leaving the stream on would keep the extension's debugger attached to the
- * user's tab with nothing watching, and a picture from the old run must never
- * be attributed to the new one.
- *
- * The stop names the tab, so a viewer that is not watching this tab's stream
- * cannot kill it (see the extension's handleScreencastRequest).
- */
 function stopLiveViewFor(state: ClientState): void {
   if (!state.liveViewRequested) return;
-  const payload: { enabled: false; tabId?: number } = { enabled: false };
-  if (state.tabId !== null) payload.tabId = state.tabId;
-  if (!sendToExtension({ type: "screencast", payload })) {
-    log.debug("Live view stop skipped: no extension connected");
+  if (state.tabId !== null) {
+    sendToExecutor({type: "screencast", payload: {enabled: false, tabId: state.tabId}});
   }
   state.liveViewRequested = false;
   state.liveViewSessionId = null;
@@ -899,14 +989,67 @@ function handleDisconnect(ws: WSContext): void {
   // extension's debugger attached to the user's tab with nothing watching.
   stopLiveViewFor(state);
 
-  if (state.process) {
-    killAgentProcess(state.process);
-    state.process = null;
-  }
-  state.connection = null;
-  state.sessionId = null;
+  releaseClient(state);
 
   send(ws, "status", { connected: false });
+}
+
+function releaseClient(state: ClientState): void {
+  state.disposed = true;
+  cancelPendingPermissions(state);
+  state.unsubscribeWatcher?.();
+  state.unsubscribeWatcher = null;
+  killAgentProcess(state.process);
+  state.process = null;
+  state.connection = null;
+  state.sessionId = null;
+  state.agentInfo = null;
+  if (state.retentionId && activeRetentionIds.get(state.retentionId) === state.socket) {
+    activeRetentionIds.delete(state.retentionId);
+  }
+  state.retentionId = null;
+}
+
+function detachClient(ws: WSContext): void {
+  const state = clients.get(ws);
+  if (!state || state.socket !== ws) return;
+  stopLiveViewFor(state);
+  cancelPendingPermissions(state);
+  state.unsubscribeWatcher?.();
+  state.unsubscribeWatcher = null;
+  if (state.tabId !== null && tabIdToWs.get(state.tabId) === ws) tabIdToWs.delete(state.tabId);
+  if (state.activePrompt && state.connection && state.sessionId) {
+    void state.connection.cancel({ sessionId: state.sessionId }).catch((error: unknown) => {
+      log.warn("Detached prompt cancellation failed", { error: describeError(error) });
+    });
+  }
+  if (state.retentionId && activeRetentionIds.get(state.retentionId) === ws) {
+    activeRetentionIds.delete(state.retentionId);
+  }
+  state.socket = null;
+  state.deliverEvents = false;
+  if (state.retentionId && state.process && !state.disposed) {
+    log.info("Agent retained after sidepanel close", {
+      sessionId: state.sessionId, agentPid: state.process.pid, retentionMs: SESSION_RETENTION_MS,
+    });
+    retainedClients.retain(state.retentionId, state);
+  } else {
+    releaseClient(state);
+  }
+}
+
+async function runSessionOperation(ws: WSContext, operation: () => Promise<void>): Promise<void> {
+  const state = clients.get(ws);
+  if (!state) return;
+  const previous = state.sessionOperation;
+  const task = (async () => {
+    if (previous) await previous;
+    if (!state.disposed && state.socket === ws) await operation();
+  })();
+  state.sessionOperation = task;
+  try { await task; } finally {
+    if (state.sessionOperation === task) state.sessionOperation = null;
+  }
 }
 
 // Handle cancel request from client - matches Zed's cancel() logic
@@ -1120,6 +1263,18 @@ async function launchTermuxPwa(pwaName: string): Promise<void> {
 
 export async function startServer(config: ServerConfig): Promise<void> {
   const { port, host, command, args, cwd, token, termux, https, publicUrl } = config;
+  const sharePort = config.uiSharePort ?? Number(process.env.SIADA_UI_SHARE_PORT ?? (port < 65535 ? port + 1 : 9316));
+  const shares = new InteractivePageShares(join(interactivePages.directory, "shared"), sharePort);
+  try { await shares.restore(); }
+  catch (error) { log.warn("Unable to restore shared pages", { error: (error as Error).message }); }
+  for (const signal of ["SIGTERM", "SIGINT"] as const) {
+    process.once(signal, () => {
+      void shares.stop();
+      for (const state of clients.values()) releaseClient(state);
+      retainedClients.clear();
+      process.exit(0);
+    });
+  }
 
   // Set module-level config
   AGENT_COMMAND = command;
@@ -1129,14 +1284,37 @@ export async function startServer(config: ServerConfig): Promise<void> {
   SERVER_HOST = host;
   AUTH_TOKEN = token;
   setMcpAuthToken(token);
+  setInteractiveUiBaseUrl(publicUrl || `${https ? "https" : "http"}://127.0.0.1:${port}`);
+  setInteractiveUiShares(shares);
 
   const app = new Hono();
+  app.route("/ui", interactiveUiRoutes(interactivePages, token, shares));
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+  app.use("/local-login", async (c, next) => {
+    const socket = (c.env as { incoming: { socket: { remoteAddress?: string; encrypted?: boolean } } }).incoming.socket;
+    if (!allowLocalBootstrap({
+      url: c.req.url, peer: socket.remoteAddress, origin: c.req.header("Origin"),
+      extensionId: c.req.query("extensionId"),
+      encrypted: "encrypted" in socket && socket.encrypted === true,
+    }, (process.env.SIADA_BROWSER_EXTENSION_IDS ?? "").split(",").filter(Boolean))
+      || c.req.header("Origin") !== `chrome-extension://${c.req.query("extensionId")}`) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    return next();
+  });
+  app.get("/local-login", upgradeWebSocket(c => browserLoginSocket(command, cwd, c.req.query("reconfigure") === "1")));
 
   // Health check endpoint
   app.get("/health", (c) => {
     return c.json({ status: "ok" });
   });
+
+  const bootstrap = localBootstrapHandler(
+    AUTH_TOKEN, port, (process.env.SIADA_BROWSER_EXTENSION_IDS ?? "").split(",").filter(Boolean),
+    { check: () => checkCliLogin(command), open: createTerminalLogin(command, cwd) },
+  );
+  app.get("/local-bootstrap", bootstrap);
+  app.post("/local-bootstrap", bootstrap);
 
   // Status endpoint for setup verification (e.g. `siada browser setup`
   // polls it until the extension's tool channel registers).
@@ -1148,9 +1326,11 @@ export async function startServer(config: ServerConfig): Promise<void> {
       port: SERVER_PORT,
       host: SERVER_HOST,
       authEnabled: !!AUTH_TOKEN,
+      uiSharing: { listening: shares.listening, port: shares.port },
       extensionConnected: executor.connected,
       executor,
       agentSessions: [...clients.values()].filter((s) => s.process !== null).length,
+      retainedAgentSessions: retainedClients.size,
       clients: clients.size,
     });
   });
@@ -1177,43 +1357,34 @@ export async function startServer(config: ServerConfig): Promise<void> {
     "/ws",
     upgradeWebSocket((c) => {
       // Validate token before upgrade if auth is enabled
-      if (!wsRequestIsAuthorized(c)) {
-        log.warn("WebSocket connection rejected: invalid token");
-        // Return empty handlers - connection will be rejected
-        return {
-          onOpen(_event, ws) {
-            ws.close(4001, "Unauthorized: Invalid token");
-          },
-          onMessage() {},
-          onClose() {},
-        };
+      if (AUTH_TOKEN) {
+        const url = new URL(c.req.url);
+        const providedToken = url.searchParams.get("token");
+        if (providedToken !== AUTH_TOKEN) {
+          log.warn("WebSocket connection rejected: invalid token");
+          // Return empty handlers - connection will be rejected
+          return {
+            onOpen(_event, ws) {
+              ws.close(4001, "Unauthorized: Invalid token");
+            },
+            onMessage() {},
+            onClose() {},
+          };
+        }
       }
 
       return {
         onOpen(_event, ws) {
           log.info("Client connected");
-          const state: ClientState = {
-            process: null,
-            connection: null,
-            sessionId: null,
-            pendingPermissions: new Map(),
-            agentCapabilities: null,
-            promptCapabilities: null,
-            modelState: null,
-            configOptions: null,
-            unsubscribeWatcher: null,
-            sessionCwd: null,
-            isAlive: true,
-            tabId: null,
-            liveViewRequested: false,
-            liveViewSessionId: null,
-          };
+          const state = createClientState(ws);
           clients.set(ws, state);
+          clientOwners.set(ws, state);
 
           // Listen for protocol-level pong frames to track liveness
           const rawWs = ws.raw as RawWebSocket;
           rawWs.on("pong", () => {
-            state.isAlive = true;
+            const current = clients.get(ws);
+            if (current) current.isAlive = true;
           });
 
           // Register as fallback executor for browser tool calls (legacy
@@ -1231,19 +1402,26 @@ export async function startServer(config: ServerConfig): Promise<void> {
 
           switch (data.type) {
             case "connect":
-              await handleConnect(ws);
+              await handleConnect(ws, data.payload);
               break;
             case "disconnect":
               handleDisconnect(ws);
               break;
             case "new_session":
-              await handleNewSession(
+              await runSessionOperation(ws, () => handleNewSession(
                 ws,
                 (data.payload as { cwd?: string; tabId?: number }) || {},
-              );
+              ));
               break;
             case "prompt":
-              await handlePrompt(ws, data.payload as { content: ContentBlock[]; requestId?: string });
+              {
+                const current = clients.get(ws);
+                const task = handlePrompt(ws, data.payload as { content: ContentBlock[]; requestId?: string });
+                if (current) current.activePrompt = task;
+                try { await task; } finally {
+                  if (current?.activePrompt === task) current.activePrompt = null;
+                }
+              }
               break;
             case "steer":
               await handleSteer(ws, data.payload as { content: ContentBlock[]; requestId: string });
@@ -1257,58 +1435,24 @@ export async function startServer(config: ServerConfig): Promise<void> {
               handleBrowserToolResponse(data.callId, data.result);
               break;
             case "frame": {
-              // A picture of the controlled page. Only the extension's
-              // background worker (the dedicated executor) produces these;
-              // anything else — a viewer forging a frame, or a legacy fallback
-              // executor — is dropped rather than relayed.
-              if (ws !== dedicatedProducerWs) {
-                log.warn("Dropped frame from a non-producer client");
-                break;
-              }
-              // Producers tag every picture with the tab it came from.
-              // Untagged frames have no owner and are dropped: broadcasting
-              // them would show one tab's page to another tab's client.
+              // Only the registered extension can produce frames. A frame is
+              // delivered to the viewer bound to its tab and active session.
+              if (ws !== dedicatedProducerWs) break;
               const tabId = typeof data.tabId === "number" ? data.tabId : null;
               const viewer = tabId === null ? undefined : tabIdToWs.get(tabId);
               const viewerState = viewer ? clients.get(viewer) : undefined;
-              if (
-                tabId === null ||
-                !viewer ||
-                !viewerState ||
-                viewer === ws ||
-                viewer.readyState !== 1
-              ) {
-                log.debug("Dropped frame with no client bound to its tab", { tabId });
-                break;
-              }
-              // A live frame belongs to the run that asked for the stream: the
-              // stream's session must still be the client's active one, or a
-              // frame from a run it has already left could land in the new
-              // timeline. Step pictures (callId) are matched by their call id
-              // instead, so they are delivered regardless of a live view.
+              if (!viewer || !viewerState?.sessionId || viewer === ws || viewer.readyState !== 1) break;
               const liveRun = viewerState.liveViewSessionId;
-              if (
-                data.callId === undefined &&
-                (viewerState.liveViewRequested !== true ||
-                  liveRun === null ||
-                  liveRun !== viewerState.sessionId)
-              ) {
-                log.debug("Dropped live frame: its viewer is no longer watching", { tabId });
-                break;
-              }
-              // `sessionId` is the run the receiver should attribute the
-              // picture to, so a frame captured before a session switch can be
-              // rejected by the viewer instead of blending into the new run.
-              viewer.send(
-                JSON.stringify({
-                  type: "frame",
-                  callId: data.callId,
-                  tabId,
-                  sessionId: data.callId === undefined ? liveRun : viewerState.sessionId,
-                  payload: data.payload,
-                }),
-              );
-              log.debug("Frame relayed", { callId: data.callId, tabId });
+              if (data.callId === undefined && (
+                !viewerState.liveViewRequested || liveRun === null || liveRun !== viewerState.sessionId
+              )) break;
+              viewer.send(JSON.stringify({
+                type: "frame",
+                callId: data.callId,
+                tabId,
+                sessionId: data.callId === undefined ? liveRun : viewerState.sessionId,
+                payload: data.payload,
+              }));
               break;
             }
             case "screencast": {
@@ -1326,16 +1470,16 @@ export async function startServer(config: ServerConfig): Promise<void> {
                 });
                 break;
               }
+              if (state.tabId === null) {
+                send(ws, "screencast_state", {active: false});
+                break;
+              }
 
-              // Name the tab in both directions. On start the extension
-              // attaches to exactly that tab; on stop it must not kill another
-              // tab's stream just because this viewer went away.
-              const payload: { enabled: boolean; tabId?: number } = { enabled };
-              if (state.tabId !== null) payload.tabId = state.tabId;
-
-              const forwarded = sendToExtension({ type: "screencast", payload });
+              const forwarded = sendToExecutor({
+                type: "screencast",
+                payload: { enabled, tabId: state.tabId },
+              });
               state.liveViewRequested = enabled && forwarded;
-              // Remember which run asked for the stream (see the frame case).
               state.liveViewSessionId = state.liveViewRequested ? state.sessionId : null;
               if (!forwarded) {
                 send(ws, "screencast_state", {
@@ -1346,31 +1490,21 @@ export async function startServer(config: ServerConfig): Promise<void> {
               break;
             }
             case "screencast_state": {
-              // The extension reports whether the stream actually started.
-              // State describes one tab's stream and is bound for that tab's
-              // client only; a viewer must not be able to fake it (the
-              // producer check) and other tabs must not see it.
-              if (ws !== dedicatedProducerWs) {
-                log.warn("Dropped screencast state from a non-producer client");
-                break;
-              }
-              const tabId = typeof data.tabId === "number" ? data.tabId : null;
+              if (ws !== dedicatedProducerWs) break;
+              const tabId = typeof data.tabId === "number" ? data.tabId
+                : typeof data.payload?.tabId === "number" ? data.payload.tabId : null;
               const viewer = tabId === null ? undefined : tabIdToWs.get(tabId);
-              if (tabId === null || !viewer || viewer === ws) {
-                log.debug("Dropped screencast state with no client bound to its tab", { tabId });
-                break;
-              }
-              const payload =
-                data.payload !== null && typeof data.payload === "object"
-                  ? data.payload
-                  : {};
-              send(viewer, "screencast_state", { ...payload, tabId });
+              if (!viewer || viewer.readyState !== 1) break;
+              const message = JSON.stringify({
+                type: "screencast_state",
+                payload: data.payload,
+              });
+              viewer.send(message);
               break;
             }
             case "register_executor":
               // Dedicated tool channel (extension background service worker).
               // Preferred executor; never sends "connect", so no agent spawn.
-              // It is also the only client allowed to push page content.
               setDedicatedExecutor(ws);
               dedicatedProducerWs = ws;
               log.info("Dedicated executor registered");
@@ -1397,13 +1531,13 @@ export async function startServer(config: ServerConfig): Promise<void> {
               await handleListSessions(ws, (data.payload as { cwd?: string; cursor?: string }) || {});
               break;
             case "load_session":
-              await handleLoadSession(
+              await runSessionOperation(ws, () => handleLoadSession(
                 ws,
                 data.payload as { sessionId: string; cwd?: string; _meta?: { tabId?: number } | null },
-              );
+              ));
               break;
             case "resume_session":
-              await handleResumeSession(ws, data.payload as { sessionId: string; cwd?: string });
+              await runSessionOperation(ws, () => handleResumeSession(ws, data.payload as { sessionId: string; cwd?: string }));
               break;
             case "list_dir":
               handleListDir(ws, data.payload as { path: string });
@@ -1432,21 +1566,7 @@ export async function startServer(config: ServerConfig): Promise<void> {
       },
       onClose(_event, ws) {
         log.info("Client disconnected");
-        const state = clients.get(ws);
-        if (state) {
-          // Cancel any pending permission requests
-          cancelPendingPermissions(state);
-          // Unsubscribe from file watcher
-          state.unsubscribeWatcher?.();
-          // Remove the tab <-> session mapping so trajectory events for this
-          // tab stop being forwarded to a dead connection. Only the mapping
-          // this ws still owns is dropped: a newer viewer for the same tab
-          // must keep receiving.
-          if (state.tabId !== null && tabIdToWs.get(state.tabId) === ws) {
-            tabIdToWs.delete(state.tabId);
-          }
-        }
-        handleDisconnect(ws);
+        detachClient(ws);
         clients.delete(ws);
         // Drop this WS from whichever executor slot it occupied (dedicated
         // tool channel or fallback); other executors stay registered.
@@ -1460,54 +1580,38 @@ export async function startServer(config: ServerConfig): Promise<void> {
   // Dedicated WebSocket endpoint for trajectory recording events pushed by
   // the extension's background service worker. Kept separate from /ws so it
   // never interferes with the extension registration used for browser tools.
-  // It shares /ws's token gate (see wsRequestIsAuthorized): the handler below
-  // writes to disk and feeds the agent, so an unauthenticated producer must
-  // never reach it.
   app.get(
     "/ws/trajectory",
     upgradeWebSocket((c) => {
-      if (!wsRequestIsAuthorized(c)) {
-        log.warn("Trajectory WebSocket rejected: invalid token");
+      if (AUTH_TOKEN && new URL(c.req.url).searchParams.get("token") !== AUTH_TOKEN) {
         return {
-          onOpen(_event, ws) {
-            ws.close(4001, "Unauthorized: Invalid token");
-          },
+          onOpen(_event, ws) { ws.close(4001, "Unauthorized: Invalid token"); },
           onMessage() {},
           onClose() {},
         };
       }
       return {
-        onOpen() {
-          log.info("Trajectory WS connected");
-        },
-        onMessage(event) {
-          try {
-            const data = JSON.parse(event.data.toString());
-            if (data.type !== "trajectory_events" || !Array.isArray(data.payload)) return;
-            // Everything that gets through is persisted and forwarded, so a
-            // batch is accepted only when every entry is a plain event
-            // object; anything malformed is dropped whole.
-            const events = data.payload as unknown[];
-            const wellFormed =
-              events.length > 0 &&
-              events.every(
-                (event) =>
-                  typeof event === "object" && event !== null && !Array.isArray(event),
-              );
-            if (!wellFormed) {
-              log.warn("Dropped malformed trajectory batch", { count: events.length });
-              return;
-            }
-            log.debug("[STEP 6] proxy received trajectory events", { count: events.length });
-            appendTrajectoryEvents(events);
-            forwardTrajectoryEventsToAgents(events);
-          } catch (error) {
-            log.warn("Failed to handle trajectory message", { error: String(error) });
+      onOpen() {
+        log.info("Trajectory WS connected");
+      },
+      onMessage(event) {
+        try {
+          const data = JSON.parse(event.data.toString());
+          if (data.type === "trajectory_events" && Array.isArray(data.payload)) {
+            if (!data.payload.length || !data.payload.every(
+              (entry: unknown) => typeof entry === "object" && entry !== null && !Array.isArray(entry)
+            )) return;
+            log.debug("[STEP 6] proxy received trajectory events", { count: data.payload.length });
+            appendTrajectoryEvents(data.payload);
+            forwardTrajectoryEventsToAgents(data.payload);
           }
-        },
-        onClose() {
-          log.info("Trajectory WS closed");
-        },
+        } catch (error) {
+          log.warn("Failed to handle trajectory message", { error: String(error) });
+        }
+      },
+      onClose() {
+        log.info("Trajectory WS closed");
+      },
       };
     }),
   );

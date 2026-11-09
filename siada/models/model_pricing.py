@@ -1,17 +1,10 @@
 """
-Model pricing configuration and cost calculation module.
+Model pricing estimates for local cost display.
 
-The table below holds ESTIMATES of each model vendor's published list price,
-expressed in CNY (Chinese Yuan) per million tokens. Vendors that publish in USD
-are converted with the fixed ``USD_TO_CNY`` rate below, which is a snapshot
-estimate and NOT a live exchange rate. Vendors change prices, promotions and
-the model IDs they serve without notice, so treat every number here as a rough
-estimate for local cost display only -- never as an invoice, a real-time feed or
-a guarantee of what a provider will bill.
-
-Models without an entry here (user-defined models, models whose vendor does not
-publish a public list price) have NO known price: lookups return ``None`` and
-the cost helpers return 0.0 rather than inventing a number.
+Rates are vendor list prices expressed in CNY per million tokens. USD prices
+use the fixed USD_TO_CNY estimate rather than a live exchange rate. Provider
+billing, promotions and cache-storage fees may differ. Unknown model prices
+are not invented; users can specify custom rates in models.json.
 """
 import sys
 from dataclasses import dataclass
@@ -69,39 +62,77 @@ class ModelPricing:
         )
 
 
+# Fixed estimate of the USD/CNY rate, used only to express USD list prices in
+# the same CNY unit as the rest of the table.
+USD_TO_CNY = 7.0
+
+
 # Model pricing configuration dictionary.
 #
 # Keys are the vendors' own model IDs. Every key is an ID that the vendor
-# publishes on a public pricing/model page; off-list spellings and third-party aliases
-# are deliberately NOT registered here, and a model whose public list price
-# could not be confirmed has no entry at all (so get_model_pricing returns None
-# instead of guessing). Users can price anything else themselves through
-# ~/.siada-cli/models.json.
+# publishes on a public pricing/model page; off-list spellings and third-party
+# aliases are deliberately NOT registered here, and a model whose public list
+# price could not be confirmed has no entry at all (so get_model_pricing
+# returns None instead of guessing). Users can price anything else themselves
+# through ~/.siada-cli/models.json.
 #
 # Prices are estimates in CNY per million tokens: USD-denominated vendors
-# (Anthropic, OpenAI, Google) are converted at the fixed USD_TO_CNY below, and
-# CNY-denominated vendors (DeepSeek, Zhipu AI, Moonshot AI, Alibaba) are used
-# as published, at the peak (non-discounted) rate where the vendor has
-# off-peak pricing. Cache write prices are the vendor's 5-minute cache-write
-# rate where one is published; where a vendor publishes none, the value stays
-# at 0 rather than being guessed.
+# (Anthropic, OpenAI, Google) are converted at USD_TO_CNY, and CNY-denominated
+# vendors (DeepSeek, Zhipu AI, Moonshot AI, Alibaba) are used as published, at
+# the peak (non-discounted) rate where the vendor has off-peak pricing. Cache
+# write prices are the vendor's 5-minute cache-write rate where one is
+# published; where a vendor publishes none, the value stays at 0.
 MODEL_PRICING: Dict[str, ModelPricing] = {
+    "claude-opus-5": ModelPricing(
+        model_name="claude-opus-5", input_price=35.0, output_price=175.0,
+        cache_write_price=43.75, cache_read_price=3.5,
+    ),
+    "gpt-5.1": ModelPricing(
+        model_name="gpt-5.1", input_price=8.75, output_price=70.0, cache_read_price=0.875,
+    ),
+    "gpt-5.2": ModelPricing(
+        model_name="gpt-5.2", input_price=12.25, output_price=98.0, cache_read_price=1.225,
+    ),
+    "gpt-5.4": ModelPricing(
+        model_name="gpt-5.4", input_price=17.5, output_price=105.0, cache_read_price=1.75,
+    ),
+    "gpt-5.6-terra": ModelPricing(
+        model_name="gpt-5.6-terra", input_price=14.0, output_price=84.0,
+        cache_write_price=17.5, cache_read_price=1.4,
+    ),
+    "gpt-5.6-sol": ModelPricing(
+        model_name="gpt-5.6-sol", tiers=[
+            PriceTier(context_window=272_000, input_price=28.0, output_price=140.0,
+                      cache_write_price=35.0, cache_read_price=2.8),
+            PriceTier(context_window=sys.maxsize, input_price=56.0, output_price=210.0,
+                      cache_write_price=70.0, cache_read_price=5.6),
+        ],
+    ),
+    "gpt-5.6-luna": ModelPricing(
+        model_name="gpt-5.6-luna", input_price=1.4, output_price=8.4,
+        cache_write_price=1.75, cache_read_price=0.14,
+    ),
+    "deepseek-flash": ModelPricing(
+        model_name="deepseek-flash", input_price=2.0, output_price=8.0, cache_read_price=0.04,
+    ),
+    "glm-5.1": ModelPricing(
+        model_name="glm-5.1", tiers=[
+            PriceTier(context_window=32_768, input_price=6.0, output_price=24.0, cache_read_price=1.3),
+            PriceTier(context_window=sys.maxsize, input_price=8.0, output_price=28.0, cache_read_price=2.0),
+        ],
+    ),
+    "kimi-k2.6": ModelPricing(
+        model_name="kimi-k2.6", input_price=6.5, output_price=27.0, cache_read_price=1.1,
+    ),
     # --- Anthropic (USD list prices, 5-minute prompt-cache TTL) ---
-    # Claude 4.6 and newer bill the full 1M-token context window at standard
-    # rates (no long-context surcharge), so these entries are flat.
+    # Claude 4.6 and newer bill the full context window at standard rates, so
+    # these entries are flat.
     "claude-opus-5-5": ModelPricing(
         model_name="claude-opus-5-5",
         input_price=28.0,
         output_price=140.0,
         cache_write_price=35.0,
         cache_read_price=1.4,
-    ),
-    "claude-opus-5": ModelPricing(
-        model_name="claude-opus-5",
-        input_price=35.0,
-        output_price=175.0,
-        cache_write_price=43.75,
-        cache_read_price=3.5,
     ),
     "claude-sonnet-5": ModelPricing(
         model_name="claude-sonnet-5",
@@ -117,57 +148,9 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         cache_write_price=26.25,
         cache_read_price=2.1,
     ),
-    # Deliberately absent: "claude-sonnet-4.6" (Anthropic model IDs use dashes,
-    # e.g. claude-sonnet-4-6) and the pre-4.6 long-context models such as
-    # claude-sonnet-4-5, whose above-threshold rates the vendor no longer
-    # publishes. Those lookups return None rather than a guessed rate.
-    #
-    # --- OpenAI (USD list prices). The vendor splits these prices into a
-    # "short context" band covering prompts up to 272K input tokens and a
-    # higher "long context" band above that. The entries that publish both
-    # bands carry two tiers split at 272K (short first); the flat entries keep
-    # the single rate on record for that model. ---
-    "gpt-5.1": ModelPricing(
-        model_name="gpt-5.1",
-        input_price=8.75,
-        output_price=70.0,
-        cache_read_price=0.875,
-    ),
-    "gpt-5.2": ModelPricing(
-        model_name="gpt-5.2",
-        input_price=12.25,
-        output_price=98.0,
-        cache_read_price=1.225,
-    ),
-    "gpt-5.4": ModelPricing(
-        model_name="gpt-5.4",
-        input_price=17.5,
-        output_price=105.0,
-        cache_read_price=1.75,
-    ),
-    "gpt-5.6-terra": ModelPricing(
-        model_name="gpt-5.6-terra",
-        input_price=14.0,
-        output_price=84.0,
-        cache_write_price=17.5,
-        cache_read_price=1.4,
-    ),
-    "gpt-5.6-sol": ModelPricing(
-        model_name="gpt-5.6-sol",
-        tiers=[
-            PriceTier(context_window=272_000, input_price=28.0, output_price=140.0,
-                      cache_write_price=35.0, cache_read_price=2.8),
-            PriceTier(context_window=sys.maxsize, input_price=56.0, output_price=210.0,
-                      cache_write_price=70.0, cache_read_price=5.6),
-        ],
-    ),
-    "gpt-5.6-luna": ModelPricing(
-        model_name="gpt-5.6-luna",
-        input_price=1.4,
-        output_price=8.4,
-        cache_write_price=1.75,
-        cache_read_price=0.14,
-    ),
+    # --- OpenAI (USD list prices) ---
+    # gpt-6-* publish a short-context band up to 272K input tokens and a higher
+    # long-context band above it; both bands are carried as tiers.
     "gpt-6-astra": ModelPricing(
         model_name="gpt-6-astra",
         tiers=[
@@ -177,8 +160,6 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
                       cache_write_price=175.0, cache_read_price=14.0),
         ],
     ),
-    # https://developers.openai.com/api/docs/models/gpt-6-sol
-    # Above 272K input: 2x input/cache rates and 1.5x output for the full request.
     "gpt-6-sol": ModelPricing(
         model_name="gpt-6-sol",
         tiers=[
@@ -199,11 +180,16 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
     ),
     # --- Google (USD list prices) ---
     # Google bills context caching as cache storage per token-hour and does not
-    # publish a cache-write token rate, so cache_write_price stays 0.
-    # Deliberately absent: "gemini-3.5-flash" -- the vendor marks that model ID
-    # deprecated and routes it to 3.6, and no published price for it could be
-    # confirmed, so the lookup returns None instead of a guessed rate.
-    # Prompts over 200k input tokens are billed at the higher tier.
+    # publish a cache-write token rate, so cache_write_price stays 0. Prompts
+    # over 200K input tokens are billed at the higher tier. Promotional rates
+    # are deliberately not used: this table records the standard list price.
+    "gemini-4-argon": ModelPricing(
+        model_name="gemini-4-argon",
+        tiers=[
+            PriceTier(context_window=200_000, input_price=28.0, output_price=140.0),
+            PriceTier(context_window=sys.maxsize, input_price=56.0, output_price=280.0),
+        ],
+    ),
     "gemini-3.1-pro-preview": ModelPricing(
         model_name="gemini-3.1-pro-preview",
         tiers=[
@@ -215,12 +201,9 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
     ),
     # --- DeepSeek (CNY list prices) ---
     # The peak (non-discounted) rate is used here; off-peak rates are half of
-    # it. "deepseek-v4-pro" and "deepseek-flash" are DeepSeek's own model IDs
-    # (their pinned versions are DeepSeek-V4-Pro-0813 and DeepSeek-V4.1-Flash).
-    # "deepseek-v4-flash" is the older name DeepSeek still accepts for Flash
-    # requests and bills at the Flash price; "deepseek-v4-pro-0813" and
-    # "deepseek-v4.1-flash" are the corresponding Alibaba Model Studio IDs,
-    # which Alibaba prices identically for the Beijing region.
+    # it. "deepseek-v4-pro" and "deepseek-v4-flash" are DeepSeek's own IDs;
+    # "deepseek-v4-pro-0813" and "deepseek-v4.1-flash" are the corresponding
+    # Alibaba Model Studio IDs, which Alibaba prices identically for Beijing.
     "deepseek-v4-pro": ModelPricing(
         model_name="deepseek-v4-pro",
         input_price=9.0,
@@ -232,12 +215,6 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         input_price=9.0,
         output_price=27.0,
         cache_read_price=0.3,
-    ),
-    "deepseek-flash": ModelPricing(
-        model_name="deepseek-flash",
-        input_price=2.0,
-        output_price=8.0,
-        cache_read_price=0.04,
     ),
     "deepseek-v4-flash": ModelPricing(
         model_name="deepseek-v4-flash",
@@ -252,17 +229,6 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         cache_read_price=0.04,
     ),
     # --- Zhipu AI / GLM (CNY list prices) ---
-    # GLM-5.1 is priced by prompt length: the first tier applies up to 32K
-    # input tokens, the second to everything above.
-    "glm-5.1": ModelPricing(
-        model_name="glm-5.1",
-        tiers=[
-            PriceTier(context_window=32_768, input_price=6.0, output_price=24.0,
-                      cache_read_price=1.3),
-            PriceTier(context_window=sys.maxsize, input_price=8.0, output_price=28.0,
-                      cache_read_price=2.0),
-        ],
-    ),
     "glm-5.2": ModelPricing(
         model_name="glm-5.2",
         input_price=8.0,
@@ -282,21 +248,14 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         cache_read_price=0.23,
     ),
     # --- Moonshot AI / Kimi (CNY list prices) ---
-    # Kimi K3 publishes cache-write rates for a 5-minute and a 1-hour TTL; the
-    # 5-minute rate is used here (the default TTL). The K2 series publishes no
-    # cache-write rate, so it stays 0.
+    # K3 publishes cache-write rates for a 5-minute and a 1-hour TTL; the
+    # 5-minute rate (the default TTL) is used here.
     "kimi-k3": ModelPricing(
         model_name="kimi-k3",
         input_price=20.0,
         output_price=100.0,
         cache_write_price=20.0,
         cache_read_price=2.0,
-    ),
-    "kimi-k2.6": ModelPricing(
-        model_name="kimi-k2.6",
-        input_price=6.5,
-        output_price=27.0,
-        cache_read_price=1.1,
     ),
     # --- Alibaba Model Studio / DashScope (CNY list prices) ---
     # Alibaba bills explicit cache creation at 125% of the input price and a
@@ -323,9 +282,8 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         cache_write_price=15.0,
         cache_read_price=1.2,
     ),
-    # Prompts over 256k input tokens are billed at the higher tier. The quoted
-    # input/output prices are the vendor's list prices, not the running
-    # promotional discount.
+    # Prompts over 256K input tokens are billed at the higher tier. The quoted
+    # prices are the vendor's list prices, not a running promotional discount.
     "qwen3.7-plus": ModelPricing(
         model_name="qwen3.7-plus",
         tiers=[
@@ -336,12 +294,6 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         ],
     ),
 }
-
-# Fixed estimate of the USD/CNY rate, used only to express the USD list prices
-# above in the CNY currency the cost display works in. It is a snapshot, NOT a
-# live FX rate: real card/settlement rates, and what a vendor actually invoices,
-# will differ.
-USD_TO_CNY = 7.0
 
 
 def _get_user_defined_pricing(model_name: str) -> Optional[ModelPricing]:
@@ -375,21 +327,18 @@ def get_model_pricing(model_name: str, fallback_model_name: Optional[str] = None
     """
     Get pricing configuration for a specific model.
 
-    Lookup order (user configuration always wins):
-    1. User-defined pricing from ~/.siada-cli/models.json (matched against
-       model_name)
+    Lookup order:
+    1. User-defined pricing from ~/.siada-cli/models.json (matched against model_name)
     2. Built-in MODEL_PRICING table (matched against model_name)
-    3. The same two steps against fallback_model_name (e.g. a provider-converted
-       alias of the same model)
+    3. Same two steps against fallback_model_name (e.g. a provider-converted alias)
 
     Args:
         model_name: The name of the model
         fallback_model_name: An alternate name to try if model_name has no pricing
-            (e.g. the name a provider converts the model to)
+            (e.g. a provider-converted alias)
 
     Returns:
-        ModelPricing if found, None otherwise. None means the price is unknown --
-        callers must not substitute a guessed price.
+        ModelPricing if found, None otherwise
     """
     pricing = _get_user_defined_pricing(model_name) or MODEL_PRICING.get(model_name)
     if pricing:
@@ -421,8 +370,7 @@ def calculate_token_cost(
         fallback_model_name: An alternate name to try if model_name has no pricing
     
     Returns:
-        Estimated total cost in CNY, rounded to 4 decimal places. Returns 0.0 if
-        model pricing is unknown.
+        Total cost in CNY, rounded to 4 decimal places. Returns 0.0 if model pricing not configured.
     """
     # Get model pricing
     pricing = get_model_pricing(model_name, fallback_model_name)
@@ -469,8 +417,8 @@ def calculate_token_cost_breakdown(
     Calculate detailed cost breakdown for token usage based on model pricing.
 
     Returns a dict with input_cost, output_cost, cache_write_cost, cache_read_cost,
-    and total_cost. All values are estimated CNY, rounded to 4 decimal places.
-    Returns all zeros if model pricing is unknown.
+    and total_cost. All values in CNY, rounded to 4 decimal places.
+    Returns all zeros if model pricing not configured.
     """
     pricing = get_model_pricing(model_name, fallback_model_name)
 

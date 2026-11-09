@@ -16,8 +16,8 @@ from openai import AsyncOpenAI
 from openai.types.responses import Response
 
 from siada.foundation.logging import logger
-from siada.provider.lifecycle import EventLoopOwnership
 from siada.provider.responses.transport import ResponsesTransport
+from siada.provider.lifecycle import EventLoopOwnership
 from siada.provider.request_config import get_default_credentials, has_request_credentials
 
 # LiteLLM bridge prefixes that must not be sent to a native Responses endpoint.
@@ -76,23 +76,7 @@ class DefaultResponsesTransport(ResponsesTransport):
             return self._client
 
     async def aclose(self) -> None:
-        """Close every client this transport owns, including retired ones.
-
-        Must run on the event loop that owns the clients (see
-        ``EventLoopOwnership``): a native HTTP pool cannot be released from a
-        foreign loop.
-
-        Failures never stop the remaining clients from closing; a single error
-        is re-raised as-is and several are aggregated into an ExceptionGroup.
-
-        ``_closed`` still marks the transport as shutting down (no new client is
-        built afterwards), but ownership follows the stricter rule: a cancelled
-        ``aclose`` (``asyncio.CancelledError`` is a ``BaseException``, so it is
-        not an ordinary close failure) propagates unchanged and re-owns the
-        clients whose close it did not confirm — including the interrupted one —
-        so a later ``aclose()`` still closes them instead of returning early and
-        leaking them.
-        """
+        """Retain clients whose cleanup was interrupted so it can be retried."""
         with self._lock:
             if self._closed and self._client is None and not self._retired_clients and not self._request_clients:
                 return
@@ -114,9 +98,8 @@ class DefaultResponsesTransport(ResponsesTransport):
             except Exception as exc:
                 errors.append(exc)
             except BaseException:
-                # Cancellation must reach the caller, but the clients this call
-                # has not closed yet must not be detached with it.
-                self._restore_clients(clients[index:])
+                with self._lock:
+                    self._retired_clients.extend(clients[index:])
                 raise
 
         if len(errors) == 1:
@@ -126,18 +109,6 @@ class DefaultResponsesTransport(ResponsesTransport):
                 "Failed to close one or more default Responses clients",
                 errors,
             )
-
-    def _restore_clients(self, clients: list[AsyncOpenAI]) -> None:
-        """Return unconfirmed clients to the retired list, oldest first.
-
-        Restored clients never become the active one again (a closed transport
-        builds no new client), so re-owning them only means that a later
-        ``aclose()`` still sees them.
-        """
-        if not clients:
-            return
-        with self._lock:
-            self._retired_clients = [*clients, *self._retired_clients]
 
     def _prepare_params(self, caller: str, params: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str] | None]:
         params.pop("max_tokens", None)

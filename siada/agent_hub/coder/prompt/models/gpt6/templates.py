@@ -1,4 +1,4 @@
-"""Compose literal Codex prompt sections with explicit per-model differences.
+"""Compose literal prompt sections with explicit per-model differences.
 
 Template selection preserves complete upstream sections and per-model prose.
 """
@@ -74,6 +74,8 @@ def _render_gpt6_template(template_name: str) -> str:
 
 def resolve_gpt6_template_name(model_name: str | None) -> str:
     lowered = str(model_name or "").lower()
+    if re.search(r"(?:^|[^a-z0-9])gpt[-_]?6[._]1[-_./\s]+terra(?:$|[^a-z0-9])", lowered):
+        return "gpt-6.1-terra"
     if re.search(r"(?:^|[^a-z0-9])gpt[-_]?6\.1[-_./\s]+sol(?:$|[^a-z0-9])", lowered):
         return "gpt-6.1-sol"
     if uses_gpt6_scannable_writing_style(model_name):
@@ -81,7 +83,7 @@ def resolve_gpt6_template_name(model_name: str | None) -> str:
     return "gpt-6-astra"
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=5)
 def load_gpt6_template(template_name: str) -> str:
     return _render_gpt6_template(template_name).strip()
 

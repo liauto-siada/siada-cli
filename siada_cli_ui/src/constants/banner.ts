@@ -12,3 +12,5 @@ export const BANNER_LINES: string[] = [
   "  ▆▆▆▆▆▆▆║▆▆║▆▆║  ▆▆║▆▆▆▆▆▆╔╝▆▆║  ▆▆║    ╚▆▆▆▆▆▆╗▆▆▆▆▆▆▆╗▆▆║",
   "  ╚══════╝╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝     ╚═════╝╚══════╝╚═╝",
 ];
+
+export const BANNER_TITLE_URL = 'https://github.com/liauto-siada/siada-cli';

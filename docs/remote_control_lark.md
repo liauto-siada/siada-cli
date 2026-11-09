@@ -481,6 +481,14 @@ Each group can only run one Agent task at a time. If a task is already running, 
 
 ## FAQ
 
+### Q: Getting "history-only migration requires explicit approval"?
+
+The bot prepares older sessions automatically before starting a task, including
+sessions that contain only conversation history. The original history is retained.
+If this error persists after updating Siada, run `siada-cli --restart-daemon` so
+the bot loads the updated code, then resend your message. Keep the session files;
+damaged session data still requires repair and is reported as an error.
+
 ### Q: Bot not responding to messages?
 
 1. **Check if Daemon is running**: `siada-cli --daemon-status`

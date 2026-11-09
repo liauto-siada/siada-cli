@@ -136,8 +136,8 @@ export function HomeLayout() {
     }
   }, []);
 
-  const installCommand = `siada-cli --browser-setup /path/to/siada-cli/chrome-acp`;
-  const startCommand = `siada-cli --browser-start`;
+  const installCommand = `npm i -g @chrome-acp/proxy-server @zed-industries/claude-code-acp`;
+  const startCommand = `acp-proxy --no-auth claude-code-acp`;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(`${installCommand}\n${startCommand}`);
@@ -171,7 +171,7 @@ export function HomeLayout() {
               Get Started
             </a>
             <a
-              href="https://github.com/liauto-siada/siada-cli"
+              href="https://github.com/Areo-Joe/chrome-acp"
               className="btn-secondary"
               target="_blank"
               rel="noopener noreferrer"
@@ -206,8 +206,8 @@ export function HomeLayout() {
         <div className="features-container">
           <h2 className="section-title">A New Standard for Browser Control</h2>
           <p className="section-subtitle">
-            chrome-acp, the Siada CLI browser add-on, lets any ACP agent
-            interact with your browser through the Agent Control Protocol.
+            Chrome ACP enables any agent to interact with your browser through
+            the Agent Control Protocol.
           </p>
           <div className="features-grid">
             {features.map((feature) => (
@@ -268,7 +268,7 @@ export function HomeLayout() {
         <div className="install-container">
           <h2 className="section-title">Get Started in Seconds</h2>
           <p className="section-subtitle">
-            Install from this repository and start the proxy
+            Install globally and start the proxy server
           </p>
           <div className="install-card">
             <div className="install-header">
@@ -280,14 +280,14 @@ export function HomeLayout() {
             </div>
             <div className="install-code">
               <div className="code-line">
-                <span className="code-comment"># Install the proxy + extension</span>
+                <span className="code-comment"># Install the proxy server</span>
               </div>
               <div className="code-line">
                 <span className="code-prompt">$</span>
                 <span className="code-command">{installCommand}</span>
               </div>
               <div className="code-line">
-                <span className="code-comment"># Start the proxy</span>
+                <span className="code-comment"># Start with your agent</span>
               </div>
               <div className="code-line">
                 <span className="code-prompt">$</span>
@@ -330,7 +330,7 @@ export function HomeLayout() {
       <footer className="landing-footer">
         <div className="footer-container">
           <p className="footer-text">
-            chrome-acp · Siada CLI browser add-on · Open Source under MIT License
+            Chrome ACP · Open Source under MIT License
           </p>
         </div>
       </footer>

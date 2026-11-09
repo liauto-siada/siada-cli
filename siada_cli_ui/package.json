@@ -51,12 +51,15 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.12.0",
     "@jrichman/ink": "^6.4.6",
+    "@mariozechner/clipboard": "0.3.6",
+    "@napi-rs/clipboard": "1.1.4",
     "@types/diff": "^8.0.0",
     "chalk": "^5.3.0",
     "chalk-template": "^1.1.2",
     "commander": "^12.0.0",
     "diff": "^9.0.0",
     "fzf": "^0.5.2",
+    "grok-mermaid": "0.2.3",
     "ink-markdown": "^1.0.4",
     "ink-select-input": "^6.0.0",
     "ink-spinner": "^5.0.0",
@@ -76,11 +79,13 @@
     "esbuild": "^0.24.2",
     "eslint": "^8.57.0",
     "patch-package": "^8.0.1",
+    "pngjs": "7.0.0",
+    "tar": "7.5.22",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^2.0.0"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=18.0.0"
   }
 }

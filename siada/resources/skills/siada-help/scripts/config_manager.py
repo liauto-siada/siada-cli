@@ -9,6 +9,8 @@ import shutil
 import sys
 from pathlib import Path
 
+import yaml
+
 # Requires siada virtualenv (same as other skill scripts like manage_cron_task.py).
 # ruamel.yaml is a direct dependency of the siada package.
 from ruamel.yaml import YAML
@@ -23,6 +25,7 @@ _ryaml.preserve_quotes = True
 VALID_KEYS = {
     "llm_config.model": str,
     "llm_config.provider": str,
+    "llm_config.provider_id": str,
     "llm_config.base_url": str,
     "llm_config.api_key": str,
     "llm_config.thinking": bool,
@@ -65,56 +68,71 @@ VALID_KEYS = {
     "im.verbose.p2p": bool,
     "im.verbose.group": bool,
     "ui.theme": str,
+    "ui.no_alt_screen": bool,
+    "fast_llm_config.model": str,
+    "fast_llm_config.provider": str,
+    "fast_llm_config.base_url": str,
+    "fast_llm_config.api_key": str,
 }
 
-# Top-level keys whose value is an object/list rather than a simple scalar, so
-# `set` cannot target them directly (and `validate` must not flag them as unknown).
-KNOWN_OBJECT_TOP_KEYS = {"lark", "sub_agent", "memory", "im", "ui", "llm_config", "checkpoint_config"}
-
-# Legacy keys that an older (non-open-source) install could have written. They are
-# recognized so such a conf.yaml still parses and validates cleanly, but they are
-# purely for backward compatibility: none of them enables a capability in this build.
-#   - headroom: the proxy integration is not bundled; no proxy is started and no
-#     traffic is routed (the old `--headroom*` CLI flags do not exist)
-#   - user_id / access_token / siada_api_key / refresh_token / user_email /
-#     email_refresh_token: old account sign-in state. This build signs in with a
-#     provider API key only, so the sign-in flow never writes them.
+# Top-level keys that are known-but-not-in-VALID_KEYS because their value is
+# an object/list rather than a simple scalar (so `set` can't target them
+# directly, but they're still legitimate sections in conf.yaml and shouldn't
+# be flagged as unknown by `validate`).
+KNOWN_OBJECT_TOP_KEYS = {"lark", "sub_agent", "memory", "im", "ui", "headroom", "llm_config", "checkpoint_config"}
 LEGACY_TOP_KEYS = {
-    "headroom",
-    "user_id",
-    "access_token",
-    "siada_api_key",
-    "refresh_token",
-    "user_email",
-    "email_refresh_token",
+    "headroom", "user_id", "access_token", "siada_api_key", "refresh_token",
+    "user_email", "email_refresh_token",
 }
-
 LEGACY_TOP_KEY_NOTES = {
-    "headroom": "the proxy integration was removed from this build; nothing starts and no traffic is routed",
-    "user_id": "old account sign-in state; this build signs in with a provider API key only",
-    "access_token": "old account sign-in state; not read by this build",
-    "siada_api_key": "old account sign-in state; not read by this build",
-    "refresh_token": "old account sign-in state; not read by this build",
-    "user_email": "old account sign-in state; not read by this build",
-    "email_refresh_token": "old account sign-in state; not read by this build",
+    "headroom": "the proxy integration was removed; nothing starts and no traffic is routed",
+    **{key: "legacy account configuration; retained for compatibility" for key in LEGACY_TOP_KEYS if key != "headroom"},
 }
+KNOWN_TOP_KEYS = {key.split(".")[0] for key in VALID_KEYS} | KNOWN_OBJECT_TOP_KEYS | LEGACY_TOP_KEYS
 
-# Top-level keys accepted by `validate`: every section that holds scalar keys in
-# VALID_KEYS, plus the object sections and the legacy keys above. Anything else is
-# reported as an unknown key.
-KNOWN_TOP_KEYS = (
-    {key.split(".")[0] for key in VALID_KEYS}
-    | KNOWN_OBJECT_TOP_KEYS
-    | LEGACY_TOP_KEYS
-)
 
+
+def _overlay_last_wins(data, effective) -> None:
+    """Where duplicate keys made the round-trip tree (ruamel keeps the first
+    occurrence) diverge from the plain-dict parse (last occurrence wins),
+    take the effective value so the rewrite keeps what config reads used."""
+    for key, eff in effective.items():
+        if key not in data:
+            continue
+        cur = data[key]
+        if isinstance(cur, dict) and isinstance(eff, dict):
+            _overlay_last_wins(cur, eff)
+        elif cur != eff:
+            data[key] = eff
 
 
 def _load():
     if not CONFIG_PATH.exists():
         return {}
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return _ryaml.load(f) or {}
+        raw = f.read()
+    try:
+        return _ryaml.load(raw) or {}
+    except Exception as exc:
+        if "duplicate key" not in str(exc).lower():
+            raise
+    # Duplicate keys (e.g. a section appended twice by an older version):
+    # reload tolerating duplicates and take last-occurrence values; the next
+    # save rewrites the file without them.
+    print(
+        f"warning: {CONFIG_PATH} contains duplicate YAML keys; "
+        f"saving will remove them (last occurrence wins)"
+    )
+    # allow_duplicate_keys only takes effect if set before the instance is
+    # first used, so the recovery load needs a fresh YAML object.
+    recovery = YAML()
+    recovery.preserve_quotes = True
+    recovery.allow_duplicate_keys = True
+    data = recovery.load(raw) or {}
+    effective = yaml.safe_load(raw) or {}
+    if isinstance(data, dict) and isinstance(effective, dict):
+        _overlay_last_wins(data, effective)
+    return data
 
 
 def _save(data) -> None:
@@ -158,23 +176,6 @@ def _coerce(value_str: str, expected_type):
     return value_str  # str
 
 
-def _type_name(value) -> str:
-    """Friendly type name for messages (ruamel wraps scalars in subclasses)."""
-    if isinstance(value, bool):
-        return "bool"
-    if isinstance(value, int):
-        return "int"
-    if isinstance(value, float):
-        return "float"
-    if isinstance(value, str):
-        return "str"
-    if isinstance(value, list):
-        return "list"
-    if isinstance(value, dict):
-        return "dict"
-    return type(value).__name__
-
-
 def cmd_view(_args) -> None:
     if not CONFIG_PATH.exists():
         print("(config file is empty or does not exist)")
@@ -215,7 +216,6 @@ def cmd_set(args) -> None:
     print()
     print("NOTE: Restart the siada daemon for changes to take effect:")
     print("  siada-cli --restart-daemon")
-    print("(or stop it with 'siada-cli --stop-daemon'; it auto-starts again on the next launch)")
 
 
 def cmd_validate(_args) -> None:
@@ -229,30 +229,24 @@ def cmd_validate(_args) -> None:
         sys.exit(1)
 
     if not isinstance(data, dict):
-        print(
-            "[ERROR] conf.yaml root must be a YAML mapping of keys to values, "
-            f"got {type(data).__name__}",
-            file=sys.stderr,
-        )
+        print("[ERROR] Config root must be a mapping.", file=sys.stderr)
         sys.exit(1)
-
     issues = []
+    for key in sorted(set(data) & LEGACY_TOP_KEYS):
+        print(f"[NOTE]  legacy key '{key}' (compatibility only): {LEGACY_TOP_KEY_NOTES[key]}")
 
     # Check for unknown top-level keys.
-    # KNOWN_TOP_KEYS covers the sections that VALID_KEYS can target, the object
-    # sections, and the legacy keys described above - so a valid conf.yaml is not
-    # reported as having unknown keys.
+    # Everything siada itself writes or reads must be listed here, otherwise a
+    # perfectly valid conf.yaml gets noisy "unknown key" warnings. This covers
+    # the tool-usable sections in VALID_KEYS plus:
+    #   - object/multi-key sections (lark, sub_agent, memory, headroom, im, ui,
+    #     fast_llm_config)
+    #   - scalars handled elsewhere (enable_notification)
+    #   - login state written by the auth flow and cleared by /logout
     unknown_top = set(data.keys()) - KNOWN_TOP_KEYS
 
     for key in sorted(unknown_top):
         issues.append(f"[WARN]  Unknown top-level key: {key!r}")
-
-    # Legacy keys are tolerated, but they do not enable anything in this build.
-    for key in sorted(LEGACY_TOP_KEYS & set(data.keys())):
-        issues.append(
-            f"[WARN]  legacy key {key!r} is kept for compatibility only: "
-            f"{LEGACY_TOP_KEY_NOTES[key]}"
-        )
 
     # Check value types for all present keys
     type_names = {bool: "bool", int: "int", str: "str"}
@@ -268,7 +262,7 @@ def cmd_validate(_args) -> None:
         if actual_ok:
             print(f"[OK]    {dotted_key} = {value!r}")
         else:
-            actual_name = _type_name(value)
+            actual_name = "str" if isinstance(value, str) else type(value).__name__
             expected_name = type_names.get(expected_type, expected_type.__name__)
             issues.append(
                 f"[WARN]  {dotted_key}: expected {expected_name}, got {actual_name} ({value!r})"
@@ -278,7 +272,10 @@ def cmd_validate(_args) -> None:
         print(issue)
 
     if not issues:
-        print("\nAll checks passed. Config format looks correct.")
+        if set(data) & LEGACY_TOP_KEYS:
+            print("\nConfig format looks correct; legacy settings are compatibility only.")
+        else:
+            print("\nAll checks passed. Config format looks correct.")
 
 
 def main() -> None:

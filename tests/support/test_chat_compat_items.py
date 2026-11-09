@@ -5,12 +5,14 @@ proxies so replayed history survives protocol conversion (model switch,
 sub-agent on another model, compaction summarization, token counting):
 
 1. native ``apply_patch`` items -> function-call-shaped proxies;
-2. id-less assistant output messages (the compaction acknowledgment shape)
+2. custom tool items -> name-preserving function-call proxies with raw input;
+3. id-less assistant output messages (the compaction acknowledgment shape)
    -> plain assistant text messages.
 """
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 
 import pytest
 
@@ -136,6 +138,42 @@ class TestToChatCompatibleItems:
         marker = {"type": NATIVE_PATCH_CALL}
         assert to_chat_compatible_items(marker) is marker
         assert to_chat_compatible_items([]) == []
+
+
+class TestCustomToolReplay:
+    @pytest.mark.parametrize("raw_input", ["not JSON", '{"path":"a.py"}', "中文\nraw patch", ""])
+    @pytest.mark.parametrize("object_form", [False, True])
+    def test_custom_pair_is_lossless_and_converts_for_chat(self, raw_input, object_form):
+        from agents.models.chatcmpl_converter import Converter
+        from openai.types.responses import ResponseCustomToolCall
+
+        call = {
+            "type": "custom_tool_call", "id": "custom-item", "call_id": "custom-call",
+            "name": "unavailable_custom", "input": raw_input,
+        }
+        if object_form:
+            call = ResponseCustomToolCall.model_validate(call)
+        output = {"type": "custom_tool_call_output", "call_id": "custom-call", "output": "not found"}
+        history = [call, output]
+        original = deepcopy(history)
+        converted = to_chat_compatible_items(history)
+        assert converted[0]["type"] == "function_call"
+        assert converted[0]["name"] == "unavailable_custom"
+        assert json.loads(converted[0]["arguments"]) == {"input": raw_input}
+        assert converted[1] == {
+            "type": "function_call_output", "call_id": "custom-call", "output": "not found",
+        }
+        messages = Converter.items_to_messages(converted)
+        assert messages[0]["tool_calls"][0]["id"] == messages[1]["tool_call_id"] == "custom-call"
+        assert history == original
+        assert to_chat_compatible_items(converted) is converted
+
+    def test_structured_custom_output_is_preserved_as_json(self):
+        output = {"type": "custom_tool_call_output", "call_id": "custom-call",
+                  "output": [{"type": "input_text", "text": "synthetic result"}]}
+        converted = to_chat_compatible_item(output)
+        assert converted["type"] == "function_call_output"
+        assert json.loads(converted["output"]) == output["output"]
 
 
 def _ack_message() -> dict:

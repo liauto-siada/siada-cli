@@ -17,12 +17,22 @@ const header = {
 };
 
 describe('banner provider visibility', () => {
-  it.each([true, false])('omits the provider from exports (compact=%s)', isCollapsed => {
-    const output = renderBannerBlock({ ...header, isCollapsed }, columns);
-    expect(output).toContain('Agent: coder, Model: example-model');
+  const expectNoMetadata = (output: string | undefined) => {
+    expect(output).toBeDefined();
+    expect(output).not.toContain('Agent:');
+    expect(output).not.toContain('Model:');
     expect(output).not.toContain('Provider:');
+    expect(output).not.toContain(header.model);
     expect(output).not.toContain(header.provider);
-    expect(output).toContain(`${isCollapsed ? 'compact' : 'expanded'} mode (ctrl+o)`);
+    expect(output).not.toContain(header.workingDir);
+    expect(output).not.toContain('mode (ctrl+o)');
+    expect(output).not.toContain('Ctrl+O');
+  };
+
+  it.each([true, false])('omits metadata from exports (compact=%s)', async isCollapsed => {
+    const output = await renderBannerBlock({ ...header, isCollapsed }, columns);
+    expect(output).toContain('Siada CLI');
+    expectNoMetadata(output);
   });
 
   it.each([true, false])('omits the provider from the legacy header (compact=%s)', async isCollapsed => {
@@ -34,9 +44,7 @@ describe('banner provider visibility', () => {
     });
     try {
       await new Promise(resolve => setTimeout(resolve, 80));
-      expect(frames.at(-1)).toContain('Agent: coder, Model: example-model');
-      expect(frames.at(-1)).not.toContain('Provider:');
-      expect(frames.at(-1)).not.toContain(header.provider);
+      expectNoMetadata(frames.at(-1));
     } finally {
       app.unmount();
       app.cleanup();
@@ -62,28 +70,22 @@ describe('banner provider visibility', () => {
       stdout, stdin: new PassThrough(), patchConsole: false, exitOnCtrlC: false, maxFps: 0,
       onRender: ({ staticOutput, output }) => {
         for (const frame of [staticOutput, output]) {
-          if (frame?.includes('Agent:')) frames.push(stripVTControlCharacters(frame));
+          if (frame?.trim()) frames.push(stripVTControlCharacters(frame));
         }
       },
     });
 
     try {
       await new Promise(resolve => setTimeout(resolve, 80));
-      expect(frames.at(-1)).toContain('Agent: coder, Model: example-model; compact mode');
-      expect(frames.at(-1)).not.toContain('Provider:');
-      expect(frames.at(-1)).not.toContain(header.provider);
+      expectNoMetadata(frames.at(-1));
 
       app.rerender(view(false));
       await new Promise(resolve => setTimeout(resolve, 450));
-      expect(frames.at(-1)).toContain('Agent: coder, Model: example-model; expanded mode');
-      expect(frames.at(-1)).not.toContain('Provider:');
-      expect(frames.at(-1)).not.toContain(header.provider);
+      expectNoMetadata(frames.at(-1));
 
       app.rerender(view(true));
       await new Promise(resolve => setTimeout(resolve, 450));
-      expect(frames.at(-1)).toContain('Agent: coder, Model: example-model; compact mode');
-      expect(frames.at(-1)).not.toContain('Provider:');
-      expect(frames.at(-1)).not.toContain(header.provider);
+      expectNoMetadata(frames.at(-1));
     } finally {
       app.unmount();
       app.cleanup();

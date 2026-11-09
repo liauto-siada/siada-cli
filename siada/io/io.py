@@ -29,7 +29,7 @@ from siada.io.color_utils import ColorUtils
 
 
 def _is_dumb_terminal() -> bool:
-    """Inline equivalent of is_dumb_terminal() (avoids importing prompt_toolkit just for it)."""
+    """Inline is_dumb_terminal() without importing prompt_toolkit."""
     return os.environ.get("TERM", "").lower() in ("dumb", "unknown")
 
 
@@ -172,7 +172,7 @@ class InputOutput:
             style = Style.from_dict({
                 'frame.border': '#6BA5E7',  # Blue
                 # 'prompt': '#00aaff bold',  # blue prompt
-                'placeholder': '#888888',  # gray placeholder
+                'placeholder': '#888888',  # 灰色占位符
             })
             session_kwargs = {
                 "input": self.input,
@@ -181,9 +181,9 @@ class InputOutput:
                 "lexer": None,
                 "editing_mode": self.editingmode,
                 "style": style,
-                "show_frame": True,  # enable frame
+                "show_frame": True,  # 启用边框
                 "complete_while_typing": True,
-                "wrap_lines": True,  # enable line wrapping
+                "wrap_lines": True,  # 启用自动换行
                 "placeholder": [('class:placeholder', 'Type a message, /command, or @path/to/file ...')]
             }
             if isinstance(self.editingmode, str):
@@ -316,6 +316,71 @@ class InputOutput:
             self.placeholder = self.prompt_session.app.current_buffer.text
             self.interrupted = True
             self.prompt_session.app.exit()
+
+    async def get_input_async(self):
+        """Read a framed ACP prompt on the session loop.
+
+        Synchronous get_input remains available to interactive tool handlers.
+        Only the idle controller consumes this async reader.
+        """
+        import asyncio
+        import json
+        from uuid import uuid4
+        from siada.io.stdin_interrupt_monitor import get_stdin_monitor
+
+        monitor = get_stdin_monitor()
+        while True:
+            lines = getattr(self, "_async_message_lines", None)
+            if lines is None:
+                line = await monitor.readline_async()
+                if line.strip() != "<<<SIADA_MSG_START>>>":
+                    continue
+                lines = []
+                self._async_message_lines = lines
+            while True:
+                line = await monitor.readline_async()
+                if line.strip() == "<<<SIADA_MSG_END>>>":
+                    break
+                if line.strip() == "<<<SIADA_MSG_START>>>":
+                    lines.clear()  # An interrupted/incomplete frame was replaced.
+                    continue
+                lines.append(line.rstrip("\n"))
+            text = "\n".join(lines)
+            self._async_message_lines = None
+            self._pending_image_paths = []
+            try:
+                parsed = json.loads(text)
+            except (ValueError, TypeError):
+                parsed = None
+            if isinstance(parsed, dict):
+                params = parsed.get("params", parsed)
+                has_prompt = isinstance(params, dict) and "prompt" in params
+                if (
+                    self._notification_handler
+                    and parsed.get("jsonrpc") == "2.0"
+                    and "method" in parsed and "id" not in parsed
+                    and not has_prompt
+                ):
+                    await asyncio.to_thread(
+                        self._notification_handler,
+                        parsed["method"], parsed.get("params", {}),
+                    )
+                    continue
+                if has_prompt:
+                    text = params["prompt"]
+                    if not isinstance(text, (str, list)):
+                        self.print_error("Invalid prompt payload")
+                        continue
+                    self._pending_image_paths = params.get("image_paths") or []
+                meta = parsed.get("_meta") or (params.get("_meta") if isinstance(params, dict) else {}) or {}
+                log_meta = meta.get("siadaLog") or {} if isinstance(meta, dict) else {}
+                self._input_request_id = (
+                    log_meta.get("requestId") if isinstance(log_meta, dict) else None
+                ) or uuid4().hex
+            else:
+                self._pending_image_paths = []
+                self._input_request_id = uuid4().hex
+            return text
 
     def get_input(
         self,
@@ -823,6 +888,23 @@ class InputOutput:
         # Traditional mode
         self.num_error_outputs += 1
         self.printer.error(message)
+
+    def print_hook(
+        self, message: str, event: str, status: str = "notification"
+    ) -> None:
+        """Display hook feedback without reporting an application failure."""
+        if not message:
+            return
+        if self.acp_enabled and self.acp_adapter:
+            self._send_lifecycle_event({
+                "type": "hook",
+                "content": message,
+                "hook_event": event,
+                "hook_status": status,
+                "timestamp": time.time(),
+            })
+            return
+        self.printer.output(f"[Hook · {event} · {status}] {message}")
 
     def print_warning(self, message="", strip=True):
         # ACP mode: only send lifecycle event, no additional message_chunk

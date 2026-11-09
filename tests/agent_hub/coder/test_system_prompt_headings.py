@@ -20,7 +20,9 @@ class _FactProvider:
         return 2
 
 
-@pytest.mark.parametrize("model_name", ["claude-sonnet-5", "gpt-5.4", "gpt-6-astra", "glm-5.3", "kimi-k3"])
+@pytest.mark.parametrize("model_name", [
+    "claude-sonnet-5", "gpt-5.4", "gpt-6-astra", "glm-5.3", "kimi-k3", "deepseek-v4-flash",
+])
 def test_coding_prompt_generated_sections_have_markdown_headings(
     monkeypatch, tmp_path, model_name
 ):
@@ -49,7 +51,9 @@ def test_coding_prompt_generated_sections_have_markdown_headings(
         "### MEMORY (your personal notes)", "### USER PROFILE (who the user is)",
         "## Session Search", "## Structured Fact Memory",
     ]
-    if model_name == "kimi-k3":
+    if model_name == "deepseek-v4-flash":
+        headings.extend(["# Tool use", "# Delegation", "# Runtime instructions", "# Environment", "# Skills"])
+    elif model_name == "kimi-k3":
         headings.extend(["# Runtime instructions", "# Environment", "# Project information", "# Skills"])
     elif model_name == "glm-5.3":
         headings.extend([
@@ -58,21 +62,29 @@ def test_coding_prompt_generated_sections_have_markdown_headings(
         ])
     elif model_name == "gpt-6-astra":
         headings.extend(["# SYSTEM INFORMATION", "## Skills"])
-        headings.extend(["# Runtime instructions", "## Verification"])
+        headings.extend(["# Runtime instructions", "## Verification", "# Delegation"])
     else:
         headings.extend(["# SYSTEM INFORMATION", "## Skills"])
         headings.append("# OBJECTIVE")
-    if model_name not in ("gpt-6-astra", "kimi-k3", "glm-5.3"):
+    if model_name not in ("gpt-6-astra", "kimi-k3", "glm-5.3", "deepseek-v4-flash"):
         headings.extend(["# RULES", "## Completion Discipline"])
-    assert prompt.rstrip().endswith("====")
+    if model_name == "gpt-6-astra":
+        assert lines.index("# Combined Memory") < lines.index("# Delegation")
+    else:
+        assert prompt.rstrip().endswith("====")
 
     for heading in headings:
         assert lines.count(heading) == 1, heading
         assert lines.count(heading.lstrip("# ")) == 0, heading
 
-    assert ("# OBJECTIVE" in lines) == (model_name not in ("glm-5.3", "gpt-6-astra", "kimi-k3"))
+    assert ("# OBJECTIVE" in lines) == (
+        model_name not in ("glm-5.3", "gpt-6-astra", "kimi-k3", "deepseek-v4-flash")
+    )
     assert "# Workspace" not in lines
-    runtime_heading = "# Runtime instructions" if model_name in ("gpt-6-astra", "kimi-k3", "glm-5.3") else "# RULES"
+    runtime_heading = (
+        "# Runtime instructions"
+        if model_name in ("gpt-6-astra", "kimi-k3", "glm-5.3", "deepseek-v4-flash") else "# RULES"
+    )
     assert lines.index("# CAPABILITIES") < lines.index(runtime_heading) < lines.index("# Combined Memory")
 
 

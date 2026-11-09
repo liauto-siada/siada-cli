@@ -1,9 +1,7 @@
 import { useEffect } from 'react';
 import { logger } from '../utils/logger.js';
-import { Message, MessageType } from '../types/index.js';
 import type { PluginManagerData } from '../components/PluginManager/index.js';
 import type { TaskItem } from '../components/TaskSelector/index.js';
-import { isRenderableToolDiff } from '../utils/diff.js';
 
 export interface EffortSelectorData {
   model: string;
@@ -18,7 +16,6 @@ export interface ThemeSelectorData {
 
 interface AdapterEventHandlers {
   setShowSessionBrowser: (v: boolean) => void;
-  addMessage: (msg: Message) => void;
   setModelSelectorData: (v: { models: string[]; currentModel: string; modelNotes?: Record<string, string> } | null) => void;
   setEffortSelectorData: (v: EffortSelectorData | null) => void;
   setThemeSelectorData: (v: ThemeSelectorData | null) => void;
@@ -30,7 +27,7 @@ interface AdapterEventHandlers {
 
 export function useAdapterEvents(client: any, handlers: AdapterEventHandlers): void {
   const {
-    setShowSessionBrowser, addMessage,
+    setShowSessionBrowser,
     setModelSelectorData, setEffortSelectorData, setThemeSelectorData, setTaskSelectorTasks,
     setInstallProgress, setPluginManagerData,
     appendSideQuestion,
@@ -42,37 +39,6 @@ export function useAdapterEvents(client: any, handlers: AdapterEventHandlers): v
     const handleShowSessionBrowser = () => {
       logger.info('Received ui:showSessionBrowser');
       setShowSessionBrowser(true);
-    };
-
-    // Append-only history handler for deferred rendering (no clear)
-    const handleAppendHistory = (params: any) => {
-      logger.info('Received ui:appendHistory event', {
-        component: 'App',
-        operation: 'append_history',
-        messageCount: params?.messages?.length || 0,
-      });
-
-      if (params?.messages && Array.isArray(params.messages)) {
-        for (const msg of params.messages) {
-          if (msg.role && msg.content) {
-            const newMessage = {
-              id: `deferred-${Date.now()}-${Math.random()}`,
-              type: (msg.role === 'user' ? 'user' : 'agent') as MessageType,
-              content: msg.content,
-              timestamp: new Date().toISOString(),
-              author: msg.role === 'user' ? 'User' : 'Assistant',
-              metadata: msg.subtype ? {
-                subtype: msg.subtype,
-                ...(msg.subtype === 'tool_use' && isRenderableToolDiff(msg.content) ? { streamEnd: true } : {}),
-              } : undefined,
-            };
-
-            addMessage(newMessage);
-          }
-        }
-
-        logger.info(`Appended ${params.messages.length} deferred messages to UI`);
-      }
     };
 
     const handleShowModelSelector = (params: any) => {
@@ -135,7 +101,6 @@ export function useAdapterEvents(client: any, handlers: AdapterEventHandlers): v
     };
 
     client.adapter.on('ui:showSessionBrowser', handleShowSessionBrowser);
-    client.adapter.on('ui:appendHistory', handleAppendHistory);
     client.adapter.on('ui:showModelSelector', handleShowModelSelector);
     client.adapter.on('ui:showEffortSelector', handleShowEffortSelector);
     client.adapter.on('ui:showThemeSelector', handleShowThemeSelector);
@@ -146,7 +111,6 @@ export function useAdapterEvents(client: any, handlers: AdapterEventHandlers): v
 
     return () => {
       client.adapter.off('ui:showSessionBrowser', handleShowSessionBrowser);
-      client.adapter.off('ui:appendHistory', handleAppendHistory);
       client.adapter.off('ui:showModelSelector', handleShowModelSelector);
       client.adapter.off('ui:showEffortSelector', handleShowEffortSelector);
       client.adapter.off('ui:showThemeSelector', handleShowThemeSelector);
@@ -155,7 +119,7 @@ export function useAdapterEvents(client: any, handlers: AdapterEventHandlers): v
       client.adapter.off('ui:pluginInstallProgress', handlePluginInstallProgress);
       client.adapter.off('ui:showSideQuestion', handleShowSideQuestion);
     };
-  }, [client, setShowSessionBrowser, addMessage,
+  }, [client, setShowSessionBrowser,
       setModelSelectorData, setEffortSelectorData, setThemeSelectorData, setTaskSelectorTasks, setInstallProgress, setPluginManagerData,
       appendSideQuestion]);
 }

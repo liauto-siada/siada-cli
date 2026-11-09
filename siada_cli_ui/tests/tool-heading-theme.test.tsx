@@ -1,3 +1,4 @@
+import './helpers/chineseLocale.js';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -20,6 +21,7 @@ vi.mock('@jrichman/ink', async () => {
 });
 
 import { MessageList } from '../src/components/Chat/MessageList.js';
+import { Message as ToolMessage } from '../src/components/Chat/Message.js';
 import { SemanticToolCallView } from '../src/components/Chat/SemanticToolCallView.js';
 import { ThinkingIndicator } from '../src/components/common/ThinkingIndicator.js';
 import { setActiveTheme } from '../src/themes/index.js';
@@ -67,6 +69,18 @@ const visible = (html: string) => html.replace(/<[^>]*>/g, '');
 afterEach(() => setActiveTheme('dark'));
 
 describe('shared tool headings', () => {
+  it.each([
+    ['Searching memory: session token rotation', 'Search memory', []],
+    ['Fact memory [search/project] session token rotation', 'Fact memory search', [{ label: 'target', value: 'project' }]],
+  ])('puts the semantic query in the heading without a duplicate field: %s', (content, heading, fields) => {
+    const display = getSemanticToolCallDisplay(parseToolCall(content)!);
+    expect(display?.heading).toBe(heading);
+    expect(display?.headingArgument).toBe('session token rotation');
+    expect(display?.fields).toEqual(fields);
+    const text = visible(renderToStaticMarkup(<SemanticToolCallView tool={parseToolCall(content)!} />));
+    expect(text.match(/session token rotation/g)).toHaveLength(1);
+    expect(text).not.toContain('query:');
+  });
   it.each(['dark', 'light'] as const)('renders compaction as a borderless system row beside tool actions in %s mode', theme => {
     setActiveTheme(theme);
     const messages = [tool('compaction', 'Compacting context...'), tool('run', run)];
@@ -75,13 +89,13 @@ describe('shared tool headings', () => {
       const output = renderToStaticMarkup(<MessageList messages={messages} isCollapsed={isCollapsed} noStatic />);
       const text = visible(output);
 
-      expect(text).toContain('● Compacting context...');
+      expect(text).toContain('● 正在压缩上下文…');
       expect(text).toContain(isCollapsed ? '● Run 1 command' : '● Run command');
-      expect(output).toContain(`<span data-color="${colors.secondary}">●</span> <span data-color="${colors.secondary}" data-bold="true">Compacting</span>`);
+      expect(output).toContain(`<span data-color="${colors.secondary}">●</span> <span data-color="${colors.secondary}" data-bold="true">正在压缩上下文…</span>`);
       expect(output).toContain(`<span data-color="${colors.info}">●</span> <span data-color="${colors.info}" data-bold="true">Run</span>`);
-      expect(output).toMatch(/<div data-margin-left="0"><span><span data-color="[^"]+">●<\/span> <span data-color="[^"]+" data-bold="true">Compacting<\/span>/);
+      expect(output).toMatch(/<div data-margin-left="0"><span><span data-color="[^"]+">●<\/span> <span data-color="[^"]+" data-bold="true">正在压缩上下文…<\/span>/);
       expect(output).not.toContain('data-border-style="round"');
-      expect(text).not.toContain('Compacting context... (ctrl+o to expand)');
+      expect(text).not.toContain('正在压缩上下文… (ctrl+o to expand)');
     }
   });
 
@@ -89,10 +103,10 @@ describe('shared tool headings', () => {
     setActiveTheme(theme);
     const output = renderToStaticMarkup(<ThinkingIndicator active step="compaction" />);
     expect(output).toContain(`<span data-color="${colors.secondary}" data-bold="true">⠋</span>`);
-    expect(output).toContain(`<span data-color="${colors.secondary}">Compacting context...</span>`);
+    expect(output).toContain(`<span data-color="${colors.secondary}">正在压缩上下文…</span>`);
 
     const toolOutput = renderToStaticMarkup(<ThinkingIndicator active step="tool_execution" />);
-    expect(toolOutput).toContain('<span data-color="cyan">Executing tools...</span>');
+    expect(toolOutput).toContain('<span data-color="cyan">正在执行工具…</span>');
   });
 
   it.each(['dark', 'light'] as const)('renders compaction results as tree branches in %s mode', theme => {
@@ -107,7 +121,7 @@ describe('shared tool headings', () => {
       const output = renderToStaticMarkup(<MessageList messages={messages} isCollapsed={isCollapsed} noStatic />);
       const text = visible(output);
 
-      expect(text).toContain('● Compacting context...');
+      expect(text).toContain('● 正在压缩上下文…');
       expect(text).toContain('├─ messages: 100 → 22');
       expect(text).toContain('└─ removed: 78');
       expect(text.indexOf('└─ removed: 78')).toBeLessThan(text.indexOf('● Run'));
@@ -137,7 +151,6 @@ describe('shared tool headings', () => {
 
   it.each([
     ['Analyze definitions in `src/auth/session.py`', 'Analyze definitions', 'file: src/auth/session.py', 'Analyze session.py'],
-    ['Searching memory: session token rotation', 'Search memory', 'query: session token rotation', 'Search memory · session token rotation'],
     ['Save to memory [add/MEMORY.md]: Prefer concise error summaries', 'Save memory', 'target: MEMORY.md', 'Save memory · [add / MEMORY.md] Prefer concise error summaries'],
     ['Fact memory [add/project] Local cache uses SQLite', 'Fact memory', 'category: project', 'Fact memory · [add / project] Local cache uses SQLite'],
     ['Fact feedback #42 useful: Confirmed in latest review', 'Fact feedback', 'action: useful', 'Fact feedback · #42 useful: Confirmed in latest review'],
@@ -183,11 +196,11 @@ describe('shared tool headings', () => {
     }
     for (const field of [
       'file: src/auth/session.py',
-      'query: session token rotation',
+      'Search memory session token rotation',
       'action: add',
       'target: MEMORY.md',
       'category: project',
-      'action: search',
+      'Fact memory search migration strategy',
       'fact: #42',
       'task: Add regression tests for cache expiry',
       'file: src/config.py',
@@ -201,7 +214,7 @@ describe('shared tool headings', () => {
     const compactText = visible(collapsed);
     for (const preview of [
       'session.py',
-      'query: session token rotation',
+      'session token rotation',
       '[add / MEMORY.md]',
       '[add / project] Local cache uses SQLite',
       '[search] migration strategy',
@@ -321,12 +334,24 @@ describe('shared tool headings', () => {
     expect(output).toContain('data-margin-left="0"');
   });
 
+  it.each(['timeout: `60s`', 'Timeout: 30 seconds', 'TIMEOUT: 45s\n'])(
+    'hides appended command metadata while preserving literal text: %s', metadata => {
+      const content = `Run the following command:\n\`\`\`bash\nprintf "timeout: keep"\n\`\`\`\n${metadata}`;
+      for (const showToolHeading of [true, false]) {
+        const text = visible(renderToStaticMarkup(
+          <ToolMessage message={tool('run', content)} isCollapsed={false} showToolHeading={showToolHeading} />,
+        ));
+        expect(text).toContain('printf &quot;timeout: keep&quot;');
+        expect(text).not.toMatch(/timeout:\s*(?:`?(?:60s|30 seconds|45s))/i);
+      }
+    },
+  );
+
   it.each([
     { theme: 'dark', background: '#262a30' },
     { theme: 'light', background: '#f0f1f3' },
   ] as const)('keeps expanded commands, directories, and new files borderless in $theme mode', ({ theme, background }) => {
     setActiveTheme(theme);
-    const secondary = theme === 'light' ? '#4b5563' : '#b9c2cc';
     const powershell = 'Run the following PowerShell command: \n```powershell \nWrite-Host "*hello*"\n```\ntimeout: `10s`';
     const readFile = 'Read the file `src/a.ts`';
     const createFile = [
@@ -342,12 +367,9 @@ describe('shared tool headings', () => {
       tool('create', createFile),
     ]} noStatic />);
 
-    expect(visible(expanded)).toContain('● Run PowerShell command (timeout:10s)');
+    expect(visible(expanded)).toContain('● Run PowerShell command');
     expect(visible(expanded)).toContain('Write-Host &quot;*hello*&quot;');
-    // The command text inherits the terminal foreground; the hint steps down a
-    // tier so the heading still reads as a heading.
-    expect(expanded).toContain(`data-color="${secondary}"> (timeout:10s)</span>`);
-    expect(expanded).not.toContain(`data-background="${background}">timeout:`);
+    expect(visible(expanded)).not.toContain('timeout:');
     expect(visible(expanded)).not.toContain('```');
     expect(expanded).toContain(`<span data-background="${background}">`);
     expect(expanded).not.toMatch(new RegExp(`data-color="#[0-9a-f]{6}" data-background="${background}"`));

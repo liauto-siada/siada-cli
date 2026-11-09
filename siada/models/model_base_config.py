@@ -5,98 +5,57 @@ from typing import Optional, List
 
 
 logger = logging.getLogger(__name__)
-
 _user_model_settings: Optional[List['ModelBaseConfig']] = None
-
-# Reasoning effort levels accepted by most models that support reasoning_effort.
 VALID_REASONING_EFFORTS = ("low", "medium", "high")
-
-# Additional effort levels only Claude models accept (sent via output_config.effort).
 CLAUDE_EXTRA_EFFORTS = ("xhigh", "max")
-
-# Reasoning effort ladder of the GPT-5-and-newer family (gpt-5.x, gpt-6-astra):
-# the openai-protocol ladder keeps "medium" and extends past "high" with
-# "max". Unlike the ladder of the domestic families (low/high/max) it does
-# not include "xhigh".
 GPT_EXTENDED_REASONING_EFFORTS = ("low", "medium", "high", "max")
+
 
 @dataclass
 class ModelBaseConfig:
-    """
-    Represents the configuration for a specific language model.
-    """
+    """Configuration for a language model, including user-supplied metadata."""
+
     model_name: str
     context_window: int
     max_tokens: Optional[int] = None
-    # Tri-state (see supports_image_input): True = the model takes image
-    # input; False = an explicit denial; None = capabilities UNDECLARED —
-    # the model could not be resolved in any catalogue (see
-    # siada.provider.models_dev), so the gateway decides and callers must
-    # NOT treat None as a denial. The default stays False so a built-in
-    # entry that omits the field keeps declaring "no images".
+    # None means undeclared capabilities; only False explicitly rejects images.
     supports_images: Optional[bool] = False
-    # Bridged vision (modlens-style): the model itself is text-only — the
-    # gateway silently drops image parts, so native multimodal input must stay
-    # OFF (supports_images=False). Instead, attached images are transcribed
-    # into text evidence by a vision-capable engine model (see
-    # siada/services/vision_bridge.py) and the evidence is fed to this model.
     supports_vision_bridge: bool = False
     supports_prompt_cache: bool = False
-
     parallel_tool_calls: Optional[bool] = None
-
     supports_extra_params: Optional[List[str]] = None
-
-    # Default thinking token budget for models that support thinking.
-    # When set, thinking is enabled by default without needing --thinking-tokens flag.
-    # Use -1 for adaptive thinking mode (e.g., Claude 4.6+), positive int for budget mode.
     default_thinking_tokens: Optional[int] = None
-
-    # Default reasoning effort level for models that support reasoning_effort.
-    # Valid values: "low", "medium", "high" for most models; Claude models
-    # additionally support "xhigh" and "max" (sent via output_config.effort).
-    # When set, reasoning is enabled by default.
     default_reasoning_effort: Optional[str] = None
-
-    # Optional pricing overrides (CNY per million tokens). Only meaningful for
-    # user-defined models (provider == "default"); when set, they take priority
-    # over the built-in MODEL_PRICING table in siada.models.model_pricing.
+    effort_choices: Optional[List[str]] = None
+    # User prices override the built-in estimates (CNY per million tokens).
     input_price: Optional[float] = None
     output_price: Optional[float] = None
     cache_write_price: Optional[float] = None
     cache_read_price: Optional[float] = None
-
-    # Optional remark shown next to the model name in model lists/selectors
-    # (e.g. "free"). None means no remark.
     note: Optional[str] = None
-
-    # Marks this model as the vision-bridge ENGINE (the image-capable model
-    # that transcribes attached images into text evidence for text-only
-    # models — see siada/services/vision_bridge.py). The first flagged model
-    # in the settings list wins; must also have supports_images=True to be
-    # selected.
+    # The first image-capable flagged model supplies the vision bridge engine.
     is_vision_engine_model: bool = False
 
-# Fallback model when the configured model is not found in the settings
-# list. Pinned by name so it does not depend on MODEL_SETTING ordering.
-# "claude-sonnet-5" is an Anthropic-published Claude API model ID (from the 4.6
-# generation on, IDs are dateless and a major release omits the minor segment);
-# agent_config.yaml pins the same name.
+    def __post_init__(self) -> None:
+        if self.effort_choices is not None:
+            known = {"low", "medium", "high", "xhigh", "max"}
+            if (
+                not isinstance(self.effort_choices, list)
+                or not self.effort_choices
+                or any(not isinstance(e, str) or e not in known for e in self.effort_choices)
+            ):
+                raise ValueError("effort_choices must be a non-empty list of known effort levels")
+            self.effort_choices = list(dict.fromkeys(self.effort_choices))
+
+
 DEFAULT_MODEL_NAME = "claude-sonnet-5"
 
-# Built-in model catalog. Every entry is a model ID that its vendor publishes
-# on a public model/pricing page; siada.models.model_pricing holds the matching
-# price estimates. context_window uses the vendor's published context length
-# where there is one. max_tokens, supports_* and the effort defaults are
-# conservative working defaults for this client -- they are not vendor-verified
-# capability guarantees, and a vendor may change or retire a model at any time.
-# User-defined models (~/.siada-cli/models.json) replace this list entirely.
-# Kept in alphabetical order by model_name (the display order in model
-# lists/selectors).
+# Public model IDs and conservative client defaults. User metadata from
+# models.json or the selected API provider takes precedence over this catalog.
 MODEL_SETTING: List[ModelBaseConfig] = [
     ModelBaseConfig(
         model_name="claude-opus-5-5",
-        max_tokens=32768 * 2,
+        max_tokens=65536,
         context_window=1_000_000,
         supports_images=True,
         parallel_tool_calls=True,
@@ -105,59 +64,43 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ),
     ModelBaseConfig(
         model_name="claude-sonnet-4-6",
-        max_tokens=8192 * 4,
-        # The vendor documents a 1M-token context window for Claude 4.6 and
-        # newer; this client deliberately keeps a smaller working window.
+        max_tokens=32768,
         context_window=200_000,
         supports_images=True,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
-        default_thinking_tokens=-1,  # -1 means adaptive thinking mode
-        # Adaptive thinking effort, sent via output_config.effort.
+        default_thinking_tokens=-1,
         default_reasoning_effort="high",
     ),
     ModelBaseConfig(
         model_name="claude-sonnet-5",
-        max_tokens=8192 * 10,  # 80k output budget
-        # The vendor documents a 1M-token context window for Claude 4.6 and
-        # newer; this client deliberately keeps a smaller working window.
+        max_tokens=81920,
         context_window=200_000,
         supports_images=True,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
-        default_thinking_tokens=-1,  # -1 means adaptive thinking mode
-        # Adaptive thinking effort, sent via output_config.effort.
-        # Sonnet 5 supports xhigh for the hardest agentic/coding tasks.
+        default_thinking_tokens=-1,
         default_reasoning_effort="high",
     ),
     ModelBaseConfig(
         model_name="deepseek-v4-pro",
         max_tokens=384_000,
-        # Vendor-published context length for deepseek-v4-pro (1M).
         context_window=1_000_000,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
-        # DeepSeek controls thinking intensity by level, not a token budget:
-        # {"reasoning_effort": "low|high|max"} (per official docs).
         default_reasoning_effort="high",
         supports_vision_bridge=True,
     ),
     ModelBaseConfig(
-        # Alibaba Model Studio ID for the pinned DeepSeek-V4-Pro-0813 version;
-        # DeepSeek's own API serves the same weights under "deepseek-v4-pro".
         model_name="deepseek-v4-pro-0813",
         max_tokens=384_000,
         context_window=1_000_000,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
-        # DeepSeek controls thinking intensity by level, not a token budget:
-        # {"reasoning_effort": "low|high|max"} (per official docs).
         default_reasoning_effort="high",
         supports_vision_bridge=True,
     ),
     ModelBaseConfig(
-        # Alibaba Model Studio ID for the DeepSeek-V4.1-Flash version that
-        # DeepSeek's own API now serves under "deepseek-flash".
         model_name="deepseek-v4.1-flash",
         max_tokens=384_000,
         context_window=1_000_000,
@@ -167,9 +110,6 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_images=True,
     ),
     ModelBaseConfig(
-        # Legacy DeepSeek model name: the vendor now publishes this model as
-        # "deepseek-flash" and still accepts "deepseek-v4-flash" for it, at the
-        # same Flash price.
         model_name="deepseek-v4-flash",
         max_tokens=384_000,
         context_window=1_000_000,
@@ -179,9 +119,26 @@ MODEL_SETTING: List[ModelBaseConfig] = [
         supports_vision_bridge=True,
     ),
     ModelBaseConfig(
+        model_name="gemini-4-argon",
+        max_tokens=32768,
+        context_window=1_000_000,
+        supports_images=True,
+        parallel_tool_calls=True,
+        supports_extra_params=["reasoning_effort"],
+        default_reasoning_effort="medium",
+    ),
+    ModelBaseConfig(
+        model_name="gpt-6.1-sol",
+        max_tokens=65536,
+        context_window=1_000_000,
+        supports_images=True,
+        parallel_tool_calls=True,
+        supports_extra_params=["reasoning_effort"],
+        default_reasoning_effort="max",
+    ),
+    ModelBaseConfig(
         model_name="glm-5.2",
-        max_tokens=8192 * 8,
-        # Vendor-published context length for GLM-5.2 (1M).
+        max_tokens=65536,
         context_window=1_000_000,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens"],
@@ -190,33 +147,25 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ),
     ModelBaseConfig(
         model_name="glm-5.3",
-        max_tokens=8192 * 8,
+        max_tokens=65536,
         context_window=1_000_000,
         parallel_tool_calls=True,
-        # GLM-5.3 (official): always reasons via top-level reasoning_effort
-        # (low/high/max, default max) with thinking.type="enabled" explicitly.
-        # No thinking_tokens / disable / clear_thinking.
         supports_extra_params=["reasoning_effort"],
         default_reasoning_effort="max",
         supports_vision_bridge=True,
     ),
     ModelBaseConfig(
         model_name="glm-5.3-flash",
-        max_tokens=8192 * 8,
+        max_tokens=65536,
         context_window=1_000_000,
         parallel_tool_calls=True,
-        # GLM-5.3 (official): always reasons via top-level reasoning_effort
-        # (low/high/max, default max) with thinking.type="enabled" explicitly.
-        # No thinking_tokens / disable / clear_thinking.
         supports_extra_params=["reasoning_effort"],
         default_reasoning_effort="max",
         supports_images=True,
     ),
     ModelBaseConfig(
         model_name="gpt-6-astra",
-        max_tokens=32768 * 2,
-        # Vendor-published context window (1.05M). The price table bands this
-        # model at 272K input tokens (see siada.models.model_pricing).
+        max_tokens=65536,
         context_window=1_050_000,
         supports_images=True,
         parallel_tool_calls=True,
@@ -225,9 +174,7 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ),
     ModelBaseConfig(
         model_name="gpt-6-luna",
-        max_tokens=32768 * 2,
-        # Vendor-published context window (1.05M). The price table bands this
-        # model at 272K input tokens (see siada.models.model_pricing).
+        max_tokens=65536,
         context_window=1_050_000,
         supports_images=True,
         parallel_tool_calls=True,
@@ -236,9 +183,7 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ),
     ModelBaseConfig(
         model_name="gpt-6-sol",
-        max_tokens=32768 * 2,
-        # https://developers.openai.com/api/docs/models/gpt-6-sol
-        # The context window is distinct from the 272K pricing threshold.
+        max_tokens=65536,
         context_window=1_050_000,
         supports_images=True,
         parallel_tool_calls=True,
@@ -247,179 +192,75 @@ MODEL_SETTING: List[ModelBaseConfig] = [
     ),
     ModelBaseConfig(
         model_name="kimi-k3",
-        # max_tokens=131_072,
-        # Vendor-published context window for kimi-k3 (1,048,576 tokens).
         context_window=1_048_576,
         supports_images=True,
         parallel_tool_calls=True,
         supports_extra_params=["reasoning_effort"],
-        # Kimi K3 always reasons; effort is configured via the top-level
-        # reasoning_effort request field. Valid: low/high/max (no "medium").
         default_reasoning_effort="max",
     ),
     ModelBaseConfig(
         model_name="qwen3.7-max",
-        max_tokens=8192 * 4,
-        # Vendor-published context length for qwen3.7-max (1M).
+        max_tokens=32768,
         context_window=1_000_000,
         parallel_tool_calls=True,
-        # Qwen controls thinking intensity by level (reasoning_effort) instead
-        # of a token budget: extra_body={"enable_thinking": True,
-        # "reasoning_effort": "low|medium|xhigh"}, default "xhigh".
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
         default_reasoning_effort="xhigh",
         supports_vision_bridge=True,
     ),
     ModelBaseConfig(
         model_name="qwen3.7-plus",
-        max_tokens=8192 * 4,
-        # Vendor-published context length for qwen3.7-plus (1M).
+        max_tokens=32768,
         context_window=1_000_000,
         supports_images=True,
         parallel_tool_calls=True,
-        # Qwen controls thinking intensity by level (reasoning_effort) instead
-        # of a token budget: extra_body={"enable_thinking": True,
-        # "reasoning_effort": "low|medium|xhigh"}, default "xhigh".
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
         default_reasoning_effort="xhigh",
     ),
     ModelBaseConfig(
         model_name="qwen3.8-flash",
-        max_tokens=8192 * 4,
+        max_tokens=32768,
         context_window=1_000_000,
+        supports_images=True,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
         default_reasoning_effort="xhigh",
-        supports_images=True,
     ),
     ModelBaseConfig(
         model_name="qwen3.8-max",
-        max_tokens=8192 * 4,
-        # Vendor-published context length for qwen3.8-max (1M).
+        max_tokens=32768,
         context_window=1_000_000,
+        supports_images=True,
         parallel_tool_calls=True,
         supports_extra_params=["thinking_tokens", "reasoning_effort"],
         default_reasoning_effort="xhigh",
-        supports_images=True,
     ),
 ]
-
-# Anthropic prompt-cache default TTL is 5 minutes; OpenAI/DeepSeek implicit
-# caches also typically expire on the order of minutes. Used as the universal
-# heuristic for "the next request will hit the prompt cache".
-PROMPT_CACHE_TTL_SECONDS = 4 * 60 + 30
-
-
-def get_extended_context_window(model_name: str) -> Optional[int]:
-    """Return the context window that applies to a model's next request.
-
-    This build keeps one static window per model — there is no remote catalog
-    and no expanded window — so the configured ``context_window`` is the
-    effective value.
-
-    Args:
-        model_name: The model name.
-
-    Returns:
-        The model's configured context window, or None when the model is not
-        known.
-    """
-    config = get_model_config(model_name)
-    return config.context_window if config else None
-
-
-def resolve_effective_context_window(
-    llm_config,
-    *,
-    last_request_at: Optional[float] = None,
-    last_model: Optional[str] = None,
-    same_turn: bool = False,
-    now: float = 0.0,
-) -> None:
-    """Resolve and apply the effective context_window for the next request.
-
-    The effective window is the model's configured ``context_window``. It is
-    written back onto ``llm_config`` in place (the same shared object is
-    exposed as ``CodeAgentContext.model_run_config``) because the live
-    ModelRunConfig may have been created before the model's metadata was
-    known, and every consumer (compaction threshold, tool-result truncation,
-    ...) reads the value from that object.
-
-    The continuity arguments are accepted for callers that resolve the window
-    per request; with a single static window per model they do not change the
-    result.
-
-    Args:
-        llm_config: The live ModelRunConfig to update in place (duck-typed
-            here to avoid a circular import with model_run_config).
-        last_request_at: Completion timestamp of the previous LLM request
-            (None before the first request of the session).
-        last_model: Model used by the previous request.
-        same_turn: True when the previous request belonged to the same turn
-            as the upcoming one.
-        now: Current timestamp.
-    """
-    base_cfg = get_model_config(llm_config.model_name)
-    if base_cfg is None:
-        return
-    llm_config.context_window = base_cfg.context_window
 
 
 def is_claude_model(model_name: str) -> bool:
     return "claude" in model_name.lower()
 
-# Matches the major version in Claude model names in either ordering:
-# family-first ("claude-sonnet-5", "claude-opus-5.1") or version-first
-# ("claude-5-sonnet"). It is matched with re.search (not anchored), so
-# provider-prefixed names like "aws-claude-sonnet-5", "bedrock/claude-opus-5"
-# or "us.anthropic.claude-sonnet-5-20250929-v1:0" all match as well.
-# Older "claude-3-5-sonnet"-style names do not match (their digit group is
-# followed by another digit, not a letter family).
+
 _CLAUDE_MAJOR_VERSION_PATTERN = re.compile(
     r"claude-(?:[a-z]+-(\d+)|(\d+)-[a-z]+)", re.IGNORECASE
 )
-
-
-def is_claude_5_or_newer(model_name: str) -> bool:
-    """Whether the model is a 5th-generation or newer Claude model
-    (e.g. claude-sonnet-5, claude-opus-5, claude-sonnet-5.5).
-
-    Used as the integer-major floor of is_claude_4_6_or_newer(): a 5+ model
-    is newer than 4.6 even when its name carries no minor version.
-    """
-    if not model_name:
-        return False
-    match = _CLAUDE_MAJOR_VERSION_PATTERN.search(model_name.lower())
-    if not match:
-        return False
-    major = match.group(1) or match.group(2)
-    return int(major) >= 5
-
-
-# Matches "claude-<family>-<major><sep><minor>" and
-# "claude-<major><sep><minor>-<family>" in either separator style ("." or
-# "-"): claude-sonnet-4.6, claude-sonnet-4-6, claude-4.6-sonnet. The minor
-# group is a single digit so date-suffixed names like
-# claude-sonnet-4-20250514 do not parse as (4, 20250514). Matched with
-# re.search (not anchored), so provider-prefixed variants (aws-claude-sonnet-4-6,
-# anthropic/claude-opus-4.6, bedrock/claude-sonnet-4-6,
-# us.anthropic.claude-sonnet-4-6-20250929-v1:0) all work. Old-style
-# family-last names (claude-3-5-sonnet) parse as (3, 5).
 _CLAUDE_MAJOR_MINOR_VERSION_PATTERN = re.compile(
     r"claude-(?:[a-z]+-(\d+)[.-](\d)|(\d+)[.-](\d)-[a-z]+)", re.IGNORECASE
 )
 
 
-def is_claude_4_6_or_newer(model_name: str) -> bool:
-    """Whether the model is Claude 4.6 or newer (e.g. claude-sonnet-4.6,
-    claude-sonnet-4-6-20250929, claude-sonnet-5) — the first generation
-    with adaptive thinking (``thinking: {"type": "adaptive"}``).
+def is_claude_5_or_newer(model_name: str) -> bool:
+    """Recognize numbered Claude generations, including provider-qualified IDs."""
+    if not model_name:
+        return False
+    match = _CLAUDE_MAJOR_VERSION_PATTERN.search(model_name.lower())
+    if not match:
+        return False
+    return int(match.group(1) or match.group(2)) >= 5
 
-    Adaptive thinking is a Claude-exclusive capability; no other model
-    family supports it. Provider-prefixed variants (aws-claude-sonnet-4-6,
-    anthropic/claude-opus-4.6, bedrock/claude-..., us.anthropic.claude-...)
-    are handled by the search-based version pattern.
-    """
+
+def is_claude_4_6_or_newer(model_name: str) -> bool:
+    """Recognize models supporting Claude adaptive thinking."""
     if not model_name:
         return False
     match = _CLAUDE_MAJOR_MINOR_VERSION_PATTERN.search(model_name.lower())
@@ -427,91 +268,52 @@ def is_claude_4_6_or_newer(model_name: str) -> bool:
         major = int(match.group(1) or match.group(3))
         minor = int(match.group(2) or match.group(4))
         return (major, minor) >= (4, 6)
-    # Integer-major-only names (claude-sonnet-5, claude-5-sonnet): 5+ is
-    # newer than 4.6 anyway.
     return is_claude_5_or_newer(model_name)
 
 
-# Matches the major version in Kimi model names like "kimi-k3", "kimi-k2.6".
-# It is matched with re.search (not anchored), so provider-qualified names
-# like "moonshotai/kimi-k3" or "kimi-k2.6" all match as well.
-_KIMI_MAJOR_VERSION_PATTERN = re.compile(
-    r"kimi-k(\d+)", re.IGNORECASE
-)
+_KIMI_MAJOR_VERSION_PATTERN = re.compile(r"kimi-k(\d+)", re.IGNORECASE)
 
 
 def is_kimi_k3_or_newer(model_name: str) -> bool:
-    """Whether the model is a K3-generation or newer Kimi model
-    (e.g. kimi-k3).
-
-    The K3+ generation is what the effort handling keys off: it drives the
-    low/high/max reasoning_effort ladder in get_valid_reasoning_efforts()
-    (there is no "medium" level for this family).
-    """
+    """Recognize the Kimi generation with the low/high/max effort ladder."""
     if not model_name:
         return False
     match = _KIMI_MAJOR_VERSION_PATTERN.search(model_name.lower())
-    if not match:
-        return False
-    return int(match.group(1)) >= 3
+    return bool(match and int(match.group(1)) >= 3)
 
 
-# Matches the numbered GPT generation in names like "gpt-5.6-luna" or
-# "gpt-6-astra". It is matched with re.search (not anchored), so
-# provider-qualified names ("openai/gpt-5.6-luna", "azure/gpt-5.6-terra")
-# match as well. A bare "astra" alias carries no number and is handled
-# separately by _is_astra_alias().
 _GPT_MAJOR_VERSION_PATTERN = re.compile(
     r"(?:^|[^a-z0-9])gpt[-_]?(\d+)(?:[^0-9]|$)", re.IGNORECASE
 )
 
 
 def _gpt_major_version(model_name: str) -> Optional[int]:
-    """Extract the numbered GPT generation from a provider-qualified name."""
     match = _GPT_MAJOR_VERSION_PATTERN.search(model_name.lower())
     return int(match.group(1)) if match else None
 
 
 def _is_astra_alias(model_name: str) -> bool:
-    """Whether the name is Astra's unnumbered short alias (bare "astra").
-
-    Astra is registered as ``gpt-6-astra`` in MODEL_SETTING, but user-defined
-    configs may carry the bare short name; token-based matching
-    keeps unrelated names (e.g. "astral-projection") out.
-    """
     return "astra" in re.split(r"[-_.\s/]+", model_name.lower())
 
 
 def is_gpt_5_or_newer(model_name: str) -> bool:
-    """Whether the model is GPT-5 or a later numbered GPT generation
-    (gpt-5.6-luna, gpt-6-astra, ...), including Astra's unnumbered alias.
-
-    These models share one reasoning_effort ladder (low/medium/high/max),
-    so they are resolved together instead of depending on the default each
-    MODEL_SETTING entry happens to declare.
-    """
+    """Recognize GPT-5+ and Astra's unnumbered alias."""
     if not model_name:
         return False
     version = _gpt_major_version(model_name)
-    if version is not None:
-        return version >= 5
-    return _is_astra_alias(model_name)
+    return version >= 5 if version is not None else _is_astra_alias(model_name)
 
 
 def get_valid_reasoning_efforts(
-    model_name: str, model_default: Optional[str] = None
+    model_name: str, model_default: Optional[str] = None,
+    effort_choices: Optional[List[str]] = None,
 ) -> List[str]:
-    """Valid reasoning effort levels for a model (used by /effort validation).
-
-    Kimi K3+, DeepSeek and GLM-5.3+ support "low"/"high"/"max" (no "medium").
-    GLM-5.2 accepts only "high"/"max" ("low" arrives with GLM-5.3). Qwen
-    accepts "low"/"medium"/"xhigh" (no "high"). GPT-5-and-newer models
-    (gpt-5.x, gpt-6-astra) use the openai-protocol ladder, which keeps
-    "medium" and adds "max" beyond "high" — the same set for the whole
-    family, independent of the entry's own default. Claude models add
-    "xhigh"/"max" to the base low/medium/high. The model's own configured
-    default is always a valid choice.
-    """
+    """Return the explicit allowlist, or infer the model family's effort ladder."""
+    if effort_choices is None:
+        config = get_model_config(model_name)
+        effort_choices = config.effort_choices if config else None
+    if effort_choices is not None:
+        return list(effort_choices)
     if is_glm_5_3_or_newer(model_name):
         return ["low", "high", "max"]
     if is_glm_5_2_or_newer(model_name):
@@ -531,84 +333,33 @@ def get_valid_reasoning_efforts(
 
 
 def supports_extra_param(
-    supports: Optional[List[str]], param: str
+    supports: Optional[List[str]], param: str,
 ) -> Optional[bool]:
-    """Tri-state check for a model's support of an extra request parameter.
-
-    ``supports_extra_params`` is the catalogue's DECLARATION of which extra
-    request params a model accepts. Its absence (``None``) means the model's
-    capabilities are undeclared — e.g. a name missing from every catalogue,
-    synthesized by the provider-catalogue fallback (see
-    :func:`siada.provider.models_dev.get_provider_model_configs`) — which is
-    NOT the same as "unsupported": the gateway decides. Only a non-None
-    declaration that omits ``param`` is an explicit denial.
-
-    Returns:
-        True  — the model declares ``param`` as supported;
-        False — the model declares its capabilities and ``param`` is not
-                listed (an explicit "does not support");
-        None  — capabilities undeclared/unknown; callers must NOT treat this
-                as a denial — pass the value through and let the gateway judge.
-    """
-    if supports is None:
-        return None
-    return param in supports
+    """Return None for undeclared capabilities, rather than an explicit denial."""
+    return None if supports is None else param in supports
 
 
 def supports_image_input(supports: Optional[bool]) -> Optional[bool]:
-    """Tri-state check for a model's support of native image input.
-
-    ``supports_images`` is the catalogue's DECLARATION of whether a model
-    accepts image input. Its absence (``None``) means the model's
-    capabilities are undeclared — e.g. a name missing from every catalogue,
-    synthesized by the provider-catalogue fallback (see
-    :func:`siada.provider.models_dev.get_provider_model_configs`) — which is
-    NOT the same as "unsupported": the gateway decides. Only ``False`` is an
-    explicit denial.
-
-    Returns:
-        True  — the model declares native image input support;
-        False — the model declares its capabilities and rejects images;
-        None  — capabilities undeclared/unknown; callers must NOT treat this
-                as a denial — send the image and let the gateway judge.
-    """
-    if supports is None:
-        return None
-    return bool(supports)
+    """Return None for undeclared native image capabilities."""
+    return None if supports is None else bool(supports)
 
 
-# Ordinal strength of every known effort level; drives the cross-model
-# mapping in coerce_reasoning_effort(). Higher = more thinking.
 _EFFORT_STRENGTH = {"low": 0, "medium": 1, "high": 2, "xhigh": 3, "max": 4}
 
 
 def coerce_reasoning_effort(
-    model_name: str, effort: str, model_default: Optional[str] = None
+    model_name: str, effort: str, model_default: Optional[str] = None,
+    effort_choices: Optional[List[str]] = None,
 ) -> str:
-    """Map an effort level onto the levels the target model accepts.
-
-    Used when the user's reasoning-effort intent (set via /effort or
-    conf.yaml) must survive a model switch. Same-name levels pass through
-    unchanged (low→low, high→high, max→max); levels the target model does
-    not accept map to the nearest strength neighbour, ties resolving to the
-    STRONGER level:
-      * medium→high and xhigh→max on domestic low/high/max models
-        (Kimi K3+/DeepSeek/GLM-5.3+) — the default-tier alignment: "medium"
-        is the default abroad, "high" is the default at home;
-      * low→high on GLM-5.2 (no low before 5.3);
-      * high→xhigh and max→xhigh on Qwen (its strong tier is named xhigh);
-      * xhigh/max→high on plain low/medium/high models.
-
-    Unknown effort values fall back to the model's default (or "high").
-    """
-    valid = get_valid_reasoning_efforts(model_name, model_default)
+    """Map effort to the nearest supported strength, preferring stronger ties."""
+    valid = get_valid_reasoning_efforts(model_name, model_default, effort_choices)
     if effort in valid:
         return effort
-
     strength = _EFFORT_STRENGTH.get(effort)
     if strength is None:
-        return model_default or "high"
-
+        if model_default in valid:
+            return model_default
+        return "high" if "high" in valid else valid[-1]
     best: Optional[str] = None
     best_dist: Optional[int] = None
     for candidate in valid:
@@ -622,11 +373,12 @@ def coerce_reasoning_effort(
             or (dist == best_dist and cand_strength > _EFFORT_STRENGTH[best])
         ):
             best, best_dist = candidate, dist
-    return best or model_default or "high"
+    return best or (model_default if model_default in valid else valid[-1])
 
 
 def is_gemini_model(model_name: str) -> bool:
     return "gemini" in model_name.lower()
+
 
 def is_glm_model(model_name: str) -> bool:
     return "glm" in model_name.lower()
@@ -640,21 +392,13 @@ def is_qwen_model(model_name: str) -> bool:
     return "qwen" in model_name.lower()
 
 
-# Matches the GLM generation in bare or provider-qualified model names:
-# "glm-5.2", "zhipuai/glm-5.2", "openai/glm-5.4" and integer-only generations
-# such as "glm-6" (read as 6.0). The leading boundary keeps unrelated tokens
-# such as "xglm-5.3" out, and the trailing digit guard makes "glm-5.30" parse
-# as (5, 30) instead of a truncated (5, 3).
 _GLM_VERSION_PATTERN = re.compile(
     r"(?:^|[^a-z0-9])glm[-_]?(\d+)(?:\.(\d+))?(?![0-9])", re.IGNORECASE
 )
 
 
 def get_glm_version(model_name: Optional[str]) -> Optional[tuple[int, int]]:
-    """Return the ``(major, minor)`` GLM generation of a model name, or None.
-
-    A name without a minor version (e.g. ``glm-6``) reports minor 0.
-    """
+    """Return the GLM major/minor generation; an omitted minor means zero."""
     if not model_name:
         return None
     match = _GLM_VERSION_PATTERN.search(str(model_name).lower())
@@ -669,69 +413,29 @@ def _glm_version_at_least(model_name: str, major: int, minor: int) -> bool:
 
 
 def is_glm_5_2_or_newer(model_name: str) -> bool:
-    """Whether the model is GLM-5.2+ — the first generation supporting the
-    reasoning_effort request field."""
     return _glm_version_at_least(model_name, 5, 2)
 
 
 def is_glm_5_3_or_newer(model_name: str) -> bool:
-    """Whether the model is GLM-5.3+ (incl. GLM-5.3-FLASH) — the first
-    generation accepting "low" as a reasoning_effort value."""
     return _glm_version_at_least(model_name, 5, 3)
 
 
 def set_user_model_settings(user_models: List[ModelBaseConfig]) -> None:
-    """
-    Set user-defined model settings. This will be used when provider is 'default'.
-    
-    Args:
-        user_models: List of user-defined model configurations
-    """
+    """Install the user's authoritative in-memory model catalog."""
     global _user_model_settings
     _user_model_settings = user_models
 
 
 def get_model_settings() -> List[ModelBaseConfig]:
-    """
-    Get the current model settings list, by priority:
-
-    1. User-defined settings (models.json / API-key provider models, set via
-       set_user_model_settings) — users who bring their own key or model list
-       keep full control.
-    2. Built-in MODEL_SETTING defaults.
-
-    Returns:
-        List of ModelBaseConfig
-    """
-    if _user_model_settings is not None:
-        return _user_model_settings
-    return MODEL_SETTING
+    """Prefer user models over the built-in public catalog."""
+    return _user_model_settings if _user_model_settings is not None else MODEL_SETTING
 
 
 def get_model_config(model_name: str) -> Optional[ModelBaseConfig]:
-    """
-    Retrieves the configuration for a given model name.
-
-    The lookup runs against get_model_settings(): user-defined settings
-    (models.json / own key) take priority; otherwise the built-in
-    MODEL_SETTING list applies.
-
-    Args:
-        model_name: The name of the model to retrieve.
-
-    Returns:
-        A ModelSettings instance if the model is found, otherwise None.
-    """
-    # Check if model_name is None or empty
+    """Find an exact name in the active local catalog."""
     if not model_name:
         raise ValueError("Model name cannot be None or empty")
-
-    # Get the model settings list (user-defined settings or the built-in defaults)
-    model_settings = get_model_settings()
-
-    # Only exact match
-    for model_config in model_settings:
+    for model_config in get_model_settings():
         if model_config.model_name == model_name:
             return model_config
-
     return None

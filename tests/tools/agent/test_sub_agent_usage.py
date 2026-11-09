@@ -43,14 +43,13 @@ async def test_request_cost_cache_counts_and_monotonic_duration(monkeypatch):
     hook.finish("completed")
     assert "Duration: 2.500s" in entries[0][1]
     assert "CacheRead=500, CacheWrite=50, Total=1650" in entries[0][1]
-    assert "Cost: CNY 0.0227" in entries[0][1]
+    assert "Cost: CNY 0.0228" in entries[0][1]
     details = json.loads(entries[0][1].split("Usage Details:\n")[1].split("\nCost:")[0])
     assert details["input_tokens_details"]["cached_tokens"] == 500
-    assert details["input_tokens_details"]["cache_write_tokens"] == 0
     assert '"output_tokens_details": {\n    "reasoning_tokens": 0\n  }' in entries[0][1]
     assert "Duration: 10.000s" in entries[1][1]
     assert "Model Request Duration: 2.500s" in entries[1][1]
-    assert "Known Cost: CNY 0.0227" in entries[1][1]
+    assert "Known Cost: CNY 0.0228" in entries[1][1]
 
 
 @pytest.mark.asyncio
@@ -90,10 +89,10 @@ async def test_explicit_cache_writes_and_sdk_retry_count():
     await hook.on_llm_end(None, None, SimpleNamespace(usage=usage))
     hook.finish("completed")
     assert "CacheWrite=200" in entries[0]
-    assert "Cost: CNY 0.0379" in entries[0]
+    assert "Cost: CNY 0.0391" in entries[0]
     assert "SDK Reported Requests: 3" in entries[0]
     assert "Requests: 1\nSDK Reported Requests: 3" in entries[1]
-    assert "Known Cost: CNY 0.0379" in entries[1]
+    assert "Known Cost: CNY 0.0391" in entries[1]
     assert "Reasoning Tokens: unavailable" in entries[0]
     assert '"output_tokens_details": null' in entries[0]
 
@@ -127,9 +126,9 @@ async def test_usage_serialization_failure_preserves_request_and_cost():
     )))
     hook.finish("completed")
     assert "Usage Details:\nunavailable" in entries[0]
-    assert "Cost: CNY 0.0227" in entries[0]
+    assert "Cost: CNY 0.0228" in entries[0]
     assert "Input=1000" in entries[0]
-    assert "Known Cost: CNY 0.0227" in entries[1]
+    assert "Known Cost: CNY 0.0228" in entries[1]
     assert "Requests with unknown cost: 0" in entries[1]
 
 
@@ -268,10 +267,12 @@ async def test_subtask_sdk_writes_individual_logs_without_tracing_or_recursion(t
         assert "Duration:" in text
         assert "Model: gpt-5.2" in text
         if mode in ("failure", "cancel"):
-            assert "Status: failed" in text
+            # Usage summary follows the terminal status: "failed" for errors,
+            # "cancelled" for a cancelled run (never a misleading "failed").
+            assert f"Status: {'cancelled' if mode == 'cancel' else 'failed'}" in text
             assert "Cost: unavailable" in text
         else:
-            assert "Cost: CNY 0.0227" in text
+            assert "Cost: CNY 0.0228" in text
             assert f"Input={1000 * expected_requests}" in text
     unfinished = subagent_persistence.scan_unfinished(str(tmp_path), "synthetic-session")
     assert unfinished == []

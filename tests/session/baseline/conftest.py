@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import importlib
 import json
-import os
 import socket
 from collections import deque
 from pathlib import Path
@@ -43,11 +42,6 @@ from siada.session.session_models import RunningSession
 from siada.utils import DirectoryUtils
 
 capture = importlib.import_module("siada.agent_hub.context_filter.context_capture_filter")
-estimator = importlib.import_module("siada.agent_hub.context_filter.request_token_estimator")
-
-# litellm is imported lazily by the context filters and would otherwise fetch
-# its model-cost map over the network on first use. Keep the suite offline.
-os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
 
 def text_message(text: str, message_id: str = "message-final") -> ResponseOutputMessage:
@@ -176,6 +170,7 @@ class BaselineHarness:
             session_id=session_id,
             sessions_dir=DirectoryUtils.get_global_sessions_dir(str(workspace)),
             project_root=str(workspace),
+            model_name=config.llm_config.model_name,
         )
         return session
 
@@ -249,13 +244,7 @@ def baseline(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(capture, "_CONTEXT_FILTERS", None)
     monkeypatch.setattr(transfer, "calculate_tokens", lambda _, value, **kwargs: len(value) * 10)
-    # The request estimator binds the tokenizer at import time.
-    monkeypatch.setattr(estimator, "calculate_tokens", lambda _, value, **kwargs: len(value) * 10)
-    # The per-request dynamic window resolver is private-only; skip it here.
-    monkeypatch.setattr(
-        transfer.ApiMessageTransferFilter, "_resolve_effective_context_window",
-        lambda _: None, raising=False,
-    )
+    monkeypatch.setattr(transfer.ApiMessageTransferFilter, "_resolve_effective_context_window", lambda _: None)
     from siada.services.memory import combined_memory, memory_update
 
     monkeypatch.setattr(memory_update, "get_memory_scheduler", lambda _: None)

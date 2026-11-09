@@ -7,7 +7,7 @@ export { ClientConfig } from './config';
 
 export type MessageType = 'user' | 'agent' | 'system' | 'error' | 'tool';
 
-export type AgentMessageSubtype = 'thinking' | 'tool_use' | 'answer' | 'process' | 'shell' | 'goal_result';
+export type AgentMessageSubtype = 'thinking' | 'tool_use' | 'answer' | 'process' | 'shell' | 'goal_result' | 'error' | 'error_box' | 'hook' | 'slash_command_result';
 
 
 export interface Message {
@@ -20,9 +20,12 @@ export interface Message {
   fileEdits?: FileEdit[];
   metadata?: {
     subtype?: AgentMessageSubtype;
+    hookEvent?: string;
+    hookStatus?: 'notification' | 'blocked' | 'stopped';
     blockType?: string;
     conversationId?: string;
     streamStartId?: string;         // Start ID of streaming message, used for stable React keys
+    messageId?: string;             // Backend message identity within a model response
     isSplitContent?: boolean;      // Marks this as a split message fragment
     splitIndex?: number;            // Index of the split fragment (0, 1, 2...)
     isLastSplit?: boolean;          // Whether this is the last fragment
@@ -68,6 +71,12 @@ export interface ACPEvent {
   type: string;
   data: any;
   timestamp: string;
+}
+
+export interface ACPStreamEnd {
+  messageId: string;
+  messageType: string;
+  totalContent: string;
 }
 
 export interface ShellExecution {

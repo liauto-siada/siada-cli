@@ -76,6 +76,47 @@ def test_signature_logs_counting_info_source_and_protocol(token_request, caplog,
     assert "Synthetic sensitive instructions" not in caplog.text
 
 
+@pytest.mark.parametrize("protocol", ["chat", "responses", "gemini"])
+@pytest.mark.parametrize("incremental", [False, True])
+def test_request_counts_follow_actual_protocol_not_configured_name(token_request, monkeypatch, protocol, incremental):
+    from siada.agent_hub.context_filter import utils
+    from siada.provider.gemini import counting
+
+    context, agent, items = token_request
+    info = token_counting.TokenCountingInfo("opaque-wire-alias", protocol)
+    context.runtime_session.token_counting_info = info
+    context.model_run_config.model_name = "google/gemini-3.5-flash"
+    counter = Mock(return_value=100)
+    native_counter = Mock(return_value=200)
+    monkeypatch.setattr(utils, "_calculate_tokens", counter)
+    monkeypatch.setattr(counting, "estimate_input_tokens", native_counter)
+    if incremental:
+        context.session.state.context_token_baseline = estimator.RequestTokenBaseline.from_response(
+            estimator.request_token_signature(context, agent, "# Test"), items,
+            Usage(requests=1, input_tokens=900, output_tokens=100, total_tokens=1000),
+            session_id=context.session_id,
+        )
+    else:
+        context.session.state.context_token_baseline = None
+    delta = [{"role": "user", "content": "continue"}]
+    budget = 220 if protocol == "gemini" else 110
+    expected_tokens = (
+        1000 + budget if incremental else budget * (3 if protocol == "responses" else 2)
+    )
+    diagnostics = {}
+    assert estimator.estimate_request_tokens(context, agent, items + delta, "# Test", diagnostics=diagnostics) == expected_tokens
+    assert diagnostics == {
+        "tokens": expected_tokens,
+        "token_mode": "delta_only" if incremental else "recount_all",
+        "protocol": protocol,
+    }
+    if protocol == "gemini":
+        counter.assert_not_called()
+    else:
+        native_counter.assert_not_called()
+        assert all(call.args[0] == info.model_name for call in counter.call_args_list)
+
+
 def test_unavailable_signature_still_logs_selected_counting_info(token_request, caplog):
     context, agent, _ = token_request
     info = token_counting.TokenCountingInfo("glm-test", unavailable_reason="opaque_processor")
@@ -90,13 +131,180 @@ def test_unavailable_signature_still_logs_selected_counting_info(token_request, 
     assert "Synthetic sensitive instructions" not in caplog.text
 
 
+@pytest.mark.parametrize("reason", ["opaque_processor", "remote_prompt", "dynamic_tool", "request_override"])
+def test_unavailable_signature_reason_is_visible_at_info(token_request, caplog, reason):
+    context, agent, _ = token_request
+    caplog.set_level(logging.INFO, logger=__name__)
+    context.runtime_session.request_identity = "synthetic-request:request:0"
+    if reason == "opaque_processor":
+        context.runtime_session.token_counting_info = token_counting.TokenCountingInfo("glm-test", unavailable_reason=reason)
+    elif reason == "remote_prompt":
+        agent.prompt = {"id": "synthetic-sensitive-prompt"}
+    elif reason == "dynamic_tool":
+        agent.tools = [SimpleNamespace(is_enabled=lambda: True)]
+    else:
+        agent.model_settings = ModelSettings(extra_body={"instructions": "synthetic sensitive override"})
+    caplog.clear()
+
+    assert estimator.request_token_signature(context, agent, "synthetic sensitive instructions") is None
+
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelno == logging.INFO
+    assert f"session=synthetic-session request=synthetic-request:request:0 status=unavailable reason={reason}" in record.getMessage()
+    assert "sensitive" not in caplog.text
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_mcp_schema_is_deferred_without_disabling_signature_or_warm_budget(token_request, monkeypatch, caplog, native):
+    context, agent, items = token_request
+    context.runtime_session.token_counting_info = token_counting.TokenCountingInfo(
+        "glm-test", "responses" if native else "chat",
+    )
+    signature = estimator.request_token_signature(context, agent, "# Test")
+    server = Mock()
+    agent.mcp_servers = [server]
+    assert estimator.request_token_signature(context, agent, "# Test") == signature
+    agent.mcp_servers = [server, Mock()]
+    assert estimator.request_token_signature(context, agent, "# Test") == signature
+    server.list_tools.assert_not_called()
+    context.session.state.context_token_baseline = estimator.RequestTokenBaseline.from_response(
+        signature, items, Usage(requests=1, input_tokens=900, output_tokens=100, total_tokens=1000),
+        session_id=context.session_id,
+    )
+    counter = Mock(return_value=25)
+    monkeypatch.setattr(estimator, "calculate_tokens", counter)
+    assert estimator.estimate_request_tokens(context, agent, items + [{"role": "user", "content": "next"}], "# Test") == 1025
+    counter.assert_called_once()
+    assert "reason=mcp_schema_counting_deferred" in caplog.text
+    assert "excluded_scope=mcp_schemas signature_covers_mcp=False estimate_covers_mcp=False" in caplog.text
+    agent.prompt = {"id": "synthetic-prompt"}
+    assert estimator.request_token_signature(context, agent, "# Test") is None
+    assert "reason=remote_prompt" in caplog.text
+
+
+@pytest.mark.parametrize("protocol, expected", [("chat", 506_029), ("responses", 759_043)])
+@pytest.mark.parametrize("model_name", ["gpt-6-synthetic", "glm-test"])
+@pytest.mark.parametrize("signature_available", [False, True])
+def test_only_responses_full_recounts_receive_additional_buffer(
+    token_request, monkeypatch, caplog, protocol, expected, model_name, signature_available,
+):
+    context, agent, items = token_request
+    context.session.state.context_token_baseline = None
+    context.runtime_session.token_counting_info = token_counting.TokenCountingInfo(
+        model_name, protocol, unavailable_reason=None if signature_available else "opaque_processor",
+    )
+    counter = Mock(side_effect=[506_019, 10])
+    monkeypatch.setattr(estimator, "calculate_tokens", counter)
+    assert estimator.estimate_request_tokens(context, agent, items, "# Test") == expected
+    assert counter.call_count == 2
+    assert f"protocol={protocol}" in caplog.text
+    assert f"pre_buffer_tokens=506029 buffer_tokens={expected - 506_029} buffer_factor={'1.5' if protocol == 'responses' else '1.0'}" in caplog.text
+    assert "conservative_responses_reasoning_buffer" in caplog.text if protocol == "responses" else "buffer_reason=none" in caplog.text
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+def test_responses_buffer_preserves_existing_counter_safety_margin(token_request, monkeypatch, caplog, fallback):
+    from siada.agent_hub.context_filter import utils
+
+    context, agent, items = token_request
+    context.session.state.context_token_baseline = None
+    context.runtime_session.token_counting_info = token_counting.TokenCountingInfo("glm-test", "responses")
+    monkeypatch.setattr(estimator, "calculate_tokens", utils.calculate_tokens)
+    if fallback:
+        monkeypatch.setattr(utils, "_calculate_tokens", Mock(side_effect=ValueError("synthetic failure")))
+    else:
+        monkeypatch.setattr(utils, "_calculate_tokens", Mock(return_value=1000))
+    before = utils.calculate_tokens("glm-test", items) + utils.calculate_tokens("glm-test", "# Test")
+    assert estimator.estimate_request_tokens(context, agent, items, "# Test") == before * 3 // 2
+    if not fallback:
+        assert before == 2200
+        assert "raw_tokens=2000 safety_tokens=200 budget_tokens=3300" in caplog.text
+    else:
+        assert "char_fallback" in caplog.text
+
+
+def test_reasoning_profile_counts_items_and_carrier_lengths_without_logging_content(token_request, monkeypatch, caplog):
+    context, agent, _ = token_request
+    context.session.state.context_token_baseline = None
+    context.runtime_session.token_counting_info = token_counting.TokenCountingInfo("glm-test", "responses")
+    items = [
+        {"type": "reasoning", "encrypted_content": "synthetic-secret-carrier", "summary": [
+            {"type": "summary_text", "text": "synthetic secret thought"},
+        ]},
+        {"type": "reasoning", "encrypted_content": "abcd", "summary": []},
+        {"role": "user", "content": 'quoted {"type":"reasoning","encrypted_content":"not-a-carrier"}'},
+    ]
+    monkeypatch.setattr(estimator, "calculate_tokens", Mock(return_value=10))
+    assert estimator.estimate_request_tokens(context, agent, items, "# Test") == 30
+    assert "reasoning_items=2 encrypted_content_chars=28" in caplog.text
+    assert "synthetic-secret-carrier" not in caplog.text
+    assert "synthetic secret thought" not in caplog.text
+    assert "not-a-carrier" not in caplog.text
+
+
+def test_input_profile_counts_images_without_decoding_or_parsing_user_text():
+    inline_url = "data:image/jpeg;base64,synthetic-sensitive-image"
+    text = 'synthetic sensitive text quoting {"type":"image_url"}'
+    original = [
+        {"role": "user", "content": [
+            {"type": "input_text", "text": text},
+            {"type": "input_image", "image_url": inline_url},
+            {"type": "image_url", "image_url": {"url": "https://synthetic.invalid/sensitive.png"}},
+            {"type": "input_image", "file_id": "synthetic-sensitive-file"},
+        ]},
+        {"type": "function_call_output", "output": [
+            {"type": "input_image", "image_url": inline_url},
+            {"type": "input_text", "text": "tool text"},
+        ]},
+        {"type": "reasoning", "summary": [{"type": "summary_text", "text": "reasoning text"}]},
+    ]
+    before = copy.deepcopy(original)
+
+    profile = estimator._input_content_profile(original)
+
+    assert profile == dict(
+        image_blocks=4, inline_image_chars=2 * len(inline_url), referenced_images=2,
+        text_chars=len(text) + len("tool text") + len("reasoning text"), max_text_chars=len(text),
+        reasoning_items=1, encrypted_content_chars=0,
+    )
+    assert original == before
+
+
+@pytest.mark.parametrize("incremental", [False, True])
+def test_info_budget_logs_image_profile_with_explicit_scope(token_request, monkeypatch, caplog, incremental):
+    context, agent, items = token_request
+    caplog.set_level(logging.INFO, logger=__name__)
+    inline_url = "data:image/png;base64,synthetic-sensitive-image"
+    delta = [{"role": "user", "content": [
+        {"type": "input_text", "text": "synthetic sensitive text"},
+        {"type": "input_image", "image_url": inline_url},
+    ]}]
+    if not incremental:
+        context.session.state.context_token_baseline = None
+    profile = Mock(wraps=estimator._input_content_profile)
+    monkeypatch.setattr(estimator, "_input_content_profile", profile)
+    monkeypatch.setattr(estimator, "calculate_tokens", Mock(return_value=25))
+    caplog.clear()
+
+    assert estimator.estimate_request_tokens(context, agent, items + delta, "# Test") == (1025 if incremental else 50)
+
+    profile.assert_called_once_with(delta if incremental else items + delta)
+    effective = next(record for record in caplog.records if "[CTX-BUILD][effective]" in record.getMessage())
+    assert effective.levelno == logging.INFO
+    assert f"input_scope={'delta' if incremental else 'all_items'} image_blocks=1 inline_image_chars={len(inline_url)} referenced_images=0" in effective.getMessage()
+    assert "max_text_chars=24" in effective.getMessage()
+    assert "synthetic sensitive" not in caplog.text
+    assert "synthetic-sensitive-image" not in caplog.text
+
+
 def test_incremental_counts_only_post_response_additions_without_tools_or_instructions(token_request, monkeypatch, caplog):
     context, agent, items = token_request
     delta = [{"role": "user", "content": "continue"}]
     counter = Mock(return_value=25)
     monkeypatch.setattr(estimator, "calculate_tokens", counter)
     assert estimator.estimate_request_tokens(context, agent, items + delta, "# Test") == 1025
-    counter.assert_called_once_with("glm-test", delta, diagnostics={})
+    counter.assert_called_once_with("glm-test", delta, diagnostics={}, counting_info=estimator._request_counting_info(context, agent))
     assert context.session.state.usage is None
     assert context.session.state.context_token_baseline.input_tokens == 900
     assert context.session.state.context_token_baseline.response_tokens == 100
@@ -162,7 +370,7 @@ def test_invalid_anchor_falls_back_to_full_count(token_request, monkeypatch, cap
     assert estimator.estimate_request_tokens(context, agent, items, instructions) == 310
     model_name = estimator.request_token_model_name(context, agent)
     assert counter.call_args_list[0].args == (model_name, items)
-    assert counter.call_args_list[0].kwargs == {"tools": agent.tools, "diagnostics": {}}
+    assert counter.call_args_list[0].kwargs == {"tools": agent.tools, "diagnostics": {}, "counting_info": estimator._request_counting_info(context, agent)}
     assert counter.call_args_list[1].args == (model_name, instructions)
     assert context.session.state.context_token_baseline is None
     reasons = {
@@ -279,7 +487,7 @@ def test_server_total_includes_reasoning_and_only_new_input_is_estimated(token_r
     delta = [{"role": "user", "content": "continue"}]
     counter.return_value = 25
     assert estimator.estimate_request_tokens(context, agent, items + delta, "# Test") == 6925
-    counter.assert_called_once_with("glm-test", delta, diagnostics={})
+    counter.assert_called_once_with("glm-test", delta, diagnostics={}, counting_info=estimator._request_counting_info(context, agent))
 
 
 @pytest.mark.parametrize("field", ["input_tokens", "output_tokens", "total_tokens"])
@@ -335,7 +543,7 @@ def test_output_only_settings_keep_delta_estimation(token_request, monkeypatch, 
     monkeypatch.setattr(estimator, "calculate_tokens", counter)
     delta = [{"role": "user", "content": "continue"}]
     assert estimator.estimate_request_tokens(context, agent, items + delta, "# Test") == 1025
-    counter.assert_called_once_with("glm-test", delta, diagnostics={})
+    counter.assert_called_once_with("glm-test", delta, diagnostics={}, counting_info=estimator._request_counting_info(context, agent))
     assert context.session.state.context_token_baseline is baseline
 
 
@@ -404,7 +612,7 @@ def test_counting_semantics_invalidate_anchor(token_request, monkeypatch, change
     assert estimator.request_token_signature(context, agent, "# Test") != baseline.signature
     counter = Mock(return_value=10)
     monkeypatch.setattr(estimator, "calculate_tokens", counter)
-    assert estimator.estimate_request_tokens(context, agent, items, "# Test") == 20
+    assert estimator.estimate_request_tokens(context, agent, items, "# Test") == (30 if change == "protocol" else 20)
     assert counter.call_count == 2
 
 
@@ -463,7 +671,7 @@ def test_effective_wire_schema_changes_invalidate_anchor(token_request, monkeypa
     assert estimator.request_token_signature(context, agent, "# Test") != signature
     counter = Mock(return_value=10)
     monkeypatch.setattr(estimator, "calculate_tokens", counter)
-    assert estimator.estimate_request_tokens(context, agent, items, "# Test") == 20
+    assert estimator.estimate_request_tokens(context, agent, items, "# Test") == (30 if native else 20)
     assert counter.call_count == 2
     assert context.session.state.context_token_baseline is None
 
@@ -553,7 +761,7 @@ def test_untracked_reasoning_replay_policy_cannot_reuse_anchor(token_request, ca
 
 
 @pytest.mark.parametrize("unsupported", ["processor", "registered_processor", "dynamic_tool", "dynamic_handoff",
-                                       "mcp", "prompt", "computer", "duplicate_tool", "duplicate_handoff",
+                                       "prompt", "computer", "duplicate_tool", "duplicate_handoff",
                                        "hosted_chat_tool", "schema"])
 def test_opaque_or_unresolved_inputs_fall_back_safely(token_request, monkeypatch, caplog, unsupported):
     context, agent, items = token_request
@@ -568,8 +776,6 @@ def test_opaque_or_unresolved_inputs_fall_back_safely(token_request, monkeypatch
         agent.tools = [tool]
     elif unsupported == "dynamic_handoff":
         agent.handoffs = [handoff(Agent(name="synthetic-target"), is_enabled=lambda context, agent: True)]
-    elif unsupported == "mcp":
-        agent.mcp_servers = [object()]
     elif unsupported == "prompt":
         agent.prompt = {"id": "synthetic-prompt"}
     elif unsupported == "computer":
@@ -593,7 +799,7 @@ def test_opaque_or_unresolved_inputs_fall_back_safely(token_request, monkeypatch
     reasons = {
         "processor": "opaque_processor", "registered_processor": "opaque_processor",
         "dynamic_tool": "dynamic_tool", "dynamic_handoff": "dynamic_handoff",
-        "mcp": "mcp_tools", "prompt": "remote_prompt", "computer": "unresolved_computer_schema",
+        "prompt": "remote_prompt", "computer": "unresolved_computer_schema",
         "duplicate_tool": "duplicate_tool_name", "duplicate_handoff": "duplicate_tool_name",
         "hosted_chat_tool": "unsupported_schema", "schema": "unsupported_schema",
     }

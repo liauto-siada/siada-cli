@@ -49,7 +49,7 @@ def _human(text="fix the failing test"):
     return {"role": "user", "content": text}
 
 
-def _context(model_name="zhipuai/glm-5.3", is_subagent=False):
+def _context(model_name="lpai-glm-5.3", is_subagent=False):
     context = CodeAgentContext()
     context.is_subagent = is_subagent
     openai_session = SimpleNamespace(add_items=AsyncMock())
@@ -163,8 +163,8 @@ def test_reminder_text_escapes_the_tool_name():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("model_name", [
-    "zhipuai/glm-5.2", "baidu-glm-5.2-flash", "glm-5.2",
-    "zhipuai/glm-5.3", "baidu-glm-5.3-flash", "glm-5.3", "glm-5.4",
+    "lpai-glm-5.2", "baidu-glm-5.2-flash", "glm-5.2",
+    "lpai-glm-5.3", "baidu-glm-5.3-flash", "glm-5.3", "glm-5.4",
 ])
 async def test_injects_one_hidden_user_reminder_after_the_tool_result(model_name):
     context, _ = _context(model_name)
@@ -190,14 +190,14 @@ async def test_injects_one_hidden_user_reminder_after_the_tool_result(model_name
 @pytest.mark.parametrize(
     "model_name, agent, is_subagent",
     [
-        ("z-ai/glm-5.1", _agent(), False),
+        ("kivy-glm-5.1", _agent(), False),
         ("claude-sonnet-5", _agent(), False),
-        ("zhipuai/glm-5.2", _agent(name="ReviewFixtureAgent"), False),
-        ("zhipuai/glm-5.2", _agent(), True),
-        ("zhipuai/glm-5.3", _agent(name="ReviewFixtureAgent"), False),
-        ("zhipuai/glm-5.3", _agent(), True),
+        ("lpai-glm-5.2", _agent(name="GerritIssueFixAgent"), False),
+        ("lpai-glm-5.2", _agent(), True),
+        ("lpai-glm-5.3", _agent(name="GerritIssueFixAgent"), False),
+        ("lpai-glm-5.3", _agent(), True),
         # Tool that is not registered for this run.
-        ("zhipuai/glm-5.3", _agent(tools=("edit_file",)), False),
+        ("lpai-glm-5.3", _agent(tools=("edit_file",)), False),
     ],
     ids=["glm-5.1", "other-family", "glm-5.2-other-agent", "glm-5.2-sub-agent",
          "other-agent", "sub-agent", "unregistered-tool"],
@@ -213,7 +213,7 @@ async def test_gating(model_name, agent, is_subagent):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("model_name", ["zhipuai/glm-5.2", "zhipuai/glm-5.3"])
+@pytest.mark.parametrize("model_name", ["lpai-glm-5.2", "lpai-glm-5.3"])
 async def test_obsolete_switch_does_not_disable_the_reminder(monkeypatch, model_name):
     monkeypatch.setenv("SIADA_GLM_REPEATED_TOOL_REMINDER", "off")
     context, _ = _context(model_name)

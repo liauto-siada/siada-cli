@@ -91,7 +91,15 @@ def get_parser(default_config_files, git_root):
 
     ##########
     group = parser.add_argument_group("prompt config")
-    group.add_argument(
+    prompt_group = group.add_mutually_exclusive_group()
+    prompt_group.add_argument(
+        "initial_prompt",
+        metavar="MESSAGE",
+        nargs="?",
+        default=None,
+        help="Open the interactive UI and submit MESSAGE as the first user message",
+    )
+    prompt_group.add_argument(
         "--prompt",
         "-p",
         metavar="PROMPT",
@@ -164,11 +172,11 @@ def get_parser(default_config_files, git_root):
 
     group.add_argument(
         "--provider",
-        choices=["openrouter", "default"],
+        choices=["default"],
         default=None,
         help=(
             "Specify the provider to use for the main chat "
-            "(choices: openrouter, default). "
+            "(choice: default; default: default). "
             "Responses-only models (e.g. gpt-5.x) are routed to the native "
             "OpenAI Responses API inside the provider automatically."
         ),
@@ -176,6 +184,15 @@ def get_parser(default_config_files, git_root):
     )
 
     group = parser.add_argument_group("Output settings")
+    group.add_argument(
+        "--no-alt-screen",
+        action="store_true",
+        default=False,
+        help=(
+            "Append output to terminal scrollback without alternate screen or mouse capture "
+            "(can also be enabled with ui.no_alt_screen: true in conf.yaml)"
+        ),
+    )
     group.add_argument(
         "--theme",
         type=lambda value: "dark" if value == "auto" else value,
@@ -224,27 +241,19 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--logout",
         action="store_true",
-        help="Sign out and clear the stored provider API key from conf.yaml",
+        help="Sign out and clear stored credentials",
         default=False,
     )
     group.add_argument(
         "--user-id",
         metavar="USER_ID",
-        help=(
-            "Deprecated, not supported: this build authenticates with a provider "
-            "API key, not LiId/domain-account credentials. Configure a key via "
-            "--set-env API_KEY=... (with BASE_URL) or the login prompt."
-        ),
+        help="Set the user ID (domain account) and save to conf.yaml",
         default=None,
     )
     group.add_argument(
         "--access-token",
         metavar="ACCESS_TOKEN",
-        help=(
-            "Deprecated, not supported: this build authenticates with a provider "
-            "API key, not LiId/domain-account credentials. Configure a key via "
-            "--set-env API_KEY=... (with BASE_URL) or the login prompt."
-        ),
+        help="Set the access token (siada_api_key) and save to conf.yaml",
         default=None,
     )
 
@@ -391,7 +400,7 @@ def get_parser(default_config_files, git_root):
         metavar="REPO",
         help="Install the chrome-acp browser proxy + Chrome extension and start the proxy. "
              "Optional value: chrome-acp repo path (already built); omit to download the "
-             "matching platform package from GitHub Releases. Same as `siada-browser setup [repo]`.",
+             "matching GitHub release. Same as `siada-browser setup [repo]`.",
     )
 
     group.add_argument(
@@ -442,8 +451,43 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--browser-base-url",
         metavar="URL",
-        help="Override the HTTPS release directory used by --browser-setup (contains browser-manifest.json)",
+        help="Override the HTTPS release base URL used by --browser-setup when downloading artifacts",
         default=None,
+    )
+
+    ##########
+    group = parser.add_argument_group("Headroom proxy integration")
+
+    group.add_argument(
+        "--headroom",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable headroom proxy integration (one-click startup). Starts a "
+            "local `headroom proxy`, waits until it is healthy, routes LLM "
+            "traffic through it, and cleans up on exit."
+        ),
+    )
+
+    group.add_argument(
+        "--no-headroom",
+        action="store_true",
+        default=False,
+        help="Explicitly disable headroom proxy integration (overrides conf.yaml).",
+    )
+
+    group.add_argument(
+        "--headroom-port",
+        type=int,
+        default=None,
+        help="Headroom proxy port (default: 8787 or value from conf.yaml).",
+    )
+
+    group.add_argument(
+        "--headroom-budget",
+        type=float,
+        default=None,
+        help="Headroom USD budget limit (default: from conf.yaml).",
     )
 
     return parser
@@ -484,6 +528,10 @@ class SiadaArgs:
     @property
     def prompt(self):
         return self._get('prompt', None)
+
+    @property
+    def initial_prompt(self) -> str | None:
+        return self._get('initial_prompt', None)
 
     @property
     def resume(self):
@@ -639,6 +687,23 @@ class SiadaArgs:
     @property
     def no_daemon(self) -> bool:
         return self._get('no_daemon', False)
+
+    # Headroom proxy integration
+    @property
+    def headroom(self) -> bool:
+        return self._get('headroom', False) or False
+
+    @property
+    def no_headroom(self) -> bool:
+        return self._get('no_headroom', False) or False
+
+    @property
+    def headroom_port(self):
+        return self._get('headroom_port', None)
+
+    @property
+    def headroom_budget(self):
+        return self._get('headroom_budget', None)
 
     # Browser proxy (chrome-acp)
     @property

@@ -1,5 +1,605 @@
 {
-  "claude-sonnet-4-6|default": {
+  "bailian-glm-5.3|default": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-glm-5.3|effort_low": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "low",
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-glm-5.3|effort_low_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "low",
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-glm-5.3|effort_max": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-glm-5.3|no_reasoning": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-glm-5.3|thinking_off": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "low",
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-glm-5.3|thinking_off_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "low",
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-glm-5.3|tokens_2048": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-glm-5.3|tokens_neg1": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-glm-5.3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|default": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "max"
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|effort_low": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "low"
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|effort_low_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "enable_thinking": true,
+      "reasoning_effort": "low"
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|effort_max": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "max"
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|no_reasoning": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|thinking_off": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|thinking_off_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|tokens_2048": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "enable_thinking": true
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "bailian-kimi-k3|tokens_neg1": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "bailian-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "claude-sonnet-4.6|default": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -15,7 +615,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "output_config": {
       "effort": "high"
     },
@@ -35,7 +635,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "claude-sonnet-4-6|effort_low": {
+  "claude-sonnet-4.6|effort_low": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -51,7 +651,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "output_config": {
       "effort": "low"
     },
@@ -71,7 +671,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "claude-sonnet-4-6|effort_low_tokens": {
+  "claude-sonnet-4.6|effort_low_tokens": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -87,7 +687,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "output_config": {
       "effort": "low"
     },
@@ -107,7 +707,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "claude-sonnet-4-6|effort_max": {
+  "claude-sonnet-4.6|effort_max": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -123,7 +723,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "output_config": {
       "effort": "max"
     },
@@ -143,7 +743,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "claude-sonnet-4-6|no_reasoning": {
+  "claude-sonnet-4.6|no_reasoning": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -159,7 +759,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": "high",
@@ -176,7 +776,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "claude-sonnet-4-6|thinking_off": {
+  "claude-sonnet-4.6|thinking_off": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -192,7 +792,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -208,7 +808,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "claude-sonnet-4-6|thinking_off_tokens": {
+  "claude-sonnet-4.6|thinking_off_tokens": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -224,7 +824,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -240,7 +840,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "claude-sonnet-4-6|tokens_2048": {
+  "claude-sonnet-4.6|tokens_2048": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -256,7 +856,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": "high",
@@ -273,7 +873,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "claude-sonnet-4-6|tokens_neg1": {
+  "claude-sonnet-4.6|tokens_neg1": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -289,7 +889,7 @@
         "role": "user"
       }
     ],
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-4.6",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": "high",
@@ -613,293 +1213,6 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "deepseek-v4-flash|default": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "reasoning_effort": "high"
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "deepseek-v4-flash|effort_low": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "reasoning_effort": "low"
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "deepseek-v4-flash|effort_low_tokens": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "enable_thinking": true,
-      "reasoning_effort": "low"
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "deepseek-v4-flash|effort_max": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "reasoning_effort": "max"
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "deepseek-v4-flash|no_reasoning": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "deepseek-v4-flash|thinking_off": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "type": "disabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "deepseek-v4-flash|thinking_off_tokens": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "type": "disabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "deepseek-v4-flash|tokens_2048": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "enable_thinking": true
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "deepseek-v4-flash|tokens_neg1": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 384000,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "deepseek-v4-flash",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
   "gemini-3.5-flash|default": {
     "api_key": "test-key",
     "base_url": "http://test.local",
@@ -1132,18 +1445,15 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "glm-5.2|default": {
+  "kivy-deepseek-v4-flash|default": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
+      "reasoning_effort": "high"
     },
     "extra_headers": "<normalized>",
     "frequency_penalty": null,
-    "max_tokens": 65536,
+    "max_tokens": 384000,
     "messages": [
       {
         "content": "You are a test",
@@ -1154,7 +1464,7 @@
         "role": "user"
       }
     ],
-    "model": "glm-5.2",
+    "model": "kivy-deepseek-v4-flash",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1167,19 +1477,15 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "glm-5.2|effort_low": {
+  "kivy-deepseek-v4-flash|effort_low": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
-      "reasoning_effort": "low",
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
+      "reasoning_effort": "low"
     },
     "extra_headers": "<normalized>",
     "frequency_penalty": null,
-    "max_tokens": 65536,
+    "max_tokens": 384000,
     "messages": [
       {
         "content": "You are a test",
@@ -1190,7 +1496,7 @@
         "role": "user"
       }
     ],
-    "model": "glm-5.2",
+    "model": "kivy-deepseek-v4-flash",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1203,19 +1509,16 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "glm-5.2|effort_low_tokens": {
+  "kivy-deepseek-v4-flash|effort_low_tokens": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
-      "reasoning_effort": "low",
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
+      "enable_thinking": true,
+      "reasoning_effort": "low"
     },
     "extra_headers": "<normalized>",
     "frequency_penalty": null,
-    "max_tokens": 65536,
+    "max_tokens": 384000,
     "messages": [
       {
         "content": "You are a test",
@@ -1226,7 +1529,7 @@
         "role": "user"
       }
     ],
-    "model": "glm-5.2",
+    "model": "kivy-deepseek-v4-flash",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1239,527 +1542,508 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "glm-5.2|effort_max": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.2",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.2|no_reasoning": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.2",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.2|thinking_off": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "type": "disabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.2",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.2|thinking_off_tokens": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "type": "disabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.2",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.2|tokens_2048": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.2",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.2|tokens_neg1": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.2",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|default": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|effort_low": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "reasoning_effort": "low",
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|effort_low_tokens": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "reasoning_effort": "low",
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|effort_max": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|no_reasoning": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|thinking_off": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "reasoning_effort": "low",
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|thinking_off_tokens": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "reasoning_effort": "low",
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|tokens_2048": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "glm-5.3|tokens_neg1": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "clear_thinking": false,
-        "type": "enabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 65536,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "glm-5.3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "kimi-k3|default": {
+  "kivy-deepseek-v4-flash|effort_max": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
       "reasoning_effort": "max"
     },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 384000,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-deepseek-v4-flash",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-deepseek-v4-flash|no_reasoning": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 384000,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-deepseek-v4-flash",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-deepseek-v4-flash|thinking_off": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 384000,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-deepseek-v4-flash",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-deepseek-v4-flash|thinking_off_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 384000,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-deepseek-v4-flash",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-deepseek-v4-flash|tokens_2048": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "enable_thinking": true
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 384000,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-deepseek-v4-flash",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-deepseek-v4-flash|tokens_neg1": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 384000,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-deepseek-v4-flash",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|default": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|effort_low": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "low",
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|effort_low_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "reasoning_effort": "low",
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|effort_max": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|no_reasoning": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|thinking_off": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|thinking_off_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|tokens_2048": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-glm-5.2|tokens_neg1": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "clear_thinking": false,
+        "type": "enabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 65536,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-glm-5.2",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-kimi-k3|default": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
     "extra_headers": "<normalized>",
     "frequency_penalty": null,
     "max_tokens": null,
@@ -1773,7 +2057,7 @@
         "role": "user"
       }
     ],
-    "model": "kimi-k3",
+    "model": "kivy-kimi-k3",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1786,7 +2070,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "kimi-k3|effort_low": {
+  "kivy-kimi-k3|effort_low": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -1805,7 +2089,7 @@
         "role": "user"
       }
     ],
-    "model": "kimi-k3",
+    "model": "kivy-kimi-k3",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1818,7 +2102,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "kimi-k3|effort_low_tokens": {
+  "kivy-kimi-k3|effort_low_tokens": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -1838,7 +2122,7 @@
         "role": "user"
       }
     ],
-    "model": "kimi-k3",
+    "model": "kivy-kimi-k3",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1851,7 +2135,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "kimi-k3|effort_max": {
+  "kivy-kimi-k3|effort_max": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -1870,7 +2154,7 @@
         "role": "user"
       }
     ],
-    "model": "kimi-k3",
+    "model": "kivy-kimi-k3",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1883,7 +2167,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "kimi-k3|no_reasoning": {
+  "kivy-kimi-k3|no_reasoning": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -1899,7 +2183,7 @@
         "role": "user"
       }
     ],
-    "model": "kimi-k3",
+    "model": "kivy-kimi-k3",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1912,41 +2196,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "kimi-k3|thinking_off": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "thinking": {
-        "type": "disabled"
-      }
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": null,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "kimi-k3",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "kimi-k3|thinking_off_tokens": {
+  "kivy-kimi-k3|thinking_off": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -1967,7 +2217,7 @@
         "role": "user"
       }
     ],
-    "model": "kimi-k3",
+    "model": "kivy-kimi-k3",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -1980,7 +2230,41 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "kimi-k3|tokens_2048": {
+  "kivy-kimi-k3|thinking_off_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "thinking": {
+        "type": "disabled"
+      }
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": null,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-kimi-k3",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-kimi-k3|tokens_2048": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -1999,7 +2283,7 @@
         "role": "user"
       }
     ],
-    "model": "kimi-k3",
+    "model": "kivy-kimi-k3",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2012,7 +2296,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "kimi-k3|tokens_neg1": {
+  "kivy-kimi-k3|tokens_neg1": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -2028,7 +2312,7 @@
         "role": "user"
       }
     ],
-    "model": "kimi-k3",
+    "model": "kivy-kimi-k3",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2041,7 +2325,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.7-plus|default": {
+  "kivy-qwen-3.7-plus|default": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2062,7 +2346,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.7-plus",
+    "model": "kivy-qwen-3.7-plus",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2075,7 +2359,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.7-plus|effort_low": {
+  "kivy-qwen-3.7-plus|effort_low": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2096,7 +2380,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.7-plus",
+    "model": "kivy-qwen-3.7-plus",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2109,7 +2393,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.7-plus|effort_low_tokens": {
+  "kivy-qwen-3.7-plus|effort_low_tokens": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2130,7 +2414,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.7-plus",
+    "model": "kivy-qwen-3.7-plus",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2143,7 +2427,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.7-plus|effort_max": {
+  "kivy-qwen-3.7-plus|effort_max": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2164,7 +2448,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.7-plus",
+    "model": "kivy-qwen-3.7-plus",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2177,7 +2461,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.7-plus|no_reasoning": {
+  "kivy-qwen-3.7-plus|no_reasoning": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -2193,7 +2477,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.7-plus",
+    "model": "kivy-qwen-3.7-plus",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2206,39 +2490,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.7-plus|thinking_off": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "enable_thinking": false
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 32768,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "qwen3.7-plus",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "qwen3.7-plus|thinking_off_tokens": {
+  "kivy-qwen-3.7-plus|thinking_off": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2257,7 +2509,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.7-plus",
+    "model": "kivy-qwen-3.7-plus",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2270,7 +2522,39 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.7-plus|tokens_2048": {
+  "kivy-qwen-3.7-plus|thinking_off_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "enable_thinking": false
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 32768,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-qwen-3.7-plus",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-qwen-3.7-plus|tokens_2048": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2290,7 +2574,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.7-plus",
+    "model": "kivy-qwen-3.7-plus",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2303,7 +2587,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.7-plus|tokens_neg1": {
+  "kivy-qwen-3.7-plus|tokens_neg1": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2323,7 +2607,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.7-plus",
+    "model": "kivy-qwen-3.7-plus",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2336,7 +2620,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.8-max|default": {
+  "kivy-qwen-3.8-max|default": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2357,7 +2641,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.8-max",
+    "model": "kivy-qwen-3.8-max",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2370,7 +2654,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.8-max|effort_low": {
+  "kivy-qwen-3.8-max|effort_low": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2391,7 +2675,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.8-max",
+    "model": "kivy-qwen-3.8-max",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2404,7 +2688,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.8-max|effort_low_tokens": {
+  "kivy-qwen-3.8-max|effort_low_tokens": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2425,7 +2709,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.8-max",
+    "model": "kivy-qwen-3.8-max",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2438,7 +2722,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.8-max|effort_max": {
+  "kivy-qwen-3.8-max|effort_max": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2459,7 +2743,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.8-max",
+    "model": "kivy-qwen-3.8-max",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2472,7 +2756,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.8-max|no_reasoning": {
+  "kivy-qwen-3.8-max|no_reasoning": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_headers": "<normalized>",
@@ -2488,7 +2772,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.8-max",
+    "model": "kivy-qwen-3.8-max",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2501,39 +2785,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.8-max|thinking_off": {
-    "api_key": "test-key",
-    "base_url": "http://test.local",
-    "extra_body": {
-      "enable_thinking": false
-    },
-    "extra_headers": "<normalized>",
-    "frequency_penalty": null,
-    "max_tokens": 32768,
-    "messages": [
-      {
-        "content": "You are a test",
-        "role": "system"
-      },
-      {
-        "content": "hi",
-        "role": "user"
-      }
-    ],
-    "model": "qwen3.8-max",
-    "parallel_tool_calls": null,
-    "presence_penalty": null,
-    "reasoning_effort": null,
-    "response_format": null,
-    "stream": false,
-    "stream_options": null,
-    "temperature": null,
-    "tool_choice": "auto",
-    "tools": null,
-    "top_logprobs": null,
-    "top_p": null
-  },
-  "qwen3.8-max|thinking_off_tokens": {
+  "kivy-qwen-3.8-max|thinking_off": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2552,7 +2804,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.8-max",
+    "model": "kivy-qwen-3.8-max",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2565,7 +2817,39 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.8-max|tokens_2048": {
+  "kivy-qwen-3.8-max|thinking_off_tokens": {
+    "api_key": "test-key",
+    "base_url": "http://test.local",
+    "extra_body": {
+      "enable_thinking": false
+    },
+    "extra_headers": "<normalized>",
+    "frequency_penalty": null,
+    "max_tokens": 32768,
+    "messages": [
+      {
+        "content": "You are a test",
+        "role": "system"
+      },
+      {
+        "content": "hi",
+        "role": "user"
+      }
+    ],
+    "model": "kivy-qwen-3.8-max",
+    "parallel_tool_calls": null,
+    "presence_penalty": null,
+    "reasoning_effort": null,
+    "response_format": null,
+    "stream": false,
+    "stream_options": null,
+    "temperature": null,
+    "tool_choice": "auto",
+    "tools": null,
+    "top_logprobs": null,
+    "top_p": null
+  },
+  "kivy-qwen-3.8-max|tokens_2048": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2585,7 +2869,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.8-max",
+    "model": "kivy-qwen-3.8-max",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,
@@ -2598,7 +2882,7 @@
     "top_logprobs": null,
     "top_p": null
   },
-  "qwen3.8-max|tokens_neg1": {
+  "kivy-qwen-3.8-max|tokens_neg1": {
     "api_key": "test-key",
     "base_url": "http://test.local",
     "extra_body": {
@@ -2618,7 +2902,7 @@
         "role": "user"
       }
     ],
-    "model": "qwen3.8-max",
+    "model": "kivy-qwen-3.8-max",
     "parallel_tool_calls": null,
     "presence_penalty": null,
     "reasoning_effort": null,

@@ -1,7 +1,7 @@
-"""GPT-6 prompt instructions derived from Codex's per-model templates.
+"""GPT-6 prompt instructions with per-model writing styles.
 
 GPT-6 variants share the intro header and decision-making rules, but split
-their writing style the way Codex distributes them: Sol and Luna get the
+their writing style by model: Sol and Luna get the
 first-read style, while Astra and later numbered Sol revisions keep the
 connected-prose template. Fixed text is kept in module-level literals so
 prompt changes are explicit and rendering is stable for a given model name.
@@ -41,7 +41,7 @@ Lead with the outcome and then develop your reasoning for how you got there. Whe
 
 Present reasoning and evidence in the order that makes the conclusion easiest to assess, rather than recounting your work chronologically. Summarize routine verification instead of listing every check. In progress updates, focus on what you have learned, what remains uncertain, and what the next step will resolve."""
 
-# Codex ships GPT-6 Sol and Luna with a first-read writing style instead of
+# GPT-6 Sol and Luna use a first-read writing style instead of
 # Astra's connected-prose mandate; keep that split so terminal answers stay
 # scannable on the models users reported as hard to read.
 PERSONALITY_GPT6_SCANNABLE = """# Personality
@@ -65,7 +65,7 @@ def get_gpt6_intro(personality: str = "gpt6") -> str:
     """Return GPT-6's intro for a named personality variant.
 
     The caller picks the variant, mirroring ``get_gpt5_intro(personality=...)``:
-    ``"scannable"`` is the first-read style Codex ships for Sol and Luna,
+    ``"scannable"`` is the first-read style used for Sol and Luna,
     ``"gpt6"`` and ``"astra"`` are the connected-prose style, and any other
     value omits the personality block.
     """

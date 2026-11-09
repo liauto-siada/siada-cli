@@ -40,6 +40,17 @@ Responses 错误日志包含有长度限制的 message/code/type/param、可用�
 如果历史已被改写，或消息格式无法确认输入是否保存，恢复也会停止，避免重复发送
 保存状态不确定的输入。
 
+## 免费尝试模型
+
+首次登录或输入 `/configure` 后，选择 **Free Trial（免费尝试）**，即可通过
+[Kilo Gateway](https://kilo.ai) 选择免费模型，无需注册或输入 API Key。
+默认模型为 Laguna S 2.1，还可选择 North Mini Code、Nemotron 3 Super 等预设模型。
+选择会保存供下次启动使用，`/model` 可以切换免费模型；
+通过 `/configure → Configure API Key` 可切回自己的模型服务商。
+免费请求发往 `https://api.kilo.ai/api/gateway`，不携带 Authorization 请求头。
+免费服务的可用性和限流可能变化；模型不可用时可切换模型或配置自己的服务商。
+免费尝试采用保守的 32,000 token 本地上下文预算，该值不是网关最大上下文的声明。
+
 ## 使用 API Key 配置 DeepSeek
 
 首次登录或输入 `/configure` 后，选择 **Configure API Key → DeepSeek**，

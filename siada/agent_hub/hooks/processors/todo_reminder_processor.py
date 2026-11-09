@@ -100,7 +100,7 @@ def _count_assistant_turns_since_todo_write(input_items: List) -> int:
     - Returns the total model turn count if no todo_write call is found
 
     IMPORTANT — provider-format bug fix:
-    Some model-provider paths (see
+    Some provider paths (e.g. li/Bedrock/ADK — see
     ``agent_hub/context_filter/utils.py::_normalize_to_responses_items``) write
     ChatCompletion-style dicts into ``task_message_state`` instead of pure
     Responses-API items, e.g.::
@@ -331,7 +331,7 @@ class TodoReminderProcessor(AgentHooks):
         response: ModelResponse,
     ) -> None:
         siada_context = context.context
-        # Request admission owns both persistence and committed-queue cleanup.
+        # The request bridge owns persistence and clears only committed reminders.
         if getattr(siada_context, "runtime_session", None) is not None:
             return
         pending: List[Any] = getattr(siada_context, "pending_reminder_items", None) or []

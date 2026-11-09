@@ -16,6 +16,7 @@ zstd.zip
 zstd-v*-win64/
 *.egg-info/
 *.tar.gz
+
 design_docs/spec
 design_docs/index
 design_docs/plan
@@ -46,11 +47,12 @@ node_modules/
 bundle/*
 !siada_cli_ui/bundle/
 !siada_cli_ui/bundle/siada-ui.js
-siada_cli_ui/bundle/esbuild-meta.json
 
 # ── JSON build artefacts (with explicit overrides) ────────────────────────────
 benchmark/**/*.json
 test_checker/*.json
+siada/agent_hub/a2a/a2a_agents/*/agent.json
+!siada/agent_hub/a2a/a2a_agents/*/agent.json.template
 !siada/services/handle_at_command/at_command_invalid_patterns.json
 !siada_cli_ui/package.json
 
@@ -62,7 +64,6 @@ benchmark_bp
 screenshots/
 *.ipynb
 *.txt
-!siada_cli_ui/bundle/siada-ui.LEGAL.txt
 patch_analysis_summary.txt
 
 # ── Internal test scripts (not for open-source distribution) ─────────────────
@@ -86,6 +87,11 @@ examples/draw_circle.py
 examples/integration_test.py
 examples/README.md
 examples/simple_acp_demo.py
-siada_cli_ui/examples/
+siada_cli_ui/examples/*
+# Keep the offline terminal demo available to its regression tests.
+!siada_cli_ui/examples/three-pane-demo.mjs
+!siada_cli_ui/examples/three-pane-demo-controller.mjs
+!siada_cli_ui/examples/three-pane-demo-data.mjs
+!siada_cli_ui/examples/mermaid-horizontal.tsx
 siada_cli_ui/tests/error-handling.test.ts
 siada_cli_ui/tests/README.md

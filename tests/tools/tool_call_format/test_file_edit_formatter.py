@@ -44,8 +44,9 @@ def test_partial_replacement_does_not_emit_new_text() -> None:
     assert content == "In the file `docs/notes.md``, replace the string:\n```markdown\nold\n```"
 
 
-def test_history_reconstructs_markdown_replacement_with_protocol_fences() -> None:
+def test_history_reconstructs_confirmed_markdown_replacement() -> None:
     from siada.support.message_classifier import format_native_items_for_display
+    from siada.tools.coder.file_edit_presentation import render_file_edit_display
 
     arguments = json.dumps(
         {"command": "str_replace", "path": "docs/notes.md", "old_str": "old", "new_str": "new"}
@@ -59,5 +60,5 @@ def test_history_reconstructs_markdown_replacement_with_protocol_fences() -> Non
     assert messages == [{
         "role": "assistant",
         "subtype": "tool_use",
-        "content": "In the file `docs/notes.md``, replace the string:\n```markdown\nold\n```\nwith:\n```markdown\nnew\n```",
+        "content": render_file_edit_display("call", arguments, output="File edited.", history=True),
     }]

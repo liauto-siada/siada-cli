@@ -1,3 +1,280 @@
+diff --git a/node_modules/@jrichman/ink/build/render-node-to-output.js b/node_modules/@jrichman/ink/build/render-node-to-output.js
+--- a/node_modules/@jrichman/ink/build/render-node-to-output.js
++++ b/node_modules/@jrichman/ink/build/render-node-to-output.js
+@@ -447,3 +447,6 @@
+ function renderScrollbar(node, output, layout, axis) {
++    if (node.style.scrollbarVisibility === 'hidden') {
++        return;
++    }
+     const { thumb } = layout;
+     const thumbColor = node.style.scrollbarThumbColor;
+@@ -456,3 +459,3 @@
+         if (fill > 0) {
+-            const char = axis === 'vertical'
++            let char = axis === 'vertical'
+                 ? fill === 2
+@@ -470,2 +473,5 @@
++            if (node.style.scrollbarStyle === 'thin') {
++                char = axis === 'vertical' ? '│' : '─';
++            }
+             const outputX = axis === 'vertical' ? layout.x : layout.x + index;
+             const outputY = axis === 'vertical' ? layout.y + index : layout.y;
+diff --git a/node_modules/@jrichman/ink/build/styles.d.ts b/node_modules/@jrichman/ink/build/styles.d.ts
+--- a/node_modules/@jrichman/ink/build/styles.d.ts
++++ b/node_modules/@jrichman/ink/build/styles.d.ts
+@@ -257,2 +257,7 @@
+     readonly scrollbarThumbColor?: LiteralUnion<ForegroundColorName, string>;
++    /**
++     Hide the scrollbar without disabling scrolling.
++     */
++    readonly scrollbarVisibility?: 'visible' | 'hidden';
++    readonly scrollbarStyle?: 'block' | 'thin';
+     /**
+diff --git a/node_modules/@jrichman/ink/build/components/Box.d.ts b/node_modules/@jrichman/ink/build/components/Box.d.ts
+--- a/node_modules/@jrichman/ink/build/components/Box.d.ts
++++ b/node_modules/@jrichman/ink/build/components/Box.d.ts
+@@ -103,2 +103,4 @@
+     readonly scrollbarThumbColor?: import("type-fest").LiteralUnion<import("ansi-styles").ForegroundColorName, string> | undefined;
++    readonly scrollbarVisibility?: 'visible' | 'hidden' | undefined;
++    readonly scrollbarStyle?: 'block' | 'thin' | undefined;
+     readonly userSelect?: "auto" | "none" | "text" | "all" | undefined;
+diff --git a/node_modules/@jrichman/ink/build/log-update.js b/node_modules/@jrichman/ink/build/log-update.js
+--- a/node_modules/@jrichman/ink/build/log-update.js
++++ b/node_modules/@jrichman/ink/build/log-update.js
+@@ -2,6 +2,8 @@ import process from 'node:process';
+ import ansiEscapes from 'ansi-escapes';
+ import cliCursor from 'cli-cursor';
+ import colorize from './colorize.js';
++import { styledCharsToString } from '@alcalzone/ansi-tokenize';
++import { inkCharacterWidth, toStyledCharacters } from './measure-text.js';
+ // Debugging option to simulate flicker if for terminals that do not support enableSynchronizedOutput.
+ const enableSynchronizedOutput = true;
+ const enterSynchronizedOutput = '\u001B[?2026h';
+@@ -43,14 +45,9 @@ const enterAlternateBuffer = (stream, alreadyActive) => {
+     }
+     stream.write('\u001B[?7l');
+ };
+-const exitAlternateBuffer = (stream, lastFrame) => {
++const exitAlternateBuffer = (stream) => {
+     stream.write('\u001B[?7h');
+     stream.write(ansiEscapes.exitAlternativeScreen);
+-    // The last frame was rendered to the alternate buffer.
+-    // We need to render it again to the main buffer. If apps do not
+-    // want this behavior, they can make sure the last frame is empty
+-    // before unmounting.
+-    stream.write(lastFrame);
+ };
+ const clearAlternateBuffer = (stream) => {
+     const eraseOperation = process.env['TERM_PROGRAM'] === 'iTerm.app'
+@@ -111,6 +108,21 @@ const getLineLength = (styledChars) => {
+     }
+     return 0;
+ };
++// Bound each row in the same cells used by layout, including calibrated widths.
++// ANSI-aware clipping must not emit half a glyph or discard its color state.
++const fitAlternateLine = (line, columns) => {
++    const characters = [];
++    let width = 0;
++    for (const character of toStyledCharacters(line)) {
++        const nextWidth = inkCharacterWidth(character.value);
++        if (columns > 0 && width + nextWidth > columns) {
++            break;
++        }
++        characters.push(character);
++        width += nextWidth;
++    }
++    return { output: styledCharsToString(characters), width };
++};
+ const createStandard = (stream, { showCursor = false, alternateBuffer = false, alternateBufferAlreadyActive = false, getRows = () => 0, getColumns = () => 0, } = {}) => {
+     let previousLineCount = 0;
+     let previousOutput = '';
+@@ -241,7 +253,7 @@ const createStandard = (stream, { showCursor = false, alternateBuffer = false,
+             hasHiddenCursor = false;
+         }
+         if (alternateBuffer) {
+-            exitAlternateBuffer(stream, lastFrame);
++            exitAlternateBuffer(stream);
+         }
+     };
+     render.sync = (str, _cursorPosition) => {
+@@ -267,7 +279,8 @@ const createIncremental = (stream, { showCursor = false, alternateBuffer = false,
+     if (alternateBuffer) {
+         enterAlternateBuffer(stream, alternateBufferAlreadyActive);
+     }
+-    const render = (str, styledOutput, debugRainbowColor, cursorPosition) => {
++    const render = (str, styledOutput, debugRainbowColor, inputCursorPosition) => {
++        let cursorPosition = inputCursorPosition;
+         if (!showCursor) {
+             hasHiddenCursor = ensureCursorHidden(showCursor, hasHiddenCursor, stream);
+         }
+@@ -283,9 +296,19 @@ const createIncremental = (stream, { showCursor = false, alternateBuffer = false,
+                 // will not scroll so all we accomplish by writing more
+                 // content is risking flicker and confusion about the terminal about
+                 // the cursor position.
+-                if (lineCount > rows) {
+-                    alternateBufferOutput = lines.slice(0, rows).join('\n');
+-                    alternateBufferStyledOutput = styledOutput.slice(0, rows);
++                const rowBudget = stream.__siadaBottomAnchored ? Math.max(1, rows - 1) : rows;
++                if (lineCount > rowBudget) {
++                    // During resize React may still describe the previous height.
++                    // Preserve the composer's bottom rows until the layout catches up.
++                    const firstRow = stream.__siadaBottomAnchored ? lineCount - rowBudget : 0;
++                    alternateBufferOutput = lines.slice(firstRow, firstRow + rowBudget).join('\n');
++                    alternateBufferStyledOutput = styledOutput.slice(firstRow, firstRow + rowBudget);
++                    if (cursorPosition) {
++                        cursorPosition = {
++                            row: Math.max(0, Math.min(rowBudget - 1, cursorPosition.row - firstRow)),
++                            col: columns > 0 ? Math.min(columns - 1, cursorPosition.col) : cursorPosition.col,
++                        };
++                    }
+                 }
+                 else {
+                     alternateBufferOutput = lines.join('\n');
+@@ -299,44 +322,38 @@ const createIncremental = (stream, { showCursor = false, alternateBuffer = false,
+                 rows !== previousRows ||
+                 columns !== previousColumns ||
+                 !isCursorPositionEqual(cursorPosition, previousCursorPosition)) {
+-                const nextLines = alternateBufferOutput.split('\n');
++                const fittedLines = alternateBufferOutput.split('\n').map(line => fitAlternateLine(line, columns));
++                const nextLines = fittedLines.map(line => line.output);
+                 const cursorSequence = getAlternateBufferCursorSequence(cursorPosition);
+-                if (rows === previousRows && columns === previousColumns) {
++                {
++                    const resized = rows !== previousRows || columns !== previousColumns;
+                     const buffer = [];
+                     if (enableSynchronizedOutput) {
+                         buffer.push(enterSynchronizedOutput);
+                     }
+-                    buffer.push(ansiEscapes.cursorTo(0, 0));
+-                    let skippedLines = 0;
++                    if (resized) {
++                        const eraseOperation = process.env['TERM_PROGRAM'] === 'iTerm.app'
++                            ? ansiEscapes.clearTerminal
++                            : ansiEscapes.eraseScreen;
++                        buffer.push(ansiEscapes.cursorTo(0, 0), eraseOperation);
++                    }
+                     for (let i = 0; i < nextLines.length; i++) {
+-                        if (nextLines[i] === previousLines[i]) {
+-                            skippedLines++;
++                        if (!resized && nextLines[i] === previousLines[i]) {
+                             continue;
+                         }
+-                        skippedLines = moveCursorDown(buffer, skippedLines);
+                         let lineToWrite = nextLines[i] ?? '';
+-                        const lineLength = getLineLength(alternateBufferStyledOutput[i]);
+                         lineToWrite = debugRainbowColor
+                             ? colorize(lineToWrite, debugRainbowColor, 'background')
+                             : lineToWrite;
+-                        buffer.push(lineToWrite);
+-                        if (columns > lineLength) {
+-                            // Clear the rest of the line without introducing flicker.
+-                            // We could optimize this further by only writing spaces up to the last line length
+-                            // but this is safer.
+-                            // The one failure mode for this is that if we add too many spaces and there was a
+-                            // non space character at the very end of the line
+-                            buffer.push(' '.repeat(columns - lineLength));
+-                        }
+-                        if (i < nextLines.length - 1) {
+-                            buffer.push('\n');
++                        // A row's position must not depend on implicit terminal wrapping.
++                        buffer.push(ansiEscapes.cursorTo(0, i), lineToWrite);
++                        if (fittedLines[i].width < columns) {
++                            buffer.push(ansiEscapes.eraseEndLine);
+                         }
+                     }
+-                    skippedLines = moveCursorDown(buffer, skippedLines);
+-                    if (previousLines.length > nextLines.length) {
+-                        const linesToClear = previousLines.length - nextLines.length;
+-                        for (let i = 0; i < linesToClear; i++) {
+-                            buffer.push(ansiEscapes.eraseLine + ansiEscapes.cursorNextLine);
++                    // Reserved bottom rows are absent from the previous-frame cache.
++                    const lastRow = rows > 0 ? rows : previousLines.length;
++                    for (let i = nextLines.length; i < lastRow; i++) {
++                        buffer.push(ansiEscapes.cursorTo(0, i), ansiEscapes.eraseLine);
+-                        }
++                    }
+-                    }
+                     buffer.push(cursorSequence);
+@@ -344,23 +361,6 @@ const createIncremental = (stream, { showCursor = false, alternateBuffer = false,
+                         buffer.push(exitSynchronizedOutput);
+                     }
+                     stream.write(buffer.join(''));
+-                }
+-                else {
+-                    // Unfortunately, eraseScreen does not work correctly in iTerm2 so we
+-                    // have to use clearTerminal instead.
+-                    const eraseOperation = process.env['TERM_PROGRAM'] === 'iTerm.app'
+-                        ? ansiEscapes.clearTerminal
+-                        : ansiEscapes.eraseScreen;
+-                    let outputToWrite = alternateBufferOutput;
+-                    outputToWrite = debugRainbowColor
+-                        ? colorize(outputToWrite, debugRainbowColor, 'background')
+-                        : outputToWrite;
+-                    stream.write((enableSynchronizedOutput ? enterSynchronizedOutput : '') +
+-                        ansiEscapes.cursorTo(0, 0) +
+-                        eraseOperation +
+-                        outputToWrite +
+-                        cursorSequence +
+-                        (enableSynchronizedOutput ? exitSynchronizedOutput : ''));
+                     previousRows = rows;
+                     previousColumns = columns;
+                 }
+@@ -492,7 +492,7 @@ const createIncremental = (stream, { showCursor = false, alternateBuffer = false,
+             hasHiddenCursor = false;
+         }
+         if (alternateBuffer) {
+-            exitAlternateBuffer(stream, lastFrame);
++            exitAlternateBuffer(stream);
+         }
+     };
+     render.sync = (str, _cursorPosition) => {
+diff --git a/node_modules/@jrichman/ink/build/data-limited-lru-map.js b/node_modules/@jrichman/ink/build/data-limited-lru-map.js
+--- a/node_modules/@jrichman/ink/build/data-limited-lru-map.js
++++ b/node_modules/@jrichman/ink/build/data-limited-lru-map.js
+@@ -21,7 +21,14 @@ export class DataLimitedLruMap {
+     }
+     set(key, value) {
+         const size = key.length;
+-        const hasKey = this.map.has(key);
++        // Large one-off output must not displace the cache or exceed its budget.
++        if (size > this.maxDataSize) {
++            return;
++        }
++        if (this.map.has(key)) {
++            this.map.set(key, value);
++            return;
++        }
+         while (this.currentDataSize + size > this.maxDataSize &&
+             this.map.size > 0) {
+             const map = this.map;
+@@ -29,6 +36,9 @@ export class DataLimitedLruMap {
+             if (lruKey === undefined) {
+                 break;
+             }
++            // mnemonist.delete() only unlinks the slot. Its backing arrays keep
++            // the key and value alive until reused, defeating the data budget.
++            const pointer = map.items.get(lruKey);
+             // If the key is not found in the map, we can't evict it.
+             // This can happen if the map is in an inconsistent state.
+             // To avoid an infinite loop, we break here.
+@@ -40,15 +50,14 @@ export class DataLimitedLruMap {
+             if (!this.map.delete(lruKey)) {
+                 break;
+             }
++            map.K[pointer] = undefined;
++            map.V[pointer] = undefined;
+             this.currentDataSize -= lruKey.length;
+         }
+         const result = this.map.setpop(key, value);
+         if (result?.evicted) {
+             this.currentDataSize -= result.key.length;
+         }
+-        if (hasKey) {
+-            this.currentDataSize -= size;
+-        }
+         this.currentDataSize += size;
+     }
+     get size() {
 diff --git a/node_modules/@jrichman/ink/build/dom.js b/node_modules/@jrichman/ink/build/dom.js
 index 8f46689..115a772 100644
 --- a/node_modules/@jrichman/ink/build/dom.js
@@ -315,3 +592,72 @@ index ab14aaf..eee4801 100644
      },
      setCurrentUpdatePriority(newPriority) {
          currentUpdatePriority = newPriority;
+diff --git a/node_modules/@jrichman/ink/build/selection.d.ts b/node_modules/@jrichman/ink/build/selection.d.ts
+--- a/node_modules/@jrichman/ink/build/selection.d.ts
++++ b/node_modules/@jrichman/ink/build/selection.d.ts
+@@ -6,1 +6,1 @@
+-import { type DOMNode } from './dom.js';
++import { type DOMElement, type DOMNode } from './dom.js';
+@@ -31,1 +31,2 @@
+     rangeCount: number;
++    textRanges?: Map<DOMElement, { start: number; end: number }>;
+@@ -36,1 +37,2 @@
+     getRangeAt(index: number): Range;
++    setRange(range?: Range, textRanges?: Map<DOMElement, { start: number; end: number }>): void;
+diff --git a/node_modules/@jrichman/ink/build/selection.js b/node_modules/@jrichman/ink/build/selection.js
+--- a/node_modules/@jrichman/ink/build/selection.js
++++ b/node_modules/@jrichman/ink/build/selection.js
+@@ -252,1 +252,2 @@
+     ranges = [];
++    textRanges;
+@@ -266,1 +267,33 @@
++    // Commit one visible projection atomically instead of clearing and adding.
++    setRange(range, textRanges) {
++        const previous = this.ranges[0];
++        const sameRange = previous?.startContainer === range?.startContainer &&
++            previous?.startOffset === range?.startOffset &&
++            previous?.endContainer === range?.endContainer &&
++            previous?.endOffset === range?.endOffset;
++        const sameTextRanges = this.textRanges === textRanges ||
++            (this.textRanges !== undefined && textRanges !== undefined &&
++                this.textRanges.size === textRanges.size &&
++                [...textRanges].every(([node, span]) => {
++                    const current = this.textRanges.get(node);
++                    return current?.start === span.start && current?.end === span.end;
++                }));
++        if (sameRange && sameTextRanges) {
++            return;
++        }
++        this.ranges = range ? [range] : [];
++        this.rangeCount = this.ranges.length;
++        this.textRanges = textRanges;
++        if (range) {
++            this.anchorNode = range.startContainer;
++            this.anchorOffset = range.startOffset;
++            this.focusNode = range.endContainer;
++            this.focusOffset = range.endOffset;
++            this.isCollapsed = range.collapsed && !textRanges?.size;
++        }
++        else {
++            this.clearState();
++        }
++        this.notifyChange();
++    }
+     addRange(range) {
+@@ -267,1 +300,2 @@
++        this.textRanges = undefined;
+         if (!this.ranges.includes(range)) {
+@@ -281,1 +315,2 @@
++        this.textRanges = undefined;
+         const index = this.ranges.indexOf(range);
+@@ -292,1 +327,2 @@
++        this.textRanges = undefined;
+         this.ranges = [];
+diff --git a/node_modules/@jrichman/ink/build/renderer.js b/node_modules/@jrichman/ink/build/renderer.js
+--- a/node_modules/@jrichman/ink/build/renderer.js
++++ b/node_modules/@jrichman/ink/build/renderer.js
+@@ -4,1 +4,4 @@
+ const calculateSelectionMap = (root, selection) => {
++    if (selection.textRanges !== undefined) {
++        return selection.textRanges;
++    }

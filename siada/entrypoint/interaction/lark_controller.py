@@ -2,14 +2,12 @@ from __future__ import annotations
 
 """LarkController - Receives messages from transport and dispatches to SiadaRunner.
 
-Runs the direct Lark bot (WebSocket SDK transport) as a background async loop
-inside the SiadaDaemon.
+Supports direct mode through the public Lark WebSocket SDK.
+Runs as a background async loop inside the SiadaDaemon.
 
 OOP design:
-- LarkController: base class for direct mode, the only mode served here
-- create_if_configured(): factory method returning the configured controller
-- ``relay`` is a legacy mode value: the relay client is not part of this
-  distribution, so requesting it fails with a clear RuntimeError instead
+- LarkController: base class for direct mode (open-source default)
+- create_if_configured(): factory method returning a configured direct controller
 
 Delegated components (under siada/im/feishu/):
 - LarkCardSender: card/message sending
@@ -88,13 +86,10 @@ def create_if_configured() -> Optional["LarkController"]:
         )
 
     if mode == "relay":
-        # Legacy config value kept for compatibility: the relay controller is
-        # not part of this distribution, so relay mode cannot be served here.
         raise RuntimeError(
-            "Lark relay mode is not supported in this distribution: the relay "
-            "controller is not bundled. Set lark.mode to 'direct' in conf.yaml "
-            "and provide lark.direct.app_id / lark.direct.app_secret to use the "
-            "direct Lark bot."
+            "Lark relay mode is not supported in this distribution. "
+            "Set lark.mode to 'direct' and provide "
+            "lark.direct.app_id / lark.direct.app_secret."
         )
 
     direct_cfg = lark_config.get("lark", {}).get("direct", {})
@@ -165,6 +160,7 @@ class LarkController(ImController):
         self._agent_executor = LarkAgentExecutor(self)
 
         # Load routing table and migrate legacy sessions
+        # (relay mode defers this to _on_transport_connected when app_id is known)
         self._init_routing()
 
         # Initialize thread router (depends on session_cache)
@@ -179,9 +175,9 @@ class LarkController(ImController):
     def _init_routing(self) -> None:
         """Load routing tables and migrate legacy sessions.
 
-        The app_id is known from config at construction time, so routing is
-        loaded immediately; subclasses may override this to defer it until
-        ``_on_transport_connected``.
+        Direct mode: app_id is available from config, loads immediately.
+        Relay mode overrides this to defer until _on_transport_connected
+        when the Gateway provides the actual app_id.
         """
         self._load_routing()
         self._migrate_legacy_sessions()
@@ -357,7 +353,7 @@ class LarkController(ImController):
     # ── Email bootstrap (override points) ─────────────────────────────
 
     def _get_lark_client(self):
-        """Create a lark-oapi Client from the lark.direct credentials."""
+        """Create a lark-oapi Client. Override in RelayLarkController."""
         import lark_oapi as lark
 
         lark_cfg = self._config.get("lark", {})

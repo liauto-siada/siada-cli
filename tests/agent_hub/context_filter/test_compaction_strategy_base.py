@@ -72,6 +72,7 @@ async def test_summary_request_counts_native_reasoning_with_selected_model(monke
     from agents import ModelResponse
     from agents.usage import Usage
     from siada.agent_hub.context_filter import compaction_strategy as shared
+    from siada.provider.token_counting import token_counting_info_from_model
 
     config = SimpleNamespace(model_name="gpt-4o", provider="synthetic")
     monkeypatch.setenv("SIADA_COMPACT_MODEL", model)
@@ -87,6 +88,7 @@ async def test_summary_request_counts_native_reasoning_with_selected_model(monke
     completion = AsyncMock(return_value=ModelResponse(output=[], usage=Usage(), response_id="synthetic-summary"))
     monkeypatch.setattr(shared, "calculate_tokens", counter)
     monkeypatch.setattr(shared, "one_shot_completion", completion)
+    monkeypatch.setattr(shared, "token_counting_info_from_config", lambda config, **kwargs: token_counting_info_from_model(kwargs["model_name"]))
     strategy = _NoopStrategy()
     system_prompt = Mock(return_value="# Synthetic system")
     user_prompt = Mock(return_value="Synthetic summary request")
@@ -104,17 +106,23 @@ async def test_summary_request_counts_native_reasoning_with_selected_model(monke
     assert completion.call_args.args[0] == counted_items[1:]
 
 
-@pytest.mark.parametrize("context_window", [64_000, 128_000, 200_000, 1_000_000])
-@pytest.mark.parametrize("remaining_tokens", [60_001, 60_000, 59_999, 0, -1])
+@pytest.mark.parametrize("context_window, threshold", [
+    (32_000, 0), (60_000, 0), (64_000, 4_000), (128_000, 68_000),
+    (200_000, 140_000), (499_999, 439_999), (500_000, 440_000),
+    (500_001, 375_001), (600_000, 450_000), (1_000_000, 750_000),
+])
+@pytest.mark.parametrize("offset", [-1, 0, 1])
 @pytest.mark.parametrize("strategy_name", ["header_summary", "turn_prune_summary"])
-def test_compaction_triggers_at_60k_remaining(context_window, remaining_tokens, strategy_name):
+def test_compaction_triggers_at_tiered_threshold(context_window, threshold, offset, strategy_name):
     from siada.agent_hub.context_filter.compaction_strategy import _resolve_strategy_by_name
+    from siada.agent_hub.context_filter.compaction_threshold import get_compaction_token_threshold
 
     strategy = _resolve_strategy_by_name(strategy_name)
     config = SimpleNamespace(context_window=context_window)
+    assert get_compaction_token_threshold(context_window) == threshold
     assert strategy.should_compact(
-        context_window - remaining_tokens, config,
-    ) is (remaining_tokens <= 60_000)
+        threshold + offset, config,
+    ) is (offset >= 0)
 
 
 @pytest.mark.parametrize("context_window", [32_000, 60_000])
@@ -128,6 +136,81 @@ def test_compaction_uses_updated_effective_context_window():
     assert strategy.should_compact(140_000, config)
     config.context_window = 1_000_000
     assert not strategy.should_compact(140_000, config)
+
+
+def test_openrouter_gemini_compaction_uses_chat_route_for_history_and_tools(monkeypatch):
+    from unittest.mock import Mock
+    import litellm
+    from agents import function_tool
+    from siada.agent_hub.context_filter import utils
+    from siada.provider import provider_factory
+    from siada.provider.default.default_provider import DefaultProvider
+    from siada.provider.gemini import counting
+
+    @function_tool
+    def lookup(value: int) -> str:
+        return str(value)
+
+    monkeypatch.setenv("BASE_URL", "https://openrouter.ai/api/v1")
+    provider = DefaultProvider()
+    describe = Mock(wraps=provider.get_token_counting_info)
+    monkeypatch.setattr(provider, "get_token_counting_info", describe)
+    monkeypatch.setattr(provider_factory, "get_provider", lambda name: provider)
+    native_counter = Mock(side_effect=AssertionError("Chat must not use native Gemini counting"))
+    counter = Mock(return_value=100)
+    tool_counter = Mock(side_effect=[140, 100])
+    monkeypatch.setattr(utils, "_calculate_tokens", counter)
+    monkeypatch.setattr(counting, "estimate_input_tokens", native_counter)
+    monkeypatch.setattr(litellm, "token_counter", tool_counter)
+    config = SimpleNamespace(model_name="google/gemini-3.5-flash", provider="default")
+    context = SimpleNamespace(model_run_config=config)
+    items = [{"role": "user", "content": "synthetic"}]
+    assert _NoopStrategy()._count_tokens(items, config) == 110
+    assert CompactionStrategy.calculate_fixed_overhead(context, "instructions", [lookup]) == 150
+    assert all(call.args[0] == "openrouter/google/gemini-3.5-flash" for call in counter.call_args_list)
+    assert all(call.kwargs["model"] == "openrouter/google/gemini-3.5-flash" for call in tool_counter.call_args_list)
+    assert describe.call_count == 2
+    native_counter.assert_not_called()
+    assert provider._gemini_transport is None
+
+
+@pytest.mark.parametrize("protocol", ["chat", "gemini"])
+@pytest.mark.parametrize("current_tokens", [0, 200])
+def test_legacy_context_refresh_uses_runtime_protocol(monkeypatch, protocol, current_tokens):
+    from unittest.mock import Mock
+    from siada.agent_hub.context_filter import utils
+    from siada.agent_hub.context_filter.api_message_transfer_filter import ApiMessageTransferFilter
+    from siada.provider.gemini import counting
+    from siada.provider.token_counting import TokenCountingInfo
+
+    counter = Mock(return_value=100)
+    native_counter = Mock(return_value=200)
+    monkeypatch.setattr(utils, "_calculate_tokens", counter)
+    monkeypatch.setattr(counting, "estimate_input_tokens", native_counter)
+    info = TokenCountingInfo("opaque-wire-alias", protocol)
+    context = SimpleNamespace(
+        model_run_config=SimpleNamespace(model_name="google/gemini-3.5-flash"),
+        runtime_session=SimpleNamespace(token_counting_info=info),
+    )
+    previous = {"role": "user", "content": "previous"}
+    delta = {"role": "user", "content": "delta"}
+    items = [previous, delta]
+    budget = 220 if protocol == "gemini" else 110
+    assert CompactionStrategy.calculate_fixed_overhead(context, "instructions") == budget
+    transfer = ApiMessageTransferFilter()
+    refreshed, tokens = transfer._do_full_refresh(context, "instructions", items, 0)
+    assert refreshed == items and tokens == budget * 2
+    updated, tokens = transfer._try_incremental_update(
+        context, "instructions", items, [previous], 0,
+        utils.compute_message_signature(previous), current_tokens,
+    )
+    assert updated == items
+    assert tokens == (current_tokens + budget if current_tokens else budget * 2)
+    if protocol == "gemini":
+        counter.assert_not_called()
+    else:
+        native_counter.assert_not_called()
+        assert all(call.args[0] == info.model_name for call in counter.call_args_list)
 
 
 @pytest.mark.asyncio

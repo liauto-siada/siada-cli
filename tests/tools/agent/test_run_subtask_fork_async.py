@@ -6,7 +6,7 @@ Covers:
    context off a live parent RunContextWrapper and propagates storage errors.
 2. ``run_subtask_impl(fork=True, ...)`` passes the aligned materials through
    to ``SubTaskAgent`` and seeds the sub-agent's session with the parent's
-   effective messages.
+    effective messages.
 3. The ``run_subtask`` tool function's recursion guard rejects execution
    when ``CodeAgentContext.is_subagent`` is True.
 4. The ``run_subtask`` tool function's ``async_mode`` path schedules a
@@ -162,7 +162,6 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         # The parent's effective context must have been seeded into the
         # session object passed to Runner.run_streamed.
         _, run_streamed_kwargs = mock_run_streamed.call_args
-        # This distribution runs sub-agent contexts in non-interactive mode.
         self.assertFalse(run_streamed_kwargs["context"].interactive_mode)
         seeded_session = run_streamed_kwargs["session"]
         items = await seeded_session.get_items()
@@ -200,7 +199,6 @@ class TestRunSubtaskImplForkWiring(unittest.IsolatedAsyncioTestCase):
         _, kwargs = mock_subtask_agent_cls.call_args
         self.assertIsNone(kwargs["fork_tools"])
         self.assertIsNone(kwargs["fork_instructions"])
-        # Sub-agent runs stay non-interactive with or without a fork payload.
         self.assertFalse(mock_run_streamed.call_args.kwargs["context"].interactive_mode)
 
 
@@ -209,11 +207,21 @@ class TestCloneContextForSubagent(unittest.TestCase):
         parent_ctx = CodeAgentContext(root_dir="/tmp", is_subagent=False)
         clone = _clone_context_for_subagent(parent_ctx)
         self.assertTrue(clone.is_subagent)
-        # Sub-agent contexts stay non-interactive in this distribution.
         self.assertFalse(clone.interactive_mode)
         self.assertTrue(parent_ctx.interactive_mode)
         self.assertEqual(clone.root_dir, "/tmp")
-        self.assertIsNone(clone.bound_session_id)
+
+    def test_clone_stays_non_interactive_for_non_interactive_parent(self):
+        for recursive_enabled in (False, True):
+            with self.subTest(recursive_enabled=recursive_enabled):
+                parent_ctx = CodeAgentContext(
+                    root_dir="/tmp",
+                    interactive_mode=False,
+                    allow_recursive_subagents=recursive_enabled,
+                )
+                clone = _clone_context_for_subagent(parent_ctx)
+                self.assertFalse(clone.interactive_mode)
+                self.assertFalse(parent_ctx.interactive_mode)
 
     def test_clone_defaults_to_depth_1_with_no_self_id(self):
         parent_ctx = CodeAgentContext(root_dir="/tmp")

@@ -66,7 +66,7 @@ export interface TodoItem {
 export interface SubAgentItem {
   id: string;
   title: string;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
   summary?: string;
 }
 
@@ -85,6 +85,10 @@ export interface TodoMessageRange {
 }
 
 export interface GoalResult {
+  id?: string;
+  timestamp?: string;
+  outcome?: 'achieved' | 'not_achieved' | 'blocked' | 'system_error';
+  continuing?: boolean;
   achieved: boolean;
   elapsedSeconds: number;
   turns: number;
@@ -98,17 +102,18 @@ export interface GoalState {
   goal: {
     objective: string;
     status: 'active' | 'paused' | 'blocked' | 'complete';
-    /**
-     * ISO-8601 'Z'-suffixed timestamp (backend's Goal.created_at) — used by
-     * GoalStatusBar to render a live "Nm Ns" elapsed-time counter next to
-     * the status label. Optional so older backends / stale pushes without
-     * it still degrade gracefully (timer just doesn't render).
-     */
+    /** Goal creation time; also supports elapsed time from older backends. */
     createdAt?: string;
+    /** Latest lifecycle update, used to freeze legacy stopped goals. */
+    updatedAt?: string;
+    /** Accumulated active duration at elapsedUpdatedAt, including verification. */
+    elapsedSeconds?: number;
+    /** Snapshot timestamp; only active goals extrapolate elapsed time from it. */
+    elapsedUpdatedAt?: string;
     /**
      * Total verifier rounds run so far against this goal (backend's
-     * Goal.turns), ticking up in real time as each verification round
-     * completes — see push_goal_state_via_acp. Optional so older backends /
+     * Goal.turns), ticking up as each verification round starts.
+     * Optional so older backends /
      * stale pushes without it still degrade gracefully (turn count just
      * doesn't render).
      */
@@ -122,11 +127,15 @@ export interface GoalState {
    * effect that turns this into a persistent collapsible "Goal achieved /
    * not yet achieved" chat message. */
   result?: GoalResult;
+  /** Durable latest verdict, also included while a new check is running. */
+  latestResult?: GoalResult;
+  /** Replayed verification records on session restoration. */
+  results?: GoalResult[];
 }
 
 
 export type LoginState =
-  | { phase: 'selecting'; providers?: Record<string, unknown>[]; cancelable?: boolean; liidDisabled?: boolean; requestId?: string }
+  | { phase: 'selecting'; providers?: Record<string, unknown>[]; freeTrialModels?: import('../../components/Login/LoginSelector.js').ModelInfo[]; cancelable?: boolean; liidDisabled?: boolean; requestId?: string }
   | { phase: 'waiting'; url: string; openBrowser: boolean }
   | null;
 
@@ -137,6 +146,8 @@ export interface UseACPResult {
   messages: Message[];
   connectionStatus: ConnectionStatus;
   loading: boolean;
+  /** Startup history and restored state have finished arriving. */
+  startupComplete: boolean;
   /** Current agent activity step while loading (reasoning / tool execution /
    * system processing / compaction) — drives the thinking indicator label. */
   activeStep: ThinkingStep | null;

@@ -29,6 +29,7 @@ class UserModelConfig:
     # Default reasoning effort level for models that support reasoning_effort.
     # Valid values: "low", "medium", "high".
     default_reasoning_effort: Optional[str] = None
+    effort_choices: Optional[List[str]] = None
 
     # Optional pricing overrides (CNY per million tokens). Lets users
     # configure cost for self-hosted / custom models that aren't in the
@@ -52,6 +53,7 @@ class UserModelConfig:
             parallel_tool_calls=data.get('parallel_tool_calls'),
             default_thinking_tokens=data.get('default_thinking_tokens'),
             default_reasoning_effort=data.get('default_reasoning_effort'),
+            effort_choices=data.get('effort_choices'),
             input_price=data.get('input_price'),
             output_price=data.get('output_price'),
             cache_write_price=data.get('cache_write_price'),
@@ -73,6 +75,10 @@ class UserModelConfig:
             result['parallel_tool_calls'] = self.parallel_tool_calls
         if self.default_thinking_tokens is not None:
             result['default_thinking_tokens'] = self.default_thinking_tokens
+        if self.default_reasoning_effort is not None:
+            result['default_reasoning_effort'] = self.default_reasoning_effort
+        if self.effort_choices is not None:
+            result['effort_choices'] = self.effort_choices
         if self.input_price is not None:
             result['input_price'] = self.input_price
         if self.output_price is not None:
@@ -133,29 +139,19 @@ def load_user_model_config(config_path: Optional[Path] = None) -> Optional[Model
             with open(config_path, 'r', encoding='utf-8') as file:
                 data = json.load(file)
                 return ModelCollectionConfig.from_dict(data)
-    except json.JSONDecodeError as exc:
-        _report_model_config_error(
-            "Warning: models.json has invalid JSON "
-            f"at line {exc.lineno}, column {exc.colno}; using built-in models."
-        )
-    except Exception:
-        _report_model_config_error(
-            "Warning: models.json could not be loaded; using built-in models."
-        )
+    except Exception as error:
+        # Parser messages may include configuration values and must not use stdout.
+        message = f"Warning: Could not load models.json ({type(error).__name__})."
+        print(message, file=sys.stderr)
+        try:
+            io = InputOutput.get_instance()
+            adapter = getattr(io, "acp_adapter", None)
+            if adapter:
+                adapter.error(message)
+        except Exception:
+            pass
     
     return None
-
-
-def _report_model_config_error(message: str) -> None:
-    """Report safe diagnostics without writing text to ACP protocol stdout."""
-    print(message, file=sys.stderr)
-    try:
-        io = InputOutput.get_instance()
-        adapter = getattr(io, "acp_adapter", None)
-        if adapter:
-            adapter.error(message)
-    except Exception:
-        pass
 
 
 def create_example_model_config(config_path: Optional[Path] = None) -> None:

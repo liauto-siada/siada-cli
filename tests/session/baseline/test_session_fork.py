@@ -132,12 +132,44 @@ async def test_failed_fork_leaves_no_discoverable_session(baseline, monkeypatch,
             store.session_folder, source.session_id,
             [{"role": "user", "content": "summary without a boundary"}],
         )
+        snapshot = store.session_folder / "api_messages.json"
+        data = json.loads(snapshot.read_bytes())
+        data["api_messages"] = None
+        write_json(snapshot, data)
     before = {p.name: p.read_bytes() for p in store.session_folder.glob("*.json")}
     with pytest.raises((OSError, ValueError, SessionStorageError)):
         manager.fork_session(source.session_id)
     assert [s.session_id for s in manager.list_sessions()] == [source.session_id]
     assert before == {p.name: p.read_bytes() for p in store.session_folder.glob("*.json")}
     assert not list(manager.sessions_dir.parent.glob(".session-fork-*"))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_fork_rebuilds_untrusted_legacy_boundary_without_changing_source(baseline, stream):
+    source = baseline.session()
+    store = source.openai_session
+    history = [{"role": "user", "content": "original"}, {"role": "assistant", "content": "latest reply"}]
+    await store.add_items(history)
+    SessionManager.sync_api_messages(
+        store.session_folder, source.session_id, [{"role": "user", "content": "untrusted summary"}],
+        last_index=0, last_signature="wrong",
+    )
+    before = {p.name: p.read_bytes() for p in store.session_folder.glob("*.json")}
+    data = manager_for(source).fork_session(source.session_id)
+    assert data.context_snapshot["items"] == history
+    assert data.context_snapshot["migration_source"] == "legacy_history_fallback"
+    assert data.context_snapshot["migration_fallback_reason"] == "snapshot_signature_mismatch"
+    fork = baseline.session("target")
+    ResumeService(source.siada_config.workspace).restore_to_running_session(data, fork)
+    from test_default_context_cutover import run_default
+
+    model = baseline.model(fork, [[baseline.text("fork answer")]])
+    await run_default(baseline, fork, model, stream=stream, input="continue")
+    assert model.requests[0]["input"] == history + [{"role": "user", "content": "continue"}]
+    assert not store.has_prepared_context
+    assert before == {p.name: p.read_bytes() for p in store.session_folder.glob("*.json")}
+    assert not list(store.sessions_dir.parent.glob(".session-fork-*"))
 
 
 @pytest.mark.asyncio
